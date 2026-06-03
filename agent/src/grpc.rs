@@ -131,7 +131,7 @@ impl HostAgent for AgentService {
         Ok(Response::new(ListStoragePoolsResponse {
             pools: pools
                 .into_iter()
-                .map(|(p, path)| StoragePoolSummary {
+                .map(|(p, path, backend)| StoragePoolSummary {
                     name: p.name,
                     uuid: p.uuid,
                     state: p.state,
@@ -140,6 +140,7 @@ impl HostAgent for AgentService {
                     available_gib: p.available_gb,
                     autostart: p.autostart,
                     path,
+                    backend,
                 })
                 .collect(),
         }))
@@ -203,6 +204,23 @@ impl HostAgent for AgentService {
             vm_name: req.vm_name,
             state,
         }))
+    }
+
+    async fn get_domain_xml(
+        &self,
+        request: Request<GetDomainXmlRequest>,
+    ) -> Result<Response<GetDomainXmlResponse>, Status> {
+        let req = request.into_inner();
+        let libvirt = self.libvirt.clone();
+        let vm_name = req.vm_name.clone();
+        let xml = tokio::task::spawn_blocking(move || {
+            let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
+            ctx.get_domain_xml(&vm_name)
+        })
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?
+        .map_err(|e| Status::internal(e.to_string()))?;
+        Ok(Response::new(GetDomainXmlResponse { xml }))
     }
 
     async fn delete_vm(
@@ -274,14 +292,10 @@ impl HostAgent for AgentService {
         let libvirt = self.libvirt.clone();
         let source = req.source_name.clone();
         let new_name = req.new_name.clone();
+        let clone_mode = req.clone_mode.clone();
         let (vm_name, uuid) = tokio::task::spawn_blocking(move || {
             let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
-            ctx.clone_vm(&source, &new_name)?;
-            let dom = virt::domain::Domain::lookup_by_name(&ctx.conn, &new_name)
-                .map_err(|e| machina_core::LibvirtError::Operation(e.to_string()))?;
-            let uuid = dom
-                .get_uuid_string()
-                .map_err(|e| machina_core::LibvirtError::Operation(e.to_string()))?;
+            let uuid = ctx.clone_vm(&source, &new_name, &clone_mode)?;
             Ok::<_, machina_core::LibvirtError>((new_name, uuid))
         })
         .await
@@ -403,10 +417,13 @@ impl HostAgent for AgentService {
         let vm_name = req.vm_name.clone();
         let snap_name = req.snapshot_name.clone();
         let desc = req.description.clone();
+        let disk_only = req.disk_only;
+        let quiesce = req.quiesce;
+        let storage_mode = req.storage_mode.clone();
         let snap_out = snap_name.clone();
         match tokio::task::spawn_blocking(move || {
             let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
-            ctx.create_snapshot(&vm_name, &snap_name, &desc)?;
+            ctx.create_snapshot(&vm_name, &snap_name, &desc, disk_only, quiesce, &storage_mode)?;
             let dom = virt::domain::Domain::lookup_by_name(&ctx.conn, &vm_name)
                 .map_err(|e| machina_core::LibvirtError::Operation(e.to_string()))?;
             let xml = dom
@@ -1015,5 +1032,121 @@ impl HostAgent for AgentService {
             })),
             Err(e) => Err(Status::internal(e.to_string())),
         }
+    }
+
+    async fn list_port_forwards(
+        &self,
+        _request: Request<ListPortForwardsRequest>,
+    ) -> Result<Response<ListPortForwardsResponse>, Status> {
+        match tokio::task::spawn_blocking(machina_core::libvirt::host_network::list_port_forwards).await
+        {
+            Ok(Ok(rules)) => {
+                let rules = rules
+                    .into_iter()
+                    .map(|r| PortForwardRuleMsg {
+                        id: r.id,
+                        protocol: r.protocol,
+                        host_port: r.host_port as u32,
+                        vm_ip: r.vm_ip,
+                        vm_port: r.vm_port as u32,
+                        description: r.description,
+                    })
+                    .collect();
+                Ok(Response::new(ListPortForwardsResponse {
+                    rules,
+                    message: String::new(),
+                }))
+            }
+            Ok(Err(e)) => Ok(Response::new(ListPortForwardsResponse {
+                rules: vec![],
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn create_port_forward(
+        &self,
+        request: Request<CreatePortForwardRequest>,
+    ) -> Result<Response<CreatePortForwardResponse>, Status> {
+        let req = request.into_inner();
+        let core_req = machina_core::libvirt::host_network::CreatePortForwardRequest {
+            protocol: req.protocol,
+            host_port: req.host_port as u16,
+            vm_ip: req.vm_ip,
+            vm_port: req.vm_port as u16,
+            description: req.description,
+        };
+        match tokio::task::spawn_blocking(move || {
+            machina_core::libvirt::host_network::create_port_forward(&core_req)
+        })
+        .await
+        {
+            Ok(Ok(())) => Ok(Response::new(CreatePortForwardResponse {
+                ok: true,
+                message: String::new(),
+            })),
+            Ok(Err(e)) => Ok(Response::new(CreatePortForwardResponse {
+                ok: false,
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn delete_port_forward(
+        &self,
+        request: Request<DeletePortForwardRequest>,
+    ) -> Result<Response<DeletePortForwardResponse>, Status> {
+        let req = request.into_inner();
+        match tokio::task::spawn_blocking(move || {
+            machina_core::libvirt::host_network::delete_port_forward(
+                &req.protocol,
+                req.host_port as u16,
+                &req.vm_ip,
+                req.vm_port as u16,
+            )
+        })
+        .await
+        {
+            Ok(Ok(())) => Ok(Response::new(DeletePortForwardResponse {
+                ok: true,
+                message: String::new(),
+            })),
+            Ok(Err(e)) => Ok(Response::new(DeletePortForwardResponse {
+                ok: false,
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn list_host_gpus(
+        &self,
+        _request: Request<ListHostGpusRequest>,
+    ) -> Result<Response<ListHostGpusResponse>, Status> {
+        let gpus = self
+            .libvirt_call(|ctx| ctx.list_host_gpus())
+            .await?;
+        let nvidia_smi_summary = std::process::Command::new("nvidia-smi")
+            .arg("-L")
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .unwrap_or_default();
+        Ok(Response::new(ListHostGpusResponse {
+            devices: gpus
+                .into_iter()
+                .map(|(pci, vendor, name, group, mig)| HostGpuDevice {
+                    pci_address: pci,
+                    vendor,
+                    device_name: name,
+                    iommu_group: group,
+                    mig_profile: mig,
+                })
+                .collect(),
+            nvidia_smi_summary,
+        }))
     }
 }

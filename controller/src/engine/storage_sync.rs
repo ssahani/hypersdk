@@ -23,10 +23,16 @@ pub async fn sync_host_storage(pool: &PgPool, host_id: Uuid, agent_addr: &str) -
         let path = if sp.path.is_empty() { None } else { Some(sp.path) };
         let capacity_gib = sp.capacity_gib.round() as i64;
         let used_gib = sp.used_gib.round() as i64;
+        let backend = if sp.backend.is_empty() {
+            "directory"
+        } else {
+            sp.backend.as_str()
+        };
         let result = sqlx::query(
             "INSERT INTO storage_pools (id, cluster_id, name, storage_class, backend, path, capacity_gib, used_gib)
-             VALUES ($1, $2, $3, 'silver', 'directory', $4, $5, $6)
+             VALUES ($1, $2, $3, 'silver', $4, $5, $6, $7)
              ON CONFLICT (cluster_id, name) DO UPDATE SET
+               backend = EXCLUDED.backend,
                path = COALESCE(EXCLUDED.path, storage_pools.path),
                capacity_gib = CASE WHEN EXCLUDED.capacity_gib > 0 THEN EXCLUDED.capacity_gib ELSE storage_pools.capacity_gib END,
                used_gib = CASE WHEN EXCLUDED.used_gib > 0 THEN EXCLUDED.used_gib ELSE storage_pools.used_gib END",
@@ -34,6 +40,7 @@ pub async fn sync_host_storage(pool: &PgPool, host_id: Uuid, agent_addr: &str) -
         .bind(Uuid::new_v4())
         .bind(cluster_id)
         .bind(&sp.name)
+        .bind(backend)
         .bind(&path)
         .bind(capacity_gib)
         .bind(used_gib)

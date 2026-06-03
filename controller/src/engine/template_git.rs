@@ -1,0 +1,80 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+//! Optional git-backed template sync from `MACHINA_TEMPLATES_GIT_DIR` (`*.json` manifests).
+
+use std::path::Path;
+
+use serde::Deserialize;
+use sqlx::PgPool;
+use uuid::Uuid;
+
+#[derive(Debug, Deserialize)]
+struct GitTemplateManifest {
+    name: String,
+    version: String,
+    source_disk: String,
+    #[serde(default)]
+    cloud_init: bool,
+    #[serde(default)]
+    os_family: Option<String>,
+    #[serde(default = "default_category")]
+    category: String,
+    #[serde(default)]
+    workload: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    git_ref: String,
+}
+
+fn default_category() -> String {
+    "Linux".into()
+}
+
+/// Scan `dir/*.json` and upsert into `templates` with `git_ref` set.
+pub async fn sync_templates_from_git(pool: &PgPool, dir: &Path) -> anyhow::Result<usize> {
+    let mut synced = 0usize;
+    if !dir.is_dir() {
+        anyhow::bail!("templates git dir not found: {}", dir.display());
+    }
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let raw = std::fs::read_to_string(&path)?;
+        let m: GitTemplateManifest = serde_json::from_str(&raw)?;
+        let git_ref = if m.git_ref.is_empty() {
+            path.file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string()
+        } else {
+            m.git_ref
+        };
+        sqlx::query(
+            "INSERT INTO templates (id, name, version, source_disk, cloud_init, os_family, category, workload, description, featured, marketplace, git_ref, approval_status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, FALSE, TRUE, $10, 'approved')
+             ON CONFLICT (name, version) DO UPDATE SET
+               source_disk = EXCLUDED.source_disk,
+               workload = EXCLUDED.workload,
+               description = EXCLUDED.description,
+               git_ref = EXCLUDED.git_ref",
+        )
+        .bind(Uuid::new_v4())
+        .bind(&m.name)
+        .bind(&m.version)
+        .bind(&m.source_disk)
+        .bind(m.cloud_init)
+        .bind(&m.os_family)
+        .bind(&m.category)
+        .bind(&m.workload)
+        .bind(&m.description)
+        .bind(&git_ref)
+        .execute(pool)
+        .await?;
+        synced += 1;
+    }
+    Ok(synced)
+}

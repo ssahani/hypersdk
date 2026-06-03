@@ -155,13 +155,22 @@ pub async fn list_alerts(
     Ok(Json(rows))
 }
 
+pub async fn get_alert(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<SocAlertDetail>, ApiError> {
+    require_operator(&actor)?;
+    build_alert_detail(&state.pool, id).await
+}
+
 pub async fn patch_alert(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<PatchAlertBody>,
 ) -> Result<Json<SocAlertRow>, ApiError> {
-    require_admin(&actor)?;
+    require_operator(&actor)?;
     if let Some(status) = &body.status {
         sqlx::query("UPDATE soc_alerts SET status = $2, updated_at = NOW() WHERE id = $1")
             .bind(id)
@@ -459,6 +468,99 @@ pub struct PlaybookRow {
     pub description: String,
     pub enabled: bool,
     pub trigger_json: Value,
+    pub steps_json: Value,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpsertPlaybookBody {
+    pub name: String,
+    pub description: Option<String>,
+    pub enabled: Option<bool>,
+    pub trigger_json: Option<Value>,
+    pub steps_json: Option<Value>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PatchPlaybookBody {
+    pub description: Option<String>,
+    pub enabled: Option<bool>,
+    pub trigger_json: Option<Value>,
+    pub steps_json: Option<Value>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SocSettingsPublic {
+    pub webhook_url: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PatchSocSettingsBody {
+    pub webhook_url: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MitreTag {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct SocEventDetailRow {
+    pub id: Uuid,
+    pub occurred_at: DateTime<Utc>,
+    pub source: String,
+    pub category: String,
+    pub severity: String,
+    pub summary: String,
+    pub ecs_json: Value,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+struct AlertDetailDbRow {
+    id: Uuid,
+    rule_id: Option<Uuid>,
+    title: String,
+    severity: String,
+    status: String,
+    assigned_to: Option<String>,
+    first_seen: DateTime<Utc>,
+    last_seen: DateTime<Utc>,
+    event_count: i32,
+    dedupe_key: String,
+    event_ids: Value,
+    detail_json: Value,
+    rule_name: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SocAlertDetail {
+    pub id: Uuid,
+    pub rule_id: Option<Uuid>,
+    pub rule_name: Option<String>,
+    pub title: String,
+    pub severity: String,
+    pub status: String,
+    pub assigned_to: Option<String>,
+    pub first_seen: DateTime<Utc>,
+    pub last_seen: DateTime<Utc>,
+    pub event_count: i32,
+    pub dedupe_key: String,
+    pub detail_json: Value,
+    pub mitre_tags: Vec<MitreTag>,
+    pub linked_events: Vec<SocEventDetailRow>,
+    pub playbook_runs: Vec<PlaybookRunDetailRow>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct PlaybookRunDetailRow {
+    pub id: Uuid,
+    pub playbook_id: Uuid,
+    pub playbook_name: Option<String>,
+    pub status: String,
+    pub started_at: DateTime<Utc>,
+    pub finished_at: Option<DateTime<Utc>>,
+    pub step_results: Value,
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -488,11 +590,140 @@ pub async fn list_playbooks(
 ) -> Result<Json<Vec<PlaybookRow>>, ApiError> {
     require_operator(&actor)?;
     let rows = sqlx::query_as::<_, PlaybookRow>(
-        "SELECT id, name, description, enabled, trigger_json FROM soc_playbooks ORDER BY name",
+        "SELECT id, name, description, enabled, trigger_json, steps_json FROM soc_playbooks ORDER BY name",
     )
     .fetch_all(&state.pool)
     .await?;
     Ok(Json(rows))
+}
+
+pub async fn get_playbook(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<PlaybookRow>, ApiError> {
+    require_operator(&actor)?;
+    fetch_playbook(&state.pool, id).await
+}
+
+pub async fn create_playbook(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Json(body): Json<UpsertPlaybookBody>,
+) -> Result<Json<PlaybookRow>, ApiError> {
+    require_admin(&actor)?;
+    let id = Uuid::new_v4();
+    let steps = body.steps_json.unwrap_or_else(|| serde_json::json!([]));
+    let trigger = body
+        .trigger_json
+        .unwrap_or_else(|| serde_json::json!({ "min_severity": "medium", "rule_names": [] }));
+    sqlx::query(
+        "INSERT INTO soc_playbooks (id, name, description, enabled, trigger_json, steps_json)
+         VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(id)
+    .bind(&body.name)
+    .bind(body.description.as_deref().unwrap_or(""))
+    .bind(body.enabled.unwrap_or(true))
+    .bind(trigger)
+    .bind(steps)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| {
+        if e.to_string().contains("unique") {
+            ApiError::bad_request("playbook name already exists")
+        } else {
+            ApiError::internal(e.to_string())
+        }
+    })?;
+    fetch_playbook(&state.pool, id).await
+}
+
+pub async fn patch_playbook(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<PatchPlaybookBody>,
+) -> Result<Json<PlaybookRow>, ApiError> {
+    require_admin(&actor)?;
+    if let Some(desc) = &body.description {
+        sqlx::query("UPDATE soc_playbooks SET description = $2, updated_at = NOW() WHERE id = $1")
+            .bind(id)
+            .bind(desc)
+            .execute(&state.pool)
+            .await?;
+    }
+    if let Some(enabled) = body.enabled {
+        sqlx::query("UPDATE soc_playbooks SET enabled = $2, updated_at = NOW() WHERE id = $1")
+            .bind(id)
+            .bind(enabled)
+            .execute(&state.pool)
+            .await?;
+    }
+    if let Some(trigger) = &body.trigger_json {
+        sqlx::query("UPDATE soc_playbooks SET trigger_json = $2, updated_at = NOW() WHERE id = $1")
+            .bind(id)
+            .bind(trigger)
+            .execute(&state.pool)
+            .await?;
+    }
+    if let Some(steps) = &body.steps_json {
+        sqlx::query("UPDATE soc_playbooks SET steps_json = $2, updated_at = NOW() WHERE id = $1")
+            .bind(id)
+            .bind(steps)
+            .execute(&state.pool)
+            .await?;
+    }
+    fetch_playbook(&state.pool, id).await
+}
+
+pub async fn delete_playbook(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Value>, ApiError> {
+    require_admin(&actor)?;
+    let name: String = sqlx::query_scalar("SELECT name FROM soc_playbooks WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|_| ApiError::not_found("playbook not found"))?;
+    if name == "notify_on_critical" {
+        return Err(ApiError::bad_request("built-in playbook cannot be deleted"));
+    }
+    sqlx::query("DELETE FROM soc_playbooks WHERE id = $1")
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
+    Ok(Json(serde_json::json!({ "deleted": true })))
+}
+
+pub async fn get_soc_settings(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<SocSettingsPublic>, ApiError> {
+    require_operator(&actor)?;
+    let url = load_soc_webhook_url(&state.pool).await;
+    Ok(Json(SocSettingsPublic { webhook_url: url }))
+}
+
+pub async fn patch_soc_settings(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Json(body): Json<PatchSocSettingsBody>,
+) -> Result<Json<SocSettingsPublic>, ApiError> {
+    require_admin(&actor)?;
+    if let Some(url) = body.webhook_url {
+        sqlx::query(
+            "INSERT INTO soc_settings (id, webhook_url, updated_at) VALUES (1, $1, NOW())
+             ON CONFLICT (id) DO UPDATE SET webhook_url = EXCLUDED.webhook_url, updated_at = NOW()",
+        )
+        .bind(url.trim())
+        .execute(&state.pool)
+        .await?;
+    }
+    let url = load_soc_webhook_url(&state.pool).await;
+    Ok(Json(SocSettingsPublic { webhook_url: url }))
 }
 
 pub async fn list_playbook_runs(
@@ -605,6 +836,152 @@ fn redact_integration_config(cfg: &Value) -> Value {
         }
     }
     cfg
+}
+
+async fn fetch_playbook(pool: &PgPool, id: Uuid) -> Result<Json<PlaybookRow>, ApiError> {
+    sqlx::query_as::<_, PlaybookRow>(
+        "SELECT id, name, description, enabled, trigger_json, steps_json FROM soc_playbooks WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .map(Json)
+    .map_err(|_| ApiError::not_found("playbook not found"))
+}
+
+async fn load_soc_webhook_url(pool: &PgPool) -> String {
+    if let Ok(url) = sqlx::query_scalar::<_, String>("SELECT webhook_url FROM soc_settings WHERE id = 1")
+        .fetch_one(pool)
+        .await
+    {
+        let url = url.trim().to_string();
+        if !url.is_empty() {
+            return url;
+        }
+    }
+    std::env::var("MACHINA_SOC_WEBHOOK_URL").unwrap_or_default()
+}
+
+async fn build_alert_detail(pool: &PgPool, id: Uuid) -> Result<Json<SocAlertDetail>, ApiError> {
+    let row: AlertDetailDbRow = sqlx::query_as(
+        "SELECT a.id, a.rule_id, a.title, a.severity, a.status, a.assigned_to, a.first_seen, a.last_seen,
+                a.event_count, a.dedupe_key, a.event_ids, a.detail_json, r.name AS rule_name
+         FROM soc_alerts a
+         LEFT JOIN soc_detection_rules r ON r.id = a.rule_id
+         WHERE a.id = $1",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .map_err(|_| ApiError::not_found("alert not found"))?;
+
+    let event_ids: Vec<Uuid> = serde_json::from_value(row.event_ids.clone()).unwrap_or_default();
+    let linked_events = if event_ids.is_empty() {
+        vec![]
+    } else {
+        sqlx::query_as::<_, SocEventDetailRow>(
+            "SELECT id, occurred_at, source, category, severity, summary, ecs_json
+             FROM soc_events WHERE id = ANY($1) ORDER BY occurred_at DESC LIMIT 50",
+        )
+        .bind(&event_ids)
+        .fetch_all(pool)
+        .await?
+    };
+
+    let mut mitre_tags = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for ev in &linked_events {
+        for tag in extract_mitre_tags(&ev.ecs_json) {
+            let key = format!("{}:{}", tag.id, tag.name);
+            if seen.insert(key) {
+                mitre_tags.push(tag);
+            }
+        }
+    }
+
+    let playbook_runs: Vec<PlaybookRunDetailRow> = sqlx::query_as(
+        "SELECT r.id, r.playbook_id, p.name AS playbook_name, r.status, r.started_at, r.finished_at,
+                r.step_results, r.error
+         FROM soc_playbook_runs r
+         LEFT JOIN soc_playbooks p ON p.id = r.playbook_id
+         WHERE r.alert_id = $1
+         ORDER BY r.started_at DESC LIMIT 20",
+    )
+    .bind(id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(Json(SocAlertDetail {
+        id: row.id,
+        rule_id: row.rule_id,
+        rule_name: row.rule_name,
+        title: row.title,
+        severity: row.severity,
+        status: row.status,
+        assigned_to: row.assigned_to,
+        first_seen: row.first_seen,
+        last_seen: row.last_seen,
+        event_count: row.event_count,
+        dedupe_key: row.dedupe_key,
+        detail_json: row.detail_json,
+        mitre_tags,
+        linked_events,
+        playbook_runs,
+    }))
+}
+
+fn extract_mitre_tags(ecs: &Value) -> Vec<MitreTag> {
+    let mut out = Vec::new();
+    if let Some(id) = ecs
+        .pointer("/threat/technique/id")
+        .or_else(|| ecs.pointer("/threat/technique/0/id"))
+        .and_then(|v| v.as_str())
+    {
+        let name = ecs
+            .pointer("/threat/technique/name")
+            .or_else(|| ecs.pointer("/threat/technique/0/name"))
+            .and_then(|v| v.as_str())
+            .unwrap_or(id);
+        out.push(MitreTag {
+            id: id.to_string(),
+            name: name.to_string(),
+        });
+    }
+    if let Some(arr) = ecs.get("machina").and_then(|m| m.get("mitre")).and_then(|v| v.as_array()) {
+        for item in arr {
+            if let Some(s) = item.as_str() {
+                out.push(MitreTag {
+                    id: s.to_string(),
+                    name: s.to_string(),
+                });
+            } else if let Some(id) = item.get("id").and_then(|v| v.as_str()) {
+                let name = item
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(id);
+                out.push(MitreTag {
+                    id: id.to_string(),
+                    name: name.to_string(),
+                });
+            }
+        }
+    }
+    if let Some(tags) = ecs
+        .pointer("/rule/tags")
+        .and_then(|v| v.as_array())
+    {
+        for tag in tags {
+            if let Some(s) = tag.as_str() {
+                if s.starts_with("attack.") || s.contains("T") {
+                    out.push(MitreTag {
+                        id: s.to_string(),
+                        name: s.to_string(),
+                    });
+                }
+            }
+        }
+    }
+    out
 }
 
 async fn splunk_integration_id(pool: &PgPool) -> Result<Uuid, ApiError> {

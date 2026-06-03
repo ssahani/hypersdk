@@ -16,6 +16,27 @@ fn lookup_pool(conn: &Connect, name: &str) -> Result<StoragePool, LibvirtError> 
         .map_err(|e| LibvirtError::NotFound(format!("Pool '{name}' not found: {e}")))
 }
 
+/// Map libvirt pool XML to platform backend label (`dir`, `nfs`, `logical`, `iscsi`, `zfs`, …).
+pub fn storage_pool_backend_from_xml(xml: &str) -> String {
+    let lower = xml.to_ascii_lowercase();
+    if lower.contains("<pool type='netfs'") || lower.contains("type=\"netfs\"") {
+        return "nfs".into();
+    }
+    if lower.contains("<pool type='logical'") || lower.contains("type=\"logical\"") {
+        return "lvm".into();
+    }
+    if lower.contains("<pool type='iscsi'") || lower.contains("type=\"iscsi\"") {
+        return "iscsi".into();
+    }
+    if lower.contains("<pool type='rbd'") || lower.contains("type=\"rbd\"") {
+        return "ceph".into();
+    }
+    if lower.contains("<pool type='zfs'") || lower.contains("type=\"zfs\"") {
+        return "zfs".into();
+    }
+    "directory".into()
+}
+
 /// Extract `<target>…</path>…` from libvirt storage pool XML (`<path` may include attributes).
 pub fn target_path_from_pool_xml(xml: &str) -> Option<String> {
     let lower = xml.to_ascii_lowercase();

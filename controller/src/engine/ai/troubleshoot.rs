@@ -147,11 +147,33 @@ pub async fn diagnose(pool: &PgPool, req: &TroubleshootRequest) -> anyhow::Resul
         .fetch_one(pool)
         .await
         .unwrap_or(0);
+    let disk_io: Option<(i64, i64)> = sqlx::query_as(
+        "SELECT disk_read_iops, disk_write_iops FROM vm_metrics WHERE vm_id = $1",
+    )
+    .bind(vid)
+    .fetch_optional(pool)
+    .await?;
+    let disk_detail = match disk_io {
+        Some((r, w)) if r + w > 5000 => format!(
+            "{disk_count} disk(s); high I/O ({r} read / {w} write IOPS) — check storage pool latency"
+        ),
+        Some((r, w)) => format!("{disk_count} disk(s); {r} read / {w} write IOPS"),
+        None => format!("{disk_count} attached disk(s) — no recent disk metrics"),
+    };
     checks.push(CheckResult {
         domain: "disk".into(),
         status: if disk_count > 0 { "ok" } else { "warn" }.into(),
-        detail: format!("{disk_count} attached disk(s) — monitor pool latency on host"),
+        detail: disk_detail,
     });
+    if let Some((r, w)) = disk_io {
+        if r + w > 8000 {
+            findings.push(Finding {
+                severity: "medium".into(),
+                message: "Disk I/O saturation — correlate with PacketWolf flows and pool backend".into(),
+                domain: "disk".into(),
+            });
+        }
+    }
 
     // Host pressure
     if let Some(hid) = host_id {

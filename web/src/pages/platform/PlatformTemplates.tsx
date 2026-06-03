@@ -1,8 +1,9 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { AlertTriangle, CheckCircle2, Layers, Loader2, Package, Plus, RefreshCw, Sparkles, Star, Puzzle } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Layers, Loader2, Package, Plus, RefreshCw, Sparkles, Star, Puzzle, Upload } from 'lucide-react'
+import { readSshPubkeyFile } from '../../utils/sshPubkeyImport'
 import DetailTabs from '../../components/platform/DetailTabs'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import { usePlatformTabState } from '../../hooks/usePlatformTabState'
@@ -75,6 +76,7 @@ export default function PlatformTemplates() {
   const [cloudUser, setCloudUser] = useState('ubuntu')
   const [cloudPass, setCloudPass] = useState('')
   const [cloudKey, setCloudKey] = useState('')
+  const cloudKeyFileRef = useRef<HTMLInputElement>(null)
   const [deploying, setDeploying] = useState(false)
   const [readiness, setReadiness] = useState<{
     ready: boolean
@@ -366,8 +368,29 @@ export default function PlatformTemplates() {
                 </label>
                 <label className="block text-sm">
                   <span className="text-slate-400">SSH public key (optional)</span>
-                  <input className="input w-full mt-1" value={cloudKey} onChange={(e) => setCloudKey(e.target.value)} />
+                  <textarea
+                    className="input w-full mt-1 font-mono text-xs min-h-[4rem]"
+                    placeholder="ssh-ed25519 AAAA… user@host"
+                    value={cloudKey}
+                    onChange={(e) => setCloudKey(e.target.value)}
+                  />
                 </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    ref={cloudKeyFileRef}
+                    type="file"
+                    accept=".pub,text/plain"
+                    className="hidden"
+                    onChange={(e) => readSshPubkeyFile(e.target.files?.[0], setCloudKey)}
+                  />
+                  <button
+                    type="button"
+                    className="btn-secondary text-xs inline-flex items-center gap-1"
+                    onClick={() => cloudKeyFileRef.current?.click()}
+                  >
+                    <Upload className="w-3 h-3" /> Import public key (.pub)
+                  </button>
+                </div>
               </>
             )}
             <button type="button" className="btn-primary w-full flex items-center justify-center gap-2" disabled={deploying || readinessLoading || (readiness != null && !readiness.ready)} onClick={() => void deploy(deploySheet, deployName)}>

@@ -174,6 +174,7 @@ impl DaemonClient {
     pub async fn clone_vm(&self, source: &str, new_name: &str) -> Result<()> {
         let req = CloneVmRequest {
             new_name: new_name.to_string(),
+            clone_mode: "linked".into(),
         };
         self.post_json(&format!("/api/v1/vms/{source}/clone"), &req)
             .await
@@ -291,6 +292,7 @@ impl DaemonClient {
             disks: Vec::new(),
             atomic: true,
             reuse_external: false,
+            quiesce: false,
         };
         self.post_json(&format!("/api/v1/vms/{vm_name}/snapshots"), &req)
             .await

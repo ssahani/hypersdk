@@ -1,7 +1,8 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ChevronDown, ChevronUp, Upload } from 'lucide-react'
+import { readSshPubkeyFile } from '../../utils/sshPubkeyImport'
 
 export interface VmWizardInitial {
   name?: string
@@ -10,10 +11,18 @@ export interface VmWizardInitial {
   network?: string
 }
 
+export interface VmWizardPayload {
+  name: string
+  os: string
+  size: string
+  network: string
+  cloudInitSshPubkey?: string
+}
+
 interface SimpleCreateVmWizardProps {
   open: boolean
   onClose: () => void
-  onCreate: (payload: { name: string; os: string; size: string; network: string }) => Promise<void>
+  onCreate: (payload: VmWizardPayload) => Promise<void>
   initial?: VmWizardInitial
 }
 
@@ -29,7 +38,9 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
   const [size, setSize] = useState('medium')
   const [network, setNetwork] = useState('default')
   const [advanced, setAdvanced] = useState(false)
+  const [sshPubkey, setSshPubkey] = useState('')
   const [busy, setBusy] = useState(false)
+  const pubkeyFileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
@@ -41,15 +52,28 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
 
   if (!open) return null
 
+  const importPubkeyFile = (file: File | undefined) => {
+    readSshPubkeyFile(file, setSshPubkey)
+  }
+
   const submit = async () => {
     setBusy(true)
     try {
-      await onCreate({ name, os, size, network })
+      const key = sshPubkey.trim()
+      await onCreate({
+        name,
+        os,
+        size,
+        network,
+        cloudInitSshPubkey: key || undefined,
+      })
       onClose()
     } finally {
       setBusy(false)
     }
   }
+
+  const isWindows = os.startsWith('windows')
 
   return (
     <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
@@ -92,11 +116,45 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
           </label>
           <button type="button" className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200" onClick={() => setAdvanced((a) => !a)}>
             {advanced ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            Pro view — CPU topology, NUMA, firmware, TPM…
+            Advanced — SSH access, CPU topology, firmware…
           </button>
           {advanced && (
-            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-xs text-slate-500 space-y-1">
-              <p>Advanced placement, virtio model, cloud-init, anti-affinity, and backup policy are available on the VM detail page after creation.</p>
+            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 space-y-3 text-sm">
+              {!isWindows && (
+                <>
+                  <label className="block">
+                    <span className="text-slate-300">SSH public key (optional)</span>
+                    <textarea
+                      className="input w-full mt-1 font-mono text-xs min-h-[4rem]"
+                      placeholder="ssh-ed25519 AAAA… user@host"
+                      value={sshPubkey}
+                      onChange={(e) => setSshPubkey(e.target.value)}
+                    />
+                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      ref={pubkeyFileRef}
+                      type="file"
+                      accept=".pub,text/plain"
+                      className="hidden"
+                      onChange={(e) => importPubkeyFile(e.target.files?.[0])}
+                    />
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs inline-flex items-center gap-1"
+                      onClick={() => pubkeyFileRef.current?.click()}
+                    >
+                      <Upload className="w-3 h-3" /> Import public key (.pub)
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Injected via cloud-init on first boot. Use the matching private key when connecting via SSH — Machina does not store private keys.
+                  </p>
+                </>
+              )}
+              <p className="text-xs text-slate-500">
+                CPU topology, NUMA, firmware, TPM, and backup policy are available on the VM detail page after creation.
+              </p>
             </div>
           )}
         </div>

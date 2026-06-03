@@ -4,6 +4,7 @@
 
 use tracing::warn;
 use virt::connect::Connect;
+use virt::domain::Domain;
 use virt::domain_snapshot::DomainSnapshot;
 use virt::sys;
 
@@ -138,6 +139,18 @@ fn safe_name_component(s: &str) -> String {
         .collect()
 }
 
+fn guest_fs_freeze(domain: &Domain) -> Result<i32, LibvirtError> {
+    let ret = unsafe { sys::virDomainFSFreeze(domain.as_ptr(), std::ptr::null_mut(), 0, 0) };
+    if ret < 0 {
+        return Err(LibvirtError::Internal("guest fs freeze failed".into()));
+    }
+    Ok(ret)
+}
+
+fn guest_fs_thaw(domain: &Domain) {
+    let _ = unsafe { sys::virDomainFSThaw(domain.as_ptr(), std::ptr::null_mut(), 0, 0) };
+}
+
 pub fn create_snapshot(
     conn: &Connect,
     vm_name: &str,
@@ -148,6 +161,14 @@ pub fn create_snapshot(
     }
     let domain = lookup_domain(conn, vm_name)?;
     let is_active = domain.is_active().unwrap_or(false);
+    let mut thaw_needed = false;
+    if req.quiesce && is_active {
+        match guest_fs_freeze(&domain) {
+            Ok(n) if n >= 0 => thaw_needed = true,
+            Ok(_) => warn!("guest fs freeze returned unexpected count for '{vm_name}'"),
+            Err(e) => warn!("guest fs freeze skipped for '{vm_name}': {e}"),
+        }
+    }
     let dom_xml = domain.get_xml_desc(0).unwrap_or_default();
     let dom_disks = parse_domain_disks_for_snapshot(&dom_xml);
 
@@ -364,6 +385,9 @@ pub fn create_snapshot(
 
     DomainSnapshot::create_xml(&domain, &xml_str, flags)
         .map_err(LibvirtError::map_op("Failed to create snapshot"))?;
+    if thaw_needed {
+        guest_fs_thaw(&domain);
+    }
     Ok(())
 }
 

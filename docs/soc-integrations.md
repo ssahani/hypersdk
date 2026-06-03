@@ -102,4 +102,9 @@ Alternatively set `bearer_token` for a pre-issued token.
 
 ## SOAR playbooks
 
-Built-in playbook `notify_on_critical` runs on high/critical alerts (webhook step). Set `MACHINA_SOC_WEBHOOK_URL` on the controller host or edit `soc_playbooks` in the database.
+Built-in playbook `notify_on_critical` runs on high/critical alerts (webhook step). Configure the webhook URL under **Platform → SOC → Playbooks → Global webhook**, set `MACHINA_SOC_WEBHOOK_URL` on the controller host, or edit `soc_playbooks` in the database.
+
+## Playbooks & alert triage (v2)
+
+- **Alerts tab:** select an alert to open the detail panel (linked events, MITRE tags from ECS, assignee, Ack/Close).
+- **Playbooks tab:** create/edit playbooks with webhook or notify steps; minimum severity trigger; global webhook URL for `url_from_setting` steps.

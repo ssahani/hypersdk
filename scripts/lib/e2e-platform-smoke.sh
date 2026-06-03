@@ -110,6 +110,23 @@ except Exception:
     else
       e2e_platform_fail "POST /api/v1/vms/{id}/health-check — HTTP ${http}"
     fi
+    http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/vms/${vm_id}/guest/health")"
+    [[ "$http" == "200" ]] && e2e_platform_ok "GET /api/v1/vms/{id}/guest/health" \
+      || e2e_platform_warn "GET guest/health — HTTP ${http}"
+    for action in pause resume shutdown; do
+      http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/vms/${vm_id}/${action}")"
+      [[ "$http" == "200" || "$http" == "409" ]] && e2e_platform_ok "POST /api/v1/vms/{id}/${action} (HTTP ${http})" \
+        || e2e_platform_warn "POST ${action} — HTTP ${http}"
+    done
+    http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/vms/${vm_id}/domain-xml")"
+    [[ "$http" == "200" || "$http" == "404" || "$http" == "502" ]] && e2e_platform_ok "GET /api/v1/vms/{id}/domain-xml (HTTP ${http})" \
+      || e2e_platform_warn "GET domain-xml — HTTP ${http}"
+    http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/vms/${vm_id}/console")"
+    [[ "$http" == "200" || "$http" == "404" || "$http" == "502" ]] && e2e_platform_ok "GET /api/v1/vms/{id}/console (HTTP ${http})" \
+      || e2e_platform_warn "GET console — HTTP ${http}"
+    http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/zeus-firewall/vms/${vm_id}/guest-ports")"
+    [[ "$http" == "200" || "$http" == "404" || "$http" == "502" ]] && e2e_platform_ok "GET guest-ports (HTTP ${http})" \
+      || e2e_platform_warn "GET guest-ports — HTTP ${http}"
   else
     e2e_platform_warn "no VMs — skip vm metrics"
   fi
@@ -577,6 +594,7 @@ except Exception:
   e2e_platform_smoke_get "/api/v1/soc/asm/summary" "GET /api/v1/soc/asm/summary" || true
   e2e_platform_smoke_get "/api/v1/soc/playbooks" "GET /api/v1/soc/playbooks" || true
   e2e_platform_smoke_get "/api/v1/soc/playbook-runs?limit=10" "GET /api/v1/soc/playbook-runs" || true
+  e2e_platform_smoke_get "/api/v1/soc/settings" "GET /api/v1/soc/settings" || true
 
   e2e_platform_hdr "PLATFORM SMOKE: ZEUS FIREWALL (AI-142)"
   http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/zeus-firewall/status")"

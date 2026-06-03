@@ -14,11 +14,14 @@ test('SOC hub overview loads', async ({ page }) => {
   await expect(page.getByText('Unusual port activity')).toBeVisible()
 })
 
-test('SOC alerts tab shows queue', async ({ page }) => {
+test('SOC alerts tab shows detail panel', async ({ page }) => {
   await page.goto('/platform/soc')
   await page.getByRole('button', { name: 'Alerts' }).click()
-  await expect(page.getByText('critical_anomaly')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Ack' }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: /critical_anomaly/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Alert detail' })).toBeVisible()
+  await expect(page.getByText('MITRE ATT&CK')).toBeVisible()
+  await expect(page.getByText('T1046')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Acknowledge' })).toBeVisible()
 })
 
 test('SOC Splunk integration test', async ({ page }) => {
@@ -29,8 +32,10 @@ test('SOC Splunk integration test', async ({ page }) => {
   await expect(page.getByText(/Splunk HEC accepted/i)).toBeVisible({ timeout: 10_000 })
 })
 
-test('SOC playbooks tab loads', async ({ page }) => {
+test('SOC playbooks tab loads editor', async ({ page }) => {
   await page.goto('/platform/soc')
   await page.getByRole('button', { name: 'Playbooks' }).click()
-  await expect(page.getByText('notify_on_critical')).toBeVisible()
+  await expect(page.getByRole('button', { name: /notify_on_critical/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Global webhook/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Edit: notify_on_critical/ })).toBeVisible()
 })

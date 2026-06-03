@@ -10,6 +10,7 @@ struct CatalogTemplate {
     cloud_init: bool,
     os_family: &'static str,
     category: &'static str,
+    workload: &'static str,
     description: &'static str,
     featured: bool,
     icon: &'static str,
@@ -36,6 +37,7 @@ const CATALOG: &[CatalogTemplate] = &[
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
+        workload: "general",
         description: "Ubuntu 24.04 LTS — cloud-init, DHCP, ideal default for new VMs.",
         featured: true,
         icon: "🐧",
@@ -47,6 +49,7 @@ const CATALOG: &[CatalogTemplate] = &[
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
+        workload: "general",
         description: "Ubuntu 22.04 LTS — long-term support, cloud-init ready.",
         featured: true,
         icon: "🐧",
@@ -58,6 +61,7 @@ const CATALOG: &[CatalogTemplate] = &[
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
+        workload: "general",
         description: "Debian 12 Bookworm — minimal, stable server image.",
         featured: false,
         icon: "🐧",
@@ -69,6 +73,7 @@ const CATALOG: &[CatalogTemplate] = &[
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
+        workload: "general",
         description: "CentOS Stream 9 — matches RHEL-compatible hypervisor hosts.",
         featured: true,
         icon: "🐧",
@@ -80,6 +85,7 @@ const CATALOG: &[CatalogTemplate] = &[
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
+        workload: "general",
         description: "Rocky Linux 9 — enterprise Linux for production workloads.",
         featured: false,
         icon: "🐧",
@@ -91,6 +97,7 @@ const CATALOG: &[CatalogTemplate] = &[
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
+        workload: "general",
         description: "AlmaLinux 9 — RHEL-compatible with cloud-init.",
         featured: false,
         icon: "🐧",
@@ -102,6 +109,7 @@ const CATALOG: &[CatalogTemplate] = &[
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
+        workload: "general",
         description: "Fedora 40 — latest packages for dev and CI runners.",
         featured: false,
         icon: "🐧",
@@ -113,6 +121,7 @@ const CATALOG: &[CatalogTemplate] = &[
         cloud_init: false,
         os_family: "windows",
         category: "Windows",
+        workload: "general",
         description: "Windows Server 2022 — UEFI + VirtIO drivers (upload ISO to Images first).",
         featured: true,
         icon: "🪟",
@@ -124,6 +133,7 @@ const CATALOG: &[CatalogTemplate] = &[
         cloud_init: false,
         os_family: "windows",
         category: "Windows",
+        workload: "general",
         description: "Windows 11 desktop — TPM/UEFI wizard available from VM create.",
         featured: true,
         icon: "🪟",
@@ -135,6 +145,7 @@ const CATALOG: &[CatalogTemplate] = &[
         cloud_init: true,
         os_family: "linux",
         category: "Database",
+        workload: "database",
         description: "PostgreSQL 16 on Ubuntu — pre-tuned database appliance.",
         featured: true,
         icon: "🗄️",
@@ -146,6 +157,7 @@ const CATALOG: &[CatalogTemplate] = &[
         cloud_init: true,
         os_family: "linux",
         category: "Database",
+        workload: "database",
         description: "MySQL 8.0 — InnoDB, replication-ready base image.",
         featured: false,
         icon: "🗄️",
@@ -157,6 +169,7 @@ const CATALOG: &[CatalogTemplate] = &[
         cloud_init: true,
         os_family: "linux",
         category: "Database",
+        workload: "database",
         description: "MariaDB 11 — drop-in MySQL-compatible database VM.",
         featured: false,
         icon: "🗄️",
@@ -168,6 +181,7 @@ const CATALOG: &[CatalogTemplate] = &[
         cloud_init: true,
         os_family: "linux",
         category: "Database",
+        workload: "database",
         description: "Redis 7 cache node — small footprint, cloud-init.",
         featured: false,
         icon: "🗄️",
@@ -179,6 +193,7 @@ const CATALOG: &[CatalogTemplate] = &[
         cloud_init: true,
         os_family: "linux",
         category: "Appliance",
+        workload: "appliance",
         description: "VMware Photon OS — minimal container host appliance.",
         featured: true,
         icon: "📦",
@@ -190,6 +205,7 @@ const CATALOG: &[CatalogTemplate] = &[
         cloud_init: true,
         os_family: "linux",
         category: "Appliance",
+        workload: "appliance",
         description: "Nginx reverse proxy — TLS termination and load balancing.",
         featured: false,
         icon: "📦",
@@ -201,9 +217,58 @@ const CATALOG: &[CatalogTemplate] = &[
         cloud_init: true,
         os_family: "linux",
         category: "Appliance",
+        workload: "appliance",
         description: "WireGuard VPN gateway — secure remote access to the datacenter.",
         featured: false,
         icon: "📦",
+    },
+    CatalogTemplate {
+        name: "rhel-9",
+        version: "1.0.0",
+        source_disk: "/var/lib/libvirt/images/rocky-9.qcow2",
+        cloud_init: true,
+        os_family: "linux",
+        category: "Linux",
+        workload: "rhel",
+        description: "RHEL-compatible 9.x profile (use Rocky/Alma golden disk path).",
+        featured: false,
+        icon: "🐧",
+    },
+    CatalogTemplate {
+        name: "gpu-worker",
+        version: "1.0.0",
+        source_disk: "/var/lib/libvirt/images/gpu-worker.qcow2",
+        cloud_init: true,
+        os_family: "linux",
+        category: "Linux",
+        workload: "gpu",
+        description: "GPU compute worker — CUDA-ready Ubuntu, attach NVIDIA passthrough or vGPU.",
+        featured: true,
+        icon: "🎮",
+    },
+    CatalogTemplate {
+        name: "k8s-node",
+        version: "1.0.0",
+        source_disk: "/var/lib/libvirt/images/k8s-node.qcow2",
+        cloud_init: true,
+        os_family: "linux",
+        category: "Linux",
+        workload: "kubernetes",
+        description: "Kubernetes node — containerd, kubeadm-friendly cloud-init.",
+        featured: true,
+        icon: "☸",
+    },
+    CatalogTemplate {
+        name: "ai-inference-node",
+        version: "1.0.0",
+        source_disk: "/var/lib/libvirt/images/ai-inference-node.qcow2",
+        cloud_init: true,
+        os_family: "linux",
+        category: "Linux",
+        workload: "ai-inference",
+        description: "AI inference node — GPU + Python stack for model serving.",
+        featured: true,
+        icon: "🤖",
     },
 ];
 
@@ -213,9 +278,12 @@ pub async fn seed_default_templates(pool: &PgPool) -> anyhow::Result<usize> {
     for t in CATALOG {
         let fw = catalog_firewall_profile(t);
         let result = sqlx::query(
-            "INSERT INTO templates (id, name, version, source_disk, cloud_init, os_family, category, description, featured, marketplace, icon, firewall_profile)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, $10, $11)
-             ON CONFLICT (name, version) DO UPDATE SET firewall_profile = EXCLUDED.firewall_profile",
+            "INSERT INTO templates (id, name, version, source_disk, cloud_init, os_family, category, workload, description, featured, marketplace, icon, firewall_profile, approval_status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, TRUE, $11, $12, 'approved')
+             ON CONFLICT (name, version) DO UPDATE SET
+               firewall_profile = EXCLUDED.firewall_profile,
+               workload = EXCLUDED.workload,
+               source_disk = EXCLUDED.source_disk",
         )
         .bind(Uuid::new_v4())
         .bind(t.name)
@@ -224,6 +292,7 @@ pub async fn seed_default_templates(pool: &PgPool) -> anyhow::Result<usize> {
         .bind(t.cloud_init)
         .bind(t.os_family)
         .bind(t.category)
+        .bind(t.workload)
         .bind(t.description)
         .bind(t.featured)
         .bind(t.icon)

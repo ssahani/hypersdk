@@ -110,24 +110,17 @@ async fn execute_step(pool: &PgPool, step: &Value, alert: &AlertRow) -> anyhow::
     let step_type = step.get("type").and_then(|v| v.as_str()).unwrap_or("");
     match step_type {
         "webhook" => {
-            let url = step
-                .get("url")
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-                .map(str::to_string)
-                .or_else(|| {
-                    std::env::var("MACHINA_SOC_WEBHOOK_URL").ok()
-                });
-            let Some(url) = url else {
-                anyhow::bail!("webhook url not configured");
-            };
-            let body = step.get("body").cloned().unwrap_or_else(|| {
-                serde_json::json!({
-                    "alert_id": alert.id.to_string(),
-                    "title": alert.title,
-                    "severity": alert.severity,
-                })
-            });
+            let url = resolve_webhook_url(pool, step).await?;
+            let body = render_step_body(
+                step.get("body").cloned().unwrap_or_else(|| {
+                    serde_json::json!({
+                        "alert_id": alert.id.to_string(),
+                        "title": alert.title,
+                        "severity": alert.severity,
+                    })
+                }),
+                alert,
+            );
             let client = reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(15))
                 .build()?;
@@ -152,4 +145,43 @@ async fn execute_step(pool: &PgPool, step: &Value, alert: &AlertRow) -> anyhow::
         }
         _ => anyhow::bail!("unknown step type: {step_type}"),
     }
+}
+
+async fn resolve_webhook_url(pool: &PgPool, step: &Value) -> anyhow::Result<String> {
+    if let Some(url) = step.get("url").and_then(|v| v.as_str()).filter(|s| !s.is_empty()) {
+        return Ok(url.to_string());
+    }
+    if step
+        .get("url_from_setting")
+        .and_then(|v| v.as_str())
+        .is_some()
+    {
+        if let Ok(url) = sqlx::query_scalar::<_, String>(
+            "SELECT webhook_url FROM soc_settings WHERE id = 1",
+        )
+        .fetch_one(pool)
+        .await
+        {
+            let url = url.trim().to_string();
+            if !url.is_empty() {
+                return Ok(url);
+            }
+        }
+        if let Ok(url) = std::env::var("MACHINA_SOC_WEBHOOK_URL") {
+            let url = url.trim().to_string();
+            if !url.is_empty() {
+                return Ok(url);
+            }
+        }
+    }
+    anyhow::bail!("webhook url not configured")
+}
+
+fn render_step_body(body: Value, alert: &AlertRow) -> Value {
+    let s = body.to_string();
+    let rendered = s
+        .replace("{{alert_id}}", &alert.id.to_string())
+        .replace("{{title}}", &alert.title)
+        .replace("{{severity}}", &alert.severity);
+    serde_json::from_str(&rendered).unwrap_or(body)
 }

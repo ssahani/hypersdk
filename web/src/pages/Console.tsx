@@ -11,8 +11,10 @@ import SerialConsole from '../components/SerialConsole'
 import VNCViewer from '../components/VNCViewer'
 import SPICEViewer from '../components/SPICEViewer'
 import {
-  sendGuestKey, getGuestScreenshotBlob, virtViewerVvUrl, appendVmConnection, vmDetailRoute,
+  sendGuestKey, getGuestScreenshotBlob, virtViewerVvUrl, appendVmConnection, vmDetailRoute, getVM,
 } from '../api/vm'
+import { navigateVmSshSession } from '../components/vm/VmSshConnectDialog'
+import { loadVmSshPrefs } from '../utils/vmSshPrefs'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import AiTerminalCompanion from '../components/ai/AiTerminalCompanion'
@@ -56,6 +58,14 @@ export default function ConsolePage() {
   const [mode, setMode] = useState<'serial' | 'vnc' | 'spice'>('serial')
   const [consoleInfo, setConsoleInfo] = useState<ConsoleInfo | null>(null)
   const [shotBusy, setShotBusy] = useState(false)
+  const [guestIp, setGuestIp] = useState('')
+
+  useEffect(() => {
+    if (!name) return
+    void getVM(name, conn)
+      .then((d) => setGuestIp(d.guest_ip?.trim() ?? ''))
+      .catch(() => setGuestIp(''))
+  }, [name, conn])
 
   useEffect(() => {
     if (!name) return
@@ -190,6 +200,24 @@ export default function ConsolePage() {
           <SerialConsole vmName={name} libvirtConnection={conn} />
         )}
       </div>
+      {name && guestIp && (
+        <div className="flex flex-wrap items-center gap-3 py-2 text-xs text-slate-400 border-t border-slate-800/80">
+          <button
+            type="button"
+            className="font-mono text-emerald-300/90 hover:underline"
+            onClick={() => void navigator.clipboard.writeText(guestIp)}
+          >
+            {guestIp}
+          </button>
+          <button
+            type="button"
+            className="btn-secondary text-xs py-1"
+            onClick={() => navigateVmSshSession(name, guestIp, loadVmSshPrefs(name)?.user || 'root')}
+          >
+            SSH
+          </button>
+        </div>
+      )}
       {name && <AiTerminalCompanion vmName={name} libvirtConnection={conn} />}
     </PageLayout>
   )

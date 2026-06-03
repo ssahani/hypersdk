@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { Radar, Shield, ShieldAlert } from 'lucide-react'
+import { Plus, Radar, Shield, ShieldAlert } from 'lucide-react'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
+import SocAlertDetailPanel from '../../components/platform/soc/SocAlertDetailPanel'
+import SocPlaybookEditor from '../../components/platform/soc/SocPlaybookEditor'
 import { MacGlassPanel, MacListRow, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
 import {
   getAsmSummary,
@@ -13,9 +15,9 @@ import {
   getSocOverview,
   getSocPlaybookRuns,
   getSocPlaybooks,
+  getSocSettings,
   getSocRules,
   getSplunkIntegration,
-  patchSocAlert,
   patchSocIntegration,
   patchSocRule,
   putSplunkIntegration,
@@ -79,6 +81,10 @@ export default function PlatformSoc() {
   const [qradarEnabled, setQradarEnabled] = useState(false)
   const [playbooks, setPlaybooks] = useState<SocPlaybook[]>([])
   const [playbookRuns, setPlaybookRuns] = useState<SocPlaybookRun[]>([])
+  const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null)
+  const [selectedPlaybookId, setSelectedPlaybookId] = useState<string | null>(null)
+  const [newPlaybook, setNewPlaybook] = useState(false)
+  const [socWebhookUrl, setSocWebhookUrl] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -86,7 +92,7 @@ export default function PlatformSoc() {
     setLoading(true)
     setError(null)
     try {
-      const [ov, al, ev, ru, asmRes, threat, splunk, ints, pbs, pbr] = await Promise.all([
+      const [ov, al, ev, ru, asmRes, threat, splunk, ints, pbs, pbr, socSet] = await Promise.all([
         getSocOverview(),
         getSocAlerts({ limit: 50 }),
         getSocEvents(30),
@@ -97,6 +103,7 @@ export default function PlatformSoc() {
         getSocIntegrations().catch(() => []),
         getSocPlaybooks().catch(() => []),
         getSocPlaybookRuns(30).catch(() => []),
+        getSocSettings().catch(() => ({ webhook_url: '' })),
       ])
       setOverview(ov)
       setAlerts(al)
@@ -107,6 +114,7 @@ export default function PlatformSoc() {
       setIntegrations(ints)
       setPlaybooks(pbs)
       setPlaybookRuns(pbr)
+      setSocWebhookUrl(socSet.webhook_url ?? '')
       if (splunk?.config) {
         setSplunkUrl(String(splunk.config.url ?? ''))
         setSplunkIndex(String(splunk.config.index ?? 'machina'))
@@ -142,25 +150,18 @@ export default function PlatformSoc() {
 
   useEffect(() => { void load() }, [load])
 
-  const ackAlert = async (id: string) => {
-    try {
-      await patchSocAlert(id, { status: 'acknowledged' })
-      toast.success('Alert acknowledged')
-      void load()
-    } catch (e: unknown) {
-      toast.error(formatUserError(e))
-    }
-  }
+  useEffect(() => {
+    if (!selectedAlertId && alerts.length > 0) setSelectedAlertId(alerts[0].id)
+  }, [alerts, selectedAlertId])
 
-  const closeAlert = async (id: string) => {
-    try {
-      await patchSocAlert(id, { status: 'closed' })
-      toast.success('Alert closed')
-      void load()
-    } catch (e: unknown) {
-      toast.error(formatUserError(e))
+  useEffect(() => {
+    if (!newPlaybook && !selectedPlaybookId && playbooks.length > 0) {
+      setSelectedPlaybookId(playbooks[0].id)
     }
-  }
+  }, [playbooks, selectedPlaybookId, newPlaybook])
+
+  const selectedAlert = alerts.find((a) => a.id === selectedAlertId) ?? null
+  const selectedPlaybook = playbooks.find((p) => p.id === selectedPlaybookId) ?? null
 
   const toggleRule = async (r: SocRule) => {
     try {
@@ -341,36 +342,42 @@ export default function PlatformSoc() {
       )}
 
       {tab === 'alerts' && (
-        <MacGlassPanel title="Alert queue">
-          {alerts.length === 0 ? (
-            <p className="text-sm text-slate-500 p-3">No open alerts.</p>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <MacGlassPanel title="Alert queue">
+            {alerts.length === 0 ? (
+              <p className="text-sm text-slate-500 p-3">No open alerts.</p>
+            ) : (
+              <ul className="divide-y divide-white/5">
+                {alerts.map((a) => (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      className={`w-full text-left px-3 py-3 flex flex-wrap items-center justify-between gap-2 ${
+                        selectedAlertId === a.id ? 'bg-sky-500/10' : 'hover:bg-white/[0.02]'
+                      }`}
+                      onClick={() => setSelectedAlertId(a.id)}
+                    >
+                      <div>
+                        <p className="font-medium text-sm text-slate-100">{a.title}</p>
+                        <p className="text-xs text-slate-500">
+                          {a.severity} · {a.status} · {a.event_count} events
+                          {a.assigned_to ? ` · ${a.assigned_to}` : ''}
+                        </p>
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </MacGlassPanel>
+          {selectedAlert ? (
+            <SocAlertDetailPanel alert={selectedAlert} onUpdated={() => void load()} />
           ) : (
-            <ul className="divide-y divide-white/5">
-              {alerts.map((a) => (
-                <li key={a.id} className="px-3 py-3 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-sm text-slate-100">{a.title}</p>
-                    <p className="text-xs text-slate-500">
-                      {a.severity} · {a.status} · {a.event_count} events
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    {a.status === 'open' && (
-                      <button type="button" className="btn-secondary text-xs" onClick={() => void ackAlert(a.id)}>
-                        Ack
-                      </button>
-                    )}
-                    {a.status !== 'closed' && (
-                      <button type="button" className="btn-secondary text-xs" onClick={() => void closeAlert(a.id)}>
-                        Close
-                      </button>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <MacGlassPanel title="Alert detail">
+              <p className="text-sm text-slate-500 p-3">Select an alert to view details.</p>
+            </MacGlassPanel>
           )}
-        </MacGlassPanel>
+        </div>
       )}
 
       {tab === 'detections' && (
@@ -442,41 +449,85 @@ export default function PlatformSoc() {
 
       {tab === 'playbooks' && (
         <div className="space-y-4">
-          <MacGlassPanel title="SOAR playbooks">
-            {playbooks.length === 0 ? (
-              <p className="text-sm text-slate-500 p-3">No playbooks configured.</p>
-            ) : (
-              <ul className="divide-y divide-white/5">
-                {playbooks.map((p) => (
-                  <li key={p.id} className="px-3 py-3">
-                    <p className="font-medium text-sm text-slate-100 flex items-center gap-2">
-                      {p.name}
-                      <span className={statusBadgeClasses(p.enabled ? 'ok' : 'neutral')}>
-                        {p.enabled ? 'enabled' : 'disabled'}
-                      </span>
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1">{p.description}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </MacGlassPanel>
-          <MacGlassPanel title="Recent runs">
-            {playbookRuns.length === 0 ? (
-              <p className="text-sm text-slate-500 p-3">No playbook runs yet.</p>
-            ) : (
-              <ul className="divide-y divide-white/5">
-                {playbookRuns.map((r) => (
-                  <li key={r.id} className="px-3 py-2 text-sm flex justify-between gap-2">
-                    <span className="text-slate-300 truncate">{r.playbook_id.slice(0, 8)}…</span>
-                    <span className={`text-xs shrink-0 ${statusToneClass(r.status === 'success' ? 'ok' : r.status === 'failed' ? 'error' : 'neutral')}`}>
-                      {r.status}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </MacGlassPanel>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn-primary text-sm flex items-center gap-1"
+              onClick={() => {
+                setNewPlaybook(true)
+                setSelectedPlaybookId(null)
+              }}
+            >
+              <Plus className="w-4 h-4" /> New playbook
+            </button>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-4">
+              <MacGlassPanel title="SOAR playbooks">
+                {playbooks.length === 0 ? (
+                  <p className="text-sm text-slate-500 p-3">No playbooks configured.</p>
+                ) : (
+                  <ul className="divide-y divide-white/5">
+                    {playbooks.map((p) => (
+                      <li key={p.id}>
+                        <button
+                          type="button"
+                          className={`w-full text-left px-3 py-3 ${
+                            selectedPlaybookId === p.id && !newPlaybook ? 'bg-sky-500/10' : 'hover:bg-white/[0.02]'
+                          }`}
+                          onClick={() => {
+                            setSelectedPlaybookId(p.id)
+                            setNewPlaybook(false)
+                          }}
+                        >
+                          <p className="font-medium text-sm text-slate-100 flex items-center gap-2">
+                            {p.name}
+                            <span className={statusBadgeClasses(p.enabled ? 'ok' : 'neutral')}>
+                              {p.enabled ? 'enabled' : 'disabled'}
+                            </span>
+                          </p>
+                          <p className="text-xs text-slate-500 mt-1">{p.description}</p>
+                          <p className="text-[10px] text-slate-600 mt-1">
+                            {(p.steps_json?.length ?? 0)} step(s) · min {(p.trigger_json?.min_severity as string) ?? 'high'}
+                          </p>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </MacGlassPanel>
+              <MacGlassPanel title="Recent runs">
+                {playbookRuns.length === 0 ? (
+                  <p className="text-sm text-slate-500 p-3">No playbook runs yet.</p>
+                ) : (
+                  <ul className="divide-y divide-white/5">
+                    {playbookRuns.map((r) => (
+                      <li key={r.id} className="px-3 py-2 text-sm flex justify-between gap-2">
+                        <span className="text-slate-300 truncate">{r.playbook_id.slice(0, 8)}…</span>
+                        <span className={`text-xs shrink-0 ${statusToneClass(r.status === 'completed' ? 'ok' : r.status === 'failed' ? 'error' : 'neutral')}`}>
+                          {r.status}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </MacGlassPanel>
+            </div>
+            <SocPlaybookEditor
+              playbook={newPlaybook ? null : selectedPlaybook}
+              globalWebhookUrl={socWebhookUrl}
+              isNew={newPlaybook}
+              onSaved={() => {
+                setNewPlaybook(false)
+                void load()
+              }}
+              onDeleted={() => {
+                setSelectedPlaybookId(null)
+                void load()
+              }}
+              onCancelNew={() => setNewPlaybook(false)}
+            />
+          </div>
         </div>
       )}
 

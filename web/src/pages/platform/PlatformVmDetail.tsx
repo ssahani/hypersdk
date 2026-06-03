@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
-import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield, ExternalLink, Monitor } from 'lucide-react'
+import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield, ExternalLink, Monitor, Pause, Power } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
 import GuestToolsStrip from '../../components/platform/GuestToolsStrip'
 import MachinaVmOutageRca from '../../components/ai/MachinaVmOutageRca'
@@ -35,6 +35,8 @@ import {
   patchVm,
   restoreVmBackup,
   revertVmSnapshot,
+  cloneVmSnapshot,
+  getVmDomainXml,
   setVmHa,
   vmClone,
   installGuestTools,
@@ -66,6 +68,9 @@ import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, vmStateTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 import { vmErrorPresentation } from '../../utils/vmErrorPresentation'
+import { loadVmSshPrefs } from '../../utils/vmSshPrefs'
+import VmDailyAccessStrip from '../../components/vm/VmDailyAccessStrip'
+import VmSshConnectDialog, { navigateVmSshSession } from '../../components/vm/VmSshConnectDialog'
 import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
 import { PlatformOpenStackVmLink } from '../../components/platform/PlatformCrossLinks'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
@@ -102,6 +107,7 @@ export default function PlatformVmDetail() {
   const [error, setError] = useState<string | null>(null)
   const [destHost, setDestHost] = useState('')
   const [cloneName, setCloneName] = useState('')
+  const [cloneMode, setCloneMode] = useState<'linked' | 'full'>('linked')
   const [precheck, setPrecheck] = useState<MigratePrecheckResult | null>(null)
   const [ha, setHa] = useState<HaPolicy>({ enabled: false, restart_attempts: 3, restart_priority: 'medium', fence_on_failure: false, anti_affinity: false })
   const [specJson, setSpecJson] = useState<string>('')
@@ -130,6 +136,7 @@ export default function PlatformVmDetail() {
   const [vmDiagnose, setVmDiagnose] = useState<VmOsDiagnoseReport | null>(null)
   const [vmDiagnoseLoading, setVmDiagnoseLoading] = useState(false)
   const [migrations, setMigrations] = useState<VmMigrationRecord[]>([])
+  const [sshDialogOpen, setSshDialogOpen] = useState(false)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -252,10 +259,18 @@ export default function PlatformVmDetail() {
   }, [id])
 
   useEffect(() => {
+    if (id) void loadGuestHealth()
+  }, [id, loadGuestHealth])
+
+  useEffect(() => {
+    if (!id || !vm || vm.observed_state !== 'running' || vm.inventory_source === 'kubevirt') return
+    void loadGuestPorts()
+  }, [id, vm?.observed_state, vm?.inventory_source, loadGuestPorts])
+
+  useEffect(() => {
     if (tab === 'security' && id) void loadGuestPorts()
-    if (tab === 'guestHealth' && id) void loadGuestHealth()
     if (tab === 'guestServices' && id) void loadGuestServices()
-  }, [tab, id, loadGuestPorts, loadGuestHealth, loadGuestServices])
+  }, [tab, id, loadGuestPorts, loadGuestServices])
 
   useEffect(() => {
     setContextVmId(id ?? null)
@@ -270,13 +285,65 @@ export default function PlatformVmDetail() {
   const stateTone = vm ? vmStateTone(vm.observed_state) : 'neutral'
   const lifecycleTone = vm?.lifecycle_phase === 'running' ? 'ok' : vm?.lifecycle_phase === 'error' ? 'error' : 'neutral'
 
+  const resolvedGuestIp =
+    guestHealth?.guest_ip?.trim() || health?.guest_ip?.trim() || vm?.guest_ip?.trim() || ''
+
+  useEffect(() => {
+    if (!id || !vm || vm.observed_state !== 'running' || resolvedGuestIp || vm.inventory_source === 'kubevirt') {
+      return
+    }
+    let cancelled = false
+    let attempts = 0
+    const poll = () => {
+      if (cancelled || attempts >= 24) return
+      attempts += 1
+      void getVmGuestHealth(id)
+        .then((gh) => {
+          if (gh?.guest_ip?.trim()) setGuestHealth(gh)
+        })
+        .catch(() => undefined)
+    }
+    poll()
+    const t = setInterval(poll, 5000)
+    return () => {
+      cancelled = true
+      clearInterval(t)
+    }
+  }, [id, vm?.observed_state, vm?.inventory_source, resolvedGuestIp])
+
   if (!id) return null
+
+  const sshUser = (() => {
+    const ci = specData?.cloud_init as { user?: string } | undefined
+    return ci?.user?.trim() || loadVmSshPrefs(vm?.name ?? '')?.user || 'root'
+  })()
+  const guestIp = resolvedGuestIp
+
+  const natForwardHref = guestIp
+    ? `/host-networking?tab=portforward&vm_ip=${encodeURIComponent(guestIp)}&vm_port=22`
+    : undefined
 
   const powerActions = vm && vm.inventory_source !== 'kubevirt' && vm.observed_state !== 'missing' ? (
     <>
-      <button type="button" className="btn-primary text-sm" onClick={() => void act('Start queued', () => vmPower(id, 'start'))}><Play className="w-4 h-4" /> Start</button>
-      <button type="button" className="btn-secondary text-sm" onClick={() => void act('Stop queued', () => vmPower(id, 'stop'))}><Square className="w-4 h-4" /> Stop</button>
-      <button type="button" className="btn-secondary text-sm" onClick={() => void act('Reboot queued', () => vmPower(id, 'reboot'))}><RotateCcw className="w-4 h-4" /> Reboot</button>
+      {(vm.observed_state === 'stopped' || vm.observed_state === 'shut off') && (
+        <button type="button" className="btn-primary text-sm" onClick={() => void act('Start queued', () => vmPower(id, 'start'))}><Play className="w-4 h-4" /> Start</button>
+      )}
+      {vm.observed_state === 'paused' && (
+        <button type="button" className="btn-primary text-sm" onClick={() => void act('Resume queued', () => vmPower(id, 'resume'))}><Play className="w-4 h-4" /> Resume</button>
+      )}
+      {vm.observed_state === 'running' && (
+        <>
+          <button type="button" className="btn-secondary text-sm" title="Graceful ACPI shutdown" onClick={() => void act('Shutdown queued', () => vmPower(id, 'shutdown'))}><Power className="w-4 h-4" /> Shutdown</button>
+          <button type="button" className="btn-secondary text-sm" onClick={() => void act('Pause queued', () => vmPower(id, 'pause'))}><Pause className="w-4 h-4" /> Pause</button>
+          <button type="button" className="btn-secondary text-sm" onClick={() => void act('Reboot queued', () => vmPower(id, 'reboot'))}><RotateCcw className="w-4 h-4" /> Reboot</button>
+        </>
+      )}
+      {(vm.observed_state === 'running' || vm.observed_state === 'paused') && (
+        <button type="button" className="btn-secondary text-sm" title="Force power off (libvirt destroy)" onClick={() => void act('Force stop queued', () => vmPower(id, 'stop'))}><Square className="w-4 h-4" /> Force stop</button>
+      )}
+      {vm.inventory_source !== 'kubevirt' && (
+        <button type="button" className="btn-secondary text-sm" onClick={() => setSshDialogOpen(true)}><Terminal className="w-4 h-4" /> SSH</button>
+      )}
     </>
   ) : null
 
@@ -299,6 +366,12 @@ export default function PlatformVmDetail() {
           <span className="text-slate-400">{hostName || 'No host'}</span>
           <span className="text-slate-500">·</span>
           <span className="text-slate-400">{vm.vcpus} vCPU · {Math.round(vm.memory_mib / 1024)} GiB</span>
+          {guestIp && (
+            <>
+              <span className="text-slate-500">·</span>
+              <span className="font-mono text-emerald-300/90">{guestIp}</span>
+            </>
+          )}
           {vm.ha_enabled && <span className={statusPillClasses('info')}>HA</span>}
         </span>
       ) : undefined}
@@ -306,7 +379,7 @@ export default function PlatformVmDetail() {
       actions={vm ? (
         <div className="flex flex-wrap items-center gap-2">
           <Link to={`/platform/vms/${id}/console`} className="btn-primary text-sm inline-flex items-center gap-1">
-            <Terminal className="w-4 h-4" /> Console
+            <Monitor className="w-4 h-4" /> VNC
           </Link>
           {powerActions}
           {!isPopout && (
@@ -402,6 +475,42 @@ export default function PlatformVmDetail() {
             />
           )}
 
+          {tab === 'overview' && vm.inventory_source !== 'kubevirt' && (
+            <VmDailyAccessStrip
+              vmName={vm.name}
+              vmState={vm.observed_state}
+              sshUser={sshUser}
+              guestIp={guestIp}
+              consoleHref={`/platform/vms/${id}/console`}
+              specJson={specJson}
+              platformVmId={id}
+              guestIpWaiting={vm.observed_state === 'running' && !guestIp}
+              onRefreshGuestIp={() => void loadGuestHealth()}
+              onInstallGuestTools={
+                vm.observed_state === 'running'
+                  ? () => {
+                      setGuestInstalling(true)
+                      void installGuestTools(id)
+                        .then(() => { toast.success('Guest tools install queued'); return loadGuestHealth() })
+                        .catch((e: unknown) => toast.error(formatUserError(e)))
+                        .finally(() => setGuestInstalling(false))
+                    }
+                  : undefined
+              }
+              guestToolsInstalling={guestInstalling}
+              onExportXml={async () => {
+                const { xml } = await getVmDomainXml(id)
+                return xml
+              }}
+              guestPorts={guestPorts}
+              guestPortsLoading={guestPortsLoading}
+              onRefreshPorts={() => void loadGuestPorts()}
+              onAllPorts={() => setTab('security')}
+              natForwardHref={natForwardHref}
+              onNotify={(m) => toast.success(m)}
+            />
+          )}
+
           {tab === 'overview' && (
             <div className="space-y-4">
               <MachinaExplainObjectPanel kind="vm" id={id!} name={vm.name} />
@@ -444,6 +553,16 @@ export default function PlatformVmDetail() {
             </div>
           )}
 
+          <VmSshConnectDialog
+            open={sshDialogOpen}
+            vmName={vm.name}
+            defaultIp={guestIp}
+            defaultUser={sshUser}
+            detectedIps={guestIp ? [guestIp] : []}
+            onClose={() => setSshDialogOpen(false)}
+            onConnect={(h, u) => navigateVmSshSession(vm.name, h, u)}
+          />
+
           {tab === 'doctor' && (
             <div className="pt-2 space-y-3">
               <div className="flex justify-end">
@@ -462,12 +581,12 @@ export default function PlatformVmDetail() {
           )}
 
           {tab === 'console' && (
-            <MacGlassPanel title="Console">
+            <MacGlassPanel title="VNC console">
               <p className="text-sm text-slate-400 mb-4">
                 Opens a full-screen noVNC session in a dedicated view.
               </p>
               <Link to={`/platform/vms/${id}/console`} className="btn-primary inline-flex items-center gap-2">
-                <Terminal className="w-4 h-4" /> Open graphical console
+                <Monitor className="w-4 h-4" /> Open VNC
               </Link>
             </MacGlassPanel>
           )}
@@ -636,18 +755,25 @@ export default function PlatformVmDetail() {
 
           {tab === 'snapshots' && (
             <MacGlassPanel title="Snapshots" className="pt-2">
-              <input className="input w-full max-w-xs" value={snapName} onChange={(e) => setSnapName(e.target.value)} />
-              <div className="flex gap-2">
+              <input className="input w-full max-w-xs" value={snapName} onChange={(e) => setSnapName(e.target.value)} placeholder="snap-01" />
+              <div className="flex flex-wrap gap-2 mt-2">
                 <button type="button" className="btn-secondary text-xs" onClick={() => void act('Snapshot queued', () => createVmSnapshot(id, snapName))}>Create snapshot</button>
               </div>
-              <ul className="text-xs space-y-2">
+              <ul className="text-xs space-y-3 mt-3">
                 {snapshots.map((s) => (
-                  <li key={s.id} className="flex items-center justify-between gap-2 text-slate-400">
+                  <li key={s.id} className="flex flex-col gap-2 text-slate-400 border-b border-white/5 pb-2">
                     <span>{s.name} ({s.status})</span>
-                    <span className="flex gap-1">
+                    <span className="flex flex-wrap gap-1">
                       <button type="button" className="btn-secondary text-xs" onClick={() => void act('Revert queued', () => revertVmSnapshot(id, s.name))}>Revert</button>
                       <button type="button" className="btn-secondary text-xs" onClick={() => void act('Delete queued', () => deleteVmSnapshot(id, s.name))}>Delete</button>
                     </span>
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs w-fit"
+                      onClick={() => void act('Clone queued', () => cloneVmSnapshot(id, s.name, `${vm.name}-from-${s.name}`))}
+                    >
+                      Clone to {vm.name}-from-{s.name}
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -754,7 +880,11 @@ export default function PlatformVmDetail() {
                   <div>
                     <h3 className="font-semibold mb-2 flex items-center gap-2 text-sm"><Copy className="w-4 h-4" /> Clone</h3>
                     <input className="input w-full mb-2" placeholder="new-vm-name" value={cloneName} onChange={(e) => setCloneName(e.target.value)} />
-                    <button type="button" className="btn-secondary text-sm" disabled={!cloneName} onClick={() => void act('Clone queued', () => vmClone(id, cloneName))}>Clone</button>
+                    <select className="input w-full mb-2 text-sm" value={cloneMode} onChange={(e) => setCloneMode(e.target.value as 'linked' | 'full')}>
+                      <option value="linked">Linked clone (thin)</option>
+                      <option value="full">Full clone (independent disk)</option>
+                    </select>
+                    <button type="button" className="btn-secondary text-sm" disabled={!cloneName} onClick={() => void act('Clone queued', () => vmClone(id, cloneName, cloneMode))}>Clone</button>
                   </div>
                 </div>
               </MacGlassPanel>

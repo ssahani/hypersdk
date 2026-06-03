@@ -3,19 +3,21 @@
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  Copy,
   FolderOpen,
   Monitor,
   Plus,
   RefreshCw,
   Server,
   Tag,
+  Terminal,
 } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
 import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import FinderView, { type FinderViewMode } from '../../components/platform/mac/FinderView'
 import { LaunchpadAppIcon } from '../../components/platform/mac/PlatformMacUi'
-import SimpleCreateVmWizard, { sizeToSpec, type VmWizardInitial } from '../../components/platform/SimpleCreateVmWizard'
+import SimpleCreateVmWizard, { sizeToSpec, type VmWizardInitial, type VmWizardPayload } from '../../components/platform/SimpleCreateVmWizard'
 import WindowsCreateWizard from '../../components/platform/WindowsCreateWizard'
 import MigratePrecheckModal from '../../components/platform/MigratePrecheckModal'
 import {
@@ -33,6 +35,7 @@ import {
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusPillClasses, vmStateTone } from '../../utils/semanticColors'
+import VmSshConnectDialog, { navigateVmSshSession } from '../../components/vm/VmSshConnectDialog'
 
 type ViewMode = 'launchpad' | 'list' | 'columns'
 
@@ -94,6 +97,7 @@ export default function PlatformVms() {
   const [dropHost, setDropHost] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [selectedVmId, setSelectedVmId] = useState<string | null>(null)
+  const [sshVm, setSshVm] = useState<PlatformVm | null>(null)
 
   const hostMap = useMemo(() => new Map(hosts.map((h) => [h.id, h.hostname])), [hosts])
   const vmById = useMemo(() => new Map(vms.map((v) => [v.id, v])), [vms])
@@ -195,8 +199,16 @@ export default function PlatformVms() {
     setSearchParams(next, { replace: true })
   }, [searchParams, setSearchParams])
 
-  const buildVmBody = (name: string, os: string, size: string, network: string, extraTags: string[] = []): CreatePlatformVmBody => {
+  const buildVmBody = (
+    name: string,
+    os: string,
+    size: string,
+    network: string,
+    extraTags: string[] = [],
+    cloudInitSshPubkey?: string,
+  ): CreatePlatformVmBody => {
     const spec = sizeToSpec(size)
+    const cloudUser = os.startsWith('debian') ? 'debian' : os.startsWith('rocky') ? 'rocky' : 'ubuntu'
     return {
       api_version: 'virt.zyvor.dev/v1',
       kind: 'VirtualMachine',
@@ -207,12 +219,15 @@ export default function PlatformVms() {
         memory: spec.memory,
         storage: [{ name: 'root', size: spec.disk, class: 'silver' }],
         network: [{ network, ip_mode: 'dhcp' }],
+        ...(cloudInitSshPubkey
+          ? { cloud_init: { user: cloudUser, ssh_pubkey: cloudInitSshPubkey } }
+          : {}),
       },
     }
   }
 
-  const handleCreate = async (payload: { name: string; os: string; size: string; network: string }) => {
-    await createPlatformVm(buildVmBody(payload.name, payload.os, payload.size, payload.network))
+  const handleCreate = async (payload: VmWizardPayload) => {
+    await createPlatformVm(buildVmBody(payload.name, payload.os, payload.size, payload.network, [], payload.cloudInitSshPubkey))
     toast.success('Create task queued')
     await load()
   }
@@ -295,6 +310,12 @@ export default function PlatformVms() {
                 gradient={running ? 'from-emerald-600 to-teal-700' : 'from-slate-600 to-slate-800'}
               />
             </Link>
+            {running && v.inventory_source !== 'kubevirt' && (
+              <div className="flex justify-center gap-1 mt-1" onClick={(e) => e.stopPropagation()}>
+                <Link to={`/platform/vms/${v.id}/console`} className="p-1 rounded hover:bg-white/10" title="VNC"><Monitor className="w-3.5 h-3.5 text-slate-400" /></Link>
+                <button type="button" className="p-1 rounded hover:bg-white/10" title="SSH" onClick={() => setSshVm(v)}><Terminal className="w-3.5 h-3.5 text-slate-400" /></button>
+              </div>
+            )}
             {(v.tags ?? []).length > 0 && (
               <p className="text-[10px] text-slate-500 text-center truncate px-1">{(v.tags ?? []).slice(0, 2).join(' · ')}</p>
             )}
@@ -312,12 +333,17 @@ export default function PlatformVms() {
             <th className="p-3">State</th>
             <th className="p-3">Tags</th>
             <th className="p-3">Host</th>
+            <th className="p-3">Guest IP</th>
             <th className="p-3">vCPU</th>
             <th className="p-3">Memory</th>
+            <th className="p-3 text-right">Access</th>
           </tr>
         </thead>
         <tbody>
-          {filteredVms.map((v) => (
+          {filteredVms.map((v) => {
+            const running = v.observed_state === 'running'
+            const libvirt = v.inventory_source !== 'kubevirt'
+            return (
             <tr
               key={v.id}
               className={`border-b border-slate-900/80 cursor-pointer ${selectedVmId === v.id ? 'bg-sky-500/10' : 'hover:bg-white/[0.02]'}`}
@@ -339,10 +365,33 @@ export default function PlatformVms() {
                     ? hostMap.get(v.host_id)
                     : '—'}
               </td>
+              <td className="p-3 font-mono text-xs text-emerald-300/80">{v.guest_ip || '—'}</td>
               <td className="p-3">{v.vcpus}</td>
               <td className="p-3">{Math.round(v.memory_mib / 1024)} Gi</td>
+              <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
+                {running && libvirt && (
+                  <div className="inline-flex gap-1 justify-end">
+                    <Link to={`/platform/vms/${v.id}/console`} className="btn-secondary text-xs py-1 px-2" title="VNC"><Monitor className="w-3.5 h-3.5" /></Link>
+                    <button type="button" className="btn-secondary text-xs py-1 px-2" title="SSH" onClick={() => setSshVm(v)}><Terminal className="w-3.5 h-3.5" /></button>
+                    {v.guest_ip && (
+                      <button
+                        type="button"
+                        className="btn-secondary text-xs py-1 px-2"
+                        title="Copy guest IP"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(v.guest_ip!)
+                          toast.success('Guest IP copied')
+                        }}
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </td>
             </tr>
-          ))}
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -360,9 +409,38 @@ export default function PlatformVms() {
         <div><dt className="text-white/40">Host</dt><dd className="text-white">{selectedVm.inventory_source === 'kubevirt' ? (selectedVm.k8s_namespace ?? 'default') : selectedVm.host_id ? hostMap.get(selectedVm.host_id) : '—'}</dd></div>
         <div><dt className="text-white/40">vCPU</dt><dd className="text-white">{selectedVm.vcpus}</dd></div>
         <div><dt className="text-white/40">Memory</dt><dd className="text-white">{Math.round(selectedVm.memory_mib / 1024)} Gi</dd></div>
+        {selectedVm.guest_ip && (
+          <div className="col-span-2"><dt className="text-white/40">Guest IP</dt><dd className="font-mono text-emerald-300/90">{selectedVm.guest_ip}</dd></div>
+        )}
       </dl>
+      <div className="flex flex-wrap gap-2">
+        <Link to={`/platform/vms/${selectedVm.id}/console`} className="btn-secondary text-sm flex-1 text-center inline-flex items-center justify-center gap-1">
+          <Monitor className="w-3.5 h-3.5" /> VNC
+        </Link>
+        {selectedVm.inventory_source !== 'kubevirt' && (
+          <button
+            type="button"
+            className="btn-secondary text-sm flex-1 inline-flex items-center justify-center gap-1"
+            onClick={() => setSshVm(selectedVm)}
+          >
+            <Terminal className="w-3.5 h-3.5" /> SSH
+          </button>
+        )}
+        {selectedVm.guest_ip && (
+          <button
+            type="button"
+            className="btn-secondary text-sm inline-flex items-center gap-1"
+            title="Copy guest IP"
+            onClick={() => {
+              void navigator.clipboard.writeText(selectedVm.guest_ip!)
+              toast.success('Guest IP copied')
+            }}
+          >
+            <Copy className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
       <Link to={`/platform/vms/${selectedVm.id}`} className="btn-primary text-sm block text-center">Open VM</Link>
-      <Link to={`/platform/vms/${selectedVm.id}/console`} className="btn-secondary text-sm block text-center">Console</Link>
       {selectedVm.managed === false && (
         <button type="button" className="btn-secondary text-xs" onClick={async () => {
           try { await adoptPlatformVm(selectedVm.id); toast.success('Adopted'); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
@@ -507,6 +585,17 @@ export default function PlatformVms() {
           destHostName={migrateModal.destName}
           onClose={() => setMigrateModal(null)}
           onDone={() => { toast.success('Migration queued'); void load() }}
+        />
+      )}
+      {sshVm && (
+        <VmSshConnectDialog
+          open
+          vmName={sshVm.name}
+          defaultIp={sshVm.guest_ip ?? ''}
+          defaultUser="ubuntu"
+          detectedIps={sshVm.guest_ip ? [sshVm.guest_ip] : []}
+          onClose={() => setSshVm(null)}
+          onConnect={(h, u) => navigateVmSshSession(sshVm.name, h, u)}
         />
       )}
     </PageLayout>

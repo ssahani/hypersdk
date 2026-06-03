@@ -304,6 +304,8 @@ const sampleVm = {
   ha_enabled: false,
   project: null,
   tags: [],
+  inventory_source: 'libvirt',
+  guest_ip: '192.168.122.50',
 }
 
 export async function mockPlatformApi(page: Page, opts?: {
@@ -728,7 +730,39 @@ export async function mockPlatformApi(page: Page, opts?: {
         })
       }
       if (url.includes('/alerts')) {
-        if (route.request().method() === 'PATCH') {
+        const alertIdMatch = url.match(/\/alerts\/([^/?]+)$/)
+        if (alertIdMatch && route.request().method() === 'GET') {
+          return route.fulfill({
+            json: {
+              id: 'a1',
+              rule_id: 'r1',
+              rule_name: 'critical_anomaly',
+              title: 'critical_anomaly (1)',
+              severity: 'high',
+              status: 'open',
+              assigned_to: null,
+              first_seen: new Date().toISOString(),
+              last_seen: new Date().toISOString(),
+              event_count: 1,
+              dedupe_key: 'rule:r1:2026-06-03-03',
+              detail_json: { rule: 'critical_anomaly', match_count: 1 },
+              mitre_tags: [{ id: 'T1046', name: 'Network Service Discovery' }],
+              linked_events: [
+                {
+                  id: 'e1',
+                  occurred_at: new Date().toISOString(),
+                  source: 'packetwolf',
+                  category: 'intrusion_detection',
+                  severity: 'high',
+                  summary: 'Unusual port activity on db-01',
+                  ecs_json: { 'threat': { technique: { id: 'T1046', name: 'Network Service Discovery' } } },
+                },
+              ],
+              playbook_runs: [],
+            },
+          })
+        }
+        if (alertIdMatch && route.request().method() === 'PATCH') {
           return route.fulfill({
             json: {
               id: 'a1',
@@ -820,21 +854,33 @@ export async function mockPlatformApi(page: Page, opts?: {
           ],
         })
       }
-      if (url.includes('/playbooks') && !url.includes('playbook-runs')) {
-        return route.fulfill({
-          json: [
-            {
-              id: 'pb1',
-              name: 'notify_on_critical',
-              description: 'Webhook notify when critical SOC alert opens',
-              enabled: true,
-              trigger_json: { min_severity: 'high' },
-            },
-          ],
-        })
+      if (url.includes('/soc/settings')) {
+        if (route.request().method() === 'PATCH') {
+          return route.fulfill({ json: { webhook_url: 'https://hooks.example/soc' } })
+        }
+        return route.fulfill({ json: { webhook_url: '' } })
       }
       if (url.includes('/playbook-runs')) {
         return route.fulfill({ json: [] })
+      }
+      if (url.includes('/soc/playbooks')) {
+        const pb = {
+          id: 'pb1',
+          name: 'notify_on_critical',
+          description: 'Webhook notify when critical SOC alert opens',
+          enabled: true,
+          trigger_json: { min_severity: 'high', rule_names: [] },
+          steps_json: [
+            { type: 'webhook', url_from_setting: 'soc_webhook_url', body: { alert_id: '{{alert_id}}' } },
+          ],
+        }
+        if (route.request().method() === 'POST') {
+          return route.fulfill({ json: { ...pb, id: 'pb2', name: 'new_playbook' } })
+        }
+        if (url.match(/\/playbooks\/[^/]+$/)) {
+          return route.fulfill({ json: pb })
+        }
+        return route.fulfill({ json: [pb] })
       }
       if (url.includes('/ingest/run')) {
         return route.fulfill({
@@ -1132,7 +1178,62 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({ json: { vm_id: 'v1', enabled: false, restart_policy: 'restart' } })
     }
     if (url.match(/\/vms\/[^/]+\/spec/)) {
-      return route.fulfill({ json: { domain: { name: 'vm-1' } } })
+      return route.fulfill({
+        json: {
+          domain: { name: 'vm-1' },
+          cloud_init: { user: 'ubuntu', ssh_pubkey: 'ssh-ed25519 AAA test' },
+        },
+      })
+    }
+    if (url.match(/\/zeus-firewall\/vms\/[^/]+\/guest-ports/)) {
+      return route.fulfill({
+        json: {
+          vm_id: 'v1',
+          vm_name: 'vm-1',
+          agent_reachable: true,
+          summary: '2 listening port(s)',
+          ports: [
+            { port: 22, protocol: 'tcp', service_name: 'ssh', bind_address: '0.0.0.0', allowed_from: [], risk: 'Safe', evidence: [] },
+            { port: 80, protocol: 'tcp', service_name: 'http', bind_address: '0.0.0.0', allowed_from: [], risk: 'Warning', evidence: [] },
+          ],
+        },
+      })
+    }
+    if (url.match(/\/vms\/[^/]+\/console/)) {
+      return route.fulfill({
+        json: { vm_name: 'vm-1', console_type: 'vnc', ws_path: '/api/v1/vms/v1/console/ws' },
+      })
+    }
+    if (url.match(/\/vms\/[^/]+\/guest\/health/)) {
+      return route.fulfill({
+        json: {
+          guest_ip: '192.168.122.50',
+          guest_hostname: 'vm-1',
+          guest_tools_status: 'installed',
+          reachable: true,
+        },
+      })
+    }
+    if (url.match(/\/vms\/[^/]+\/domain-xml/)) {
+      return route.fulfill({ json: { xml: '<domain type="kvm"><name>vm-1</name></domain>' } })
+    }
+    if (url.match(/\/vms\/[^/]+\/health-check/) && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          vm_id: 'v1',
+          vm_name: 'vm-1',
+          score: 'ok',
+          healthy: true,
+          checks_passed: 3,
+          checks_total: 3,
+          issues: [],
+          guest_tools_status: 'installed',
+          guest_ip: '192.168.122.50',
+        },
+      })
+    }
+    if (url.match(/\/vms\/[^/]+\/(shutdown|pause|resume|start|stop|reboot)$/) && route.request().method() === 'POST') {
+      return route.fulfill({ json: { task_id: 'task-power-mock' } })
     }
     if (url.match(/\/vms\/[^/]+\/snapshots/)) {
       return route.fulfill({ json: [] })

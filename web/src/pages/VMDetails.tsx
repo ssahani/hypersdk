@@ -30,7 +30,9 @@ import { listNetworks, NetworkInfo } from '../api/network'
 import { listSnapshots, createSnapshot, deleteSnapshot, revertSnapshot, SnapshotInfo, SnapshotDiskSpec } from '../api/snapshot'
 import { getStateBadgeClasses, formatBytes } from '../utils/vm'
 import { sessionBadgeClasses, statusActionLinkClasses, statusBadgeClasses, statusBgClass, statusSurfaceClasses, statusToneClass, utilizationTone } from '../utils/semanticColors'
-import { loadVmSshPrefs, saveVmSshPrefs } from '../utils/vmSshPrefs'
+import { loadVmSshPrefs } from '../utils/vmSshPrefs'
+import VmDailyAccessStrip from '../components/vm/VmDailyAccessStrip'
+import VmSshConnectDialog, { navigateVmSshSession } from '../components/vm/VmSshConnectDialog'
 import { addRecentVM } from '../utils/recentVMs'
 import { guestIpv4GatewayHints } from '../utils/guestIpv4GatewayHints'
 import { getSession, type SessionRole } from '../api/auth'
@@ -162,6 +164,7 @@ export default function VMDetailsPage() {
   const [cdromPath, setCdromPath] = useState('')
   const [cdromTarget, setCdromTarget] = useState('sda')
   const [cloneName, setCloneName] = useState('')
+  const [cloneMode, setCloneMode] = useState<'linked' | 'full' | 'xml'>('linked')
   const [newName, setNewName] = useState('')
   const [migrateUri, setMigrateUri] = useState('')
   const [migrateLive, setMigrateLive] = useState(true)
@@ -209,8 +212,6 @@ export default function VMDetailsPage() {
   const [shareSourceDir, setShareSourceDir] = useState('')
   const [shareMountTag, setShareMountTag] = useState('')
   const [shareXattr, setShareXattr] = useState(true)
-  const [sshIp, setSshIp] = useState('')
-  const [sshUser, setSshUser] = useState('root')
   const [sshDialogOpen, setSshDialogOpen] = useState(false)
   const [templateName, setTemplateName] = useState('')
   const [snapDiskOnly, setSnapDiskOnly] = useState(false)
@@ -542,7 +543,7 @@ export default function VMDetailsPage() {
 
   const handleClone = async () => {
     if (!name || !cloneName.trim()) return
-    try { await cloneVM(name, cloneName.trim(), conn); toast.success(`Cloned to '${cloneName}'`); setDialog(null); load() } catch (e: unknown) { toast.error(`Clone failed: ${formatUserError(e)}`) }
+    try { await cloneVM(name, cloneName.trim(), conn, cloneMode); toast.success(`Cloned to '${cloneName}' (${cloneMode})`); setDialog(null); load() } catch (e: unknown) { toast.error(`Clone failed: ${formatUserError(e)}`) }
   }
 
   const handleRename = async () => {
@@ -1030,26 +1031,17 @@ export default function VMDetailsPage() {
     try { await setAutostart(name, !vm.autostart, conn); toast.success(`Autostart ${!vm.autostart ? 'enabled' : 'disabled'}`); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
   }
 
-  /** Open SSH dialog: guest IP from agent first, else last-saved IP; SSH user from last successful connect (defaults to root). */
   const openVmSshDialog = useCallback(() => {
     if (!name) return
-    const prefs = loadVmSshPrefs(name)
-    const fromGuest = guestIps[0]?.address?.trim()
-    const ip = fromGuest || prefs?.host?.trim() || ''
-    const user = prefs?.user?.trim() || 'root'
-    setSshIp(ip)
-    setSshUser(user)
     setSshDialogOpen(true)
-  }, [name, guestIps])
+  }, [name])
 
-  const navigateVmSshSession = useCallback(() => {
-    if (!name) return
-    const h = sshIp.trim()
-    const u = sshUser.trim() || 'root'
-    if (!h) return
-    saveVmSshPrefs(name, { host: h, user: u })
-    window.location.href = `/ssh?host=${encodeURIComponent(h)}&user=${encodeURIComponent(u)}`
-  }, [name, sshIp, sshUser])
+  const classicGuestIp = guestIps[0]?.address?.trim() || vm?.guest_ip?.trim() || ''
+  const classicSshUser = loadVmSshPrefs(name ?? '')?.user?.trim() || 'root'
+  const classicDetectedIps = guestIps.map((g) => g.address).filter(Boolean)
+  const classicNatHref = classicGuestIp
+    ? `/host-networking?tab=portforward&vm_ip=${encodeURIComponent(classicGuestIp)}&vm_port=22`
+    : undefined
 
   const moveBootDevice = (index: number, dir: -1 | 1) => {
     const newDevices = [...bootDevices]
@@ -1184,6 +1176,27 @@ export default function VMDetailsPage() {
         <button type="button" onClick={() => setTab('advanced')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Sliders className="w-3 h-3 inline -mt-0.5" /> Advanced</button>
         <button onClick={load} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition" aria-label="Refresh"><RefreshCw className="w-3 h-3" /></button>
       </div>
+
+      <VmDailyAccessStrip
+        vmName={vm.name}
+        vmState={vm.state}
+        sshUser={classicSshUser}
+        guestIp={classicGuestIp}
+        detectedIps={classicDetectedIps}
+        guestIpWaiting={vm.state === 'running' && !classicGuestIp}
+        onRefreshGuestIp={() => {
+          if (!name) return
+          void getGuestHealth(name, conn).then(setGuestHealth).catch(() => setGuestHealth(null))
+          void load()
+        }}
+        consoleHref={vmConsoleRoute(vm.name, conn)}
+        onExportXml={async () => {
+          if (vmXml) return vmXml
+          return getVMXml(name!, conn)
+        }}
+        natForwardHref={classicNatHref}
+        onNotify={(m) => toast.success(m)}
+      />
 
       {/* Tabs — card picker */}
       <div>
@@ -2297,7 +2310,13 @@ export default function VMDetailsPage() {
             <DialogBox title="Clone VM" icon={<Copy className={`w-5 h-5 ${statusToneClass('ok')}`} />} onClose={() => setDialog(null)} onConfirm={handleClone} confirmLabel="Clone">
               <label htmlFor="dlg-clone" className="block text-sm text-slate-400 mb-1">New VM Name</label>
               <input id="dlg-clone" type="text" autoFocus value={cloneName} onChange={(e) => setCloneName(e.target.value)} className="input-field" placeholder="my-vm-clone" />
-              <p className="text-xs text-slate-500 mt-2">Creates a copy of the VM definition with new UUID and MAC addresses. Disk images are NOT copied.</p>
+              <label htmlFor="dlg-clone-mode" className="block text-sm text-slate-400 mb-1 mt-3">Disk mode</label>
+              <select id="dlg-clone-mode" className="input-field" value={cloneMode} onChange={(e) => setCloneMode(e.target.value as 'linked' | 'full' | 'xml')}>
+                <option value="linked">Linked clone (qcow2 backing file)</option>
+                <option value="full">Full clone (independent copy)</option>
+                <option value="xml">XML only (shared disk — not recommended)</option>
+              </select>
+              <p className="text-xs text-slate-500 mt-2">Linked and full clones create a new disk image and new MAC addresses. Linked shares blocks with the source until written.</p>
             </DialogBox>
           )}
 
@@ -3021,39 +3040,15 @@ export default function VMDetailsPage() {
         onCancel={() => setDeleteSnapName(null)}
       />
 
-      {/* SSH Dialog — standalone, not using DialogOverlay/DialogBox to avoid click conflicts */}
-      {sshDialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in" role="dialog" aria-modal="true">
-          <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
-              <span className="text-lg font-semibold flex items-center gap-2"><Terminal className={`w-5 h-5 ${statusToneClass('ok')}`} /> SSH Connection</span>
-              <button onClick={() => setSshDialogOpen(false)} className="p-1 hover:bg-slate-700 rounded transition"><X className="w-4 h-4 text-slate-400" /></button>
-            </div>
-            <div className="p-5 space-y-3">
-              <label htmlFor="dlg-ssh-ip" className="block text-sm text-slate-400 mb-1">Guest IP (guest agent first, then last address you used for this VM; edit if needed)</label>
-              <input id="dlg-ssh-ip" type="text" autoFocus value={sshIp} onChange={(e) => setSshIp(e.target.value)} placeholder="192.168.122.100" className="input-field"
-                onKeyDown={(e) => { if (e.key === 'Enter' && sshIp.trim()) navigateVmSshSession() }} />
-              <label htmlFor="dlg-ssh-user" className="block text-sm text-slate-400 mb-1 mt-3">SSH user (defaults to root; remembers last successful login for this VM in this browser)</label>
-              <input id="dlg-ssh-user" type="text" value={sshUser} onChange={(e) => setSshUser(e.target.value)} placeholder="root" className="input-field" autoComplete="username" />
-              {guestIps.length > 0 && (
-                <div>
-                  <span className="text-xs text-slate-500">Detected IPs:</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {guestIps.map((ip, i) => (
-                      <button key={i} type="button" onClick={() => setSshIp(ip.address)} className={`px-2 py-0.5 bg-slate-900 border border-slate-700 rounded text-xs hover:bg-slate-700 transition ${statusActionLinkClasses('info')}`}>{ip.address}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <p className="text-xs text-slate-500">Creates a short-lived server session, then opens a PTY-backed SSH terminal (port 22). The browser never passes the host in the WebSocket URL.</p>
-            </div>
-            <div className="flex justify-end gap-3 px-5 pb-5">
-              <button type="button" onClick={() => setSshDialogOpen(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
-              <button type="button" onClick={() => { if (sshIp.trim()) navigateVmSshSession() }} className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-sm text-white font-medium transition">Connect</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <VmSshConnectDialog
+        open={sshDialogOpen}
+        vmName={vm.name}
+        defaultIp={classicGuestIp}
+        defaultUser={classicSshUser}
+        detectedIps={classicDetectedIps}
+        onClose={() => setSshDialogOpen(false)}
+        onConnect={(h, u) => navigateVmSshSession(vm.name, h, u)}
+      />
 
       {kubevirtOpen && kubevirtBundle && (
         <div

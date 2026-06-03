@@ -14,6 +14,7 @@ REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/deploy-common.sh"
 
 SSH_PORT="${SSH_PORT:-22}"
+SSH_KEY=""
 HEALTH_URL="${HEALTH_URL:-https://127.0.0.1:5092/api/v1/health}"
 STRICT="${STRICT:-0}"
 # Default matches VM-style layout: rsync here → build on server → install to /usr/local + systemd
@@ -78,6 +79,7 @@ Open the UI at https://HOST:5092 (install.sh generates a self-signed cert; repla
 --remote-check   Same but `make check` (faster compile check).
 
 Auth: SSH keys/agent by default; optional PASSWORD arg or SSHPASS env → sshpass.
+        --ssh-key PATH   Use this private key for rsync/ssh (IdentityFile; IdentitiesOnly=yes).
 
 Examples:
   deploy-remote.sh sus@185.165.240.5 --bind 0.0.0.0 --open-firewall
@@ -270,6 +272,7 @@ parse_flags() {
             --remote-check) REMOTE_CHECK=true; SKIP_INSTALL=true; shift ;;
             --dry-run) DRY_RUN=true; shift ;;
             --bind) shift; BIND="${1:?}"; shift ;;
+            --ssh-key) shift; SSH_KEY="${1:?}"; shift ;;
             *) REST+=("$1"); shift ;;
         esac
     done
@@ -315,6 +318,13 @@ else
 fi
 
 REMOTE="${USER}@${HOST}"
+
+if [[ -n "$SSH_KEY" ]]; then
+    [[ -f "$SSH_KEY" ]] || die "--ssh-key not found: $SSH_KEY"
+    SSH_OPTS+=(-i "$SSH_KEY" -o IdentitiesOnly=yes)
+    RSYNC_RSH="ssh ${SSH_OPTS[*]}"
+    info "SSH auth: 🔑 key file ${SSH_KEY}"
+fi
 
 # Full install defaults: remote IPv4 targets must listen on 0.0.0.0 and open :5092 unless overridden.
 if [[ "$HOST" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] && [[ "$HOST" != "127.0.0.1" ]]; then

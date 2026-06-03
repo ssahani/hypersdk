@@ -854,8 +854,14 @@ async fn clone_vm_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let new_name = req.new_name.clone();
+    let mode = if req.clone_mode.trim().is_empty() {
+        "linked".to_string()
+    } else {
+        req.clone_mode.clone()
+    };
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
-        clone::clone_vm(conn, &name2, &new_name)
+        let _uuid = clone::clone_vm_with_disk(conn, &name2, &new_name, &mode)?;
+        Ok(())
     })
     .await?;
     log_audit("clone", &format!("{name} -> {}", req.new_name), "ok");

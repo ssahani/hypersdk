@@ -79,19 +79,73 @@ impl LibvirtCtx {
         machina_core::libvirt::network::list_networks(&self.conn)
     }
 
-    pub fn list_storage_pools(&self) -> Result<Vec<(machina_core::StoragePoolInfo, String)>, LibvirtError> {
-        use machina_core::libvirt::storage::{list_pools, target_path_from_pool_xml};
+    pub fn list_host_gpus(&self) -> Result<Vec<(String, String, String, u32, String)>, LibvirtError> {
+        use machina_core::libvirt::extras::list_iommu_groups;
+        let mut out = Vec::new();
+        for group in list_iommu_groups()? {
+            for dev in &group.devices {
+                let name_lower = dev.device_name.to_ascii_lowercase();
+                let is_gpu = name_lower.contains("vga")
+                    || name_lower.contains("3d")
+                    || name_lower.contains("nvidia")
+                    || name_lower.contains("gpu")
+                    || dev.vendor.to_ascii_lowercase().contains("nvidia");
+                if is_gpu {
+                    out.push((
+                        dev.bdf.clone(),
+                        dev.vendor.clone(),
+                        dev.device_name.clone(),
+                        group.group_id,
+                        String::new(),
+                    ));
+                }
+            }
+        }
+        if let Ok(out_smi) = std::process::Command::new("nvidia-smi")
+            .args(["--query-gpu=pci.bus_id,name,mig.mode.current", "--format=csv,noheader"])
+            .output()
+        {
+            if out_smi.status.success() {
+                let text = String::from_utf8_lossy(&out_smi.stdout);
+                for line in text.lines() {
+                    let parts: Vec<_> = line.split(',').map(|s| s.trim().to_string()).collect();
+                    if parts.len() >= 2 {
+                        let pci = parts[0].replace("00000000:", "").to_ascii_lowercase();
+                        let mig = parts.get(2).cloned().unwrap_or_default();
+                        for entry in &mut out {
+                            if entry.0.to_ascii_lowercase().contains(&pci) || pci.contains(&entry.0) {
+                                entry.4 = mig;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    pub fn list_storage_pools(
+        &self,
+    ) -> Result<Vec<(machina_core::StoragePoolInfo, String, String)>, LibvirtError> {
+        use machina_core::libvirt::storage::{
+            list_pools, storage_pool_backend_from_xml, target_path_from_pool_xml,
+        };
         use virt::storage_pool::StoragePool;
 
         let pools = list_pools(&self.conn)?;
         let mut out = Vec::with_capacity(pools.len());
         for info in pools {
-            let path = StoragePool::lookup_by_name(&self.conn, &info.name)
+            let (path, backend) = StoragePool::lookup_by_name(&self.conn, &info.name)
                 .ok()
                 .and_then(|p| p.get_xml_desc(0).ok())
-                .and_then(|xml| target_path_from_pool_xml(&xml))
-                .unwrap_or_default();
-            out.push((info, path));
+                .map(|xml| {
+                    (
+                        target_path_from_pool_xml(&xml).unwrap_or_default(),
+                        storage_pool_backend_from_xml(&xml),
+                    )
+                })
+                .unwrap_or_else(|| (String::new(), "directory".into()));
+            out.push((info, path, backend));
         }
         Ok(out)
     }
@@ -260,10 +314,32 @@ impl LibvirtCtx {
                     dom.create().map_err(|e| LibvirtError::Operation(e.to_string()))?;
                 }
             }
+            "shutdown" => {
+                if active {
+                    domain::shutdown_vm(&self.conn, name)?;
+                }
+            }
+            "pause" => {
+                if active {
+                    domain::pause_vm(&self.conn, name)?;
+                }
+            }
+            "resume" => {
+                domain::resume_vm(&self.conn, name)?;
+            }
             _ => return Err(LibvirtError::Invalid(format!("unknown power action: {action}"))),
         }
+        let dom = Domain::lookup_by_name(&self.conn, name)
+            .map_err(|e| LibvirtError::NotFound(format!("VM '{name}': {e}")))?;
         let info = dom.get_info().map_err(|e| LibvirtError::Operation(e.to_string()))?;
         Ok(machina_core::libvirt::metrics::domain_state_label(info.state).to_string())
+    }
+
+    pub fn get_domain_xml(&self, name: &str) -> Result<String, LibvirtError> {
+        let dom = Domain::lookup_by_name(&self.conn, name)
+            .map_err(|e| LibvirtError::NotFound(format!("VM '{name}': {e}")))?;
+        dom.get_xml_desc(0)
+            .map_err(|e| LibvirtError::Operation(e.to_string()))
     }
 
     pub fn delete(&self, name: &str) -> Result<(), LibvirtError> {
@@ -285,16 +361,24 @@ impl LibvirtCtx {
         machina_core::libvirt::migrate::migrate_vm_uri(&self.conn, name, dest_uri, live, None, 0)
     }
 
-    pub fn clone_vm(&self, source: &str, new_name: &str) -> Result<(), LibvirtError> {
-        machina_core::libvirt::clone::clone_vm(&self.conn, source, new_name)
+    pub fn clone_vm(&self, source: &str, new_name: &str, clone_mode: &str) -> Result<String, LibvirtError> {
+        machina_core::libvirt::clone::clone_vm_with_disk(&self.conn, source, new_name, clone_mode)
     }
 
-    pub fn create_snapshot(&self, vm_name: &str, snap_name: &str, description: &str) -> Result<(), LibvirtError> {
+    pub fn create_snapshot(
+        &self,
+        vm_name: &str,
+        snap_name: &str,
+        description: &str,
+        disk_only: bool,
+        quiesce: bool,
+        storage_mode: &str,
+    ) -> Result<(), LibvirtError> {
         let req = machina_core::state::CreateSnapshotRequest {
             name: snap_name.to_string(),
             description: description.to_string(),
-            disk_only: false,
-            storage_mode: String::new(),
+            disk_only,
+            storage_mode: storage_mode.to_string(),
             memory_snapshot: String::new(),
             memory_file: String::new(),
             external_disk_dir: String::new(),
@@ -302,6 +386,7 @@ impl LibvirtCtx {
             disks: Vec::new(),
             atomic: true,
             reuse_external: false,
+            quiesce,
         };
         machina_core::libvirt::snapshot::create_snapshot(&self.conn, vm_name, &req)
     }
@@ -334,7 +419,7 @@ impl LibvirtCtx {
 
         if revert_source {
             self.revert_snapshot(vm_name, snap_name)?;
-            self.clone_vm(vm_name, new_name)?;
+            let _uuid = self.clone_vm(vm_name, new_name, "full")?;
         } else {
             let dom = Domain::lookup_by_name(&self.conn, vm_name)
                 .map_err(|e| LibvirtError::NotFound(format!("VM '{vm_name}': {e}")))?;

@@ -77,7 +77,8 @@ fn effective_disk_mode(req: &CreateVmRequest, tmpl: &VmTemplate) -> &'static str
     }
 }
 
-fn materialize_from_base(base: &Path, dest: &Path, mode: &str) -> Result<(), LibvirtError> {
+/// Create a new qcow2 from a source image (`backing` = linked clone, `copy` = full copy).
+pub fn materialize_from_base(base: &Path, dest: &Path, mode: &str) -> Result<(), LibvirtError> {
     match mode {
         "copy" => {
             let out = Command::new("qemu-img")

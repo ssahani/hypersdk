@@ -90,6 +90,19 @@ pub async fn vm_power(
         .into_inner())
 }
 
+pub async fn get_domain_xml(
+    client: &mut HostAgentClient<Channel>,
+    vm_name: &str,
+) -> anyhow::Result<String> {
+    Ok(client
+        .get_domain_xml(GetDomainXmlRequest {
+            vm_name: vm_name.to_string(),
+        })
+        .await?
+        .into_inner()
+        .xml)
+}
+
 pub async fn delete_vm(client: &mut HostAgentClient<Channel>, vm_name: &str) -> anyhow::Result<()> {
     client
         .delete_vm(DeleteVmRequest {
@@ -140,12 +153,14 @@ pub async fn clone_vm(
     client: &mut HostAgentClient<Channel>,
     source: &str,
     new_name: &str,
+    clone_mode: &str,
 ) -> anyhow::Result<CloneVmResponse> {
     Ok(client
         .clone_vm(CloneVmRequest {
             source_name: source.to_string(),
             new_name: new_name.to_string(),
             spec_json: String::new(),
+            clone_mode: clone_mode.to_string(),
         })
         .await?
         .into_inner())
@@ -218,12 +233,18 @@ pub async fn create_snapshot(
     vm_name: &str,
     snapshot_name: &str,
     description: &str,
+    disk_only: bool,
+    quiesce: bool,
+    storage_mode: &str,
 ) -> anyhow::Result<CreateSnapshotResponse> {
     Ok(client
         .create_snapshot(CreateSnapshotRequest {
             vm_name: vm_name.to_string(),
             snapshot_name: snapshot_name.to_string(),
             description: description.to_string(),
+            disk_only,
+            quiesce,
+            storage_mode: storage_mode.to_string(),
         })
         .await?
         .into_inner())
@@ -625,4 +646,96 @@ pub async fn get_linux_package_updates(addr: &str) -> anyhow::Result<serde_json:
     } else {
         anyhow::bail!(resp.message)
     }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PortForwardRuleDto {
+    pub id: String,
+    pub protocol: String,
+    pub host_port: u16,
+    pub vm_ip: String,
+    pub vm_port: u16,
+    pub description: String,
+}
+
+pub async fn list_port_forwards(addr: &str) -> anyhow::Result<Vec<PortForwardRuleDto>> {
+    let mut client = connect(addr).await?;
+    let resp = client
+        .list_port_forwards(ListPortForwardsRequest {})
+        .await?
+        .into_inner();
+    if !resp.message.is_empty() && resp.rules.is_empty() {
+        anyhow::bail!(resp.message);
+    }
+    Ok(resp
+        .rules
+        .into_iter()
+        .map(|r| PortForwardRuleDto {
+            id: r.id,
+            protocol: r.protocol,
+            host_port: r.host_port as u16,
+            vm_ip: r.vm_ip,
+            vm_port: r.vm_port as u16,
+            description: r.description,
+        })
+        .collect())
+}
+
+pub async fn create_port_forward(
+    addr: &str,
+    protocol: &str,
+    host_port: u16,
+    vm_ip: &str,
+    vm_port: u16,
+    description: &str,
+) -> anyhow::Result<()> {
+    let mut client = connect(addr).await?;
+    let resp = client
+        .create_port_forward(CreatePortForwardRequest {
+            protocol: protocol.to_string(),
+            host_port: host_port as u32,
+            vm_ip: vm_ip.to_string(),
+            vm_port: vm_port as u32,
+            description: description.to_string(),
+        })
+        .await?
+        .into_inner();
+    if resp.ok {
+        Ok(())
+    } else {
+        anyhow::bail!(resp.message)
+    }
+}
+
+pub async fn delete_port_forward(
+    addr: &str,
+    protocol: &str,
+    host_port: u16,
+    vm_ip: &str,
+    vm_port: u16,
+) -> anyhow::Result<()> {
+    let mut client = connect(addr).await?;
+    let resp = client
+        .delete_port_forward(DeletePortForwardRequest {
+            protocol: protocol.to_string(),
+            host_port: host_port as u32,
+            vm_ip: vm_ip.to_string(),
+            vm_port: vm_port as u32,
+        })
+        .await?
+        .into_inner();
+    if resp.ok {
+        Ok(())
+    } else {
+        anyhow::bail!(resp.message)
+    }
+}
+
+pub async fn list_host_gpus(
+    client: &mut HostAgentClient<Channel>,
+) -> anyhow::Result<ListHostGpusResponse> {
+    Ok(client
+        .list_host_gpus(ListHostGpusRequest {})
+        .await?
+        .into_inner())
 }

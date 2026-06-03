@@ -121,10 +121,24 @@ except Exception:
   e2e_platform_wait_vm_state "$vm_id" "running" 240 || e2e_platform_warn "VM not running yet — continuing"
 
   e2e_platform_hdr "PLATFORM: VM POWER + PATCH TAGS"
+  r="$(e2e_platform_curl -X POST "${E2E_PLATFORM_BASE}/api/v1/vms/${vm_id}/pause")"
+  e2e_platform_assert_json_key "$r" "task_id" "vm pause task"
+  e2e_platform_wait_task "vm.power" 120 || true
+  r="$(e2e_platform_curl -X POST "${E2E_PLATFORM_BASE}/api/v1/vms/${vm_id}/resume")"
+  e2e_platform_assert_json_key "$r" "task_id" "vm resume task"
+  e2e_platform_wait_task "vm.power" 120 || true
+  r="$(e2e_platform_curl -X POST "${E2E_PLATFORM_BASE}/api/v1/vms/${vm_id}/shutdown")"
+  e2e_platform_assert_json_key "$r" "task_id" "vm shutdown task"
+  e2e_platform_wait_task "vm.power" 180 || true
+  r="$(e2e_platform_curl -X POST "${E2E_PLATFORM_BASE}/api/v1/vms/${vm_id}/start")"
+  e2e_platform_wait_task "vm.power" 120 || true
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/vms/${vm_id}/guest/health")"
+  [[ "$http" == "200" ]] && e2e_platform_ok "guest/health GET" || e2e_platform_warn "guest/health HTTP ${http}"
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/vms/${vm_id}/domain-xml")"
+  [[ "$http" == "200" || "$http" == "404" || "$http" == "502" ]] && e2e_platform_ok "domain-xml GET (HTTP ${http})" \
+    || e2e_platform_warn "domain-xml HTTP ${http}"
   r="$(e2e_platform_curl -X POST "${E2E_PLATFORM_BASE}/api/v1/vms/${vm_id}/stop")"
   e2e_platform_assert_json_key "$r" "task_id" "vm stop task"
-  e2e_platform_wait_task "vm.power" 120 || true
-  r="$(e2e_platform_curl -X POST "${E2E_PLATFORM_BASE}/api/v1/vms/${vm_id}/start")"
   e2e_platform_wait_task "vm.power" 120 || true
   r="$(e2e_platform_curl -X PATCH "${E2E_PLATFORM_BASE}/api/v1/vms/${vm_id}" \
     -H "Content-Type: application/json" -d '{"tags":["e2e","platform","updated"]}')"

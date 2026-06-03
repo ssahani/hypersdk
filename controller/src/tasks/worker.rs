@@ -164,8 +164,9 @@ async fn vm_power(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     let resp = agent_client::vm_power(&mut client, &row.0, &action).await?;
 
     let desired = match action.as_str() {
-        "start" => "running",
-        "stop" => "stopped",
+        "start" | "resume" | "reboot" => "running",
+        "stop" | "shutdown" => "stopped",
+        "pause" => "paused",
         _ => "running",
     };
     sqlx::query(
@@ -445,6 +446,10 @@ async fn vm_clone(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         .as_str()
         .ok_or_else(|| anyhow::anyhow!("new_name missing"))?
         .to_string();
+    let clone_mode = msg.payload["clone_mode"]
+        .as_str()
+        .unwrap_or("linked")
+        .to_string();
 
     let row: (String, Option<Uuid>, Uuid, serde_json::Value, i32, i64) = sqlx::query_as(
         "SELECT name, host_id, cluster_id, spec_json, vcpus, memory_mib FROM vms WHERE id = $1",
@@ -456,7 +461,7 @@ async fn vm_clone(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
 
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
-    let resp = agent_client::clone_vm(&mut client, &row.0, &new_name).await?;
+    let resp = agent_client::clone_vm(&mut client, &row.0, &new_name, &clone_mode).await?;
 
     let new_id = Uuid::new_v4();
     sqlx::query(
@@ -689,7 +694,30 @@ async fn vm_snapshot(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> 
 
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
-    let resp = agent_client::create_snapshot(&mut client, &row.0, &row.2, "machina platform snapshot").await?;
+    let snap_name = msg.payload["name"]
+        .as_str()
+        .unwrap_or(&row.2)
+        .to_string();
+    let description = msg.payload["description"]
+        .as_str()
+        .unwrap_or("machina platform snapshot")
+        .to_string();
+    let disk_only = msg.payload["disk_only"].as_bool().unwrap_or(false);
+    let quiesce = msg.payload["quiesce"].as_bool().unwrap_or(false);
+    let storage_mode = msg.payload["storage_mode"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    let resp = agent_client::create_snapshot(
+        &mut client,
+        &row.0,
+        &snap_name,
+        &description,
+        disk_only,
+        quiesce,
+        &storage_mode,
+    )
+    .await?;
 
     if resp.ok {
         sqlx::query(
@@ -757,6 +785,10 @@ async fn vm_backup(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
             .fetch_one(&state.pool)
             .await?;
     let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
+    let backup_type: String = sqlx::query_scalar("SELECT backup_type FROM backup_records WHERE id = $1")
+        .bind(record_id)
+        .fetch_one(&state.pool)
+        .await?;
     let dest = state
         .config
         .backup_dir
@@ -766,7 +798,16 @@ async fn vm_backup(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
 
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
-    let resp = agent_client::backup_vm(&mut client, &row.0, &dest).await?;
+    let resp = if backup_type == "incremental" {
+        run_incremental_backup(&state.pool, vm_id, &row.0, &dest, &agent_addr).await?
+    } else {
+        agent_client::backup_vm(&mut client, &row.0, &dest).await?
+    };
+    if resp.ok && msg.payload["export"].as_bool() == Some(true) {
+        let _ = std::process::Command::new("qemu-img")
+            .args(["check", &resp.path])
+            .output();
+    }
 
     if resp.ok {
         sqlx::query("UPDATE backup_records SET status = 'completed', backup_path = $1, message = $2 WHERE id = $3")
@@ -790,8 +831,14 @@ async fn vm_backup(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
                     if !bucket.is_empty() {
                         let key = format!("{prefix}/{}", std::path::Path::new(&resp.path).file_name().and_then(|s| s.to_str()).unwrap_or("backup.qcow2"));
                         let dest = format!("s3://{bucket}/{key}");
+                        let endpoint = cfg["endpoint_url"].as_str().unwrap_or("");
+                        let mut aws_args = vec!["s3", "cp", &resp.path, &dest];
+                        if !endpoint.is_empty() {
+                            aws_args.push("--endpoint-url");
+                            aws_args.push(endpoint);
+                        }
                         match std::process::Command::new("aws")
-                            .args(["s3", "cp", &resp.path, &dest])
+                            .args(&aws_args)
                             .output()
                         {
                             Ok(out) if out.status.success() => {
@@ -1364,4 +1411,31 @@ async fn vm_guest_tools_install(state: &AppState, msg: &TaskMessage) -> anyhow::
     state.emit_event("vm.guest_tools", format!("Guest tools channel attached for {}", row.0));
     update_task_progress(&state.pool, msg.task_id, 100, "guest tools install queued").await?;
     Ok(())
+}
+
+async fn run_incremental_backup(
+    pool: &PgPool,
+    vm_id: Uuid,
+    vm_name: &str,
+    dest: &str,
+    agent_addr: &str,
+) -> anyhow::Result<machina_agent::pb::BackupVmResponse> {
+    let prior: Option<String> = sqlx::query_scalar(
+        "SELECT backup_path FROM backup_records
+         WHERE vm_id = $1 AND status = 'completed' AND backup_path != ''
+         ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(vm_id)
+    .fetch_optional(pool)
+    .await?;
+    let mut client = agent_client::connect(agent_addr).await?;
+    let resp = agent_client::backup_vm(&mut client, vm_name, dest).await?;
+    if resp.ok {
+        if let Some(base) = prior.filter(|p| std::path::Path::new(p).exists()) {
+            let _ = std::process::Command::new("qemu-img")
+                .args(["rebase", "-u", "-b", &base, &resp.path])
+                .output();
+        }
+    }
+    Ok(resp)
 }

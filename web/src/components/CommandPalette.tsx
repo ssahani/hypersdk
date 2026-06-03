@@ -5,7 +5,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useLocation, useNavigate } from 'react-router'
-import { Search, Plus, Camera, Server, Play, Square, Power, Terminal, ArrowRight, Network, HardDrive, Clock, Star, Boxes, Upload, Pin, Keyboard, Info, Bell, ClipboardList, Activity, Settings } from 'lucide-react'
+import { Search, Plus, Camera, Server, Play, Square, Power, Terminal, ArrowRight, Network, HardDrive, Clock, Star, Boxes, Upload, Pin, Keyboard, Info, Bell, ClipboardList, Activity, Settings, Monitor } from 'lucide-react'
+import { navigateVmSshSession } from './vm/VmSshConnectDialog'
 import { listVMs, startVM, stopVM, shutdownVM, VmInfo } from '../api/vm'
 import { listPlatformHosts, listPlatformVms } from '../api/platform'
 import { listNetworks, NetworkInfo } from '../api/network'
@@ -62,7 +63,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   const [networks, setNetworks] = useState<NetworkInfo[]>([])
   const [pools, setPools] = useState<StoragePoolInfo[]>([])
   const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([])
-  const [platformVms, setPlatformVms] = useState<{ id: string; name: string }[]>([])
+  const [platformVms, setPlatformVms] = useState<{ id: string; name: string; observed_state: string; guest_ip?: string | null }[]>([])
   const [platformHosts, setPlatformHosts] = useState<{ id: string; hostname: string; state: string }[]>([])
   const [loading, setLoading] = useState(false)
   const [reviewCommand, setReviewCommand] = useState<PlatformCommand | null>(null)
@@ -130,7 +131,12 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
         setNetworks(netR.status === 'fulfilled' ? netR.value : [])
         setPools(poolR.status === 'fulfilled' ? poolR.value : [])
         setSnapshots(snapR.status === 'fulfilled' ? snapR.value : [])
-        setPlatformVms(pVmR.status === 'fulfilled' ? pVmR.value.map((v) => ({ id: v.id, name: v.name })) : [])
+        setPlatformVms(pVmR.status === 'fulfilled' ? pVmR.value.map((v) => ({
+          id: v.id,
+          name: v.name,
+          observed_state: v.observed_state,
+          guest_ip: v.guest_ip,
+        })) : [])
         setPlatformHosts(pHostR.status === 'fulfilled' ? pHostR.value.map((h) => ({ id: h.id, hostname: h.hostname, state: h.state })) : [])
       })
       .finally(() => setLoading(false))
@@ -322,6 +328,29 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
         action: () => go(`/platform/vms/${pv.id}`),
         category: 'Fleet',
       })
+      if (pv.observed_state === 'running') {
+        items.push(
+          {
+            id: `platform-vm-vnc-${pv.id}`,
+            icon: <Monitor className="w-4 h-4" />,
+            label: `${pv.name} — VNC console`,
+            action: () => go(`/platform/vms/${pv.id}/console`),
+            category: 'Fleet',
+          },
+          {
+            id: `platform-vm-ssh-${pv.id}`,
+            icon: <Terminal className="w-4 h-4" />,
+            label: `${pv.name} — SSH`,
+            sublabel: pv.guest_ip ?? 'enter IP on connect',
+            action: () => {
+              const ip = pv.guest_ip?.trim()
+              if (ip) navigateVmSshSession(pv.name, ip, 'ubuntu')
+              else go(`/platform/vms/${pv.id}`)
+            },
+            category: 'Fleet',
+          },
+        )
+      }
     }
     for (const ph of platformHosts) {
       if (platformSpotlightPaths.has(`/platform/hosts/${ph.id}`)) continue
@@ -466,7 +495,19 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
     })
     if (vm.state === 'running') {
       items.push(
-        { id: `vm-console-${vm.name}`, icon: <Terminal className="w-4 h-4" />, label: `${vm.name} — Console`, action: () => go(`/vms/${vm.name}/console`), category: 'Virtual Machines' },
+        { id: `vm-console-${vm.name}`, icon: <Monitor className="w-4 h-4" />, label: `${vm.name} — VNC console`, action: () => go(`/vms/${vm.name}/console`), category: 'Virtual Machines' },
+        {
+          id: `vm-ssh-${vm.name}`,
+          icon: <Terminal className="w-4 h-4" />,
+          label: `${vm.name} — SSH`,
+          sublabel: vm.guest_ip ?? 'open VM to enter IP',
+          action: () => {
+            const ip = vm.guest_ip?.trim()
+            if (ip) navigateVmSshSession(vm.name, ip, 'root')
+            else go(`/vms/${vm.name}`)
+          },
+          category: 'Virtual Machines',
+        },
         { id: `vm-shutdown-${vm.name}`, icon: <Power className="w-4 h-4" />, label: `${vm.name} — Shutdown`, action: () => vmAction(vm.name, shutdownVM, 'Shutdown'), category: 'Virtual Machines' },
         { id: `vm-stop-${vm.name}`, icon: <Square className="w-4 h-4" />, label: `${vm.name} — Force Stop`, action: () => vmAction(vm.name, stopVM, 'Stop'), category: 'Virtual Machines' },
       )

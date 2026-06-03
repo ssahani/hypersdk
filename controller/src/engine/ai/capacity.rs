@@ -14,6 +14,9 @@ pub struct CapacityPlan {
     pub cpu_headroom_percent: f32,
     pub estimated_small_vms_addable: i64,
     pub recommendations: Vec<String>,
+    pub forecast_30d_vms: i64,
+    pub forecast_60d_vms: i64,
+    pub forecast_90d_vms: i64,
 }
 
 pub async fn plan(pool: &PgPool) -> anyhow::Result<CapacityPlan> {
@@ -55,7 +58,18 @@ pub async fn plan(pool: &PgPool) -> anyhow::Result<CapacityPlan> {
         0
     };
 
+    let vm_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vms WHERE managed = TRUE")
+        .fetch_one(pool)
+        .await?;
+    let growth_rate = 0.02_f64;
+    let forecast_30d_vms = (vm_count as f64 * (1.0 + growth_rate)).round() as i64;
+    let forecast_60d_vms = (vm_count as f64 * (1.0 + growth_rate * 2.0)).round() as i64;
+    let forecast_90d_vms = (vm_count as f64 * (1.0 + growth_rate * 3.0)).round() as i64;
+
     let mut recommendations = Vec::new();
+    recommendations.push(format!(
+        "30/60/90-day VM forecast (2% monthly): {forecast_30d_vms} / {forecast_60d_vms} / {forecast_90d_vms} (current {vm_count})"
+    ));
     if avg_cpu > 75.0 {
         recommendations.push("CPU pressure high — add hosts or migrate workloads.".into());
     }
@@ -78,6 +92,9 @@ pub async fn plan(pool: &PgPool) -> anyhow::Result<CapacityPlan> {
         cpu_headroom_percent: cpu_headroom,
         estimated_small_vms_addable,
         recommendations,
+        forecast_30d_vms,
+        forecast_60d_vms,
+        forecast_90d_vms,
     })
 }
 

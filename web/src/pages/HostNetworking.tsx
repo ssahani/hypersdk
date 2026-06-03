@@ -3,6 +3,7 @@
 // https://zyvor.dev · info@zyvor.dev
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { listVMs, VmInfo, getInterfaces, GuestIpAddress, vmScopeKey } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
 import {
@@ -38,6 +39,7 @@ interface TopologyNode {
 interface TopologyEdge { from: string; to: string; label?: string }
 
 export default function HostNetworkingPage() {
+  const [searchParams] = useSearchParams()
   const [tab, setTab] = useState<Tab>('topology')
   const [dialog, setDialog] = useState<Dialog>(null)
   const [loading, setLoading] = useState(true)
@@ -229,6 +231,19 @@ export default function HostNetworkingPage() {
   }, [load, routeDest, routeDev, routeFamily, routeOp, routeTableStr, routeVia, toast])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    const tabQ = searchParams.get('tab')
+    const vmIp = searchParams.get('vm_ip')?.trim()
+    const vmPort = searchParams.get('vm_port')
+    if (tabQ === 'portforward') setTab('portforward')
+    if (vmIp) {
+      setPfVmIp(vmIp)
+      const port = vmPort ? parseInt(vmPort, 10) : 22
+      if (!Number.isNaN(port) && port > 0) setPfVmPort(port)
+      setDialog('portforward')
+    }
+  }, [searchParams])
 
   useEffect(() => {
     if (tab !== 'sysctl') return

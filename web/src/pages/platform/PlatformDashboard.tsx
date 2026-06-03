@@ -24,7 +24,7 @@ import InfrastructureDnaStrip from '../../components/platform/InfrastructureDnaS
 import EnterpriseSecurityStrip from '../../components/platform/EnterpriseSecurityStrip'
 import PlatformTahoeEmptyState from '../../components/platform/tahoe/PlatformTahoeEmptyState'
 import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
-import SimpleCreateVmWizard, { sizeToSpec } from '../../components/platform/SimpleCreateVmWizard'
+import SimpleCreateVmWizard, { sizeToSpec, type VmWizardPayload } from '../../components/platform/SimpleCreateVmWizard'
 import {
   createPlatformVm,
   getCapacityReport,
@@ -117,8 +117,9 @@ export default function PlatformDashboard() {
     }
   }
 
-  const handleCreate = async ({ name, os, size, network }: { name: string; os: string; size: string; network: string }) => {
+  const handleCreate = async ({ name, os, size, network, cloudInitSshPubkey }: VmWizardPayload) => {
     const spec = sizeToSpec(size)
+    const cloudUser = os.startsWith('debian') ? 'debian' : os.startsWith('rocky') ? 'rocky' : 'ubuntu'
     const body: CreatePlatformVmBody = {
       api_version: 'virt.zyvor.dev/v1',
       kind: 'VirtualMachine',
@@ -129,6 +130,9 @@ export default function PlatformDashboard() {
         memory: spec.memory,
         storage: [{ name: 'root', size: spec.disk, class: 'silver' }],
         network: [{ network, ip_mode: 'dhcp' }],
+        ...(cloudInitSshPubkey
+          ? { cloud_init: { user: cloudUser, ssh_pubkey: cloudInitSshPubkey } }
+          : {}),
       },
     }
     await createPlatformVm(body)

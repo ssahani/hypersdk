@@ -22,6 +22,9 @@ pub struct VmInfo {
     /// `system` / `session` when `[libvirt] dual_connection` is enabled.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub libvirt_connection: Option<String>,
+    /// Best-effort guest IPv4 (list view; running VMs only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guest_ip: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -131,6 +134,9 @@ pub struct CreateSnapshotRequest {
     /// Allow reuse of pre-created external snapshot files.
     #[serde(default)]
     pub reuse_external: bool,
+    /// QEMU guest agent filesystem freeze before snapshot (app-consistent).
+    #[serde(default)]
+    pub quiesce: bool,
 }
 
 fn default_true() -> bool {
@@ -311,6 +317,9 @@ pub struct AuditEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CloneVmRequest {
     pub new_name: String,
+    /// `linked` (default), `full`, or `xml` (legacy shared disk — not recommended).
+    #[serde(default)]
+    pub clone_mode: String,
 }
 
 // ── Create VM Request ───────────────────────────────────────────────────
@@ -1596,6 +1605,7 @@ mod tests {
                 vcpus: 1,
                 memory_mb: 512,
                 libvirt_connection: None,
+                guest_ip: None,
             },
             VmInfo {
                 name: "bravo".into(),
@@ -1603,6 +1613,7 @@ mod tests {
                 vcpus: 2,
                 memory_mb: 1024,
                 libvirt_connection: None,
+                guest_ip: None,
             },
         ];
         state.search_query = "zzzznotfound".into();
@@ -1621,6 +1632,7 @@ mod tests {
             vcpus: 1,
             memory_mb: 512,
             libvirt_connection: None,
+            guest_ip: None,
         }];
         state.search_query.clear();
         state.apply_search_filter();
@@ -1639,6 +1651,7 @@ mod tests {
                 vcpus: 1,
                 memory_mb: 512,
                 libvirt_connection: None,
+                guest_ip: None,
             },
             VmInfo {
                 name: "bravo".into(),
@@ -1646,6 +1659,7 @@ mod tests {
                 vcpus: 2,
                 memory_mb: 1024,
                 libvirt_connection: None,
+                guest_ip: None,
             },
             VmInfo {
                 name: "charlie".into(),
@@ -1653,6 +1667,7 @@ mod tests {
                 vcpus: 1,
                 memory_mb: 512,
                 libvirt_connection: None,
+                guest_ip: None,
             },
         ];
         state.search_query = "alpha".into();
@@ -1671,6 +1686,7 @@ mod tests {
                 vcpus: 2,
                 memory_mb: 1024,
                 libvirt_connection: None,
+                guest_ip: None,
             },
             VmInfo {
                 name: "b".into(),
@@ -1678,6 +1694,7 @@ mod tests {
                 vcpus: 1,
                 memory_mb: 512,
                 libvirt_connection: None,
+                guest_ip: None,
             },
             VmInfo {
                 name: "c".into(),
@@ -1685,6 +1702,7 @@ mod tests {
                 vcpus: 4,
                 memory_mb: 2048,
                 libvirt_connection: None,
+                guest_ip: None,
             },
         ];
         state.compute_dashboard();
@@ -1706,6 +1724,7 @@ mod tests {
                 vcpus: 1,
                 memory_mb: 512,
                 libvirt_connection: None,
+                guest_ip: None,
             },
             VmInfo {
                 name: "alpha".into(),
@@ -1713,6 +1732,7 @@ mod tests {
                 vcpus: 2,
                 memory_mb: 1024,
                 libvirt_connection: None,
+                guest_ip: None,
             },
             VmInfo {
                 name: "bravo".into(),
@@ -1720,6 +1740,7 @@ mod tests {
                 vcpus: 4,
                 memory_mb: 256,
                 libvirt_connection: None,
+                guest_ip: None,
             },
         ];
         state.sort_column = SortColumn::Name;

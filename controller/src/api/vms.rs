@@ -36,6 +36,8 @@ pub struct VmRow {
     pub inventory_source: String,
     pub k8s_namespace: Option<String>,
     pub last_seen_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub guest_ip: Option<String>,
+    pub guest_tools_status: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -66,7 +68,7 @@ pub async fn list_vms(
                 v.uuid, v.vcpus, v.memory_mib,
                 COALESCE(hp.enabled, FALSE) AS ha_enabled, v.project, COALESCE(v.tags, '{}') AS tags,
                 COALESCE(v.inventory_source, 'libvirt') AS inventory_source,
-                v.k8s_namespace, v.last_seen_at
+                v.k8s_namespace, v.last_seen_at, v.guest_ip, v.guest_tools_status
          FROM vms v LEFT JOIN ha_policies hp ON hp.vm_id = v.id
          LEFT JOIN vm_metrics m ON m.vm_id = v.id
          WHERE ($1::text IS NULL OR v.project = $1)
@@ -115,7 +117,7 @@ pub async fn get_vm(
                 v.uuid, v.vcpus, v.memory_mib,
                 COALESCE(hp.enabled, FALSE) AS ha_enabled, v.project, COALESCE(v.tags, '{}') AS tags,
                 COALESCE(v.inventory_source, 'libvirt') AS inventory_source,
-                v.k8s_namespace, v.last_seen_at
+                v.k8s_namespace, v.last_seen_at, v.guest_ip, v.guest_tools_status
          FROM vms v LEFT JOIN ha_policies hp ON hp.vm_id = v.id
          WHERE v.id = $1",
     )
@@ -392,6 +394,57 @@ pub async fn reboot_vm(
     power_action(&state, id, "reboot", "vm.reboot").await
 }
 
+pub async fn shutdown_vm(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<TaskResponse>, ApiError> {
+    power_action(&state, id, "shutdown", "vm.shutdown").await
+}
+
+pub async fn pause_vm(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<TaskResponse>, ApiError> {
+    power_action(&state, id, "pause", "vm.pause").await
+}
+
+pub async fn resume_vm(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<TaskResponse>, ApiError> {
+    power_action(&state, id, "resume", "vm.resume").await
+}
+
+pub async fn get_vm_domain_xml(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let row: (String, Option<Uuid>, String) = sqlx::query_as(
+        "SELECT name, host_id, COALESCE(inventory_source, 'libvirt') FROM vms WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await?;
+    if row.2 == "kubevirt" {
+        return Err(ApiError::bad_request(
+            "Domain XML is only available for libvirt-managed VMs",
+        ));
+    }
+    let host_id = row
+        .1
+        .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
+    let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut client = crate::agent_client::connect(&agent_addr)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let xml = crate::agent_client::get_domain_xml(&mut client, &row.0)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(serde_json::json!({ "xml": xml })))
+}
+
 pub async fn delete_vm(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -467,12 +520,17 @@ async fn power_action(
     action: &str,
     operation: &str,
 ) -> Result<Json<TaskResponse>, ApiError> {
-    let meta: (Option<Uuid>, String, String) = sqlx::query_as(
-        "SELECT host_id, COALESCE(inventory_source, 'libvirt'), observed_state FROM vms WHERE id = $1",
+    let meta: (Option<Uuid>, String, String, String) = sqlx::query_as(
+        "SELECT host_id, COALESCE(inventory_source, 'libvirt'), observed_state, COALESCE(lifecycle_phase, 'idle') FROM vms WHERE id = $1",
     )
     .bind(vm_id)
     .fetch_one(&state.pool)
     .await?;
+    if meta.3 == crate::engine::vm_lifecycle::PHASE_RETIRED && action == "start" {
+        return Err(ApiError::bad_request(
+            "VM is retired — restore lifecycle before starting",
+        ));
+    }
     if meta.1 == "kubevirt" {
         return Err(ApiError::bad_request(
             "Power actions apply to libvirt VMs only — use Kubernetes / KubeVirt tools for cluster guests",
@@ -552,6 +610,13 @@ pub async fn migrate_vm(
 #[derive(Debug, Deserialize)]
 pub struct CloneVmBody {
     pub new_name: String,
+    /// `linked` (default), `full`, or `xml` (legacy shared disk).
+    #[serde(default = "default_clone_mode")]
+    pub clone_mode: String,
+}
+
+fn default_clone_mode() -> String {
+    "linked".into()
 }
 
 pub async fn clone_vm(
@@ -573,6 +638,7 @@ pub async fn clone_vm(
         serde_json::json!({
             "vm_id": id.to_string(),
             "new_name": body.new_name,
+            "clone_mode": body.clone_mode,
         }),
         Some("vm"),
         Some(id),
@@ -810,5 +876,335 @@ pub async fn attach_vm_disk(
         task_id: task_id.to_string(),
         status: "pending".into(),
         operation: "vm.disk.attach".into(),
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateVmPortForwardBody {
+    pub protocol: String,
+    pub host_port: u16,
+    pub vm_port: u16,
+    #[serde(default)]
+    pub description: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DeleteVmPortForwardBody {
+    pub protocol: String,
+    pub host_port: u16,
+    pub vm_port: u16,
+}
+
+async fn vm_host_agent(state: &AppState, vm_id: Uuid) -> Result<(String, String), ApiError> {
+    let row: (String, Option<Uuid>, String, Option<String>) = sqlx::query_as(
+        "SELECT name, host_id, COALESCE(inventory_source, 'libvirt'), guest_ip FROM vms WHERE id = $1",
+    )
+    .bind(vm_id)
+    .fetch_one(&state.pool)
+    .await?;
+    if row.2 == "kubevirt" {
+        return Err(ApiError::bad_request(
+            "Port forwarding is only available for libvirt-managed VMs",
+        ));
+    }
+    let host_id = row
+        .1
+        .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
+    let (_, agent_addr) =
+        crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok((row.3.unwrap_or_default(), agent_addr))
+}
+
+pub async fn list_vm_port_forwards(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<crate::agent_client::PortForwardRuleDto>>, ApiError> {
+    let (guest_ip, agent_addr) = vm_host_agent(&state, id).await?;
+    let guest_ip = guest_ip.trim();
+    if guest_ip.is_empty() {
+        return Ok(Json(vec![]));
+    }
+    let rules = crate::agent_client::list_port_forwards(&agent_addr)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let filtered: Vec<_> = rules
+        .into_iter()
+        .filter(|r| r.vm_ip == guest_ip)
+        .collect();
+    Ok(Json(filtered))
+}
+
+pub async fn create_vm_port_forward(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<CreateVmPortForwardBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let (guest_ip, agent_addr) = vm_host_agent(&state, id).await?;
+    let guest_ip = guest_ip
+        .trim()
+        .to_string();
+    if guest_ip.is_empty() {
+        return Err(ApiError::bad_request(
+            "Guest IP is not known yet — wait for DHCP or install guest tools",
+        ));
+    }
+    let proto = body.protocol.to_lowercase();
+    if proto != "tcp" && proto != "udp" {
+        return Err(ApiError::bad_request("protocol must be tcp or udp"));
+    }
+    crate::agent_client::create_port_forward(
+        &agent_addr,
+        &proto,
+        body.host_port,
+        &guest_ip,
+        body.vm_port,
+        &body.description,
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn delete_vm_port_forward(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<DeleteVmPortForwardBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let (guest_ip, agent_addr) = vm_host_agent(&state, id).await?;
+    let guest_ip = guest_ip.trim();
+    if guest_ip.is_empty() {
+        return Err(ApiError::bad_request("Guest IP is not known yet"));
+    }
+    let proto = body.protocol.to_lowercase();
+    crate::agent_client::delete_port_forward(
+        &agent_addr,
+        &proto,
+        body.host_port,
+        guest_ip,
+        body.vm_port,
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PublishTemplateFromVmBody {
+    pub template_name: String,
+    pub version: String,
+    #[serde(default = "publish_tpl_category")]
+    pub category: String,
+    #[serde(default)]
+    pub workload: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub marketplace: bool,
+    #[serde(default)]
+    pub project: String,
+}
+
+fn publish_tpl_category() -> String {
+    "Linux".into()
+}
+
+/// Publish a libvirt VM as a golden template (unifies daemon JSON + platform DB).
+pub async fn publish_vm_template(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<PublishTemplateFromVmBody>,
+) -> Result<Json<crate::api::templates::TemplateRow>, ApiError> {
+    machina_spec::validate_name(&body.template_name)
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+
+    let row: (String, Option<Uuid>, String) = sqlx::query_as(
+        "SELECT name, host_id, COALESCE(inventory_source, 'libvirt') FROM vms WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await?;
+    if row.2 == "kubevirt" {
+        return Err(ApiError::bad_request("Templates require libvirt-managed VMs"));
+    }
+    let host_id = row
+        .1
+        .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
+    let (_, agent_addr) =
+        crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut client = crate::agent_client::connect(&agent_addr)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let xml = crate::agent_client::get_domain_xml(&mut client, &row.0)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let source_disk = machina_core::libvirt::template_apply::primary_disk_path_from_xml(&xml)
+        .and_then(|p| p.to_str().map(|s| s.to_string()))
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| ApiError::bad_request("Could not resolve VM root disk path from domain XML"))?;
+
+    let daemon_json = format!(
+        "/var/lib/machina/templates/{}.json",
+        body.template_name
+    );
+    let approval = if body.marketplace {
+        "pending"
+    } else {
+        "approved"
+    };
+    let desc = if body.description.is_empty() {
+        format!("Golden image from VM '{}'", row.0)
+    } else {
+        body.description.clone()
+    };
+    let tpl_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO templates (id, name, version, source_disk, cloud_init, os_family, category, workload, description, featured, marketplace, daemon_json_path, approval_status, project)
+         VALUES ($1, $2, $3, $4, TRUE, 'linux', $5, $6, $7, FALSE, $8, $9, $10, $11)
+         ON CONFLICT (name, version) DO UPDATE SET
+           source_disk = EXCLUDED.source_disk,
+           workload = EXCLUDED.workload,
+           description = EXCLUDED.description,
+           daemon_json_path = EXCLUDED.daemon_json_path,
+           approval_status = EXCLUDED.approval_status,
+           project = EXCLUDED.project",
+    )
+    .bind(tpl_id)
+    .bind(&body.template_name)
+    .bind(&body.version)
+    .bind(&source_disk)
+    .bind(&body.category)
+    .bind(&body.workload)
+    .bind(&desc)
+    .bind(body.marketplace)
+    .bind(&daemon_json)
+    .bind(approval)
+    .bind(&body.project)
+    .execute(&state.pool)
+    .await?;
+
+    let template_row = sqlx::query_as::<_, crate::api::templates::TemplateRow>(
+        "SELECT id, name, version, source_disk, cloud_init, os_family, category, COALESCE(workload, '') AS workload, description, featured, marketplace, icon, firewall_profile, COALESCE(approval_status, 'approved') AS approval_status, COALESCE(git_ref, '') AS git_ref, COALESCE(daemon_json_path, '') AS daemon_json_path, COALESCE(project, '') AS project FROM templates WHERE name = $1 AND version = $2",
+    )
+    .bind(&body.template_name)
+    .bind(&body.version)
+    .fetch_one(&state.pool)
+    .await?;
+    Ok(Json(template_row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RetireVmBody {
+    #[serde(default)]
+    pub final_backup: bool,
+}
+
+/// Stop VM, tag as retired, block future starts until restored.
+pub async fn retire_vm(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RetireVmBody>,
+) -> Result<Json<TaskResponse>, ApiError> {
+    crate::auth::require_operator(&actor)?;
+    let row: (String, Option<Uuid>, String) = sqlx::query_as(
+        "SELECT name, host_id, observed_state FROM vms WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await?;
+    sqlx::query(
+        "UPDATE vms SET lifecycle_phase = $1, desired_state = 'stopped', tags = array_append(tags, 'retired')
+         WHERE id = $2 AND NOT ('retired' = ANY(tags))",
+    )
+    .bind(crate::engine::vm_lifecycle::PHASE_RETIRED)
+    .bind(id)
+    .execute(&state.pool)
+    .await?;
+
+    let mut task_id = None;
+    if row.2 == "running" {
+        task_id = Some(
+            enqueue_task(
+                &state,
+                "vm.power",
+                serde_json::json!({ "vm_id": id.to_string(), "action": "stop" }),
+                Some("vm"),
+                Some(id),
+                row.1,
+            )
+            .await?
+            .to_string(),
+        );
+    }
+    if body.final_backup {
+        let backup_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO backup_records (id, vm_id, backup_type, status) VALUES ($1, $2, 'full', 'pending')",
+        )
+        .bind(backup_id)
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
+        let _ = enqueue_task(
+            &state,
+            "vm.backup",
+            serde_json::json!({
+                "vm_id": id.to_string(),
+                "backup_id": backup_id.to_string(),
+            }),
+            Some("vm"),
+            Some(id),
+            row.1,
+        )
+        .await?;
+    }
+    state.emit_event("vm.retire", format!("VM {} marked retired", row.0));
+    Ok(Json(TaskResponse {
+        task_id: task_id.unwrap_or_else(|| "none".into()),
+        status: "completed".into(),
+        operation: "vm.retire".into(),
+    }))
+}
+
+/// Portable export: enqueues full qcow2 backup suitable for download from backup_path.
+pub async fn export_vm_disk(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<TaskResponse>, ApiError> {
+    crate::auth::require_operator(&actor)?;
+    let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await?;
+    let backup_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO backup_records (id, vm_id, backup_type, status) VALUES ($1, $2, 'export', 'pending')",
+    )
+    .bind(backup_id)
+    .bind(id)
+    .execute(&state.pool)
+    .await?;
+    let task_id = enqueue_task(
+        &state,
+        "vm.backup",
+        serde_json::json!({
+            "vm_id": id.to_string(),
+            "backup_id": backup_id.to_string(),
+            "export": true,
+        }),
+        Some("vm"),
+        Some(id),
+        host_id,
+    )
+    .await?;
+    Ok(Json(TaskResponse {
+        task_id: task_id.to_string(),
+        status: "pending".into(),
+        operation: "vm.disk.export".into(),
     }))
 }

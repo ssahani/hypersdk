@@ -2,7 +2,8 @@
 
 import { useMemo } from 'react'
 import { Link } from 'react-router'
-import { Monitor, Server } from 'lucide-react'
+import { Copy, Monitor, Server, Terminal } from 'lucide-react'
+import { navigateVmSshSession } from '../vm/VmSshConnectDialog'
 import type { FleetMissionOverview, MissionHost, PlatformVm } from '../../api/platform'
 import { hostStateTone, hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
 
@@ -94,6 +95,9 @@ function HostInspector({ host, vms }: { host: MissionHost; vms: PlatformVm[] }) 
 }
 
 function VmInspector({ vm }: { vm: PlatformVm }) {
+  const running = vm.observed_state === 'running'
+  const libvirt = vm.inventory_source !== 'kubevirt'
+  const ip = vm.guest_ip?.trim() ?? ''
   return (
     <div className="p-4 space-y-3 h-full overflow-y-auto">
       <h3 className="font-semibold text-white flex items-center gap-2">
@@ -105,9 +109,38 @@ function VmInspector({ vm }: { vm: PlatformVm }) {
         <div><dt className="text-white/40">vCPU</dt><dd className="text-white">{vm.vcpus}</dd></div>
         <div><dt className="text-white/40">Memory</dt><dd className="text-white">{Math.round(vm.memory_mib / 1024)} Gi</dd></div>
         <div><dt className="text-white/40">Managed</dt><dd className="text-white">{vm.managed === false ? 'discovered' : 'yes'}</dd></div>
+        {ip && (
+          <div className="col-span-2"><dt className="text-white/40">Guest IP</dt><dd className="font-mono text-emerald-300/90">{ip}</dd></div>
+        )}
       </dl>
+      {running && libvirt && (
+        <div className="flex flex-wrap gap-2">
+          <Link to={`/platform/vms/${vm.id}/console`} className="btn-secondary text-sm flex-1 text-center inline-flex items-center justify-center gap-1">
+            <Monitor className="w-3.5 h-3.5" /> VNC
+          </Link>
+          <button
+            type="button"
+            className="btn-secondary text-sm flex-1 inline-flex items-center justify-center gap-1"
+            onClick={() => {
+              if (ip) navigateVmSshSession(vm.name, ip, 'ubuntu')
+              else window.location.href = `/platform/vms/${vm.id}`
+            }}
+          >
+            <Terminal className="w-3.5 h-3.5" /> SSH
+          </button>
+          {ip && (
+            <button
+              type="button"
+              className="btn-secondary text-sm px-2"
+              title="Copy guest IP"
+              onClick={() => void navigator.clipboard.writeText(ip)}
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      )}
       <Link to={`/platform/vms/${vm.id}`} className="btn-primary text-sm block text-center">Open VM</Link>
-      <Link to={`/platform/vms/${vm.id}/console`} className="btn-secondary text-sm block text-center">Console</Link>
     </div>
   )
 }
@@ -208,7 +241,7 @@ export default function MachineFinderGeography({
         onSelect={onSelectVm}
         itemKey={(v) => v.id}
         renderLabel={(v) => v.name}
-        renderMeta={(v) => v.observed_state}
+        renderMeta={(v) => v.guest_ip ? `${v.observed_state} · ${v.guest_ip}` : v.observed_state}
         emptyLabel={selectedHost ? 'No VMs on this host' : 'Select a host'}
       />
       <div className="flex-1 min-w-0 overflow-y-auto border-l border-white/[0.06]">

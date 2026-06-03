@@ -8,6 +8,7 @@ mod backups;
 mod backup_targets;
 mod baremetal;
 mod blueprints;
+mod cloud_init;
 mod cluster;
 mod content;
 pub mod cpu_compat;
@@ -35,6 +36,8 @@ mod network_segments;
 mod notifications;
 mod operations;
 mod developer;
+mod fleet_automation;
+mod kubevirt;
 mod observability;
 mod observability_middleware;
 mod oidc;
@@ -81,6 +84,7 @@ pub fn router(state: AppState) -> Router {
                 .delete(hosts::delete_host),
         )
         .route("/api/v1/hosts/{id}/detail", get(hosts::get_host_detail))
+        .route("/api/v1/hosts/{id}/gpus", get(hosts::get_host_gpus))
         .route("/api/v1/hosts/{id}/validate", get(hosts::validate_host).post(hosts::enqueue_validate_host))
         .route("/api/v1/hosts/{id}/sync", post(hosts::sync_host))
         .route("/api/v1/hosts/{id}/lldp", get(hosts::host_lldp))
@@ -316,7 +320,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/soc/overview", get(soc::overview))
         .route("/api/v1/soc/events", get(soc::list_events))
         .route("/api/v1/soc/alerts", get(soc::list_alerts))
-        .route("/api/v1/soc/alerts/{id}", patch(soc::patch_alert))
+        .route(
+            "/api/v1/soc/alerts/{id}",
+            get(soc::get_alert).patch(soc::patch_alert),
+        )
         .route("/api/v1/soc/rules", get(soc::list_rules).post(soc::create_rule))
         .route(
             "/api/v1/soc/rules/{id}",
@@ -343,8 +350,21 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/v1/soc/forward/replay", post(soc::forward_replay_handler))
         .route("/api/v1/soc/ingest/run", post(soc::run_ingest_cycle))
-        .route("/api/v1/soc/playbooks", get(soc::list_playbooks))
+        .route(
+            "/api/v1/soc/playbooks",
+            get(soc::list_playbooks).post(soc::create_playbook),
+        )
+        .route(
+            "/api/v1/soc/playbooks/{id}",
+            get(soc::get_playbook)
+                .patch(soc::patch_playbook)
+                .delete(soc::delete_playbook),
+        )
         .route("/api/v1/soc/playbook-runs", get(soc::list_playbook_runs))
+        .route(
+            "/api/v1/soc/settings",
+            get(soc::get_soc_settings).patch(soc::patch_soc_settings),
+        )
         .route("/api/v1/hosts/{id}/health-check", post(health_check::host_health_check))
         .route("/api/v1/recommendations", get(recommendations::list_recommendations))
         .route(
@@ -359,8 +379,20 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/topology", get(topology::cluster_topology))
         .route("/api/v1/vms/{id}/topology", get(topology::vm_topology))
         .route("/api/v1/vms/{id}/spec", get(vms::get_vm_spec))
+        .route("/api/v1/vms/{id}/domain-xml", get(vms::get_vm_domain_xml))
+        .route(
+            "/api/v1/vms/{id}/port-forwards",
+            get(vms::list_vm_port_forwards).post(vms::create_vm_port_forward),
+        )
+        .route(
+            "/api/v1/vms/{id}/port-forwards/delete",
+            post(vms::delete_vm_port_forward),
+        )
         .route("/api/v1/vms/{id}/start", post(vms::start_vm))
         .route("/api/v1/vms/{id}/stop", post(vms::stop_vm))
+        .route("/api/v1/vms/{id}/shutdown", post(vms::shutdown_vm))
+        .route("/api/v1/vms/{id}/pause", post(vms::pause_vm))
+        .route("/api/v1/vms/{id}/resume", post(vms::resume_vm))
         .route("/api/v1/vms/{id}/reboot", post(vms::reboot_vm))
         .route("/api/v1/vms/{id}/delete", post(vms::delete_vm))
         .route(
@@ -375,6 +407,13 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/v1/vms/from-template", post(vms::create_from_template))
         .route("/api/v1/vms/{id}/clone", post(vms::clone_vm))
+        .route("/api/v1/vms/{id}/publish-template", post(vms::publish_vm_template))
+        .route("/api/v1/vms/{id}/retire", post(vms::retire_vm))
+        .route("/api/v1/vms/{id}/disk/export", post(vms::export_vm_disk))
+        .route(
+            "/api/v1/vms/{id}/export",
+            get(developer::export_vm_iac),
+        )
         .route("/api/v1/vms/{id}/console", get(console::vm_console))
         .route("/api/v1/vms/{id}/ws-token", post(console::issue_ws_token))
         .route(
@@ -429,6 +468,11 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/v1/marketplace/plugins", post(marketplace::publish_plugin))
         .route("/api/v1/templates/seed", post(templates::seed_templates))
+        .route("/api/v1/templates/sync-git", post(templates::sync_git_templates))
+        .route(
+            "/api/v1/templates/{name}/{version}/approval",
+            axum::routing::patch(templates::approve_template),
+        )
         .route(
             "/api/v1/templates/{name}/{version}",
             get(templates::get_template).delete(templates::delete_template),
@@ -633,6 +677,16 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/ai/fleet/diagnose", post(fleet::fleet_diagnose))
         .route("/api/v1/developer/overview", get(developer::overview))
         .route("/api/v1/developer/terraform/schema", get(developer::terraform_schema))
+        .route(
+            "/api/v1/fleet/snapshot-schedules",
+            get(fleet_automation::list_fleet_snapshot_schedules)
+                .post(fleet_automation::create_fleet_snapshot_schedule),
+        )
+        .route(
+            "/api/v1/fleet/snapshot-schedules/{id}",
+            delete(fleet_automation::delete_fleet_snapshot_schedule),
+        )
+        .route("/api/v1/kubevirt/sync", post(kubevirt::sync_inventory))
         .route("/api/v1/observability/overview", get(observability::overview))
         .route("/api/v1/observability/traces", get(observability::list_traces))
         .route(
@@ -668,6 +722,7 @@ pub fn router(state: AppState) -> Router {
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
     Router::new()
+        .route("/api/v1/cloud-init/validate", post(cloud_init::validate_cloud_init))
         .route("/api/v1/health", get(health::health))
         .route("/api/v1/health/ready", get(health::ready))
         .route("/api/v1/openapi.json", get(health::openapi))

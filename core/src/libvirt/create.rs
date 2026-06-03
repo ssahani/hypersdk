@@ -315,7 +315,7 @@ fn create_vm_libvirt_xml(
     Ok(())
 }
 
-pub(crate) fn find_disk_path(conn: &Connect, vm_name: &str) -> Result<String, LibvirtError> {
+pub fn find_disk_path(conn: &Connect, vm_name: &str) -> Result<String, LibvirtError> {
     if let Some(base) = super::storage::primary_vm_disk_base_dir(conn) {
         return Ok(format!("{}/{}.qcow2", base.trim_end_matches('/'), vm_name));
     }

@@ -14,7 +14,8 @@ import { useToastContext } from '../contexts/ToastContext'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { getAllTags, getVmTags } from '../api/extras'
-import { Play, Square, Power, Pause, RotateCcw, Trash2, Search, RefreshCw, Terminal, Tag, LayoutGrid, LayoutList, X, Download, Star, Server } from 'lucide-react'
+import { Play, Square, Power, Pause, RotateCcw, Trash2, Search, RefreshCw, Terminal, Tag, LayoutGrid, LayoutList, X, Download, Star, Server, Copy, Monitor } from 'lucide-react'
+import VmSshConnectDialog, { navigateVmSshSession } from '../components/vm/VmSshConnectDialog'
 import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import { downloadJSON, downloadCSV } from '../utils/export'
 import { isPinned, togglePin } from '../utils/pinnedVMs'
@@ -38,6 +39,7 @@ export default function VMList() {
   const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false)
   const [viewMode, setViewMode] = useState<'table' | 'grid'>(() => (localStorage.getItem('vmlist-view') as 'table' | 'grid') || 'table')
   const [pinnedRefresh, setPinnedRefresh] = useState(0)
+  const [sshVm, setSshVm] = useState<VmInfo | null>(null)
   const toast = useToastContext()
   const { info } = usePlatformInfo()
   const { subscribe } = useWebSocketContext()
@@ -318,9 +320,24 @@ export default function VMList() {
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-1">
                       {vm.state === 'running' && (
-                        <Link to={vmConsoleRoute(vm.name, vm.libvirt_connection)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Console">
-                          <Terminal className="w-4 h-4 text-slate-300" />
-                        </Link>
+                        <>
+                          <Link to={vmConsoleRoute(vm.name, vm.libvirt_connection)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="VNC console">
+                            <Monitor className="w-4 h-4 text-slate-300" />
+                          </Link>
+                          <button type="button" onClick={() => setSshVm(vm)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="SSH">
+                            <Terminal className="w-4 h-4 text-slate-300" />
+                          </button>
+                          {vm.guest_ip && (
+                            <button
+                              type="button"
+                              onClick={() => { void navigator.clipboard.writeText(vm.guest_ip!); toast.success('Guest IP copied') }}
+                              className="p-1.5 hover:bg-slate-600/30 rounded transition"
+                              title="Copy guest IP"
+                            >
+                              <Copy className="w-4 h-4 text-slate-300" />
+                            </button>
+                          )}
+                        </>
                       )}
                       {vm.state === 'shutoff' && (
                         <button onClick={() => action(vm, startVM, 'Start')} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-ok)_25%,transparent)]`} title="Start">
@@ -386,7 +403,11 @@ export default function VMList() {
               <div className="flex items-center gap-1 pt-3 border-t border-slate-700/50">
                 {vm.state === 'running' && (
                   <>
-                    <Link to={vmConsoleRoute(vm.name, vm.libvirt_connection)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Console"><Terminal className="w-4 h-4 text-slate-300" /></Link>
+                    <Link to={vmConsoleRoute(vm.name, vm.libvirt_connection)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="VNC"><Monitor className="w-4 h-4 text-slate-300" /></Link>
+                    <button type="button" onClick={() => setSshVm(vm)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="SSH"><Terminal className="w-4 h-4 text-slate-300" /></button>
+                    {vm.guest_ip && (
+                      <button type="button" onClick={() => { void navigator.clipboard.writeText(vm.guest_ip!); toast.success('Guest IP copied') }} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Copy IP"><Copy className="w-4 h-4 text-slate-300" /></button>
+                    )}
                     <button onClick={() => action(vm, shutdownVM, 'Shutdown')} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-warn)_25%,transparent)]`} title="Shutdown"><Power className={`w-4 h-4 ${statusToneClass('warn')}`} /></button>
                     <button onClick={() => action(vm, stopVM, 'Stop')} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)]`} title="Force Stop"><Square className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
                     <button onClick={() => action(vm, pauseVM, 'Pause')} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-info)_25%,transparent)]`} title="Pause"><Pause className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
@@ -438,6 +459,18 @@ export default function VMList() {
         onConfirm={handleBatchDelete}
         onCancel={() => setBatchDeleteConfirm(false)}
       />
+
+      {sshVm && (
+        <VmSshConnectDialog
+          open
+          vmName={sshVm.name}
+          defaultIp={sshVm.guest_ip ?? ''}
+          defaultUser="root"
+          detectedIps={sshVm.guest_ip ? [sshVm.guest_ip] : []}
+          onClose={() => setSshVm(null)}
+          onConnect={(h, u) => navigateVmSshSession(sshVm.name, h, u)}
+        />
+      )}
     </PageLayout>
   )
 }

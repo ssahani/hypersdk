@@ -161,6 +161,8 @@ export interface PlatformVm {
   inventory_source?: string
   k8s_namespace?: string | null
   last_seen_at?: string | null
+  guest_ip?: string | null
+  guest_tools_status?: string | null
 }
 
 export interface PlatformTask {
@@ -180,11 +182,16 @@ export interface PlatformTemplate {
   cloud_init: boolean
   os_family?: string | null
   category?: string
+  workload?: string
   description?: string
   featured?: boolean
   marketplace?: boolean
   icon?: string | null
   firewall_profile?: string | null
+  approval_status?: string
+  git_ref?: string
+  daemon_json_path?: string
+  project?: string
 }
 
 export interface PlatformConsoleInfo {
@@ -1345,6 +1352,7 @@ export const seedDefaultTemplates = () =>
     method: 'POST',
     body: '{}',
   })
+
 export const getTemplateReadiness = (name: string, version: string) =>
   platformFetch<{
     disk_exists: boolean
@@ -1369,8 +1377,43 @@ export type CreatePlatformVmBody = {
   desired_state?: string
 }
 
-export const vmPower = (id: string, action: 'start' | 'stop' | 'reboot') =>
+export type VmPowerAction = 'start' | 'stop' | 'reboot' | 'shutdown' | 'pause' | 'resume'
+
+export const vmPower = (id: string, action: VmPowerAction) =>
   platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/${action}`, { method: 'POST' })
+
+export const getVmDomainXml = (vmId: string) =>
+  platformFetch<{ xml: string }>(`/api/v1/vms/${vmId}/domain-xml`)
+
+export interface VmPortForwardRule {
+  id: string
+  protocol: string
+  host_port: number
+  vm_ip: string
+  vm_port: number
+  description: string
+}
+
+export const listVmPortForwards = (vmId: string) =>
+  platformFetch<VmPortForwardRule[]>(`/api/v1/vms/${vmId}/port-forwards`)
+
+export const createVmPortForward = (
+  vmId: string,
+  body: { protocol: string; host_port: number; vm_port: number; description?: string },
+) =>
+  platformFetch<{ ok: boolean }>(`/api/v1/vms/${vmId}/port-forwards`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const deleteVmPortForward = (
+  vmId: string,
+  body: { protocol: string; host_port: number; vm_port: number },
+) =>
+  platformFetch<{ ok: boolean }>(`/api/v1/vms/${vmId}/port-forwards/delete`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 
 export const vmDelete = (id: string, confirmed = false) =>
   platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/delete`, {
@@ -1387,10 +1430,10 @@ export const vmMigrate = (id: string, dest_host_id: string, live = true) =>
     body: JSON.stringify({ dest_host_id, live }),
   })
 
-export const vmClone = (id: string, new_name: string) =>
+export const vmClone = (id: string, new_name: string, clone_mode: 'linked' | 'full' | 'xml' = 'linked') =>
   platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/clone`, {
     method: 'POST',
-    body: JSON.stringify({ new_name }),
+    body: JSON.stringify({ new_name, clone_mode }),
   })
 
 export const syncHost = (id: string) =>
@@ -2114,3 +2157,15 @@ export function platformVncWsUrl(wsPath: string): string {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${protocol}//${window.location.host}${wsPath}`
 }
+
+/** Roadmap APIs live in focused modules; re-exported here for backward compatibility. */
+export { validateCloudInit } from './platformCloudInit'
+export type { CloudInitValidation } from './platformCloudInit'
+export { syncGitTemplates, approvePlatformTemplate, publishVmAsTemplate } from './platformTemplatesExtra'
+export { retirePlatformVm, exportVmDisk, exportVmIac } from './platformVmLifecycle'
+export type { VmIacExportBundle } from './platformVmLifecycle'
+export { listFleetSnapshotSchedules, createFleetSnapshotSchedule } from './platformFleetSnapshots'
+export type { FleetSnapshotSchedule } from './platformFleetSnapshots'
+export { syncKubevirtInventory } from './platformKubevirtSync'
+export { getHostGpus } from './platformHostGpu'
+export type { HostGpuDevice } from './platformHostGpu'

@@ -43,6 +43,15 @@ pub fn lookup_domain(conn: &Connect, name: &str) -> Result<Domain, LibvirtError>
         .map_err(|e| LibvirtError::NotFound(format!("VM '{name}' not found: {e}")))
 }
 
+fn first_guest_ipv4(conn: &Connect, name: &str) -> Option<String> {
+    get_guest_interfaces(conn, name).ok().and_then(|addrs| {
+        addrs
+            .iter()
+            .find(|a| a.ip_type == "ipv4" && !a.address.starts_with("127."))
+            .map(|a| a.address.clone())
+    })
+}
+
 pub fn list_vms(conn: &Connect) -> Result<Vec<VmInfo>, LibvirtError> {
     let domains = conn
         .list_all_domains(0)
@@ -58,12 +67,19 @@ pub fn list_vms(conn: &Connect) -> Result<Vec<VmInfo>, LibvirtError> {
             .get_info()
             .map_err(LibvirtError::map_op("Failed to get domain info"))?;
 
+        let state = state_to_string(info.state);
+        let guest_ip = if state == "running" {
+            first_guest_ipv4(conn, &name)
+        } else {
+            None
+        };
         vms.push(VmInfo {
             name,
-            state: state_to_string(info.state),
+            state,
             vcpus: info.nr_virt_cpu,
             memory_mb: info.memory / 1024,
             libvirt_connection: None,
+            guest_ip,
         });
     }
 
@@ -92,14 +108,7 @@ pub fn get_vm_details(conn: &Connect, name: &str) -> Result<VmDetails, LibvirtEr
     let interfaces = parse_interfaces(&xml_str);
     let disks = parse_disks(&xml_str);
     let filesystems = parse_filesystems(&xml_str);
-    let guest_ip = get_guest_interfaces(conn, name)
-        .ok()
-        .and_then(|addrs| {
-            addrs
-                .iter()
-                .find(|a| a.ip_type == "ipv4" && !a.address.starts_with("127."))
-                .map(|a| a.address.clone())
-        });
+    let guest_ip = first_guest_ipv4(conn, name);
 
     Ok(VmDetails {
         name: name.to_string(),

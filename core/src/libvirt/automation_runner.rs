@@ -234,6 +234,7 @@ fn run_scheduled_action(manager: &LibvirtManager, action: &ScheduledAction) -> R
                         disks: Vec::new(),
                         atomic: true,
                         reuse_external: false,
+                        quiesce: false,
                     };
                     snapshot::create_snapshot(conn, &vm, &req)
                 }
@@ -265,6 +266,7 @@ fn run_snapshot_schedule(
                 disks: Vec::new(),
                 atomic: true,
                 reuse_external: false,
+                quiesce: false,
             };
             snapshot::create_snapshot(conn, &vm, &req)?;
             if sched.retain_count > 0 {

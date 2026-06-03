@@ -24,6 +24,8 @@ export interface VmInfo {
   memory_mb: number
   /** Present when daemon uses dual `qemu:///system` + `qemu:///session`. */
   libvirt_connection?: string
+  /** Best-effort IPv4 from libvirt lease / ARP / guest agent. */
+  guest_ip?: string | null
 }
 
 /** Best-effort parse so list UIs never throw if `/vms` returns unexpected shapes (proxy bugs, partial JSON). */
@@ -64,6 +66,8 @@ function sanitizeVmInfo(row: unknown): VmInfo | null {
     typeof conn === 'string' && conn.length > 0 ? conn : undefined
   const vm: VmInfo = { name, state, vcpus, memory_mb }
   if (libvirt_connection) vm.libvirt_connection = libvirt_connection
+  const guestIpRaw = r.guest_ip
+  if (typeof guestIpRaw === 'string' && guestIpRaw.trim()) vm.guest_ip = guestIpRaw.trim()
   return vm
 }
 
@@ -538,8 +542,16 @@ export const pauseVM = (name: string, connection?: string | null) =>
   apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/pause`, connection))
 export const resumeVM = (name: string, connection?: string | null) =>
   apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/resume`, connection))
-export const cloneVM = (name: string, newName: string, connection?: string | null) =>
-  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/clone`, connection), { new_name: newName })
+export const cloneVM = (
+  name: string,
+  newName: string,
+  connection?: string | null,
+  cloneMode: 'linked' | 'full' | 'xml' = 'linked',
+) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/clone`, connection), {
+    new_name: newName,
+    clone_mode: cloneMode,
+  })
 export const setAutostart = (name: string, enabled: boolean, connection?: string | null) =>
   apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/autostart/${enabled}`, connection))
 export const setVcpus = (name: string, count: number, connection?: string | null) =>

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path as AxumPath, Query, State};
 use axum::Extension;
 use axum::Json;
 use machina_spec::VmTemplate;
@@ -20,11 +20,16 @@ pub struct TemplateRow {
     pub cloud_init: bool,
     pub os_family: Option<String>,
     pub category: String,
+    pub workload: String,
     pub description: String,
     pub featured: bool,
     pub marketplace: bool,
     pub icon: Option<String>,
     pub firewall_profile: Option<String>,
+    pub approval_status: String,
+    pub git_ref: String,
+    pub daemon_json_path: String,
+    pub project: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -63,7 +68,7 @@ fn default_marketplace() -> bool {
 }
 
 const TEMPLATE_SELECT: &str =
-    "SELECT id, name, version, source_disk, cloud_init, os_family, category, description, featured, marketplace, icon, firewall_profile FROM templates";
+    "SELECT id, name, version, source_disk, cloud_init, os_family, category, COALESCE(workload, '') AS workload, description, featured, marketplace, icon, firewall_profile, COALESCE(approval_status, 'approved') AS approval_status, COALESCE(git_ref, '') AS git_ref, COALESCE(daemon_json_path, '') AS daemon_json_path, COALESCE(project, '') AS project FROM templates";
 
 pub async fn list_templates(
     State(state): State<AppState>,
@@ -163,7 +168,7 @@ pub async fn create_template(
 
 pub async fn get_template(
     State(state): State<AppState>,
-    Path((name, version)): Path<(String, String)>,
+    AxumPath((name, version)): AxumPath<(String, String)>,
 ) -> Result<Json<TemplateRow>, ApiError> {
     let row = sqlx::query_as::<_, TemplateRow>(&format!(
         "{TEMPLATE_SELECT} WHERE name = $1 AND version = $2"
@@ -177,7 +182,7 @@ pub async fn get_template(
 
 pub async fn get_template_readiness(
     State(state): State<AppState>,
-    Path((name, version)): Path<(String, String)>,
+    AxumPath((name, version)): AxumPath<(String, String)>,
 ) -> Result<Json<crate::engine::template_readiness::TemplateReadiness>, ApiError> {
     let readiness = crate::engine::template_readiness::check_template_readiness(&state.pool, &name, &version)
         .await
@@ -187,7 +192,7 @@ pub async fn get_template_readiness(
 
 pub async fn delete_template(
     State(state): State<AppState>,
-    Path((name, version)): Path<(String, String)>,
+    AxumPath((name, version)): AxumPath<(String, String)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let deleted = sqlx::query("DELETE FROM templates WHERE name = $1 AND version = $2")
         .bind(&name)
@@ -205,6 +210,50 @@ async fn fetch_template_by_id(state: &AppState, id: Uuid) -> Result<Json<Templat
         .bind(id)
         .fetch_one(&state.pool)
         .await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ApproveTemplateBody {
+    pub approval_status: String,
+}
+
+pub async fn sync_git_templates(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let dir = std::env::var("MACHINA_TEMPLATES_GIT_DIR")
+        .map_err(|_| ApiError::bad_request("MACHINA_TEMPLATES_GIT_DIR not set"))?;
+    let synced = crate::engine::template_git::sync_templates_from_git(
+        &state.pool,
+        std::path::Path::new(&dir),
+    )
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(serde_json::json!({ "synced": synced })))
+}
+
+pub async fn approve_template(
+    State(state): State<AppState>,
+    AxumPath((name, version)): AxumPath<(String, String)>,
+    Json(body): Json<ApproveTemplateBody>,
+) -> Result<Json<TemplateRow>, ApiError> {
+    let status = body.approval_status.trim();
+    if !["approved", "pending", "draft", "rejected"].contains(&status) {
+        return Err(ApiError::bad_request("approval_status must be approved|pending|draft|rejected"));
+    }
+    sqlx::query("UPDATE templates SET approval_status = $1 WHERE name = $2 AND version = $3")
+        .bind(status)
+        .bind(&name)
+        .bind(&version)
+        .execute(&state.pool)
+        .await?;
+    let row = sqlx::query_as::<_, TemplateRow>(&format!(
+        "{TEMPLATE_SELECT} WHERE name = $1 AND version = $2"
+    ))
+    .bind(&name)
+    .bind(&version)
+    .fetch_one(&state.pool)
+    .await?;
     Ok(Json(row))
 }
 

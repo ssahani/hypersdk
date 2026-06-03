@@ -26,6 +26,14 @@ pub struct SnapshotRow {
 #[derive(Debug, Deserialize)]
 pub struct CreateSnapshotBody {
     pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub disk_only: bool,
+    #[serde(default)]
+    pub quiesce: bool,
+    #[serde(default)]
+    pub storage_mode: String,
 }
 
 pub async fn list_vm_snapshots(
@@ -70,6 +78,11 @@ pub async fn create_vm_snapshot(
         serde_json::json!({
             "vm_id": vm_id.to_string(),
             "snapshot_id": id.to_string(),
+            "name": body.name,
+            "description": body.description,
+            "disk_only": body.disk_only,
+            "quiesce": body.quiesce,
+            "storage_mode": body.storage_mode,
         }),
         Some("vm"),
         Some(vm_id),

@@ -58,6 +58,78 @@ pub fn overview() -> DeveloperOverview {
     }
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct VmExportBundle {
+    pub vm_id: String,
+    pub vm_name: String,
+    pub terraform: String,
+    pub ansible_role: String,
+    pub cloud_init: String,
+    pub domain_xml: String,
+}
+
+pub async fn export_vm_bundle(
+    pool: &sqlx::PgPool,
+    agent_addr: &str,
+    vm_id: uuid::Uuid,
+) -> anyhow::Result<VmExportBundle> {
+    let row: (String, serde_json::Value) = sqlx::query_as(
+        "SELECT name, spec_json FROM vms WHERE id = $1",
+    )
+    .bind(vm_id)
+    .fetch_one(pool)
+    .await?;
+    let (name, spec) = row;
+    let vcpus = spec["spec"]["resources"]["vcpu"].as_u64().unwrap_or(2);
+    let memory_mib = spec["spec"]["resources"]["memory_mib"].as_u64().unwrap_or(4096);
+    let project = spec["metadata"]["project"].as_str().unwrap_or("default");
+
+    let mut client = crate::agent_client::connect(agent_addr).await?;
+    let xml_resp = crate::agent_client::get_domain_xml(&mut client, &name).await?;
+    let domain_xml = xml_resp.xml;
+
+    let cloud_init = spec["spec"]["cloud_init"]
+        .as_object()
+        .map(|c| {
+            format!(
+                "#cloud-config\nusers:\n  - name: {}\n    ssh_authorized_keys:\n      - {}\n",
+                c.get("user").and_then(|v| v.as_str()).unwrap_or("ubuntu"),
+                c.get("ssh_pubkey").and_then(|v| v.as_str()).unwrap_or("")
+            )
+        })
+        .unwrap_or_else(|| "#cloud-config\n# (no cloud-init in spec)\n".into());
+
+    let terraform = format!(
+        r#"resource "machina_vm" "{name}" {{
+  name         = "{name}"
+  vcpus        = {vcpus}
+  memory_mib   = {memory_mib}
+  desired_state = "running"
+  project      = "{project}"
+}}
+"#
+    );
+
+    let ansible_role = format!(
+        r#"- name: Configure {name}
+  hosts: localhost
+  tasks:
+    - name: Ensure VM is registered in Machina
+      debug:
+        msg: "Deploy via machina-controller POST /api/v1/vms"
+"#
+    );
+
+    Ok(VmExportBundle {
+        vm_id: vm_id.to_string(),
+        vm_name: name,
+        terraform,
+        ansible_role,
+        cloud_init,
+        domain_xml,
+    })
+}
+
 pub fn terraform_schemas() -> Vec<TerraformResourceSchema> {
     vec![
         TerraformResourceSchema {

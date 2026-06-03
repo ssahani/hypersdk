@@ -14,6 +14,7 @@ pub const PHASE_SNAPSHOTTING: &str = "snapshotting";
 pub const PHASE_BACKING_UP: &str = "backing_up";
 pub const PHASE_DELETING: &str = "deleting";
 pub const PHASE_ERROR: &str = "error";
+pub const PHASE_RETIRED: &str = "retired";
 
 pub fn phase_for_operation(op: &str) -> &'static str {
     match op {

@@ -59,6 +59,56 @@ export interface SocPlaybook {
   description: string
   enabled: boolean
   trigger_json: Record<string, unknown>
+  steps_json: SocPlaybookStep[]
+}
+
+export type SocPlaybookStep =
+  | { type: 'webhook'; url?: string; url_from_setting?: string; body?: Record<string, unknown> }
+  | { type: 'notify' }
+
+export interface SocPlaybookStepDraft {
+  type: 'webhook' | 'notify'
+  url: string
+  useGlobalWebhook: boolean
+}
+
+export interface MitreTag {
+  id: string
+  name: string
+}
+
+export interface SocLinkedEvent {
+  id: string
+  occurred_at: string
+  source: string
+  category: string
+  severity: string
+  summary: string
+  ecs_json: Record<string, unknown>
+}
+
+export interface SocPlaybookRunDetail {
+  id: string
+  playbook_id: string
+  playbook_name?: string
+  status: string
+  started_at: string
+  finished_at?: string
+  step_results: unknown[]
+  error?: string
+}
+
+export interface SocAlertDetail extends SocAlert {
+  rule_name?: string
+  dedupe_key: string
+  detail_json: Record<string, unknown>
+  mitre_tags: MitreTag[]
+  linked_events: SocLinkedEvent[]
+  playbook_runs: SocPlaybookRunDetail[]
+}
+
+export interface SocSettings {
+  webhook_url: string
 }
 
 export interface SocPlaybookRun {
@@ -96,6 +146,8 @@ export const getSocAlerts = (params?: { status?: string; limit?: number }) => {
   const q = qs.toString()
   return platformFetch<SocAlert[]>(`/api/v1/soc/alerts${q ? `?${q}` : ''}`)
 }
+
+export const getSocAlert = (id: string) => platformFetch<SocAlertDetail>(`/api/v1/soc/alerts/${id}`)
 
 export const patchSocAlert = (id: string, body: { status?: string; assigned_to?: string }) =>
   platformFetch<SocAlert>(`/api/v1/soc/alerts/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
@@ -162,3 +214,36 @@ export const getSocPlaybooks = () => platformFetch<SocPlaybook[]>('/api/v1/soc/p
 
 export const getSocPlaybookRuns = (limit = 50) =>
   platformFetch<SocPlaybookRun[]>(`/api/v1/soc/playbook-runs?limit=${limit}`)
+
+export const getSocPlaybook = (id: string) => platformFetch<SocPlaybook>(`/api/v1/soc/playbooks/${id}`)
+
+export const createSocPlaybook = (body: {
+  name: string
+  description?: string
+  enabled?: boolean
+  trigger_json?: Record<string, unknown>
+  steps_json?: SocPlaybookStep[]
+}) =>
+  platformFetch<SocPlaybook>('/api/v1/soc/playbooks', { method: 'POST', body: JSON.stringify(body) })
+
+export const patchSocPlaybook = (
+  id: string,
+  body: {
+    description?: string
+    enabled?: boolean
+    trigger_json?: Record<string, unknown>
+    steps_json?: SocPlaybookStep[]
+  },
+) =>
+  platformFetch<SocPlaybook>(`/api/v1/soc/playbooks/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+
+export const deleteSocPlaybook = (id: string) =>
+  platformFetch<{ deleted: boolean }>(`/api/v1/soc/playbooks/${id}`, { method: 'DELETE' })
+
+export const getSocSettings = () => platformFetch<SocSettings>('/api/v1/soc/settings')
+
+export const patchSocSettings = (body: { webhook_url?: string }) =>
+  platformFetch<SocSettings>('/api/v1/soc/settings', { method: 'PATCH', body: JSON.stringify(body) })

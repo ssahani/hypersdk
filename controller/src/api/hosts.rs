@@ -123,6 +123,26 @@ pub async fn get_host(
     Ok(Json(apply_stale_host_state(row)))
 }
 
+pub async fn get_host_gpus(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let agent_addr: String = sqlx::query_scalar("SELECT agent_grpc_addr FROM hosts WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await?;
+    let mut client = crate::agent_client::connect(&agent_addr)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let resp = crate::agent_client::list_host_gpus(&mut client)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(serde_json::json!({
+        "devices": resp.devices,
+        "nvidia_smi_summary": resp.nvidia_smi_summary,
+    })))
+}
+
 pub async fn get_host_detail(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
