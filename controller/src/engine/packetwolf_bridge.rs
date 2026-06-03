@@ -5,6 +5,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::config::ControllerConfig;
+use crate::engine::packetwolf_discover::{self, DiscoveredEndpoint};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PacketwolfStatus {
@@ -14,21 +15,30 @@ pub struct PacketwolfStatus {
     pub summary: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub storage: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub discovery_source: Option<String>,
 }
 
-pub fn status(cfg: &ControllerConfig) -> PacketwolfStatus {
+pub async fn resolved_config(cfg: &ControllerConfig) -> (ControllerConfig, Option<DiscoveredEndpoint>) {
+    packetwolf_discover::effective_config_async(cfg).await
+}
+
+pub fn status_with_discovery(cfg: &ControllerConfig, discovery: Option<&DiscoveredEndpoint>) -> PacketwolfStatus {
     let (reachable, storage) = if cfg.packetwolf_enabled {
         fetch_health(&cfg.packetwolf_base_url, cfg.packetwolf_insecure_tls)
     } else {
         (false, None)
     };
     let mut summary = if !cfg.packetwolf_enabled {
-        "PacketWolf fabric disabled — set PACKETWOLF_ENABLED=1 and deploy the PacketWolf service".into()
+        "PacketWolf fabric disabled — set PACKETWOLF_ENABLED=1 or ensure kubeconfig can reach PacketWolf API".into()
     } else if reachable {
         "PacketWolf connected — eBPF security fabric live".into()
     } else {
         "PacketWolf configured but unreachable — start packetwolf service on port 9091".into()
     };
+    if let Some(d) = discovery {
+        summary = format!("{summary} (discovered via {})", d.source);
+    }
     if let Some(st) = storage.as_ref() {
         if st
             .get("clickhouse")
@@ -53,7 +63,12 @@ pub fn status(cfg: &ControllerConfig) -> PacketwolfStatus {
         reachable,
         summary,
         storage,
+        discovery_source: discovery.map(|d| d.source.clone()),
     }
+}
+
+pub fn status(cfg: &ControllerConfig) -> PacketwolfStatus {
+    status_with_discovery(cfg, None)
 }
 
 fn fetch_health(base_url: &str, insecure_tls: bool) -> (bool, Option<Value>) {
@@ -285,6 +300,94 @@ pub async fn fetch_fleet_flow_stats(cfg: &ControllerConfig) -> serde_json::Value
         return serde_json::json!({});
     }
     fabric_get(cfg, "/api/v1/flows/stats").await
+}
+
+pub async fn fetch_network_overview(cfg: &ControllerConfig) -> serde_json::Value {
+    if !cfg.packetwolf_enabled {
+        return serde_json::json!({ "note": "PacketWolf disabled" });
+    }
+    fabric_get(cfg, "/api/v1/network/overview").await
+}
+
+pub async fn fetch_network_service_map(cfg: &ControllerConfig) -> serde_json::Value {
+    if !cfg.packetwolf_enabled {
+        return serde_json::json!({ "nodes": [], "edges": [], "note": "PacketWolf disabled" });
+    }
+    fabric_get(cfg, "/api/v1/network/service-map").await
+}
+
+pub async fn fetch_network_workloads(cfg: &ControllerConfig) -> serde_json::Value {
+    if !cfg.packetwolf_enabled {
+        return serde_json::json!({ "workloads": [], "note": "PacketWolf disabled" });
+    }
+    fabric_get(cfg, "/api/v1/network/workloads").await
+}
+
+pub async fn fetch_network_timeline(cfg: &ControllerConfig, limit: u32) -> serde_json::Value {
+    if !cfg.packetwolf_enabled {
+        return serde_json::json!({ "events": [], "note": "PacketWolf disabled" });
+    }
+    fabric_get(cfg, &format!("/api/v1/network/timeline?limit={limit}")).await
+}
+
+pub async fn fetch_network_threats(cfg: &ControllerConfig) -> serde_json::Value {
+    if !cfg.packetwolf_enabled {
+        return serde_json::json!({ "threats": [], "note": "PacketWolf disabled" });
+    }
+    fabric_get(cfg, "/api/v1/network/threats").await
+}
+
+pub async fn fetch_network_top_talkers(cfg: &ControllerConfig) -> serde_json::Value {
+    if !cfg.packetwolf_enabled {
+        return serde_json::json!({ "talkers": [], "note": "PacketWolf disabled" });
+    }
+    fabric_get(cfg, "/api/v1/network/top-talkers").await
+}
+
+pub async fn fetch_k8s_nodes(cfg: &ControllerConfig) -> serde_json::Value {
+    if !cfg.packetwolf_enabled {
+        return serde_json::json!({ "nodes": [], "note": "PacketWolf disabled" });
+    }
+    fabric_get(cfg, "/api/v1/nodes").await
+}
+
+pub async fn fetch_network_pulse_bundle(cfg: &ControllerConfig) -> serde_json::Value {
+    if !cfg.packetwolf_enabled {
+        return serde_json::json!({ "enabled": false });
+    }
+    let (
+        overview,
+        service_map,
+        workloads,
+        timeline,
+        threats,
+        top_talkers,
+        nodes,
+        flow_stats,
+        anomalies,
+    ) = tokio::join!(
+        fetch_network_overview(cfg),
+        fetch_network_service_map(cfg),
+        fetch_network_workloads(cfg),
+        fetch_network_timeline(cfg, 40),
+        fetch_network_threats(cfg),
+        fetch_network_top_talkers(cfg),
+        fetch_k8s_nodes(cfg),
+        fetch_fleet_flow_stats(cfg),
+        fetch_anomalies(cfg),
+    );
+    serde_json::json!({
+        "enabled": true,
+        "overview": overview,
+        "service_map": service_map,
+        "workloads": workloads,
+        "timeline": timeline,
+        "threats": threats,
+        "top_talkers": top_talkers,
+        "k8s_nodes": nodes,
+        "flow_stats": flow_stats,
+        "anomalies": anomalies,
+    })
 }
 
 pub async fn fleet_threat_summary(cfg: &ControllerConfig) -> serde_json::Value {

@@ -121,6 +121,12 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 - **Network canvas:** `GET /api/v1/network-canvas` — topology + PacketWolf flows/stats/anomalies; enriched [`/platform/network-canvas`](/platform/network-canvas) UI
 - **Web API:** `platformNetworkCanvas.ts`
 
+### Batch 82 deliverables (PacketWolf network canvas depth)
+
+- **Discovery:** `packetwolf_discover.rs` — auto-find PacketWolf API via localhost probes + `kubectl get svc` (LoadBalancer/NodePort); `PACKETWOLF_AUTO_DISCOVER` (default on)
+- **Network canvas API:** `GET /api/v1/network-canvas` merges PacketWolf Network Brain — overview, service-map, workloads, timeline, threats, top-talkers, K8s nodes
+- **UI:** [`/platform/network-canvas`](/platform/network-canvas) — service map grid, connection list, threat pulse, K8s node chips, discovery banner
+
 ### Batch 81 deliverables (storage + VMware + reports)
 
 - **Storage agent:** Ceph RBD, iSCSI (IQN), and ZFS pool provision in `agent/src/provision_ops.rs`

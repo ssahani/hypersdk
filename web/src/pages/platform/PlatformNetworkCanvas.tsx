@@ -1,10 +1,18 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
+import { Activity, Network, Server, ShieldAlert } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
-import PlatformPageChrome from '../../components/platform/PlatformPageChrome'
-import { getNetworkCanvas, type NetworkCanvasPayload, type PacketWolfFlow } from '../../api/platformNetworkCanvas'
+import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
+import { MacGlassPanel, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
+import {
+  getNetworkCanvas,
+  type NetworkCanvasPayload,
+  type PacketWolfFlow,
+  type ServiceMapEdge,
+  type ServiceMapNode,
+} from '../../api/platformNetworkCanvas'
 import { hubLinkClasses, statusBadgeClasses, statusToneClass } from '../../utils/semanticColors'
 
 type CanvasNode = { id: string; label: string; kind: string; detail?: string }
@@ -17,15 +25,38 @@ function flowLabel(f: PacketWolfFlow): string {
   return `${proc} → ${dst}`
 }
 
+function edgeTone(health?: string): string {
+  if (health === 'blocked') return statusToneClass('error')
+  if (health === 'warning') return statusToneClass('warn')
+  return statusToneClass('ok')
+}
+
+function nodeTone(status?: string, risk?: string): string {
+  if (risk === 'high' || status === 'blocked') return statusToneClass('error')
+  if (risk === 'medium' || status === 'warning') return statusToneClass('warn')
+  return statusToneClass('ok')
+}
+
 export default function PlatformNetworkCanvas() {
   const [data, setData] = useState<NetworkCanvasPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    setError(null)
+    setLoading(true)
+    try {
+      setData(await getNetworkCanvas())
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to load network canvas')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    void getNetworkCanvas()
-      .then(setData)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load network canvas'))
-  }, [])
+    void load()
+  }, [load])
 
   const nodes = useMemo<CanvasNode[]>(() => {
     if (!data) return []
@@ -52,14 +83,26 @@ export default function PlatformNetworkCanvas() {
     }))
   }, [data])
 
+  const svcMap = data?.network_pulse?.service_map
+  const svcNodes = svcMap?.nodes ?? []
+  const svcEdges = (svcMap?.edges ?? []).slice(0, 32)
+  const mapStats = svcMap?.meta?.stats
+
+  const overview = data?.network_pulse?.overview as Record<string, unknown> | undefined
+  const liveConnections = typeof overview?.live_connections === 'number' ? overview.live_connections : null
+  const dropRate = typeof overview?.drop_rate === 'number' ? overview.drop_rate : null
+
+  const k8sNodes = data?.network_pulse?.k8s_nodes?.nodes ?? []
+  const threats = data?.network_pulse?.threats?.threats ?? []
+  const topTalkers = data?.network_pulse?.top_talkers?.talkers ?? svcMap?.overlays?.top_talker_nodes ?? []
+
   const localAnomalies = useMemo(() => {
     const found: string[] = []
-    const warnings = data?.topology.warnings ?? []
-    for (const w of warnings) {
+    for (const w of data?.topology.warnings ?? []) {
       found.push(w.message)
     }
-    const pw = data?.anomalies?.anomalies ?? []
-    for (const a of pw.slice(0, 5)) {
+    const pw = data?.anomalies?.anomalies ?? data?.network_pulse?.anomalies?.anomalies ?? []
+    for (const a of pw.slice(0, 8)) {
       if (a.summary) found.push(a.summary)
     }
     return found
@@ -70,39 +113,145 @@ export default function PlatformNetworkCanvas() {
   const forwarded = stats?.forwarded ?? stats?.allowed ?? 0
 
   return (
-    <PageLayout compact title="Network canvas" subtitle="Topology, PacketWolf flows, and fleet anomalies">
-      <PlatformPageChrome error={error} onErrorRetry={() => void getNetworkCanvas().then(setData).catch(() => {})}>
+    <PageLayout compact title="Network canvas" subtitle="Machina fleet topology + PacketWolf Network Brain (K8s/Hubble)">
+      <PlatformPageChrome
+        error={error}
+        onErrorRetry={() => void load()}
+        actions={<PlatformRefreshButton onClick={() => void load()} />}
+        contentClassName="space-y-4"
+      >
         {data?.packetwolf && (
-          <p className={`text-xs mb-4 px-3 py-2 rounded-lg border ${
-            data.packetwolf.reachable ? statusBadgeClasses('ok') : statusBadgeClasses('warn')
-          }`}>
+          <p
+            className={`text-xs px-3 py-2 rounded-lg border ${
+              data.packetwolf.reachable ? statusBadgeClasses('ok') : statusBadgeClasses('warn')
+            }`}
+          >
             {data.packetwolf.summary}
+            {data.packetwolf.discovery_source && (
+              <span className="text-slate-500 block mt-0.5">Discovery: {data.packetwolf.discovery_source}</span>
+            )}
           </p>
         )}
 
-        {(dropped > 0 || forwarded > 0) && (
-          <div className="flex flex-wrap gap-3 mb-4 text-sm">
-            <span className={statusToneClass('ok')}>Forwarded: {forwarded}</span>
-            <span className={statusToneClass(dropped > 0 ? 'warn' : 'neutral')}>Dropped: {dropped}</span>
+        {!loading && (mapStats || liveConnections != null) && (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {mapStats && (
+              <>
+                <MacStatWidget label="K8s services" value={String(mapStats.services ?? svcNodes.length)} icon={<Network className="w-4 h-4" />} />
+                <MacStatWidget label="Connections" value={String(mapStats.connections ?? svcEdges.length)} icon={<Activity className="w-4 h-4" />} />
+                <MacStatWidget
+                  label="Blocked edges"
+                  value={String(mapStats.blocked ?? 0)}
+                  icon={<ShieldAlert className="w-4 h-4" />}
+                  tone={(mapStats.blocked ?? 0) > 0 ? 'warn' : 'ok'}
+                />
+              </>
+            )}
+            {liveConnections != null && (
+              <MacStatWidget label="Live flows" value={String(liveConnections)} icon={<Activity className="w-4 h-4" />} tone="ok" />
+            )}
+            {dropRate != null && (
+              <MacStatWidget label="Drop rate" value={`${(dropRate * 100).toFixed(1)}%`} icon={<ShieldAlert className="w-4 h-4" />} tone={dropRate > 0.05 ? 'warn' : 'ok'} />
+            )}
+            {(dropped > 0 || forwarded > 0) && (
+              <>
+                <MacStatWidget label="Forwarded" value={String(forwarded)} icon={<Activity className="w-4 h-4" />} tone="ok" />
+                <MacStatWidget label="Dropped" value={String(dropped)} icon={<ShieldAlert className="w-4 h-4" />} tone={dropped > 0 ? 'warn' : 'default'} />
+              </>
+            )}
           </div>
         )}
 
         {localAnomalies.length > 0 && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 mb-4 text-sm text-amber-200/90">
-            <p className="font-medium mb-1">Anomalies</p>
-            <ul className="list-disc pl-4 text-xs">{localAnomalies.map((a) => <li key={a}>{a}</li>)}</ul>
-          </div>
+          <MacGlassPanel title="Anomalies" subtitle="Machina topology warnings + PacketWolf detections">
+            <ul className="list-disc pl-4 text-xs text-amber-200/90 space-y-1">
+              {localAnomalies.map((a) => (
+                <li key={a}>{a}</li>
+              ))}
+            </ul>
+          </MacGlassPanel>
+        )}
+
+        {threats.length > 0 && (
+          <MacGlassPanel title="Threat pulse" subtitle="PacketWolf /api/v1/network/threats">
+            <ul className="text-xs space-y-2">
+              {threats.slice(0, 6).map((t, i) => (
+                <li key={i} className="border-b border-white/[0.04] pb-2">
+                  <span className={statusToneClass(t.severity === 'critical' ? 'error' : 'warn')}>{t.title ?? 'Threat'}</span>
+                  {t.summary && <p className="text-slate-500 mt-0.5">{t.summary}</p>}
+                </li>
+              ))}
+            </ul>
+          </MacGlassPanel>
+        )}
+
+        {svcNodes.length > 0 && (
+          <MacGlassPanel title="Service map" subtitle="PacketWolf Hubble-derived workload graph">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 -mt-1 mb-4">
+              {svcNodes.slice(0, 18).map((n: ServiceMapNode) => (
+                <div key={`${n.namespace}/${n.name}`} className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-2 text-xs">
+                  <p className={`font-medium ${nodeTone(n.status, n.risk)}`}>{n.name}</p>
+                  <p className="text-slate-500">{n.namespace}</p>
+                  <p className="text-slate-400 mt-1">
+                    in {n.connections_in ?? 0} · out {n.connections_out ?? 0}
+                    {(n.blocked_flows ?? 0) > 0 && <span className={statusToneClass('warn')}> · {n.blocked_flows} blocked</span>}
+                  </p>
+                </div>
+              ))}
+            </div>
+            {svcEdges.length > 0 && (
+              <>
+                <h3 className="text-xs font-semibold text-slate-500 mb-2">Connections</h3>
+                <ul className="text-xs space-y-1 max-h-48 overflow-y-auto">
+                  {svcEdges.map((e: ServiceMapEdge) => (
+                    <li key={e.id} className={`truncate ${edgeTone(e.health)}`}>
+                      {e.source} → {e.target}
+                      {e.dropped_count != null && e.dropped_count > 0 && (
+                        <span className="text-slate-500"> ({e.dropped_count} dropped)</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {Array.isArray(topTalkers) && topTalkers.length > 0 && (
+              <p className="text-xs text-slate-500 mt-3">
+                Top talkers:{' '}
+                {topTalkers
+                  .slice(0, 5)
+                  .map((t) => (typeof t === 'string' ? t : (t as { name?: string }).name))
+                  .filter(Boolean)
+                  .join(', ')}
+              </p>
+            )}
+          </MacGlassPanel>
+        )}
+
+        {k8sNodes.length > 0 && (
+          <MacGlassPanel title="Kubernetes nodes" subtitle="PacketWolf kubectl-backed inventory">
+            <ul className="flex flex-wrap gap-2 text-xs">
+              {k8sNodes.slice(0, 12).map((n) => (
+                <li key={n.name} className="px-2 py-1 rounded-lg border border-slate-700/60 text-slate-300 flex items-center gap-1">
+                  <Server className="w-3 h-3 text-slate-500" />
+                  {n.name}
+                  <span className={statusToneClass(n.status === 'Ready' ? 'ok' : 'warn')}>{n.status}</span>
+                  {n.pods_count != null && <span className="text-slate-500">({n.pods_count} pods)</span>}
+                </li>
+              ))}
+            </ul>
+          </MacGlassPanel>
         )}
 
         {flowEdges.length > 0 && (
-          <section className="mb-6">
-            <h2 className="text-sm font-semibold text-slate-300 mb-2">Recent flows (PacketWolf)</h2>
+          <MacGlassPanel title="Host flows" subtitle="PacketWolf eBPF / libvirt host plane">
             <ul className="grid gap-2 sm:grid-cols-2">
               {flowEdges.map((e) => (
                 <li key={e.id} className="rounded-lg border border-slate-700/50 bg-slate-900/50 p-3 text-xs">
-                  <span className={`text-[10px] uppercase mr-2 ${
-                    e.verdict === 'DROPPED' || e.verdict === 'blocked' ? statusToneClass('error') : statusToneClass('ok')
-                  }`}>
+                  <span
+                    className={`text-[10px] uppercase mr-2 ${
+                      e.verdict === 'DROPPED' || e.verdict === 'blocked' ? statusToneClass('error') : statusToneClass('ok')
+                    }`}
+                  >
                     {e.verdict}
                   </span>
                   <p className="font-medium text-slate-100 mt-0.5">{e.label}</p>
@@ -111,36 +260,43 @@ export default function PlatformNetworkCanvas() {
                 </li>
               ))}
             </ul>
-          </section>
+          </MacGlassPanel>
         )}
 
-        <h2 className="text-sm font-semibold text-slate-300 mb-2">Fleet topology</h2>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {nodes.map((n) => (
-            <div key={n.id} className="rounded-lg border border-slate-700/50 bg-slate-900/50 p-3 text-sm">
-              <span className="text-[10px] uppercase text-slate-500">{n.kind}</span>
-              <p className="font-medium text-slate-100">{n.label}</p>
-              {n.detail && <p className="text-xs text-slate-400 mt-0.5">{n.detail}</p>}
-            </div>
-          ))}
-        </div>
-
-        {(data?.topology.edges?.length ?? 0) > 0 && (
-          <section className="mt-4">
-            <h3 className="text-xs font-semibold text-slate-500 mb-2">Links</h3>
-            <ul className="text-xs text-slate-400 space-y-1">
+        <MacGlassPanel title="Machina fleet topology" subtitle="Hosts, VMs, and networks from controller inventory">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {nodes.map((n) => (
+              <div key={n.id} className="rounded-lg border border-slate-700/50 bg-slate-900/50 p-3 text-sm">
+                <span className="text-[10px] uppercase text-slate-500">{n.kind}</span>
+                <p className="font-medium text-slate-100">{n.label}</p>
+                {n.detail && <p className="text-xs text-slate-400 mt-0.5">{n.detail}</p>}
+              </div>
+            ))}
+          </div>
+          {(data?.topology.edges?.length ?? 0) > 0 && (
+            <ul className="text-xs text-slate-400 space-y-1 mt-3 max-h-32 overflow-y-auto">
               {data!.topology.edges.slice(0, 20).map((e) => (
-                <li key={`${e.from}-${e.to}`}>{e.from} → {e.to} ({e.label})</li>
+                <li key={`${e.from}-${e.to}`}>
+                  {e.from} → {e.to} ({e.label})
+                </li>
               ))}
             </ul>
-          </section>
-        )}
+          )}
+        </MacGlassPanel>
 
-        <p className="text-xs text-slate-500 mt-4">
-          Deep dive:{' '}
-          <Link to="/platform/zeus/security/firewall" className={hubLinkClasses()}>Zeus Firewall</Link>
+        <p className="text-xs text-slate-500">
+          PacketWolf APIs: network overview, service-map, threats, nodes (via kubeconfig). Deep dive:{' '}
+          <Link to="/platform/zeus/security" className={hubLinkClasses()}>
+            Zeus Security
+          </Link>
           {' · '}
-          <Link to="/platform/topology" className={hubLinkClasses()}>Topology map</Link>
+          <Link to="/platform/zeus/security/firewall" className={hubLinkClasses()}>
+            Zeus Firewall
+          </Link>
+          {' · '}
+          <Link to="/platform/topology" className={hubLinkClasses()}>
+            Topology map
+          </Link>
         </p>
       </PlatformPageChrome>
     </PageLayout>
