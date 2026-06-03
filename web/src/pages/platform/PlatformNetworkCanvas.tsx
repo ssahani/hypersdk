@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import PageLayout from '../../components/PageLayout'
 import PlatformPageChrome from '../../components/platform/PlatformPageChrome'
-import { getClusterTopology, getZeusAssetInventory, listPlatformVms } from '../../api/platform'
+import { getClusterTopology, listPlatformVms, type PlatformVm } from '../../api/platform'
+import { getZeusAssetInventory } from '../../api/zeusSecurity'
 import { hubLinkClasses } from '../../utils/semanticColors'
 
 type CanvasNode = { id: string; label: string; kind: string; detail?: string }
@@ -14,8 +15,8 @@ export default function PlatformNetworkCanvas() {
   const [anomalies, setAnomalies] = useState<string[]>([])
 
   useEffect(() => {
-    void Promise.all([getClusterTopology(), getZeusAssetInventory().catch(() => ({ assets: [] })), listPlatformVms()])
-      .then(([topo, assets, vms]) => {
+    void Promise.all([getClusterTopology(), getZeusAssetInventory().catch(() => ({ hosts: [] })), listPlatformVms()])
+      .then(([topo, inv, vms]: [Awaited<ReturnType<typeof getClusterTopology>>, Record<string, unknown>, PlatformVm[]]) => {
         const list: CanvasNode[] = []
         for (const v of vms) {
           list.push({
@@ -28,10 +29,13 @@ export default function PlatformNetworkCanvas() {
         for (const e of topo.edges ?? []) {
           list.push({ id: `edge-${e.from}-${e.to}`, label: `${e.from} → ${e.to}`, kind: 'link', detail: e.label })
         }
-        for (const a of assets.assets ?? []) {
-          if (a.kind === 'host') {
-            list.push({ id: `host-${a.id}`, label: a.name, kind: 'host', detail: a.state })
-          }
+        for (const h of (inv.hosts as Array<{ id?: string; name?: string; state?: string }>) ?? []) {
+          list.push({
+            id: `host-${h.id ?? h.name}`,
+            label: h.name ?? 'host',
+            kind: 'host',
+            detail: h.state,
+          })
         }
         setNodes(list)
         const ips = vms.map((v) => v.guest_ip).filter(Boolean) as string[]

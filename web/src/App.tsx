@@ -107,6 +107,10 @@ const PlatformVmDetail = lazy(() => import('./pages/platform/PlatformVmDetail'))
 const PlatformConsole = lazy(() => import('./pages/platform/PlatformConsole'))
 const PlatformContent = lazy(() => import('./pages/platform/PlatformContent'))
 const PlatformTemplates = lazy(() => import('./pages/platform/PlatformTemplates'))
+const CloudInitStudio = lazy(() => import('./pages/platform/CloudInitStudio'))
+const PlatformNetworkCanvas = lazy(() => import('./pages/platform/PlatformNetworkCanvas'))
+const PlatformDatacenter = lazy(() => import('./pages/platform/PlatformDatacenter'))
+const PlatformFleetSnapshots = lazy(() => import('./pages/platform/PlatformFleetSnapshots'))
 const PlatformEnroll = lazy(() => import('./pages/platform/PlatformEnroll'))
 const PlatformPlacement = lazy(() => import('./pages/platform/PlatformPlacement'))
 const PlatformTasks = lazy(() => import('./pages/platform/PlatformTasks'))
@@ -351,8 +355,12 @@ function AuthenticatedShellRoutes() {
                   <Route path="applications" element={<PlatformApplications />} />
                   <Route path="content" element={<PlatformContent />} />
                   <Route path="templates" element={<PlatformTemplates />} />
+                  <Route path="cloud-init" element={<CloudInitStudio />} />
+                  <Route path="network-canvas" element={<PlatformNetworkCanvas />} />
+                  <Route path="datacenter" element={<PlatformDatacenter />} />
                   <Route path="migration" element={<PlatformMigration />} />
                   <Route path="backups" element={<PlatformBackups />} />
+                  <Route path="fleet-snapshots" element={<PlatformFleetSnapshots />} />
                   <Route path="enroll" element={<PlatformEnroll />} />
                   <Route path="placement" element={<PlatformPlacement />} />
                   <Route path="tasks" element={<PlatformTasks />} />

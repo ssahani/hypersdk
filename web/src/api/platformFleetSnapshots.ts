@@ -28,3 +28,6 @@ export const createFleetSnapshotSchedule = (body: {
     method: 'POST',
     body: JSON.stringify(body),
   })
+
+export const deleteFleetSnapshotSchedule = (id: string) =>
+  platformFetch<{ deleted: boolean }>(`/api/v1/fleet/snapshot-schedules/${id}`, { method: 'DELETE' })

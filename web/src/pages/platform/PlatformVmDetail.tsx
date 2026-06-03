@@ -18,6 +18,7 @@ import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
 import {
   createVmBackup,
   createVmSnapshot,
+  type CreateVmSnapshotBody,
   deleteVmSnapshot,
   getPlatformVm,
   getPlatformVmSpec,
@@ -75,6 +76,8 @@ import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenter
 import { PlatformOpenStackVmLink } from '../../components/platform/PlatformCrossLinks'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tasksHubHref } from '../../utils/platformHubLinks'
+import { exportVmDisk, exportVmIac, retirePlatformVm, type VmIacExportBundle } from '../../api/platformVmLifecycle'
+import { publishVmAsTemplate } from '../../api/platformTemplatesExtra'
 
 export default function PlatformVmDetail() {
   const location = useLocation()
@@ -113,6 +116,12 @@ export default function PlatformVmDetail() {
   const [specJson, setSpecJson] = useState<string>('')
   const [specData, setSpecData] = useState<Record<string, unknown> | null>(null)
   const [snapName, setSnapName] = useState('snap-01')
+  const [snapDiskOnly, setSnapDiskOnly] = useState(true)
+  const [snapQuiesce, setSnapQuiesce] = useState(false)
+  const [snapStorageMode, setSnapStorageMode] = useState('')
+  const [publishTplName, setPublishTplName] = useState('')
+  const [publishTplVersion, setPublishTplVersion] = useState('1.0.0')
+  const [iacBundle, setIacBundle] = useState<VmIacExportBundle | null>(null)
   const [project, setProject] = useState('')
   const [tags, setTags] = useState('')
   const [snapshots, setSnapshots] = useState<SnapshotRecord[]>([])
@@ -756,8 +765,35 @@ export default function PlatformVmDetail() {
           {tab === 'snapshots' && (
             <MacGlassPanel title="Snapshots" className="pt-2">
               <input className="input w-full max-w-xs" value={snapName} onChange={(e) => setSnapName(e.target.value)} placeholder="snap-01" />
+              <div className="flex flex-wrap gap-4 mt-3 text-xs text-slate-400">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={snapDiskOnly} onChange={(e) => setSnapDiskOnly(e.target.checked)} /> Disk only
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={snapQuiesce} onChange={(e) => setSnapQuiesce(e.target.checked)} /> Guest quiesce
+                </label>
+                <select className="input text-xs max-w-[140px]" value={snapStorageMode} onChange={(e) => setSnapStorageMode(e.target.value)}>
+                  <option value="">Storage: auto</option>
+                  <option value="internal">Internal</option>
+                  <option value="external">External</option>
+                </select>
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
-                <button type="button" className="btn-secondary text-xs" onClick={() => void act('Snapshot queued', () => createVmSnapshot(id, snapName))}>Create snapshot</button>
+                <button
+                  type="button"
+                  className="btn-secondary text-xs"
+                  onClick={() => {
+                    const body: CreateVmSnapshotBody = {
+                      name: snapName,
+                      disk_only: snapDiskOnly,
+                      quiesce: snapQuiesce,
+                      storage_mode: snapStorageMode || undefined,
+                    }
+                    void act('Snapshot queued', () => createVmSnapshot(id, body))
+                  }}
+                >
+                  Create snapshot
+                </button>
               </div>
               <ul className="text-xs space-y-3 mt-3">
                 {snapshots.map((s) => (
@@ -888,6 +924,84 @@ export default function PlatformVmDetail() {
                   </div>
                 </div>
               </MacGlassPanel>
+              <MacGlassPanel title="Lifecycle & export">
+                <p className="text-xs text-slate-500 mb-3">
+                  Retire stops the VM, tags it, and blocks start. Export disk queues a full qcow2 backup task.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn-secondary text-sm"
+                    disabled={vm.lifecycle_phase === 'retired'}
+                    onClick={() => {
+                      if (!window.confirm('Retire this VM? It will be stopped and cannot be started until restored manually.')) return
+                      void act('VM retired', () => retirePlatformVm(id, true))
+                    }}
+                  >
+                    Retire VM
+                  </button>
+                  <button type="button" className="btn-secondary text-sm" onClick={() => void act('Disk export queued', () => exportVmDisk(id))}>
+                    Export disk (qcow2)
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary text-sm"
+                    onClick={async () => {
+                      try {
+                        setIacBundle(await exportVmIac(id))
+                        toast.success('IaC bundle loaded — download below')
+                      } catch (e: unknown) {
+                        toast.error(formatUserError(e))
+                      }
+                    }}
+                  >
+                    Load IaC export
+                  </button>
+                </div>
+                {iacBundle && (
+                  <div className="mt-3 space-y-2 text-xs">
+                    {(['terraform', 'ansible_role', 'cloud_init', 'domain_xml'] as const).map((key) => (
+                      <button
+                        key={key}
+                        type="button"
+                        className="btn-secondary text-xs mr-2"
+                        onClick={() => {
+                          const blob = new Blob([iacBundle[key]], { type: 'text/plain' })
+                          const a = document.createElement('a')
+                          a.href = URL.createObjectURL(blob)
+                          a.download = `${vm.name}-${key}.${key === 'terraform' ? 'tf' : key === 'domain_xml' ? 'xml' : 'txt'}`
+                          a.click()
+                          URL.revokeObjectURL(a.href)
+                        }}
+                      >
+                        Download {key}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </MacGlassPanel>
+              {vm.inventory_source !== 'kubevirt' && (
+                <MacGlassPanel title="Publish golden template">
+                  <input className="input w-full mb-2 text-sm" placeholder="template-name" value={publishTplName} onChange={(e) => setPublishTplName(e.target.value)} />
+                  <input className="input w-full mb-2 text-sm" placeholder="version" value={publishTplVersion} onChange={(e) => setPublishTplVersion(e.target.value)} />
+                  <button
+                    type="button"
+                    className="btn-secondary text-sm"
+                    disabled={!publishTplName.trim()}
+                    onClick={() =>
+                      void act('Template published', () =>
+                        publishVmAsTemplate(id, {
+                          template_name: publishTplName.trim(),
+                          version: publishTplVersion.trim() || '1.0.0',
+                          marketplace: true,
+                        }),
+                      )
+                    }
+                  >
+                    Publish from VM
+                  </button>
+                </MacGlassPanel>
+              )}
               <MacGlassPanel title="VM spec">
                 {specData ? <JsonInspector data={specData} /> : <p className="text-sm text-slate-500">Spec unavailable</p>}
               </MacGlassPanel>

@@ -106,6 +106,7 @@ const RESOURCES_ITEMS: ContextNavItem[] = [
   { to: '/platform/networks', label: 'Networks' },
   { to: '/platform/content', label: 'Images & ISOs' },
   { to: '/platform/templates', label: 'Templates' },
+  { to: '/platform/cloud-init', label: 'Cloud-Init Studio' },
 ]
 
 const OPERATIONS_ITEMS: ContextNavItem[] = [
@@ -115,6 +116,8 @@ const OPERATIONS_ITEMS: ContextNavItem[] = [
   { to: '/platform/activity', label: 'Activity' },
   { to: '/platform/migration', label: 'Migration' },
   { to: '/platform/backups', label: 'Backups' },
+  { to: '/platform/fleet-snapshots', label: 'Fleet Snapshots' },
+  { to: '/platform/network-canvas', label: 'Network Canvas' },
   { to: '/platform/maintenance', label: 'Updates' },
   { to: '/platform/reports', label: 'Reports' },
   { to: '/platform/topology', label: 'Topology' },
@@ -194,6 +197,7 @@ export const HUB_DEFINITIONS: ContextDefinition[] = [
       || p.startsWith('/platform/networks')
       || p.startsWith('/platform/content')
       || p.startsWith('/platform/templates')
+      || p.startsWith('/platform/cloud-init')
       || p === '/platform/resources',
     appLabel: 'Resources',
     appIcon: FolderOpen,
@@ -210,6 +214,8 @@ export const HUB_DEFINITIONS: ContextDefinition[] = [
       || p.startsWith('/platform/activity')
       || p.startsWith('/platform/migration')
       || p.startsWith('/platform/backups')
+      || p.startsWith('/platform/fleet-snapshots')
+      || p.startsWith('/platform/network-canvas')
       || p.startsWith('/platform/placement')
       || p.startsWith('/platform/maintenance')
       || p.startsWith('/platform/reports')
@@ -250,13 +256,14 @@ export const HUB_DEFINITIONS: ContextDefinition[] = [
   },
   {
     id: 'hosts',
-    match: (p) => p.startsWith('/platform/hosts'),
+    match: (p) => p.startsWith('/platform/hosts') || p.startsWith('/platform/datacenter'),
     appLabel: 'Hosts',
     appIcon: Server,
     hubPath: '/platform/hosts',
     items: [
       { to: '/platform/hosts', label: 'Machines' },
       { to: '/platform/hosts/finder', label: 'Infrastructure Finder' },
+      { to: '/platform/datacenter', label: 'Datacenter' },
       { to: '/platform/enroll', label: 'Add Host' },
     ],
   },

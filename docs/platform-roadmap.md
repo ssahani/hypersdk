@@ -55,6 +55,40 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 | 69 | Zeus Infrastructure AI Program (AI-138–147) — graph brain, RCA, twin, rightsizing, NL ops | **Shipped (v2)** — see [`zeus-infra-ai-program.md`](zeus-infra-ai-program.md) |
 | 70 | Security Operations Center (SOC) — detection, ASM, Splunk/Elastic/Sentinel/QRadar, playbooks | **Shipped (v2)** — alert detail + playbook editor; see [`soc-integrations.md`](soc-integrations.md) |
 
+## Batches 71–75 (Zeus Libvirt/KVM Platform — Phases A–E)
+
+| Batch | Phase | Theme | Status |
+|-------|-------|--------|--------|
+| 71 | A | Disk-safe clone, template git/approval, cloud-init validate, VM retire/export/IaC APIs | **Shipped (v1)** |
+| 72 | A | Platform UI — Cloud-Init Studio, snapshot quiesce, template sync/approve, VM lifecycle actions | **Shipped (v1)** |
+| 73 | B | Fleet snapshot schedules, storage backend discover, incremental backup worker | **Shipped (v1)** |
+| 74 | C | Network canvas stub, host GPU inventory RPC, datacenter by `inventory_source` | **Shipped (v1)** |
+| 75 | E | KubeVirt inventory sync API; VMware/Proxmox remain import-only | **Shipped (v1)** |
+
+### Batch 71–72 deliverables (Phase A)
+
+- **Clone:** `clone_mode` linked/full on agent, controller, classic + platform VM detail
+- **Templates:** `040_templates_unify.sql`, git sync (`MACHINA_TEMPLATES_GIT_DIR`), approval PATCH, publish-from-VM
+- **Cloud-init:** `POST /api/v1/cloud-init/validate`, [`CloudInitStudio`](/platform/cloud-init)
+- **Lifecycle:** `POST /vms/{id}/retire`, `POST /vms/{id}/disk/export`, `GET /vms/{id}/export` (Terraform/Ansible/XML)
+- **Web API modules:** `platformCloudInit.ts`, `platformVmLifecycle.ts`, `platformTemplatesExtra.ts`, …
+
+### Batch 73 deliverables (Phase B)
+
+- **Snapshots:** Rich `CreateSnapshotBody` + guest `virDomainFSFreeze` / thaw
+- **Fleet schedules:** `041_fleet_snapshot_schedules.sql`, scheduler, [`/platform/fleet-snapshots`](/platform/fleet-snapshots)
+- **Storage:** Pool `backend` from libvirt XML; NFS/LVM/Ceph labels on discover
+- **Backup:** Incremental chain in worker; S3 `--endpoint-url` on backup targets
+
+### Batch 74–75 deliverables (Phases C & E)
+
+- **Network canvas:** [`/platform/network-canvas`](/platform/network-canvas) — topology + anomaly hints (PacketWolf depth deferred)
+- **GPU:** `ListHostGpus` agent RPC, `GET /hosts/{id}/gpus`
+- **Datacenter:** [`/platform/datacenter`](/platform/datacenter) — VMs grouped by `inventory_source`
+- **KubeVirt:** `POST /api/v1/kubevirt/sync` — inventory reconcile (full K8s CRUD deferred)
+
+**Deferred (honest):** OVS SDN, Ceph pool wizards, AI VM builder GA, browser RDP, federated marketplace, Proxmox adapter, full `platform.ts` folder split.
+
 ## Batch 70 deliverables (SOC Program)
 
 - **SOC-1–SOC-5:** Migration `038_soc.sql` — `soc_events`, `soc_alerts`, `soc_detection_rules`, `soc_integrations`, playbooks

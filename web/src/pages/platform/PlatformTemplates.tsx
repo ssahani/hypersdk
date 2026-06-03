@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { AlertTriangle, CheckCircle2, Layers, Loader2, Package, Plus, RefreshCw, Sparkles, Star, Puzzle, Upload } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, GitBranch, Layers, Loader2, Package, Plus, RefreshCw, Sparkles, Star, Puzzle, Upload } from 'lucide-react'
 import { readSshPubkeyFile } from '../../utils/sshPubkeyImport'
 import DetailTabs from '../../components/platform/DetailTabs'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
@@ -24,6 +24,7 @@ import {
   type MarketplacePlugin,
   type PlatformTemplate,
 } from '../../api/platform'
+import { approvePlatformTemplate, syncGitTemplates } from '../../api/platformTemplatesExtra'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
@@ -242,6 +243,20 @@ export default function PlatformTemplates() {
               <button type="button" className="btn-secondary text-sm" onClick={() => void seedDefaultTemplates().then((r) => { setRows(r.templates); toast.success(`Catalog: ${r.templates.length} templates`) }).catch((e) => toast.error(formatUserError(e)))}>
                 Restore defaults
               </button>
+              <button
+                type="button"
+                className="btn-secondary text-sm flex items-center gap-1.5"
+                onClick={() =>
+                  void syncGitTemplates()
+                    .then((r) => toast.success(`Synced ${r.synced} template(s) from git`))
+                    .catch((e) => toast.error(formatUserError(e)))
+                }
+              >
+                <GitBranch className="w-4 h-4" /> Sync git
+              </button>
+              <Link to="/platform/cloud-init" className="btn-secondary text-sm">
+                Cloud-Init Studio
+              </Link>
               <button type="button" className="btn-primary text-sm flex items-center gap-1.5" onClick={() => setPublishOpen(true)}>
                 <Plus className="w-4 h-4" /> Publish
               </button>
@@ -279,7 +294,12 @@ export default function PlatformTemplates() {
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {featuredRows.map((t) => (
-              <MarketplaceCard key={t.id} template={t} onDeploy={() => { setDeployName(`${t.name.split('-')[0]}-01`); setDeploySheet(t) }} />
+              <MarketplaceCard
+                key={t.id}
+                template={t}
+                onDeploy={() => { setDeployName(`${t.name.split('-')[0]}-01`); setDeploySheet(t) }}
+                onApprove={(status) => void approvePlatformTemplate(t.name, t.version, status).then(() => load(false)).catch((e) => toast.error(formatUserError(e)))}
+              />
             ))}
           </div>
         </section>
@@ -311,7 +331,12 @@ export default function PlatformTemplates() {
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filtered.map((t) => (
-              <MarketplaceCard key={t.id} template={t} onDeploy={() => { setDeployName(`${t.name.split('-')[0]}-01`); setDeploySheet(t) }} />
+              <MarketplaceCard
+                key={t.id}
+                template={t}
+                onDeploy={() => { setDeployName(`${t.name.split('-')[0]}-01`); setDeploySheet(t) }}
+                onApprove={(status) => void approvePlatformTemplate(t.name, t.version, status).then(() => load(false)).catch((e) => toast.error(formatUserError(e)))}
+              />
             ))}
           </div>
           {filtered.length === 0 && (
@@ -358,6 +383,9 @@ export default function PlatformTemplates() {
             </label>
             {deploySheet.cloud_init && (
               <>
+                <p className="text-xs text-slate-500">
+                  <Link to="/platform/cloud-init" className={hubLinkClasses()}>Cloud-Init Studio</Link> — validate #cloud-config before deploy.
+                </p>
                 <label className="block text-sm">
                   <span className="text-slate-400">Cloud-init user</span>
                   <input className="input w-full mt-1" value={cloudUser} onChange={(e) => setCloudUser(e.target.value)} />
@@ -489,8 +517,17 @@ export default function PlatformTemplates() {
   )
 }
 
-function MarketplaceCard({ template: t, onDeploy }: { template: PlatformTemplate; onDeploy: () => void }) {
+function MarketplaceCard({
+  template: t,
+  onDeploy,
+  onApprove,
+}: {
+  template: PlatformTemplate
+  onDeploy: () => void
+  onApprove: (status: string) => void
+}) {
   const needsImage = t.source_disk?.includes('.qcow2')
+  const approval = t.approval_status ?? 'approved'
   return (
     <article className="platform-mac-stat rounded-2xl border border-white/[0.06] bg-slate-900/50 backdrop-blur-md p-5 flex flex-col hover:border-white/10 transition group">
       <div className="flex items-start gap-3">
@@ -499,16 +536,27 @@ function MarketplaceCard({ template: t, onDeploy }: { template: PlatformTemplate
           <div className="flex items-center gap-1.5 flex-wrap">
             <h3 className="font-semibold text-slate-100 truncate">{t.name}</h3>
             {t.featured && <Star className={`w-3 h-3 shrink-0 ${statusToneClass('warn')} fill-[var(--machina-status-warn)]`} />}
+            {approval !== 'approved' && (
+              <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded ${statusBadgeClasses(approval === 'rejected' ? 'error' : 'warn')}`}>
+                {approval}
+              </span>
+            )}
             {needsImage && (
               <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-white/[0.06]">Catalog</span>
             )}
           </div>
-          <p className="text-xs text-slate-500">{t.category ?? 'Linux'} · v{t.version}</p>
+          <p className="text-xs text-slate-500">{t.category ?? 'Linux'} · v{t.version}{t.workload ? ` · ${t.workload}` : ''}</p>
         </div>
       </div>
       <p className="text-xs text-slate-400 mt-3 flex-1 leading-relaxed line-clamp-3">{t.description || 'Ready-to-deploy golden image.'}</p>
       {t.firewall_profile && (
         <p className="text-[10px] text-blue-300/90 mt-2">Zeus Firewall: {t.firewall_profile}</p>
+      )}
+      {approval === 'pending' && (
+        <div className="flex gap-1 mt-2">
+          <button type="button" className="btn-secondary text-[10px] flex-1" onClick={() => onApprove('approved')}>Approve</button>
+          <button type="button" className="btn-secondary text-[10px] flex-1" onClick={() => onApprove('rejected')}>Reject</button>
+        </div>
       )}
       <button type="button" className="btn-primary text-xs mt-4 w-full" onClick={onDeploy}>
         Get · Deploy VM

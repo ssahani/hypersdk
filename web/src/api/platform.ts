@@ -1272,8 +1272,21 @@ export const listEnrollmentTokens = () => platformFetch<EnrollmentTokenRow[]>('/
 export const deleteTemplate = (name: string, version: string) =>
   platformFetch(`/api/v1/templates/${encodeURIComponent(name)}/${encodeURIComponent(version)}`, { method: 'DELETE' })
 export const listVmSnapshots = (vmId: string) => platformFetch<SnapshotRecord[]>(`/api/v1/vms/${vmId}/snapshots`)
-export const createVmSnapshot = (vmId: string, name: string) =>
-  platformFetch<{ task_id: string }>(`/api/v1/vms/${vmId}/snapshots`, { method: 'POST', body: JSON.stringify({ name }) })
+export type CreateVmSnapshotBody = {
+  name: string
+  description?: string
+  disk_only?: boolean
+  quiesce?: boolean
+  storage_mode?: string
+}
+
+export const createVmSnapshot = (vmId: string, body: CreateVmSnapshotBody | string) => {
+  const payload = typeof body === 'string' ? { name: body } : body
+  return platformFetch<{ task_id: string }>(`/api/v1/vms/${vmId}/snapshots`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
 export const listVmBackups = (vmId: string) => platformFetch<BackupRecord[]>(`/api/v1/vms/${vmId}/backups`)
 
 export interface BackupTimelineEntry {
@@ -2164,7 +2177,11 @@ export type { CloudInitValidation } from './platformCloudInit'
 export { syncGitTemplates, approvePlatformTemplate, publishVmAsTemplate } from './platformTemplatesExtra'
 export { retirePlatformVm, exportVmDisk, exportVmIac } from './platformVmLifecycle'
 export type { VmIacExportBundle } from './platformVmLifecycle'
-export { listFleetSnapshotSchedules, createFleetSnapshotSchedule } from './platformFleetSnapshots'
+export {
+  listFleetSnapshotSchedules,
+  createFleetSnapshotSchedule,
+  deleteFleetSnapshotSchedule,
+} from './platformFleetSnapshots'
 export type { FleetSnapshotSchedule } from './platformFleetSnapshots'
 export { syncKubevirtInventory } from './platformKubevirtSync'
 export { getHostGpus } from './platformHostGpu'
