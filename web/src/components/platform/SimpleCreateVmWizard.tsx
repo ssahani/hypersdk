@@ -1,8 +1,33 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Upload } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router'
+import { Upload } from 'lucide-react'
+import {
+  getTemplateReadiness,
+  listPlatformNetworks,
+  listPlatformTemplates,
+  seedDefaultTemplates,
+  type PlatformNetwork,
+  type PlatformTemplate,
+} from '../../api/platform'
 import { readSshPubkeyFile } from '../../utils/sshPubkeyImport'
+import PlatformStepWizard from './PlatformStepWizard'
+import VmWizardReadinessBanner, { type TemplateReadiness } from './VmWizardReadinessBanner'
+import VmWizardSizeStep, { sizeStepValid, type VmWizardSizeState } from './VmWizardSizeStep'
+import {
+  buildOsFlavorList,
+  cloudInitUserForOs,
+  findTemplate,
+  OS_CATEGORIES,
+  osFlavorById,
+  sizeToSpec,
+  WIZARD_STEPS,
+  type OsFlavor,
+} from './vmWizardCatalog'
+
+export type { VmSpecNumbers } from './vmWizardCatalog'
+export { sizeToSpec, cloudInitUserForOs, buildOsFlavorList } from './vmWizardCatalog'
 
 export interface VmWizardInitial {
   name?: string
@@ -11,12 +36,25 @@ export interface VmWizardInitial {
   network?: string
 }
 
+export interface VmWizardWindowsOptions {
+  virtio: boolean
+  uefi: boolean
+  tpm: boolean
+  secureBoot: boolean
+  rdp: boolean
+}
+
 export interface VmWizardPayload {
   name: string
   os: string
   size: string
   network: string
   cloudInitSshPubkey?: string
+  customSpec?: { cores: number; memoryGiB: number; diskGiB: number }
+  windows?: VmWizardWindowsOptions
+  templateVersion?: string
+  /** When true, parent should call createFromTemplate */
+  fromTemplate?: boolean
 }
 
 interface SimpleCreateVmWizardProps {
@@ -26,156 +64,373 @@ interface SimpleCreateVmWizardProps {
   initial?: VmWizardInitial
 }
 
-const SIZES = [
-  { id: 'small', label: 'Small', detail: '2 vCPU · 4 GiB · 40 GiB' },
-  { id: 'medium', label: 'Medium', detail: '4 vCPU · 8 GiB · 80 GiB' },
-  { id: 'large', label: 'Large', detail: '8 vCPU · 16 GiB · 160 GiB' },
-]
+function categoryAccent(category: OsFlavor['category']): string {
+  switch (category) {
+    case 'Windows':
+      return 'from-blue-600/20 to-slate-900/80 border-blue-500/40'
+    case 'Database':
+      return 'from-emerald-600/20 to-slate-900/80 border-emerald-500/35'
+    case 'Appliance':
+      return 'from-amber-600/15 to-slate-900/80 border-amber-500/35'
+    case 'Special':
+      return 'from-violet-600/20 to-slate-900/80 border-violet-500/35'
+    default:
+      return 'from-orange-600/15 to-slate-900/80 border-orange-500/30'
+  }
+}
 
 export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial }: SimpleCreateVmWizardProps) {
+  const [step, setStep] = useState(0)
   const [name, setName] = useState('new-vm')
   const [os, setOs] = useState('ubuntu-24.04')
-  const [size, setSize] = useState('medium')
+  const [osFilter, setOsFilter] = useState<(typeof OS_CATEGORIES)[number]>('All')
+  const [sizeState, setSizeState] = useState<VmWizardSizeState>({
+    size: 'medium',
+    customCores: 4,
+    customMemoryGiB: 8,
+    customDiskGiB: 80,
+  })
   const [network, setNetwork] = useState('default')
-  const [advanced, setAdvanced] = useState(false)
   const [sshPubkey, setSshPubkey] = useState('')
   const [busy, setBusy] = useState(false)
+  const [templates, setTemplates] = useState<PlatformTemplate[]>([])
+  const [networks, setNetworks] = useState<PlatformNetwork[]>([])
+  const [readinessLoading, setReadinessLoading] = useState(false)
+  const [readiness, setReadiness] = useState<TemplateReadiness | null>(null)
+  const [virtio, setVirtio] = useState(true)
+  const [uefi, setUefi] = useState(true)
+  const [tpm, setTpm] = useState(true)
+  const [secureBoot, setSecureBoot] = useState(true)
+  const [rdp, setRdp] = useState(true)
   const pubkeyFileRef = useRef<HTMLInputElement>(null)
+
+  const loadCatalog = useCallback(async () => {
+    try {
+      let tpls = await listPlatformTemplates()
+      if (tpls.length === 0) {
+        const seeded = await seedDefaultTemplates()
+        tpls = seeded.templates
+      }
+      setTemplates(tpls)
+      const nets = await listPlatformNetworks()
+      setNetworks(nets)
+      if (nets.length > 0 && !nets.some((n) => n.name === network)) {
+        setNetwork(nets[0].name)
+      }
+    } catch {
+      setTemplates([])
+      setNetworks([])
+    }
+  }, [network])
 
   useEffect(() => {
     if (!open) return
+    setStep(0)
     if (initial?.name) setName(initial.name)
     if (initial?.os) setOs(initial.os)
-    if (initial?.size) setSize(initial.size)
+    if (initial?.size) setSizeState((s) => ({ ...s, size: initial.size! }))
     if (initial?.network) setNetwork(initial.network)
-  }, [open, initial])
+    void loadCatalog()
+  }, [open, initial, loadCatalog])
 
-  if (!open) return null
+  const flavors = useMemo(() => buildOsFlavorList(templates), [templates])
+  const filteredOs = useMemo(() => {
+    if (osFilter === 'All') return flavors
+    return flavors.filter((o) => o.category === osFilter)
+  }, [flavors, osFilter])
 
-  const importPubkeyFile = (file: File | undefined) => {
-    readSshPubkeyFile(file, setSshPubkey)
+  const selectedFlavor = flavors.find((f) => f.id === os) ?? osFlavorById(os)
+  const matchedTemplate = findTemplate(templates, os)
+  const isWindows = selectedFlavor?.windows ?? os.startsWith('windows')
+  const isCustomIso = os === 'custom-iso'
+  const needsReadiness = Boolean(matchedTemplate) && !isWindows && !isCustomIso
+
+  useEffect(() => {
+    if (!open || !needsReadiness || !matchedTemplate) {
+      setReadiness(null)
+      return
+    }
+    let cancelled = false
+    setReadinessLoading(true)
+    void getTemplateReadiness(matchedTemplate.name, matchedTemplate.version)
+      .then((r) => {
+        if (!cancelled) setReadiness(r)
+      })
+      .catch(() => {
+        if (!cancelled) setReadiness(null)
+      })
+      .finally(() => {
+        if (!cancelled) setReadinessLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, os, needsReadiness, matchedTemplate?.name, matchedTemplate?.version])
+
+  const specPreview = sizeToSpec(
+    sizeState.size,
+    sizeState.size === 'custom'
+      ? {
+          cores: sizeState.customCores,
+          memoryGiB: sizeState.customMemoryGiB,
+          diskGiB: sizeState.customDiskGiB,
+        }
+      : undefined,
+  )
+
+  const networkOptions = useMemo(() => {
+    if (networks.length === 0) {
+      return [
+        { id: 'default', label: 'Default network (DHCP)' },
+        { id: 'prod', label: 'Production VLAN' },
+        { id: 'isolated', label: 'Isolated lab' },
+      ]
+    }
+    return networks.map((n) => ({
+      id: n.name,
+      label: n.bridge ? `${n.name} (${n.bridge})` : n.name,
+    }))
+  }, [networks])
+
+  const canNext = () => {
+    if (step === 0) return name.trim().length > 0
+    if (step === 1) return Boolean(os)
+    if (step === 2) return sizeStepValid(sizeState)
+    if (step === 3 && needsReadiness && readiness && !readiness.ready) return false
+    return true
   }
 
   const submit = async () => {
     setBusy(true)
     try {
       const key = sshPubkey.trim()
-      await onCreate({
-        name,
+      const payload: VmWizardPayload = {
+        name: name.trim(),
         os,
-        size,
+        size: sizeState.size,
         network,
         cloudInitSshPubkey: key || undefined,
-      })
+        customSpec:
+          sizeState.size === 'custom'
+            ? {
+                cores: sizeState.customCores,
+                memoryGiB: sizeState.customMemoryGiB,
+                diskGiB: sizeState.customDiskGiB,
+              }
+            : undefined,
+        templateVersion: matchedTemplate?.version,
+        fromTemplate: needsReadiness,
+      }
+      if (isWindows) {
+        payload.windows = { virtio, uefi, tpm, secureBoot, rdp }
+      }
+      await onCreate(payload)
       onClose()
     } finally {
       setBusy(false)
     }
   }
 
-  const isWindows = os.startsWith('windows')
-
   return (
-    <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="px-6 py-5 border-b border-slate-800">
-          <h2 className="text-xl font-semibold">Create Virtual Machine</h2>
-          <p className="text-sm text-slate-400 mt-1">Choose OS, size, and network — no libvirt details required.</p>
+    <PlatformStepWizard
+      open={open}
+      onClose={onClose}
+      title="Create Virtual Machine"
+      subtitle="Choose OS, size, and network — guided setup."
+      steps={[...WIZARD_STEPS]}
+      step={step}
+      onStepChange={setStep}
+      canNext={canNext()}
+      busy={busy}
+      finishLabel="Create VM"
+      onFinish={submit}
+    >
+      {step === 0 && (
+        <div className="space-y-4">
+          <label className="block text-sm">
+            <span className="text-slate-300">Virtual machine name</span>
+            <input
+              className="input w-full mt-1 text-base"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="my-app-server"
+              autoFocus
+            />
+          </label>
+          <p className="text-xs text-slate-500">
+            Use lowercase letters, numbers, and hyphens. Hostname for cloud-init defaults to this name.
+          </p>
         </div>
-        <div className="p-6 space-y-4">
-          <label className="block text-sm">
-            Name
-            <input className="input w-full mt-1" value={name} onChange={(e) => setName(e.target.value)} />
-          </label>
-          <label className="block text-sm">
-            Operating system
-            <select className="input w-full mt-1" value={os} onChange={(e) => setOs(e.target.value)}>
-              <option value="ubuntu-24.04">Ubuntu 24.04 LTS</option>
-              <option value="debian-12">Debian 12</option>
-              <option value="rocky-9">Rocky Linux 9</option>
-              <option value="windows-server-2022">Windows Server 2022</option>
-              <option value="custom-iso">Custom ISO (platform)</option>
-            </select>
-          </label>
-          <fieldset className="space-y-2">
-            <legend className="text-sm text-slate-300">Size</legend>
-            {SIZES.map((s) => (
-              <label key={s.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer ${size === s.id ? 'border-blue-500/60 bg-blue-500/10' : 'border-slate-800 hover:border-slate-700'}`}>
-                <input type="radio" name="size" checked={size === s.id} onChange={() => setSize(s.id)} />
-                <span><span className="font-medium">{s.label}</span> <span className="text-xs text-slate-500">{s.detail}</span></span>
-              </label>
+      )}
+
+      {step === 1 && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-1.5">
+            {OS_CATEGORIES.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                className={`px-2.5 py-1 rounded-lg text-xs border transition-colors ${
+                  osFilter === cat
+                    ? 'border-blue-500/60 bg-blue-500/15 text-slate-100'
+                    : 'border-slate-700 text-slate-400 hover:border-slate-600'
+                }`}
+                onClick={() => setOsFilter(cat)}
+              >
+                {cat}
+              </button>
             ))}
-          </fieldset>
+          </div>
+          {templates.length === 0 && (
+            <p className="text-xs text-amber-200/80">
+              Template catalog loading failed — showing built-in flavors.{' '}
+              <Link to="/platform/templates" className="underline">
+                Seed templates
+              </Link>
+            </p>
+          )}
+          <div className="grid gap-2 sm:grid-cols-2 max-h-[40vh] overflow-y-auto pr-1">
+            {filteredOs.map((flavor) => {
+              const selected = os === flavor.id
+              return (
+                <button
+                  key={flavor.id}
+                  type="button"
+                  className={`text-left p-3 rounded-xl border bg-gradient-to-br transition-all ${
+                    selected ? 'ring-2 ring-blue-500/80 border-blue-500/50' : 'hover:border-slate-600'
+                  } ${categoryAccent(flavor.category)}`}
+                  onClick={() => setOs(flavor.id)}
+                >
+                  <div className="flex items-start gap-2">
+                    <span className="text-2xl leading-none" aria-hidden>
+                      {flavor.icon}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-slate-100 text-sm truncate">{flavor.label}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-2">{flavor.subtitle}</p>
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+          {needsReadiness && <VmWizardReadinessBanner loading={readinessLoading} readiness={readiness} />}
+          {isCustomIso && (
+            <p className="text-xs text-amber-200/80 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+              Custom ISO opens the dedicated install wizard when you finish this flow.
+            </p>
+          )}
+        </div>
+      )}
+
+      {step === 2 && (
+        <VmWizardSizeStep state={sizeState} onChange={(patch) => setSizeState((s) => ({ ...s, ...patch }))} />
+      )}
+
+      {step === 3 && (
+        <div className="space-y-4">
           <label className="block text-sm">
-            Network
+            <span className="text-slate-300">Network</span>
             <select className="input w-full mt-1" value={network} onChange={(e) => setNetwork(e.target.value)}>
-              <option value="default">Default network (DHCP)</option>
-              <option value="prod">Production VLAN</option>
-              <option value="isolated">Isolated lab</option>
+              {networkOptions.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.label}
+                </option>
+              ))}
             </select>
           </label>
-          <button type="button" className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200" onClick={() => setAdvanced((a) => !a)}>
-            {advanced ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            Advanced — SSH access, CPU topology, firmware…
-          </button>
-          {advanced && (
+          {networks.length === 0 && (
+            <p className="text-xs text-slate-500">
+              No platform networks yet.{' '}
+              <Link to="/platform/networks" className="underline">
+                Discover networks
+              </Link>{' '}
+              from libvirt, or use the default name.
+            </p>
+          )}
+
+          {isWindows && (
+            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 space-y-2 text-sm">
+              <p className="text-slate-300 font-medium">Windows options</p>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={virtio} onChange={(e) => setVirtio(e.target.checked)} /> VirtIO drivers
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={uefi} onChange={(e) => setUefi(e.target.checked)} /> UEFI firmware
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={tpm} onChange={(e) => setTpm(e.target.checked)} /> TPM
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={secureBoot} onChange={(e) => setSecureBoot(e.target.checked)} /> Secure Boot
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={rdp} onChange={(e) => setRdp(e.target.checked)} /> Enable RDP after install
+              </label>
+            </div>
+          )}
+
+          {!isWindows && !isCustomIso && (
             <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 space-y-3 text-sm">
-              {!isWindows && (
-                <>
-                  <label className="block">
-                    <span className="text-slate-300">SSH public key (optional)</span>
-                    <textarea
-                      className="input w-full mt-1 font-mono text-xs min-h-[4rem]"
-                      placeholder="ssh-ed25519 AAAA… user@host"
-                      value={sshPubkey}
-                      onChange={(e) => setSshPubkey(e.target.value)}
-                    />
-                  </label>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      ref={pubkeyFileRef}
-                      type="file"
-                      accept=".pub,text/plain"
-                      className="hidden"
-                      onChange={(e) => importPubkeyFile(e.target.files?.[0])}
-                    />
-                    <button
-                      type="button"
-                      className="btn-secondary text-xs inline-flex items-center gap-1"
-                      onClick={() => pubkeyFileRef.current?.click()}
-                    >
-                      <Upload className="w-3 h-3" /> Import public key (.pub)
-                    </button>
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    Injected via cloud-init on first boot. Use the matching private key when connecting via SSH — Machina does not store private keys.
-                  </p>
-                </>
-              )}
+              <label className="block">
+                <span className="text-slate-300">SSH public key (optional)</span>
+                <textarea
+                  className="input w-full mt-1 font-mono text-xs min-h-[4rem]"
+                  placeholder="ssh-ed25519 AAAA… user@host"
+                  value={sshPubkey}
+                  onChange={(e) => setSshPubkey(e.target.value)}
+                />
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  ref={pubkeyFileRef}
+                  type="file"
+                  accept=".pub,text/plain"
+                  className="hidden"
+                  onChange={(e) => readSshPubkeyFile(e.target.files?.[0], setSshPubkey)}
+                />
+                <button
+                  type="button"
+                  className="btn-secondary text-xs inline-flex items-center gap-1"
+                  onClick={() => pubkeyFileRef.current?.click()}
+                >
+                  <Upload className="w-3 h-3" /> Import public key (.pub)
+                </button>
+              </div>
               <p className="text-xs text-slate-500">
-                CPU topology, NUMA, firmware, TPM, and backup policy are available on the VM detail page after creation.
+                Cloud-init user: {cloudInitUserForOs(os)}. Machina does not store private keys.
               </p>
             </div>
           )}
-        </div>
-        <div className="px-6 py-4 border-t border-slate-800 flex justify-end gap-2">
-          <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn-primary" disabled={busy || !name.trim()} onClick={() => void submit()}>
-            {busy ? 'Creating…' : 'Create'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
-export function sizeToSpec(size: string) {
-  switch (size) {
-    case 'small':
-      return { cores: 2, memory: '4Gi', disk: '40Gi' }
-    case 'large':
-      return { cores: 8, memory: '16Gi', disk: '160Gi' }
-    default:
-      return { cores: 4, memory: '8Gi', disk: '80Gi' }
-  }
+          {needsReadiness && <VmWizardReadinessBanner loading={readinessLoading} readiness={readiness} />}
+
+          <div className="rounded-xl border border-slate-700/50 bg-slate-950/80 p-4 text-sm space-y-1.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Review</p>
+            <p>
+              <span className="text-slate-500">Name:</span> <span className="text-slate-100">{name.trim()}</span>
+            </p>
+            <p>
+              <span className="text-slate-500">OS:</span>{' '}
+              <span className="text-slate-100">{selectedFlavor?.label ?? os}</span>
+              {matchedTemplate && (
+                <span className="text-slate-500 text-xs"> ({matchedTemplate.name}@{matchedTemplate.version})</span>
+              )}
+            </p>
+            <p>
+              <span className="text-slate-500">Size:</span>{' '}
+              <span className="text-slate-100">
+                {specPreview.cores} vCPU · {specPreview.memory} RAM
+                {needsReadiness ? '' : ` · ${specPreview.disk} disk`}
+              </span>
+            </p>
+            <p>
+              <span className="text-slate-500">Network:</span>{' '}
+              <span className="text-slate-100">{networkOptions.find((n) => n.id === network)?.label ?? network}</span>
+            </p>
+          </div>
+        </div>
+      )}
+    </PlatformStepWizard>
+  )
 }

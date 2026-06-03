@@ -313,6 +313,7 @@ export async function mockPlatformApi(page: Page, opts?: {
   staleHost?: boolean
   emptyStorage?: boolean
   templateNotReady?: boolean
+  emptyNetworks?: boolean
 }) {
   const tier = opts?.tier ?? 'normal'
   let storagePools: Array<{ id: string; name: string; path: string; capacity_gib: number; used_gib: number }> =
@@ -681,10 +682,33 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({ json: { imported: 1, pools: storagePools } })
     }
     if (url.includes('/networks/discover')) {
-      return route.fulfill({ json: { imported: 1, networks: [{ id: 'n1', name: 'default', bridge: 'virbr0' }] } })
+      const nets = opts?.emptyNetworks
+        ? []
+        : [{ id: 'n1', name: 'default', bridge: 'virbr0' }]
+      return route.fulfill({ json: { imported: nets.length, networks: nets } })
+    }
+    if (url.includes('/networks') && route.request().method() === 'POST') {
+      return route.fulfill({ json: { id: 'n2', name: 'vm-net', bridge: 'br0', backend: 'bridge' } })
+    }
+    if (url.includes('/networks') && !url.includes('/discover')) {
+      return route.fulfill({ json: [] })
+    }
+    if (url.includes('/storage/pools') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: { id: 'p2', name: 'datastore-01', path: '/var/lib/libvirt/images', capacity_gib: 500, used_gib: 0, backend: 'directory' },
+      })
     }
     if (url.includes('/storage/pools') && !url.includes('/discover')) {
       return route.fulfill({ json: storagePools })
+    }
+    if (url.includes('/enrollment/tokens') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          token: 'enroll-test-token',
+          expires_at: new Date(Date.now() + 86400000).toISOString(),
+          install_command: 'curl -fsSL https://example/install.sh | sudo bash -s enroll-test-token',
+        },
+      })
     }
     if (url.includes('/storage/tiers')) {
       return route.fulfill({ json: { tiers: [], pools: [] } })

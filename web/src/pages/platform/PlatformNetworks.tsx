@@ -8,6 +8,7 @@ import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../
 import { usePlatformTabState } from '../../hooks/usePlatformTabState'
 import PageSkeleton from '../../components/PageSkeleton'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
+import NetworkCreateWizard from '../../components/platform/NetworkCreateWizard'
 import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import { PlatformOpenStackNetworkLink } from '../../components/platform/PlatformCrossLinks'
 import MachinaNetworkLens from '../../components/ai/MachinaNetworkLens'
@@ -22,7 +23,6 @@ import {
   allocateIpam,
   bindNetworkToSegment,
   createNetworkSegment,
-  createPlatformNetwork,
   deletePlatformNetwork,
   discoverPlatformNetworks,
   emergencyUnlockNetworkSegment,
@@ -45,11 +45,6 @@ import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 
-const PRESETS = [
-  { name: 'default', bridge: 'virbr0', label: 'Default NAT', desc: 'Libvirt default — VMs get DHCP' },
-  { name: 'vm-net', bridge: 'br0', label: 'VM network', desc: 'Linux bridge for production VMs' },
-] as const
-
 type TabId = 'networks' | 'segments' | 'ipam' | 'lens'
 
 const NETWORK_TABS = [
@@ -70,11 +65,8 @@ export default function PlatformNetworks() {
   const [hostCount, setHostCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [discovering, setDiscovering] = useState(false)
-  const [sheetOpen, setSheetOpen] = useState(false)
+  const [networkWizardOpen, setNetworkWizardOpen] = useState(false)
   const [segmentSheetOpen, setSegmentSheetOpen] = useState(false)
-  const [name, setName] = useState('vm-net')
-  const [vlan, setVlan] = useState('')
-  const [bridge, setBridge] = useState('br0')
   const [creating, setCreating] = useState(false)
   const [segName, setSegName] = useState('app-tier1')
   const [segTier, setSegTier] = useState('tier1')
@@ -167,24 +159,6 @@ export default function PlatformNetworks() {
     }
   }
 
-  const createNet = async () => {
-    setCreating(true)
-    try {
-      await createPlatformNetwork({
-        name,
-        vlan_id: vlan ? Number(vlan) : undefined,
-        bridge: bridge || undefined,
-      })
-      toast.success('Network added and provision task queued')
-      setSheetOpen(false)
-      await load(false)
-    } catch (e: unknown) {
-      toast.error(formatUserError(e))
-    } finally {
-      setCreating(false)
-    }
-  }
-
   const createSegment = async () => {
     setCreating(true)
     try {
@@ -263,7 +237,7 @@ export default function PlatformNetworks() {
                 {discovering ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                 Import from hosts
               </button>
-              <button type="button" className="btn-primary text-sm flex items-center gap-1.5" onClick={() => setSheetOpen(true)}>
+              <button type="button" className="btn-primary text-sm flex items-center gap-1.5" onClick={() => setNetworkWizardOpen(true)}>
                 <Plus className="w-4 h-4" /> New network
               </button>
             </>
@@ -299,7 +273,7 @@ export default function PlatformNetworks() {
                 <div className="flex flex-wrap gap-2">
                   <button type="button" className="btn-primary" onClick={() => void runDiscover()}>Import from hosts</button>
                   <button type="button" className="btn-secondary" onClick={() => void syncHosts()}>Sync all hosts</button>
-                  <button type="button" className="btn-secondary" onClick={() => setSheetOpen(true)}>Create network</button>
+                  <button type="button" className="btn-secondary" onClick={() => setNetworkWizardOpen(true)}>Create network</button>
                   {hostCount === 0 && (
                     <Link to="/platform/enroll" className="btn-secondary">Enroll a host</Link>
                   )}
@@ -391,7 +365,7 @@ export default function PlatformNetworks() {
               ))}
               <button
                 type="button"
-                onClick={() => setSheetOpen(true)}
+                onClick={() => setNetworkWizardOpen(true)}
                 className="rounded-2xl border-2 border-dashed border-slate-600/60 bg-slate-900/20 p-5 flex flex-col items-center justify-center gap-2 text-slate-400 hover:border-blue-400/50 hover:text-blue-300 transition min-h-[10rem]"
               >
                 <Plus className="w-8 h-8" />
@@ -580,45 +554,16 @@ export default function PlatformNetworks() {
         </div>
       )}
 
-      <MacSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="New network" subtitle="Define a cluster network and provision on an online host." wide>
-        <div className="space-y-5">
-          <div>
-            <p className="text-xs font-medium text-slate-500 mb-2">Quick presets</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {PRESETS.map((p) => (
-                <button
-                  key={p.name}
-                  type="button"
-                  className="text-left p-3 rounded-xl border border-white/[0.06] bg-slate-800/40 hover:bg-slate-800/70 transition"
-                  onClick={() => { setName(p.name); setBridge(p.bridge) }}
-                >
-                  <p className="text-sm font-medium text-slate-100">{p.label}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{p.desc}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-          <label className="block text-sm">
-            <span className="text-slate-400">Name</span>
-            <input className="input w-full mt-1.5" value={name} onChange={(e) => setName(e.target.value)} placeholder="vm-net" />
-          </label>
-          <label className="block text-sm">
-            <span className="text-slate-400">Bridge (optional)</span>
-            <input className="input w-full mt-1.5" value={bridge} onChange={(e) => setBridge(e.target.value)} placeholder="br0" />
-          </label>
-          <label className="block text-sm">
-            <span className="text-slate-400">VLAN ID (optional)</span>
-            <input className="input w-full mt-1.5" value={vlan} onChange={(e) => setVlan(e.target.value)} placeholder="100" />
-          </label>
-          <div className="flex gap-2 pt-2">
-            <button type="button" className="btn-secondary flex-1" onClick={() => setSheetOpen(false)}>Cancel</button>
-            <button type="button" className="btn-primary flex-1 flex items-center justify-center gap-2" disabled={creating} onClick={() => void createNet()}>
-              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              Add network
-            </button>
-          </div>
-        </div>
-      </MacSheet>
+      <NetworkCreateWizard
+        open={networkWizardOpen}
+        onClose={() => setNetworkWizardOpen(false)}
+        suggestDiscover={rows.length === 0}
+        onDiscover={runDiscover}
+        onCreated={async () => {
+          toast.success('Network added and provision task queued')
+          await load(false)
+        }}
+      />
 
       <MacSheet open={segmentSheetOpen} onClose={() => setSegmentSheetOpen(false)} title="New overlay segment" subtitle="Tier-0 uplink / Tier-1 workload segment with optional Zeus profile." wide>
         <div className="space-y-4">

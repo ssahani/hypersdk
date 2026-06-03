@@ -11,6 +11,7 @@ import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
 import { storageErrorPresentation } from '../../utils/storageErrorPresentation'
 import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
+import StoragePoolWizard from '../../components/platform/StoragePoolWizard'
 import {
   MacGlassPanel,
   MacListRow,
@@ -20,7 +21,6 @@ import {
 } from '../../components/platform/mac/PlatformMacUi'
 import {
   bindStoragePoolTier,
-  createStoragePool,
   deleteStoragePool,
   discoverStoragePools,
   getFleetStorage,
@@ -65,11 +65,7 @@ export default function PlatformStorage() {
   const [hostCount, setHostCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [discovering, setDiscovering] = useState(false)
-  const [sheetOpen, setSheetOpen] = useState(false)
-  const [name, setName] = useState('datastore-01')
-  const [path, setPath] = useState('/var/lib/libvirt/images')
-  const [poolBackend, setPoolBackend] = useState<'directory' | 'nfs' | 'lvm' | 'ceph' | 'iscsi' | 'zfs'>('directory')
-  const [creating, setCreating] = useState(false)
+  const [poolWizardOpen, setPoolWizardOpen] = useState(false)
   const [bindDraft, setBindDraft] = useState<Record<string, string>>({})
   const [binding, setBinding] = useState<string | null>(null)
   const [slaEdit, setSlaEdit] = useState<StorageBackupSla | null>(null)
@@ -212,7 +208,7 @@ export default function PlatformStorage() {
               <button type="button" className="btn-secondary text-sm" disabled={discovering} onClick={async () => {
                 try { await syncAllHosts(); toast.success('Host sync queued') } catch (e: unknown) { toast.error(formatUserError(e)) }
               }}>Sync hosts</button>
-              <button type="button" className="btn-primary flex items-center gap-2 text-sm" onClick={() => setSheetOpen(true)}><Plus className="w-4 h-4" /> Add pool</button>
+              <button type="button" className="btn-primary flex items-center gap-2 text-sm" onClick={() => setPoolWizardOpen(true)}><Plus className="w-4 h-4" /> Add pool</button>
             </>
           )}
           <PlatformRefreshButton onClick={() => void load(false)} />
@@ -336,9 +332,12 @@ export default function PlatformStorage() {
         <>
           {rows.length === 0 && !error ? (
             <PlatformEmptyState title="No storage pools" subtitle="Import libvirt pools from your KVM hosts, or add one manually.">
-              <button type="button" className="btn-primary mt-3" disabled={discovering} onClick={() => void runDiscover()}>
-                {discovering ? 'Importing…' : 'Import from hosts'}
-              </button>
+              <div className="flex flex-wrap gap-2 mt-3">
+                <button type="button" className="btn-primary" disabled={discovering} onClick={() => void runDiscover()}>
+                  {discovering ? 'Importing…' : 'Import from hosts'}
+                </button>
+                <button type="button" className="btn-secondary" onClick={() => setPoolWizardOpen(true)}>Add pool wizard</button>
+              </div>
             </PlatformEmptyState>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -505,60 +504,14 @@ export default function PlatformStorage() {
         </MacGlassPanel>
       )}
 
-      <MacSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Add storage pool">
-        <div className="space-y-4">
-          <label className="block text-sm"><span className="text-slate-400">Name</span><input className="input mt-1 w-full" value={name} onChange={(e) => setName(e.target.value)} /></label>
-          <label className="block text-sm">
-            <span className="text-slate-400">Backend</span>
-            <select className="input mt-1 w-full" value={poolBackend} onChange={(e) => {
-              const b = e.target.value as typeof poolBackend
-              setPoolBackend(b)
-              if (b === 'nfs') setPath('192.168.1.10:/export/machina')
-              else if (b === 'lvm') setPath('/dev/vg_machina/lv_data')
-              else if (b === 'ceph') setPath('ceph:machina')
-              else if (b === 'iscsi') setPath('iqn.2020-01.com.example:machina')
-              else if (b === 'zfs') setPath('tank/machina')
-              else setPath('/var/lib/libvirt/images')
-            }}>
-              <option value="directory">Directory (local path)</option>
-              <option value="nfs">NFS (netfs)</option>
-              <option value="lvm">LVM (logical volume)</option>
-              <option value="ceph">Ceph RBD</option>
-              <option value="iscsi">iSCSI</option>
-              <option value="zfs">ZFS</option>
-            </select>
-          </label>
-          <label className="block text-sm">
-            <span className="text-slate-400">
-              {poolBackend === 'nfs' && 'NFS server:export'}
-              {poolBackend === 'lvm' && 'LV path'}
-              {poolBackend === 'ceph' && 'Ceph pool (ceph:name or rbd/pool)'}
-              {poolBackend === 'iscsi' && 'iSCSI target IQN'}
-              {poolBackend === 'zfs' && 'ZFS zpool/dataset'}
-              {poolBackend === 'directory' && 'Path on host'}
-            </span>
-            <input className="input mt-1 w-full font-mono text-xs" value={path} onChange={(e) => setPath(e.target.value)} />
-          </label>
-          <p className="text-xs text-slate-500">
-            {poolBackend === 'directory' && 'Registers in inventory and provisions a dir pool on an online host when path is set.'}
-            {poolBackend === 'nfs' && 'Example: host:/export/path — agent runs storage.pool.provision (netfs).'}
-            {poolBackend === 'lvm' && 'Example: /dev/vg/lv — requires LVM layout on the hypervisor.'}
-            {poolBackend === 'ceph' && 'Example: ceph:vms or rbd/machina — requires Ceph cluster and librbd on the hypervisor.'}
-            {poolBackend === 'iscsi' && 'Example: iqn.2020-01.com.example:storage — libvirt iscsi pool on the agent host.'}
-            {poolBackend === 'zfs' && 'Example: tank/machina — ZFS dataset must exist and be imported on the host.'}
-          </p>
-          <button type="button" className="btn-primary w-full" disabled={creating} onClick={async () => {
-            setCreating(true)
-            try {
-              await createStoragePool({ name, path, storage_class: 'silver', backend: poolBackend })
-              toast.success('Pool added')
-              setSheetOpen(false)
-              await load(false)
-            } catch (e: unknown) { toast.error(formatUserError(e)) }
-            finally { setCreating(false) }
-          }}>{creating ? 'Adding…' : 'Add pool'}</button>
-        </div>
-      </MacSheet>
+      <StoragePoolWizard
+        open={poolWizardOpen}
+        onClose={() => setPoolWizardOpen(false)}
+        onCreated={async () => {
+          toast.success('Pool added')
+          await load(false)
+        }}
+      />
 
       <MacSheet open={!!slaEdit} onClose={() => setSlaEdit(null)} title={`Edit backup SLA — ${slaEdit?.pool_name ?? ''}`}>
         <div className="space-y-4">

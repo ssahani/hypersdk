@@ -121,6 +121,15 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 - **Network canvas:** `GET /api/v1/network-canvas` — topology + PacketWolf flows/stats/anomalies; enriched [`/platform/network-canvas`](/platform/network-canvas) UI
 - **Web API:** `platformNetworkCanvas.ts`
 
+### Batch 83 deliverables (platform UX ease-of-use sweep)
+
+- **Shared wizard shell:** `PlatformStepWizard` — fixed header/footer, scrollable body; used across Create VM, ISO, Windows, storage, network, and host enroll flows
+- **Create VM:** API-backed templates + `GET …/readiness` gate; Linux deploy via `createVmFromTemplate`; live networks; task toast with link
+- **ISO / Windows:** `PlatformIsoCreate` 4-step wizard; `WindowsCreateWizard` reuses main wizard + Windows options
+- **Storage / Networks:** `StoragePoolWizard`, `NetworkCreateWizard` (discover CTA when empty); empty-state CTAs open wizards
+- **Onboarding:** `PlatformWelcome` “Create your first VM” opens unified wizard; Hosts empty state opens `HostEnrollWizard`
+- **E2E:** `platform-wizard-ux.spec.ts` — readiness block, storage/network wizard smoke
+
 ### Batch 82 deliverables (PacketWolf network canvas depth)
 
 - **Discovery:** `packetwolf_discover.rs` — auto-find PacketWolf API via localhost probes + `kubectl get svc` (LoadBalancer/NodePort); `PACKETWOLF_AUTO_DISCOVER` (default on)

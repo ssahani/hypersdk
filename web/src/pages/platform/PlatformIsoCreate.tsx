@@ -1,34 +1,47 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
-// Platform ISO install — approved content library → controller vm.apply with install_iso CDROM.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { Disc, Loader2 } from 'lucide-react'
+import { Disc, Loader2, Upload } from 'lucide-react'
 import PlatformPageChrome, { PlatformBackLink } from '../../components/platform/PlatformPageChrome'
+import PlatformStepWizard from '../../components/platform/PlatformStepWizard'
+import VmWizardSizeStep, { sizeStepValid, type VmWizardSizeState } from '../../components/platform/VmWizardSizeStep'
 import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
-import { createVmFromIso, listContentImages, type ContentImage } from '../../api/platform'
-import { sizeToSpec } from '../../components/platform/SimpleCreateVmWizard'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
+import {
+  createVmFromIso,
+  listContentImages,
+  listPlatformNetworks,
+  type ContentImage,
+} from '../../api/platform'
+import { sizeToSpec } from '../../components/platform/vmWizardCatalog'
+import { readSshPubkeyFile } from '../../utils/sshPubkeyImport'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses } from '../../utils/semanticColors'
 
-const SIZES = [
-  { id: 'small', label: 'Small', detail: '2 vCPU · 2 GiB · 20 GiB disk' },
-  { id: 'medium', label: 'Medium', detail: '4 vCPU · 4 GiB · 40 GiB disk' },
-  { id: 'large', label: 'Large', detail: '8 vCPU · 8 GiB · 80 GiB disk' },
-] as const
+const ISO_STEPS = ['ISO image', 'Name & size', 'Network & access', 'Review']
 
 export default function PlatformIsoCreate() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const toast = useToastContext()
+  const [step, setStep] = useState(0)
   const [images, setImages] = useState<ContentImage[]>([])
   const [loading, setLoading] = useState(true)
-  const [creating, setCreating] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isoPath, setIsoPath] = useState('')
   const [vmName, setVmName] = useState('vm-from-iso')
-  const [size, setSize] = useState<string>('medium')
+  const [sizeState, setSizeState] = useState<VmWizardSizeState>({
+    size: 'medium',
+    customCores: 4,
+    customMemoryGiB: 8,
+    customDiskGiB: 40,
+  })
+  const [network, setNetwork] = useState('default')
+  const [networks, setNetworks] = useState<{ name: string; bridge?: string | null }[]>([])
+  const [sshPubkey, setSshPubkey] = useState('')
 
   const approved = useMemo(
     () => images.filter((i) => i.status === 'available' && (i.kind === 'iso' || i.path.toLowerCase().endsWith('.iso'))),
@@ -39,7 +52,13 @@ export default function PlatformIsoCreate() {
     setError(null)
     setLoading(true)
     try {
-      setImages(await listContentImages({ status: 'available' }))
+      const [imgs, nets] = await Promise.all([
+        listContentImages({ status: 'available' }),
+        listPlatformNetworks().catch(() => []),
+      ])
+      setImages(imgs)
+      setNetworks(nets)
+      if (nets.length > 0) setNetwork(nets[0].name)
     } catch (e: unknown) {
       setError(formatUserError(e))
     } finally {
@@ -51,52 +70,59 @@ export default function PlatformIsoCreate() {
 
   useEffect(() => {
     const pre = searchParams.get('iso_path') ?? searchParams.get('iso')
+    const name = searchParams.get('name')
     if (pre) setIsoPath(pre)
+    if (name) setVmName(name)
   }, [searchParams])
 
   const selected = approved.find((i) => i.path === isoPath)
+  const specPreview = sizeToSpec(
+    sizeState.size,
+    sizeState.size === 'custom'
+      ? { cores: sizeState.customCores, memoryGiB: sizeState.customMemoryGiB, diskGiB: sizeState.customDiskGiB }
+      : undefined,
+  )
 
-  const createOnPlatform = async () => {
-    if (!isoPath.trim()) {
-      toast.error('Select an approved ISO')
-      return
-    }
-    if (!vmName.trim()) {
-      toast.error('Enter a VM name')
-      return
-    }
-    const spec = sizeToSpec(size)
+  const networkOptions =
+    networks.length > 0
+      ? networks.map((n) => ({ id: n.name, label: n.bridge ? `${n.name} (${n.bridge})` : n.name }))
+      : [{ id: 'default', label: 'Default network (DHCP)' }]
+
+  const canNext = () => {
+    if (step === 0) return Boolean(isoPath.trim())
+    if (step === 1) return vmName.trim().length > 0 && sizeStepValid(sizeState)
+    return true
+  }
+
+  const finish = async () => {
+    const spec = sizeToSpec(
+      sizeState.size,
+      sizeState.size === 'custom'
+        ? {
+            cores: sizeState.customCores,
+            memoryGiB: sizeState.customMemoryGiB,
+            diskGiB: sizeState.customDiskGiB,
+          }
+        : undefined,
+    )
     const memoryGi = parseInt(spec.memory.replace(/Gi$/, ''), 10) || 4
     const diskGb = parseInt(spec.disk.replace(/Gi$/, ''), 10) || 40
-    setCreating(true)
+    setBusy(true)
     try {
-      await createVmFromIso({
+      const r = await createVmFromIso({
         name: vmName.trim(),
         iso_path: isoPath,
         memory: `${memoryGi}Gi`,
         disk_gib: diskGb,
+        cloud_init_ssh_pubkey: sshPubkey.trim() || undefined,
       })
-      toast.success(`ISO install queued for ${vmName}`)
+      toast.success(`ISO install queued — task ${r.task_id.slice(0, 8)}`)
       navigate('/platform/vms')
     } catch (e: unknown) {
       toast.error(formatUserError(e))
     } finally {
-      setCreating(false)
+      setBusy(false)
     }
-  }
-
-  const openClassicWizard = () => {
-    const spec = sizeToSpec(size)
-    const memoryMb = parseInt(spec.memory.replace(/Gi$/, ''), 10) * 1024 || 4096
-    const diskGb = parseInt(spec.disk.replace(/Gi$/, ''), 10) || 40
-    const q = new URLSearchParams({
-      iso_path: isoPath,
-      name: vmName.trim(),
-      vcpus: String(spec.cores),
-      memory_mb: String(memoryMb),
-      disk_gb: String(diskGb),
-    })
-    navigate(`/create?${q.toString()}`)
   }
 
   return (
@@ -105,78 +131,133 @@ export default function PlatformIsoCreate() {
       onErrorRetry={() => void load()}
       prepend={<PlatformBackLink to="/platform/content" label="Content Library" />}
       title="Create VM from ISO"
-      subtitle="Platform-native install attaches the ISO at define time; classic wizard offers full virt-install options."
+      subtitle="Guided install from approved Content Library images."
     >
       {loading ? (
-        <p className="text-sm text-slate-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading approved images…</p>
+        <p className="text-sm text-slate-400 flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading approved images…
+        </p>
       ) : approved.length === 0 ? (
-        <MacGlassPanel title="No approved ISOs">
-          <p className="text-sm text-slate-400">
-            Upload and approve an ISO in the{' '}
-            <Link to="/platform/content" className={hubLinkClasses()}>Content Library</Link>
-            {' '}first.
-          </p>
-        </MacGlassPanel>
+        <PlatformEmptyState
+          title="No approved ISOs"
+          subtitle="Upload and approve an ISO in the Content Library first."
+          action={
+            <Link to="/platform/content" className="btn-primary text-sm">
+              Open Content Library
+            </Link>
+          }
+        />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2 max-w-4xl">
-          <MacGlassPanel title="ISO image">
-            <ul className="space-y-2 max-h-64 overflow-y-auto">
+        <PlatformStepWizard
+          open
+          embedded
+          onClose={() => navigate('/platform/content')}
+          title="Install from ISO"
+          steps={ISO_STEPS}
+          step={step}
+          onStepChange={setStep}
+          canNext={canNext()}
+          busy={busy}
+          finishLabel="Create VM"
+          onFinish={finish}
+        >
+          {step === 0 && (
+            <div className="grid gap-2 sm:grid-cols-2 max-h-[50vh] overflow-y-auto">
               {approved.map((img) => (
-                <li key={img.id}>
-                  <button
-                    type="button"
-                    className={`w-full text-left rounded-xl border px-3 py-2 text-sm transition-colors ${
-                      isoPath === img.path
-                        ? 'border-sky-500/50 bg-sky-500/10'
-                        : 'border-white/10 hover:border-white/20'
-                    }`}
-                    onClick={() => setIsoPath(img.path)}
-                  >
-                    <span className="font-medium flex items-center gap-2">
-                      <Disc className="w-4 h-4 shrink-0" />
-                      {img.name}
-                    </span>
-                    <span className="text-xs text-slate-500 font-mono block mt-0.5 truncate">{img.path}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </MacGlassPanel>
-          <MacGlassPanel title="VM settings">
-            <label className="block text-sm mb-3">
-              <span className="text-slate-400">VM name</span>
-              <input className="input w-full mt-1" value={vmName} onChange={(e) => setVmName(e.target.value)} />
-            </label>
-            <fieldset className="space-y-2 mb-4">
-              <legend className="text-sm text-slate-300 mb-1">Size</legend>
-              {SIZES.map((s) => (
-                <label
-                  key={s.id}
-                  className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer ${
-                    size === s.id ? 'border-blue-500/60 bg-blue-500/10' : 'border-slate-800'
+                <button
+                  key={img.id}
+                  type="button"
+                  className={`text-left rounded-xl border px-3 py-2 text-sm ${
+                    isoPath === img.path ? 'border-sky-500/50 bg-sky-500/10' : 'border-white/10 hover:border-white/20'
                   }`}
+                  onClick={() => setIsoPath(img.path)}
                 >
-                  <input type="radio" name="iso-size" checked={size === s.id} onChange={() => setSize(s.id)} />
-                  <span>
-                    <span className="font-medium">{s.label}</span>
-                    <span className="text-xs text-slate-500 ml-1">{s.detail}</span>
+                  <span className="font-medium flex items-center gap-2">
+                    <Disc className="w-4 h-4 shrink-0" />
+                    {img.name}
                   </span>
-                </label>
+                  <span className="text-xs text-slate-500 font-mono block mt-0.5 truncate">{img.path}</span>
+                </button>
               ))}
-            </fieldset>
-            {selected && (
-              <p className="text-xs text-slate-500 mb-3">
-                Installing from <span className="font-mono">{selected.path}</span>
-              </p>
-            )}
-            <button type="button" className="btn-primary w-full mb-2" disabled={!isoPath || creating} onClick={() => void createOnPlatform()}>
-              {creating ? 'Queuing…' : 'Create on platform (ISO boot)'}
-            </button>
-            <button type="button" className="btn-secondary w-full text-sm" disabled={!isoPath} onClick={openClassicWizard}>
-              Advanced: classic install wizard
-            </button>
-          </MacGlassPanel>
-        </div>
+            </div>
+          )}
+          {step === 1 && (
+            <div className="space-y-4">
+              <label className="block text-sm">
+                <span className="text-slate-300">VM name</span>
+                <input className="input w-full mt-1" value={vmName} onChange={(e) => setVmName(e.target.value)} />
+              </label>
+              <VmWizardSizeStep state={sizeState} onChange={(patch) => setSizeState((s) => ({ ...s, ...patch }))} />
+            </div>
+          )}
+          {step === 2 && (
+            <div className="space-y-4">
+              <label className="block text-sm">
+                <span className="text-slate-300">Network</span>
+                <select className="input w-full mt-1" value={network} onChange={(e) => setNetwork(e.target.value)}>
+                  {networkOptions.map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {n.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-300">SSH public key (optional)</span>
+                <textarea
+                  className="input w-full mt-1 font-mono text-xs min-h-[4rem]"
+                  value={sshPubkey}
+                  onChange={(e) => setSshPubkey(e.target.value)}
+                  placeholder="ssh-ed25519 AAAA…"
+                />
+              </label>
+              <button
+                type="button"
+                className="btn-secondary text-xs inline-flex items-center gap-1"
+                onClick={() => {
+                  const input = document.createElement('input')
+                  input.type = 'file'
+                  input.accept = '.pub,text/plain'
+                  input.onchange = () => readSshPubkeyFile(input.files?.[0], setSshPubkey)
+                  input.click()
+                }}
+              >
+                <Upload className="w-3 h-3" /> Import .pub
+              </button>
+            </div>
+          )}
+          {step === 3 && (
+            <MacGlassPanel title="Review" subtitle={selected?.name}>
+              <ul className="text-sm space-y-1 text-slate-300">
+                <li>
+                  ISO: <span className="font-mono text-xs">{isoPath}</span>
+                </li>
+                <li>Name: {vmName}</li>
+                <li>
+                  Size: {specPreview.cores} vCPU · {specPreview.memory} · {specPreview.disk} disk
+                </li>
+                <li>Network: {network}</li>
+              </ul>
+              <button type="button" className={`btn-secondary text-xs mt-3 ${hubLinkClasses()}`} onClick={() => {
+                const spec = sizeToSpec(sizeState.size, sizeState.size === 'custom' ? {
+                  cores: sizeState.customCores,
+                  memoryGiB: sizeState.customMemoryGiB,
+                  diskGiB: sizeState.customDiskGiB,
+                } : undefined)
+                const q = new URLSearchParams({
+                  iso_path: isoPath,
+                  name: vmName.trim(),
+                  vcpus: String(spec.cores),
+                  memory_mb: String((parseInt(spec.memory.replace(/Gi$/, ''), 10) || 4) * 1024),
+                  disk_gb: String(parseInt(spec.disk.replace(/Gi$/, ''), 10) || 40),
+                })
+                navigate(`/create?${q.toString()}`)
+              }}>
+                Advanced: classic virt-install wizard
+              </button>
+            </MacGlassPanel>
+          )}
+        </PlatformStepWizard>
       )}
     </PlatformPageChrome>
   )

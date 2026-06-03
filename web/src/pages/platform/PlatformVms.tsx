@@ -17,11 +17,17 @@ import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import FinderView, { type FinderViewMode } from '../../components/platform/mac/FinderView'
 import { LaunchpadAppIcon } from '../../components/platform/mac/PlatformMacUi'
-import SimpleCreateVmWizard, { sizeToSpec, type VmWizardInitial, type VmWizardPayload } from '../../components/platform/SimpleCreateVmWizard'
+import SimpleCreateVmWizard, {
+  cloudInitUserForOs,
+  sizeToSpec,
+  type VmWizardInitial,
+  type VmWizardPayload,
+} from '../../components/platform/SimpleCreateVmWizard'
 import WindowsCreateWizard from '../../components/platform/WindowsCreateWizard'
 import MigratePrecheckModal from '../../components/platform/MigratePrecheckModal'
 import {
   adoptPlatformVm,
+  createFromTemplate,
   createPlatformVm,
   getFleetFinder,
   listPlatformHosts,
@@ -206,9 +212,10 @@ export default function PlatformVms() {
     network: string,
     extraTags: string[] = [],
     cloudInitSshPubkey?: string,
+    customSpec?: VmWizardPayload['customSpec'],
   ): CreatePlatformVmBody => {
-    const spec = sizeToSpec(size)
-    const cloudUser = os.startsWith('debian') ? 'debian' : os.startsWith('rocky') ? 'rocky' : 'ubuntu'
+    const spec = sizeToSpec(size, customSpec)
+    const cloudUser = cloudInitUserForOs(os)
     return {
       api_version: 'virt.zyvor.dev/v1',
       kind: 'VirtualMachine',
@@ -228,11 +235,44 @@ export default function PlatformVms() {
 
   const handleCreate = async (payload: VmWizardPayload) => {
     if (payload.os === 'custom-iso') {
-      navigate('/platform/create-iso')
+      navigate(`/platform/create-iso?name=${encodeURIComponent(payload.name)}`)
       return
     }
-    await createPlatformVm(buildVmBody(payload.name, payload.os, payload.size, payload.network, [], payload.cloudInitSshPubkey))
-    toast.success('Create task queued')
+    if (payload.windows) {
+      await handleWindowsCreate({
+        name: payload.name,
+        os: payload.os,
+        size: payload.size,
+        network: payload.network,
+        windows: payload.windows,
+      })
+      return
+    }
+    const spec = sizeToSpec(payload.size, payload.customSpec)
+    if (payload.fromTemplate) {
+      const r = await createFromTemplate({
+        template_ref: `${payload.os}@${payload.templateVersion ?? '1.0.0'}`,
+        name: payload.name,
+        memory: spec.memory,
+        template_vars: { hostname: payload.name, name: payload.name },
+        cloud_init_user: cloudInitUserForOs(payload.os),
+        cloud_init_ssh_pubkey: payload.cloudInitSshPubkey,
+      })
+      toast.success(`Deploy queued — track task ${r.task_id.slice(0, 8)} in Tasks`)
+    } else {
+      const r = await createPlatformVm(
+        buildVmBody(
+          payload.name,
+          payload.os,
+          payload.size,
+          payload.network,
+          [],
+          payload.cloudInitSshPubkey,
+          payload.customSpec,
+        ),
+      )
+      toast.success(`Create queued — track task ${r.task_id.slice(0, 8)} in Tasks`)
+    }
     await load()
   }
 
@@ -582,7 +622,7 @@ export default function PlatformVms() {
       />
 
       <SimpleCreateVmWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreate={handleCreate} initial={wizardInitial} />
-      <WindowsCreateWizard open={windowsOpen} onClose={() => setWindowsOpen(false)} onCreate={handleWindowsCreate} />
+      <WindowsCreateWizard open={windowsOpen} onClose={() => setWindowsOpen(false)} onCreate={handleCreate} />
       {migrateModal && (
         <MigratePrecheckModal
           vm={migrateModal.vm}

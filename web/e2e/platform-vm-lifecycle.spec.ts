@@ -24,12 +24,25 @@ test('vm detail shows lifecycle power actions and SSH when guest IP present', as
   await expect(page.getByRole('button', { name: 'SSH', exact: true }).first()).toBeVisible()
 })
 
-test('create vm wizard accepts SSH public key import', async ({ page }) => {
+test('create vm wizard shows readiness when template selected', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/vms?create=test-vm')
   await expect(page.getByRole('heading', { name: 'Create Virtual Machine' })).toBeVisible({ timeout: 15_000 })
-  await page.getByRole('button', { name: /Advanced/ }).click()
-  await expect(page.getByText('matching private key')).toBeVisible()
+  await page.getByRole('button', { name: 'Next' }).click()
+  await expect(page.getByText('Ready to deploy')).toBeVisible({ timeout: 10_000 })
+})
+
+test('create vm wizard has Next steps and SSH on final step', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/vms?create=test-vm')
+  await expect(page.getByRole('heading', { name: 'Create Virtual Machine' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('button', { name: 'Next' })).toBeVisible()
+  await page.getByRole('button', { name: 'Next' }).click()
+  await expect(page.getByRole('button', { name: /Ubuntu 24\.04/ }).first()).toBeVisible()
+  await page.getByRole('button', { name: 'Next' }).click()
+  await expect(page.getByText('Custom size')).toBeVisible()
+  await page.getByRole('button', { name: 'Next' }).click()
+  await expect(page.getByText('SSH public key (optional)')).toBeVisible()
   const pubkey = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI test@e2e'
   await page.getByPlaceholder('ssh-ed25519 AAAA').fill(pubkey)
   await expect(page.getByPlaceholder('ssh-ed25519 AAAA')).toHaveValue(pubkey)

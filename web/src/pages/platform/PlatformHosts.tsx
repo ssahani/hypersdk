@@ -5,6 +5,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 import { Plus, RefreshCw, Server, Wrench } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
+import HostEnrollWizard from '../../components/platform/HostEnrollWizard'
 import FinderView, { type FinderViewMode } from '../../components/platform/mac/FinderView'
 import { gradientForName } from '../../components/platform/mac/PlatformMacUi'
 import {
@@ -38,6 +39,7 @@ export default function PlatformHosts() {
   const [busy, setBusy] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [enrollWizardOpen, setEnrollWizardOpen] = useState(false)
   const [viewMode, setViewMode] = useState<FinderViewMode>(() => {
     try {
       const v = localStorage.getItem(VIEW_KEY)
@@ -215,9 +217,9 @@ export default function PlatformHosts() {
           }}>Sync all</button>
           <button type="button" onClick={() => void load()} className="btn-secondary"><RefreshCw className="w-4 h-4" /></button>
           {!filterOffline && (
-            <Link to="/platform/enroll" className="btn-primary text-sm inline-flex items-center gap-1">
+            <button type="button" className="btn-primary text-sm inline-flex items-center gap-1" onClick={() => setEnrollWizardOpen(true)}>
               <Plus className="w-4 h-4" /> Add host
-            </Link>
+            </button>
           )}
         </>
       }
@@ -245,10 +247,15 @@ export default function PlatformHosts() {
             title={filterOffline ? 'No offline hosts' : 'No hosts enrolled'}
             subtitle={filterOffline ? 'All hypervisors are reporting heartbeats.' : 'Add a hypervisor to start managing VMs.'}
           >
-            {!filterOffline ? <Link to="/platform/enroll" className="tahoe-btn-primary text-sm">Add Host</Link> : null}
+            {!filterOffline ? (
+              <button type="button" className="tahoe-btn-primary text-sm" onClick={() => setEnrollWizardOpen(true)}>
+                Enroll host
+              </button>
+            ) : null}
           </PlatformEmptyState>
         }
       />
+      <HostEnrollWizard open={enrollWizardOpen} onClose={() => setEnrollWizardOpen(false)} />
     </PageLayout>
   )
 }

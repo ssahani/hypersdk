@@ -1,0 +1,122 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import type { ReactNode } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+
+export type PlatformStepWizardProps = {
+  open: boolean
+  onClose: () => void
+  title: string
+  subtitle?: string
+  steps: string[]
+  step: number
+  onStepChange: (next: number) => void
+  canNext: boolean
+  busy?: boolean
+  finishLabel?: string
+  nextLabel?: string
+  maxWidthClass?: string
+  /** When true, render inline on a page (no modal backdrop). */
+  embedded?: boolean
+  children: ReactNode
+  onFinish: () => void | Promise<void>
+  /** When set, called instead of advancing step on Next (non-final steps). */
+  onNext?: () => void | Promise<void>
+}
+
+export default function PlatformStepWizard({
+  open,
+  onClose,
+  title,
+  subtitle,
+  steps,
+  step,
+  onStepChange,
+  canNext,
+  busy = false,
+  finishLabel = 'Finish',
+  nextLabel = 'Next',
+  maxWidthClass = 'max-w-2xl',
+  embedded = false,
+  children,
+  onFinish,
+  onNext,
+}: PlatformStepWizardProps) {
+  if (!open) return null
+
+  const isLast = step >= steps.length - 1
+
+  const panel = (
+      <div
+        className={`w-full ${maxWidthClass} ${embedded ? '' : 'max-h-[min(90vh,720px)]'} flex flex-col rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl overflow-hidden`}
+        onClick={embedded ? undefined : (e) => e.stopPropagation()}
+      >
+        <div className="shrink-0 px-6 py-4 border-b border-slate-800">
+          <h2 className="text-xl font-semibold">{title}</h2>
+          {subtitle && <p className="text-sm text-slate-400 mt-0.5">{subtitle}</p>}
+          <p className="text-sm text-slate-500 mt-1">
+            Step {step + 1} of {steps.length} — {steps[step]}
+          </p>
+          <div className="flex gap-1.5 mt-3">
+            {steps.map((label, i) => (
+              <div key={label} className="flex-1 flex flex-col gap-1 min-w-0">
+                <div className={`h-1 rounded-full ${i <= step ? 'bg-blue-500' : 'bg-slate-800'}`} title={label} />
+                <span
+                  className={`text-[10px] truncate hidden sm:block ${i === step ? 'text-slate-200' : 'text-slate-600'}`}
+                >
+                  {label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto p-6">{children}</div>
+
+        <div className="shrink-0 px-6 py-4 border-t border-slate-800 flex items-center justify-between gap-2 bg-slate-900/95">
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <div className="flex gap-2">
+            {step > 0 && (
+              <button
+                type="button"
+                className="btn-secondary inline-flex items-center gap-1"
+                onClick={() => onStepChange(step - 1)}
+                disabled={busy}
+              >
+                <ChevronLeft className="w-4 h-4" /> Back
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn-primary inline-flex items-center gap-1 min-w-[7rem] justify-center"
+              disabled={busy || !canNext}
+              onClick={() => void (isLast ? onFinish() : onNext ? onNext() : onStepChange(step + 1))}
+            >
+              {busy ? 'Working…' : isLast ? (
+                finishLabel
+              ) : (
+                <>
+                  {nextLabel} <ChevronRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+  )
+
+  if (embedded) {
+    return <div className="mx-auto">{panel}</div>
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      {panel}
+    </div>
+  )
+}

@@ -24,8 +24,13 @@ import InfrastructureDnaStrip from '../../components/platform/InfrastructureDnaS
 import EnterpriseSecurityStrip from '../../components/platform/EnterpriseSecurityStrip'
 import PlatformTahoeEmptyState from '../../components/platform/tahoe/PlatformTahoeEmptyState'
 import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
-import SimpleCreateVmWizard, { sizeToSpec, type VmWizardPayload } from '../../components/platform/SimpleCreateVmWizard'
+import SimpleCreateVmWizard, {
+  cloudInitUserForOs,
+  sizeToSpec,
+  type VmWizardPayload,
+} from '../../components/platform/SimpleCreateVmWizard'
 import {
+  createFromTemplate,
   createPlatformVm,
   getCapacityReport,
   getClusterSummary,
@@ -117,32 +122,48 @@ export default function PlatformDashboard() {
     }
   }
 
-  const handleCreate = async ({ name, os, size, network, cloudInitSshPubkey }: VmWizardPayload) => {
-    const spec = sizeToSpec(size)
-    const cloudUser = os.startsWith('debian') ? 'debian' : os.startsWith('rocky') ? 'rocky' : 'ubuntu'
-    const body: CreatePlatformVmBody = {
-      api_version: 'virt.zyvor.dev/v1',
-      kind: 'VirtualMachine',
-      metadata: { name },
-      tags: [os, network],
-      spec: {
-        cpu: { sockets: 1, cores: spec.cores },
-        memory: spec.memory,
-        storage: [{ name: 'root', size: spec.disk, class: 'silver' }],
-        network: [{ network, ip_mode: 'dhcp' }],
-        ...(cloudInitSshPubkey
-          ? { cloud_init: { user: cloudUser, ssh_pubkey: cloudInitSshPubkey } }
-          : {}),
-      },
+  const handleCreate = async (payload: VmWizardPayload) => {
+    if (payload.os === 'custom-iso') {
+      navigate(`/platform/create-iso?name=${encodeURIComponent(payload.name)}`)
+      return
     }
-    await createPlatformVm(body)
-    toast.success('Create task queued')
+    const spec = sizeToSpec(payload.size, payload.customSpec)
+    if (payload.fromTemplate) {
+      const r = await createFromTemplate({
+        template_ref: `${payload.os}@${payload.templateVersion ?? '1.0.0'}`,
+        name: payload.name,
+        memory: spec.memory,
+        template_vars: { hostname: payload.name, name: payload.name },
+        cloud_init_user: cloudInitUserForOs(payload.os),
+        cloud_init_ssh_pubkey: payload.cloudInitSshPubkey,
+      })
+      toast.success(`Deploy queued — track task ${r.task_id.slice(0, 8)} in Tasks`)
+    } else {
+      const cloudUser = cloudInitUserForOs(payload.os)
+      const body: CreatePlatformVmBody = {
+        api_version: 'virt.zyvor.dev/v1',
+        kind: 'VirtualMachine',
+        metadata: { name: payload.name },
+        tags: [payload.os, payload.network],
+        spec: {
+          cpu: { sockets: 1, cores: spec.cores },
+          memory: spec.memory,
+          storage: [{ name: 'root', size: spec.disk, class: 'silver' }],
+          network: [{ network: payload.network, ip_mode: 'dhcp' }],
+          ...(payload.cloudInitSshPubkey
+            ? { cloud_init: { user: cloudUser, ssh_pubkey: payload.cloudInitSshPubkey } }
+            : {}),
+        },
+      }
+      const r = await createPlatformVm(body)
+      toast.success(`Create queued — track task ${r.task_id.slice(0, 8)} in Tasks`)
+    }
     await load()
   }
 
   const launchpadGrid = (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <ActionCard icon={<Plus className="w-5 h-5" />} title="Create VM" subtitle="Simple wizard — OS, size, network" onClick={() => setWizardOpen(true)} />
+      <ActionCard icon={<Plus className="w-5 h-5" />} title="Create VM" subtitle="4-step wizard — OS cards, custom size" onClick={() => setWizardOpen(true)} />
       {!showPlatformHubsForTier(tier) && (
         <>
           <ActionCard icon={<Boxes className="w-5 h-5" />} title="Apps & Integrations" subtitle="OpenStack, K8s, classic tools" to="/platform/integrations" />
