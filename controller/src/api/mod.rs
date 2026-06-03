@@ -20,6 +20,7 @@ mod fleet;
 mod guestkit;
 mod zeus_firewall;
 mod zeus_security;
+mod soc;
 mod ha;
 mod health;
 mod health_check;
@@ -312,6 +313,35 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/ai/security/attack-reconstruct", post(zeus_security::attack_reconstruct))
         .route("/api/v1/ai/security/nl-search", post(zeus_security::nl_search))
         .route("/api/v1/ai/security/hunt-summary", post(zeus_security::hunt_summary))
+        .route("/api/v1/soc/overview", get(soc::overview))
+        .route("/api/v1/soc/events", get(soc::list_events))
+        .route("/api/v1/soc/alerts", get(soc::list_alerts))
+        .route("/api/v1/soc/alerts/{id}", patch(soc::patch_alert))
+        .route("/api/v1/soc/rules", get(soc::list_rules).post(soc::create_rule))
+        .route(
+            "/api/v1/soc/rules/{id}",
+            patch(soc::patch_rule),
+        )
+        .route("/api/v1/soc/rules/{id}/test", post(soc::test_rule))
+        .route("/api/v1/soc/asm/summary", get(soc::asm_summary))
+        .route("/api/v1/soc/integrations", get(soc::list_integrations))
+        .route(
+            "/api/v1/soc/integrations/{integration_type}",
+            patch(soc::patch_integration),
+        )
+        .route(
+            "/api/v1/soc/integrations/{integration_type}/test",
+            post(soc::test_integration),
+        )
+        .route(
+            "/api/v1/soc/integrations/splunk",
+            get(soc::get_splunk_integration).put(soc::put_splunk_integration),
+        )
+        .route(
+            "/api/v1/soc/integrations/splunk/test",
+            post(soc::test_splunk_integration),
+        )
+        .route("/api/v1/soc/forward/replay", post(soc::forward_replay_handler))
         .route("/api/v1/hosts/{id}/health-check", post(health_check::host_health_check))
         .route("/api/v1/recommendations", get(recommendations::list_recommendations))
         .route(

@@ -1,0 +1,105 @@
+# SOC integrations (SIEM export)
+
+Machina's Security Operations Center normalizes audit, firewall, PacketWolf, and platform events into ECS-shaped records, runs detection rules, and forwards to external SIEMs.
+
+## Splunk HEC (primary)
+
+1. Create an HTTP Event Collector token in Splunk (`Settings → Data inputs → HTTP Event Collector`).
+2. In Machina: **Platform → SOC → Integrations**
+   - **HEC URL**: `https://splunk-host:8088` (or full collector path)
+   - **Token**: HEC token
+   - **Index**: e.g. `machina`
+   - Enable forwarder and **Save**, then **Test connection**.
+
+### Sourcetypes
+
+| Sourcetype | Content |
+|------------|---------|
+| `machina:soc:ecs` | Normalized SOC events |
+| `machina:soc:alert` | SOC detection alerts |
+| `machina:soc:health` | Connectivity test events |
+
+### Example SPL
+
+```spl
+index=machina sourcetype="machina:soc:alert"
+| stats count by machina.severity, message
+
+index=machina sourcetype="machina:soc:ecs" event.dataset="machina.packetwolf"
+| where event.severity>=70
+| table _time, message, machina.source, host
+```
+
+## Elastic Security
+
+Configure via API:
+
+`PATCH /api/v1/soc/integrations/elastic_bulk`
+
+```json
+{
+  "enabled": true,
+  "config_json": {
+    "url": "https://elastic:9200",
+    "api_key": "<api-key>",
+    "index": "logs-machina.soc"
+  }
+}
+```
+
+Test: `POST /api/v1/soc/integrations/elastic_bulk/test`
+
+## Microsoft Sentinel
+
+`PATCH /api/v1/soc/integrations/sentinel_dcr`
+
+```json
+{
+  "enabled": true,
+  "config_json": {
+    "dce_endpoint": "https://<dce>.ingest.monitor.azure.com",
+    "dcr_immutable_id": "<dcr-id>",
+    "stream_name": "Custom-MachinaSoc",
+    "tenant_id": "<tenant>",
+    "client_id": "<app-id>",
+    "client_secret": "<secret>"
+  }
+}
+```
+
+Alternatively set `bearer_token` for a pre-issued token.
+
+## IBM QRadar
+
+`PATCH /api/v1/soc/integrations/qradar_rest`
+
+```json
+{
+  "enabled": true,
+  "config_json": {
+    "url": "https://qradar",
+    "api_token": "<sec-token>",
+    "log_source_id": 123
+  }
+}
+```
+
+## Replay
+
+`POST /api/v1/soc/forward/replay?hours=24` re-exports events not yet marked exported (admin only).
+
+## ECS fields (subset)
+
+| Field | Description |
+|-------|-------------|
+| `@timestamp` | Event time |
+| `event.dataset` | `machina.firewall`, `machina.audit`, `machina.packetwolf`, `machina.platform` |
+| `event.severity` | Numeric 10–90 |
+| `event.action` | Source-specific action |
+| `message` | Human summary |
+| `machina.severity` | `low` / `medium` / `high` / `critical` |
+| `machina.source` | Ingest source key |
+
+## SOAR playbooks
+
+Built-in playbook `notify_on_critical` runs on high/critical alerts (webhook step). Set `MACHINA_SOC_WEBHOOK_URL` on the controller host or edit `soc_playbooks` in the database.

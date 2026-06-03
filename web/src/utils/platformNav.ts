@@ -113,6 +113,7 @@ export const PLATFORM_PAGE_LABELS: Record<string, string> = {
   '/platform/recommendations': 'Recommendations',
   '/platform/blueprints': 'Shortcuts',
   '/platform/zeus': 'Machina Zeus OS',
+  '/platform/soc': 'Security Operations Center',
   '/platform/zeus/security': 'Security Center',
   '/platform/zeus/security/hunt': 'Threat Hunting',
   '/platform/zeus/security/enforcement': 'Runtime Enforcement',

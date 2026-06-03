@@ -32,6 +32,7 @@ export const ZEUS_HUB_GROUPS: ZeusHubGroup[] = [
     label: 'Security & knowledge',
     subtitle: 'Threat graph, compliance, and runbooks',
     tiles: [
+      { id: 'soc', label: 'SOC', description: 'Alerts, detections, ASM, Splunk HEC', to: '/platform/soc' },
       { id: 'security-center', label: 'Security Center', description: 'Threat hunting and enforcement', to: '/platform/zeus/security' },
       { id: 'firewall', label: 'Zeus Firewall', description: 'Host firewall posture and policy', to: '/platform/zeus/security/firewall' },
       { id: 'security-tab', label: 'Attack paths', description: 'Graph analysis inside Zeus OS', to: '/platform/zeus', tab: 'security' },

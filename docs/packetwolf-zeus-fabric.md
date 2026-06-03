@@ -18,6 +18,8 @@ Linux kernel (eBPF)
 
 **Machina owns:** orchestration, RBAC, UI, AI orchestration, Tetragon enrollment tasks.
 
+**Machina SOC** (`/platform/soc`) correlates PacketWolf anomalies with firewall and audit events, runs detection rules, opens alerts, and exports to Splunk/Elastic/Sentinel/QRadar. See [`soc-integrations.md`](soc-integrations.md).
+
 **PacketWolf owns:** event ingestion, normalization, ClickHouse hot storage, OpenSearch search, threat correlation, process graph.
 
 ## Deploy PacketWolf

@@ -53,6 +53,17 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 | 56 | E2E + docs AI-372–391 / UX-49–56 | **Shipped (v1)** |
 | 57 | Cross-shell consistency sweep — semantic colors v2, bridge/Help parity, e2e matrix | **Shipped (v1)** — see [`next-big-sweep.md`](next-big-sweep.md) |
 | 69 | Zeus Infrastructure AI Program (AI-138–147) — graph brain, RCA, twin, rightsizing, NL ops | **Shipped (v2)** — see [`zeus-infra-ai-program.md`](zeus-infra-ai-program.md) |
+| 70 | Security Operations Center (SOC) — detection, ASM, Splunk/Elastic/Sentinel/QRadar, playbooks | **Shipped (v1)** — see [`soc-integrations.md`](soc-integrations.md) |
+
+## Batch 70 deliverables (SOC Program)
+
+- **SOC-1–SOC-5:** Migration `038_soc.sql` — `soc_events`, `soc_alerts`, `soc_detection_rules`, `soc_integrations`, playbooks
+- **SOC-6–SOC-10:** Ingest (firewall, audit, PacketWolf, platform) + detection engine + background worker
+- **SOC-11–SOC-14:** `/api/v1/soc/*` APIs with RBAC; Splunk HEC forwarder
+- **SOC-15–SOC-18:** Elastic bulk, Sentinel DCR, QRadar REST adapters
+- **SOC-19–SOC-22:** [`PlatformSoc`](/platform/soc) hub — Overview, Alerts, Detections, ASM, Integrations
+- **SOC-23–SOC-24:** SOAR playbooks (`soc_playbooks`) + webhook/notify steps
+- **E2E:** [`soc.spec.ts`](../web/e2e/soc.spec.ts)
 
 ## Batch 312–331 deliverables (Bare metal + Zeus Firewall — Phase 23)
 

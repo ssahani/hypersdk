@@ -84,6 +84,7 @@ const SETTINGS_ENTRIES: SettingsNavEntry[] = [
 ]
 
 const SECURITY_ITEMS: ContextNavItem[] = [
+  { to: '/platform/soc', label: 'SOC' },
   { to: '/platform/zeus/security', label: 'Security Center' },
   { to: '/platform/zeus/security/firewall', label: 'Firewall' },
   { to: '/platform/zeus/security/ports', label: 'Open Ports' },

@@ -709,6 +709,112 @@ export async function mockPlatformApi(page: Page, opts?: {
         },
       })
     }
+    if (url.includes('/soc/')) {
+      if (url.includes('/overview')) {
+        return route.fulfill({ json: { open_alerts: 2, events_24h: 48, critical_alerts: 1 } })
+      }
+      if (url.includes('/events')) {
+        return route.fulfill({
+          json: [
+            {
+              id: 'e1',
+              occurred_at: new Date().toISOString(),
+              source: 'packetwolf',
+              category: 'intrusion_detection',
+              severity: 'high',
+              summary: 'Unusual port activity on db-01',
+            },
+          ],
+        })
+      }
+      if (url.includes('/alerts')) {
+        if (route.request().method() === 'PATCH') {
+          return route.fulfill({
+            json: {
+              id: 'a1',
+              title: 'critical_anomaly (1)',
+              severity: 'high',
+              status: 'acknowledged',
+              first_seen: new Date().toISOString(),
+              last_seen: new Date().toISOString(),
+              event_count: 1,
+            },
+          })
+        }
+        return route.fulfill({
+          json: [
+            {
+              id: 'a1',
+              title: 'critical_anomaly (1)',
+              severity: 'high',
+              status: 'open',
+              first_seen: new Date().toISOString(),
+              last_seen: new Date().toISOString(),
+              event_count: 1,
+            },
+          ],
+        })
+      }
+      if (url.includes('/rules')) {
+        if (url.includes('/test')) {
+          return route.fulfill({ json: { match_count: 3, would_fire: true } })
+        }
+        return route.fulfill({
+          json: [
+            {
+              id: 'r1',
+              name: 'critical_anomaly',
+              description: 'PacketWolf critical or high severity anomaly',
+              enabled: true,
+              severity: 'high',
+              query_json: { type: 'match' },
+              throttle_minutes: 30,
+              builtin: true,
+            },
+          ],
+        })
+      }
+      if (url.includes('/asm/summary')) {
+        return route.fulfill({
+          json: {
+            exposure_score: 72,
+            firewall_targets: 2,
+            high_risk_nodes: 1,
+            open_port_findings: [{ kind: 'firewall_target', resource: 'host-1', detail: 'Risk high score 85', severity: 'high' }],
+            recommendations: ['Review Zeus Firewall open ports'],
+          },
+        })
+      }
+      if (url.includes('/integrations/splunk')) {
+        if (url.includes('/test')) {
+          return route.fulfill({ json: { ok: true, message: 'Splunk HEC accepted test event' } })
+        }
+        if (route.request().method() === 'PUT') {
+          return route.fulfill({
+            json: {
+              id: 'splunk-1',
+              integration_type: 'splunk_hec',
+              name: 'default',
+              enabled: true,
+              config: { url: 'https://splunk:8088', token: '••••••••', index: 'machina' },
+            },
+          })
+        }
+        return route.fulfill({
+          json: {
+            id: 'splunk-1',
+            integration_type: 'splunk_hec',
+            name: 'default',
+            enabled: false,
+            config: { url: '', token: '', index: 'machina' },
+          },
+        })
+      }
+      if (url.includes('/forward/replay')) {
+        return route.fulfill({ json: { forwarded: 12, hours: 24 } })
+      }
+      return route.fulfill({ json: [] })
+    }
     if (url.includes('/zeus-security/')) {
       if (url.includes('/status')) {
         return route.fulfill({

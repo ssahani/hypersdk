@@ -10,6 +10,7 @@ pub mod packetwolf_k8s;
 pub mod packetwolf_sync;
 pub mod zeus_firewall;
 pub mod zeus_security;
+pub mod soc;
 pub mod migrate_precheck;
 pub mod placement;
 pub mod baremetal;
