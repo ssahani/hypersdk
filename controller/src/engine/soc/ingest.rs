@@ -63,7 +63,7 @@ async fn insert_event(
     let r = sqlx::query(
         "INSERT INTO soc_events (occurred_at, source, category, severity, host_id, vm_id, actor, summary, ecs_json, raw_ref, dedupe_key)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-         ON CONFLICT (dedupe_key) DO NOTHING",
+         ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
     )
     .bind(occurred_at)
     .bind(source)

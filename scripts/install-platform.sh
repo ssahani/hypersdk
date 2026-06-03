@@ -163,7 +163,22 @@ install_postgresql() {
   sudo -u "$PG_USER" psql -v ON_ERROR_STOP=1 -c "ALTER USER machina WITH PASSWORD 'machina';" >>"$LOG_FILE" 2>&1 || true
   sudo -u "$PG_USER" psql -v ON_ERROR_STOP=1 -tc "SELECT 1 FROM pg_database WHERE datname='machina'" | grep -q 1 \
     || sudo -u "$PG_USER" psql -v ON_ERROR_STOP=1 -c "CREATE DATABASE machina OWNER machina;" >>"$LOG_FILE" 2>&1
+  ensure_machina_db_ownership
   ok "PostgreSQL ready (machina@machina DB)"
+}
+
+ensure_machina_db_ownership() {
+  # Migrations run as machina; tables created manually as postgres break ALTER/GRANT.
+  sudo -u "$PG_USER" psql -v ON_ERROR_STOP=1 -d machina >>"$LOG_FILE" 2>&1 <<'EOSQL' || true
+DO $$
+DECLARE r RECORD;
+BEGIN
+  FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+  LOOP EXECUTE format('ALTER TABLE public.%I OWNER TO machina', r.tablename); END LOOP;
+  FOR r IN SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public'
+  LOOP EXECUTE format('ALTER SEQUENCE public.%I OWNER TO machina', r.sequence_name); END LOOP;
+END $$;
+EOSQL
 }
 
 install_binaries() {
