@@ -64,6 +64,7 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 | 73 | B | Fleet snapshot schedules, storage backend discover, incremental backup worker | **Shipped (v1)** |
 | 74 | C | Network canvas stub, host GPU inventory RPC, datacenter by `inventory_source` | **Shipped (v1)** |
 | 75 | E | KubeVirt inventory sync API; VMware/Proxmox remain import-only | **Shipped (v1)** |
+| 77 | A/B | Migration bandwidth/postcopy, VM Time Machine timeline, template deploy vars, IaC bundle download | **Shipped (v1)** |
 
 ### Batch 71–72 deliverables (Phase A)
 
@@ -96,6 +97,14 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 - **GPU:** PCI/IOMMU panel via `GET /hosts/{id}/gpus` on online hosts
 - **Datacenter:** KubeVirt inventory sync button
 - **Content:** Approved ISO → `/create?iso_path=…` deep link (classic virt-install wizard)
+
+### Batch 77 deliverables (migration, Time Machine, templates)
+
+- **Migration:** `bandwidth_mib` + `postcopy` on agent RPC, controller task, platform VM settings (live/cold, MiB/s cap)
+- **Time Machine:** `GET /api/v1/vms/{id}/timeline` — unified backup + snapshot list on VM snapshots tab
+- **Templates:** `template_vars` on `POST /vms/from-template` with `{{ hostname }}` substitution; deploy sheet hostname field
+- **IaC:** `downloadVmIacBundle()` — single JSON export alongside per-file downloads
+- **Web API modules:** `platformVmMigrate.ts`, `platformVmTimeline.ts`
 
 ## Batch 70 deliverables (SOC Program)
 

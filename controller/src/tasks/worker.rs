@@ -370,6 +370,8 @@ async fn vm_migrate(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or_else(|| anyhow::anyhow!("dest_host_id missing"))?;
     let live = msg.payload["live"].as_bool().unwrap_or(true);
+    let bandwidth_mib = msg.payload["bandwidth_mib"].as_u64().unwrap_or(0);
+    let postcopy = msg.payload["postcopy"].as_bool().unwrap_or(false);
 
     vm_lifecycle::set_vm_phase(&state.pool, vm_id, vm_lifecycle::PHASE_MIGRATING).await?;
 
@@ -408,7 +410,8 @@ async fn vm_migrate(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
 
     let agent_addr = host_agent_addr(&state.pool, source_host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
-    agent_client::migrate_vm(&mut client, &row.0, &dest_uri, live).await?;
+    agent_client::migrate_vm(&mut client, &row.0, &dest_uri, live, bandwidth_mib, postcopy)
+        .await?;
 
     sqlx::query("UPDATE vms SET host_id = $1, updated_at = NOW() WHERE id = $2")
         .bind(dest_host_id)

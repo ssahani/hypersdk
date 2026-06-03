@@ -249,9 +249,11 @@ impl HostAgent for AgentService {
         let vm_name = req.vm_name.clone();
         let dest_uri = req.dest_uri.clone();
         let live = req.live;
+        let bandwidth_mib = req.bandwidth_mib;
+        let postcopy = req.postcopy;
         tokio::task::spawn_blocking(move || {
             let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
-            ctx.migrate(&vm_name, &dest_uri, live)
+            ctx.migrate(&vm_name, &dest_uri, live, bandwidth_mib, postcopy)
         })
         .await
         .map_err(|e| Status::internal(e.to_string()))?

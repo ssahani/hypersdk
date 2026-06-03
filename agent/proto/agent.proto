@@ -167,6 +167,9 @@ message MigrateVmRequest {
   string vm_name = 1;
   string dest_uri = 2;
   bool live = 3;
+  /// Max migration bandwidth (MiB/s); 0 = libvirt default.
+  uint64 bandwidth_mib = 4;
+  bool postcopy = 5;
 }
 
 message MigrateVmResponse {

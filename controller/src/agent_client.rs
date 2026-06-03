@@ -138,12 +138,16 @@ pub async fn migrate_vm(
     vm_name: &str,
     dest_uri: &str,
     live: bool,
+    bandwidth_mib: u64,
+    postcopy: bool,
 ) -> anyhow::Result<MigrateVmResponse> {
     Ok(client
         .migrate_vm(MigrateVmRequest {
             vm_name: vm_name.to_string(),
             dest_uri: dest_uri.to_string(),
             live,
+            bandwidth_mib,
+            postcopy,
         })
         .await?
         .into_inner())

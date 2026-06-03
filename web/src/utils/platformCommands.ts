@@ -170,7 +170,7 @@ export async function executePlatformCommand(cmd: PlatformCommand): Promise<{ me
       const hosts = await listPlatformHosts()
       const dest = hosts.find((h) => h.hostname === targetName || h.id === targetName)
       if (!dest) return { message: `Destination host not found: ${targetName}` }
-      await vmMigrate(vm.id, dest.id, true)
+      await vmMigrate(vm.id, { dest_host_id: dest.id, live: true })
       return { message: `Migration queued: ${vm.name} → ${dest.hostname}` }
     }
     case 'enable-ha-vm': {

@@ -32,6 +32,7 @@ import {
   listPlatformHosts,
   listVmBackups,
   listVmSnapshots,
+  listVmTimeline,
   migratePrecheck,
   patchVm,
   restoreVmBackup,
@@ -49,6 +50,7 @@ import {
   type MigratePrecheckResult,
   type HaPolicy,
   type SnapshotRecord,
+  type VmTimelineEntry,
   type VmDiskRow,
   type VmMigrationRecord,
   type BackupRecord,
@@ -76,7 +78,7 @@ import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenter
 import { PlatformOpenStackVmLink } from '../../components/platform/PlatformCrossLinks'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tasksHubHref } from '../../utils/platformHubLinks'
-import { exportVmDisk, exportVmIac, retirePlatformVm, type VmIacExportBundle } from '../../api/platformVmLifecycle'
+import { downloadVmIacBundle, exportVmDisk, exportVmIac, retirePlatformVm, type VmIacExportBundle } from '../../api/platformVmLifecycle'
 import { publishVmAsTemplate } from '../../api/platformTemplatesExtra'
 
 export default function PlatformVmDetail() {
@@ -109,6 +111,10 @@ export default function PlatformVmDetail() {
   const [hosts, setHosts] = useState<PlatformHost[]>([])
   const [error, setError] = useState<string | null>(null)
   const [destHost, setDestHost] = useState('')
+  const [migrateLive, setMigrateLive] = useState(true)
+  const [migrateBandwidth, setMigrateBandwidth] = useState('')
+  const [migratePostcopy, setMigratePostcopy] = useState(false)
+  const [timeline, setTimeline] = useState<VmTimelineEntry[]>([])
   const [cloneName, setCloneName] = useState('')
   const [cloneMode, setCloneMode] = useState<'linked' | 'full'>('linked')
   const [precheck, setPrecheck] = useState<MigratePrecheckResult | null>(null)
@@ -151,13 +157,14 @@ export default function PlatformVmDetail() {
     if (!id) return
     setError(null)
     try {
-      const [v, h, policy, spec, snaps, bks, dsk, mtr] = await Promise.all([
+      const [v, h, policy, spec, snaps, bks, tline, dsk, mtr] = await Promise.all([
         getPlatformVm(id),
         listPlatformHosts(),
         getVmHaPolicy(id),
         getPlatformVmSpec(id),
         listVmSnapshots(id),
         listVmBackups(id),
+        listVmTimeline(id).catch(() => [] as VmTimelineEntry[]),
         getVmDisks(id),
         getPlatformVmMetrics(id).catch(() => null),
       ])
@@ -170,6 +177,7 @@ export default function PlatformVmDetail() {
       setTags((v.tags || []).join(', '))
       setSnapshots(snaps)
       setBackups(bks)
+      setTimeline(tline)
       setDisks(dsk)
       setMetrics(mtr)
       if (!destHost && h.length > 1) {
@@ -763,7 +771,39 @@ export default function PlatformVmDetail() {
           )}
 
           {tab === 'snapshots' && (
-            <MacGlassPanel title="Snapshots" className="pt-2">
+            <MacGlassPanel title="Snapshots & Time Machine" className="pt-2">
+              {timeline.length > 0 && (
+                <div className="mb-4 pb-4 border-b border-white/5">
+                  <h3 className="text-sm font-semibold mb-2">Time Machine</h3>
+                  <ul className="text-xs space-y-2 max-h-48 overflow-y-auto">
+                    {timeline.map((e) => (
+                      <li key={`${e.kind}-${e.id}`} className="flex flex-wrap items-center justify-between gap-2 text-slate-400">
+                        <span>
+                          <span className="text-slate-500 uppercase text-[10px] mr-1">{e.kind}</span>
+                          {e.label} · {new Date(e.created_at).toLocaleString()}
+                        </span>
+                        {e.kind === 'snapshot' && (
+                          <button
+                            type="button"
+                            className="btn-secondary text-xs"
+                            onClick={() => {
+                              const name = e.label.replace(/^Snapshot:\s*/, '')
+                              void act('Revert queued', () => revertVmSnapshot(id, name))
+                            }}
+                          >
+                            Revert
+                          </button>
+                        )}
+                        {e.kind === 'backup' && e.status === 'completed' && (
+                          <button type="button" className="btn-secondary text-xs" onClick={() => void act('Restore queued', () => restoreVmBackup(id, e.id))}>
+                            Restore
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <input className="input w-full max-w-xs" value={snapName} onChange={(e) => setSnapName(e.target.value)} placeholder="snap-01" />
               <div className="flex flex-wrap gap-4 mt-3 text-xs text-slate-400">
                 <label className="flex items-center gap-2">
@@ -891,11 +931,44 @@ export default function PlatformVmDetail() {
                     <select className="input w-full mb-2" value={destHost} onChange={(e) => setDestHost(e.target.value)}>
                       {hosts.map((h) => <option key={h.id} value={h.id}>{h.hostname}</option>)}
                     </select>
+                    <div className="flex flex-wrap gap-3 mb-2 text-xs text-slate-400">
+                      <label className="flex items-center gap-2">
+                        <input type="checkbox" checked={migrateLive} onChange={(e) => setMigrateLive(e.target.checked)} /> Live migration
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input type="checkbox" checked={migratePostcopy} onChange={(e) => setMigratePostcopy(e.target.checked)} /> Post-copy
+                      </label>
+                      <label className="flex items-center gap-2">
+                        Bandwidth (MiB/s)
+                        <input
+                          type="number"
+                          min={0}
+                          className="input w-20 text-xs"
+                          placeholder="auto"
+                          value={migrateBandwidth}
+                          onChange={(e) => setMigrateBandwidth(e.target.value)}
+                        />
+                      </label>
+                    </div>
                     <div className="flex gap-2">
                       <button type="button" className="btn-secondary text-sm" disabled={!destHost} onClick={async () => {
-                        try { setPrecheck(await migratePrecheck(id, destHost)) } catch (e: unknown) { toast.error(formatUserError(e)) }
+                        try {
+                          setPrecheck(await migratePrecheck(id, destHost, migrateLive))
+                        } catch (e: unknown) { toast.error(formatUserError(e)) }
                       }}>Pre-check</button>
-                      <button type="button" className="btn-secondary text-sm" disabled={!destHost} onClick={() => void act('Migration queued', () => vmMigrate(id, destHost))}>Migrate</button>
+                      <button
+                        type="button"
+                        className="btn-secondary text-sm"
+                        disabled={!destHost}
+                        onClick={() => void act('Migration queued', () => vmMigrate(id, {
+                          dest_host_id: destHost,
+                          live: migrateLive,
+                          bandwidth_mib: migrateBandwidth ? Number(migrateBandwidth) : undefined,
+                          postcopy: migratePostcopy,
+                        }))}
+                      >
+                        Migrate
+                      </button>
                     </div>
                     {precheck && (
                       <ul className="text-xs mt-2 space-y-1">{precheck.checks.map((c) => (
@@ -960,6 +1033,9 @@ export default function PlatformVmDetail() {
                 </div>
                 {iacBundle && (
                   <div className="mt-3 space-y-2 text-xs">
+                    <button type="button" className="btn-secondary text-xs" onClick={() => downloadVmIacBundle(iacBundle)}>
+                      Download all (JSON bundle)
+                    </button>
                     {(['terraform', 'ansible_role', 'cloud_init', 'domain_xml'] as const).map((key) => (
                       <button
                         key={key}

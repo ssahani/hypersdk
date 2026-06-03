@@ -74,6 +74,7 @@ export default function PlatformTemplates() {
   const [tplCategory, setTplCategory] = useState('Linux')
   const [featured, setFeatured] = useState(false)
   const [deployName, setDeployName] = useState('app-01')
+  const [deployHostname, setDeployHostname] = useState('app-01')
   const [cloudUser, setCloudUser] = useState('ubuntu')
   const [cloudPass, setCloudPass] = useState('')
   const [cloudKey, setCloudKey] = useState('')
@@ -173,6 +174,10 @@ export default function PlatformTemplates() {
       await createFromTemplate({
         template_ref: `${t.name}@${t.version}`,
         name: vmName,
+        template_vars: {
+          hostname: deployHostname || vmName,
+          name: vmName,
+        },
         cloud_init_user: cloudUser || undefined,
         cloud_init_password: cloudPass || undefined,
         cloud_init_ssh_pubkey: cloudKey || undefined,
@@ -380,6 +385,10 @@ export default function PlatformTemplates() {
             <label className="block text-sm">
               <span className="text-slate-400">VM name</span>
               <input className="input w-full mt-1" value={deployName} onChange={(e) => setDeployName(e.target.value)} />
+            </label>
+            <label className="block text-sm">
+              <span className="text-slate-400">Hostname (substitutes <code className="text-xs">{'{{ hostname }}'}</code> in cloud-init)</span>
+              <input className="input w-full mt-1" value={deployHostname} onChange={(e) => setDeployHostname(e.target.value)} placeholder={deployName} />
             </label>
             {deploySheet.cloud_init && (
               <>

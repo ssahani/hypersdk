@@ -416,6 +416,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/v1/vms/{id}/console", get(console::vm_console))
         .route("/api/v1/vms/{id}/ws-token", post(console::issue_ws_token))
+        .route("/api/v1/vms/{id}/timeline", get(snapshots::list_vm_timeline))
         .route(
             "/api/v1/vms/{id}/snapshots",
             get(snapshots::list_vm_snapshots).post(snapshots::create_vm_snapshot),

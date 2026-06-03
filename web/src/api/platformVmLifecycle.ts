@@ -22,3 +22,13 @@ export type VmIacExportBundle = {
 }
 
 export const exportVmIac = (id: string) => platformFetch<VmIacExportBundle>(`/api/v1/vms/${id}/export`)
+
+/** Download Terraform, Ansible, cloud-init, and domain XML as one JSON bundle. */
+export function downloadVmIacBundle(bundle: VmIacExportBundle) {
+  const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `${bundle.vm_name}-iac-bundle.json`
+  a.click()
+  URL.revokeObjectURL(a.href)
+}

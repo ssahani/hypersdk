@@ -1443,11 +1443,10 @@ export const vmDelete = (id: string, confirmed = false) =>
 export const installGuestTools = (id: string) =>
   platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/guest-tools/install`, { method: 'POST', body: '{}' })
 
-export const vmMigrate = (id: string, dest_host_id: string, live = true) =>
-  platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/migrate`, {
-    method: 'POST',
-    body: JSON.stringify({ dest_host_id, live }),
-  })
+export { vmMigrate } from './platformVmMigrate'
+export type { VmMigrateOptions } from './platformVmMigrate'
+export { listVmTimeline } from './platformVmTimeline'
+export type { VmTimelineEntry } from './platformVmTimeline'
 
 export const vmClone = (id: string, new_name: string, clone_mode: 'linked' | 'full' | 'xml' = 'linked') =>
   platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/clone`, {
@@ -1596,6 +1595,7 @@ export const createFromTemplate = (body: {
   cloud_init_user?: string
   cloud_init_password?: string
   cloud_init_ssh_pubkey?: string
+  template_vars?: Record<string, string>
 }) =>
   platformFetch<{ task_id: string }>('/api/v1/vms/from-template', {
     method: 'POST',

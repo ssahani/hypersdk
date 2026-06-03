@@ -30,7 +30,7 @@ export default function MigratePrecheckModal({ vm, destHostId, destHostName, onC
   const migrate = async () => {
     setBusy(true)
     try {
-      await vmMigrate(vm.id, destHostId)
+      await vmMigrate(vm.id, { dest_host_id: destHostId })
       onDone()
       onClose()
     } catch (e: unknown) {

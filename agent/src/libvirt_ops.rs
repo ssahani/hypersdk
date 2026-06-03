@@ -9,6 +9,7 @@ use machina_spec::VirtualMachine;
 use machina_translate::domain_xml_from_spec;
 use virt::connect::Connect;
 use virt::domain::Domain;
+use virt::sys;
 
 #[derive(Debug, Clone)]
 pub struct VmListEntry {
@@ -114,7 +115,7 @@ impl LibvirtCtx {
                         let mig = parts.get(2).cloned().unwrap_or_default();
                         for entry in &mut out {
                             if entry.0.to_ascii_lowercase().contains(&pci) || pci.contains(&entry.0) {
-                                entry.4 = mig;
+                                entry.4 = mig.clone();
                             }
                         }
                     }
@@ -357,8 +358,29 @@ impl LibvirtCtx {
         machina_core::libvirt::vnc::resolve_vnc_tcp(&self.conn, name)
     }
 
-    pub fn migrate(&self, name: &str, dest_uri: &str, live: bool) -> Result<(), LibvirtError> {
-        machina_core::libvirt::migrate::migrate_vm_uri(&self.conn, name, dest_uri, live, None, 0)
+    pub fn migrate(
+        &self,
+        name: &str,
+        dest_uri: &str,
+        live: bool,
+        bandwidth_mib: u64,
+        postcopy: bool,
+    ) -> Result<(), LibvirtError> {
+        if bandwidth_mib > 0 {
+            machina_core::libvirt::migrate::migrate_set_max_speed(&self.conn, name, bandwidth_mib)?;
+        }
+        let mut extra_flags = 0u32;
+        if postcopy {
+            extra_flags |= sys::VIR_MIGRATE_POSTCOPY;
+        }
+        machina_core::libvirt::migrate::migrate_vm_uri(
+            &self.conn,
+            name,
+            dest_uri,
+            live,
+            None,
+            extra_flags,
+        )
     }
 
     pub fn clone_vm(&self, source: &str, new_name: &str, clone_mode: &str) -> Result<String, LibvirtError> {

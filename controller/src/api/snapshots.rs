@@ -36,6 +36,43 @@ pub struct CreateSnapshotBody {
     pub storage_mode: String,
 }
 
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct VmTimelineRow {
+    pub kind: String,
+    pub id: Uuid,
+    pub label: String,
+    pub status: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+pub async fn list_vm_timeline(
+    State(state): State<AppState>,
+    Path(vm_id): Path<Uuid>,
+) -> Result<Json<Vec<VmTimelineRow>>, ApiError> {
+    let rows = sqlx::query_as::<_, VmTimelineRow>(
+        r#"
+        SELECT * FROM (
+            SELECT 'backup' AS kind, b.id,
+                   CASE WHEN b.status = 'completed' THEN 'Backup successful'
+                        ELSE 'Backup ' || b.status END AS label,
+                   b.status, b.created_at
+            FROM backup_records b WHERE b.vm_id = $1
+            UNION ALL
+            SELECT 'snapshot' AS kind, s.id,
+                   'Snapshot: ' || s.name AS label,
+                   s.status, s.created_at
+            FROM snapshot_records s WHERE s.vm_id = $1
+        ) t
+        ORDER BY created_at DESC
+        LIMIT 50
+        "#,
+    )
+    .bind(vm_id)
+    .fetch_all(&state.pool)
+    .await?;
+    Ok(Json(rows))
+}
+
 pub async fn list_vm_snapshots(
     State(state): State<AppState>,
     Path(vm_id): Path<Uuid>,

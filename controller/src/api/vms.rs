@@ -318,6 +318,9 @@ pub struct CreateFromTemplateBody {
     pub cloud_init_password: Option<String>,
     #[serde(default)]
     pub cloud_init_ssh_pubkey: Option<String>,
+    /// Substituted into name and cloud-init fields as `{{ key }}`.
+    #[serde(default)]
+    pub template_vars: std::collections::HashMap<String, String>,
 }
 
 fn default_memory() -> String {
@@ -329,9 +332,12 @@ pub async fn create_from_template(
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<CreateFromTemplateBody>,
 ) -> Result<Json<TaskResponse>, ApiError> {
-    machina_spec::validate_name(&body.name).map_err(|e| ApiError::bad_request(e.to_string()))?;
-    let mut vm = VirtualMachine::new(&body.name, &body.memory);
-    vm.spec.template_ref = Some(body.template_ref.clone());
+    let apply = |s: &str| crate::engine::template::apply_template_vars(s, &body.template_vars);
+    let name = apply(&body.name);
+    machina_spec::validate_name(&name).map_err(|e| ApiError::bad_request(e.to_string()))?;
+    let template_ref = apply(&body.template_ref);
+    let mut vm = VirtualMachine::new(&name, &body.memory);
+    vm.spec.template_ref = Some(template_ref.clone());
     if body.cloud_init_user.is_some()
         || body.cloud_init_password.is_some()
         || body.cloud_init_ssh_pubkey.is_some()
@@ -339,14 +345,15 @@ pub async fn create_from_template(
         vm.spec.cloud_init = Some(CloudInitSpec {
             user: body
                 .cloud_init_user
-                .clone()
+                .as_ref()
+                .map(|u| apply(u))
                 .unwrap_or_else(|| "ubuntu".into()),
-            password: body.cloud_init_password.clone(),
-            ssh_pubkey: body.cloud_init_ssh_pubkey.clone(),
+            password: body.cloud_init_password.as_ref().map(|p| apply(p)),
+            ssh_pubkey: body.cloud_init_ssh_pubkey.as_ref().map(|k| apply(k)),
         });
     }
     if let Ok(Some(profile)) =
-        crate::engine::template::resolve_template_firewall_profile(&state.pool, &body.template_ref)
+        crate::engine::template::resolve_template_firewall_profile(&state.pool, &template_ref)
             .await
     {
         if let Some(net) = vm.spec.network.first_mut() {
@@ -570,6 +577,11 @@ pub struct MigrateVmBody {
     pub dest_host_id: Uuid,
     #[serde(default = "default_live")]
     pub live: bool,
+    /// Max migration bandwidth (MiB/s); omit or 0 for libvirt default.
+    #[serde(default)]
+    pub bandwidth_mib: Option<u64>,
+    #[serde(default)]
+    pub postcopy: bool,
 }
 
 fn default_live() -> bool {
@@ -593,6 +605,8 @@ pub async fn migrate_vm(
             "vm_id": id.to_string(),
             "dest_host_id": body.dest_host_id.to_string(),
             "live": body.live,
+            "bandwidth_mib": body.bandwidth_mib.unwrap_or(0),
+            "postcopy": body.postcopy,
         }),
         Some("vm"),
         Some(id),
