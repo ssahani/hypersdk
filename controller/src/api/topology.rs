@@ -52,7 +52,7 @@ pub async fn vm_topology(
     Ok(Json(build_topology(&state.pool, Some(id)).await?))
 }
 
-async fn build_topology(
+pub(crate) async fn build_topology(
     pool: &sqlx::PgPool,
     vm_filter: Option<Uuid>,
 ) -> Result<TopologyGraph, ApiError> {

@@ -273,6 +273,20 @@ pub async fn fetch_anomalies(cfg: &ControllerConfig) -> serde_json::Value {
     fabric_get(cfg, "/api/v1/anomalies?limit=25").await
 }
 
+pub async fn fetch_fleet_flows(cfg: &ControllerConfig, limit: u32) -> serde_json::Value {
+    if !cfg.packetwolf_enabled {
+        return serde_json::json!({ "flows": [], "note": "PacketWolf disabled" });
+    }
+    fabric_get(cfg, &format!("/api/v1/flows?limit={limit}")).await
+}
+
+pub async fn fetch_fleet_flow_stats(cfg: &ControllerConfig) -> serde_json::Value {
+    if !cfg.packetwolf_enabled {
+        return serde_json::json!({});
+    }
+    fabric_get(cfg, "/api/v1/flows/stats").await
+}
+
 pub async fn fleet_threat_summary(cfg: &ControllerConfig) -> serde_json::Value {
     fabric_get(cfg, "/api/v1/fleet/threat-summary").await
 }

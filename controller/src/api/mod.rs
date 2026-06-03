@@ -32,6 +32,7 @@ mod marketplace;
 mod metrics;
 mod migration_jobs;
 mod networks;
+mod network_canvas;
 mod network_segments;
 mod notifications;
 mod operations;
@@ -377,6 +378,7 @@ pub fn router(state: AppState) -> Router {
             post(applications::run_application_action),
         )
         .route("/api/v1/topology", get(topology::cluster_topology))
+        .route("/api/v1/network-canvas", get(network_canvas::network_canvas))
         .route("/api/v1/vms/{id}/topology", get(topology::vm_topology))
         .route("/api/v1/vms/{id}/spec", get(vms::get_vm_spec))
         .route("/api/v1/vms/{id}/domain-xml", get(vms::get_vm_domain_xml))

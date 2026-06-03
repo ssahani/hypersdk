@@ -66,6 +66,7 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 | 75 | E | KubeVirt inventory sync API; VMware/Proxmox remain import-only | **Shipped (v1)** |
 | 77 | A/B | Migration bandwidth/postcopy, VM Time Machine timeline, template deploy vars, IaC bundle download | **Shipped (v1)** |
 | 78 | A | Controller compile fixes, platform ISO create wizard, template git webhook sync | **Shipped (v1)** |
+| 79 | B/C | NFS/LVM pool provision hardening, network canvas + PacketWolf flows API | **Shipped (v1)** |
 
 ### Batch 71–72 deliverables (Phase A)
 
@@ -112,6 +113,12 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 - **Controller:** Fix GPU list JSON serialization, IaC `get_domain_xml` return type, fleet snapshot `enqueue_task` error mapping
 - **ISO wizard:** [`/platform/create-iso`](/platform/create-iso) — approved ISO picker → classic `/create` with `iso_path`, `name`, `vcpus`, `memory_mb`, `disk_gb` prefilled
 - **Templates:** `POST /api/v1/templates/sync-git/webhook` + optional `X-Machina-Template-Sync-Token` / `MACHINA_TEMPLATES_SYNC_TOKEN`
+
+### Batch 79 deliverables (storage + network canvas)
+
+- **Storage:** Agent NFS `host:/export` parsing (`--source-host`, `--source-dir`, local mount under `/var/lib/machina/nfs/`); LVM skips `mkdir` on `/dev/*`; directory backend rejects NFS syntax
+- **Network canvas:** `GET /api/v1/network-canvas` — topology + PacketWolf flows/stats/anomalies; enriched [`/platform/network-canvas`](/platform/network-canvas) UI
+- **Web API:** `platformNetworkCanvas.ts`
 
 ## Batch 70 deliverables (SOC Program)
 

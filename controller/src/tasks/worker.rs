@@ -1329,7 +1329,18 @@ async fn storage_pool_provision(state: &AppState, msg: &TaskMessage) -> anyhow::
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
     agent_client::provision_storage_pool(&mut client, &row.0, &row.1, &path).await?;
-    update_task_progress(&state.pool, msg.task_id, 100, "storage pool provisioned").await?;
+    sqlx::query(
+        "UPDATE storage_pools SET path = COALESCE(path, $2) WHERE id = $1",
+    )
+    .bind(pool_id)
+    .bind(&path)
+    .execute(&state.pool)
+    .await?;
+    update_task_progress(&state.pool, msg.task_id, 100, "storage pool provisioned on host").await?;
+    state.emit_event(
+        "storage.pool.provision",
+        format!("Pool {} ({}) provisioned", row.0, row.1),
+    );
     Ok(())
 }
 
