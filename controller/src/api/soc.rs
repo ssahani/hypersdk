@@ -11,10 +11,8 @@ use uuid::Uuid;
 
 use crate::api::ApiError;
 use crate::auth::{require_admin, require_operator, AuthUser};
-use crate::engine::soc::{asm, detection};
-use crate::engine::soc::siem::{
-    elastic_bulk, qradar_rest, sentinel_dcr, splunk_hec, forward_replay, IntegrationRow,
-};
+use crate::engine::soc::{asm, detection, run_cycle};
+use crate::engine::soc::siem::{elastic_bulk, forward_replay, qradar_rest, sentinel_dcr, splunk_hec};
 use crate::state::AppState;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -311,8 +309,8 @@ pub async fn get_splunk_integration(
     Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<IntegrationPublic>, ApiError> {
     require_admin(&actor)?;
-    let row = splunk_integration_row(&state.pool).await?;
-    Ok(Json(integration_public(&row)))
+    let row = fetch_integration_db(&state.pool, "splunk_hec").await?;
+    Ok(Json(integration_public_db(&row)))
 }
 
 pub async fn put_splunk_integration(
@@ -347,8 +345,8 @@ pub async fn put_splunk_integration(
     .bind(body.enabled.unwrap_or(true))
     .execute(&state.pool)
     .await?;
-    let row = splunk_integration_row(&state.pool).await?;
-    Ok(Json(integration_public(&row)))
+    let row = fetch_integration_db(&state.pool, "splunk_hec").await?;
+    Ok(Json(integration_public_db(&row)))
 }
 
 pub async fn test_splunk_integration(
@@ -356,7 +354,7 @@ pub async fn test_splunk_integration(
     Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Value>, ApiError> {
     require_admin(&actor)?;
-    let row = splunk_integration_row(&state.pool).await?;
+    let row = fetch_integration_db(&state.pool, "splunk_hec").await?;
     splunk_hec::test_connection(&row.config_json, &state.config.controller_id)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))
@@ -368,12 +366,13 @@ pub async fn list_integrations(
     Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<IntegrationPublic>>, ApiError> {
     require_admin(&actor)?;
-    let rows: Vec<IntegrationRow> = sqlx::query_as(
-        "SELECT id, integration_type, name, enabled, config_json FROM soc_integrations ORDER BY integration_type",
+    let rows: Vec<IntegrationDbRow> = sqlx::query_as(
+        "SELECT id, integration_type, name, enabled, config_json, last_success_at, last_error
+         FROM soc_integrations ORDER BY integration_type",
     )
     .fetch_all(&state.pool)
     .await?;
-    Ok(Json(rows.iter().map(integration_public).collect()))
+    Ok(Json(rows.iter().map(integration_public_db).collect()))
 }
 
 pub async fn patch_integration(
@@ -384,11 +383,19 @@ pub async fn patch_integration(
 ) -> Result<Json<IntegrationPublic>, ApiError> {
     require_admin(&actor)?;
     if let Some(cfg) = body.config_json {
+        let existing: Value = sqlx::query_scalar(
+            "SELECT config_json FROM soc_integrations WHERE integration_type = $1 AND name = 'default'",
+        )
+        .bind(&integration_type)
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(Value::Null);
+        let merged = merge_integration_config(&existing, &cfg);
         sqlx::query(
             "UPDATE soc_integrations SET config_json = $2, updated_at = NOW() WHERE integration_type = $1 AND name = 'default'",
         )
         .bind(&integration_type)
-        .bind(cfg)
+        .bind(merged)
         .execute(&state.pool)
         .await?;
     }
@@ -401,14 +408,8 @@ pub async fn patch_integration(
         .execute(&state.pool)
         .await?;
     }
-    let row: IntegrationRow = sqlx::query_as(
-        "SELECT id, integration_type, name, enabled, config_json FROM soc_integrations WHERE integration_type = $1 AND name = 'default'",
-    )
-    .bind(&integration_type)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|_| ApiError::not_found("integration not found"))?;
-    Ok(Json(integration_public(&row)))
+    let row: IntegrationDbRow = fetch_integration_db(&state.pool, &integration_type).await?;
+    Ok(Json(integration_public_db(&row)))
 }
 
 pub async fn test_integration(
@@ -417,13 +418,7 @@ pub async fn test_integration(
     Path(integration_type): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     require_admin(&actor)?;
-    let row: IntegrationRow = sqlx::query_as(
-        "SELECT id, integration_type, name, enabled, config_json FROM soc_integrations WHERE integration_type = $1 AND name = 'default'",
-    )
-    .bind(&integration_type)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|_| ApiError::not_found("integration not found"))?;
+    let row: IntegrationDbRow = fetch_integration_db(&state.pool, &integration_type).await?;
     let msg = match integration_type.as_str() {
         "splunk_hec" => splunk_hec::test_connection(&row.config_json, &state.config.controller_id).await?,
         "elastic_bulk" => elastic_bulk::test_connection(&row.config_json).await?,
@@ -444,6 +439,77 @@ pub async fn forward_replay_handler(
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(serde_json::json!({ "forwarded": n, "hours": q.hours.unwrap_or(24) })))
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+struct IntegrationDbRow {
+    id: Uuid,
+    integration_type: String,
+    name: String,
+    enabled: bool,
+    config_json: Value,
+    last_success_at: Option<DateTime<Utc>>,
+    last_error: Option<String>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct PlaybookRow {
+    pub id: Uuid,
+    pub name: String,
+    pub description: String,
+    pub enabled: bool,
+    pub trigger_json: Value,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct PlaybookRunRow {
+    pub id: Uuid,
+    pub playbook_id: Uuid,
+    pub alert_id: Option<Uuid>,
+    pub status: String,
+    pub started_at: DateTime<Utc>,
+    pub finished_at: Option<DateTime<Utc>>,
+}
+
+pub async fn run_ingest_cycle(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<crate::engine::soc::CycleStats>, ApiError> {
+    require_admin(&actor)?;
+    run_cycle(&state.pool, &state.config, &state.config.controller_id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn list_playbooks(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<Vec<PlaybookRow>>, ApiError> {
+    require_operator(&actor)?;
+    let rows = sqlx::query_as::<_, PlaybookRow>(
+        "SELECT id, name, description, enabled, trigger_json FROM soc_playbooks ORDER BY name",
+    )
+    .fetch_all(&state.pool)
+    .await?;
+    Ok(Json(rows))
+}
+
+pub async fn list_playbook_runs(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Query(q): Query<ListQuery>,
+) -> Result<Json<Vec<PlaybookRunRow>>, ApiError> {
+    require_operator(&actor)?;
+    let limit = q.limit.unwrap_or(50).clamp(1, 200);
+    let rows = sqlx::query_as::<_, PlaybookRunRow>(
+        "SELECT id, playbook_id, alert_id, status, started_at, finished_at
+         FROM soc_playbook_runs ORDER BY started_at DESC LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(&state.pool)
+    .await?;
+    Ok(Json(rows))
 }
 
 pub async fn overview(
@@ -484,39 +550,61 @@ pub struct IntegrationPublic {
     pub last_error: Option<String>,
 }
 
-fn integration_public(row: &IntegrationRow) -> IntegrationPublic {
-    let mut cfg = row.config_json.clone();
-    if let Some(obj) = cfg.as_object_mut() {
-        if let Some(token) = obj.get("token").and_then(|v| v.as_str()) {
-            if !token.is_empty() {
-                obj.insert("token".into(), serde_json::json!("••••••••"));
-            }
-        }
-        if let Some(key) = obj.get("api_key").and_then(|v| v.as_str()) {
-            if !key.is_empty() {
-                obj.insert("api_key".into(), serde_json::json!("••••••••"));
-            }
-        }
-        if let Some(secret) = obj.get("client_secret").and_then(|v| v.as_str()) {
-            if !secret.is_empty() {
-                obj.insert("client_secret".into(), serde_json::json!("••••••••"));
-            }
-        }
-        if let Some(tok) = obj.get("api_token").and_then(|v| v.as_str()) {
-            if !tok.is_empty() {
-                obj.insert("api_token".into(), serde_json::json!("••••••••"));
+fn merge_integration_config(existing: &Value, patch: &Value) -> Value {
+    let mut out = patch.clone();
+    let Some(patch_obj) = out.as_object_mut() else {
+        return out;
+    };
+    let Some(existing_obj) = existing.as_object() else {
+        return out;
+    };
+    for key in ["token", "api_key", "client_secret", "api_token", "bearer_token"] {
+        let keep = patch_obj
+            .get(key)
+            .and_then(|v| v.as_str())
+            .is_none_or(|s| s.is_empty() || s.contains('•'));
+        if keep {
+            if let Some(v) = existing_obj.get(key) {
+                patch_obj.insert(key.to_string(), v.clone());
             }
         }
     }
+    out
+}
+
+async fn fetch_integration_db(pool: &PgPool, integration_type: &str) -> Result<IntegrationDbRow, ApiError> {
+    sqlx::query_as(
+        "SELECT id, integration_type, name, enabled, config_json, last_success_at, last_error
+         FROM soc_integrations WHERE integration_type = $1 AND name = 'default'",
+    )
+    .bind(integration_type)
+    .fetch_one(pool)
+    .await
+    .map_err(|_| ApiError::not_found("integration not found"))
+}
+
+fn integration_public_db(row: &IntegrationDbRow) -> IntegrationPublic {
     IntegrationPublic {
         id: row.id,
         integration_type: row.integration_type.clone(),
         name: row.name.clone(),
         enabled: row.enabled,
-        config: cfg,
-        last_success_at: None,
-        last_error: None,
+        config: redact_integration_config(&row.config_json),
+        last_success_at: row.last_success_at,
+        last_error: row.last_error.clone(),
     }
+}
+
+fn redact_integration_config(cfg: &Value) -> Value {
+    let mut cfg = cfg.clone();
+    if let Some(obj) = cfg.as_object_mut() {
+        for key in ["token", "api_key", "client_secret", "api_token", "bearer_token"] {
+            if obj.get(key).and_then(|v| v.as_str()).is_some_and(|s| !s.is_empty()) {
+                obj.insert(key.to_string(), serde_json::json!("••••••••"));
+            }
+        }
+    }
+    cfg
 }
 
 async fn splunk_integration_id(pool: &PgPool) -> Result<Uuid, ApiError> {
@@ -524,13 +612,4 @@ async fn splunk_integration_id(pool: &PgPool) -> Result<Uuid, ApiError> {
         .fetch_one(pool)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))
-}
-
-async fn splunk_integration_row(pool: &PgPool) -> Result<IntegrationRow, ApiError> {
-    sqlx::query_as(
-        "SELECT id, integration_type, name, enabled, config_json FROM soc_integrations WHERE integration_type = 'splunk_hec' AND name = 'default'",
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(|e| ApiError::internal(e.to_string()))
 }

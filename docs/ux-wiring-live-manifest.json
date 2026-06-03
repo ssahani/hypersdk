@@ -643,6 +643,15 @@
       "actions": []
     },
     {
+      "id": "platform:/platform/soc",
+      "shell": "platform",
+      "path": "/platform/soc",
+      "tier": "power",
+      "headingPattern": "Security Operations Center",
+      "requires": null,
+      "actions": []
+    },
+    {
       "id": "platform:/platform/zeus",
       "shell": "platform",
       "path": "/platform/zeus",

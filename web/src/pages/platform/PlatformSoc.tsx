@@ -9,19 +9,28 @@ import {
   getAsmSummary,
   getSocAlerts,
   getSocEvents,
+  getSocIntegrations,
   getSocOverview,
+  getSocPlaybookRuns,
+  getSocPlaybooks,
   getSocRules,
   getSplunkIntegration,
   patchSocAlert,
+  patchSocIntegration,
   patchSocRule,
   putSplunkIntegration,
   replaySocForward,
+  runSocIngestCycle,
+  testSocIntegration,
   testSocRule,
   testSplunkIntegration,
   type AsmSummary,
   type SocAlert,
   type SocEvent,
+  type SocIntegration,
   type SocOverview,
+  type SocPlaybook,
+  type SocPlaybookRun,
   type SocRule,
 } from '../../api/soc'
 import { getFleetThreatSummary } from '../../api/zeusSecurity'
@@ -29,7 +38,15 @@ import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusBadgeClasses, statusToneClass } from '../../utils/semanticColors'
 
-type Tab = 'overview' | 'alerts' | 'detections' | 'asm' | 'integrations'
+type Tab = 'overview' | 'alerts' | 'detections' | 'asm' | 'integrations' | 'playbooks'
+
+function integrationStatusLabel(i: SocIntegration): { tone: 'ok' | 'error' | 'neutral'; text: string } {
+  if (i.last_error) return { tone: 'error', text: i.last_error }
+  if (i.last_success_at) {
+    return { tone: 'ok', text: `Last forward ${new Date(i.last_success_at).toLocaleString()}` }
+  }
+  return { tone: 'neutral', text: i.enabled ? 'Enabled — awaiting first forward' : 'Disabled' }
+}
 
 export default function PlatformSoc() {
   const toast = useToastContext()
@@ -44,6 +61,24 @@ export default function PlatformSoc() {
   const [splunkToken, setSplunkToken] = useState('')
   const [splunkIndex, setSplunkIndex] = useState('machina')
   const [splunkEnabled, setSplunkEnabled] = useState(false)
+  const [integrations, setIntegrations] = useState<SocIntegration[]>([])
+  const [elasticUrl, setElasticUrl] = useState('')
+  const [elasticKey, setElasticKey] = useState('')
+  const [elasticIndex, setElasticIndex] = useState('logs-machina.soc')
+  const [elasticEnabled, setElasticEnabled] = useState(false)
+  const [sentinelDce, setSentinelDce] = useState('')
+  const [sentinelDcr, setSentinelDcr] = useState('')
+  const [sentinelStream, setSentinelStream] = useState('')
+  const [sentinelTenant, setSentinelTenant] = useState('')
+  const [sentinelClientId, setSentinelClientId] = useState('')
+  const [sentinelSecret, setSentinelSecret] = useState('')
+  const [sentinelEnabled, setSentinelEnabled] = useState(false)
+  const [qradarUrl, setQradarUrl] = useState('')
+  const [qradarToken, setQradarToken] = useState('')
+  const [qradarLogSource, setQradarLogSource] = useState('')
+  const [qradarEnabled, setQradarEnabled] = useState(false)
+  const [playbooks, setPlaybooks] = useState<SocPlaybook[]>([])
+  const [playbookRuns, setPlaybookRuns] = useState<SocPlaybookRun[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -51,7 +86,7 @@ export default function PlatformSoc() {
     setLoading(true)
     setError(null)
     try {
-      const [ov, al, ev, ru, asmRes, threat, splunk] = await Promise.all([
+      const [ov, al, ev, ru, asmRes, threat, splunk, ints, pbs, pbr] = await Promise.all([
         getSocOverview(),
         getSocAlerts({ limit: 50 }),
         getSocEvents(30),
@@ -59,6 +94,9 @@ export default function PlatformSoc() {
         getAsmSummary().catch(() => null),
         getFleetThreatSummary().catch(() => null),
         getSplunkIntegration().catch(() => null),
+        getSocIntegrations().catch(() => []),
+        getSocPlaybooks().catch(() => []),
+        getSocPlaybookRuns(30).catch(() => []),
       ])
       setOverview(ov)
       setAlerts(al)
@@ -66,10 +104,34 @@ export default function PlatformSoc() {
       setRules(ru)
       setAsm(asmRes)
       setThreatScore(threat?.fleet_threat_score ?? null)
+      setIntegrations(ints)
+      setPlaybooks(pbs)
+      setPlaybookRuns(pbr)
       if (splunk?.config) {
         setSplunkUrl(String(splunk.config.url ?? ''))
         setSplunkIndex(String(splunk.config.index ?? 'machina'))
         setSplunkEnabled(splunk.enabled)
+      }
+      const elastic = ints.find((i) => i.integration_type === 'elastic_bulk')
+      if (elastic?.config) {
+        setElasticUrl(String(elastic.config.url ?? ''))
+        setElasticIndex(String(elastic.config.index ?? 'logs-machina.soc'))
+        setElasticEnabled(elastic.enabled)
+      }
+      const sentinel = ints.find((i) => i.integration_type === 'sentinel_dcr')
+      if (sentinel?.config) {
+        setSentinelDce(String(sentinel.config.dce_endpoint ?? ''))
+        setSentinelDcr(String(sentinel.config.dcr_immutable_id ?? ''))
+        setSentinelStream(String(sentinel.config.stream_name ?? ''))
+        setSentinelTenant(String(sentinel.config.tenant_id ?? ''))
+        setSentinelClientId(String(sentinel.config.client_id ?? ''))
+        setSentinelEnabled(sentinel.enabled)
+      }
+      const qradar = ints.find((i) => i.integration_type === 'qradar_rest')
+      if (qradar?.config) {
+        setQradarUrl(String(qradar.config.url ?? ''))
+        setQradarLogSource(String(qradar.config.log_source_id ?? ''))
+        setQradarEnabled(qradar.enabled)
       }
     } catch (e: unknown) {
       setError(formatUserError(e))
@@ -118,6 +180,76 @@ export default function PlatformSoc() {
     }
   }
 
+  const runIngest = async () => {
+    try {
+      const r = await runSocIngestCycle()
+      const ing = r.ingest
+      const total = ing.firewall + ing.audit + ing.platform + ing.packetwolf
+      toast.success(`Ingest: ${total} new events, ${r.alerts_fired} alerts, ${r.forwarded} forwarded`)
+      void load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    }
+  }
+
+  const saveElastic = async () => {
+    try {
+      await patchSocIntegration('elastic_bulk', {
+        enabled: elasticEnabled,
+        config_json: {
+          url: elasticUrl,
+          api_key: elasticKey,
+          index: elasticIndex,
+          pipeline: '',
+        },
+      })
+      toast.success('Elastic integration saved')
+      setElasticKey('')
+      void load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    }
+  }
+
+  const saveSentinel = async () => {
+    try {
+      await patchSocIntegration('sentinel_dcr', {
+        enabled: sentinelEnabled,
+        config_json: {
+          dce_endpoint: sentinelDce,
+          dcr_immutable_id: sentinelDcr,
+          stream_name: sentinelStream,
+          tenant_id: sentinelTenant,
+          client_id: sentinelClientId,
+          client_secret: sentinelSecret,
+        },
+      })
+      toast.success('Sentinel integration saved')
+      setSentinelSecret('')
+      void load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    }
+  }
+
+  const saveQradar = async () => {
+    try {
+      await patchSocIntegration('qradar_rest', {
+        enabled: qradarEnabled,
+        config_json: {
+          url: qradarUrl,
+          api_token: qradarToken,
+          log_source_id: qradarLogSource,
+        },
+      })
+      toast.success('QRadar integration saved')
+      setQradarToken('')
+      void load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    }
+  }
+
   const saveSplunk = async () => {
     try {
       await putSplunkIntegration({
@@ -140,7 +272,13 @@ export default function PlatformSoc() {
     { id: 'detections', label: 'Detections' },
     { id: 'asm', label: 'Attack surface' },
     { id: 'integrations', label: 'Integrations' },
+    { id: 'playbooks', label: 'Playbooks' },
   ]
+
+  const splunkStatus = integrations.find((i) => i.integration_type === 'splunk_hec')
+  const elasticStatus = integrations.find((i) => i.integration_type === 'elastic_bulk')
+  const sentinelStatus = integrations.find((i) => i.integration_type === 'sentinel_dcr')
+  const qradarStatus = integrations.find((i) => i.integration_type === 'qradar_rest')
 
   return (
     <PlatformPageChrome
@@ -177,6 +315,11 @@ export default function PlatformSoc() {
             <MacStatWidget label="Critical / high" value={String(overview?.critical_alerts ?? '—')} icon={<ShieldAlert className="w-4 h-4" />} />
             <MacStatWidget label="Events (24h)" value={String(overview?.events_24h ?? '—')} icon={<Radar className="w-4 h-4" />} />
             <MacStatWidget label="Fleet threat" value={threatScore != null ? `${threatScore.toFixed(0)}` : '—'} icon={<Shield className="w-4 h-4" />} />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="btn-secondary text-sm" onClick={() => void runIngest()}>
+              Run ingest now
+            </button>
           </div>
           <MacGlassPanel title="Recent events">
             {events.length === 0 ? (
@@ -297,9 +440,54 @@ export default function PlatformSoc() {
         </div>
       )}
 
+      {tab === 'playbooks' && (
+        <div className="space-y-4">
+          <MacGlassPanel title="SOAR playbooks">
+            {playbooks.length === 0 ? (
+              <p className="text-sm text-slate-500 p-3">No playbooks configured.</p>
+            ) : (
+              <ul className="divide-y divide-white/5">
+                {playbooks.map((p) => (
+                  <li key={p.id} className="px-3 py-3">
+                    <p className="font-medium text-sm text-slate-100 flex items-center gap-2">
+                      {p.name}
+                      <span className={statusBadgeClasses(p.enabled ? 'ok' : 'neutral')}>
+                        {p.enabled ? 'enabled' : 'disabled'}
+                      </span>
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">{p.description}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </MacGlassPanel>
+          <MacGlassPanel title="Recent runs">
+            {playbookRuns.length === 0 ? (
+              <p className="text-sm text-slate-500 p-3">No playbook runs yet.</p>
+            ) : (
+              <ul className="divide-y divide-white/5">
+                {playbookRuns.map((r) => (
+                  <li key={r.id} className="px-3 py-2 text-sm flex justify-between gap-2">
+                    <span className="text-slate-300 truncate">{r.playbook_id.slice(0, 8)}…</span>
+                    <span className={`text-xs shrink-0 ${statusToneClass(r.status === 'success' ? 'ok' : r.status === 'failed' ? 'error' : 'neutral')}`}>
+                      {r.status}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </MacGlassPanel>
+        </div>
+      )}
+
       {tab === 'integrations' && (
         <div className="space-y-4">
           <MacGlassPanel title="Splunk HTTP Event Collector (HEC)">
+            {splunkStatus && (
+              <p className={`px-3 pt-3 text-xs ${statusToneClass(integrationStatusLabel(splunkStatus).tone)}`}>
+                {integrationStatusLabel(splunkStatus).text}
+              </p>
+            )}
             <div className="p-3 space-y-3 max-w-xl">
               <label className="block text-sm">
                 <span className="text-slate-400 text-xs">HEC URL</span>
@@ -357,10 +545,108 @@ export default function PlatformSoc() {
               </div>
             </div>
           </MacGlassPanel>
-          <p className="text-xs text-slate-500">
-            Elastic, Microsoft Sentinel, and QRadar adapters are configured under the same Integrations API (
-            <code className="text-slate-400">/api/v1/soc/integrations/&#123;type&#125;</code>).
-          </p>
+
+          <MacGlassPanel title="Elastic bulk API">
+            {elasticStatus && (
+              <p className={`px-3 pt-3 text-xs ${statusToneClass(integrationStatusLabel(elasticStatus).tone)}`}>
+                {integrationStatusLabel(elasticStatus).text}
+              </p>
+            )}
+            <div className="p-3 space-y-3 max-w-xl">
+              <label className="block text-sm">
+                <span className="text-slate-400 text-xs">Elasticsearch URL</span>
+                <input className="input w-full mt-1 text-sm" value={elasticUrl} onChange={(e) => setElasticUrl(e.target.value)} placeholder="https://elastic:9200" />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-400 text-xs">API key (leave blank to keep)</span>
+                <input className="input w-full mt-1 text-sm" type="password" value={elasticKey} onChange={(e) => setElasticKey(e.target.value)} placeholder="••••••••" />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-400 text-xs">Index</span>
+                <input className="input w-full mt-1 text-sm" value={elasticIndex} onChange={(e) => setElasticIndex(e.target.value)} />
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={elasticEnabled} onChange={(e) => setElasticEnabled(e.target.checked)} />
+                Enable Elastic forwarder
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="btn-primary text-sm" onClick={() => void saveElastic()}>Save</button>
+                <button type="button" className="btn-secondary text-sm" onClick={() => void testSocIntegration('elastic_bulk').then((r) => toast.success(r.message)).catch((e: unknown) => toast.error(formatUserError(e)))}>Test</button>
+              </div>
+            </div>
+          </MacGlassPanel>
+
+          <MacGlassPanel title="Microsoft Sentinel (DCR)">
+            {sentinelStatus && (
+              <p className={`px-3 pt-3 text-xs ${statusToneClass(integrationStatusLabel(sentinelStatus).tone)}`}>
+                {integrationStatusLabel(sentinelStatus).text}
+              </p>
+            )}
+            <div className="p-3 space-y-3 max-w-xl">
+              <label className="block text-sm">
+                <span className="text-slate-400 text-xs">DCE endpoint</span>
+                <input className="input w-full mt-1 text-sm" value={sentinelDce} onChange={(e) => setSentinelDce(e.target.value)} />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-400 text-xs">DCR immutable ID</span>
+                <input className="input w-full mt-1 text-sm" value={sentinelDcr} onChange={(e) => setSentinelDcr(e.target.value)} />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-400 text-xs">Stream name</span>
+                <input className="input w-full mt-1 text-sm" value={sentinelStream} onChange={(e) => setSentinelStream(e.target.value)} />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-400 text-xs">Tenant ID</span>
+                <input className="input w-full mt-1 text-sm" value={sentinelTenant} onChange={(e) => setSentinelTenant(e.target.value)} />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-400 text-xs">Client ID</span>
+                <input className="input w-full mt-1 text-sm" value={sentinelClientId} onChange={(e) => setSentinelClientId(e.target.value)} />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-400 text-xs">Client secret (leave blank to keep)</span>
+                <input className="input w-full mt-1 text-sm" type="password" value={sentinelSecret} onChange={(e) => setSentinelSecret(e.target.value)} placeholder="••••••••" />
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={sentinelEnabled} onChange={(e) => setSentinelEnabled(e.target.checked)} />
+                Enable Sentinel forwarder
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="btn-primary text-sm" onClick={() => void saveSentinel()}>Save</button>
+                <button type="button" className="btn-secondary text-sm" onClick={() => void testSocIntegration('sentinel_dcr').then((r) => toast.success(r.message)).catch((e: unknown) => toast.error(formatUserError(e)))}>Test</button>
+              </div>
+            </div>
+          </MacGlassPanel>
+
+          <MacGlassPanel title="IBM QRadar REST">
+            {qradarStatus && (
+              <p className={`px-3 pt-3 text-xs ${statusToneClass(integrationStatusLabel(qradarStatus).tone)}`}>
+                {integrationStatusLabel(qradarStatus).text}
+              </p>
+            )}
+            <div className="p-3 space-y-3 max-w-xl">
+              <label className="block text-sm">
+                <span className="text-slate-400 text-xs">QRadar URL</span>
+                <input className="input w-full mt-1 text-sm" value={qradarUrl} onChange={(e) => setQradarUrl(e.target.value)} />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-400 text-xs">API token (leave blank to keep)</span>
+                <input className="input w-full mt-1 text-sm" type="password" value={qradarToken} onChange={(e) => setQradarToken(e.target.value)} placeholder="••••••••" />
+              </label>
+              <label className="block text-sm">
+                <span className="text-slate-400 text-xs">Log source ID</span>
+                <input className="input w-full mt-1 text-sm" value={qradarLogSource} onChange={(e) => setQradarLogSource(e.target.value)} />
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={qradarEnabled} onChange={(e) => setQradarEnabled(e.target.checked)} />
+                Enable QRadar forwarder
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="btn-primary text-sm" onClick={() => void saveQradar()}>Save</button>
+                <button type="button" className="btn-secondary text-sm" onClick={() => void testSocIntegration('qradar_rest').then((r) => toast.success(r.message)).catch((e: unknown) => toast.error(formatUserError(e)))}>Test</button>
+              </div>
+            </div>
+          </MacGlassPanel>
         </div>
       )}
     </PlatformPageChrome>

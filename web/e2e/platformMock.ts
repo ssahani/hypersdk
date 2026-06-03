@@ -785,6 +785,66 @@ export async function mockPlatformApi(page: Page, opts?: {
           },
         })
       }
+      if (url.includes('/integrations') && !url.includes('/integrations/splunk')) {
+        if (url.match(/\/integrations\/[^/]+\/test/)) {
+          return route.fulfill({ json: { ok: true, message: 'Integration test OK' } })
+        }
+        if (route.request().method() === 'PATCH') {
+          return route.fulfill({
+            json: {
+              id: 'int-1',
+              integration_type: 'elastic_bulk',
+              name: 'default',
+              enabled: true,
+              config: { url: 'https://elastic:9200', api_key: '••••••••' },
+              last_success_at: new Date().toISOString(),
+            },
+          })
+        }
+        return route.fulfill({
+          json: [
+            {
+              id: 'splunk-1',
+              integration_type: 'splunk_hec',
+              name: 'default',
+              enabled: false,
+              config: { url: '', index: 'machina' },
+            },
+            {
+              id: 'elastic-1',
+              integration_type: 'elastic_bulk',
+              name: 'default',
+              enabled: false,
+              config: { url: '', index: 'logs-machina.soc' },
+            },
+          ],
+        })
+      }
+      if (url.includes('/playbooks') && !url.includes('playbook-runs')) {
+        return route.fulfill({
+          json: [
+            {
+              id: 'pb1',
+              name: 'notify_on_critical',
+              description: 'Webhook notify when critical SOC alert opens',
+              enabled: true,
+              trigger_json: { min_severity: 'high' },
+            },
+          ],
+        })
+      }
+      if (url.includes('/playbook-runs')) {
+        return route.fulfill({ json: [] })
+      }
+      if (url.includes('/ingest/run')) {
+        return route.fulfill({
+          json: {
+            ingest: { firewall: 1, audit: 2, platform: 0, packetwolf: 1 },
+            alerts_fired: 0,
+            forwarded: 2,
+          },
+        })
+      }
       if (url.includes('/integrations/splunk')) {
         if (url.includes('/test')) {
           return route.fulfill({ json: { ok: true, message: 'Splunk HEC accepted test event' } })

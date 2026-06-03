@@ -97,6 +97,13 @@ pub async fn migrate(pool: &PgPool) -> anyhow::Result<()> {
             sqlx::query(stmt).execute(pool).await?;
         }
     }
+    // Idempotent: tables created via manual SQL or superuser may omit app-role grants.
+    let _ = sqlx::query("GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO machina")
+        .execute(pool)
+        .await;
+    let _ = sqlx::query("GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO machina")
+        .execute(pool)
+        .await;
     Ok(())
 }
 

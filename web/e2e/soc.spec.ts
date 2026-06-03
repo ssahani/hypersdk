@@ -28,3 +28,9 @@ test('SOC Splunk integration test', async ({ page }) => {
   await page.getByRole('button', { name: 'Test connection' }).click()
   await expect(page.getByText(/Splunk HEC accepted/i)).toBeVisible({ timeout: 10_000 })
 })
+
+test('SOC playbooks tab loads', async ({ page }) => {
+  await page.goto('/platform/soc')
+  await page.getByRole('button', { name: 'Playbooks' }).click()
+  await expect(page.getByText('notify_on_critical')).toBeVisible()
+})

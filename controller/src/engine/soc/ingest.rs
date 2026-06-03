@@ -17,7 +17,7 @@ pub async fn ingest_recent(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Res
     Ok(stats)
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, serde::Serialize)]
 pub struct IngestStats {
     pub firewall: usize,
     pub audit: usize,

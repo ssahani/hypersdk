@@ -342,6 +342,9 @@ pub fn router(state: AppState) -> Router {
             post(soc::test_splunk_integration),
         )
         .route("/api/v1/soc/forward/replay", post(soc::forward_replay_handler))
+        .route("/api/v1/soc/ingest/run", post(soc::run_ingest_cycle))
+        .route("/api/v1/soc/playbooks", get(soc::list_playbooks))
+        .route("/api/v1/soc/playbook-runs", get(soc::list_playbook_runs))
         .route("/api/v1/hosts/{id}/health-check", post(health_check::host_health_check))
         .route("/api/v1/recommendations", get(recommendations::list_recommendations))
         .route(

@@ -49,8 +49,31 @@ export interface SocIntegration {
   name: string
   enabled: boolean
   config: Record<string, unknown>
-  last_success_at?: string
-  last_error?: string
+  last_success_at?: string | null
+  last_error?: string | null
+}
+
+export interface SocPlaybook {
+  id: string
+  name: string
+  description: string
+  enabled: boolean
+  trigger_json: Record<string, unknown>
+}
+
+export interface SocPlaybookRun {
+  id: string
+  playbook_id: string
+  alert_id?: string
+  status: string
+  started_at: string
+  finished_at?: string
+}
+
+export interface SocIngestCycle {
+  ingest: { firewall: number; audit: number; platform: number; packetwolf: number }
+  alerts_fired: number
+  forwarded: number
 }
 
 export interface AsmSummary {
@@ -131,3 +154,11 @@ export const testSocIntegration = (integrationType: string) =>
 
 export const replaySocForward = (hours = 24) =>
   platformFetch<{ forwarded: number }>(`/api/v1/soc/forward/replay?hours=${hours}`, { method: 'POST' })
+
+export const runSocIngestCycle = () =>
+  platformFetch<SocIngestCycle>('/api/v1/soc/ingest/run', { method: 'POST' })
+
+export const getSocPlaybooks = () => platformFetch<SocPlaybook[]>('/api/v1/soc/playbooks')
+
+export const getSocPlaybookRuns = (limit = 50) =>
+  platformFetch<SocPlaybookRun[]>(`/api/v1/soc/playbook-runs?limit=${limit}`)

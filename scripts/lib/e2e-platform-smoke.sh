@@ -569,6 +569,15 @@ except Exception:
     e2e_platform_fail "GET /api/v1/guestkit/status — HTTP ${http}"
   fi
 
+  e2e_platform_hdr "PLATFORM SMOKE: SOC (unified security operations)"
+  e2e_platform_smoke_get "/api/v1/soc/overview" "GET /api/v1/soc/overview" || true
+  e2e_platform_smoke_get "/api/v1/soc/events?limit=5" "GET /api/v1/soc/events" || true
+  e2e_platform_smoke_get "/api/v1/soc/alerts?limit=5" "GET /api/v1/soc/alerts" || true
+  e2e_platform_smoke_get "/api/v1/soc/rules" "GET /api/v1/soc/rules" || true
+  e2e_platform_smoke_get "/api/v1/soc/asm/summary" "GET /api/v1/soc/asm/summary" || true
+  e2e_platform_smoke_get "/api/v1/soc/playbooks" "GET /api/v1/soc/playbooks" || true
+  e2e_platform_smoke_get "/api/v1/soc/playbook-runs?limit=10" "GET /api/v1/soc/playbook-runs" || true
+
   e2e_platform_hdr "PLATFORM SMOKE: ZEUS FIREWALL (AI-142)"
   http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/zeus-firewall/status")"
   if [[ "$http" == "200" ]]; then
