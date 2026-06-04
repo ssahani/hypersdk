@@ -48,6 +48,7 @@ import {
 import { getAiSecurity } from '../../api/ai'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { toastQueuedOperation } from '../../utils/platformTaskToast'
 import { statusPillClasses } from '../../utils/semanticColors'
 import { loadJarvisShell } from '../../utils/platformJarvisShell'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
@@ -74,6 +75,7 @@ export default function PlatformDashboard() {
   const [wizardOpen, setWizardOpen] = useState(false)
   const [missingImages, setMissingImages] = useState<MissingTemplateImage[]>([])
   const [missingImagesSummary, setMissingImagesSummary] = useState('')
+  const [missingAutoFetchCount, setMissingAutoFetchCount] = useState(0)
 
   const load = useCallback(async () => {
     setError(null)
@@ -95,6 +97,7 @@ export default function PlatformDashboard() {
       setSecurity(sec)
       setMissingImages(missing.missing)
       setMissingImagesSummary(missing.summary)
+      setMissingAutoFetchCount(missing.auto_fetch_count)
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
@@ -145,7 +148,7 @@ export default function PlatformDashboard() {
         cloud_init_user: cloudInitUserForOs(payload.os),
         cloud_init_ssh_pubkey: payload.cloudInitSshPubkey,
       })
-      toast.success(`Deploy queued — track task ${r.task_id.slice(0, 8)} in Tasks`)
+      toastQueuedOperation(toast, `Deploying ${payload.name}`, r.task_id, tier)
     } else {
       const cloudUser = cloudInitUserForOs(payload.os)
       const body: CreatePlatformVmBody = {
@@ -164,7 +167,7 @@ export default function PlatformDashboard() {
         },
       }
       const r = await createPlatformVm(body)
-      toast.success(`Create queued — track task ${r.task_id.slice(0, 8)} in Tasks`)
+      toastQueuedOperation(toast, `Creating ${payload.name}`, r.task_id, tier)
     }
     await load()
   }
@@ -264,8 +267,13 @@ export default function PlatformDashboard() {
       </MacGlassPanel>
 
       {showPower && (
-        <PlatformFleetInsights badgeCount={insightBadgeCount}>
-          <TemplateMissingImagesPanel summary={missingImagesSummary} missing={missingImages} />
+        <PlatformFleetInsights badgeCount={insightBadgeCount} defaultOpen={missingImages.length > 0}>
+          <TemplateMissingImagesPanel
+            summary={missingImagesSummary}
+            missing={missingImages}
+            autoFetchCount={missingAutoFetchCount}
+            onPrefetchQueued={() => void load()}
+          />
           <RemediateChips compact />
           <InfrastructureDnaStrip />
           {showAdvanced && <EnterpriseSecurityStrip />}

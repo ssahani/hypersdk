@@ -482,6 +482,10 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/templates/missing-images",
             get(templates::list_missing_template_images),
         )
+        .route(
+            "/api/v1/templates/prefetch-missing",
+            axum::routing::post(templates::prefetch_missing_template_images),
+        )
         .route("/api/v1/templates/seed", post(templates::seed_templates))
         .route("/api/v1/templates/sync-git", post(templates::sync_git_templates))
         .route(

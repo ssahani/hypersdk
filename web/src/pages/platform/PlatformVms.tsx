@@ -39,7 +39,9 @@ import {
   type PlatformVm,
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
+import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { formatUserError } from '../../utils/apiError'
+import { toastQueuedOperation } from '../../utils/platformTaskToast'
 import { hubLinkClasses, statusPillClasses, vmStateTone } from '../../utils/semanticColors'
 import VmSshConnectDialog, { navigateVmSshSession } from '../../components/vm/VmSshConnectDialog'
 
@@ -83,6 +85,7 @@ function SidebarRow({
 
 export default function PlatformVms() {
   const toast = useToastContext()
+  const [tier] = usePlatformDesktopTier()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const folder = searchParams.get('folder') || 'all'
@@ -258,7 +261,7 @@ export default function PlatformVms() {
         cloud_init_user: cloudInitUserForOs(payload.os),
         cloud_init_ssh_pubkey: payload.cloudInitSshPubkey,
       })
-      toast.success(`Deploy queued — track task ${r.task_id.slice(0, 8)} in Tasks`)
+      toastQueuedOperation(toast, `Deploying ${payload.name}`, r.task_id, tier)
     } else {
       const r = await createPlatformVm(
         buildVmBody(
@@ -271,7 +274,7 @@ export default function PlatformVms() {
           payload.customSpec,
         ),
       )
-      toast.success(`Create queued — track task ${r.task_id.slice(0, 8)} in Tasks`)
+      toastQueuedOperation(toast, `Creating ${payload.name}`, r.task_id, tier)
     }
     await load()
   }
@@ -302,8 +305,8 @@ export default function PlatformVms() {
         network: [{ network: payload.network, ip_mode: 'dhcp' }],
       },
     }
-    await createPlatformVm(body)
-    toast.success('Windows VM create queued')
+    const r = await createPlatformVm(body)
+    toastQueuedOperation(toast, `Creating ${payload.name}`, r.task_id, tier)
     await load()
   }
 

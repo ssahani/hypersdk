@@ -17,7 +17,9 @@ import {
 import { sizeToSpec } from '../../components/platform/vmWizardCatalog'
 import { readSshPubkeyFile } from '../../utils/sshPubkeyImport'
 import { useToastContext } from '../../contexts/ToastContext'
+import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { formatUserError } from '../../utils/apiError'
+import { toastQueuedOperation } from '../../utils/platformTaskToast'
 import { hubLinkClasses } from '../../utils/semanticColors'
 
 const ISO_STEPS = ['ISO image', 'Name & size', 'Network & access', 'Review']
@@ -26,6 +28,7 @@ export default function PlatformIsoCreate() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const toast = useToastContext()
+  const [tier] = usePlatformDesktopTier()
   const [step, setStep] = useState(0)
   const [images, setImages] = useState<ContentImage[]>([])
   const [loading, setLoading] = useState(true)
@@ -116,7 +119,7 @@ export default function PlatformIsoCreate() {
         disk_gib: diskGb,
         cloud_init_ssh_pubkey: sshPubkey.trim() || undefined,
       })
-      toast.success(`ISO install queued — task ${r.task_id.slice(0, 8)}`)
+      toastQueuedOperation(toast, `ISO install for ${vmName.trim()}`, r.task_id, tier)
       navigate('/platform/vms')
     } catch (e: unknown) {
       toast.error(formatUserError(e))

@@ -1,8 +1,12 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
-import { ExternalLink, Puzzle, Sparkles, Boxes } from 'lucide-react'
+import { ExternalLink, Puzzle, Sparkles, Boxes, Server } from 'lucide-react'
+import HostEnrollWizard from '../../components/platform/HostEnrollWizard'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
+import { listPlatformHosts } from '../../api/platform'
 import { LaunchpadAppIcon, MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
 import PlatformPageChrome, { PlatformBackLink, platformStatSubtitle } from '../../components/platform/PlatformPageChrome'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
@@ -16,8 +20,23 @@ import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 export default function PlatformIntegrations({ embedded }: { embedded?: boolean } = {}) {
   const { info } = usePlatformInfo()
   const [tier, setTier] = usePlatformDesktopTier()
+  const [hostCount, setHostCount] = useState<number | null>(null)
+  const [enrollOpen, setEnrollOpen] = useState(false)
   const cards = integrationCards(info)
   const enabledCount = cards.filter((c) => c.enabled).length
+
+  const loadHosts = useCallback(async () => {
+    try {
+      const hosts = await listPlatformHosts()
+      setHostCount(hosts.length)
+    } catch {
+      setHostCount(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadHosts()
+  }, [loadHosts])
 
   return (
     <PlatformPageChrome
@@ -41,6 +60,18 @@ export default function PlatformIntegrations({ embedded }: { embedded?: boolean 
       icon={embedded ? undefined : <Puzzle className="w-6 h-6 text-slate-400" />}
       contentClassName="space-y-6"
     >
+        {hostCount === 0 && (
+          <PlatformEmptyState
+            icon={Server}
+            title="No hypervisors enrolled"
+            subtitle="Enroll a host before connecting OpenStack, migration tools, or fleet apps."
+          >
+            <button type="button" className="tahoe-btn-primary text-sm" onClick={() => setEnrollOpen(true)}>
+              Enroll host
+            </button>
+          </PlatformEmptyState>
+        )}
+
         <MacGlassPanel title="Fleet apps" subtitle="Launchpad and connected platforms">
           <div className="platform-launchpad-grid grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-x-4 gap-y-8 -mt-1">
             <Link to="/platform/applications" className="block">
@@ -106,6 +137,8 @@ export default function PlatformIntegrations({ embedded }: { embedded?: boolean 
             Switch to <Link to="/platform/settings?section=general" className={hubLinkClasses()}>Settings → Appearance → Advanced</Link> for the full fleet sidebar, Zeus Firewall panes, and developer SDK routes.
           </p>
         </MacGlassPanel>
+
+      <HostEnrollWizard open={enrollOpen} onClose={() => { setEnrollOpen(false); void loadHosts() }} />
     </PlatformPageChrome>
   )
 }

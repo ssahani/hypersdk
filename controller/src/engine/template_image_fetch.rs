@@ -115,3 +115,40 @@ chmod 644 '{dest}'
     }
     Ok(())
 }
+
+/// Download all missing auto-fetch marketplace images onto one online host.
+pub async fn prefetch_missing_images(
+    pool: &PgPool,
+    host_id: Option<Uuid>,
+) -> anyhow::Result<(usize, usize, Vec<String>)> {
+    let host_id = match host_id {
+        Some(id) => id,
+        None => {
+            let id: Option<Uuid> = sqlx::query_scalar(
+                "SELECT id FROM hosts WHERE state = 'online' ORDER BY hostname LIMIT 1",
+            )
+            .fetch_optional(pool)
+            .await?;
+            id.ok_or_else(|| anyhow::anyhow!("no online hosts to download images"))?
+        }
+    };
+
+    let missing = template_readiness::list_missing_marketplace_images(pool).await?;
+    let mut fetched = 0usize;
+    let mut skipped = 0usize;
+    let mut errors = Vec::new();
+
+    for item in missing {
+        if !item.auto_fetch {
+            skipped += 1;
+            continue;
+        }
+        match ensure_template_disk(pool, host_id, &item.source_disk, &item.name, &item.version).await {
+            Ok(true) => fetched += 1,
+            Ok(false) => skipped += 1,
+            Err(e) => errors.push(format!("{}@{}: {e:#}", item.name, item.version)),
+        }
+    }
+
+    Ok((fetched, skipped, errors))
+}

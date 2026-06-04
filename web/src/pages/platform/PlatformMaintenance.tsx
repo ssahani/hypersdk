@@ -24,6 +24,7 @@ import ErrorBanner from '../../components/ErrorBanner'
 import PageSkeleton from '../../components/PageSkeleton'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
+import HostEnrollWizard from '../../components/platform/HostEnrollWizard'
 import { BuildStepTimeline } from '../../components/BuildStepTimeline'
 import {
   createMaintenanceSchedule,
@@ -89,6 +90,7 @@ export default function PlatformMaintenance() {
   const [missionHostId, setMissionHostId] = useState('')
   const [runAt, setRunAt] = useState('')
   const [defaultTabSet, setDefaultTabSet] = useState(false)
+  const [enrollOpen, setEnrollOpen] = useState(false)
 
   const loadSchedules = useCallback(async () => {
     const [schedules, hostRows] = await Promise.all([listMaintenanceSchedules(), listPlatformHosts()])
@@ -186,7 +188,11 @@ export default function PlatformMaintenance() {
           </div>
 
           {mission.hosts.length === 0 ? (
-            <PlatformEmptyState icon={ListChecks} title="No hosts" subtitle="Enroll hypervisors to run a maintenance mission." />
+            <PlatformEmptyState icon={ListChecks} title="No hosts" subtitle="Enroll hypervisors to run a maintenance mission.">
+              <button type="button" className="tahoe-btn-primary text-sm" onClick={() => setEnrollOpen(true)}>
+                Enroll host
+              </button>
+            </PlatformEmptyState>
           ) : (
             <>
               <div className="flex flex-wrap gap-3 items-center">
@@ -457,6 +463,7 @@ export default function PlatformMaintenance() {
         </>
       )}
       {tab === 'updates' && <FleetSettingsPane kind="updates" />}
+      <HostEnrollWizard open={enrollOpen} onClose={() => { setEnrollOpen(false); void loadSchedules() }} />
     </PlatformPageChrome>
   )
 }

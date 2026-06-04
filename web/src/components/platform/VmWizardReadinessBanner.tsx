@@ -47,8 +47,13 @@ export default function VmWizardReadinessBanner({ loading, readiness }: Props) {
         <p className="text-xs mt-2 font-mono text-slate-400 break-all">{readiness.source_disk}</p>
       )}
       {!readiness.ready && !readiness.auto_fetch && (
+        <p className="text-xs mt-2 opacity-90">
+          This template has no public download URL. Copy the golden image to the path above on an online host (SSH/SCP), or upload via Content Library.
+        </p>
+      )}
+      {!readiness.ready && !readiness.auto_fetch && (
         <Link to="/platform/content" className={`text-xs hover:underline mt-2 inline-block ${hubLinkClasses()}`}>
-          Upload image in Content Library →
+          Content Library →
         </Link>
       )}
     </div>

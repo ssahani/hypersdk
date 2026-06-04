@@ -8,9 +8,11 @@ use machina_spec::VmTemplate;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::api::tasks::TaskResponse;
 use crate::api::ApiError;
 use crate::auth::AuthUser;
 use crate::state::AppState;
+use crate::tasks::enqueue::enqueue_task;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct TemplateRow {
@@ -106,9 +108,27 @@ pub async fn list_templates(
     Ok(Json(rows))
 }
 
+fn template_rows_with_auto_fetch(rows: Vec<TemplateRow>) -> Vec<serde_json::Value> {
+    rows.iter()
+        .map(|t| {
+            let mut v = serde_json::to_value(t).unwrap_or(serde_json::json!({}));
+            if let Some(obj) = v.as_object_mut() {
+                obj.insert(
+                    "auto_fetch".into(),
+                    serde_json::json!(crate::engine::template_catalog::download_url_for(
+                        &t.name, &t.version
+                    )
+                    .is_some()),
+                );
+            }
+            v
+        })
+        .collect()
+}
+
 pub async fn list_marketplace_templates(
     State(state): State<AppState>,
-) -> Result<Json<Vec<TemplateRow>>, ApiError> {
+) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM templates WHERE marketplace = TRUE")
         .fetch_one(&state.pool)
         .await?;
@@ -120,7 +140,7 @@ pub async fn list_marketplace_templates(
     ))
     .fetch_all(&state.pool)
     .await?;
-    Ok(Json(rows))
+    Ok(Json(template_rows_with_auto_fetch(rows)))
 }
 
 pub async fn seed_templates(
@@ -189,6 +209,40 @@ pub async fn get_template_readiness(
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
     Ok(Json(readiness))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PrefetchMissingImagesBody {
+    pub host_id: Option<uuid::Uuid>,
+}
+
+pub async fn prefetch_missing_template_images(
+    State(state): State<AppState>,
+    Extension(_actor): Extension<AuthUser>,
+    Json(body): Json<PrefetchMissingImagesBody>,
+) -> Result<Json<TaskResponse>, ApiError> {
+    let host_id = if let Some(id) = body.host_id {
+        id
+    } else {
+        sqlx::query_scalar("SELECT id FROM hosts WHERE state = 'online' ORDER BY hostname LIMIT 1")
+            .fetch_optional(&state.pool)
+            .await?
+            .ok_or_else(|| ApiError::bad_request("no online hosts"))?
+    };
+    let task_id = enqueue_task(
+        &state,
+        "templates.prefetch_missing",
+        serde_json::json!({ "host_id": host_id.to_string() }),
+        Some("templates"),
+        None,
+        Some(host_id),
+    )
+    .await?;
+    Ok(Json(TaskResponse {
+        task_id: task_id.to_string(),
+        status: "pending".into(),
+        operation: "templates.prefetch_missing".into(),
+    }))
 }
 
 pub async fn list_missing_template_images(

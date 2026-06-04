@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { ClipboardList } from 'lucide-react'
 import ExplainButton from '../../components/ai/ExplainButton'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
@@ -17,6 +18,9 @@ function statusColor(status: string) {
 
 export default function PlatformTasks() {
   const toast = useToastContext()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const highlightTaskId = searchParams.get('task')?.trim() || null
+  const highlightRef = useRef<HTMLLIElement | null>(null)
   const [rows, setRows] = useState<PlatformTask[]>([])
   const [filter, setFilter] = useState('')
   const [opFilter, setOpFilter] = useState('')
@@ -32,6 +36,23 @@ export default function PlatformTasks() {
   }, [filter, opFilter])
 
   useEffect(() => { void load() }, [load])
+
+  const highlightRow = useMemo(() => {
+    if (!highlightTaskId) return null
+    const needle = highlightTaskId.toLowerCase()
+    return rows.find((t) => t.id === highlightTaskId || t.id.toLowerCase().startsWith(needle)) ?? null
+  }, [rows, highlightTaskId])
+
+  useEffect(() => {
+    if (!highlightRow) return
+    highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    const t = window.setTimeout(() => {
+      const next = new URLSearchParams(searchParams)
+      next.delete('task')
+      setSearchParams(next, { replace: true })
+    }, 8000)
+    return () => window.clearTimeout(t)
+  }, [highlightRow, searchParams, setSearchParams])
 
   const statusCounts = {
     '': rows.length,
@@ -68,8 +89,16 @@ export default function PlatformTasks() {
         <PlatformEmptyState title="No tasks" subtitle="Operations like VM create, migrate, and backup appear here." />
       ) : (
         <ul className="space-y-2">
-          {rows.map((t) => (
-            <li key={t.id} className="platform-mac-stat rounded-xl border border-white/[0.06] bg-slate-900/50 p-4">
+          {rows.map((t) => {
+            const highlighted = highlightRow?.id === t.id
+            return (
+            <li
+              key={t.id}
+              ref={highlighted ? highlightRef : undefined}
+              className={`platform-mac-stat rounded-xl border bg-slate-900/50 p-4 transition ${
+                highlighted ? 'border-sky-500/50 ring-1 ring-sky-500/30' : 'border-white/[0.06]'
+              }`}
+            >
               <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                 <div>
                   <p className="font-medium text-slate-200">{t.operation}</p>
@@ -99,7 +128,7 @@ export default function PlatformTasks() {
                 </div>
               </div>
             </li>
-          ))}
+          )})}
         </ul>
       )}
     </PlatformPageChrome>

@@ -289,6 +289,7 @@ const sampleTemplate = {
   featured: true,
   marketplace: true,
   icon: 'ubuntu',
+  auto_fetch: true,
 }
 
 const sampleVm = {
@@ -313,6 +314,7 @@ export async function mockPlatformApi(page: Page, opts?: {
   staleHost?: boolean
   emptyStorage?: boolean
   templateNotReady?: boolean
+  templateAutoFetch?: boolean
   emptyNetworks?: boolean
 }) {
   const tier = opts?.tier ?? 'normal'
@@ -1150,6 +1152,9 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.includes('/cluster')) {
       return route.fulfill({ json: { name: 'e2e-cluster', hosts: 1, vms: 2, offline_hosts: 0 } })
     }
+    if (url.includes('/templates/prefetch-missing')) {
+      return route.fulfill({ json: { task_id: 'prefetch-task-1' } })
+    }
     if (url.includes('/templates/missing-images')) {
       return route.fulfill({
         json: {
@@ -1172,6 +1177,19 @@ export async function mockPlatformApi(page: Page, opts?: {
             ready: false,
             auto_fetch: false,
             remediation: 'Upload the golden image to Content Library.',
+            source_disk: sampleTemplate.source_disk,
+          },
+        })
+      }
+      if (opts?.templateAutoFetch) {
+        return route.fulfill({
+          json: {
+            disk_exists: false,
+            host_online: 1,
+            cloud_init: true,
+            ready: true,
+            auto_fetch: true,
+            remediation: 'Golden image will download over SSH on first create.',
             source_disk: sampleTemplate.source_disk,
           },
         })

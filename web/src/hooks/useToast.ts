@@ -4,10 +4,16 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 
+export type ToastAction = {
+  label: string
+  href: string
+}
+
 export interface Toast {
   id: string
   message: string
   type: 'success' | 'error' | 'warning' | 'info'
+  action?: ToastAction
 }
 
 /** Normalize kubectl stderr so duplicate TLS spam dedupes across retries. */
@@ -27,9 +33,14 @@ export function useToast() {
     return () => { timersRef.current.forEach(clearTimeout) }
   }, [])
 
-  const addToast = useCallback((message: string, type: Toast['type'], duration = 5000) => {
+  const addToast = useCallback((
+    message: string,
+    type: Toast['type'],
+    duration = 5000,
+    action?: ToastAction,
+  ) => {
     const id = crypto.randomUUID()
-    setToasts((prev) => [...prev, { id, message, type }])
+    setToasts((prev) => [...prev, { id, message, type, action }])
     const timer = setTimeout(() => {
       timersRef.current.delete(timer)
       setToasts((prev) => prev.filter((t) => t.id !== id))
@@ -60,9 +71,9 @@ export function useToast() {
   return {
     toasts,
     removeToast,
-    success: (msg: string, d?: number) => addToast(msg, 'success', d),
+    success: (msg: string, d?: number, action?: ToastAction) => addToast(msg, 'success', d, action),
     error,
-    warning: (msg: string, d?: number) => addToast(msg, 'warning', d),
-    info: (msg: string, d?: number) => addToast(msg, 'info', d),
+    warning: (msg: string, d?: number, action?: ToastAction) => addToast(msg, 'warning', d, action),
+    info: (msg: string, d?: number, action?: ToastAction) => addToast(msg, 'info', d, action),
   }
 }

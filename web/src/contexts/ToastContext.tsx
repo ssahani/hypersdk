@@ -3,14 +3,14 @@
 // https://zyvor.dev · info@zyvor.dev
 
 import { createContext, useContext, ReactNode } from 'react'
-import { useToast } from '../hooks/useToast'
+import { useToast, type ToastAction } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
 interface ToastContextType {
-  success: (message: string, duration?: number) => string
-  error: (message: string, duration?: number) => string
-  warning: (message: string, duration?: number) => string
-  info: (message: string, duration?: number) => string
+  success: (message: string, duration?: number, action?: ToastAction) => string
+  error: (message: string, duration?: number, action?: ToastAction) => string
+  warning: (message: string, duration?: number, action?: ToastAction) => string
+  info: (message: string, duration?: number, action?: ToastAction) => string
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined)

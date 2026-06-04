@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { AlertTriangle, CheckCircle2, GitBranch, Layers, Loader2, Package, Plus, RefreshCw, Sparkles, Star, Puzzle, Upload } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Download, GitBranch, Layers, Loader2, Package, Plus, RefreshCw, Sparkles, Star, Puzzle, Upload } from 'lucide-react'
 import { readSshPubkeyFile } from '../../utils/sshPubkeyImport'
 import DetailTabs from '../../components/platform/DetailTabs'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
@@ -21,14 +21,18 @@ import {
   installMarketplacePlugin,
   publishMarketplacePlugin,
   listMarketplaceTemplates,
+  listMissingTemplateImages,
   seedDefaultTemplates,
   uninstallMarketplacePlugin,
   type MarketplacePlugin,
   type PlatformTemplate,
 } from '../../api/platform'
 import { approvePlatformTemplate, syncGitTemplates } from '../../api/platformTemplatesExtra'
+import TemplateMissingImagesPanel from '../../components/platform/TemplateMissingImagesPanel'
 import { useToastContext } from '../../contexts/ToastContext'
+import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { formatUserError } from '../../utils/apiError'
+import { toastQueuedOperation } from '../../utils/platformTaskToast'
 import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 
 const CATEGORIES = ['All', 'Linux', 'Windows', 'Database', 'Appliance'] as const
@@ -52,6 +56,7 @@ function templateIcon(t: PlatformTemplate) {
 
 export default function PlatformTemplates() {
   const toast = useToastContext()
+  const [tier] = usePlatformDesktopTier()
   const [tab, setTab] = usePlatformTabState<TabId>(MARKETPLACE_TABS.map((t) => t.id), { defaultTab: 'templates' })
   const [rows, setRows] = useState<PlatformTemplate[]>([])
   const [plugins, setPlugins] = useState<MarketplacePlugin[]>([])
@@ -84,6 +89,7 @@ export default function PlatformTemplates() {
   const [deploying, setDeploying] = useState(false)
   const [readiness, setReadiness] = useState<TemplateReadiness | null>(null)
   const [readinessLoading, setReadinessLoading] = useState(false)
+  const [missingImages, setMissingImages] = useState<Awaited<ReturnType<typeof listMissingTemplateImages>> | null>(null)
 
   const loadReadiness = useCallback(async (t: PlatformTemplate) => {
     setReadinessLoading(true)
@@ -121,6 +127,8 @@ export default function PlatformTemplates() {
         if (r.inserted > 0) toast.success(`Loaded ${r.templates.length} default templates`)
       }
       setRows(list)
+      const missing = await listMissingTemplateImages().catch(() => null)
+      setMissingImages(missing)
     } catch (e: unknown) {
       setError(formatUserError(e))
     } finally {
@@ -175,7 +183,7 @@ export default function PlatformTemplates() {
   const deploy = async (t: PlatformTemplate, vmName: string) => {
     setDeploying(true)
     try {
-      await createFromTemplate({
+      const r = await createFromTemplate({
         template_ref: `${t.name}@${t.version}`,
         name: vmName,
         template_vars: {
@@ -186,7 +194,7 @@ export default function PlatformTemplates() {
         cloud_init_password: cloudPass || undefined,
         cloud_init_ssh_pubkey: cloudKey || undefined,
       })
-      toast.success(`Deploying ${vmName} from ${t.name}`)
+      toastQueuedOperation(toast, `Deploying ${vmName} from ${t.name}`, r.task_id, tier)
       setDeploySheet(null)
     } catch (e: unknown) {
       toast.error(formatUserError(e))
@@ -286,6 +294,14 @@ export default function PlatformTemplates() {
 
       {tab === 'templates' && (
         <>
+      {missingImages && missingImages.count > 0 && (
+        <TemplateMissingImagesPanel
+          summary={missingImages.summary}
+          missing={missingImages.missing}
+          autoFetchCount={missingImages.auto_fetch_count}
+          onPrefetchQueued={() => void load(false)}
+        />
+      )}
       {loading && rows.length === 0 && <PageSkeleton />}
 
       {!loading && rows.length === 0 && (
@@ -542,11 +558,21 @@ function MarketplaceCard({
             {needsImage && (
               <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-white/[0.06]">Catalog</span>
             )}
+            {t.auto_fetch && (
+              <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 inline-flex items-center gap-0.5">
+                <Download className="w-2.5 h-2.5" /> Auto-fetch
+              </span>
+            )}
+            {needsImage && t.auto_fetch === false && (
+              <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-200/90 border border-amber-500/20">Manual upload</span>
+            )}
           </div>
           <p className="text-xs text-slate-500">{t.category ?? 'Linux'} · v{t.version}{t.workload ? ` · ${t.workload}` : ''}</p>
         </div>
       </div>
-      <p className="text-xs text-slate-400 mt-3 flex-1 leading-relaxed line-clamp-3">{t.description || 'Ready-to-deploy golden image.'}</p>
+      <p className="text-xs text-slate-400 mt-3 flex-1 leading-relaxed line-clamp-3">
+        {t.description || (t.auto_fetch ? 'Downloads on first deploy when missing on the host.' : 'Upload the golden image to the host path before deploy.')}
+      </p>
       {t.firewall_profile && (
         <p className="text-[10px] text-blue-300/90 mt-2">Zeus Firewall: {t.firewall_profile}</p>
       )}

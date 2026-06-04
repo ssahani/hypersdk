@@ -55,6 +55,7 @@ async fn process_one(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> 
         "vm.backup.restore" => vm_backup_restore(state, msg).await?,
         "vm.disk.attach" => vm_disk_attach(state, msg).await?,
         "vm.guest_tools.install" => vm_guest_tools_install(state, msg).await?,
+        "templates.prefetch_missing" => templates_prefetch_missing(state, msg).await?,
         other => anyhow::bail!("unknown operation: {other}"),
     }
     if let Some(vm_id) = vm_id_from_payload(msg) {
@@ -1085,6 +1086,74 @@ async fn vm_backup_restore(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
         anyhow::bail!("restore failed: {}", resp.message);
     }
     update_task_progress(&state.pool, msg.task_id, 100, "backup restored").await?;
+    Ok(())
+}
+
+async fn templates_prefetch_missing(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
+    let host_id: Uuid = if let Some(s) = msg.payload["host_id"].as_str() {
+        Uuid::parse_str(s)?
+    } else {
+        sqlx::query_scalar("SELECT id FROM hosts WHERE state = 'online' ORDER BY hostname LIMIT 1")
+            .fetch_optional(&state.pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("no online hosts"))?
+    };
+    update_task_progress(
+        &state.pool,
+        msg.task_id,
+        5,
+        "Listing missing marketplace golden images",
+    )
+    .await?;
+    let missing =
+        crate::engine::template_readiness::list_missing_marketplace_images(&state.pool).await?;
+    let targets: Vec<_> = missing.into_iter().filter(|m| m.auto_fetch).collect();
+    if targets.is_empty() {
+        update_task_progress(&state.pool, msg.task_id, 100, "All auto-fetch images present").await?;
+        return Ok(());
+    }
+    let total = targets.len();
+    let mut errors = Vec::new();
+    for (i, item) in targets.iter().enumerate() {
+        let pct = 10 + ((i + 1) * 85 / total) as i16;
+        update_task_progress(
+            &state.pool,
+            msg.task_id,
+            pct,
+            &format!("Fetching {}@{}", item.name, item.version),
+        )
+        .await?;
+        if let Err(e) = crate::engine::template_image_fetch::ensure_template_disk(
+            &state.pool,
+            host_id,
+            &item.source_disk,
+            &item.name,
+            &item.version,
+        )
+        .await
+        {
+            errors.push(format!("{}@{}: {e:#}", item.name, item.version));
+        }
+    }
+    if !errors.is_empty() {
+        anyhow::bail!(
+            "{} of {} download(s) failed: {}",
+            errors.len(),
+            total,
+            errors.join("; ")
+        );
+    }
+    update_task_progress(
+        &state.pool,
+        msg.task_id,
+        100,
+        &format!("Downloaded {total} golden image(s)"),
+    )
+    .await?;
+    state.emit_event(
+        "templates.prefetch",
+        format!("Prefetched {total} marketplace golden image(s)"),
+    );
     Ok(())
 }
 

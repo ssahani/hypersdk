@@ -129,7 +129,8 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 - **Storage / Networks:** `StoragePoolWizard`, `NetworkCreateWizard` (discover CTA when empty); empty-state CTAs open wizards
 - **Onboarding:** `PlatformWelcome` “Create your first VM” opens unified wizard; Hosts empty state opens `HostEnrollWizard`
 - **E2E:** `platform-wizard-ux.spec.ts` — readiness block, storage/network wizard smoke
-- **Golden images:** Catalog `download_url` + `template_image_fetch` SSH pull on first `vm.apply`; readiness `auto_fetch` allows Create VM; `GET /templates/missing-images` + Zeus Spotlight / Fleet insights panel
+- **Golden images:** Catalog `download_url` + `template_image_fetch` SSH pull on first `vm.apply`; readiness `auto_fetch` allows Create VM; `GET /templates/missing-images` + `POST /templates/prefetch-missing` bulk download; Fleet insights + Templates prefetch CTA; task toast **View task** link; marketplace `auto_fetch` badge + manual-upload copy
+- **SSH for auto-fetch:** Controller uses stored host credentials to run `curl -fL` or `wget` on the hypervisor into `source_disk` (typically `/var/lib/libvirt/images/`). Host must be **online**, SSH reachable from the controller, and have outbound HTTPS to the catalog URL (redirects followed).
 
 ### Batch 82 deliverables (PacketWolf network canvas depth)
 

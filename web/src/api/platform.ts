@@ -192,6 +192,8 @@ export interface PlatformTemplate {
   git_ref?: string
   daemon_json_path?: string
   project?: string
+  /** Present on marketplace list — golden image can be SSH-pulled on first deploy. */
+  auto_fetch?: boolean
 }
 
 export interface PlatformConsoleInfo {
@@ -1328,6 +1330,13 @@ export const listMissingTemplateImages = () =>
     auto_fetch_count: number
     summary: string
   }>('/api/v1/templates/missing-images')
+
+export const prefetchMissingTemplateImages = (body: { host_id?: string } = {}) =>
+  platformFetch<{ task_id: string }>('/api/v1/templates/prefetch-missing', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
 export const getPlatformHealth = () => platformFetch<{ status: string; leader?: boolean; controller_id?: string }>('/api/v1/health')
 
 export type VmPowerAction = 'start' | 'stop' | 'reboot' | 'shutdown' | 'pause' | 'resume'

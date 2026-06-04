@@ -1,25 +1,63 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
+import { useState } from 'react'
 import { Link } from 'react-router'
-import { Download, HardDrive } from 'lucide-react'
+import { Download, HardDrive, Loader2 } from 'lucide-react'
 import type { MissingTemplateImage } from '../../api/platform'
+import { prefetchMissingTemplateImages } from '../../api/platform'
+import { useToastContext } from '../../contexts/ToastContext'
+import { formatUserError } from '../../utils/apiError'
+import { toastQueuedOperation } from '../../utils/platformTaskToast'
+import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { hubLinkClasses } from '../../utils/semanticColors'
 
 type Props = {
   summary: string
   missing: MissingTemplateImage[]
+  autoFetchCount?: number
+  onPrefetchQueued?: () => void
 }
 
-export default function TemplateMissingImagesPanel({ summary, missing }: Props) {
+export default function TemplateMissingImagesPanel({
+  summary,
+  missing,
+  autoFetchCount,
+  onPrefetchQueued,
+}: Props) {
+  const toast = useToastContext()
+  const [tier] = usePlatformDesktopTier()
+  const [busy, setBusy] = useState(false)
   if (missing.length === 0) return null
+
+  const fetchable = autoFetchCount ?? missing.filter((m) => m.auto_fetch).length
+  const manualCount = missing.length - fetchable
+
+  const prefetchAll = async () => {
+    setBusy(true)
+    try {
+      const r = await prefetchMissingTemplateImages()
+      if (!r?.task_id) throw new Error('Prefetch did not return a task id')
+      toastQueuedOperation(toast, 'Downloading missing golden images', r.task_id, tier)
+      if (onPrefetchQueued) window.setTimeout(() => void onPrefetchQueued(), 0)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 space-y-3">
       <div className="flex items-start gap-2">
         <HardDrive className="w-4 h-4 text-amber-300 shrink-0 mt-0.5" />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-amber-100">Marketplace golden images</p>
           <p className="text-xs text-amber-200/80 mt-0.5">{summary}</p>
+          {manualCount > 0 && (
+            <p className="text-xs text-amber-200/70 mt-1">
+              {manualCount} template{manualCount === 1 ? '' : 's'} need a manual upload (Windows, databases, appliances).
+            </p>
+          )}
         </div>
       </div>
       <ul className="text-xs space-y-1.5 max-h-32 overflow-y-auto">
@@ -39,9 +77,22 @@ export default function TemplateMissingImagesPanel({ summary, missing }: Props) 
           </li>
         ))}
       </ul>
-      <Link to="/platform/templates" className={`text-xs ${hubLinkClasses()}`}>
-        Open Templates →
-      </Link>
+      <div className="flex flex-wrap items-center gap-3">
+        {fetchable > 0 && (
+          <button
+            type="button"
+            className="btn-secondary text-xs inline-flex items-center gap-1"
+            disabled={busy}
+            onClick={() => void prefetchAll()}
+          >
+            {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+            Download {fetchable} image{fetchable === 1 ? '' : 's'}
+          </button>
+        )}
+        <Link to="/platform/templates" className={`text-xs ${hubLinkClasses()}`}>
+          Open Templates →
+        </Link>
+      </div>
     </div>
   )
 }
