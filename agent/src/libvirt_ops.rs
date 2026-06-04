@@ -293,7 +293,9 @@ impl LibvirtCtx {
         }
     }
 
-    pub fn power(&self, name: &str, action: &str) -> Result<String, LibvirtError> {
+    pub fn power(&self, name: &str, action: &str, mode: Option<&str>) -> Result<String, LibvirtError> {
+        use machina_core::libvirt::domain::PowerMode;
+        let power_mode = mode.map(PowerMode::parse).unwrap_or_default();
         let dom = Domain::lookup_by_name(&self.conn, name)
             .map_err(|e| LibvirtError::NotFound(format!("VM '{name}': {e}")))?;
         let active = dom.is_active().unwrap_or(false);
@@ -310,14 +312,14 @@ impl LibvirtCtx {
             }
             "reboot" => {
                 if active {
-                    dom.reboot(0).map_err(|e| LibvirtError::Operation(e.to_string()))?;
+                    domain::reboot_vm_mode(&self.conn, name, power_mode)?;
                 } else {
                     dom.create().map_err(|e| LibvirtError::Operation(e.to_string()))?;
                 }
             }
             "shutdown" => {
                 if active {
-                    domain::shutdown_vm(&self.conn, name)?;
+                    domain::shutdown_vm_mode(&self.conn, name, power_mode)?;
                 }
             }
             "pause" => {
@@ -567,13 +569,37 @@ impl LibvirtCtx {
         let guest_ip = report
             .guest
             .as_ref()
-            .and_then(|g| g.ip_addresses.first().map(|ip| ip.address.clone()))
+            .and_then(|g| {
+                g.ip_addresses
+                    .iter()
+                    .find(|ip| ip.ip_type == "ipv4" && !ip.address.starts_with("127."))
+                    .map(|ip| ip.address.clone())
+            })
             .unwrap_or_default();
         let guest_hostname = report
             .guest
             .as_ref()
             .map(|g| g.hostname.clone())
             .unwrap_or_default();
+        let diagnostics_json = report
+            .diagnostics
+            .as_ref()
+            .and_then(|d| serde_json::to_string(d).ok())
+            .unwrap_or_default();
+        let (install_state, channel_attached, channel_connected, agent_ping, agent_version) =
+            report
+                .diagnostics
+                .as_ref()
+                .map(|d| {
+                    (
+                        d.install_state.clone(),
+                        d.channel_attached,
+                        d.channel_connected,
+                        d.agent_ping,
+                        d.agent_version.clone().unwrap_or_default(),
+                    )
+                })
+                .unwrap_or(("unknown".into(), false, false, false, String::new()));
         Ok(GuestHealthSummary {
             state: report.state,
             agent_reachable: report.agent_reachable,
@@ -582,7 +608,26 @@ impl LibvirtCtx {
             guest_ip,
             guest_hostname,
             issues: report.issues,
+            install_state,
+            channel_attached,
+            channel_connected,
+            agent_ping,
+            agent_version,
+            diagnostics_json,
         })
+    }
+
+    pub fn guest_observability(&self, name: &str) -> Result<String, LibvirtError> {
+        let info = machina_core::libvirt::guest_agent::get_guest_observability(&self.conn, name)?;
+        serde_json::to_string(&info)
+            .map_err(|e| LibvirtError::Internal(format!("serialize guest observability: {e}")))
+    }
+
+    pub fn guest_agent_action(&self, name: &str, action: &str) -> Result<String, LibvirtError> {
+        let result =
+            machina_core::libvirt::guest_agent_actions::run_guest_agent_action(&self.conn, name, action)?;
+        serde_json::to_string(&result)
+            .map_err(|e| LibvirtError::Internal(format!("serialize guest action: {e}")))
     }
 
     pub fn guest_firewall_ports(
@@ -623,6 +668,12 @@ pub struct GuestHealthSummary {
     pub guest_ip: String,
     pub guest_hostname: String,
     pub issues: Vec<String>,
+    pub install_state: String,
+    pub channel_attached: bool,
+    pub channel_connected: bool,
+    pub agent_ping: bool,
+    pub agent_version: String,
+    pub diagnostics_json: String,
 }
 
 pub fn disk_path_from_xml(xml: &str) -> Option<String> {

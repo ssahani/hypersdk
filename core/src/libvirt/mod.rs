@@ -23,6 +23,8 @@ pub mod filesystem;
 pub mod firmware;
 pub mod graphics_convert;
 pub mod guest_agent;
+pub mod guest_agent_actions;
+pub mod guest_agent_diag;
 pub mod guest_health;
 pub mod guest_input;
 pub mod host_cpu;

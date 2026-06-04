@@ -47,6 +47,7 @@ export interface VmDailyAccessStripProps {
   onRefreshGuestIp?: () => void
   onInstallGuestTools?: () => void
   guestToolsInstalling?: boolean
+  guestIpHint?: string
   helpGuideHref?: string
   disabled?: boolean
   onNotify?: (message: string) => void
@@ -71,6 +72,7 @@ export default function VmDailyAccessStrip({
   onRefreshGuestIp,
   onInstallGuestTools,
   guestToolsInstalling = false,
+  guestIpHint,
   helpGuideHref = VM_DAILY_ACCESS_GUIDE_URL,
   disabled = false,
   onNotify,
@@ -205,7 +207,12 @@ export default function VmDailyAccessStrip({
 
         {running && !ip && (
           <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-slate-300 space-y-2">
-            <p>Guest IP not available yet. DHCP and cloud-init can take a minute after boot.</p>
+            <p>
+              Guest IP not available yet. Machina reads DHCP leases, ARP, and the QEMU guest agent.
+              If the agent channel is attached but IP stays empty, open <strong className="text-slate-200">VNC</strong>, confirm the VM has DHCP on its NIC, then install{' '}
+              <code className="text-slate-300">qemu-guest-agent</code> and reboot.
+            </p>
+            {guestIpHint && <p className="text-amber-200/90">{guestIpHint}</p>}
             <div className="flex flex-wrap gap-2">
               {onRefreshGuestIp && (
                 <button type="button" className="btn-secondary text-xs" onClick={onRefreshGuestIp}>

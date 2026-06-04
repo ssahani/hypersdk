@@ -105,6 +105,9 @@ pub fn materialize_cloud_init_seed_if_requested(
         ud.push_str("chpasswd:\n  expire: false\n  list: |\n");
         ud.push_str(&format!("    {}:{}\n", user, pass));
     }
+    ud.push_str("package_update: true\n");
+    ud.push_str("packages:\n  - qemu-guest-agent\n");
+    ud.push_str("runcmd:\n  - systemctl enable --now qemu-guest-agent\n");
 
     let md = format!("instance-id: {}\nlocal-hostname: {}\n", req.name, req.name);
 

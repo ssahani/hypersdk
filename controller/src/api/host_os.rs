@@ -58,11 +58,51 @@ pub async fn vm_guest_health(
         .map_err(|e| ApiError::internal(e.to_string()))
 }
 
+pub async fn vm_guest_observability(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    host_os::vm_guest_observability(&state.pool, &state.config, id)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
 pub async fn vm_guest_services(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<host_os::VmGuestServicesReport>, ApiError> {
     host_os::vm_guest_services(&state.pool, &state.config, id)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn vm_guest_sync_time(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    host_os::vm_guest_agent_action(&state.pool, &state.config, id, "sync_time")
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn vm_guest_fstrim(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    host_os::vm_guest_agent_action(&state.pool, &state.config, id, "fstrim")
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn vm_guest_fs_freeze_status(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    host_os::vm_guest_agent_action(&state.pool, &state.config, id, "fs_freeze_status")
         .await
         .map(Json)
         .map_err(|e| ApiError::internal(e.to_string()))

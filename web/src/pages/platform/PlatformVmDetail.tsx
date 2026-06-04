@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'reac
 import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield, ExternalLink, Monitor, Pause, Power } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
 import GuestToolsStrip from '../../components/platform/GuestToolsStrip'
+import GuestAgentDiagnosticsPanel, { GuestAgentHeaderPill } from '../../components/platform/GuestAgentDiagnosticsPanel'
 import MachinaVmOutageRca from '../../components/ai/MachinaVmOutageRca'
 import MachinaExplainObjectPanel from '../../components/ai/MachinaExplainObjectPanel'
 import MachinaVmTroubleshootPanel from '../../components/ai/MachinaVmTroubleshootPanel'
@@ -145,6 +146,7 @@ export default function PlatformVmDetail() {
   const [guestPortsLoading, setGuestPortsLoading] = useState(false)
   const [guestHealth, setGuestHealth] = useState<VmGuestHealthReport | null>(null)
   const [guestHealthLoading, setGuestHealthLoading] = useState(false)
+  const [guestHealthRefreshedAt, setGuestHealthRefreshedAt] = useState<Date | null>(null)
   const [guestServices, setGuestServices] = useState<VmGuestServicesReport | null>(null)
   const [topology, setTopology] = useState<TopologyGraph | null>(null)
   const [guestServicesLoading, setGuestServicesLoading] = useState(false)
@@ -244,6 +246,7 @@ export default function PlatformVmDetail() {
     setGuestHealthLoading(true)
     try {
       setGuestHealth(await getVmGuestHealth(id))
+      setGuestHealthRefreshedAt(new Date())
     } catch {
       setGuestHealth(null)
     } finally {
@@ -298,7 +301,14 @@ export default function PlatformVmDetail() {
     try { await fn(); toast.success(label); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
   }
 
-  const hostName = hosts.find((h) => h.id === vm?.host_id)?.hostname
+  const hostRow = hosts.find((h) => h.id === vm?.host_id)
+  const hostName = hostRow?.hostname
+  const hostLabel =
+    hostRow && (hostRow.hostname === 'localhost' || hostRow.hostname === '127.0.0.1')
+      ? hostRow.address && hostRow.address !== '127.0.0.1'
+        ? hostRow.address
+        : `${hostRow.hostname} — update host enrollment`
+      : hostName || 'No host'
   const stateTone = vm ? vmStateTone(vm.observed_state) : 'neutral'
   const lifecycleTone = vm?.lifecycle_phase === 'running' ? 'ok' : vm?.lifecycle_phase === 'error' ? 'error' : 'neutral'
 
@@ -350,9 +360,35 @@ export default function PlatformVmDetail() {
       )}
       {vm.observed_state === 'running' && (
         <>
-          <button type="button" className="btn-secondary text-sm" title="Graceful ACPI shutdown" onClick={() => void act('Shutdown queued', () => vmPower(id, 'shutdown'))}><Power className="w-4 h-4" /> Shutdown</button>
+          {guestHealth?.install_state === 'running' && guestHealth.agent_ping ? (
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              title="Clean shutdown via QEMU guest agent"
+              onClick={() => void act('Graceful shutdown queued', () => vmPower(id, 'shutdown', { mode: 'agent' }))}
+            >
+              <Power className="w-4 h-4" /> Graceful shutdown
+            </button>
+          ) : (
+            <button type="button" className="btn-secondary text-sm" title="ACPI shutdown" onClick={() => void act('Shutdown queued', () => vmPower(id, 'shutdown'))}>
+              <Power className="w-4 h-4" /> Shutdown
+            </button>
+          )}
           <button type="button" className="btn-secondary text-sm" onClick={() => void act('Pause queued', () => vmPower(id, 'pause'))}><Pause className="w-4 h-4" /> Pause</button>
-          <button type="button" className="btn-secondary text-sm" onClick={() => void act('Reboot queued', () => vmPower(id, 'reboot'))}><RotateCcw className="w-4 h-4" /> Reboot</button>
+          {guestHealth?.install_state === 'running' && guestHealth.agent_ping ? (
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              title="Clean reboot via QEMU guest agent"
+              onClick={() => void act('Graceful reboot queued', () => vmPower(id, 'reboot', { mode: 'agent' }))}
+            >
+              <RotateCcw className="w-4 h-4" /> Graceful reboot
+            </button>
+          ) : (
+            <button type="button" className="btn-secondary text-sm" onClick={() => void act('Reboot queued', () => vmPower(id, 'reboot'))}>
+              <RotateCcw className="w-4 h-4" /> Reboot
+            </button>
+          )}
         </>
       )}
       {(vm.observed_state === 'running' || vm.observed_state === 'paused') && (
@@ -380,7 +416,7 @@ export default function PlatformVmDetail() {
             <span className={statusPillClasses(lifecycleTone)}>{vm.lifecycle_phase}</span>
           )}
           <span className="text-slate-500">·</span>
-          <span className="text-slate-400">{hostName || 'No host'}</span>
+          <span className="text-slate-400" title={hostRow?.address ?? undefined}>{hostLabel}</span>
           <span className="text-slate-500">·</span>
           <span className="text-slate-400">{vm.vcpus} vCPU · {Math.round(vm.memory_mib / 1024)} GiB</span>
           {guestIp && (
@@ -389,6 +425,7 @@ export default function PlatformVmDetail() {
               <span className="font-mono text-emerald-300/90">{guestIp}</span>
             </>
           )}
+          <GuestAgentHeaderPill report={guestHealth} />
           {vm.ha_enabled && <span className={statusPillClasses('info')}>HA</span>}
         </span>
       ) : undefined}
@@ -502,6 +539,7 @@ export default function PlatformVmDetail() {
               specJson={specJson}
               platformVmId={id}
               guestIpWaiting={vm.observed_state === 'running' && !guestIp}
+              guestIpHint={guestHealth?.issues?.[0]}
               onRefreshGuestIp={() => void loadGuestHealth()}
               onInstallGuestTools={
                 vm.observed_state === 'running'
@@ -653,29 +691,26 @@ export default function PlatformVmDetail() {
 
           {tab === 'guestHealth' && (
             <div className="space-y-4 pt-2">
-              <MacGlassPanel title="Guest OS health" subtitle="QEMU guest agent · in-VM health signals">
-                {guestHealthLoading && <p className="text-sm text-slate-500">Loading…</p>}
-                {!guestHealthLoading && guestHealth && (
-                  <>
-                    <p className="text-xs text-slate-500 mb-3">{guestHealth.summary}</p>
-                    <div className="grid gap-2 text-sm md:grid-cols-2 mb-3">
-                      <div>OS: {guestHealth.os_pretty_name || '—'}</div>
-                      <div>IP: {guestHealth.guest_ip || '—'}</div>
-                      <div>Hostname: {guestHealth.guest_hostname || '—'}</div>
-                      <div className={statusToneClass(guestHealth.healthy ? 'ok' : 'warn')}>
-                        {guestHealth.healthy ? 'Healthy' : 'Needs attention'}
-                      </div>
-                    </div>
-                    {guestHealth.issues.length > 0 && (
-                      <ul className={`text-sm space-y-1 ${statusToneClass('warn')}`}>
-                        {guestHealth.issues.map((issue) => (
-                          <li key={issue}>• {issue}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </>
-                )}
-                <button type="button" className="btn-secondary text-xs mt-3" onClick={() => void loadGuestHealth()}>Refresh</button>
+              <MacGlassPanel title="Guest OS health" subtitle="Install test · ping · filesystems · cloud-init">
+                <GuestAgentDiagnosticsPanel
+                  vmId={id!}
+                  loading={guestHealthLoading}
+                  report={guestHealth}
+                  lastRefreshedAt={guestHealthRefreshedAt}
+                  onRefresh={() => void loadGuestHealth()}
+                  onInstall={
+                    vm.observed_state === 'running'
+                      ? () => {
+                          setGuestInstalling(true)
+                          void installGuestTools(id)
+                            .then(() => { toast.success('Channel attach queued — install qemu-guest-agent in guest, then re-test'); return loadGuestHealth() })
+                            .catch((e: unknown) => toast.error(formatUserError(e)))
+                            .finally(() => setGuestInstalling(false))
+                        }
+                      : undefined
+                  }
+                  installing={guestInstalling}
+                />
                 <OsDiagnosePanel
                   resourceId={id!}
                   resourceKind="vm"

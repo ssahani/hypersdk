@@ -80,14 +80,35 @@ pub async fn vm_power(
     client: &mut HostAgentClient<Channel>,
     vm_name: &str,
     action: &str,
+    mode: Option<&str>,
 ) -> anyhow::Result<VmPowerResponse> {
     Ok(client
         .vm_power(VmPowerRequest {
             vm_name: vm_name.to_string(),
             action: action.to_string(),
+            mode: mode.unwrap_or("").to_string(),
         })
         .await?
         .into_inner())
+}
+
+pub async fn guest_agent_action(
+    client: &mut HostAgentClient<Channel>,
+    vm_name: &str,
+    action: &str,
+) -> anyhow::Result<serde_json::Value> {
+    let resp = client
+        .guest_agent_action(GuestAgentActionRequest {
+            vm_name: vm_name.to_string(),
+            action: action.to_string(),
+        })
+        .await?
+        .into_inner();
+    if !resp.ok {
+        anyhow::bail!("{}", resp.message);
+    }
+    serde_json::from_str(&resp.result_json)
+        .map_err(|e| anyhow::anyhow!("guest action JSON: {e}"))
 }
 
 pub async fn get_domain_xml(
@@ -415,6 +436,12 @@ pub struct GuestHealthResult {
     pub guest_ip: String,
     pub guest_hostname: String,
     pub issues: Vec<String>,
+    pub install_state: String,
+    pub channel_attached: bool,
+    pub channel_connected: bool,
+    pub agent_ping: bool,
+    pub agent_version: String,
+    pub diagnostics_json: String,
 }
 
 pub async fn get_guest_health(
@@ -435,6 +462,12 @@ pub async fn get_guest_health(
             guest_ip: resp.guest_ip,
             guest_hostname: resp.guest_hostname,
             issues: resp.issues,
+            install_state: resp.install_state,
+            channel_attached: resp.channel_attached,
+            channel_connected: resp.channel_connected,
+            agent_ping: resp.agent_ping,
+            agent_version: resp.agent_version,
+            diagnostics_json: resp.diagnostics_json,
         })
     } else {
         Ok(GuestHealthResult {
@@ -444,8 +477,31 @@ pub async fn get_guest_health(
             guest_ip: String::new(),
             guest_hostname: String::new(),
             issues: resp.issues,
+            install_state: resp.install_state,
+            channel_attached: resp.channel_attached,
+            channel_connected: resp.channel_connected,
+            agent_ping: resp.agent_ping,
+            agent_version: resp.agent_version,
+            diagnostics_json: resp.diagnostics_json,
         })
     }
+}
+
+pub async fn get_guest_observability(
+    client: &mut HostAgentClient<Channel>,
+    vm_name: &str,
+) -> anyhow::Result<serde_json::Value> {
+    let resp = client
+        .get_guest_observability(GetGuestObservabilityRequest {
+            vm_name: vm_name.to_string(),
+        })
+        .await?
+        .into_inner();
+    if !resp.ok {
+        anyhow::bail!("{}", resp.message);
+    }
+    let v: serde_json::Value = serde_json::from_str(&resp.guest_json).unwrap_or(serde_json::json!({}));
+    Ok(v)
 }
 
 pub async fn install_guest_tools(

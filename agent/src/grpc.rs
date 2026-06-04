@@ -193,9 +193,14 @@ impl HostAgent for AgentService {
         let libvirt = self.libvirt.clone();
         let vm_name = req.vm_name.clone();
         let action = req.action.clone();
+        let power_mode = if req.mode.is_empty() {
+            None
+        } else {
+            Some(req.mode)
+        };
         let state = tokio::task::spawn_blocking(move || {
             let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
-            ctx.power(&vm_name, &action)
+            ctx.power(&vm_name, &action, power_mode.as_deref())
         })
         .await
         .map_err(|e| Status::internal(e.to_string()))?
@@ -716,6 +721,12 @@ impl HostAgent for AgentService {
                 guest_ip: summary.guest_ip,
                 guest_hostname: summary.guest_hostname,
                 issues: summary.issues,
+                install_state: summary.install_state,
+                channel_attached: summary.channel_attached,
+                channel_connected: summary.channel_connected,
+                agent_ping: summary.agent_ping,
+                agent_version: summary.agent_version,
+                diagnostics_json: summary.diagnostics_json,
             })),
             Ok(Err(e)) => Ok(Response::new(GetGuestHealthResponse {
                 ok: false,
@@ -726,6 +737,67 @@ impl HostAgent for AgentService {
                 guest_ip: String::new(),
                 guest_hostname: String::new(),
                 issues: vec![e.to_string()],
+                install_state: "unknown".into(),
+                channel_attached: false,
+                channel_connected: false,
+                agent_ping: false,
+                agent_version: String::new(),
+                diagnostics_json: String::new(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn get_guest_observability(
+        &self,
+        request: Request<GetGuestObservabilityRequest>,
+    ) -> Result<Response<GetGuestObservabilityResponse>, Status> {
+        let req = request.into_inner();
+        let libvirt = self.libvirt.clone();
+        let vm_name = req.vm_name.clone();
+        match tokio::task::spawn_blocking(move || {
+            let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
+            ctx.guest_observability(&vm_name)
+        })
+        .await
+        {
+            Ok(Ok(json)) => Ok(Response::new(GetGuestObservabilityResponse {
+                ok: true,
+                guest_json: json,
+                message: String::new(),
+            })),
+            Ok(Err(e)) => Ok(Response::new(GetGuestObservabilityResponse {
+                ok: false,
+                guest_json: String::new(),
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn guest_agent_action(
+        &self,
+        request: Request<GuestAgentActionRequest>,
+    ) -> Result<Response<GuestAgentActionResponse>, Status> {
+        let req = request.into_inner();
+        let libvirt = self.libvirt.clone();
+        let vm_name = req.vm_name.clone();
+        let action = req.action.clone();
+        match tokio::task::spawn_blocking(move || {
+            let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
+            ctx.guest_agent_action(&vm_name, &action)
+        })
+        .await
+        {
+            Ok(Ok(json)) => Ok(Response::new(GuestAgentActionResponse {
+                ok: true,
+                result_json: json,
+                message: String::new(),
+            })),
+            Ok(Err(e)) => Ok(Response::new(GuestAgentActionResponse {
+                ok: false,
+                result_json: String::new(),
+                message: e.to_string(),
             })),
             Err(e) => Err(Status::internal(e.to_string())),
         }

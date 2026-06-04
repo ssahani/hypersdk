@@ -29,6 +29,8 @@ service HostAgent {
   rpc ProvisionNetwork(ProvisionNetworkRequest) returns (ProvisionNetworkResponse);
   rpc AttachDisk(AttachDiskRequest) returns (AttachDiskResponse);
   rpc GetGuestHealth(GetGuestHealthRequest) returns (GetGuestHealthResponse);
+  rpc GetGuestObservability(GetGuestObservabilityRequest) returns (GetGuestObservabilityResponse);
+  rpc GuestAgentAction(GuestAgentActionRequest) returns (GuestAgentActionResponse);
   rpc InstallGuestTools(InstallGuestToolsRequest) returns (InstallGuestToolsResponse);
   rpc GetFirewallInventory(GetFirewallInventoryRequest) returns (GetFirewallInventoryResponse);
   rpc ApplyFirewallPlan(ApplyFirewallPlanRequest) returns (ApplyFirewallPlanResponse);
@@ -140,6 +142,8 @@ message ApplyVmResponse {
 message VmPowerRequest {
   string vm_name = 1;
   string action = 2;
+  /// Optional: "agent" for guest-agent shutdown/reboot (virsh --mode=agent).
+  string mode = 3;
 }
 
 message VmPowerResponse {
@@ -384,6 +388,34 @@ message GetGuestHealthResponse {
   string guest_ip = 6;
   string guest_hostname = 7;
   repeated string issues = 8;
+  string install_state = 9;
+  bool channel_attached = 10;
+  bool channel_connected = 11;
+  bool agent_ping = 12;
+  string agent_version = 13;
+  string diagnostics_json = 14;
+}
+
+message GetGuestObservabilityRequest {
+  string vm_name = 1;
+}
+
+message GetGuestObservabilityResponse {
+  bool ok = 1;
+  string guest_json = 2;
+  string message = 3;
+}
+
+message GuestAgentActionRequest {
+  string vm_name = 1;
+  /// sync_time | fstrim | fs_freeze_status
+  string action = 2;
+}
+
+message GuestAgentActionResponse {
+  bool ok = 1;
+  string result_json = 2;
+  string message = 3;
 }
 
 message InstallGuestToolsRequest {

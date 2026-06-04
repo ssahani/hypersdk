@@ -610,6 +610,13 @@ export const getHostNetworkDiag = (hostId: string) =>
 export const getHostLinuxAudit = (hostId: string) =>
   platformFetch<HostLinuxAuditReport>(`/api/v1/hosts/${hostId}/linux/audit`)
 
+export type GuestAgentCheckRow = {
+  id: string
+  label: string
+  passed: boolean
+  detail: string
+}
+
 export type VmGuestHealthReport = {
   vm_id: string
   vm_name: string
@@ -620,7 +627,48 @@ export type VmGuestHealthReport = {
   guest_hostname: string
   issues: string[]
   summary: string
+  install_state: 'none' | 'channel_only' | 'running' | string
+  channel_attached: boolean
+  channel_connected: boolean
+  agent_ping: boolean
+  agent_version?: string
+  checks: GuestAgentCheckRow[]
+  guest_observability?: GuestObservabilitySnapshot
 }
+
+export type GuestObservabilitySnapshot = {
+  hostname?: string
+  os_pretty_name?: string
+  os_kernel?: string
+  os_arch?: string
+  ip_addresses?: Array<{ name: string; address: string; source?: string; ip_type?: string; mac?: string }>
+  filesystems?: Array<{ mountpoint: string; fs_type: string; used_bytes: number; total_bytes: number }>
+  cloud_init_status?: string
+  users?: Array<{ username: string; login_time?: string; host?: string }>
+  time?: { guest_time_rfc3339: string; host_time_rfc3339: string; delta_ms: number }
+  fs_freeze?: { frozen: boolean; detail: string }
+}
+
+export type GuestAgentActionResult = {
+  action: string
+  ok: boolean
+  message: string
+  time?: GuestObservabilitySnapshot['time']
+  fs_freeze?: GuestObservabilitySnapshot['fs_freeze']
+  fstrim?: Array<{ mountpoint: string; trimmed_bytes: number; error: string }>
+}
+
+export const guestSyncTime = (vmId: string) =>
+  platformFetch<GuestAgentActionResult>(`/api/v1/vms/${vmId}/guest/sync-time`, { method: 'POST' })
+
+export const guestFstrim = (vmId: string) =>
+  platformFetch<GuestAgentActionResult>(`/api/v1/vms/${vmId}/guest/fstrim`, { method: 'POST' })
+
+export const getGuestFsFreezeStatus = (vmId: string) =>
+  platformFetch<GuestAgentActionResult>(`/api/v1/vms/${vmId}/guest/fs-freeze-status`)
+
+export const getVmGuestObservability = (vmId: string) =>
+  platformFetch<Record<string, unknown>>(`/api/v1/vms/${vmId}/guest/observability`)
 
 export type VmGuestServicesReport = {
   vm_id: string
@@ -1341,8 +1389,11 @@ export const getPlatformHealth = () => platformFetch<{ status: string; leader?: 
 
 export type VmPowerAction = 'start' | 'stop' | 'reboot' | 'shutdown' | 'pause' | 'resume'
 
-export const vmPower = (id: string, action: VmPowerAction) =>
-  platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/${action}`, { method: 'POST' })
+export const vmPower = (id: string, action: VmPowerAction, opts?: { mode?: 'agent' }) =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/${action}`, {
+    method: 'POST',
+    ...(opts?.mode ? { body: JSON.stringify({ mode: opts.mode }) } : {}),
+  })
 
 export const getVmDomainXml = (vmId: string) =>
   platformFetch<{ xml: string }>(`/api/v1/vms/${vmId}/domain-xml`)

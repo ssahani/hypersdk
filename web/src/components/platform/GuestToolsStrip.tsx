@@ -70,7 +70,8 @@ export default function GuestToolsStrip({
         <div className="min-w-0">
           <p className="font-medium text-sm text-slate-100">Install Zyvor Guest Tools</p>
           <p className="text-xs text-slate-400 mt-0.5">
-            Enables graceful shutdown, guest IP in inventory, app-consistent backups, and in-VM health checks.
+            Machina attaches the virtio channel from the hypervisor; you still need <code className="text-slate-300">qemu-guest-agent</code> running inside the guest (via VNC:{' '}
+            <span className="font-mono text-slate-300">apt install qemu-guest-agent</span>).
           </p>
           {(guestIp || guestHostname) && (
             <p className="text-xs text-slate-500 mt-1">

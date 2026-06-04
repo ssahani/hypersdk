@@ -24,9 +24,19 @@ pub struct GuestInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub os_pretty_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub os_kernel: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub os_arch: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cloud_init_status: Option<String>,
     pub ip_addresses: Vec<GuestIpAddress>,
     pub filesystems: Vec<GuestFilesystem>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub users: Vec<super::guest_agent_actions::GuestUserSession>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub time: Option<super::guest_agent_actions::GuestTimeInfo>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fs_freeze: Option<super::guest_agent_actions::FsFreezeStatus>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -265,26 +275,50 @@ fn guest_fsinfo_via_agent(_vm_name: &str) -> Result<Vec<GuestFilesystem>, Libvir
 /// Combined guest agent snapshot for observability APIs.
 pub fn get_guest_observability(conn: &Connect, name: &str) -> Result<GuestInfo, LibvirtError> {
     let hostname = get_guest_hostname(conn, name).unwrap_or_default();
-    let ip_addresses = get_guest_interfaces(conn, name).unwrap_or_default();
+    let mut ip_addresses = get_guest_interfaces(conn, name).unwrap_or_default();
+    if let Ok(leases) = super::extras::list_dhcp_leases(conn) {
+        ip_addresses = enrich_with_dhcp_leases(ip_addresses, &leases);
+    }
     let filesystems = get_guest_filesystems(conn, name).unwrap_or_default();
-    let (os_type, os_version, os_pretty_name) = probe_guest_osinfo(name);
+    let (os_type, os_version, os_pretty_name, os_kernel, os_arch) = probe_guest_osinfo(name);
     let cloud_init_status = probe_cloud_init_status(name);
+    let agent_live = agent_ping_ok(name);
+    let users = if agent_live {
+        super::guest_agent_actions::get_guest_users(name)
+    } else {
+        Vec::new()
+    };
+    let time = if agent_live {
+        super::guest_agent_actions::get_guest_time_info(conn, name).ok()
+    } else {
+        None
+    };
+    let fs_freeze = if agent_live {
+        Some(super::guest_agent_actions::get_fs_freeze_status(name))
+    } else {
+        None
+    };
     Ok(GuestInfo {
         hostname,
         os_type,
         os_version,
         os_pretty_name,
+        os_kernel,
+        os_arch,
         cloud_init_status,
         ip_addresses,
         filesystems,
+        users,
+        time,
+        fs_freeze,
     })
 }
 
-pub fn probe_guest_osinfo(vm_name: &str) -> (String, String, Option<String>) {
+pub fn probe_guest_osinfo(vm_name: &str) -> (String, String, Option<String>, Option<String>, Option<String>) {
     #[cfg(not(target_os = "linux"))]
     {
         let _ = vm_name;
-        return (String::new(), String::new(), None);
+        return (String::new(), String::new(), None, None, None);
     }
     #[cfg(target_os = "linux")]
     {
@@ -292,7 +326,7 @@ pub fn probe_guest_osinfo(vm_name: &str) -> (String, String, Option<String>) {
             vm_name,
             r#"{"execute":"guest-get-osinfo","arguments":{}}"#,
         ) else {
-            return (String::new(), String::new(), None);
+            return (String::new(), String::new(), None, None, None);
         };
         let ret = v.get("return").unwrap_or(&v);
         let id = ret
@@ -310,7 +344,17 @@ pub fn probe_guest_osinfo(vm_name: &str) -> (String, String, Option<String>) {
             .or_else(|| ret.get("pretty_name"))
             .and_then(|x| x.as_str())
             .map(|s| s.to_string());
-        (id, name, pretty)
+        let kernel = ret
+            .get("kernel-release")
+            .or_else(|| ret.get("kernel_release"))
+            .and_then(|x| x.as_str())
+            .map(|s| s.to_string());
+        let arch = ret
+            .get("machine")
+            .or_else(|| ret.get("arch"))
+            .and_then(|x| x.as_str())
+            .map(|s| s.to_string());
+        (id, name, pretty, kernel, arch)
     }
 }
 
@@ -340,6 +384,24 @@ pub fn probe_cloud_init_status(vm_name: &str) -> Option<String> {
         let text = String::from_utf8_lossy(&decoded);
         Some(text.lines().next().unwrap_or("").chars().take(200).collect())
     }
+}
+
+#[cfg(target_os = "linux")]
+fn agent_ping_ok(vm_name: &str) -> bool {
+    qemu_agent_command(vm_name, r#"{"execute":"guest-ping"}"#)
+        .and_then(|v| v.get("return").cloned())
+        .is_some()
+}
+
+#[cfg(not(target_os = "linux"))]
+fn agent_ping_ok(_vm_name: &str) -> bool {
+    false
+}
+
+/// Run a single QEMU guest-agent JSON command via virsh (Linux hypervisors only).
+#[cfg(target_os = "linux")]
+pub fn qemu_agent_command(vm_name: &str, cmd_json: &str) -> Option<serde_json::Value> {
+    qemu_agent_json(vm_name, cmd_json)
 }
 
 #[cfg(target_os = "linux")]

@@ -461,42 +461,46 @@ pub async fn start_vm(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskResponse>, ApiError> {
-    power_action(&state, id, "start", "vm.start").await
+    power_action(&state, id, "start", "vm.start", None).await
 }
 
 pub async fn stop_vm(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskResponse>, ApiError> {
-    power_action(&state, id, "stop", "vm.stop").await
+    power_action(&state, id, "stop", "vm.stop", None).await
 }
 
 pub async fn reboot_vm(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
+    body: Option<Json<VmPowerBody>>,
 ) -> Result<Json<TaskResponse>, ApiError> {
-    power_action(&state, id, "reboot", "vm.reboot").await
+    let mode = body.map(|b| b.0.mode).flatten();
+    power_action(&state, id, "reboot", "vm.reboot", mode).await
 }
 
 pub async fn shutdown_vm(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
+    body: Option<Json<VmPowerBody>>,
 ) -> Result<Json<TaskResponse>, ApiError> {
-    power_action(&state, id, "shutdown", "vm.shutdown").await
+    let mode = body.map(|b| b.0.mode).flatten();
+    power_action(&state, id, "shutdown", "vm.shutdown", mode).await
 }
 
 pub async fn pause_vm(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskResponse>, ApiError> {
-    power_action(&state, id, "pause", "vm.pause").await
+    power_action(&state, id, "pause", "vm.pause", None).await
 }
 
 pub async fn resume_vm(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskResponse>, ApiError> {
-    power_action(&state, id, "resume", "vm.resume").await
+    power_action(&state, id, "resume", "vm.resume", None).await
 }
 
 pub async fn get_vm_domain_xml(
@@ -598,11 +602,18 @@ pub async fn install_guest_tools(
     }))
 }
 
+#[derive(Debug, Deserialize, Default)]
+pub struct VmPowerBody {
+    #[serde(default)]
+    pub mode: Option<String>,
+}
+
 async fn power_action(
     state: &AppState,
     vm_id: Uuid,
     action: &str,
     operation: &str,
+    mode: Option<String>,
 ) -> Result<Json<TaskResponse>, ApiError> {
     let meta: (Option<Uuid>, String, String, String) = sqlx::query_as(
         "SELECT host_id, COALESCE(inventory_source, 'libvirt'), observed_state, COALESCE(lifecycle_phase, 'idle') FROM vms WHERE id = $1",
@@ -629,13 +640,17 @@ async fn power_action(
         .0
         .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
 
+    let mut payload = serde_json::json!({
+        "vm_id": vm_id.to_string(),
+        "action": action,
+    });
+    if let Some(m) = mode.filter(|s| !s.trim().is_empty()) {
+        payload["mode"] = serde_json::Value::String(m);
+    }
     let task_id = enqueue_task(
         state,
         "vm.power",
-        serde_json::json!({
-            "vm_id": vm_id.to_string(),
-            "action": action,
-        }),
+        payload,
         Some("vm"),
         Some(vm_id),
         Some(host_id),

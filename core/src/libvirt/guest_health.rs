@@ -8,6 +8,7 @@ use virt::connect::Connect;
 
 use super::domain;
 use super::guest_agent::{self, GuestInfo};
+use super::guest_agent_diag::{GuestAgentDiagnostics, probe_guest_agent};
 use super::metrics;
 use crate::state::VmMetrics;
 use crate::LibvirtError;
@@ -30,6 +31,8 @@ pub struct GuestHealthReport {
     pub os_pretty_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cloud_init_status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diagnostics: Option<GuestAgentDiagnostics>,
 }
 
 pub fn gather_guest_health(conn: &Connect, name: &str) -> Result<GuestHealthReport, LibvirtError> {
@@ -38,14 +41,19 @@ pub fn gather_guest_health(conn: &Connect, name: &str) -> Result<GuestHealthRepo
     let running = state.eq_ignore_ascii_case("running");
 
     let guest = guest_agent::get_guest_observability(conn, name).ok();
-    let agent_reachable = guest
+    let diagnostics = probe_guest_agent(conn, name, guest.as_ref()).ok();
+    let agent_reachable = diagnostics
         .as_ref()
-        .map(|g| {
-            !g.hostname.is_empty()
-                || !g.ip_addresses.is_empty()
-                || !g.filesystems.is_empty()
-        })
-        .unwrap_or(false);
+        .map(|d| d.agent_ping)
+        .unwrap_or_else(|| {
+            guest.as_ref().is_some_and(|g| {
+                g.ip_addresses
+                    .iter()
+                    .any(|a| a.ip_type == "ipv4" && !a.address.starts_with("127."))
+                    || !g.filesystems.is_empty()
+                    || (!g.hostname.is_empty() && g.hostname != "localhost")
+            })
+        });
 
     let metrics = if running {
         metrics::get_vm_metrics(conn, name).ok()
@@ -56,7 +64,26 @@ pub fn gather_guest_health(conn: &Connect, name: &str) -> Result<GuestHealthRepo
 
     let mut issues = Vec::new();
     if running && !agent_reachable {
-        issues.push("qemu-guest-agent unreachable or not reporting".into());
+        let xml = domain::lookup_domain(conn, name)
+            .and_then(|d| d.get_xml_desc(0).map_err(LibvirtError::map_op("get_xml_desc")))
+            .unwrap_or_default();
+        let channel_attached = xml.contains("org.qemu.guest_agent.0");
+        let channel_disconnected = xml.contains("state='disconnected'")
+            || xml.contains("state=\"disconnected\"");
+        if channel_attached && channel_disconnected {
+            issues.push(
+                "Guest agent channel is attached but qemu-guest-agent is not running in the VM — open VNC and run: sudo apt-get install -y qemu-guest-agent && sudo systemctl enable --now qemu-guest-agent".into(),
+            );
+        } else if guest
+            .as_ref()
+            .is_some_and(|g| g.ip_addresses.is_empty())
+        {
+            issues.push(
+                "No guest IPv4 from DHCP lease, ARP, or guest agent — check the VM network (VNC) or install qemu-guest-agent".into(),
+            );
+        } else {
+            issues.push("qemu-guest-agent unreachable or not reporting".into());
+        }
     }
     if let Some(m) = &metrics {
         if m.memory_pct >= 95.0 {
@@ -103,5 +130,6 @@ pub fn gather_guest_health(conn: &Connect, name: &str) -> Result<GuestHealthRepo
         healthy,
         os_pretty_name,
         cloud_init_status,
+        diagnostics,
     })
 }

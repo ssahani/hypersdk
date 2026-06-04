@@ -110,7 +110,17 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/vms/{id}/adopt", post(vms::adopt_vm))
         .route("/api/v1/vms/{id}/health-check", post(health_check::vm_health_check))
         .route("/api/v1/vms/{id}/guest/health", get(host_os::vm_guest_health))
+        .route(
+            "/api/v1/vms/{id}/guest/observability",
+            get(host_os::vm_guest_observability),
+        )
         .route("/api/v1/vms/{id}/guest/services", get(host_os::vm_guest_services))
+        .route("/api/v1/vms/{id}/guest/sync-time", post(host_os::vm_guest_sync_time))
+        .route("/api/v1/vms/{id}/guest/fstrim", post(host_os::vm_guest_fstrim))
+        .route(
+            "/api/v1/vms/{id}/guest/fs-freeze-status",
+            get(host_os::vm_guest_fs_freeze_status),
+        )
         .route("/api/v1/vms/{id}/diagnose", post(host_os::diagnose_vm))
         .route("/api/v1/vms/{id}/doctor", get(ai::vm_doctor))
         .route("/api/v1/ai/settings", get(ai::get_settings).patch(ai::patch_settings))

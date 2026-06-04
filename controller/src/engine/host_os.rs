@@ -98,6 +98,14 @@ pub async fn linux_package_updates(
     agent_client::get_linux_package_updates(&addr).await
 }
 
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct GuestAgentCheckRow {
+    pub id: String,
+    pub label: String,
+    pub passed: bool,
+    pub detail: String,
+}
+
 #[derive(Debug, serde::Serialize)]
 pub struct VmGuestHealthReport {
     pub vm_id: String,
@@ -109,6 +117,15 @@ pub struct VmGuestHealthReport {
     pub guest_hostname: String,
     pub issues: Vec<String>,
     pub summary: String,
+    pub install_state: String,
+    pub channel_attached: bool,
+    pub channel_connected: bool,
+    pub agent_ping: bool,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub agent_version: String,
+    pub checks: Vec<GuestAgentCheckRow>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub guest_observability: Option<serde_json::Value>,
 }
 
 pub async fn vm_guest_health(
@@ -126,13 +143,47 @@ pub async fn vm_guest_health(
     let (_, addr) = resolve_agent_addr(pool, cfg, host_id).await?;
     let mut client = agent_client::connect(&addr).await?;
     let gh = agent_client::get_guest_health(&mut client, &vm_name).await?;
-    let summary = if gh.healthy {
-        format!("Guest healthy · {}", gh.os_pretty_name)
-    } else if !gh.agent_reachable {
-        "QEMU guest agent unreachable".into()
-    } else {
-        format!("{} issue(s) reported", gh.issues.len())
+    let summary = match gh.install_state.as_str() {
+        "running" if gh.healthy => format!("Guest agent running · {}", gh.os_pretty_name),
+        "running" => format!("Guest agent running · {} issue(s)", gh.issues.len()),
+        "channel_only" => "Guest agent channel attached — qemu-guest-agent not responding in VM".into(),
+        "none" => "Guest agent not configured — attach channel and install qemu-guest-agent".into(),
+        _ if !gh.agent_reachable => "QEMU guest agent unreachable".into(),
+        _ => format!("{} issue(s) reported", gh.issues.len()),
     };
+    let checks: Vec<GuestAgentCheckRow> = if gh.diagnostics_json.is_empty() {
+        Vec::new()
+    } else {
+        serde_json::from_str::<serde_json::Value>(&gh.diagnostics_json)
+            .ok()
+            .and_then(|v| v.get("checks").and_then(|c| c.as_array()).cloned())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|item| {
+                        Some(GuestAgentCheckRow {
+                            id: item.get("id")?.as_str()?.to_string(),
+                            label: item.get("label")?.as_str()?.to_string(),
+                            passed: item.get("passed")?.as_bool()?,
+                            detail: item.get("detail")?.as_str()?.to_string(),
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let guest_observability = if gh.agent_ping {
+        agent_client::get_guest_observability(&mut client, &vm_name).await.ok()
+    } else {
+        None
+    };
+    if !gh.guest_ip.is_empty() {
+        let _ = sqlx::query("UPDATE vms SET guest_ip = $1, updated_at = NOW() WHERE id = $2")
+            .bind(&gh.guest_ip)
+            .bind(vm_id)
+            .execute(pool)
+            .await;
+    }
+
     Ok(VmGuestHealthReport {
         vm_id: vm_id.to_string(),
         vm_name,
@@ -143,7 +194,47 @@ pub async fn vm_guest_health(
         guest_hostname: gh.guest_hostname,
         issues: gh.issues,
         summary,
+        install_state: gh.install_state,
+        channel_attached: gh.channel_attached,
+        channel_connected: gh.channel_connected,
+        agent_ping: gh.agent_ping,
+        agent_version: gh.agent_version,
+        checks,
+        guest_observability,
     })
+}
+
+pub async fn vm_guest_agent_action(
+    pool: &PgPool,
+    cfg: &ControllerConfig,
+    vm_id: Uuid,
+    action: &str,
+) -> anyhow::Result<serde_json::Value> {
+    let row: (String, Uuid) =
+        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+            .bind(vm_id)
+            .fetch_optional(pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("vm not found"))?;
+    let (_, addr) = resolve_agent_addr(pool, cfg, row.1).await?;
+    let mut client = agent_client::connect(&addr).await?;
+    agent_client::guest_agent_action(&mut client, &row.0, action).await
+}
+
+pub async fn vm_guest_observability(
+    pool: &PgPool,
+    cfg: &ControllerConfig,
+    vm_id: Uuid,
+) -> anyhow::Result<serde_json::Value> {
+    let row: (String, Uuid) =
+        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+            .bind(vm_id)
+            .fetch_optional(pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("vm not found"))?;
+    let (_, addr) = resolve_agent_addr(pool, cfg, row.1).await?;
+    let mut client = agent_client::connect(&addr).await?;
+    agent_client::get_guest_observability(&mut client, &row.0).await
 }
 
 #[derive(Debug, serde::Serialize)]

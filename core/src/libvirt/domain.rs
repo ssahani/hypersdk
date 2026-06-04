@@ -220,11 +220,50 @@ pub fn stop_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
 }
 
 pub fn shutdown_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
-    domain_action(conn, name, "shutdown", |d| d.shutdown().map(|_| ()))
+    shutdown_vm_mode(conn, name, PowerMode::Default)
 }
 
 pub fn reboot_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
-    domain_action(conn, name, "reboot", |d| d.reboot(0).map(|_| ()))
+    reboot_vm_mode(conn, name, PowerMode::Default)
+}
+
+/// How libvirt should ask the guest to shut down or reboot.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PowerMode {
+    #[default]
+    Default,
+    /// `virsh shutdown --mode=agent` / guest-initiated clean shutdown.
+    GuestAgent,
+}
+
+impl PowerMode {
+    pub fn parse(s: &str) -> Self {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "agent" | "guest" | "guest_agent" => Self::GuestAgent,
+            _ => Self::Default,
+        }
+    }
+}
+
+pub fn shutdown_vm_mode(conn: &Connect, name: &str, mode: PowerMode) -> Result<(), LibvirtError> {
+    domain_action(conn, name, "shutdown", |d| {
+        match mode {
+            PowerMode::Default => d.shutdown().map(|_| ()),
+            PowerMode::GuestAgent => d
+                .shutdown_flags(sys::VIR_DOMAIN_SHUTDOWN_GUEST_AGENT)
+                .map(|_| ()),
+        }
+    })
+}
+
+pub fn reboot_vm_mode(conn: &Connect, name: &str, mode: PowerMode) -> Result<(), LibvirtError> {
+    domain_action(conn, name, "reboot", |d| {
+        let flags = match mode {
+            PowerMode::Default => sys::VIR_DOMAIN_REBOOT_DEFAULT,
+            PowerMode::GuestAgent => sys::VIR_DOMAIN_REBOOT_GUEST_AGENT,
+        };
+        d.reboot(flags).map(|_| ())
+    })
 }
 
 pub fn pause_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {

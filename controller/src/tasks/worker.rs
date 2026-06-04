@@ -146,7 +146,7 @@ async fn vm_apply(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
 
     if desired_state == "running" {
         vm_lifecycle::set_vm_phase(&state.pool, vm_id, vm_lifecycle::PHASE_STARTING).await?;
-        agent_client::vm_power(&mut client, &row.0, "start").await?;
+        agent_client::vm_power(&mut client, &row.0, "start", None).await?;
         sqlx::query("UPDATE vms SET observed_state = 'running', updated_at = NOW() WHERE id = $1")
             .bind(vm_id)
             .execute(&state.pool)
@@ -169,6 +169,7 @@ async fn vm_power(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         .as_str()
         .ok_or_else(|| anyhow::anyhow!("action missing"))?
         .to_string();
+    let power_mode = msg.payload["mode"].as_str().filter(|s| !s.is_empty());
 
     let phase = match action.as_str() {
         "start" | "reboot" => vm_lifecycle::PHASE_STARTING,
@@ -185,7 +186,7 @@ async fn vm_power(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
-    let resp = agent_client::vm_power(&mut client, &row.0, &action).await?;
+    let resp = agent_client::vm_power(&mut client, &row.0, &action, power_mode).await?;
 
     let desired = match action.as_str() {
         "start" | "resume" | "reboot" => "running",
@@ -635,7 +636,7 @@ async fn ha_recover(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     .await?;
 
     if desired == "running" {
-        agent_client::vm_power(&mut client, &row.0, "start").await?;
+        agent_client::vm_power(&mut client, &row.0, "start", None).await?;
         sqlx::query("UPDATE vms SET observed_state = 'running' WHERE id = $1")
             .bind(vm_id)
             .execute(&state.pool)
@@ -1013,7 +1014,7 @@ async fn vm_snapshot_clone(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
             let use_live = live_migrate && source_running == "running";
             if use_live {
                 vm_lifecycle::set_vm_phase(&state.pool, new_id, vm_lifecycle::PHASE_STARTING).await?;
-                agent_client::vm_power(&mut client, &new_name, "start").await?;
+                agent_client::vm_power(&mut client, &new_name, "start", None).await?;
                 sqlx::query("UPDATE vms SET desired_state = 'running', observed_state = 'running' WHERE id = $1")
                     .bind(new_id)
                     .execute(&state.pool)
