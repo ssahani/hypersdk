@@ -172,7 +172,7 @@ pub fn run_guest_fstrim(vm_name: &str) -> Result<Vec<GuestFstrimResult>, Libvirt
     {
         let Some(v) = qemu_agent_command(vm_name, r#"{"execute":"guest-fstrim"}"#) else {
             return Err(LibvirtError::Operation(
-                "guest-fstrim failed — is qemu-guest-agent running?".into(),
+                "guest-fstrim failed — is guestkit-agent running?".into(),
             ));
         };
         if let Some(err) = v.get("error") {

@@ -72,17 +72,17 @@ pub fn gather_guest_health(conn: &Connect, name: &str) -> Result<GuestHealthRepo
             || xml.contains("state=\"disconnected\"");
         if channel_attached && channel_disconnected {
             issues.push(
-                "Guest tools channel attached but agent not running — install guestkit-agent or qemu-guest-agent in the VM and enable the service".into(),
+                "Guest agent channel attached but guestkit-agent is not running in the VM".into(),
             );
         } else if guest
             .as_ref()
             .is_some_and(|g| g.ip_addresses.is_empty())
         {
             issues.push(
-                "No guest IPv4 from DHCP lease, ARP, or guest agent — check the VM network (VNC) or install qemu-guest-agent".into(),
+                "No guest IPv4 from DHCP lease, ARP, or guest agent — check the VM network (VNC) or install guestkit-agent".into(),
             );
         } else {
-            issues.push("Guest tools agent unreachable (GuestKit or qemu-guest-agent)".into());
+            issues.push("Guest agent unreachable — install and start guestkit-agent".into());
         }
     }
     if let Some(m) = &metrics {

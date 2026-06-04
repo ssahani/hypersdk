@@ -236,8 +236,8 @@ fn row_from_snapshot(s: &GuestAiSnapshot, _provider: &str) -> (VmMigrationReadin
     let mut score = adv.readiness_percent as i32;
 
     if !s.agent_ping {
-        qga_gaps.push("qemu-guest-agent not responding".into());
-        remediation.push("Install qemu-guest-agent and enable virtio channel".into());
+        qga_gaps.push("guest agent not responding".into());
+        remediation.push("Install guestkit-agent and enable virtio channel (QGA-compatible)".into());
         score -= 15;
     }
     if s.install_state == "channel_only" {

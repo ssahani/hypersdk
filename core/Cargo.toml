@@ -5,7 +5,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-guestkit-agent-protocol = { path = "../../guestkit/crates/guestkit-agent-protocol" }
 libc = "0.2"
 virt = { workspace = true }
 serde = { workspace = true }

@@ -49,8 +49,8 @@ export default function GuestToolsStrip({
 
   const detail =
     guestHealth?.install_state === 'channel_only'
-      ? 'Virtio channel is attached — start qemu-guest-agent inside the guest for IP reporting and graceful shutdown.'
-      : 'Guest agent is not fully active — attach the channel and install qemu-guest-agent inside the VM.'
+      ? 'Virtio channel is attached — start guestkit-agent inside the guest (QGA-compatible).'
+      : 'Guest agent is not fully active — attach the channel and install guestkit-agent inside the VM.'
 
   if (compact) {
     return (

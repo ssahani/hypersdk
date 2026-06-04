@@ -646,16 +646,15 @@ impl LibvirtCtx {
         let xml = dom
             .get_xml_desc(0)
             .map_err(|e| LibvirtError::Operation(e.to_string()))?;
-        let flags = virt::sys::VIR_DOMAIN_AFFECT_CONFIG | virt::sys::VIR_DOMAIN_AFFECT_LIVE;
-        if !xml.contains("org.qemu.guest_agent.0") {
-            let channel = r#"<channel type='unix'>
+        if xml.contains("org.qemu.guest_agent.0") {
+            return Ok(());
+        }
+        let channel = r#"<channel type='unix'>
   <target type='virtio' name='org.qemu.guest_agent.0'/>
 </channel>"#;
-            dom.attach_device_flags(channel, flags).map_err(|e| {
-                LibvirtError::Operation(format!("attach QEMU guest-agent channel: {e}"))
-            })?;
-        }
-        machina_core::libvirt::guestkit_agent::attach_guestkit_channel(&dom)?;
+        let flags = virt::sys::VIR_DOMAIN_AFFECT_CONFIG | virt::sys::VIR_DOMAIN_AFFECT_LIVE;
+        dom.attach_device_flags(channel, flags)
+            .map_err(|e| LibvirtError::Operation(format!("attach guest agent channel: {e}")))?;
         Ok(())
     }
 }

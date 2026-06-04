@@ -126,7 +126,7 @@ fn deterministic_insights(s: &GuestAiSnapshot, focus: Option<&str>) -> Determini
             label: "Install guest tools".into(),
             action: "guest.install_tools".into(),
             risk: "low".into(),
-            rationale: "Attach virtio channel and install qemu-guest-agent inside the VM.".into(),
+            rationale: "Attach virtio channel and install guestkit-agent inside the VM.".into(),
         });
     } else {
         insights.push(GuestInsightRow {

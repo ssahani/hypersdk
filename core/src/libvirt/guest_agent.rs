@@ -280,21 +280,6 @@ pub fn get_guest_observability(conn: &Connect, name: &str) -> Result<GuestInfo, 
         ip_addresses = enrich_with_dhcp_leases(ip_addresses, &leases);
     }
 
-    let guestkit_live = super::guestkit_agent::use_guestkit_backend()
-        && super::guestkit_agent::ping(name);
-    if guestkit_live {
-        if let Some(evidence) = super::guestkit_agent::fetch_evidence_json(name) {
-            let mut info = super::guestkit_agent::guest_info_from_evidence(&evidence, ip_addresses);
-            if info.hostname.is_empty() {
-                info.hostname = hostname;
-            }
-            if info.filesystems.is_empty() {
-                info.filesystems = get_guest_filesystems(conn, name).unwrap_or_default();
-            }
-            return Ok(info);
-        }
-    }
-
     let filesystems = get_guest_filesystems(conn, name).unwrap_or_default();
     let (os_type, os_version, os_pretty_name, os_kernel, os_arch) = probe_guest_osinfo(name);
     let cloud_init_status = probe_cloud_init_status(name);
@@ -404,15 +389,6 @@ pub fn probe_cloud_init_status(vm_name: &str) -> Option<String> {
 
 #[cfg(target_os = "linux")]
 fn agent_ping_ok(vm_name: &str) -> bool {
-    if super::guestkit_agent::use_guestkit_backend() && super::guestkit_agent::ping(vm_name) {
-        return true;
-    }
-    if matches!(
-        super::guestkit_agent::guest_agent_backend(),
-        super::guestkit_agent::GuestAgentBackend::Guestkit
-    ) {
-        return false;
-    }
     qemu_agent_command(vm_name, r#"{"execute":"guest-ping"}"#)
         .and_then(|v| v.get("return").cloned())
         .is_some()

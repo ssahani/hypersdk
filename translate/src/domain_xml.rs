@@ -149,9 +149,6 @@ pub fn domain_xml_from_spec(
     <channel type='unix'>
       <target type='virtio' name='org.qemu.guest_agent.0'/>
     </channel>
-    <channel type='unix'>
-      <target type='virtio' name='com.zyvor.guestkit.0'/>
-    </channel>
 {tpm_xml}    <graphics type='vnc' port='-1' autoport='yes' listen='{gl}'/>
     <video>
       <model type='vga'/>
