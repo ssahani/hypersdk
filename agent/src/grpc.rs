@@ -818,7 +818,7 @@ impl HostAgent for AgentService {
         {
             Ok(Ok(())) => Ok(Response::new(InstallGuestToolsResponse {
                 ok: true,
-                message: "Guest agent channel attached — install qemu-guest-agent inside the VM if needed".into(),
+                message: "Guest tools channels attached — install guestkit-agent (preferred) or qemu-guest-agent inside the VM".into(),
             })),
             Ok(Err(e)) => Ok(Response::new(InstallGuestToolsResponse {
                 ok: false,

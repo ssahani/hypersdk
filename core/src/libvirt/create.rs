@@ -590,6 +590,9 @@ fn generate_domain_xml(
     <channel type='unix'>
       <target type='virtio' name='org.qemu.guest_agent.0'/>
     </channel>
+    <channel type='unix'>
+      <target type='virtio' name='com.zyvor.guestkit.0'/>
+    </channel>
     <!-- VNC: noVNC + /ws/v1/vnc/{{name}}. SPICE: spice-html5 + /ws/v1/spice/{{name}}. -->
     <graphics type='{gtype}' port='-1' autoport='yes' listen='{graphics_listen}'/>
     <video>

@@ -146,9 +146,9 @@ pub async fn vm_guest_health(
     let summary = match gh.install_state.as_str() {
         "running" if gh.healthy => format!("Guest agent running · {}", gh.os_pretty_name),
         "running" => format!("Guest agent running · {} issue(s)", gh.issues.len()),
-        "channel_only" => "Guest agent channel attached — qemu-guest-agent not responding in VM".into(),
-        "none" => "Guest agent not configured — attach channel and install qemu-guest-agent".into(),
-        _ if !gh.agent_reachable => "QEMU guest agent unreachable".into(),
+        "channel_only" => "Guest tools channel attached — start guestkit-agent or qemu-guest-agent in VM".into(),
+        "none" => "Guest tools not configured — attach channel and install guestkit-agent".into(),
+        _ if !gh.agent_reachable => "Guest tools agent unreachable".into(),
         _ => format!("{} issue(s) reported", gh.issues.len()),
     };
     let checks: Vec<GuestAgentCheckRow> = if gh.diagnostics_json.is_empty() {
@@ -269,7 +269,7 @@ pub async fn vm_guest_services(
     let mut services = Vec::new();
     if health.agent_reachable {
         services.push(VmGuestServiceRow {
-            name: "qemu-guest-agent".into(),
+            name: "guestkit-agent".into(),
             status: if health.healthy { "running" } else { "degraded" }.into(),
             detail: health.os_pretty_name.clone(),
         });

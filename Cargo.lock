@@ -1660,6 +1660,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "guestkit-agent-protocol"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "guestkit-job-spec"
 version = "0.1.0"
 dependencies = [
@@ -2546,6 +2555,7 @@ dependencies = [
  "anyhow",
  "base64",
  "chrono",
+ "guestkit-agent-protocol",
  "hex",
  "libc",
  "openstack",

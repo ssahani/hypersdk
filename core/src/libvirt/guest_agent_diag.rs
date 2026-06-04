@@ -35,8 +35,10 @@ pub struct GuestAgentDiagnostics {
 }
 
 fn channel_state(xml: &str) -> (bool, bool) {
-    let attached = xml.contains("org.qemu.guest_agent.0");
-    let connected = attached
+    let qga = xml.contains("org.qemu.guest_agent.0");
+    let gk = super::guestkit_agent::channel_attached_in_xml(xml);
+    let attached = qga || gk;
+    let connected = (qga || gk)
         && !xml.contains("state='disconnected'")
         && !xml.contains("state=\"disconnected\"");
     (attached, connected)
@@ -44,6 +46,15 @@ fn channel_state(xml: &str) -> (bool, bool) {
 
 #[cfg(target_os = "linux")]
 fn agent_ping(vm_name: &str) -> bool {
+    if super::guestkit_agent::use_guestkit_backend() && super::guestkit_agent::ping(vm_name) {
+        return true;
+    }
+    if matches!(
+        super::guestkit_agent::guest_agent_backend(),
+        super::guestkit_agent::GuestAgentBackend::Guestkit
+    ) {
+        return false;
+    }
     guest_agent::qemu_agent_command(vm_name, r#"{"execute":"guest-ping"}"#)
         .and_then(|v| v.get("return").cloned())
         .is_some()
@@ -56,10 +67,19 @@ fn agent_ping(_vm_name: &str) -> bool {
 
 #[cfg(target_os = "linux")]
 fn agent_version(vm_name: &str) -> Option<String> {
+    if let Some(ver) = super::guestkit_agent::agent_version(vm_name) {
+        return Some(format!("GuestKit {ver}"));
+    }
+    if matches!(
+        super::guestkit_agent::guest_agent_backend(),
+        super::guestkit_agent::GuestAgentBackend::Guestkit
+    ) {
+        return None;
+    }
     let v = guest_agent::qemu_agent_command(vm_name, r#"{"execute":"guest-info"}"#)?;
     let ret = v.get("return")?;
     let version = ret.get("version")?.as_str()?;
-    Some(version.to_string())
+    Some(format!("QGA {version}"))
 }
 
 #[cfg(not(target_os = "linux"))]
@@ -129,12 +149,17 @@ pub fn probe_guest_agent(
     });
 
     let mut checks = Vec::new();
+    let gk_channel = super::guestkit_agent::channel_attached_in_xml(&xml);
     checks.push(GuestAgentCheck {
         id: "virtio_channel".into(),
-        label: "Virtio guest-agent channel".into(),
+        label: "Virtio guest tools channel".into(),
         passed: channel_attached,
-        detail: if channel_attached {
-            "org.qemu.guest_agent.0 present in domain XML".into()
+        detail: if gk_channel && xml.contains("org.qemu.guest_agent.0") {
+            "GuestKit + QEMU guest-agent channels present".into()
+        } else if gk_channel {
+            "com.zyvor.guestkit.0 present (GuestKit agent)".into()
+        } else if xml.contains("org.qemu.guest_agent.0") {
+            "org.qemu.guest_agent.0 present (QGA only)".into()
         } else {
             "Missing — use Install guest tools in Machina".into()
         },
@@ -146,23 +171,30 @@ pub fn probe_guest_agent(
         detail: if channel_connected {
             "Hypervisor socket is connected".into()
         } else if channel_attached {
-            "Channel attached but disconnected — start qemu-guest-agent in the guest".into()
+            "Channel attached but disconnected — start guestkit-agent or qemu-guest-agent in the VM".into()
         } else {
             "N/A until channel is attached".into()
         },
     });
+    let ping_label = if super::guestkit_agent::use_guestkit_backend() {
+        "Guest tools ping (GuestKit / QGA)"
+    } else {
+        "QEMU guest agent ping"
+    };
     checks.push(GuestAgentCheck {
         id: "agent_ping".into(),
-        label: "QEMU guest agent ping".into(),
+        label: ping_label.into(),
         passed: agent_ping,
         detail: if agent_ping {
             format!(
-                "guest-ping OK{}",
+                "agent ping OK{}",
                 agent_version
                     .as_ref()
-                    .map(|v| format!(" · version {v}"))
+                    .map(|v| format!(" · {v}"))
                     .unwrap_or_default()
             )
+        } else if gk_channel {
+            "GuestKit ping failed — install guestkit agent (systemctl start guestkit-agent)".into()
         } else {
             "guest-ping failed — install qemu-guest-agent inside the VM".into()
         },
@@ -195,7 +227,14 @@ pub fn probe_guest_agent(
                 id: "filesystems".into(),
                 label: "Guest filesystem stats".into(),
                 passed: true,
-                detail: format!("{filesystem_count} mount(s) via guest-get-fsinfo"),
+                detail: format!(
+                    "{filesystem_count} mount(s) via {}",
+                    if super::guestkit_agent::ping(name) {
+                        "GuestKit evidence"
+                    } else {
+                        "guest-get-fsinfo"
+                    }
+                ),
             });
         }
         if let Some(ref st) = g.cloud_init_status {

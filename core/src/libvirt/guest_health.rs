@@ -72,7 +72,7 @@ pub fn gather_guest_health(conn: &Connect, name: &str) -> Result<GuestHealthRepo
             || xml.contains("state=\"disconnected\"");
         if channel_attached && channel_disconnected {
             issues.push(
-                "Guest agent channel is attached but qemu-guest-agent is not running in the VM — open VNC and run: sudo apt-get install -y qemu-guest-agent && sudo systemctl enable --now qemu-guest-agent".into(),
+                "Guest tools channel attached but agent not running — install guestkit-agent or qemu-guest-agent in the VM and enable the service".into(),
             );
         } else if guest
             .as_ref()
@@ -82,7 +82,7 @@ pub fn gather_guest_health(conn: &Connect, name: &str) -> Result<GuestHealthRepo
                 "No guest IPv4 from DHCP lease, ARP, or guest agent — check the VM network (VNC) or install qemu-guest-agent".into(),
             );
         } else {
-            issues.push("qemu-guest-agent unreachable or not reporting".into());
+            issues.push("Guest tools agent unreachable (GuestKit or qemu-guest-agent)".into());
         }
     }
     if let Some(m) = &metrics {
