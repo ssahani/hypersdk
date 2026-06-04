@@ -160,6 +160,58 @@ pub async fn approve_and_execute(
         "firewall_change" => Ok(serde_json::json!({
             "message": "Firewall approval delegated to Zeus Firewall workflow"
         })),
+        "guest.sync_time" | "guest.fstrim" => {
+            let vm_id = action
+                .object_ref
+                .get("vm_id")
+                .and_then(|v| v.as_str())
+                .and_then(|s| Uuid::parse_str(s).ok())
+                .ok_or_else(|| anyhow::anyhow!("vm_id missing in object_ref"))?;
+            let op = if action.action_type == "guest.sync_time" {
+                "sync_time"
+            } else {
+                "fstrim"
+            };
+            let out = crate::engine::host_os::vm_guest_agent_action(
+                &state.pool,
+                &state.config,
+                vm_id,
+                op,
+            )
+            .await?;
+            Ok(serde_json::json!({ "message": action.label, "result": out }))
+        }
+        "vm.shutdown_agent" => {
+            let vm_id = action
+                .object_ref
+                .get("vm_id")
+                .and_then(|v| v.as_str())
+                .and_then(|s| Uuid::parse_str(s).ok())
+                .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
+            let host_id: Option<Uuid> =
+                sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+                    .bind(vm_id)
+                    .fetch_optional(&state.pool)
+                    .await?;
+            let task_id = crate::tasks::enqueue::enqueue_task(
+                state,
+                "vm.power",
+                serde_json::json!({
+                    "vm_id": vm_id.to_string(),
+                    "action": "shutdown",
+                    "mode": "agent",
+                }),
+                Some("vm"),
+                Some(vm_id),
+                host_id,
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!(e.message))?;
+            Ok(serde_json::json!({
+                "message": "Graceful shutdown queued",
+                "task_id": task_id.to_string()
+            }))
+        }
         _ => Ok(serde_json::json!({"message": format!("Recorded approval for {}", action.label)})),
     };
 

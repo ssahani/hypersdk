@@ -18,6 +18,10 @@ interface AiContextValue {
   setContextVmId: (id: string | null) => void
   contextHostId: string | null
   setContextHostId: (id: string | null) => void
+  contextVmIds: string[]
+  setContextVmIds: (ids: string[]) => void
+  contextSummary: string | null
+  setContextSummary: (s: string | null) => void
   selectedAgent: string
   setSelectedAgent: (id: string) => void
   pagePath: string
@@ -42,6 +46,8 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
   const [copilotOpen, setCopilotOpen] = useState(false)
   const [contextVmId, setContextVmId] = useState<string | null>(null)
   const [contextHostId, setContextHostId] = useState<string | null>(null)
+  const [contextVmIds, setContextVmIds] = useState<string[]>([])
+  const [contextSummary, setContextSummary] = useState<string | null>(null)
   const [selectedAgent, setSelectedAgent] = useState('auto')
 
   useEffect(() => {
@@ -88,12 +94,16 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
       setContextVmId,
       contextHostId,
       setContextHostId,
+      contextVmIds,
+      setContextVmIds,
+      contextSummary,
+      setContextSummary,
       selectedAgent,
       setSelectedAgent,
       pagePath: location.pathname,
       routeContext,
     }),
-    [mode, copilotOpen, openCopilot, closeCopilot, toggleCopilot, contextVmId, contextHostId, selectedAgent, location.pathname, routeContext],
+    [mode, copilotOpen, openCopilot, closeCopilot, toggleCopilot, contextVmId, contextHostId, contextVmIds, contextSummary, selectedAgent, location.pathname, routeContext],
   )
 
   return <AiContext.Provider value={value}>{children}</AiContext.Provider>

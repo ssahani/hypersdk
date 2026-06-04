@@ -114,10 +114,76 @@ export const aiSpotlight = (query: string) =>
 export const getJarvisLanding = () =>
   platformFetch<SpotlightResult>('/api/v1/ai/jarvis/landing')
 
-export const aiCopilotChat = (message: string, vmId?: string, hostId?: string) =>
+export const aiCopilotChat = (
+  message: string,
+  vmId?: string,
+  hostId?: string,
+  vmIds?: string[],
+) =>
   platformFetch<CopilotResponse>('/api/v1/ai/copilot/chat', {
     method: 'POST',
-    body: JSON.stringify({ message, vm_id: vmId, host_id: hostId }),
+    body: JSON.stringify({
+      message,
+      vm_id: vmId,
+      host_id: hostId,
+      vm_ids: vmIds,
+    }),
+  })
+
+export type FleetVmGuestRow = {
+  vm_id: string
+  vm_name: string
+  os_pretty_name: string
+  guest_ip: string
+  install_state: string
+  user_count: number
+  time_drift_ms?: number
+  flags: string[]
+}
+
+export type FleetGuestQueryReport = {
+  query: string
+  summary: string
+  matched_count: number
+  scanned_count: number
+  vms: FleetVmGuestRow[]
+  llm_powered: boolean
+}
+
+export const fleetGuestQuery = (body: {
+  query: string
+  vm_ids?: string[]
+  project?: string
+  tag?: string
+}) =>
+  platformFetch<FleetGuestQueryReport>('/api/v1/ai/fleet/guest-query', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export type VmMigrationReadinessRow = {
+  vm_id: string
+  vm_name: string
+  readiness_percent: number
+  install_state: string
+  os_pretty_name: string
+  guest_ip: string
+  qga_gaps: string[]
+  remediation: string[]
+}
+
+export type MigrationReadinessReport = {
+  executive_summary: string
+  vm_count: number
+  rows: VmMigrationReadinessRow[]
+  prioritized_remediation: string[]
+  llm_powered: boolean
+}
+
+export const migrationReadinessReport = (body: { vm_ids?: string[]; provider?: string } = {}) =>
+  platformFetch<MigrationReadinessReport>('/api/v1/ai/migration/readiness-report', {
+    method: 'POST',
+    body: JSON.stringify(body),
   })
 
 export interface CopilotStreamEvent {
@@ -133,13 +199,14 @@ export async function aiCopilotStream(
   vmId: string | undefined,
   onEvent: (ev: CopilotStreamEvent) => void,
   hostId?: string,
+  vmIds?: string[],
 ): Promise<void> {
   const url = `${getControllerBase()}/api/v1/ai/copilot/stream`
   const res = await fetch(url, {
     method: 'POST',
     credentials: 'same-origin',
     headers: platformHeaders(),
-    body: JSON.stringify({ message, vm_id: vmId, host_id: hostId }),
+    body: JSON.stringify({ message, vm_id: vmId, host_id: hostId, vm_ids: vmIds }),
   })
   if (!res.ok) {
     throw new Error(`Copilot stream failed (HTTP ${res.status})`)
@@ -748,6 +815,7 @@ export const zeusChat = (body: {
   agent?: string
   vm_id?: string
   host_id?: string
+  vm_ids?: string[]
   page_path?: string
 }) =>
   platformFetch<ZeusChatResponse>('/api/v1/ai/zeus/chat', { method: 'POST', body: JSON.stringify(body) })

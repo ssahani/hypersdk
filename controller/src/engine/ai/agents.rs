@@ -111,6 +111,8 @@ pub struct ZeusChatBody {
     pub agent: Option<String>,
     pub vm_id: Option<Uuid>,
     pub host_id: Option<Uuid>,
+    #[serde(default)]
+    pub vm_ids: Option<Vec<Uuid>>,
     pub page_path: Option<String>,
 }
 
@@ -133,7 +135,7 @@ pub async fn chat(
     } else {
         resolve_agent_id(body.agent.as_deref())
     };
-    let base = super::build_copilot_base(pool, cfg, &body.message, body.vm_id, body.host_id).await?;
+    let base = super::build_copilot_base(pool, cfg, &body.message, body.vm_id, body.host_id, body.vm_ids.clone()).await?;
     let mut reply = base.reply;
     let task_class = TaskClass::from_agent(&agent_id);
     let memory = super::memory_store::recall_for_user(pool, user_id, 3).await.unwrap_or_default();

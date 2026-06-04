@@ -26,7 +26,7 @@ import {
   type OperationsOverview,
   type ProjectRow,
 } from '../../api/platform'
-import { getAiCapacity, getAiCost, getAiCompliance, getAiComplianceExportUrl, getAiCompliancePdfUrl, getAiCostExportUrl, getAiCapacityExportUrl, getAiSecurity, getAutopilotHistory, getCostAttribution, getCostAttributionExportUrl, getCostBudget, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type CostAttributionReport, type ComplianceReport, type CostBudgetReport, type SecurityReport } from '../../api/ai'
+import { getAiCapacity, getAiCost, getAiCompliance, getAiComplianceExportUrl, getAiCompliancePdfUrl, getAiCostExportUrl, getAiCapacityExportUrl, getAiSecurity, getAutopilotHistory, getCostAttribution, getCostAttributionExportUrl, getCostBudget, migrationReadinessReport, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type CostAttributionReport, type ComplianceReport, type CostBudgetReport, type MigrationReadinessReport, type SecurityReport } from '../../api/ai'
 import { getFirewallExposureFinOps, getFirewallExposureFinOpsExportUrl, type ExposureFinOpsReport } from '../../api/zeusFirewall'
 import { formatUserError } from '../../utils/apiError'
 import { statusToneClass } from '../../utils/semanticColors'
@@ -63,6 +63,8 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
   const [runbookError, setRunbookError] = useState<{ label: string; message: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [migrationReport, setMigrationReport] = useState<MigrationReadinessReport | null>(null)
+  const [migrationBusy, setMigrationBusy] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
@@ -270,6 +272,65 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
 
       {!loading && tab === 'reports' && cap && (
         <>
+          <MacGlassPanel
+            title="AI migration readiness"
+            subtitle="Live QEMU guest-agent data merged with migration heuristics"
+            action={
+              <button
+                type="button"
+                className="btn-secondary text-xs"
+                disabled={migrationBusy}
+                onClick={() => {
+                  setMigrationBusy(true)
+                  void migrationReadinessReport()
+                    .then(setMigrationReport)
+                    .catch((e: unknown) => toast.error(formatUserError(e)))
+                    .finally(() => setMigrationBusy(false))
+                }}
+              >
+                {migrationBusy ? 'Generating…' : 'Generate report'}
+              </button>
+            }
+          >
+            {migrationReport ? (
+              <div className="space-y-3 text-sm">
+                <p className="text-slate-200">{migrationReport.executive_summary}</p>
+                {migrationReport.prioritized_remediation.length > 0 && (
+                  <ul className="text-xs text-slate-400 list-disc pl-4">
+                    {migrationReport.prioritized_remediation.slice(0, 6).map((r) => (
+                      <li key={r}>{r}</li>
+                    ))}
+                  </ul>
+                )}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-slate-500">
+                        <th className="py-1 pr-2">VM</th>
+                        <th className="py-1 pr-2">Ready</th>
+                        <th className="py-1 pr-2">QGA</th>
+                        <th className="py-1">Gaps</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {migrationReport.rows.map((row) => (
+                        <tr key={row.vm_id} className="border-t border-white/[0.04]">
+                          <td className="py-1 pr-2 text-slate-300">{row.vm_name}</td>
+                          <td className="py-1 pr-2">{row.readiness_percent}%</td>
+                          <td className="py-1 pr-2">{row.install_state}</td>
+                          <td className="py-1 text-slate-500">{row.qga_gaps.join('; ') || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">
+                One-click report for hypervisor migration: guest OS inventory, QGA gaps, and prioritized remediation.
+              </p>
+            )}
+          </MacGlassPanel>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <MacStatWidget label="Online hosts" value={String(cap.hosts_online)} icon={<FolderKanban className="w-4 h-4" />} />
             <MacStatWidget label="Running VMs" value={String(cap.running_vms)} icon={<FolderKanban className="w-4 h-4" />} tone="ok" />

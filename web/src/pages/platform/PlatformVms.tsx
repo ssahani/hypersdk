@@ -9,6 +9,7 @@ import {
   Plus,
   RefreshCw,
   Server,
+  Sparkles,
   Tag,
   Terminal,
 } from 'lucide-react'
@@ -38,6 +39,8 @@ import {
   type PlatformHost,
   type PlatformVm,
 } from '../../api/platform'
+import { fleetGuestQuery, type FleetGuestQueryReport } from '../../api/ai'
+import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { formatUserError } from '../../utils/apiError'
@@ -85,6 +88,9 @@ function SidebarRow({
 
 export default function PlatformVms() {
   const toast = useToastContext()
+  const { openCopilot, setContextVmIds, setContextSummary } = useAi()
+  const [fleetGuestReport, setFleetGuestReport] = useState<FleetGuestQueryReport | null>(null)
+  const [fleetGuestBusy, setFleetGuestBusy] = useState(false)
   const [tier] = usePlatformDesktopTier()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -326,9 +332,40 @@ export default function PlatformVms() {
     project ? project :
     finder?.smart_folders.find((f) => f.id === folder)?.label ?? 'All VMs'
 
+  const runFleetGuestQuery = async () => {
+    setFleetGuestBusy(true)
+    try {
+      const vmIds = selectedVmId
+        ? [selectedVmId]
+        : filteredVms
+            .filter((v) => v.observed_state === 'running' && v.inventory_source !== 'kubevirt')
+            .slice(0, 25)
+            .map((v) => v.id)
+      const r = await fleetGuestQuery({
+        query: search.trim() || 'guest agent status and logged in users',
+        vm_ids: vmIds,
+        project: project || undefined,
+        tag: tag || undefined,
+      })
+      setFleetGuestReport(r)
+      setContextVmIds(r.vms.map((v) => v.vm_id))
+      setContextSummary(r.summary.slice(0, 120))
+      openCopilot()
+      toast.success(`${r.matched_count} VM(s) matched`)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setFleetGuestBusy(false)
+    }
+  }
+
   const toolbar = (
     <>
       <button type="button" className="btn-secondary" onClick={() => void load()}><RefreshCw className="w-4 h-4" /></button>
+      <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" disabled={fleetGuestBusy} onClick={() => void runFleetGuestQuery()}>
+        {fleetGuestBusy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+        Analyze guests
+      </button>
       <button type="button" className="btn-secondary" onClick={() => setWindowsOpen(true)}>Windows VM</button>
       <Link to="/platform/vm-builder" className="btn-secondary flex items-center gap-2 text-sm">AI builder</Link>
       <button type="button" className="btn-primary flex items-center gap-2" onClick={() => setWizardOpen(true)}><Plus className="w-4 h-4" /> Create VM</button>
@@ -511,6 +548,25 @@ export default function PlatformVms() {
       contentClassName="space-y-4"
     >
       {error && <StructuredErrorBanner error={error} />}
+
+      {fleetGuestReport && (
+        <div className="rounded-xl border border-white/[0.08] bg-slate-900/60 p-4 text-sm">
+          <p className="text-slate-200">{fleetGuestReport.summary}</p>
+          <p className="text-xs text-slate-500 mt-1">
+            {fleetGuestReport.matched_count} matched · {fleetGuestReport.scanned_count} scanned
+          </p>
+          {fleetGuestReport.vms.length > 0 && (
+            <ul className="mt-2 text-xs font-mono text-slate-400 space-y-1 max-h-32 overflow-y-auto">
+              {fleetGuestReport.vms.map((v) => (
+                <li key={v.vm_id}>
+                  {v.vm_name} — {v.os_pretty_name || v.install_state} {v.guest_ip ? `· ${v.guest_ip}` : ''}
+                  {v.flags.length > 0 ? ` [${v.flags.join(',')}]` : ''}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <FinderView
         title="Inventory"

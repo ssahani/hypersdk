@@ -93,6 +93,8 @@ pub struct CopilotBody {
     pub message: String,
     pub vm_id: Option<Uuid>,
     pub host_id: Option<Uuid>,
+    #[serde(default)]
+    pub vm_ids: Option<Vec<Uuid>>,
 }
 
 pub async fn copilot_chat(
@@ -105,6 +107,7 @@ pub async fn copilot_chat(
         &body.message,
         body.vm_id,
         body.host_id,
+        body.vm_ids,
     )
         .await
         .map_err(|e| ApiError::internal(e.to_string()))
@@ -121,6 +124,7 @@ pub async fn copilot_stream(
     let message = body.message;
     let vm_id = body.vm_id;
     let host_id = body.host_id;
+    let vm_ids = body.vm_ids;
 
     tokio::spawn(async move {
         let send = |data: String| async {
@@ -129,7 +133,7 @@ pub async fn copilot_stream(
                 .await;
         };
 
-        match ai::build_copilot_base(&pool, &config, &message, vm_id, host_id).await {
+        match ai::build_copilot_base(&pool, &config, &message, vm_id, host_id, vm_ids).await {
             Ok(base) => {
                 for chunk in ai::chunk_text(&base.reply, 48) {
                     let payload = serde_json::json!({ "type": "chunk", "text": chunk }).to_string();
@@ -137,12 +141,14 @@ pub async fn copilot_stream(
                     tokio::time::sleep(Duration::from_millis(10)).await;
                 }
 
-                let system =
-                    "You are Zeus, an autonomous infrastructure engineer and cloud architect. Be concise. Use bullet points.";
+                let system = format!(
+                    "You are Zeus, an autonomous infrastructure engineer and cloud architect. Be concise. Use bullet points. {}",
+                    ai::guest_tools::tools_system_prompt()
+                );
                 let mut deterministic = true;
                 if let Ok(Some(llm_text)) = ai::llm::complete_simple(
                     &pool,
-                    system,
+                    &system,
                     &format!("Context: {}\nUser: {}", base.ctx_json, message),
                 )
                 .await
@@ -1124,6 +1130,26 @@ pub async fn purge_memory(
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(serde_json::json!({ "deleted": deleted })))
+}
+
+pub async fn fleet_guest_query(
+    State(state): State<AppState>,
+    Json(body): Json<ai::fleet_guest_query::FleetGuestQueryRequest>,
+) -> Result<Json<ai::fleet_guest_query::FleetGuestQueryReport>, ApiError> {
+    ai::fleet_guest_query::execute(&state.pool, &state.config, &body)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn migration_readiness_report(
+    State(state): State<AppState>,
+    Json(body): Json<ai::migration_readiness::MigrationReadinessRequest>,
+) -> Result<Json<ai::migration_readiness::MigrationReadinessReport>, ApiError> {
+    ai::migration_readiness::generate(&state.pool, &state.config, &body)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
 }
 
 pub async fn zeus_approval_hub(

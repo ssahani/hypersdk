@@ -47,6 +47,21 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
 
     let ql = q.to_lowercase();
 
+    if (ql.contains("guest") && (ql.contains("kernel") || ql.contains("logged in") || ql.contains("qga")))
+        || ql.contains("old kernel")
+        || (ql.contains("guest agent") && ql.contains("vm"))
+    {
+        intents.push(SpotlightIntent {
+            id: "fleet-guest-query".into(),
+            label: "Fleet guest-agent search".into(),
+            review: format!("Analyze VMs matching: {q}"),
+            action: "navigate".into(),
+            vm_name: None,
+            navigate: Some("/platform/vms".into()),
+            prefill: Some(serde_json::json!({ "guestQuery": q })),
+        });
+    }
+
     if ql.contains("import") && ql.contains("network") {
         intents.push(intent(
             "import-networks",

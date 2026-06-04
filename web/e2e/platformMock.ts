@@ -1263,10 +1263,64 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.match(/\/vms\/[^/]+\/guest\/health/)) {
       return route.fulfill({
         json: {
+          vm_id: 'v1',
+          vm_name: 'vm-1',
+          agent_reachable: true,
+          healthy: true,
+          os_pretty_name: 'Ubuntu 24.04 LTS',
           guest_ip: '192.168.122.50',
           guest_hostname: 'vm-1',
-          guest_tools_status: 'installed',
-          reachable: true,
+          issues: [],
+          summary: 'Guest agent running · Ubuntu 24.04 LTS',
+          install_state: 'running',
+          channel_attached: true,
+          channel_connected: true,
+          agent_ping: true,
+          agent_version: '6.2.0',
+          checks: [{ id: 'agent_ping', label: 'QEMU guest agent ping', passed: true, detail: 'OK' }],
+          guest_observability: {
+            os_pretty_name: 'Ubuntu 24.04 LTS',
+            os_kernel: '6.8.0',
+            ip_addresses: [{ name: 'eth0', address: '192.168.122.50', source: 'agent', ip_type: 'ipv4' }],
+            users: [{ username: 'ubuntu', login_time: new Date().toISOString() }],
+            time: { guest_time_rfc3339: new Date().toISOString(), host_time_rfc3339: new Date().toISOString(), delta_ms: 1200 },
+          },
+        },
+      })
+    }
+    if (url.match(/\/vms\/[^/]+\/guest\/ai-insights/) && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          vm_id: 'v1',
+          vm_name: 'vm-1',
+          summary: 'Ubuntu 24.04 with QGA active — time drift minor.',
+          insights: [{ title: 'Guest agent active', severity: 'info', detail: 'guest-ping OK' }],
+          recommendations: [{ label: 'Sync guest time', action: 'guest.sync_time', risk: 'low', rationale: 'Minor drift' }],
+          llm_powered: false,
+          snapshot: { install_state: 'running', agent_ping: true },
+        },
+      })
+    }
+    if (url.includes('/ai/fleet/guest-query') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          query: 'guest agent',
+          summary: '1 VM matched with active guest agent.',
+          matched_count: 1,
+          scanned_count: 1,
+          llm_powered: false,
+          vms: [{ vm_id: 'v1', vm_name: 'vm-1', os_pretty_name: 'Ubuntu 24.04', guest_ip: '192.168.122.50', install_state: 'running', user_count: 1, flags: [] }],
+        },
+      })
+    }
+    if (url.includes('/ai/migration/readiness-report') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          executive_summary: 'Fleet migration readiness: average 85%. Enable QGA on all guests before cutover.',
+          vm_count: 1,
+          rows: [{ vm_id: 'v1', vm_name: 'vm-1', readiness_percent: 85, install_state: 'running', os_pretty_name: 'Ubuntu 24.04', guest_ip: '192.168.122.50', qga_gaps: [], remediation: [] }],
+          prioritized_remediation: ['Verify virtio drivers post-migration'],
+          llm_powered: false,
         },
       })
     }

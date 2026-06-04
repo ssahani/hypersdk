@@ -667,6 +667,43 @@ export const guestFstrim = (vmId: string) =>
 export const getGuestFsFreezeStatus = (vmId: string) =>
   platformFetch<GuestAgentActionResult>(`/api/v1/vms/${vmId}/guest/fs-freeze-status`)
 
+export type GuestAiInsightRow = {
+  title: string
+  severity: string
+  detail: string
+}
+
+export type GuestAiRecommendation = {
+  label: string
+  action: string
+  risk: string
+  rationale: string
+}
+
+export type GuestAiInsightsReport = {
+  vm_id: string
+  vm_name: string
+  snapshot: GuestObservabilitySnapshot & { vm_id?: string; vm_name?: string; install_state?: string; agent_ping?: boolean }
+  summary: string
+  insights: GuestAiInsightRow[]
+  recommendations: GuestAiRecommendation[]
+  llm_powered: boolean
+}
+
+export const getVmGuestAiInsights = (
+  vmId: string,
+  opts?: { refresh?: boolean; focus?: string },
+) => {
+  const params = new URLSearchParams()
+  if (opts?.refresh) params.set('refresh', '1')
+  if (opts?.focus) params.set('focus', opts.focus)
+  const q = params.toString()
+  return platformFetch<GuestAiInsightsReport>(
+    `/api/v1/vms/${vmId}/guest/ai-insights${q ? `?${q}` : ''}`,
+    { method: 'POST' },
+  )
+}
+
 export const getVmGuestObservability = (vmId: string) =>
   platformFetch<Record<string, unknown>>(`/api/v1/vms/${vmId}/guest/observability`)
 

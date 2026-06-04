@@ -121,6 +121,10 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/vms/{id}/guest/fs-freeze-status",
             get(host_os::vm_guest_fs_freeze_status),
         )
+        .route(
+            "/api/v1/vms/{id}/guest/ai-insights",
+            post(host_os::vm_guest_ai_insights),
+        )
         .route("/api/v1/vms/{id}/diagnose", post(host_os::diagnose_vm))
         .route("/api/v1/vms/{id}/doctor", get(ai::vm_doctor))
         .route("/api/v1/ai/settings", get(ai::get_settings).patch(ai::patch_settings))
@@ -128,6 +132,11 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/ai/jarvis/landing", get(ai::jarvis_landing))
         .route("/api/v1/ai/copilot/chat", post(ai::copilot_chat))
         .route("/api/v1/ai/copilot/stream", post(ai::copilot_stream))
+        .route("/api/v1/ai/fleet/guest-query", post(ai::fleet_guest_query))
+        .route(
+            "/api/v1/ai/migration/readiness-report",
+            post(ai::migration_readiness_report),
+        )
         .route("/api/v1/ai/explain", post(ai::explain))
         .route("/api/v1/ai/runbook", post(ai::runbook))
         .route("/api/v1/ai/blueprints/generate", post(ai::generate_blueprint))

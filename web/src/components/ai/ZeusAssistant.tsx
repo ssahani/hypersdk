@@ -19,7 +19,17 @@ import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 
 export default function ZeusAssistant() {
-  const { copilotOpen, closeCopilot, contextVmId, contextHostId, mode, selectedAgent, setSelectedAgent } = useAi()
+  const {
+    copilotOpen,
+    closeCopilot,
+    contextVmId,
+    contextHostId,
+    contextVmIds,
+    contextSummary,
+    mode,
+    selectedAgent,
+    setSelectedAgent,
+  } = useAi()
   const location = useLocation()
   const { info } = usePlatformInfo()
   const toast = useToastContext()
@@ -88,6 +98,7 @@ export default function ZeusAssistant() {
         agent: selectedAgent,
         vm_id: contextVmId ?? undefined,
         host_id: contextHostId ?? undefined,
+        vm_ids: contextVmIds.length > 0 ? contextVmIds : undefined,
         page_path: location.pathname,
       })
       setMessages((m) => {
@@ -104,7 +115,7 @@ export default function ZeusAssistant() {
     } finally {
       setBusy(false)
     }
-  }, [input, busy, platform, contextVmId, contextHostId, messages.length, selectedAgent, location.pathname])
+  }, [input, busy, platform, contextVmId, contextHostId, contextVmIds, messages.length, selectedAgent, location.pathname])
 
   const queueNlOps = async () => {
     if (!nlOpsPlan) return
@@ -150,6 +161,9 @@ export default function ZeusAssistant() {
             <div className="min-w-0">
               <p className="font-semibold text-sm">Zeus</p>
               <p className="text-[10px] text-slate-500 truncate">{modeLabel}</p>
+              {contextSummary && (
+                <p className="text-[10px] text-sky-300/90 truncate mt-0.5">{contextSummary}</p>
+              )}
             </div>
           </div>
           <select

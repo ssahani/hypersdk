@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::Json;
 use uuid::Uuid;
 
@@ -106,6 +106,30 @@ pub async fn vm_guest_fs_freeze_status(
         .await
         .map(Json)
         .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct GuestAiInsightsQuery {
+    #[serde(default)]
+    pub refresh: bool,
+    pub focus: Option<String>,
+}
+
+pub async fn vm_guest_ai_insights(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Query(q): Query<GuestAiInsightsQuery>,
+) -> Result<Json<crate::engine::ai::guest_insights::GuestAiInsightsReport>, ApiError> {
+    crate::engine::ai::guest_insights::generate_insights(
+        &state.pool,
+        &state.config,
+        id,
+        q.refresh,
+        q.focus.as_deref(),
+    )
+    .await
+    .map(Json)
+    .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 #[derive(Debug, serde::Deserialize)]

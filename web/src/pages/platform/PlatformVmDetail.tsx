@@ -6,6 +6,8 @@ import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, 
 import PageLayout from '../../components/PageLayout'
 import GuestToolsStrip from '../../components/platform/GuestToolsStrip'
 import GuestAgentDiagnosticsPanel, { GuestAgentHeaderPill } from '../../components/platform/GuestAgentDiagnosticsPanel'
+import GuestAiInsightsPanel from '../../components/platform/GuestAiInsightsPanel'
+import { getVmGuestAiInsights } from '../../api/platform'
 import MachinaVmOutageRca from '../../components/ai/MachinaVmOutageRca'
 import MachinaExplainObjectPanel from '../../components/ai/MachinaExplainObjectPanel'
 import MachinaVmTroubleshootPanel from '../../components/ai/MachinaVmTroubleshootPanel'
@@ -62,6 +64,7 @@ import {
   getVmTopology,
   type TopologyGraph,
   type VmGuestHealthReport,
+  type GuestAiInsightsReport,
   type VmGuestServicesReport,
   type VmOsDiagnoseReport,
 } from '../../api/platform'
@@ -106,7 +109,7 @@ export default function PlatformVmDetail() {
     }, { replace: true })
   }
   const [tier] = usePlatformDesktopTier()
-  const { setContextVmId, openCopilot } = useAi()
+  const { setContextVmId, setContextSummary, openCopilot } = useAi()
   const toast = useToastContext()
   const [vm, setVm] = useState<PlatformVm | null>(null)
   const [hosts, setHosts] = useState<PlatformHost[]>([])
@@ -126,6 +129,8 @@ export default function PlatformVmDetail() {
   const [snapDiskOnly, setSnapDiskOnly] = useState(true)
   const [snapQuiesce, setSnapQuiesce] = useState(false)
   const [snapStorageMode, setSnapStorageMode] = useState('')
+  const [snapAiHint, setSnapAiHint] = useState<GuestAiInsightsReport | null>(null)
+  const [snapAiLoading, setSnapAiLoading] = useState(false)
   const [publishTplName, setPublishTplName] = useState('')
   const [publishTplVersion, setPublishTplVersion] = useState('1.0.0')
   const [iacBundle, setIacBundle] = useState<VmIacExportBundle | null>(null)
@@ -245,8 +250,15 @@ export default function PlatformVmDetail() {
     if (!id) return
     setGuestHealthLoading(true)
     try {
-      setGuestHealth(await getVmGuestHealth(id))
+      const gh = await getVmGuestHealth(id)
+      setGuestHealth(gh)
       setGuestHealthRefreshedAt(new Date())
+      if (gh.os_pretty_name || gh.install_state === 'running') {
+        const chip = [gh.os_pretty_name, gh.install_state === 'running' ? 'QGA' : gh.install_state]
+          .filter(Boolean)
+          .join(' · ')
+        setContextSummary(chip || null)
+      }
     } catch {
       setGuestHealth(null)
     } finally {
@@ -721,6 +733,10 @@ export default function PlatformVmDetail() {
                   onAskCopilot={openCopilot}
                 />
               </MacGlassPanel>
+              <GuestAiInsightsPanel
+                vmId={id!}
+                onApplied={() => void loadGuestHealth()}
+              />
             </div>
           )}
 
@@ -840,6 +856,29 @@ export default function PlatformVmDetail() {
                 </div>
               )}
               <input className="input w-full max-w-xs" value={snapName} onChange={(e) => setSnapName(e.target.value)} placeholder="snap-01" />
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="btn-secondary text-xs"
+                  disabled={snapAiLoading || vm.observed_state !== 'running'}
+                  onClick={() => {
+                    setSnapAiLoading(true)
+                    void getVmGuestAiInsights(id, { focus: 'snapshot' })
+                      .then((r) => {
+                        setSnapAiHint(r)
+                        const quiesceRec = r.recommendations.find((x) => x.action === 'snapshot.quiesce')
+                        if (quiesceRec) setSnapQuiesce(true)
+                      })
+                      .catch((e: unknown) => toast.error(formatUserError(e)))
+                      .finally(() => setSnapAiLoading(false))
+                  }}
+                >
+                  AI snapshot advice
+                </button>
+                {snapAiHint && (
+                  <p className="text-xs text-slate-400 max-w-xl">{snapAiHint.summary}</p>
+                )}
+              </div>
               <div className="flex flex-wrap gap-4 mt-3 text-xs text-slate-400">
                 <label className="flex items-center gap-2">
                   <input type="checkbox" checked={snapDiskOnly} onChange={(e) => setSnapDiskOnly(e.target.checked)} /> Disk only

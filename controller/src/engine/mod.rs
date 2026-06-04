@@ -38,6 +38,7 @@ pub mod storage_tiers;
 pub mod enterprise_security;
 pub mod vault_sync_scheduler;
 pub mod fleet_snapshot_scheduler;
+pub mod guest_context;
 pub mod host_os;
 pub mod fleet_desktop;
 pub mod fleet_linux;

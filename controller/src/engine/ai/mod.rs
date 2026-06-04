@@ -6,6 +6,10 @@ use uuid::Uuid;
 
 pub mod vm_builder;
 pub mod context;
+pub mod guest_insights;
+pub mod fleet_guest_query;
+pub mod guest_tools;
+pub mod migration_readiness;
 pub mod intent_router;
 pub mod llm;
 pub mod settings;
@@ -37,14 +41,18 @@ pub async fn copilot_chat(
     message: &str,
     vm_id: Option<Uuid>,
     host_id: Option<Uuid>,
+    vm_ids: Option<Vec<Uuid>>,
 ) -> anyhow::Result<CopilotResponse> {
-    let base = build_copilot_base(pool, cfg, message, vm_id, host_id).await?;
+    let base = build_copilot_base(pool, cfg, message, vm_id, host_id, vm_ids).await?;
     let mut reply = base.reply;
 
-    let system = "You are Zeus, an autonomous infrastructure engineer and cloud architect. Be concise. Use bullet points.";
+    let system = format!(
+        "You are Zeus, an autonomous infrastructure engineer and cloud architect. Be concise. Use bullet points. {}",
+        guest_tools::tools_system_prompt()
+    );
     if let Ok(Some(llm_text)) = llm::complete_simple(
         pool,
-        system,
+        &system,
         &format!("Context: {}\nUser: {}", base.ctx_json, message),
     )
     .await
@@ -77,8 +85,22 @@ pub async fn build_copilot_base(
     message: &str,
     vm_id: Option<Uuid>,
     host_id: Option<Uuid>,
+    vm_ids: Option<Vec<Uuid>>,
 ) -> anyhow::Result<CopilotBase> {
     let ctx = context::assemble(pool, cfg, vm_id, host_id).await?;
+    let mut guest_snapshots: Vec<crate::engine::guest_context::GuestAiSnapshot> = Vec::new();
+    if let Some(ids) = vm_ids.filter(|v| !v.is_empty()) {
+        let results = crate::engine::guest_context::gather_fleet_snapshots(pool, cfg, ids, false).await;
+        for (_, r) in results {
+            if let Ok(s) = r {
+                guest_snapshots.push(s);
+            }
+        }
+    } else if let Some(id) = vm_id {
+        if let Ok(s) = crate::engine::guest_context::snapshot_for_vm(pool, cfg, id, false).await {
+            guest_snapshots.push(s);
+        }
+    }
     let mut reply = String::new();
 
     let ml = message.to_lowercase();
@@ -247,10 +269,38 @@ pub async fn build_copilot_base(
         ));
     }
 
+    let context_summary = if !guest_snapshots.is_empty() {
+        if guest_snapshots.len() == 1 {
+            crate::engine::guest_context::context_chip(&guest_snapshots[0])
+        } else {
+            format!(
+                "{} VMs · {} with guest data",
+                guest_snapshots.len(),
+                guest_snapshots.iter().filter(|s| s.agent_ping).count()
+            )
+        }
+    } else {
+        format!("{} VMs", ctx.cluster_vms)
+    };
+
+    let mut ctx_payload = serde_json::json!({
+        "cluster": ctx,
+        "guest_snapshots": guest_snapshots,
+    });
+    if !message.is_empty() {
+        ctx_payload["user_message"] = serde_json::Value::String(message.to_string());
+    }
+    if guest_snapshots.len() == 1 && message.to_lowercase().contains("guest") {
+        reply.push_str(&format!(
+            "**Guest context:** {}\n\n",
+            crate::engine::guest_context::context_chip(&guest_snapshots[0])
+        ));
+    }
+
     Ok(CopilotBase {
         reply,
-        context_summary: format!("{} VMs", ctx.cluster_vms),
-        ctx_json: serde_json::to_string(&ctx)?,
+        context_summary,
+        ctx_json: ctx_payload.to_string(),
     })
 }
 
