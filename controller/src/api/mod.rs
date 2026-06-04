@@ -72,7 +72,7 @@ use crate::rate_limit::{rate_limit_middleware, RateLimiter};
 use crate::state::AppState;
 
 pub fn router(state: AppState) -> Router {
-    let rate_limiter = RateLimiter::new(300);
+    let rate_limiter = RateLimiter::from_env(state.config.jwt_secret.clone());
     let protected = Router::new()
         .route(
             "/api/v1/enrollment/tokens",
@@ -246,6 +246,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/guestkit/doctor", post(guestkit::guestkit_doctor))
         .route("/api/v1/guestkit/migrate-plan", post(guestkit::guestkit_migrate_plan))
         .route("/api/v1/guestkit/vms/{id}/doctor", get(guestkit::guestkit_vm_doctor))
+        .route("/api/v1/guestkit/vms/{id}/migrate-plan", get(guestkit::guestkit_vm_migrate_plan))
         .route("/api/v1/guestkit/jobs", post(guestkit::guestkit_submit_job))
         .route("/api/v1/guestkit/jobs/{id}", get(guestkit::guestkit_job_status))
         .route("/api/v1/zeus-firewall/status", get(zeus_firewall::status))
@@ -674,6 +675,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/webhooks/{id}", delete(webhooks::delete_webhook))
         .route("/api/v1/webhooks/{id}/toggle", post(webhooks::toggle_webhook))
         .route("/api/v1/webhook-deliveries", get(webhooks::list_webhook_deliveries))
+        .route(
+            "/api/v1/webhook-deliveries/purge",
+            post(webhooks::purge_webhook_deliveries),
+        )
         .route(
             "/api/v1/webhook-deliveries/{id}/retry",
             post(webhooks::retry_webhook_delivery),

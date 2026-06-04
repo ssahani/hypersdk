@@ -1,5 +1,8 @@
 # shellcheck shell=bash
 # Shared helpers for Machina platform E2E (controller :5093).
+#
+# Defaults: E2E_PLATFORM_USER=machina-e2e (create operator in Platform → Users).
+# On CI hosts set MACHINA_E2E_BYPASS_SECRET in /etc/default/machina-platform to skip rate limits.
 
 e2e_platform_ok()   { echo "  ✅ $*"; (( E2E_PASS++ )) || true; }
 e2e_platform_fail() { echo "  ❌ $*"; (( E2E_FAIL++ )) || true; }
@@ -11,14 +14,24 @@ e2e_platform_host_from_base() {
 }
 
 e2e_platform_auth_header() {
-  local user="${E2E_PLATFORM_USER:-admin}"
+  local user="${E2E_PLATFORM_USER:-machina-e2e}"
   local pass="${E2E_PLATFORM_PASS:-admin}"
   printf 'Authorization: Basic %s' "$(printf '%s:%s' "$user" "$pass" | base64 | tr -d '\n')"
 }
 
+e2e_platform_extra_headers() {
+  if [[ -n "${MACHINA_E2E_BYPASS_SECRET:-}" ]]; then
+    printf 'X-Machina-E2E: %s' "$MACHINA_E2E_BYPASS_SECRET"
+  fi
+}
+
 e2e_platform_curl() {
+  local -a hdrs=(-H "$(e2e_platform_auth_header)")
+  if [[ -n "${MACHINA_E2E_BYPASS_SECRET:-}" ]]; then
+    hdrs+=(-H "$(e2e_platform_extra_headers)")
+  fi
   curl -sk --connect-timeout 10 --max-time "${E2E_PLATFORM_TIMEOUT:-120}" \
-    -H "$(e2e_platform_auth_header)" "$@"
+    "${hdrs[@]}" "$@"
 }
 
 e2e_platform_http_code() {
@@ -66,6 +79,24 @@ e2e_platform_assert_json_true() {
   else
     e2e_platform_fail "$label — got: $resp"
   fi
+}
+
+# First registered host id (for twin/impact and host-scoped smoke).
+e2e_platform_first_host_id() {
+  local hosts
+  hosts="$(e2e_platform_curl "${E2E_PLATFORM_BASE}/api/v1/hosts")"
+  echo "$hosts" | python3 -c "
+import json, sys
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    print('')
+    sys.exit(0)
+if isinstance(data, list) and data:
+    print(data[0].get('id', '') or '')
+else:
+    print('')
+" 2>/dev/null || true
 }
 
 e2e_platform_json_field() {

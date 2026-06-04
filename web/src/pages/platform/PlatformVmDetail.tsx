@@ -2,10 +2,16 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
-import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield, ExternalLink, Monitor, Pause, Power } from 'lucide-react'
+import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield, ExternalLink, Monitor, Pause, Power, Server, Loader2 } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
 import GuestToolsStrip from '../../components/platform/GuestToolsStrip'
-import GuestAgentDiagnosticsPanel, { GuestAgentHeaderPill } from '../../components/platform/GuestAgentDiagnosticsPanel'
+import GuestAgentDiagnosticsPanel, {
+  GuestAgentHeaderPill,
+  installStateTone,
+  type RunGuestActionFn,
+} from '../../components/platform/GuestAgentDiagnosticsPanel'
+import GuestkitOfflineAssurancePanel from '../../components/platform/GuestkitOfflineAssurancePanel'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import GuestAiInsightsPanel from '../../components/platform/GuestAiInsightsPanel'
 import { getVmGuestAiInsights } from '../../api/platform'
 import MachinaVmOutageRca from '../../components/ai/MachinaVmOutageRca'
@@ -72,8 +78,10 @@ import { getVmDoctor, type VmDoctorReport } from '../../api/ai'
 import { getVmGuestFirewallPorts, type GuestPortReport } from '../../api/zeusFirewall'
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
-import { formatUserError } from '../../utils/apiError'
-import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, vmStateTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
+import { formatUserError, isPlatformNotFoundError } from '../../utils/apiError'
+import { GUEST_TOAST_CHANNEL_ATTACH, qgaHealthy } from '../../utils/guestAgentUx'
+import { toastQueuedOperation } from '../../utils/platformTaskToast'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone, vmStateTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 import { vmErrorPresentation } from '../../utils/vmErrorPresentation'
 import { loadVmSshPrefs } from '../../utils/vmSshPrefs'
 import VmDailyAccessStrip from '../../components/vm/VmDailyAccessStrip'
@@ -81,6 +89,7 @@ import VmSshConnectDialog, { navigateVmSshSession } from '../../components/vm/Vm
 import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
 import { PlatformOpenStackVmLink } from '../../components/platform/PlatformCrossLinks'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
+import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { tasksHubHref } from '../../utils/platformHubLinks'
 import { downloadVmIacBundle, downloadVmIacZip, exportVmDisk, exportVmIac, retirePlatformVm, type VmIacExportBundle } from '../../api/platformVmLifecycle'
 import { publishVmAsTemplate } from '../../api/platformTemplatesExtra'
@@ -109,6 +118,7 @@ export default function PlatformVmDetail() {
     }, { replace: true })
   }
   const [tier] = usePlatformDesktopTier()
+  const { info } = usePlatformInfo()
   const { setContextVmId, setContextSummary, openCopilot } = useAi()
   const toast = useToastContext()
   const [vm, setVm] = useState<PlatformVm | null>(null)
@@ -151,8 +161,10 @@ export default function PlatformVmDetail() {
   const [guestPortsLoading, setGuestPortsLoading] = useState(false)
   const [guestHealth, setGuestHealth] = useState<VmGuestHealthReport | null>(null)
   const [guestHealthLoading, setGuestHealthLoading] = useState(false)
+  const [guestHealthError, setGuestHealthError] = useState<string | null>(null)
   const [guestHealthRefreshedAt, setGuestHealthRefreshedAt] = useState<Date | null>(null)
   const [guestServices, setGuestServices] = useState<VmGuestServicesReport | null>(null)
+  const [guestServicesError, setGuestServicesError] = useState<string | null>(null)
   const [topology, setTopology] = useState<TopologyGraph | null>(null)
   const [guestServicesLoading, setGuestServicesLoading] = useState(false)
   const [vmDiagnose, setVmDiagnose] = useState<VmOsDiagnoseReport | null>(null)
@@ -191,9 +203,14 @@ export default function PlatformVmDetail() {
         setDestHost(h.find((x) => x.id !== v.host_id)?.id || h[0]?.id || '')
       }
     } catch (e: unknown) {
+      if (isPlatformNotFoundError(e)) {
+        toast.info('This virtual machine was removed.')
+        navigate('/platform/vms', { replace: true })
+        return
+      }
       setError(formatUserError(e))
     }
-  }, [id, destHost])
+  }, [id, destHost, navigate, toast])
 
   useEffect(() => {
     if (tab !== 'topology' || !id) return
@@ -249,18 +266,20 @@ export default function PlatformVmDetail() {
   const loadGuestHealth = useCallback(async () => {
     if (!id) return
     setGuestHealthLoading(true)
+    setGuestHealthError(null)
     try {
       const gh = await getVmGuestHealth(id)
       setGuestHealth(gh)
       setGuestHealthRefreshedAt(new Date())
       if (gh.os_pretty_name || gh.install_state === 'running') {
-        const chip = [gh.os_pretty_name, gh.install_state === 'running' ? 'QGA' : gh.install_state]
+        const chip = [gh.os_pretty_name, qgaHealthy(gh) ? 'QGA' : gh.install_state]
           .filter(Boolean)
           .join(' · ')
         setContextSummary(chip || null)
       }
-    } catch {
+    } catch (e: unknown) {
       setGuestHealth(null)
+      setGuestHealthError(formatUserError(e))
     } finally {
       setGuestHealthLoading(false)
     }
@@ -269,14 +288,43 @@ export default function PlatformVmDetail() {
   const loadGuestServices = useCallback(async () => {
     if (!id) return
     setGuestServicesLoading(true)
+    setGuestServicesError(null)
     try {
       setGuestServices(await getVmGuestServices(id))
-    } catch {
+    } catch (e: unknown) {
       setGuestServices(null)
+      setGuestServicesError(formatUserError(e))
     } finally {
       setGuestServicesLoading(false)
     }
   }, [id])
+
+  const queueGuestToolsInstall = useCallback(async () => {
+    if (!id) return
+    setGuestInstalling(true)
+    try {
+      const r = await installGuestTools(id)
+      toastQueuedOperation(toast, GUEST_TOAST_CHANNEL_ATTACH, r.task_id, tier)
+      await loadGuestHealth()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setGuestInstalling(false)
+    }
+  }, [id, loadGuestHealth, tier, toast])
+
+  const runGuestAction: RunGuestActionFn = useCallback(
+    async (key, fn, success) => {
+      try {
+        await fn()
+        toast.success(success)
+        await loadGuestHealth()
+      } catch (e: unknown) {
+        toast.error(formatUserError(e))
+      }
+    },
+    [loadGuestHealth, toast],
+  )
 
   const runVmDiagnose = useCallback(async (query?: string) => {
     if (!id) return
@@ -310,7 +358,27 @@ export default function PlatformVmDetail() {
   }, [id, setContextVmId])
 
   const act = async (label: string, fn: () => Promise<unknown>) => {
-    try { await fn(); toast.success(label); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
+    try {
+      const r = await fn()
+      if (r && typeof r === 'object' && 'task_id' in r && typeof (r as { task_id: string }).task_id === 'string') {
+        toastQueuedOperation(toast, label, (r as { task_id: string }).task_id, tier)
+      } else {
+        toast.success(label)
+      }
+      await load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    }
+  }
+
+  const queueVmDelete = async (label: string) => {
+    if (!id) return
+    try {
+      const r = await vmDelete(id, true)
+      navigate('/platform/vms', { replace: true, state: { vmDeleteTaskId: r.task_id, vmDeleteLabel: label } })
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    }
   }
 
   const hostRow = hosts.find((h) => h.id === vm?.host_id)
@@ -437,7 +505,16 @@ export default function PlatformVmDetail() {
               <span className="font-mono text-emerald-300/90">{guestIp}</span>
             </>
           )}
-          <GuestAgentHeaderPill report={guestHealth} />
+          <GuestAgentHeaderPill report={guestHealth} onClick={() => setTab('guestHealth')} />
+          {guestHealth && !qgaHealthy(guestHealth) && vm.observed_state === 'running' && (
+            <button
+              type="button"
+              className={statusPillClasses(installStateTone(guestHealth.install_state, guestHealth.agent_ping))}
+              onClick={() => setTab('guestHealth')}
+            >
+              Guest agent
+            </button>
+          )}
           {vm.ha_enabled && <span className={statusPillClasses('info')}>HA</span>}
         </span>
       ) : undefined}
@@ -458,7 +535,7 @@ export default function PlatformVmDetail() {
             className="btn-danger text-sm"
             onClick={() => {
               if (!window.confirm('Delete this VM permanently?')) return
-              void act('Delete queued', () => vmDelete(id, true))
+              void queueVmDelete('Delete queued')
             }}
           >
             <Trash2 className="w-4 h-4" /> Delete
@@ -466,6 +543,7 @@ export default function PlatformVmDetail() {
         </div>
       ) : undefined}
       error={error}
+      onErrorRetry={() => void load()}
       contentLoading={!vm && !error}
     >
       {vm && (
@@ -511,7 +589,7 @@ export default function PlatformVmDetail() {
                 className="btn-danger text-sm"
                 onClick={() => {
                   if (!window.confirm('Remove this stale VM record from the platform?')) return
-                  void act('Stale VM removed', () => vmDelete(id, true))
+                  void queueVmDelete('Stale VM removed')
                 }}
               >
                 <Trash2 className="w-4 h-4" /> Remove stale record
@@ -526,18 +604,15 @@ export default function PlatformVmDetail() {
             <GuestToolsStrip
               vmId={id}
               compact={tab !== 'overview'}
-              status={health?.guest_tools_status}
-              guestIp={health?.guest_ip}
-              guestHostname={health?.guest_hostname}
+              guestHealth={guestHealth}
+              guestToolsStatus={health?.guest_tools_status}
+              guestIp={guestHealth?.guest_ip || health?.guest_ip}
+              guestHostname={guestHealth?.guest_hostname || health?.guest_hostname}
               installing={guestInstalling}
-              onInstall={() => {
-                if (!id) return
-                setGuestInstalling(true)
-                void installGuestTools(id)
-                  .then(() => { toast.success('Guest tools install queued'); return runHealth() })
-                  .catch((e: unknown) => toast.error(formatUserError(e)))
-                  .finally(() => setGuestInstalling(false))
-              }}
+              onOpenGuestHealth={() => setTab('guestHealth')}
+              onInstall={
+                vm.observed_state === 'running' ? () => void queueGuestToolsInstall() : undefined
+              }
             />
           )}
 
@@ -554,15 +629,7 @@ export default function PlatformVmDetail() {
               guestIpHint={guestHealth?.issues?.[0]}
               onRefreshGuestIp={() => void loadGuestHealth()}
               onInstallGuestTools={
-                vm.observed_state === 'running'
-                  ? () => {
-                      setGuestInstalling(true)
-                      void installGuestTools(id)
-                        .then(() => { toast.success('Guest tools install queued'); return loadGuestHealth() })
-                        .catch((e: unknown) => toast.error(formatUserError(e)))
-                        .finally(() => setGuestInstalling(false))
-                    }
-                  : undefined
+                vm.observed_state === 'running' ? () => void queueGuestToolsInstall() : undefined
               }
               guestToolsInstalling={guestInstalling}
               onExportXml={async () => {
@@ -703,26 +770,33 @@ export default function PlatformVmDetail() {
 
           {tab === 'guestHealth' && (
             <div className="space-y-4 pt-2">
-              <MacGlassPanel title="Guest OS health" subtitle="Install test · ping · filesystems · cloud-init">
+              <MacGlassPanel title="Guest OS health" subtitle="Live QGA · GuestKit offline disk · cloud-init">
                 <GuestAgentDiagnosticsPanel
                   vmId={id!}
                   loading={guestHealthLoading}
                   report={guestHealth}
+                  error={guestHealthError}
+                  vmState={vm.observed_state}
                   lastRefreshedAt={guestHealthRefreshedAt}
                   onRefresh={() => void loadGuestHealth()}
-                  onInstall={
-                    vm.observed_state === 'running'
-                      ? () => {
-                          setGuestInstalling(true)
-                          void installGuestTools(id)
-                            .then(() => { toast.success('Channel attach queued — install qemu-guest-agent in guest, then re-test'); return loadGuestHealth() })
-                            .catch((e: unknown) => toast.error(formatUserError(e)))
-                            .finally(() => setGuestInstalling(false))
-                        }
+                  onStartVm={
+                    vm.observed_state === 'stopped' || vm.observed_state === 'shut off'
+                      ? () => void act('Start queued', () => vmPower(id, 'start'))
                       : undefined
                   }
+                  onInstall={
+                    vm.observed_state === 'running' ? () => void queueGuestToolsInstall() : undefined
+                  }
                   installing={guestInstalling}
+                  onRunAction={runGuestAction}
                 />
+                <div className="mt-4">
+                  <GuestkitOfflineAssurancePanel
+                    vmId={id!}
+                    vmState={vm.observed_state}
+                    guestkitEnabled={Boolean(info?.guestkit?.enabled)}
+                  />
+                </div>
                 <OsDiagnosePanel
                   resourceId={id!}
                   resourceKind="vm"
@@ -735,7 +809,9 @@ export default function PlatformVmDetail() {
               </MacGlassPanel>
               <GuestAiInsightsPanel
                 vmId={id!}
+                autoLoad
                 onApplied={() => void loadGuestHealth()}
+                onRunAction={runGuestAction}
               />
             </div>
           )}
@@ -743,18 +819,46 @@ export default function PlatformVmDetail() {
           {tab === 'guestServices' && (
             <div className="space-y-4 pt-2">
               <MacGlassPanel title="Guest services" subtitle="Agent + listening process inventory (v1)">
-                {guestServicesLoading && <p className="text-sm text-slate-500">Loading…</p>}
-                {!guestServicesLoading && guestServices && (
+                {guestServicesLoading && (
+                  <p className="text-sm text-slate-500 flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Loading guest services…
+                  </p>
+                )}
+                {!guestServicesLoading && guestServicesError && (
+                  <div className={`rounded-lg border p-3 text-sm ${statusSurfaceClasses('error')}`}>
+                    <p className="text-slate-200">{guestServicesError}</p>
+                    <button type="button" className="btn-secondary text-xs mt-2" onClick={() => void loadGuestServices()}>
+                      Retry
+                    </button>
+                  </div>
+                )}
+                {!guestServicesLoading && !guestServicesError && guestServices && (
                   <>
                     <p className="text-xs text-slate-500 mb-3">{guestServices.summary}</p>
                     {guestServices.services.length === 0 ? (
-                      <p className="text-sm text-slate-500">No guest services reported.</p>
+                      <PlatformEmptyState
+                        icon={Server}
+                        title="No guest services"
+                        subtitle="The guest agent did not report any service inventory for this VM."
+                      />
                     ) : (
                       guestServices.services.map((s, i) => (
                         <MacListRow key={`${s.name}-${i}`} title={s.name} subtitle={`${s.status} · ${s.detail}`} />
                       ))
                     )}
                   </>
+                )}
+                {!guestServicesLoading && !guestServicesError && !guestServices && (
+                  <PlatformEmptyState
+                    icon={Server}
+                    title="Guest services unavailable"
+                    subtitle="Start the VM and ensure the guest agent is active, then refresh."
+                    action={
+                      <button type="button" className="btn-secondary text-xs" onClick={() => void loadGuestServices()}>
+                        Refresh
+                      </button>
+                    }
+                  />
                 )}
                 <button type="button" className="btn-secondary text-xs mt-3" onClick={() => void loadGuestServices()}>Refresh</button>
                 <OsDiagnosePanel

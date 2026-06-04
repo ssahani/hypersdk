@@ -36,9 +36,9 @@ pub async fn build(pool: &PgPool, body: &VmBuilderBody) -> anyhow::Result<VmBuil
     let os_hint = if ql.contains("windows") {
         "windows-server-2022"
     } else if ql.contains("debian") {
-        "debian-12"
+        "debian-13"
     } else if ql.contains("rocky") || ql.contains("rhel") {
-        "rocky-9"
+        "rocky-10"
     } else {
         "ubuntu-24.04"
     };

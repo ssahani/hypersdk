@@ -108,7 +108,7 @@ test('platform vms page renders without crash', async ({ page }) => {
 
   await mockPlatformApi(page)
   await page.goto('/platform/vms')
-  await expect(page.getByText('Finder').first()).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('button', { name: 'Create VM' }).first()).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('e2e-libvirt-43356').first()).toBeVisible({ timeout: 15_000 })
   expect(errors).toEqual([])
 })

@@ -570,11 +570,11 @@ mod index_tests {
     #[test]
     fn parse_json_templates_strings() {
         let v: Value =
-            serde_json::from_str(r#"{"version":1,"templates":["debian-12","fedora-40"]}"#).unwrap();
+            serde_json::from_str(r#"{"version":1,"templates":["debian-13","fedora-44"]}"#).unwrap();
         let idx = index_from_json_value(&v);
         assert_eq!(idx.format_version, 1);
         assert_eq!(idx.items.len(), 2);
-        assert_eq!(idx.items[0].name, "debian-12");
+        assert_eq!(idx.items[0].name, "debian-13");
     }
 
     #[test]

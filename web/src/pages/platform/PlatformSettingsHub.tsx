@@ -31,9 +31,27 @@ import { getAiPolicyExport } from '../../api/ai'
 import { getFirewallOverview, type FirewallOverview } from '../../api/zeusFirewall'
 import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import { listAlertRules, listAlerts, listTokens } from '../../api/automation'
+import { getSession, type AuthSession } from '../../api/auth'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
+
+function BrowserSessionInfo() {
+  const [session, setSession] = useState<AuthSession | null>(null)
+  useEffect(() => {
+    void getSession().then(setSession)
+  }, [])
+  if (!session?.authenticated || session.active_sessions_for_user == null) return null
+  const max = session.max_sessions_per_user ?? 0
+  const concurrent = max === 0
+  return (
+    <p className="text-xs text-slate-500 pb-2">
+      Browser sessions for <span className="text-slate-300">{session.username}</span>:{' '}
+      <span className="text-slate-200">{session.active_sessions_for_user}</span>
+      {concurrent ? ' (concurrent logins allowed)' : ` / ${max} max per user`}
+    </p>
+  )
+}
 
 type SettingsSection =
   | 'general'
@@ -266,6 +284,7 @@ export default function PlatformSettingsHub() {
       {section === 'security' && (
         <div className="space-y-6">
           <MacSettingsGroup title="Security">
+            <BrowserSessionInfo />
             <MacToggle
               label="Require confirmation for production VM deletion"
               description="Deletes queue for approval when enabled cluster-wide."

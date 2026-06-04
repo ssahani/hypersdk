@@ -71,6 +71,10 @@ pub async fn delete_webhook(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_admin(&actor)?;
+    sqlx::query("DELETE FROM webhook_deliveries WHERE webhook_id = $1")
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
     sqlx::query("DELETE FROM webhooks WHERE id = $1")
         .bind(id)
         .execute(&state.pool)
@@ -152,6 +156,52 @@ pub async fn list_webhook_deliveries(
         .await?
     };
     Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PurgeWebhookDeliveriesBody {
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub url_contains: Option<String>,
+}
+
+pub async fn purge_webhook_deliveries(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Json(body): Json<PurgeWebhookDeliveriesBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&actor)?;
+    let status = body.status.as_deref();
+    let url_pat = body
+        .url_contains
+        .as_deref()
+        .map(|s| format!("%{s}%"));
+    let deleted = if let (Some(st), Some(url)) = (status, url_pat.as_deref()) {
+        sqlx::query("DELETE FROM webhook_deliveries WHERE status = $1 AND url LIKE $2")
+            .bind(st)
+            .bind(url)
+            .execute(&state.pool)
+            .await?
+            .rows_affected()
+    } else if let Some(st) = status {
+        sqlx::query("DELETE FROM webhook_deliveries WHERE status = $1")
+            .bind(st)
+            .execute(&state.pool)
+            .await?
+            .rows_affected()
+    } else if let Some(url) = url_pat.as_deref() {
+        sqlx::query("DELETE FROM webhook_deliveries WHERE url LIKE $1")
+            .bind(url)
+            .execute(&state.pool)
+            .await?
+            .rows_affected()
+    } else {
+        return Err(ApiError::bad_request(
+            "provide status and/or url_contains to purge deliveries",
+        ));
+    };
+    Ok(Json(serde_json::json!({ "deleted": deleted })))
 }
 
 pub async fn retry_webhook_delivery(

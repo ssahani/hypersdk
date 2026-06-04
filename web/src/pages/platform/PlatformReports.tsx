@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router'
 import { BookOpen, DollarSign, FolderKanban, PieChart } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import PageSkeleton from '../../components/PageSkeleton'
@@ -29,7 +30,8 @@ import {
 import { getAiCapacity, getAiCost, getAiCompliance, getAiComplianceExportUrl, getAiCompliancePdfUrl, getAiCostExportUrl, getAiCapacityExportUrl, getAiSecurity, getAutopilotHistory, getCostAttribution, getCostAttributionExportUrl, getCostBudget, migrationReadinessReport, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type CostAttributionReport, type ComplianceReport, type CostBudgetReport, type MigrationReadinessReport, type SecurityReport } from '../../api/ai'
 import { getFirewallExposureFinOps, getFirewallExposureFinOpsExportUrl, type ExposureFinOpsReport } from '../../api/zeusFirewall'
 import { formatUserError } from '../../utils/apiError'
-import { statusToneClass } from '../../utils/semanticColors'
+import { installStateTone } from '../../components/platform/GuestAgentDiagnosticsPanel'
+import { statusPillClasses, statusToneClass } from '../../utils/semanticColors'
 import { useToastContext } from '../../contexts/ToastContext'
 
 type TabId = 'reports' | 'runbooks' | 'showback'
@@ -274,22 +276,54 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
         <>
           <MacGlassPanel
             title="AI migration readiness"
-            subtitle="Live QEMU guest-agent data merged with migration heuristics"
+            subtitle="Live QGA for running VMs; GuestKit offline disk scan when stopped (GUESTKIT_ENABLED)"
             action={
-              <button
-                type="button"
-                className="btn-secondary text-xs"
-                disabled={migrationBusy}
-                onClick={() => {
-                  setMigrationBusy(true)
-                  void migrationReadinessReport()
-                    .then(setMigrationReport)
-                    .catch((e: unknown) => toast.error(formatUserError(e)))
-                    .finally(() => setMigrationBusy(false))
-                }}
-              >
-                {migrationBusy ? 'Generating…' : 'Generate report'}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn-secondary text-xs"
+                  disabled={migrationBusy}
+                  onClick={() => {
+                    setMigrationBusy(true)
+                    void migrationReadinessReport()
+                      .then(setMigrationReport)
+                      .catch((e: unknown) => toast.error(formatUserError(e)))
+                      .finally(() => setMigrationBusy(false))
+                  }}
+                >
+                  {migrationBusy ? 'Generating…' : 'Generate report'}
+                </button>
+                {migrationReport && migrationReport.rows.length > 0 && (
+                  <button
+                    type="button"
+                    className="btn-secondary text-xs"
+                    onClick={() => {
+                      const header = 'vm_id,vm_name,readiness_percent,install_state,qga_gaps,remediation'
+                      const lines = migrationReport.rows.map((row) =>
+                        [
+                          row.vm_id,
+                          row.vm_name,
+                          row.readiness_percent,
+                          row.install_state,
+                          row.qga_gaps.join('; '),
+                          row.remediation.join('; '),
+                        ]
+                          .map((c) => `"${String(c).replace(/"/g, '""')}"`)
+                          .join(','),
+                      )
+                      const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' })
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = 'migration-readiness.csv'
+                      a.click()
+                      URL.revokeObjectURL(url)
+                    }}
+                  >
+                    Export CSV
+                  </button>
+                )}
+              </div>
             }
           >
             {migrationReport ? (
@@ -308,17 +342,39 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
                       <tr className="text-left text-slate-500">
                         <th className="py-1 pr-2">VM</th>
                         <th className="py-1 pr-2">Ready</th>
-                        <th className="py-1 pr-2">QGA</th>
+                        <th className="py-1 pr-2">Assurance</th>
                         <th className="py-1">Gaps</th>
                       </tr>
                     </thead>
                     <tbody>
                       {migrationReport.rows.map((row) => (
                         <tr key={row.vm_id} className="border-t border-white/[0.04]">
-                          <td className="py-1 pr-2 text-slate-300">{row.vm_name}</td>
+                          <td className="py-1 pr-2">
+                            <Link
+                              to={`/platform/vms/${row.vm_id}?tab=guestHealth`}
+                              className="text-sky-300/90 hover:underline"
+                            >
+                              {row.vm_name}
+                            </Link>
+                          </td>
                           <td className="py-1 pr-2">{row.readiness_percent}%</td>
-                          <td className="py-1 pr-2">{row.install_state}</td>
-                          <td className="py-1 text-slate-500">{row.qga_gaps.join('; ') || '—'}</td>
+                          <td className="py-1 pr-2">
+                            <span
+                              className={statusPillClasses(
+                                row.assurance_mode === 'offline_guestkit' ? 'warn' : installStateTone(row.install_state),
+                              )}
+                              title={row.guestkit_summary}
+                            >
+                              {row.assurance_mode === 'offline_guestkit'
+                                ? 'GuestKit'
+                                : row.assurance_mode === 'live_qga'
+                                  ? 'QGA'
+                                  : row.install_state}
+                            </span>
+                          </td>
+                          <td className="py-1 text-slate-500" title={row.guestkit_summary ?? row.remediation.join(' · ')}>
+                            {row.qga_gaps.join('; ') || '—'}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

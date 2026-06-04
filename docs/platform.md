@@ -212,7 +212,19 @@ This rsyncs sources, runs `make release web` on the server, installs **machina-d
 
 With `--platform --e2e`, deploy runs the **full E2E suite** (`e2e-full-test-remote.sh`): daemon libvirt/OpenStack checks, host checklist (no nbd SMART noise), UI platform proxy via `/api/v1/platform/controller`, read-only controller smoke, and VM lifecycle on `:5093`.
 
-### Full E2E (recommended after platform work)
+### Comprehensive platform E2E (recommended sign-off)
+
+**Mock Playwright alone is not sufficient** for platform UX sign-off — use the orchestrator against a deployed host with real PAM credentials:
+
+```bash
+VSPASS='…' ./scripts/e2e-platform-complete-remote.sh sus 175.110.114.93
+```
+
+This runs, in order: full API/daemon E2E (with `--skip-openstack` on KVM-only hosts), UX API flow (create + delete VM), live UX wiring manifest (~84 routes), and live Playwright (create/delete VM, platform routes, host smoke). Results are written to [`docs/e2e-last-run.json`](e2e-last-run.json).
+
+Optional local mocked CI: `E2E_INCLUDE_MOCK=1` prepends `npm run test:e2e` in the web tree.
+
+### Full E2E (API phases only)
 
 From your laptop:
 
@@ -226,6 +238,12 @@ Platform-only (skip libvirt/OpenStack daemon tests):
 VSPASS='…' ./scripts/e2e-full-test-remote.sh sus 212.8.252.194 --platform-only
 ```
 
+KVM-only remote host (skip OpenStack):
+
+```bash
+VSPASS='…' ./scripts/e2e-full-test-remote.sh sus 175.110.114.93 --skip-openstack
+```
+
 Phases (each skippable via flags on `e2e-full-test.sh`):
 
 1. **Install smoke** — `systemctl` + controller health on the remote host
@@ -234,10 +252,34 @@ Phases (each skippable via flags on `e2e-full-test.sh`):
 4. **UI platform proxy** — authenticated calls through daemon to controller (browser path)
 5. **Platform controller** — read-only API smoke + VM create/snapshot lifecycle
 
+### Auth, sessions, and rate limits
+
+**Browser sessions (daemon `:5092`)** — in `/etc/machina/config.toml`:
+
+```toml
+[auth]
+max_sessions_per_user = 0   # 0 = unlimited concurrent logins per username (default)
+max_sessions_global = 1000
+```
+
+When `max_sessions_per_user` is `0`, multiple browsers can stay signed in as the same PAM user without evicting each other. Set a positive value only if you want oldest-session eviction per user.
+
+**Controller rate limits (`:5093`)** — in `/etc/default/machina-platform`:
+
+```bash
+MACHINA_RATE_LIMIT_PER_MIN=600
+MACHINA_RATE_LIMIT_ENABLED=1
+# CI only — E2E scripts send header X-Machina-E2E when this is set:
+MACHINA_E2E_BYPASS_SECRET=e2e-ci-bypass-175
+```
+
+Limits are keyed by **username** (Basic auth) or JWT subject, not the raw `Authorization` header, so E2E and UI traffic for different users do not share one bucket.
+
 Env vars:
 
 - `VSPASS` — PAM password for daemon login (`:5092`)
-- `E2E_PLATFORM_USER` / `E2E_PLATFORM_PASS` — controller Basic auth when `MACHINA_SKIP_AUTH` is off (default `admin`/`admin`)
+- `E2E_PLATFORM_USER` / `E2E_PLATFORM_PASS` — controller Basic auth when `MACHINA_SKIP_AUTH` is off (default platform E2E user `machina-e2e`; use `sus` on lab hosts via orchestrator export)
+- `MACHINA_E2E_BYPASS_SECRET` — must match the controller env for automated smoke to skip rate limits
 
 ### Individual scripts
 

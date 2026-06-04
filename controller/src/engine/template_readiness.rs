@@ -1,11 +1,11 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use std::path::Path;
-use std::time::Duration;
 
 use serde::Serialize;
 use sqlx::PgPool;
 
+use super::host_shell;
 use super::template_catalog;
 
 #[derive(Debug, Serialize)]
@@ -135,35 +135,9 @@ pub async fn disk_exists_on_hosts(pool: &PgPool, path: &str) -> bool {
     .unwrap_or_default();
 
     for addr in hosts {
-        if ssh_test_file(&addr, path).await {
+        if host_shell::remote_file_exists(&addr, path).await {
             return true;
         }
     }
     false
-}
-
-async fn ssh_test_file(address: &str, path: &str) -> bool {
-    let output = tokio::time::timeout(
-        Duration::from_secs(6),
-        tokio::process::Command::new("ssh")
-            .args([
-                "-o",
-                "BatchMode=yes",
-                "-o",
-                "ConnectTimeout=4",
-                "-o",
-                "StrictHostKeyChecking=accept-new",
-                address,
-                "test",
-                "-f",
-                path,
-            ])
-            .output(),
-    )
-    .await;
-
-    match output {
-        Ok(Ok(o)) => o.status.success(),
-        _ => false,
-    }
 }

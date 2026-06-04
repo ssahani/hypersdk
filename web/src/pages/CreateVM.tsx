@@ -843,7 +843,7 @@ export default function CreateVMPage() {
                 value={virtInstallLocation}
                 onChange={(e) => setVirtInstallLocation(e.target.value)}
                 className="input-field font-mono text-sm flex-1 min-w-[min(100%,16rem)]"
-                placeholder="https://download.fedoraproject.org/pub/fedora/linux/releases/40/Server/x86_64/os/"
+                placeholder="https://download.fedoraproject.org/pub/fedora/linux/releases/44/Server/x86_64/os/"
               />
               <button
                 type="button"

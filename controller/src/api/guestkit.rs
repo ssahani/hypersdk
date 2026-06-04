@@ -72,6 +72,23 @@ pub async fn guestkit_vm_doctor(
     .map(Json)
 }
 
+pub async fn guestkit_vm_migrate_plan(
+    State(state): State<AppState>,
+    Path(vm_id): Path<Uuid>,
+    Query(q): Query<GuestkitVmDoctorQuery>,
+) -> Result<Json<guestkit_bridge::GuestkitMigratePlanReport>, ApiError> {
+    guestkit_bridge::migrate_plan_vm(
+        &state.config,
+        &state.pool,
+        &state.config.disk_image_dir,
+        vm_id,
+        &q.target,
+    )
+    .await
+    .map_err(|e| ApiError::bad_request(e.to_string()))
+    .map(Json)
+}
+
 #[derive(Debug, Deserialize)]
 pub struct GuestkitJobBody {
     pub image_path: String,

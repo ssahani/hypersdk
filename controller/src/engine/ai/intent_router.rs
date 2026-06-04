@@ -1394,9 +1394,9 @@ fn parse_nl_create_vm(query: &str) -> Option<SpotlightIntent> {
     let os = if ql.contains("windows") {
         "windows-server-2022"
     } else if ql.contains("rocky") {
-        "rocky-9"
+        "rocky-10"
     } else if ql.contains("debian") {
-        "debian-12"
+        "debian-13"
     } else {
         "ubuntu-24.04"
     };

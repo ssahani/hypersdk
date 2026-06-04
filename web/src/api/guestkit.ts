@@ -64,6 +64,11 @@ export const guestkitVmDoctor = (vmId: string, target = 'kvm', explain = false) 
   return platformFetch<GuestkitDoctorReport>(`/api/v1/guestkit/vms/${vmId}/doctor?${q}`)
 }
 
+export const guestkitVmMigratePlan = (vmId: string, target = 'kvm') => {
+  const q = new URLSearchParams({ target })
+  return platformFetch<GuestkitMigratePlanReport>(`/api/v1/guestkit/vms/${vmId}/migrate-plan?${q}`)
+}
+
 export const submitGuestkitInspectJob = (image_path: string, name = 'machina-inspect') =>
   platformFetch<{ job_id: string; status: string; summary: string }>('/api/v1/guestkit/jobs', {
     method: 'POST',

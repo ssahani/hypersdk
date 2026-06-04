@@ -5,9 +5,10 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use axum::extract::{ConnectInfo, Request, State};
-use axum::http::StatusCode;
+use axum::http::{header, StatusCode};
 use axum::middleware::Next;
 use axum::response::Response;
+use base64::Engine;
 use std::net::SocketAddr;
 
 struct Bucket {
@@ -15,18 +16,36 @@ struct Bucket {
     count: u32,
 }
 
+#[derive(Clone)]
 pub struct RateLimiter {
-    inner: Mutex<HashMap<String, Bucket>>,
+    inner: Arc<Mutex<HashMap<String, Bucket>>>,
     limit: u32,
     window: Duration,
+    enabled: bool,
+    e2e_bypass_secret: Option<String>,
+    jwt_secret: String,
 }
 
 impl RateLimiter {
-    pub fn new(limit: u32) -> Arc<Self> {
+    pub fn from_env(jwt_secret: String) -> Arc<Self> {
+        let limit = std::env::var("MACHINA_RATE_LIMIT_PER_MIN")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(300);
+        let enabled = std::env::var("MACHINA_RATE_LIMIT_ENABLED")
+            .ok()
+            .map(|v| !matches!(v.to_lowercase().as_str(), "0" | "false" | "no"))
+            .unwrap_or(true);
+        let e2e_bypass_secret = std::env::var("MACHINA_E2E_BYPASS_SECRET")
+            .ok()
+            .filter(|s| !s.is_empty());
         Arc::new(Self {
-            inner: Mutex::new(HashMap::new()),
+            inner: Arc::new(Mutex::new(HashMap::new())),
             limit,
             window: Duration::from_secs(60),
+            enabled,
+            e2e_bypass_secret,
+            jwt_secret,
         })
     }
 
@@ -49,24 +68,70 @@ impl RateLimiter {
     }
 }
 
+fn parse_basic_username(value: &str) -> Option<String> {
+    let encoded = value.strip_prefix("Basic ")?;
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(encoded.trim())
+        .ok()?;
+    let decoded = String::from_utf8(decoded).ok()?;
+    let (user, _) = decoded.split_once(':')?;
+    if user.is_empty() {
+        None
+    } else {
+        Some(user.to_string())
+    }
+}
+
+fn rate_limit_key(limiter: &RateLimiter, auth_value: Option<&str>) -> String {
+    let Some(value) = auth_value else {
+        return String::new();
+    };
+    if let Some(user) = parse_basic_username(value) {
+        return format!("user:{user}");
+    }
+    if let Some(token) = value.strip_prefix("Bearer ") {
+        let token = token.trim();
+        if let Ok(claims) = crate::jwt::verify_token(&limiter.jwt_secret, token) {
+            return format!("user:{}", claims.sub);
+        }
+        let prefix: String = token.chars().take(12).collect();
+        return format!("bearer:{prefix}");
+    }
+    String::new()
+}
+
 pub async fn rate_limit_middleware(
     State(limiter): State<Arc<RateLimiter>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    let ip_key = format!("ip:{}", addr.ip());
-    let key = if let Some(auth) = request.headers().get("authorization") {
-        format!("auth:{}", auth.to_str().unwrap_or(""))
-    } else if let Some(ip) = request.headers().get("x-forwarded-for") {
-        format!("ip:{}", ip.to_str().unwrap_or("unknown"))
-    } else {
-        ip_key.clone()
-    };
-    if !limiter.check(&key) {
-        return Err(StatusCode::TOO_MANY_REQUESTS);
+    if !limiter.enabled {
+        return Ok(next.run(request).await);
     }
-    if key != ip_key && !limiter.check(&ip_key) {
+
+    if let Some(secret) = &limiter.e2e_bypass_secret {
+        if let Some(hdr) = request.headers().get("x-machina-e2e") {
+            if hdr.to_str().ok() == Some(secret.as_str()) {
+                return Ok(next.run(request).await);
+            }
+        }
+    }
+
+    let ip_key = format!("ip:{}", addr.ip());
+    let auth_header = request.headers().get(header::AUTHORIZATION);
+    let key = rate_limit_key(&limiter, auth_header.and_then(|v| v.to_str().ok()));
+    let key = if key.is_empty() {
+        if let Some(ip) = request.headers().get("x-forwarded-for") {
+            format!("ip:{}", ip.to_str().unwrap_or("unknown"))
+        } else {
+            ip_key.clone()
+        }
+    } else {
+        key
+    };
+
+    if !limiter.check(&key) {
         return Err(StatusCode::TOO_MANY_REQUESTS);
     }
     Ok(next.run(request).await)

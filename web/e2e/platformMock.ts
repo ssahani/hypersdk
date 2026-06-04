@@ -307,6 +307,7 @@ const sampleVm = {
   tags: [],
   inventory_source: 'libvirt',
   guest_ip: '192.168.122.50',
+  guest_tools_status: 'healthy',
 }
 
 export async function mockPlatformApi(page: Page, opts?: {
@@ -340,6 +341,73 @@ export async function mockPlatformApi(page: Page, opts?: {
     }
     if (url.includes('/system/platform-info')) {
       return route.fulfill({ json: platformInfo })
+    }
+    if (url.includes('/openstack/status')) {
+      return route.fulfill({
+        json: {
+          enabled: true,
+          configured: true,
+          connected: true,
+          reachable: true,
+          keystone_reachable: true,
+          compute_reachable: true,
+          glance_reachable: true,
+          cloud_name: 'test',
+        },
+      })
+    }
+    if (url.includes('/openstack/instances')) {
+      return route.fulfill({
+        json: {
+          total: 2,
+          instances: [
+            { id: 'os-1', name: 'web-01', status: 'ACTIVE' },
+            { id: 'os-2', name: 'db-01', status: 'SHUTOFF' },
+          ],
+        },
+      })
+    }
+    if (url.includes('/openstack/networks')) {
+      return route.fulfill({ json: { networks: [{ id: 'n1', name: 'private' }] } })
+    }
+    if (url.includes('/openstack/images')) {
+      return route.fulfill({ json: { images: [{ id: 'i1', name: 'ubuntu-22.04' }] } })
+    }
+    if (url.includes('/k8s/overview')) {
+      return route.fulfill({
+        json: {
+          version: 'v1.29.0',
+          nodes: 3,
+          ready_nodes: 3,
+          namespaces: 8,
+          pods: 42,
+          deployments: 12,
+          services: 18,
+          distribution: 'k3s',
+        },
+      })
+    }
+    if (url.includes('/fleet/console')) {
+      return route.fulfill({
+        json: {
+          summary: '2 events in last 24h',
+          total_24h: 2,
+          audit_24h: 1,
+          events_24h: 1,
+          task_failures_24h: 0,
+          entries: [
+            {
+              id: 'e1',
+              created_at: new Date().toISOString(),
+              severity: 'info',
+              source: 'audit',
+              action: 'login',
+              message: 'user login',
+              actor: 'admin',
+            },
+          ],
+        },
+      })
     }
     if (url.includes('/events/stream') || url.includes('/ws/')) {
       return route.abort()
@@ -597,7 +665,16 @@ export async function mockPlatformApi(page: Page, opts?: {
     }
     if (url.includes('/reports/capacity')) {
       return route.fulfill({
-        json: { hosts_online: 1, running_vms: 1, memory_headroom_mib: 8192, avg_cpu_percent: 35 },
+        json: {
+          hosts_online: 1,
+          hosts_offline: 0,
+          total_vms: 1,
+          running_vms: 1,
+          memory_total_mib: 16384,
+          memory_used_mib: 4096,
+          memory_headroom_mib: 8192,
+          avg_cpu_percent: 35,
+        },
       })
     }
     if (url.includes('/reports/finops')) {
@@ -1260,6 +1337,9 @@ export async function mockPlatformApi(page: Page, opts?: {
         json: { vm_name: 'vm-1', console_type: 'vnc', ws_path: '/api/v1/vms/v1/console/ws' },
       })
     }
+    if (url.match(/\/vms\/guest-health-fail\/guest\/health/)) {
+      return route.fulfill({ status: 500, json: { error: 'guest health unavailable' } })
+    }
     if (url.match(/\/vms\/[^/]+\/guest\/health/)) {
       return route.fulfill({
         json: {
@@ -1302,6 +1382,23 @@ export async function mockPlatformApi(page: Page, opts?: {
       })
     }
     if (url.includes('/ai/fleet/guest-query') && route.request().method() === 'POST') {
+      const raw = route.request().postData() ?? ''
+      let body: { query?: string } = {}
+      try {
+        body = JSON.parse(raw) as { query?: string }
+      } catch { /* empty */ }
+      if (body.query?.includes('empty-test') || raw.includes('empty-test')) {
+        return route.fulfill({
+          json: {
+            query: body.query,
+            summary: 'No VMs matched for empty-test query.',
+            matched_count: 0,
+            scanned_count: 3,
+            llm_powered: false,
+            vms: [],
+          },
+        })
+      }
       return route.fulfill({
         json: {
           query: 'guest agent',
@@ -1340,6 +1437,11 @@ export async function mockPlatformApi(page: Page, opts?: {
           guest_tools_status: 'installed',
           guest_ip: '192.168.122.50',
         },
+      })
+    }
+    if (url.match(/\/vms\/[^/]+\/delete/) && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: { task_id: 'task-delete-mock', status: 'pending', operation: 'vm.delete' },
       })
     }
     if (url.match(/\/vms\/[^/]+\/(shutdown|pause|resume|start|stop|reboot)$/) && route.request().method() === 'POST') {
@@ -1421,48 +1523,6 @@ export async function mockPlatformApi(page: Page, opts?: {
     }
     if (url.includes('/backups/timeline')) {
       return route.fulfill({ json: [] })
-    }
-    if (url.includes('/openstack/status')) {
-      return route.fulfill({
-        json: {
-          reachable: true,
-          keystone_reachable: true,
-          compute_reachable: true,
-          glance_reachable: true,
-          cloud_name: 'test',
-        },
-      })
-    }
-    if (url.includes('/openstack/instances')) {
-      return route.fulfill({
-        json: {
-          total: 2,
-          instances: [
-            { id: 'os-1', name: 'web-01', status: 'ACTIVE' },
-            { id: 'os-2', name: 'db-01', status: 'SHUTOFF' },
-          ],
-        },
-      })
-    }
-    if (url.includes('/openstack/networks')) {
-      return route.fulfill({ json: { networks: [{ id: 'n1', name: 'private' }] } })
-    }
-    if (url.includes('/openstack/images')) {
-      return route.fulfill({ json: { images: [{ id: 'i1', name: 'ubuntu-22.04' }] } })
-    }
-    if (url.includes('/k8s/overview')) {
-      return route.fulfill({
-        json: {
-          version: 'v1.29.0',
-          nodes: 3,
-          ready_nodes: 3,
-          namespaces: 8,
-          pods: 42,
-          deployments: 12,
-          services: 18,
-          distribution: 'k3s',
-        },
-      })
     }
     if (url.includes('/ai/security/explain-event')) {
       return route.fulfill({ json: { explanation: 'Routine administrative activity.', risk: 'Low', recommendation: 'Monitor timeline.' } })

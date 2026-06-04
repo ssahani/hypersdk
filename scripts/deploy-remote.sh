@@ -598,12 +598,27 @@ if $RUN_E2E; then
             fi
             if ! $SKIP_LIVE_UX; then
                 deploy_ui_highlight "🧪 Post-deploy live UX wiring (Playwright)"
-                if PLAYWRIGHT_LIVE_URL="https://${HOST}:5092" PLAYWRIGHT_LIVE_USER="${USER}" PLAYWRIGHT_LIVE_PASS="${VSPASS:-${SSHPASS:-}}" \
+                LIVE_PW="${VSPASS:-${SSHPASS:-}}"
+                LIVE_BASE="https://${HOST}:5092"
+                LIVE_E2E_OK=true
+                if PLAYWRIGHT_LIVE_URL="${LIVE_BASE}" PLAYWRIGHT_LIVE_USER="${USER}" PLAYWRIGHT_LIVE_PASS="${LIVE_PW}" \
                     npm --prefix "${SCRIPT_DIR}/../web" run test:e2e:live-ux; then
                     deploy_ui_celebrate "Live UX wiring passed"
                 else
                     warn "Live UX wiring failed (deploy itself succeeded)"
+                    LIVE_E2E_OK=false
                 fi
+                deploy_ui_highlight "🧪 Post-deploy live VM create/delete (Playwright)"
+                if PLAYWRIGHT_LIVE_URL="${LIVE_BASE}" PLAYWRIGHT_LIVE_USER="${USER}" PLAYWRIGHT_LIVE_PASS="${LIVE_PW}" \
+                    npm --prefix "${SCRIPT_DIR}/../web" run test:e2e -- --workers=1 --timeout=180000 \
+                    e2e/platform-live-vm-create.spec.ts \
+                    e2e/platform-live-vm-delete.spec.ts; then
+                    deploy_ui_celebrate "Live VM lifecycle passed"
+                else
+                    warn "Live VM lifecycle failed (deploy itself succeeded)"
+                    LIVE_E2E_OK=false
+                fi
+                $LIVE_E2E_OK || warn "One or more live Playwright phases failed"
             fi
         elif ! $SKIP_DAEMON_E2E; then
             deploy_ui_highlight "🧪 Post-deploy E2E (daemon :5092)"

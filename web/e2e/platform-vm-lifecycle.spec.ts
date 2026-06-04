@@ -56,6 +56,44 @@ test('create vm wizard shows readiness when template selected', async ({ page })
   await expect(page.getByText('Ready to deploy')).toBeVisible({ timeout: 10_000 })
 })
 
+test('delete vm returns to list without page crash', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', (err) => errors.push(err.message))
+
+  let vmGone = false
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.route('**/platform/controller/api/v1/vms/v1', async (route) => {
+    if (vmGone && route.request().method() === 'GET') {
+      return route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'not found', error_code: 'not_found' }),
+      })
+    }
+    await route.fallback()
+  })
+  await page.route('**/platform/controller/api/v1/vms/v1/delete', async (route) => {
+    vmGone = true
+    return route.fulfill({
+      json: { task_id: 'task-delete-mock', status: 'pending', operation: 'vm.delete' },
+    })
+  })
+
+  await page.goto('/platform/vms/v1')
+  await expect(page.getByRole('heading', { name: 'vm-1' })).toBeVisible({ timeout: 15_000 })
+
+  page.once('dialog', (d) => d.accept())
+  const deleteReq = page.waitForResponse(
+    (r) => r.url().includes('/vms/v1/delete') && r.request().method() === 'POST',
+  )
+  await page.locator('button.btn-danger').filter({ hasText: 'Delete' }).click()
+  expect((await deleteReq).ok()).toBeTruthy()
+
+  await expect(page).toHaveURL(/\/platform\/vms\/?$/, { timeout: 15_000 })
+  await expect(page.getByText('Application error|Something went wrong')).toHaveCount(0)
+  expect(errors.filter((e) => !e.includes('ResizeObserver'))).toEqual([])
+})
+
 test('create vm wizard has Next steps and SSH on final step', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/vms?create=test-vm')

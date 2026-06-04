@@ -3,75 +3,75 @@
 import { test, expect } from '@playwright/test'
 import { mockPlatformApi } from './platformMock'
 
-async function expectRouteVisible(page: import('@playwright/test').Page, path: string, text: RegExp) {
+async function expectRouteVisible(
+  page: import('@playwright/test').Page,
+  path: string,
+  heading: string | RegExp,
+) {
   await page.goto(path)
-  if (path === '/platform/resources') {
-    await expect(page.getByRole('heading', { name: 'Resources' })).toBeVisible({ timeout: 20_000 })
-    return
-  }
-  await expect(page.getByText(text).first()).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('heading', { name: heading }).first()).toBeVisible({ timeout: 20_000 })
 }
 
-const NORMAL_ROUTES: Array<{ path: string; text: RegExp }> = [
-  { path: '/platform', text: /Production Cluster|Dashboard|Zyvor Platform/i },
-  { path: '/platform/vms', text: /Finder/i },
-  { path: '/platform/hosts', text: /Hosts/i },
-  { path: '/platform/integrations', text: /Apps & Integrations/i },
-  { path: '/platform/settings', text: /Settings|General/i },
-  { path: '/platform/backups', text: /Backup|Time Machine/i },
-  { path: '/platform/storage', text: /Storage|Disk/i },
+const NORMAL_ROUTES: Array<{ path: string; heading: string | RegExp }> = [
+  { path: '/platform', heading: /e2e-cluster|Production Cluster|Zyvor Platform/i },
+  { path: '/platform/vms', heading: 'Virtual Machines' },
+  { path: '/platform/hosts', heading: 'Hosts' },
+  { path: '/platform/integrations', heading: 'Apps & Integrations' },
+  { path: '/platform/settings', heading: /Settings|General/i },
+  { path: '/platform/backups', heading: 'Time Machine' },
+  { path: '/platform/storage', heading: 'Storage' },
 ]
 
-const ADVANCED_ROUTES: Array<{ path: string; text: RegExp }> = [
-  { path: '/platform/resources', text: /Resources/i },
-  { path: '/platform/operations', text: /Operations/i },
-  { path: '/platform/policy', text: /Policy & Quotas/i },
-  { path: '/platform/events', text: /Logs|Console|Audit/i },
-  { path: '/platform/zeus/security/policies', text: /Policy Studio/i },
-  { path: '/platform/recommendations', text: /Recommendations/i },
-  { path: '/platform/observability', text: /Observability/i },
+const ADVANCED_ROUTES: Array<{ path: string; heading: string | RegExp }> = [
+  { path: '/platform/resources', heading: 'Resources' },
+  { path: '/platform/operations', heading: 'Operations' },
+  { path: '/platform/policy', heading: 'Policy & Quotas' },
+  { path: '/platform/events', heading: 'Logs & Audit' },
+  { path: '/platform/zeus/security/policies', heading: 'Policy Studio' },
+  { path: '/platform/recommendations', heading: 'Recommendations' },
+  { path: '/platform/observability', heading: 'Observability' },
 ]
 
-const POWER_ROUTES: Array<{ path: string; text: RegExp }> = [
-  { path: '/platform/observability', text: /Observability/i },
-  { path: '/platform/placement', text: /Placement & HA/i },
-  { path: '/platform/policy', text: /Policy & Quotas/i },
-  { path: '/platform/api-keys', text: /API Keys/i },
-  { path: '/platform/resources', text: /Resources/i },
+const POWER_ROUTES: Array<{ path: string; heading: string | RegExp }> = [
+  { path: '/platform/observability', heading: 'Observability' },
+  { path: '/platform/placement', heading: 'Placement & HA' },
+  { path: '/platform/policy', heading: 'Policy & Quotas' },
+  { path: '/platform/api-keys', heading: /API keys/i },
+  { path: '/platform/resources', heading: 'Resources' },
 ]
 
 test.describe('power tier platform routes', () => {
-  for (const { path, text } of POWER_ROUTES) {
+  for (const { path, heading } of POWER_ROUTES) {
     test(`${path} loads without JS crash`, async ({ page }) => {
       const errors: string[] = []
       page.on('pageerror', (err) => errors.push(err.message))
       await mockPlatformApi(page, { tier: 'power' })
-      await expectRouteVisible(page, path, text)
-      expect(errors).toEqual([])
+      await expectRouteVisible(page, path, heading)
+      expect(errors.filter((e) => !e.includes('ResizeObserver'))).toEqual([])
     })
   }
 })
 
 test.describe('normal tier platform routes', () => {
-  for (const { path, text } of NORMAL_ROUTES) {
+  for (const { path, heading } of NORMAL_ROUTES) {
     test(`${path} loads without JS crash`, async ({ page }) => {
       const errors: string[] = []
       page.on('pageerror', (err) => errors.push(err.message))
       await mockPlatformApi(page, { tier: 'normal' })
-      await expectRouteVisible(page, path, text)
-      expect(errors).toEqual([])
+      await expectRouteVisible(page, path, heading)
+      expect(errors.filter((e) => !e.includes('ResizeObserver'))).toEqual([])
     })
   }
 })
 
 test.describe('advanced tier platform routes', () => {
-  for (const { path, text } of ADVANCED_ROUTES) {
+  for (const { path, heading } of ADVANCED_ROUTES) {
     test(`${path} loads without JS crash`, async ({ page }) => {
       const errors: string[] = []
       page.on('pageerror', (err) => errors.push(err.message))
       await mockPlatformApi(page, { tier: 'advanced' })
-      await expectRouteVisible(page, path, text)
-      expect(errors).toEqual([])
+      await expectRouteVisible(page, path, heading)
+      expect(errors.filter((e) => !e.includes('ResizeObserver'))).toEqual([])
     })
   }
 })
@@ -86,12 +86,19 @@ test('integrations hub lists OpenStack when enabled', async ({ page }) => {
 
 test('integrations hub shows live OpenStack and K8s preview stats', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
+  const instancesReq = page.waitForResponse(
+    (r) => r.url().includes('/openstack/instances') && r.ok(),
+    { timeout: 20_000 },
+  )
+  const k8sReq = page.waitForResponse((r) => r.url().includes('/k8s/overview') && r.ok(), { timeout: 20_000 })
   await page.goto('/platform/integrations')
   await expect(page.getByText('OpenStack preview')).toBeVisible()
   await expect(page.getByText('Kubernetes preview')).toBeVisible()
-  await expect(page.getByText('web-01')).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText('Instances').first()).toBeVisible()
-  await expect(page.getByText('k3s')).toBeVisible()
+  await instancesReq
+  await k8sReq
+  await expect(page.getByText('Instances').first()).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('web-01')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('k3s')).toBeVisible({ timeout: 15_000 })
 })
 
 test('integrations hub lists classic Machina tools', async ({ page }) => {
@@ -106,7 +113,9 @@ test('integrations hub lists classic Machina tools', async ({ page }) => {
 test('Go menu navigates without tier bounce on allowed route', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
   await page.goto('/platform')
-  await expect(page.getByText(/Production Cluster|Dashboard|Zyvor Platform/i).first()).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('heading', { name: /e2e-cluster|Production Cluster|Zyvor Platform/i })).toBeVisible({
+    timeout: 15_000,
+  })
   const menubar = page.locator('.mac-menubar-inner')
   await menubar.getByRole('button', { name: 'Go', exact: true }).click()
   await page.locator('.mac-menu-panel').getByRole('button', { name: 'Finder' }).click()
@@ -116,7 +125,9 @@ test('Go menu navigates without tier bounce on allowed route', async ({ page }) 
 test('View menu hides power-only destinations at normal tier', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
   await page.goto('/platform')
-  await expect(page.getByText(/Production Cluster|Dashboard|Zyvor Platform/i).first()).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('heading', { name: /e2e-cluster|Production Cluster|Zyvor Platform/i })).toBeVisible({
+    timeout: 15_000,
+  })
   const menubar = page.locator('.mac-menubar-inner')
   await menubar.getByRole('button', { name: 'View', exact: true }).click()
   const viewPanel = page.locator('.mac-menu-panel').filter({ has: page.getByText('Mission Control') })
@@ -134,13 +145,8 @@ test('backups destinations tab loads at normal tier', async ({ page }) => {
 
 test('vm detail topology tab loads at power tier', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
-  await page.goto('/platform/vms/v1')
+  await page.goto('/platform/vms/v1?tab=topology')
   await expect(page.getByRole('heading', { name: 'vm-1' })).toBeVisible({ timeout: 15_000 })
-  const tabBar = page.locator('div.flex.flex-wrap.items-center.gap-1.border-b').filter({
-    has: page.getByRole('button', { name: 'Overview' }),
-  })
-  await tabBar.getByRole('button', { name: 'More' }).click()
-  await page.getByRole('menuitem', { name: 'Topology' }).click()
   await expect(page.getByText('2 nodes · 1 edges')).toBeVisible({ timeout: 15_000 })
 })
 

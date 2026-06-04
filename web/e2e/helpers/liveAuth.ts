@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import type { Page } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 
 export type DesktopTier = 'normal' | 'power' | 'advanced'
 
@@ -23,33 +23,70 @@ export async function fillMachinaLoginForm(page: Page, user: string, pass: strin
 }
 
 export async function submitMachinaLogin(page: Page) {
-  await page.getByRole('button', { name: MACHINA_LOGIN_SUBMIT }).click()
+  const btn = page.getByRole('button', { name: MACHINA_LOGIN_SUBMIT })
+  await expect(btn).toBeEnabled({ timeout: 10_000 })
+  await btn.click()
 }
 
 export async function isMachinaLoginVisible(page: Page) {
   return page.locator('#login-username').isVisible().catch(() => false)
 }
 
-/** Sign in via the Machina login form when credentials are set. No-op if already authenticated. */
-export async function ensureLoggedIn(page: Page, baseUrl: string, entryPath = '/platform') {
+async function hasValidSession(page: Page, baseUrl: string): Promise<boolean> {
+  try {
+    const res = await page.request.get(`${baseUrl}/api/v1/auth/session`, {
+      ignoreHTTPSErrors: true,
+    })
+    if (!res.ok()) return false
+    const body = (await res.json()) as { authenticated?: boolean }
+    return body.authenticated === true
+  } catch {
+    return false
+  }
+}
+
+/** Sign in via the Machina login form when credentials are set. Reuses existing cookie session when valid. */
+export async function ensureLoggedIn(
+  page: Page,
+  baseUrl: string,
+  entryPath = '/platform',
+  tier: DesktopTier = 'power',
+) {
   const creds = liveCredentials()
+  await setDesktopTier(page, tier)
+  if (creds) {
+    const reuse = process.env.PLAYWRIGHT_LIVE_REUSE_AUTH !== '0'
+    if (!reuse || !(await hasValidSession(page, baseUrl))) {
+      try {
+        await loginAtMachinaLoginPage(page, baseUrl)
+      } catch {
+        // Already authenticated or /login redirected away — continue to entry path.
+      }
+    }
+  }
   await page.goto(`${baseUrl}${entryPath}`)
-  if (!creds) return
-  if (!(await isMachinaLoginVisible(page))) return
-  await fillMachinaLoginForm(page, creds.user, creds.pass)
-  await submitMachinaLogin(page)
-  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 30_000 })
-  await page.locator('#login-username').waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => {})
+  await page.locator('#login-username').waitFor({ state: 'hidden', timeout: 20_000 }).catch(() => {})
 }
 
 /** PAM login starting at `/login`; expects redirect to dashboard (`/`). */
 export async function loginAtMachinaLoginPage(page: Page, baseUrl: string) {
   const creds = liveCredentials()
   if (!creds) throw new Error('Set PLAYWRIGHT_LIVE_USER and PLAYWRIGHT_LIVE_PASS')
-  await page.goto(`${baseUrl}/login`)
+  await page.goto(`${baseUrl}/login`, { waitUntil: 'domcontentloaded' })
+  await page.locator('#login-username').waitFor({ state: 'visible', timeout: 15_000 })
   await fillMachinaLoginForm(page, creds.user, creds.pass)
   await submitMachinaLogin(page)
   await page.waitForURL((url) => url.pathname === '/', { timeout: 30_000 })
+}
+
+export async function logoutIfAuthenticated(page: Page, baseUrl: string) {
+  try {
+    if (await hasValidSession(page, baseUrl)) {
+      await page.request.post(`${baseUrl}/api/v1/auth/logout`, { ignoreHTTPSErrors: true })
+    }
+  } catch {
+    /* best-effort */
+  }
 }
 
 export async function setDesktopTier(page: Page, tier: DesktopTier) {

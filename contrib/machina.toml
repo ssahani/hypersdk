@@ -89,6 +89,9 @@ retain = 7
 # Web UI / session login: PAM service in /etc/pam.d/ (sshd = same rules as SSH password; "login" is TTY-oriented and often blocks root over the web).
 [auth]
 pam_service = "sshd"
+# Browser sessions: 0 = unlimited concurrent logins per username (default). Set e.g. 10 to evict oldest same-user session.
+max_sessions_per_user = 0
+max_sessions_global = 1000
 # Optional browser SSO with OpenID Connect. PAM login remains available unless you hide it in your reverse proxy / UI policy.
 # [auth.oidc]
 # enabled = true

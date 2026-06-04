@@ -4,6 +4,14 @@
 e2e_platform_smoke_get() {
   local path="$1" label="$2"
   local http r
+  # Throttle burst smoke traffic so shared hosts stay under per-user rate limits.
+  if [[ -n "${E2E_PLATFORM_SMOKE_DELAY_MS:-}" ]]; then
+    sleep "$(awk "BEGIN { printf \"%.3f\", ${E2E_PLATFORM_SMOKE_DELAY_MS} / 1000 }")"
+  elif [[ -n "${MACHINA_E2E_BYPASS_SECRET:-}" ]]; then
+    :
+  else
+    sleep 0.05
+  fi
   http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}${path}")"
   if [[ "$http" != "200" ]]; then
     e2e_platform_fail "${label} — HTTP ${http}"
@@ -362,12 +370,18 @@ except Exception:
   else
     e2e_platform_fail "GET /api/v1/ai/twin/graph — HTTP ${http}"
   fi
-  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/twin/impact" \
-    -H 'Content-Type: application/json' -d '{"action":"shutdown","target_kind":"host","target_id":"localhost"}')"
-  if [[ "$http" == "200" ]]; then
-    e2e_platform_ok "POST /api/v1/ai/twin/impact (HTTP ${http})"
+  local host_id
+  host_id="$(e2e_platform_first_host_id)"
+  if [[ -z "$host_id" ]]; then
+    e2e_platform_fail "POST /api/v1/ai/twin/impact — no hosts registered"
   else
-    e2e_platform_fail "POST /api/v1/ai/twin/impact — HTTP ${http}"
+    http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/twin/impact" \
+      -H 'Content-Type: application/json' -d "{\"action\":\"shutdown\",\"target_kind\":\"host\",\"target_id\":\"${host_id}\"}")"
+    if [[ "$http" == "200" ]]; then
+      e2e_platform_ok "POST /api/v1/ai/twin/impact (HTTP ${http})"
+    else
+      e2e_platform_fail "POST /api/v1/ai/twin/impact — HTTP ${http}"
+    fi
   fi
   http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/incidents/analyze?hours=4")"
   if [[ "$http" == "200" ]]; then
@@ -447,12 +461,17 @@ except Exception:
     e2e_platform_fail "GET /api/v1/baremetal/servers — HTTP ${http}"
   fi
   e2e_platform_hdr "PLATFORM SMOKE: MACHINA ZEUS OS (AI-106–113)"
-  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/twin/impact" \
-    -H 'Content-Type: application/json' -d '{"action":"migrate","target_kind":"host","target_id":"localhost"}')"
-  if [[ "$http" == "200" ]]; then
-    e2e_platform_ok "POST /api/v1/ai/twin/impact migrate (HTTP ${http})"
+  host_id="${host_id:-$(e2e_platform_first_host_id)}"
+  if [[ -z "$host_id" ]]; then
+    e2e_platform_fail "POST /api/v1/ai/twin/impact migrate — no hosts registered"
   else
-    e2e_platform_fail "POST /api/v1/ai/twin/impact migrate — HTTP ${http}"
+    http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/twin/impact" \
+      -H 'Content-Type: application/json' -d "{\"action\":\"migrate\",\"target_kind\":\"host\",\"target_id\":\"${host_id}\"}")"
+    if [[ "$http" == "200" ]]; then
+      e2e_platform_ok "POST /api/v1/ai/twin/impact migrate (HTTP ${http})"
+    else
+      e2e_platform_fail "POST /api/v1/ai/twin/impact migrate — HTTP ${http}"
+    fi
   fi
   http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/cost/attribution")"
   if [[ "$http" == "200" ]]; then

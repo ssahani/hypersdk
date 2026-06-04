@@ -8,6 +8,7 @@ use std::time::Duration;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use super::host_shell;
 use super::template_catalog;
 use super::template_readiness;
 
@@ -84,29 +85,18 @@ chmod 644 '{dest}'
         url = url.replace('\'', "'\\''"),
     );
 
-    let output = tokio::time::timeout(
+    let out = match host_shell::run_remote_script(
+        address,
         Duration::from_secs(FETCH_TIMEOUT_SECS),
-        tokio::process::Command::new("ssh")
-            .args([
-                "-o",
-                "BatchMode=yes",
-                "-o",
-                "ConnectTimeout=15",
-                "-o",
-                "StrictHostKeyChecking=accept-new",
-                address,
-                "bash",
-                "-lc",
-                &script,
-            ])
-            .output(),
+        &script,
     )
-    .await;
-
-    let out = match output {
-        Ok(Ok(o)) => o,
-        Ok(Err(e)) => anyhow::bail!("ssh: {e}"),
-        Err(_) => anyhow::bail!("template image download timed out after {FETCH_TIMEOUT_SECS}s"),
+    .await
+    {
+        Ok(o) => o,
+        Err(e) if e.to_string().contains("timed out") => {
+            anyhow::bail!("template image download timed out after {FETCH_TIMEOUT_SECS}s")
+        }
+        Err(e) => anyhow::bail!("{e}"),
     };
     if !out.status.success() {
         let stderr = String::from_utf8_lossy(&out.stderr);

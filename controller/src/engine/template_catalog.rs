@@ -48,93 +48,93 @@ const CATALOG: &[CatalogTemplate] = &[
         icon: "🐧",
     },
     CatalogTemplate {
-        name: "ubuntu-22.04",
+        name: "ubuntu-25.10",
         version: "1.0.0",
-        source_disk: "/var/lib/libvirt/images/ubuntu-22.04.qcow2",
+        source_disk: "/var/lib/libvirt/images/ubuntu-25.10.qcow2",
         download_url: Some(
-            "https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img",
+            "https://cloud-images.ubuntu.com/releases/25.10/release/ubuntu-25.10-server-cloudimg-amd64.img",
         ),
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
         workload: "general",
-        description: "Ubuntu 22.04 LTS — long-term support, cloud-init ready.",
+        description: "Ubuntu 25.10 — current interim release with latest kernel and packages.",
         featured: true,
         icon: "🐧",
     },
     CatalogTemplate {
-        name: "debian-12",
+        name: "debian-13",
         version: "1.0.0",
-        source_disk: "/var/lib/libvirt/images/debian-12.qcow2",
+        source_disk: "/var/lib/libvirt/images/debian-13.qcow2",
         download_url: Some(
-            "https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2",
+            "https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2",
         ),
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
         workload: "general",
-        description: "Debian 12 Bookworm — minimal, stable server image.",
-        featured: false,
-        icon: "🐧",
-    },
-    CatalogTemplate {
-        name: "centos-stream-9",
-        version: "1.0.0",
-        source_disk: "/var/lib/libvirt/images/centos-stream-9.qcow2",
-        download_url: Some(
-            "https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9.latest.x86_64.qcow2",
-        ),
-        cloud_init: true,
-        os_family: "linux",
-        category: "Linux",
-        workload: "general",
-        description: "CentOS Stream 9 — matches RHEL-compatible hypervisor hosts.",
+        description: "Debian 13 Trixie — current stable, minimal cloud image.",
         featured: true,
         icon: "🐧",
     },
     CatalogTemplate {
-        name: "rocky-9",
+        name: "centos-stream-10",
         version: "1.0.0",
-        source_disk: "/var/lib/libvirt/images/rocky-9.qcow2",
+        source_disk: "/var/lib/libvirt/images/centos-stream-10.qcow2",
         download_url: Some(
-            "https://download.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2",
+            "https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-10-latest.x86_64.qcow2",
         ),
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
         workload: "general",
-        description: "Rocky Linux 9 — enterprise Linux for production workloads.",
-        featured: false,
+        description: "CentOS Stream 10 — RHEL 10 upstream for Alma/Rocky-style hosts.",
+        featured: true,
         icon: "🐧",
     },
     CatalogTemplate {
-        name: "alma-9",
+        name: "rocky-10",
         version: "1.0.0",
-        source_disk: "/var/lib/libvirt/images/alma-9.qcow2",
+        source_disk: "/var/lib/libvirt/images/rocky-10.qcow2",
         download_url: Some(
-            "https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2",
+            "https://dl.rockylinux.org/pub/rocky/10/images/x86_64/Rocky-10-GenericCloud-Base.latest.x86_64.qcow2",
         ),
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
         workload: "general",
-        description: "AlmaLinux 9 — RHEL-compatible with cloud-init.",
-        featured: false,
+        description: "Rocky Linux 10 — enterprise Linux aligned with RHEL 10.",
+        featured: true,
         icon: "🐧",
     },
     CatalogTemplate {
-        name: "fedora-40",
+        name: "alma-10",
         version: "1.0.0",
-        source_disk: "/var/lib/libvirt/images/fedora-40.qcow2",
+        source_disk: "/var/lib/libvirt/images/alma-10.qcow2",
         download_url: Some(
-            "https://download.fedoraproject.org/pub/fedora/linux/releases/40/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-1.0.x86_64.qcow2",
+            "https://repo.almalinux.org/almalinux/10/cloud/x86_64/images/AlmaLinux-10-GenericCloud-latest.x86_64.qcow2",
         ),
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
         workload: "general",
-        description: "Fedora 40 — latest packages for dev and CI runners.",
-        featured: false,
+        description: "AlmaLinux 10 — RHEL 10-compatible with cloud-init.",
+        featured: true,
+        icon: "🐧",
+    },
+    CatalogTemplate {
+        name: "fedora-44",
+        version: "1.0.0",
+        source_disk: "/var/lib/libvirt/images/fedora-44.qcow2",
+        download_url: Some(
+            "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-44-1.7.x86_64.qcow2",
+        ),
+        cloud_init: true,
+        os_family: "linux",
+        category: "Linux",
+        workload: "general",
+        description: "Fedora 44 — current Fedora with latest packages for dev and CI.",
+        featured: true,
         icon: "🐧",
     },
     CatalogTemplate {
@@ -257,17 +257,17 @@ const CATALOG: &[CatalogTemplate] = &[
         icon: "📦",
     },
     CatalogTemplate {
-        name: "rhel-9",
+        name: "rhel-10",
         version: "1.0.0",
-        source_disk: "/var/lib/libvirt/images/rocky-9.qcow2",
+        source_disk: "/var/lib/libvirt/images/rocky-10.qcow2",
         download_url: Some(
-            "https://download.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2",
+            "https://dl.rockylinux.org/pub/rocky/10/images/x86_64/Rocky-10-GenericCloud-Base.latest.x86_64.qcow2",
         ),
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
         workload: "rhel",
-        description: "RHEL-compatible 9.x profile (use Rocky/Alma golden disk path).",
+        description: "RHEL 10-compatible profile (Rocky/Alma 10 golden disk path).",
         featured: false,
         icon: "🐧",
     },
@@ -329,7 +329,13 @@ pub async fn seed_default_templates(pool: &PgPool) -> anyhow::Result<usize> {
              ON CONFLICT (name, version) DO UPDATE SET
                firewall_profile = EXCLUDED.firewall_profile,
                workload = EXCLUDED.workload,
-               source_disk = EXCLUDED.source_disk",
+               source_disk = EXCLUDED.source_disk,
+               description = EXCLUDED.description,
+               featured = EXCLUDED.featured,
+               icon = EXCLUDED.icon,
+               cloud_init = EXCLUDED.cloud_init,
+               os_family = EXCLUDED.os_family,
+               category = EXCLUDED.category",
         )
         .bind(Uuid::new_v4())
         .bind(t.name)
@@ -366,12 +372,6 @@ pub fn download_url_for_ref(template_ref: &str) -> Option<&'static str> {
 }
 
 pub async fn ensure_default_templates(pool: &PgPool) -> anyhow::Result<()> {
-    let count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM templates WHERE marketplace = TRUE")
-            .fetch_one(pool)
-            .await?;
-    if count == 0 {
-        seed_default_templates(pool).await?;
-    }
+    seed_default_templates(pool).await?;
     Ok(())
 }

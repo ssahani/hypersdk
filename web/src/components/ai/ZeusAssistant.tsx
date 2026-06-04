@@ -17,6 +17,19 @@ import {
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { statusPillClasses } from '../../utils/semanticColors'
+
+const GUEST_SUGGESTED_PROMPTS = [
+  'Which guests have no connected guest agent?',
+  'Summarize guest time drift across the fleet',
+  'What should I fix before migration cutover?',
+]
+
+function guestContextActive(summary: string | null, vmIds: string[]): boolean {
+  if (vmIds.length > 0) return true
+  const s = summary?.toLowerCase() ?? ''
+  return s.includes('qga') || s.includes('guest') || s.includes('agent') || s.includes('ubuntu')
+}
 
 export default function ZeusAssistant() {
   const {
@@ -42,6 +55,8 @@ export default function ZeusAssistant() {
   const [executingId, setExecutingId] = useState<string | null>(null)
   const [agents, setAgents] = useState<ZeusAgentInfo[]>([])
 
+  const showGuestPrompts = guestContextActive(contextSummary, contextVmIds)
+
   useEffect(() => {
     if (!platform) return
     void listZeusAgents().then(setAgents).catch(() => setAgents([]))
@@ -61,8 +76,8 @@ export default function ZeusAssistant() {
     if (copilotOpen) void loadProposals()
   }, [copilotOpen, loadProposals])
 
-  const send = useCallback(async () => {
-    const text = input.trim()
+  const send = useCallback(async (textOverride?: string) => {
+    const text = (textOverride ?? input).trim()
     if (!text || busy) return
     setInput('')
     setMessages((m) => [...m, { role: 'user', text }])
@@ -81,6 +96,7 @@ export default function ZeusAssistant() {
       || (ql.includes('storage') && ql.includes('slow'))
       || ql.includes('troubleshoot')
       || (ql.includes('slow') && ql.includes('vm'))
+      || (ql.includes('guest') && (ql.includes('agent') || ql.includes('qga')))
     try {
       if (looksLikeOps) {
         const plan = await runNlOps(text, true)
@@ -161,9 +177,6 @@ export default function ZeusAssistant() {
             <div className="min-w-0">
               <p className="font-semibold text-sm">Zeus</p>
               <p className="text-[10px] text-slate-500 truncate">{modeLabel}</p>
-              {contextSummary && (
-                <p className="text-[10px] text-sky-300/90 truncate mt-0.5">{contextSummary}</p>
-              )}
             </div>
           </div>
           <select
@@ -178,6 +191,25 @@ export default function ZeusAssistant() {
           </select>
           <button type="button" onClick={closeCopilot} className="p-1 text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
         </header>
+
+        {(contextVmIds.length > 0 || contextSummary || contextVmId) && (
+          <div className="px-4 py-2 border-b border-white/[0.06] flex flex-wrap gap-1.5">
+            {contextVmId && (
+              <span className={statusPillClasses('info')}>VM context</span>
+            )}
+            {contextVmIds.length > 0 && (
+              <span className={statusPillClasses('info')}>
+                {contextVmIds.length} VM{contextVmIds.length === 1 ? '' : 's'} · guest query
+              </span>
+            )}
+            {contextSummary && (
+              <span className={`${statusPillClasses('neutral')} max-w-full truncate`} title={contextSummary}>
+                {contextSummary}
+              </span>
+            )}
+          </div>
+        )}
+
         {proposals.length > 0 && (
           <div className="px-4 py-3 border-b border-white/[0.06] space-y-2 max-h-48 overflow-y-auto">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-orange-400/80 flex items-center gap-1">
@@ -211,7 +243,24 @@ export default function ZeusAssistant() {
         <div className="flex-1 overflow-y-auto p-4 space-y-3 text-sm">
           {messages.length === 0 && (
             <div className="space-y-3">
-              <p className="text-slate-500">Ask Zeus about VM health, capacity, cost, migrations, security, or network paths.</p>
+              <p className="text-slate-500">
+                Ask Zeus about VM health, capacity, cost, migrations, security, guest agents, or network paths.
+              </p>
+              {showGuestPrompts && (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Guest agent prompts</p>
+                  {GUEST_SUGGESTED_PROMPTS.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      className="block w-full text-left text-xs rounded-lg border border-white/[0.06] px-3 py-2 text-slate-300 hover:bg-white/[0.04]"
+                      onClick={() => void send(p)}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {messages.map((m, i) => (
@@ -223,7 +272,7 @@ export default function ZeusAssistant() {
         <footer className="p-3 border-t border-white/[0.06] flex gap-2">
           <input
             className="input flex-1 text-sm"
-            placeholder="Ask Zeus…"
+            placeholder={showGuestPrompts ? 'Ask about guest agents…' : 'Ask Zeus…'}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') void send() }}

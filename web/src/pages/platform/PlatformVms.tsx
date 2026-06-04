@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { Link, useNavigate, useSearchParams } from 'react-router'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Copy,
@@ -12,6 +12,7 @@ import {
   Sparkles,
   Tag,
   Terminal,
+  X,
 } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
 import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
@@ -44,6 +45,8 @@ import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { formatUserError } from '../../utils/apiError'
+import { guestToolsStatusLabel } from '../../utils/guestAgentUx'
+import { installStateTone } from '../../components/platform/GuestAgentDiagnosticsPanel'
 import { toastQueuedOperation } from '../../utils/platformTaskToast'
 import { hubLinkClasses, statusPillClasses, vmStateTone } from '../../utils/semanticColors'
 import VmSshConnectDialog, { navigateVmSshSession } from '../../components/vm/VmSshConnectDialog'
@@ -93,6 +96,7 @@ export default function PlatformVms() {
   const [fleetGuestBusy, setFleetGuestBusy] = useState(false)
   const [tier] = usePlatformDesktopTier()
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const folder = searchParams.get('folder') || 'all'
   const tag = searchParams.get('tag') || ''
@@ -118,10 +122,17 @@ export default function PlatformVms() {
   const vmById = useMemo(() => new Map(vms.map((v) => [v.id, v])), [vms])
 
   const filteredVms = useMemo(() => {
+    let list = vms
+    if (folder === 'guest-gaps') {
+      list = list.filter((v) => {
+        const s = v.guest_tools_status?.toLowerCase()
+        return v.inventory_source !== 'kubevirt' && s !== 'healthy' && s !== 'installed'
+      })
+    }
     const q = search.trim().toLowerCase()
-    if (!q) return vms
-    return vms.filter((v) => v.name.toLowerCase().includes(q) || (v.tags ?? []).some((t) => t.toLowerCase().includes(q)))
-  }, [vms, search])
+    if (!q) return list
+    return list.filter((v) => v.name.toLowerCase().includes(q) || (v.tags ?? []).some((t) => t.toLowerCase().includes(q)))
+  }, [vms, search, folder])
 
   const finderViewMode: FinderViewMode = view === 'list' ? 'list' : view === 'columns' ? 'columns' : 'icons'
   const setFinderViewMode = (mode: FinderViewMode) => {
@@ -193,6 +204,13 @@ export default function PlatformVms() {
   useEffect(() => { void load() }, [load])
 
   useEffect(() => {
+    const st = location.state as { vmDeleteTaskId?: string; vmDeleteLabel?: string } | null
+    if (!st?.vmDeleteTaskId) return
+    toastQueuedOperation(toast, st.vmDeleteLabel ?? 'Delete queued', st.vmDeleteTaskId, tier)
+    navigate(location.pathname + location.search, { replace: true, state: null })
+  }, [location, navigate, toast, tier])
+
+  useEffect(() => {
     try { localStorage.setItem(VM_VIEW_STORAGE_KEY, view) } catch { /* ignore */ }
   }, [view])
 
@@ -243,46 +261,51 @@ export default function PlatformVms() {
   }
 
   const handleCreate = async (payload: VmWizardPayload) => {
-    if (payload.os === 'custom-iso') {
-      navigate(`/platform/create-iso?name=${encodeURIComponent(payload.name)}`)
-      return
+    try {
+      if (payload.os === 'custom-iso') {
+        navigate(`/platform/create-iso?name=${encodeURIComponent(payload.name)}`)
+        return
+      }
+      if (payload.windows) {
+        await handleWindowsCreate({
+          name: payload.name,
+          os: payload.os,
+          size: payload.size,
+          network: payload.network,
+          windows: payload.windows,
+        })
+        return
+      }
+      const spec = sizeToSpec(payload.size, payload.customSpec)
+      if (payload.fromTemplate) {
+        const r = await createFromTemplate({
+          template_ref: `${payload.os}@${payload.templateVersion ?? '1.0.0'}`,
+          name: payload.name,
+          memory: spec.memory,
+          template_vars: { hostname: payload.name, name: payload.name },
+          cloud_init_user: cloudInitUserForOs(payload.os),
+          cloud_init_ssh_pubkey: payload.cloudInitSshPubkey,
+        })
+        toastQueuedOperation(toast, `Deploying ${payload.name}`, r.task_id, tier)
+      } else {
+        const r = await createPlatformVm(
+          buildVmBody(
+            payload.name,
+            payload.os,
+            payload.size,
+            payload.network,
+            [],
+            payload.cloudInitSshPubkey,
+            payload.customSpec,
+          ),
+        )
+        toastQueuedOperation(toast, `Creating ${payload.name}`, r.task_id, tier)
+      }
+      await load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+      throw e
     }
-    if (payload.windows) {
-      await handleWindowsCreate({
-        name: payload.name,
-        os: payload.os,
-        size: payload.size,
-        network: payload.network,
-        windows: payload.windows,
-      })
-      return
-    }
-    const spec = sizeToSpec(payload.size, payload.customSpec)
-    if (payload.fromTemplate) {
-      const r = await createFromTemplate({
-        template_ref: `${payload.os}@${payload.templateVersion ?? '1.0.0'}`,
-        name: payload.name,
-        memory: spec.memory,
-        template_vars: { hostname: payload.name, name: payload.name },
-        cloud_init_user: cloudInitUserForOs(payload.os),
-        cloud_init_ssh_pubkey: payload.cloudInitSshPubkey,
-      })
-      toastQueuedOperation(toast, `Deploying ${payload.name}`, r.task_id, tier)
-    } else {
-      const r = await createPlatformVm(
-        buildVmBody(
-          payload.name,
-          payload.os,
-          payload.size,
-          payload.network,
-          [],
-          payload.cloudInitSshPubkey,
-          payload.customSpec,
-        ),
-      )
-      toastQueuedOperation(toast, `Creating ${payload.name}`, r.task_id, tier)
-    }
-    await load()
   }
 
   const handleWindowsCreate = async (payload: {
@@ -327,9 +350,19 @@ export default function PlatformVms() {
     setMigrateModal({ vm, destId: hostId, destName: host.hostname })
   }
 
+  const guestGapsCount = useMemo(
+    () =>
+      vms.filter((v) => {
+        const s = v.guest_tools_status?.toLowerCase()
+        return v.inventory_source !== 'kubevirt' && s !== 'healthy' && s !== 'installed'
+      }).length,
+    [vms],
+  )
+
   const activeLabel =
     tag ? `#${tag}` :
     project ? project :
+    folder === 'guest-gaps' ? 'Guest agent gaps' :
     finder?.smart_folders.find((f) => f.id === folder)?.label ?? 'All VMs'
 
   const runFleetGuestQuery = async () => {
@@ -419,6 +452,7 @@ export default function PlatformVms() {
             <th className="p-3">Tags</th>
             <th className="p-3">Host</th>
             <th className="p-3">Guest IP</th>
+            <th className="p-3">Guest agent</th>
             <th className="p-3">vCPU</th>
             <th className="p-3">Memory</th>
             <th className="p-3 text-right">Access</th>
@@ -451,6 +485,21 @@ export default function PlatformVms() {
                     : '—'}
               </td>
               <td className="p-3 font-mono text-xs text-emerald-300/80">{v.guest_ip || '—'}</td>
+              <td className="p-3">
+                {libvirt ? (
+                  <span
+                    className={statusPillClasses(
+                      v.guest_tools_status === 'healthy' || v.guest_tools_status === 'installed'
+                        ? 'ok'
+                        : 'warn',
+                    )}
+                  >
+                    {guestToolsStatusLabel(v.guest_tools_status)}
+                  </span>
+                ) : (
+                  '—'
+                )}
+              </td>
               <td className="p-3">{v.vcpus}</td>
               <td className="p-3">{Math.round(v.memory_mib / 1024)} Gi</td>
               <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
@@ -550,16 +599,37 @@ export default function PlatformVms() {
       {error && <StructuredErrorBanner error={error} />}
 
       {fleetGuestReport && (
-        <div className="rounded-xl border border-white/[0.08] bg-slate-900/60 p-4 text-sm">
-          <p className="text-slate-200">{fleetGuestReport.summary}</p>
+        <div className="rounded-xl border border-white/[0.08] bg-slate-900/60 p-4 text-sm relative">
+          <button
+            type="button"
+            className="absolute top-3 right-3 p-1 text-slate-500 hover:text-slate-300"
+            aria-label="Dismiss fleet guest report"
+            onClick={() => setFleetGuestReport(null)}
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <p className="text-slate-200 pr-8">{fleetGuestReport.summary}</p>
           <p className="text-xs text-slate-500 mt-1">
             {fleetGuestReport.matched_count} matched · {fleetGuestReport.scanned_count} scanned
           </p>
-          {fleetGuestReport.vms.length > 0 && (
-            <ul className="mt-2 text-xs font-mono text-slate-400 space-y-1 max-h-32 overflow-y-auto">
+          {fleetGuestReport.matched_count === 0 ? (
+            <p className="text-xs text-slate-500 mt-2">
+              No VMs matched — refine search, select running libvirt guests, or check the Guest agent gaps folder.
+            </p>
+          ) : (
+            <ul className="mt-2 text-xs text-slate-400 space-y-1 max-h-32 overflow-y-auto">
               {fleetGuestReport.vms.map((v) => (
                 <li key={v.vm_id}>
-                  {v.vm_name} — {v.os_pretty_name || v.install_state} {v.guest_ip ? `· ${v.guest_ip}` : ''}
+                  <Link
+                    to={`/platform/vms/${v.vm_id}?tab=guestHealth`}
+                    className="font-mono text-sky-300/90 hover:underline"
+                  >
+                    {v.vm_name}
+                  </Link>
+                  {' — '}
+                  <span className={statusPillClasses(installStateTone(v.install_state))}>{v.install_state}</span>
+                  {v.os_pretty_name ? ` · ${v.os_pretty_name}` : ''}
+                  {v.guest_ip ? ` · ${v.guest_ip}` : ''}
                   {v.flags.length > 0 ? ` [${v.flags.join(',')}]` : ''}
                 </li>
               ))}
@@ -587,6 +657,12 @@ export default function PlatformVms() {
               {(finder?.smart_folders ?? []).map((f) => (
                 <SidebarRow key={f.id} active={!tag && !project && folder === f.id} label={f.label} count={f.count} onClick={() => setFilter({ folder: f.id })} />
               ))}
+              <SidebarRow
+                active={!tag && !project && folder === 'guest-gaps'}
+                label="Guest agent gaps"
+                count={guestGapsCount}
+                onClick={() => setFilter({ folder: 'guest-gaps' })}
+              />
             </aside>
             <div className="w-52 shrink-0 border-r border-white/[0.06] overflow-y-auto">
               {filteredVms.map((v) => (

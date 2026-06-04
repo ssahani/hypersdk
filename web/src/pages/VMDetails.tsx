@@ -1381,9 +1381,19 @@ export default function VMDetailsPage() {
                   : statusSurfaceClasses('warn')
               }`}
             >
-              <div className="text-sm font-medium text-slate-100 mb-1">Guest health</div>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                <div className="text-sm font-medium text-slate-100">Guest agent</div>
+                {platformDoctor?.vm_id && (
+                  <Link
+                    to={`/platform/vms/${platformDoctor.vm_id}?tab=guestHealth`}
+                    className={`text-xs ${statusActionLinkClasses('info')}`}
+                  >
+                    Open platform Guest health →
+                  </Link>
+                )}
+              </div>
               <div className="text-xs text-slate-400">
-                Agent {guestHealth.agent_reachable ? 'reachable' : 'unreachable'}
+                Guest agent {guestHealth.agent_reachable ? 'reachable' : 'unreachable'}
                 {guestHealth.metrics_available ? ' · metrics ok' : ''}
                 {guestHealth.os_pretty_name ? ` · ${guestHealth.os_pretty_name}` : ''}
                 {guestHealth.cloud_init_status

@@ -83,6 +83,9 @@ pub struct SessionStore {
     sessions: Arc<Mutex<HashMap<String, SessionData>>>,
     ws_tokens: Arc<Mutex<HashMap<String, WsTokenData>>>,
     oidc_states: Arc<Mutex<HashMap<String, OidcStateData>>>,
+    max_sessions_global: usize,
+    /// `0` = unlimited concurrent sessions per username.
+    max_sessions_per_user: usize,
 }
 
 struct SessionData {
@@ -104,8 +107,6 @@ pub struct SessionListEntry {
 }
 
 const SESSION_TTL_SECS: u64 = 86400; // 24 hours
-const MAX_SESSIONS: usize = 1000;
-const MAX_SESSIONS_PER_USER: usize = 10;
 
 struct WsTokenData {
     actor: RequestActor,
@@ -120,12 +121,26 @@ struct OidcStateData {
 const OIDC_STATE_TTL_SECS: u64 = 300;
 
 impl SessionStore {
-    pub fn new() -> Self {
+    pub fn new(max_sessions_global: usize, max_sessions_per_user: usize) -> Self {
         Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             ws_tokens: Arc::new(Mutex::new(HashMap::new())),
             oidc_states: Arc::new(Mutex::new(HashMap::new())),
+            max_sessions_global: max_sessions_global.max(1),
+            max_sessions_per_user,
         }
+    }
+
+    /// Active browser sessions for `username` (non-expired).
+    pub fn active_sessions_for_user(&self, username: &str) -> usize {
+        let sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
+        sessions
+            .values()
+            .filter(|d| {
+                d.created_at.elapsed().as_secs() < SESSION_TTL_SECS
+                    && d.actor.username == username
+            })
+            .count()
     }
 
     /// Non-expired browser cookie sessions (API tokens are not counted).
@@ -149,8 +164,8 @@ impl SessionStore {
         // Purge expired sessions
         sessions.retain(|_, data| data.created_at.elapsed().as_secs() < SESSION_TTL_SECS);
 
-        // Enforce MAX_SESSIONS: if over, remove the oldest session
-        if sessions.len() >= MAX_SESSIONS {
+        // Global cap only (oldest session anywhere).
+        if sessions.len() >= self.max_sessions_global {
             if let Some(oldest_token) = sessions
                 .iter()
                 .min_by_key(|(_, data)| data.created_at)
@@ -160,19 +175,21 @@ impl SessionStore {
             }
         }
 
-        // Enforce MAX_SESSIONS_PER_USER: if over for this user, remove the oldest
-        let user_sessions: Vec<String> = sessions
-            .iter()
-            .filter(|(_, data)| data.actor.username == actor.username)
-            .map(|(tok, _)| tok.clone())
-            .collect();
-        if user_sessions.len() >= MAX_SESSIONS_PER_USER {
-            if let Some(oldest_token) = user_sessions
+        // Per-user cap when configured (> 0). Default 0 = concurrent sessions allowed.
+        if self.max_sessions_per_user > 0 {
+            let user_sessions: Vec<String> = sessions
                 .iter()
-                .min_by_key(|tok| sessions.get(tok.as_str()).map(|d| d.created_at))
-                .cloned()
-            {
-                sessions.remove(&oldest_token);
+                .filter(|(_, data)| data.actor.username == actor.username)
+                .map(|(tok, _)| tok.clone())
+                .collect();
+            if user_sessions.len() >= self.max_sessions_per_user {
+                if let Some(oldest_token) = user_sessions
+                    .iter()
+                    .min_by_key(|tok| sessions.get(tok.as_str()).map(|d| d.created_at))
+                    .cloned()
+                {
+                    sessions.remove(&oldest_token);
+                }
             }
         }
 
@@ -817,6 +834,7 @@ async fn session_handler(
             let session_id = store.session_public_id(&token);
             let run_as = machina_core::MachinaConfig::load().auth.run_as_user;
             let mode = serde_json::to_value(&run_as.mode).unwrap_or(serde_json::json!("disabled"));
+            let active_for_user = store.active_sessions_for_user(&actor.username);
             return (
                 StatusCode::OK,
                 Json(serde_json::json!({
@@ -826,6 +844,8 @@ async fn session_handler(
                     "session_id": session_id,
                     "role": actor.role,
                     "auth_source": actor.auth_source,
+                    "active_sessions_for_user": active_for_user,
+                    "max_sessions_per_user": store.max_sessions_per_user,
                     "run_as_user": {
                         "enabled": run_as.wants_impersonation(),
                         "mode": mode,

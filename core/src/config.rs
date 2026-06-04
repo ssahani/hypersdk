@@ -865,6 +865,16 @@ pub struct AuthConfig {
     /// Optional LDAP / Active Directory bind for password login (tried before PAM when enabled).
     #[serde(default)]
     pub ldap: LdapConfig,
+    /// Max in-memory browser sessions cluster-wide (oldest evicted when exceeded).
+    #[serde(default = "default_max_sessions_global")]
+    pub max_sessions_global: usize,
+    /// Max concurrent browser sessions per username. `0` = unlimited (default, no auto-logout).
+    #[serde(default)]
+    pub max_sessions_per_user: usize,
+}
+
+fn default_max_sessions_global() -> usize {
+    1000
 }
 
 fn default_pam_service() -> String {
@@ -993,6 +1003,8 @@ impl Default for AuthConfig {
             oidc: OidcConfig::default(),
             run_as_user: RunAsUserConfig::default(),
             ldap: LdapConfig::default(),
+            max_sessions_global: default_max_sessions_global(),
+            max_sessions_per_user: 0,
         }
     }
 }

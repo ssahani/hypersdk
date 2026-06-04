@@ -134,42 +134,47 @@ export default function PlatformDashboard() {
   }
 
   const handleCreate = async (payload: VmWizardPayload) => {
-    if (payload.os === 'custom-iso') {
-      navigate(`/platform/create-iso?name=${encodeURIComponent(payload.name)}`)
-      return
-    }
-    const spec = sizeToSpec(payload.size, payload.customSpec)
-    if (payload.fromTemplate) {
-      const r = await createFromTemplate({
-        template_ref: `${payload.os}@${payload.templateVersion ?? '1.0.0'}`,
-        name: payload.name,
-        memory: spec.memory,
-        template_vars: { hostname: payload.name, name: payload.name },
-        cloud_init_user: cloudInitUserForOs(payload.os),
-        cloud_init_ssh_pubkey: payload.cloudInitSshPubkey,
-      })
-      toastQueuedOperation(toast, `Deploying ${payload.name}`, r.task_id, tier)
-    } else {
-      const cloudUser = cloudInitUserForOs(payload.os)
-      const body: CreatePlatformVmBody = {
-        api_version: 'virt.zyvor.dev/v1',
-        kind: 'VirtualMachine',
-        metadata: { name: payload.name },
-        tags: [payload.os, payload.network],
-        spec: {
-          cpu: { sockets: 1, cores: spec.cores },
-          memory: spec.memory,
-          storage: [{ name: 'root', size: spec.disk, class: 'silver' }],
-          network: [{ network: payload.network, ip_mode: 'dhcp' }],
-          ...(payload.cloudInitSshPubkey
-            ? { cloud_init: { user: cloudUser, ssh_pubkey: payload.cloudInitSshPubkey } }
-            : {}),
-        },
+    try {
+      if (payload.os === 'custom-iso') {
+        navigate(`/platform/create-iso?name=${encodeURIComponent(payload.name)}`)
+        return
       }
-      const r = await createPlatformVm(body)
-      toastQueuedOperation(toast, `Creating ${payload.name}`, r.task_id, tier)
+      const spec = sizeToSpec(payload.size, payload.customSpec)
+      if (payload.fromTemplate) {
+        const r = await createFromTemplate({
+          template_ref: `${payload.os}@${payload.templateVersion ?? '1.0.0'}`,
+          name: payload.name,
+          memory: spec.memory,
+          template_vars: { hostname: payload.name, name: payload.name },
+          cloud_init_user: cloudInitUserForOs(payload.os),
+          cloud_init_ssh_pubkey: payload.cloudInitSshPubkey,
+        })
+        toastQueuedOperation(toast, `Deploying ${payload.name}`, r.task_id, tier)
+      } else {
+        const cloudUser = cloudInitUserForOs(payload.os)
+        const body: CreatePlatformVmBody = {
+          api_version: 'virt.zyvor.dev/v1',
+          kind: 'VirtualMachine',
+          metadata: { name: payload.name },
+          tags: [payload.os, payload.network],
+          spec: {
+            cpu: { sockets: 1, cores: spec.cores },
+            memory: spec.memory,
+            storage: [{ name: 'root', size: spec.disk, class: 'silver' }],
+            network: [{ network: payload.network, ip_mode: 'dhcp' }],
+            ...(payload.cloudInitSshPubkey
+              ? { cloud_init: { user: cloudUser, ssh_pubkey: payload.cloudInitSshPubkey } }
+              : {}),
+          },
+        }
+        const r = await createPlatformVm(body)
+        toastQueuedOperation(toast, `Creating ${payload.name}`, r.task_id, tier)
+      }
+      await load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+      throw e
     }
-    await load()
   }
 
   const launchpadGrid = (

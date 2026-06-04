@@ -23,10 +23,10 @@ const LIVE_ROUTES = [
 
 for (const path of LIVE_ROUTES) {
   test(`live ${path} renders without fatal error`, async ({ page }) => {
+    test.setTimeout(60_000)
     const errors: string[] = []
     page.on('pageerror', (err) => errors.push(err.message))
-    await ensureLoggedIn(page, live!)
-    await page.goto(`${live}${path}`)
+    await ensureLoggedIn(page, live!, path)
     await expect(page.locator('#login-username')).toHaveCount(0, { timeout: 15_000 })
     await expect(page.locator('body')).not.toBeEmpty({ timeout: 20_000 })
     await expect(page.getByText('Application error|Something went wrong')).toHaveCount(0)

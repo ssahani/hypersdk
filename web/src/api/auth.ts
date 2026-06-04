@@ -19,6 +19,10 @@ export interface AuthSession {
   /** Present when authenticated via cookie or token-aware session. */
   role?: SessionRole
   auth_source?: SessionAuthSource
+  /** Concurrent browser sessions for this username (daemon in-memory store). */
+  active_sessions_for_user?: number
+  /** `0` means unlimited concurrent sessions per username. */
+  max_sessions_per_user?: number
 }
 
 export interface AuthProviders {
@@ -75,6 +79,11 @@ export function normalizeAuthSession(raw: unknown): AuthSession {
   else if (typeof sid === 'string') session_id = sid
   else session_id = String(sid)
 
+  const active_sessions_for_user =
+    typeof o.active_sessions_for_user === 'number' ? o.active_sessions_for_user : undefined
+  const max_sessions_per_user =
+    typeof o.max_sessions_per_user === 'number' ? o.max_sessions_per_user : undefined
+
   return {
     authenticated: true,
     username,
@@ -82,6 +91,8 @@ export function normalizeAuthSession(raw: unknown): AuthSession {
     session_id,
     role: parseSessionRole(o.role),
     auth_source: parseAuthSource(o.auth_source),
+    active_sessions_for_user,
+    max_sessions_per_user,
   }
 }
 

@@ -4,6 +4,7 @@ pub mod ai;
 pub mod drs;
 pub mod ha;
 pub mod host_validate;
+pub mod host_shell;
 pub mod guestkit_bridge;
 pub mod packetwolf_bridge;
 pub mod packetwolf_discover;

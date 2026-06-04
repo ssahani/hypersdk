@@ -1,0 +1,116 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+//! Run shell commands on hypervisors. Loopback hosts run locally (no SSH).
+
+use std::process::Output;
+use std::time::Duration;
+
+/// True when the controller and hypervisor are the same machine (seeded `127.0.0.1` / `localhost`).
+pub fn is_local_hypervisor_address(address: &str) -> bool {
+    let a = address.trim().to_lowercase();
+    if a.is_empty() {
+        return false;
+    }
+    a == "127.0.0.1" || a == "::1" || a == "localhost" || a.starts_with("127.")
+}
+
+pub async fn remote_file_exists(address: &str, path: &str) -> bool {
+    let output = match run_remote(
+        address,
+        Duration::from_secs(6),
+        &["test", "-f", path],
+    )
+    .await
+    {
+        Ok(o) => o,
+        Err(_) => return false,
+    };
+    output.status.success()
+}
+
+pub async fn run_remote_script(
+    address: &str,
+    timeout: Duration,
+    script: &str,
+) -> anyhow::Result<Output> {
+    let output = tokio::time::timeout(timeout, async {
+        if is_local_hypervisor_address(address) {
+            tokio::process::Command::new("bash")
+                .args(["-lc", script])
+                .output()
+                .await
+        } else {
+            tokio::process::Command::new("ssh")
+                .args([
+                    "-o",
+                    "BatchMode=yes",
+                    "-o",
+                    "ConnectTimeout=15",
+                    "-o",
+                    "StrictHostKeyChecking=accept-new",
+                    address,
+                    "bash",
+                    "-lc",
+                    script,
+                ])
+                .output()
+                .await
+        }
+    })
+    .await;
+
+    match output {
+        Ok(Ok(o)) => Ok(o),
+        Ok(Err(e)) => Err(anyhow::anyhow!("{e}")),
+        Err(_) => Err(anyhow::anyhow!("command timed out")),
+    }
+}
+
+async fn run_remote(
+    address: &str,
+    timeout: Duration,
+    remote_args: &[&str],
+) -> anyhow::Result<Output> {
+    let output = tokio::time::timeout(timeout, async {
+        if is_local_hypervisor_address(address) {
+            tokio::process::Command::new(remote_args[0])
+                .args(&remote_args[1..])
+                .output()
+                .await
+        } else {
+            let mut cmd = tokio::process::Command::new("ssh");
+            cmd.args([
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "ConnectTimeout=4",
+                "-o",
+                "StrictHostKeyChecking=accept-new",
+                address,
+            ]);
+            cmd.args(remote_args);
+            cmd.output().await
+        }
+    })
+    .await;
+
+    match output {
+        Ok(Ok(o)) => Ok(o),
+        Ok(Err(e)) => Err(anyhow::anyhow!("{e}")),
+        Err(_) => Err(anyhow::anyhow!("command timed out")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detects_loopback_hosts() {
+        assert!(is_local_hypervisor_address("127.0.0.1"));
+        assert!(is_local_hypervisor_address("localhost"));
+        assert!(is_local_hypervisor_address("127.0.0.2"));
+        assert!(!is_local_hypervisor_address("175.110.114.93"));
+        assert!(!is_local_hypervisor_address(""));
+    }
+}

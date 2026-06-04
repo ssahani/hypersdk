@@ -1,17 +1,18 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useState } from 'react'
-import { CheckCircle2, Clock, Loader2, Users, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, Loader2, Play, Users, XCircle } from 'lucide-react'
 import type { GuestObservabilitySnapshot, VmGuestHealthReport } from '../../api/platform'
 import { guestFstrim, guestSyncTime } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { qgaHealthy } from '../../utils/guestAgentUx'
 import { statusPillClasses, statusSurfaceClasses, statusToneClass } from '../../utils/semanticColors'
 
-function installStateLabel(state: string) {
+export function installStateLabel(state: string) {
   switch (state) {
     case 'running':
-      return 'QGA active'
+      return 'Guest agent active'
     case 'channel_only':
       return 'Channel only'
     case 'none':
@@ -21,8 +22,9 @@ function installStateLabel(state: string) {
   }
 }
 
-function installStateTone(state: string): 'ok' | 'warn' | 'error' | 'neutral' {
-  if (state === 'running') return 'ok'
+export function installStateTone(state: string, agentPing?: boolean): 'ok' | 'warn' | 'error' | 'neutral' {
+  if (state === 'running' && agentPing) return 'ok'
+  if (state === 'running' && !agentPing) return 'warn'
   if (state === 'channel_only') return 'warn'
   if (state === 'none') return 'error'
   return 'neutral'
@@ -35,42 +37,48 @@ function formatDeltaMs(ms: number) {
   return `${(ms / 60_000).toFixed(1)} min`
 }
 
+export type RunGuestActionFn = (
+  key: string,
+  fn: () => Promise<unknown>,
+  success: string,
+) => Promise<void>
+
 type Props = {
   vmId: string
   loading?: boolean
   report: VmGuestHealthReport | null
+  error?: string | null
+  vmState?: string
   lastRefreshedAt?: Date | null
   onRefresh?: () => void
   onInstall?: () => void
+  onStartVm?: () => void
   installing?: boolean
+  onRunAction?: RunGuestActionFn
 }
 
 export default function GuestAgentDiagnosticsPanel({
   vmId,
   loading,
   report,
+  error,
+  vmState,
   lastRefreshedAt,
   onRefresh,
   onInstall,
+  onStartVm,
   installing,
+  onRunAction,
 }: Props) {
   const toast = useToastContext()
   const [actionBusy, setActionBusy] = useState<string | null>(null)
   const obs: GuestObservabilitySnapshot | undefined = report?.guest_observability
 
-  if (loading && !report) {
-    return (
-      <p className="text-sm text-slate-500 flex items-center gap-2">
-        <Loader2 className="w-4 h-4 animate-spin" /> Testing guest agent…
-      </p>
-    )
-  }
-  if (!report) return null
-
-  const tone = installStateTone(report.install_state)
-  const agentActive = report.install_state === 'running' && report.agent_ping
-
   const runAction = async (key: string, fn: () => Promise<unknown>, success: string) => {
+    if (onRunAction) {
+      await onRunAction(key, fn, success)
+      return
+    }
     setActionBusy(key)
     try {
       await fn()
@@ -82,6 +90,60 @@ export default function GuestAgentDiagnosticsPanel({
       setActionBusy(null)
     }
   }
+
+  if (loading && !report) {
+    return (
+      <p className="text-sm text-slate-500 flex items-center gap-2">
+        <Loader2 className="w-4 h-4 animate-spin" /> Testing guest agent…
+      </p>
+    )
+  }
+
+  if (error && !report) {
+    return (
+      <div className={`rounded-xl border p-4 text-sm ${statusSurfaceClasses('error')}`}>
+        <p className="text-slate-200 font-medium">Could not load guest health</p>
+        <p className="text-xs text-slate-400 mt-1">{error}</p>
+        {onRefresh && (
+          <button type="button" className="btn-secondary text-xs mt-3" onClick={onRefresh}>
+            Retry
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  if (!report) {
+    const stopped = vmState === 'stopped' || vmState === 'shut off'
+    return (
+      <div className={`rounded-xl border p-4 text-sm ${statusSurfaceClasses(stopped ? 'neutral' : 'warn')}`}>
+        <p className="text-slate-200 font-medium">
+          {stopped ? 'Start the VM to test the guest agent' : 'Guest health not available yet'}
+        </p>
+        <p className="text-xs text-slate-400 mt-1">
+          {stopped
+            ? 'The QEMU guest agent channel is probed while the VM is running.'
+            : 'Run a guest health check or wait for the next refresh.'}
+        </p>
+        <div className="flex flex-wrap gap-2 mt-3">
+          {stopped && onStartVm && (
+            <button type="button" className="btn-primary text-xs inline-flex items-center gap-1" onClick={onStartVm}>
+              <Play className="w-3 h-3" /> Start VM
+            </button>
+          )}
+          {onRefresh && (
+            <button type="button" className="btn-secondary text-xs" disabled={loading} onClick={onRefresh}>
+              {loading ? <Loader2 className="w-3 h-3 animate-spin inline" /> : null}
+              Run health check
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  const tone = installStateTone(report.install_state, report.agent_ping)
+  const agentActive = qgaHealthy(report)
 
   const osPill = [obs?.os_pretty_name || report.os_pretty_name, obs?.os_kernel, agentActive ? 'QGA' : null]
     .filter(Boolean)
@@ -128,9 +190,9 @@ export default function GuestAgentDiagnosticsPanel({
         </p>
       )}
 
-      {report.checks.length > 0 && (
+      {(report.checks?.length ?? 0) > 0 && (
         <ul className="space-y-2">
-          {report.checks.map((c) => (
+          {(report.checks ?? []).map((c) => (
             <li
               key={c.id}
               className="flex items-start gap-2 rounded-lg border border-white/[0.06] bg-slate-900/40 px-3 py-2 text-sm"
@@ -255,16 +317,31 @@ export default function GuestAgentDiagnosticsPanel({
   )
 }
 
-/** Compact pill for VM detail header. */
-export function GuestAgentHeaderPill({ report }: { report: VmGuestHealthReport | null | undefined }) {
+/** Compact pill for VM detail header — click opens Guest health tab. */
+export function GuestAgentHeaderPill({
+  report,
+  onClick,
+}: {
+  report: VmGuestHealthReport | null | undefined
+  onClick?: () => void
+}) {
   if (!report) return null
-  const tone = installStateTone(report.install_state)
+  const agentActive = qgaHealthy(report)
+  const tone = installStateTone(report.install_state, report.agent_ping)
   const label = report.os_pretty_name || installStateLabel(report.install_state)
   const kernel = report.guest_observability?.os_kernel
-  const parts = [label, kernel, report.install_state === 'running' ? 'QGA' : null].filter(Boolean)
+  const parts = [label, kernel, agentActive ? 'QGA' : report.install_state === 'channel_only' ? 'channel' : null].filter(Boolean)
   if (!parts.length) return null
+  const className = `${statusPillClasses(tone)} ${onClick ? 'cursor-pointer hover:opacity-90' : ''}`
+  if (onClick) {
+    return (
+      <button type="button" className={className} title={`${report.summary} — open Guest health`} onClick={onClick}>
+        {parts.join(' · ')}
+      </button>
+    )
+  }
   return (
-    <span className={statusPillClasses(tone)} title={report.summary}>
+    <span className={className} title={report.summary}>
       {parts.join(' · ')}
     </span>
   )

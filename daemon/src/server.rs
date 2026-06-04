@@ -27,7 +27,10 @@ use crate::terminal::{self, TerminalSessionStore};
 
 pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
     let web_dir = find_web_dist();
-    let session_store = SessionStore::new();
+    let session_store = SessionStore::new(
+        config.auth.max_sessions_global,
+        config.auth.max_sessions_per_user,
+    );
     let daemon_stats = Arc::new(DaemonStats::new({
         let s = session_store.clone();
         move || s.active_session_count()

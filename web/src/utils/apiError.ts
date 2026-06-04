@@ -98,6 +98,16 @@ export function formatHttpErrorBody(status: number, statusText: string, text: st
 }
 
 /** Format any thrown value for toasts and banners. */
+/** True when the platform controller returned 404 / not_found for a VM or other resource. */
+export function isPlatformNotFoundError(e: unknown): boolean {
+  if (e && typeof e === 'object' && 'error_code' in e) {
+    const code = (e as { error_code?: string }).error_code
+    if (code === 'not_found') return true
+  }
+  const msg = formatUserError(e).toLowerCase()
+  return /\bnot[_ ]found\b/.test(msg)
+}
+
 export function formatUserError(e: unknown): string {
   if (e instanceof Error) {
     const msg = sanitizeErrorText(e.message)

@@ -568,7 +568,7 @@ mod tests {
     #[test]
     fn test_validate_virt_builder_os() {
         assert!(validate_virt_builder_os("ubuntu-22.04").is_ok());
-        assert!(validate_virt_builder_os("fedora-40").is_ok());
+        assert!(validate_virt_builder_os("fedora-44").is_ok());
         assert!(validate_virt_builder_os("").is_err());
         assert!(validate_virt_builder_os("bad os").is_err());
     }
@@ -623,7 +623,7 @@ mod tests {
     #[test]
     fn test_validate_create_vm_disk_image_builders_mutex() {
         let mut req = CreateVmRequest::default();
-        req.virt_builder_os = "fedora-40".into();
+        req.virt_builder_os = "fedora-44".into();
         req.mkosi_workspace = "/tmp/w".into();
         assert!(validate_create_vm_disk_image_builders(&req).is_err());
         req.mkosi_workspace = String::new();

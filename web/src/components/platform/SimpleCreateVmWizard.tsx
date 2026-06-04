@@ -15,6 +15,7 @@ import { readSshPubkeyFile } from '../../utils/sshPubkeyImport'
 import PlatformStepWizard from './PlatformStepWizard'
 import VmWizardReadinessBanner from './VmWizardReadinessBanner'
 import type { TemplateReadiness } from '../../api/platform'
+import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import VmWizardSizeStep, { sizeStepValid, type VmWizardSizeState } from './VmWizardSizeStep'
 import {
   buildOsFlavorList,
@@ -81,6 +82,7 @@ function categoryAccent(category: OsFlavor['category']): string {
 }
 
 export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial }: SimpleCreateVmWizardProps) {
+  const { info } = usePlatformInfo()
   const [step, setStep] = useState(0)
   const [name, setName] = useState('new-vm')
   const [os, setOs] = useState('ubuntu-24.04')
@@ -405,6 +407,12 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
           )}
 
           {needsReadiness && <VmWizardReadinessBanner loading={readinessLoading} readiness={readiness} />}
+          {!info?.guestkit?.enabled && (
+            <p className="text-xs text-orange-200/80 rounded-lg border border-orange-500/25 bg-orange-500/10 px-3 py-2">
+              GuestKit offline assurance is disabled. Migrated or stopped VMs can be scored on disk via{' '}
+              <span className="font-mono">GUESTKIT_ENABLED=1</span> (see VM → Guest health).
+            </p>
+          )}
 
           <div className="rounded-xl border border-slate-700/50 bg-slate-950/80 p-4 text-sm space-y-1.5">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Review</p>

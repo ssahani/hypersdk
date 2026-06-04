@@ -173,6 +173,17 @@ pub async fn doctor_vm(
     doctor_disk(cfg, &image.to_string_lossy(), target, explain).await
 }
 
+pub async fn migrate_plan_vm(
+    cfg: &ControllerConfig,
+    pool: &PgPool,
+    disk_dir: &Path,
+    vm_id: Uuid,
+    target: &str,
+) -> anyhow::Result<GuestkitMigratePlanReport> {
+    let image = resolve_vm_disk_path(pool, disk_dir, vm_id).await?;
+    migrate_plan_disk(cfg, &image.to_string_lossy(), target).await
+}
+
 pub async fn resolve_vm_disk_path(
     pool: &PgPool,
     disk_dir: &Path,

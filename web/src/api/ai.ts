@@ -170,6 +170,8 @@ export type VmMigrationReadinessRow = {
   guest_ip: string
   qga_gaps: string[]
   remediation: string[]
+  assurance_mode?: 'live_qga' | 'offline_guestkit' | string
+  guestkit_summary?: string
 }
 
 export type MigrationReadinessReport = {

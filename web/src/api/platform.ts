@@ -77,27 +77,36 @@ export interface PlatformApiError extends Error {
   object_ref?: { kind: string; id: string; name?: string }
 }
 
+function sleepMs(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export async function platformFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${getControllerBase()}${path.startsWith('/') ? path : `/${path}`}`
   let res: Response
-  try {
-    res = await fetch(url, { credentials: 'same-origin', ...init, headers: platformHeaders(init?.headers) })
-  } catch {
-    throw new Error(
-      `Cannot reach the Machina platform controller (${getControllerBase()}). ` +
-      'Ensure machina-controller is running (systemctl status machina-controller) or set the controller URL on Platform Dashboard.',
-    )
+  const max429Retries = 3
+  for (let attempt = 0; attempt <= max429Retries; attempt++) {
+    try {
+      res = await fetch(url, { credentials: 'same-origin', ...init, headers: platformHeaders(init?.headers) })
+    } catch {
+      throw new Error(
+        `Cannot reach the Machina platform controller (${getControllerBase()}). ` +
+        'Ensure machina-controller is running (systemctl status machina-controller) or set the controller URL on Platform Dashboard.',
+      )
+    }
+    if (res.status !== 429 || attempt === max429Retries) break
+    await sleepMs(Math.min(60_000, 1000 * 2 ** attempt))
   }
-  if (res.status === 429) {
+  if (res!.status === 429) {
     throw new Error('Rate limit exceeded — wait a minute and retry')
   }
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
+  if (!res!.ok) {
+    const body = await res!.text().catch(() => '')
     let parsed: PlatformApiError | null = null
     try {
       const j = JSON.parse(body) as { error?: string; error_code?: string; remediation?: string; object_ref?: unknown }
       if (j.error) {
-        parsed = Object.assign(new Error(formatHttpErrorBody(res.status, res.statusText, body)), {
+        parsed = Object.assign(new Error(formatHttpErrorBody(res!.status, res!.statusText, body)), {
           error_code: j.error_code,
           remediation: j.remediation,
           object_ref: j.object_ref as PlatformApiError['object_ref'],
@@ -106,10 +115,10 @@ export async function platformFetch<T>(path: string, init?: RequestInit): Promis
     } catch {
       /* plain text */
     }
-    throw parsed ?? new Error(body || `${res.status} ${res.statusText}`)
+    throw parsed ?? new Error(body || `${res!.status} ${res!.statusText}`)
   }
-  if (res.status === 204) return undefined as T
-  return (await res.json()) as T
+  if (res!.status === 204) return undefined as T
+  return (await res!.json()) as T
 }
 
 export interface PlatformHost {
@@ -1960,6 +1969,12 @@ export const listWebhookDeliveries = (status?: string) => {
 
 export const retryWebhookDelivery = (id: string) =>
   platformFetch<WebhookDeliveryRow>(`/api/v1/webhook-deliveries/${id}/retry`, { method: 'POST' })
+
+export const purgeWebhookDeliveries = (body: { status?: string; url_contains?: string }) =>
+  platformFetch<{ deleted: number }>('/api/v1/webhook-deliveries/purge', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 
 export const listProjects = () => platformFetch<ProjectRow[]>('/api/v1/projects')
 export const getCapacityReport = () => platformFetch<CapacityReport>('/api/v1/reports/capacity')

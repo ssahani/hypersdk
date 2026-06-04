@@ -8,6 +8,7 @@ import {
   deleteWebhook,
   listWebhookDeliveries,
   listWebhooks,
+  purgeWebhookDeliveries,
   retryWebhookDelivery,
   toggleWebhook,
   type WebhookDeliveryRow,
@@ -24,6 +25,11 @@ export default function PlatformWebhooks({ embedded }: { embedded?: boolean } = 
   const [deliveryFilter, setDeliveryFilter] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [url, setUrl] = useState('https://example.com/hook')
+
+  const testWebhooks = rows.filter(
+    (w) => w.url.includes('127.0.0.1:19876') || w.url.endsWith('/e2e'),
+  )
+  const failedCount = deliveries.filter((d) => d.status === 'failed').length
 
   const load = useCallback(async () => {
     setError(null)
@@ -53,6 +59,30 @@ export default function PlatformWebhooks({ embedded }: { embedded?: boolean } = 
       actions={embedded ? undefined : <PlatformRefreshButton onClick={() => void load()} />}
       contentClassName="space-y-4"
     >
+      {testWebhooks.length > 0 && (
+        <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-3 text-sm text-amber-100">
+          <p className="font-medium">E2E test webhooks detected</p>
+          <p className="text-xs mt-1 text-amber-200/80">
+            These point at <span className="font-mono">127.0.0.1:19876</span> on the controller host — nothing listens there, so
+            deliveries fail. Remove them unless you are actively running the E2E receiver.
+          </p>
+          <button
+            type="button"
+            className="btn-secondary text-xs mt-2"
+            onClick={async () => {
+              try {
+                for (const w of testWebhooks) await deleteWebhook(w.id)
+                toast.success(`Removed ${testWebhooks.length} test webhook(s)`)
+                await load()
+              } catch (e: unknown) {
+                toast.error(formatUserError(e))
+              }
+            }}
+          >
+            Remove test webhooks
+          </button>
+        </div>
+      )}
       <div className="card p-4 flex gap-3">
         <input className="input flex-1" value={url} onChange={(e) => setUrl(e.target.value)} />
         <button type="button" className="btn-primary flex items-center gap-2" onClick={async () => {
@@ -69,8 +99,25 @@ export default function PlatformWebhooks({ embedded }: { embedded?: boolean } = 
         </li>
       ))}</ul>
       <section className="card p-4 space-y-3">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <h2 className="font-semibold">Recent deliveries</h2>
+          {failedCount > 0 && (
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              onClick={async () => {
+                try {
+                  const r = await purgeWebhookDeliveries({ status: 'failed' })
+                  toast.success(`Cleared ${r.deleted} failed delivery(ies)`)
+                  await load()
+                } catch (e: unknown) {
+                  toast.error(formatUserError(e))
+                }
+              }}
+            >
+              Clear failed ({failedCount})
+            </button>
+          )}
           <select className="input text-sm w-auto" value={deliveryFilter} onChange={(e) => setDeliveryFilter(e.target.value)}>
             <option value="">All</option>
             <option value="pending">Pending</option>

@@ -195,6 +195,11 @@ except Exception:
   else
     e2e_platform_warn "no webhook deliveries yet (worker may be async)"
   fi
+  if [[ -n "$webhook_id" ]]; then
+    e2e_platform_curl -X DELETE "${E2E_PLATFORM_BASE}/api/v1/webhooks/${webhook_id}" >/dev/null \
+      && e2e_platform_ok "webhook cleanup $webhook_id" \
+      || e2e_platform_warn "webhook cleanup failed"
+  fi
 
   e2e_platform_hdr "PLATFORM: API KEYS"
   r="$(e2e_platform_curl -X POST "${E2E_PLATFORM_BASE}/api/v1/api-keys" \
@@ -204,6 +209,11 @@ except Exception:
   e2e_platform_assert_json_key "$r" "token" "api key token"
   r="$(e2e_platform_curl "${E2E_PLATFORM_BASE}/api/v1/api-keys")"
   echo "$r" | grep -q "$api_key_id" && e2e_platform_ok "api key listed"
+  if [[ -n "$api_key_id" ]]; then
+    e2e_platform_curl -X DELETE "${E2E_PLATFORM_BASE}/api/v1/api-keys/${api_key_id}" >/dev/null \
+      && e2e_platform_ok "api key cleanup $api_key_id" \
+      || e2e_platform_warn "api key cleanup failed"
+  fi
 
   e2e_platform_hdr "PLATFORM: TASKS + AUDIT"
   r="$(e2e_platform_curl "${E2E_PLATFORM_BASE}/api/v1/tasks?operation=vm.&limit=5")"

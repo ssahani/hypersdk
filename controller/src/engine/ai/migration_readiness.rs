@@ -6,10 +6,18 @@ use uuid::Uuid;
 
 use crate::config::ControllerConfig;
 use crate::engine::guest_context::{self, GuestAiSnapshot};
+use crate::engine::guestkit_bridge::{self, GuestkitDoctorReport, GuestkitMigratePlanReport};
 
 use super::llm::{self, CompletionRequest};
 use super::migration;
 use super::routing::TaskClass;
+
+fn vm_is_stopped(state: &str) -> bool {
+    matches!(
+        state,
+        "stopped" | "shut off" | "shutoff" | "Shutoff" | "Shut Off"
+    )
+}
 
 #[derive(Debug, Deserialize)]
 pub struct MigrationReadinessRequest {
@@ -29,6 +37,10 @@ pub struct VmMigrationReadinessRow {
     pub guest_ip: String,
     pub qga_gaps: Vec<String>,
     pub remediation: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assurance_mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub guestkit_summary: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -56,23 +68,47 @@ pub async fn generate(
     };
 
     let provider = req.provider.as_deref().unwrap_or("vmware");
-    let snapshots = guest_context::gather_fleet_snapshots(pool, cfg, vm_ids, false).await;
+    let meta: Vec<(Uuid, String, String)> = sqlx::query_as(
+        "SELECT id, name, observed_state FROM vms WHERE id = ANY($1::uuid[])",
+    )
+    .bind(&vm_ids)
+    .fetch_all(pool)
+    .await?;
+
+    let mut running_ids = Vec::new();
+    let mut stopped_ids = Vec::new();
+    for (id, _name, state) in &meta {
+        if vm_is_stopped(state) {
+            stopped_ids.push(*id);
+        } else if state == "running" || state == "paused" {
+            running_ids.push(*id);
+        } else {
+            stopped_ids.push(*id);
+        }
+    }
+
+    let snapshots = guest_context::gather_fleet_snapshots(pool, cfg, running_ids, false).await;
     let mut rows = Vec::new();
     let mut all_remediation = Vec::new();
+    let name_by_id: std::collections::HashMap<Uuid, String> =
+        meta.iter().map(|(id, name, _)| (*id, name.clone())).collect();
 
     for (id, res) in snapshots {
+        let vm_name = name_by_id.get(&id).cloned().unwrap_or_else(|| id.to_string());
         let snap = match res {
             Ok(s) => s,
             Err(e) => {
                 rows.push(VmMigrationReadinessRow {
                     vm_id: id.to_string(),
-                    vm_name: id.to_string(),
+                    vm_name,
                     readiness_percent: 40,
                     install_state: "unknown".into(),
                     os_pretty_name: String::new(),
                     guest_ip: String::new(),
                     qga_gaps: vec![e],
-                    remediation: vec!["Verify VM is running on libvirt host".into()],
+                    remediation: vec!["Start VM for live QGA inventory, or enable GuestKit for offline disk scan".into()],
+                    assurance_mode: None,
+                    guestkit_summary: None,
                 });
                 continue;
             }
@@ -80,6 +116,70 @@ pub async fn generate(
         let (row, rem) = row_from_snapshot(&snap, provider);
         all_remediation.extend(rem);
         rows.push(row);
+    }
+
+    for id in stopped_ids {
+        let vm_name = name_by_id.get(&id).cloned().unwrap_or_else(|| id.to_string());
+        if cfg.guestkit_enabled {
+            match guestkit_bridge::migrate_plan_vm(
+                cfg,
+                pool,
+                &cfg.disk_image_dir,
+                id,
+                "kvm",
+            )
+            .await
+            {
+                Ok(plan) => {
+                    let doctor = guestkit_bridge::doctor_vm(
+                        cfg,
+                        pool,
+                        &cfg.disk_image_dir,
+                        id,
+                        "kvm",
+                        false,
+                    )
+                    .await
+                    .ok();
+                    let (row, rem) = row_from_guestkit_offline(id, &vm_name, &plan, doctor.as_ref());
+                    all_remediation.extend(rem);
+                    rows.push(row);
+                }
+                Err(e) => {
+                    rows.push(VmMigrationReadinessRow {
+                        vm_id: id.to_string(),
+                        vm_name,
+                        readiness_percent: 35,
+                        install_state: "offline".into(),
+                        os_pretty_name: String::new(),
+                        guest_ip: String::new(),
+                        qga_gaps: vec![format!("GuestKit offline scan failed: {e}")],
+                        remediation: vec![
+                            "Ensure VM disk path is set in vm_disks or disk_image_dir".into(),
+                            "Start VM for live guest-agent checks".into(),
+                        ],
+                        assurance_mode: Some("offline_guestkit".into()),
+                        guestkit_summary: None,
+                    });
+                }
+            }
+        } else {
+            rows.push(VmMigrationReadinessRow {
+                vm_id: id.to_string(),
+                vm_name,
+                readiness_percent: 45,
+                install_state: "offline".into(),
+                os_pretty_name: String::new(),
+                guest_ip: String::new(),
+                qga_gaps: vec!["VM stopped — live QGA unavailable".into()],
+                remediation: vec![
+                    "Set GUESTKIT_ENABLED=1 for offline boot/migration scoring".into(),
+                    "Start VM before cutover for guest-agent inventory".into(),
+                ],
+                assurance_mode: None,
+                guestkit_summary: None,
+            });
+        }
     }
 
     all_remediation.sort();
@@ -167,6 +267,48 @@ fn row_from_snapshot(s: &GuestAiSnapshot, _provider: &str) -> (VmMigrationReadin
         guest_ip: s.guest_ip.clone(),
         qga_gaps,
         remediation: remediation.clone(),
+        assurance_mode: Some("live_qga".into()),
+        guestkit_summary: None,
+    };
+    (row, remediation)
+}
+
+fn row_from_guestkit_offline(
+    vm_id: Uuid,
+    vm_name: &str,
+    plan: &GuestkitMigratePlanReport,
+    doctor: Option<&GuestkitDoctorReport>,
+) -> (VmMigrationReadinessRow, Vec<String>) {
+    let mut qga_gaps = vec!["VM stopped — live QEMU guest-agent unavailable (GuestKit offline scan)".into()];
+    let mut remediation = plan.required_changes.clone();
+    for w in &plan.licensing_warnings {
+        remediation.push(format!("Licensing: {w}"));
+    }
+    for inj in &plan.driver_injections {
+        remediation.push(format!("Driver injection: {inj}"));
+    }
+    if let Some(d) = doctor {
+        for b in &d.blockers {
+            qga_gaps.push(b.clone());
+        }
+        for w in &d.warnings {
+            remediation.push(w.clone());
+        }
+    }
+    let readiness_percent =
+        ((plan.migration_score + plan.boot_score) / 2.0).clamp(0.0, 100.0) as u8;
+
+    let row = VmMigrationReadinessRow {
+        vm_id: vm_id.to_string(),
+        vm_name: vm_name.to_string(),
+        readiness_percent,
+        install_state: "offline".into(),
+        os_pretty_name: String::new(),
+        guest_ip: String::new(),
+        qga_gaps,
+        remediation: remediation.clone(),
+        assurance_mode: Some("offline_guestkit".into()),
+        guestkit_summary: Some(plan.summary.clone()),
     };
     (row, remediation)
 }
@@ -177,10 +319,15 @@ fn deterministic_summary(rows: &[VmMigrationReadinessRow]) -> String {
     }
     let avg: u32 = rows.iter().map(|r| r.readiness_percent as u32).sum::<u32>() / rows.len() as u32;
     let no_qga = rows.iter().filter(|r| !r.qga_gaps.is_empty()).count();
+    let offline = rows
+        .iter()
+        .filter(|r| r.assurance_mode.as_deref() == Some("offline_guestkit"))
+        .count();
     format!(
-        "Migration readiness for {} VM(s): average score {}%. {} VM(s) have QGA or networking gaps — enable guest agent before cutover for accurate inventory and graceful power management.",
+        "Migration readiness for {} VM(s): average score {}%. {} VM(s) have QGA or networking gaps; {} assessed via GuestKit offline disk scan. Enable live guest agent before cutover where possible.",
         rows.len(),
         avg,
-        no_qga
+        no_qga,
+        offline
     )
 }

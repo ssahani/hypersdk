@@ -1,23 +1,25 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Loader2, Sparkles } from 'lucide-react'
 import {
   getVmGuestAiInsights,
-  guestSyncTime,
-  guestFstrim,
   installGuestTools,
   type GuestAiInsightsReport,
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { GUEST_TOAST_CHANNEL_ATTACH } from '../../utils/guestAgentUx'
 import { MacGlassPanel } from './mac/PlatformMacUi'
+import type { RunGuestActionFn } from './GuestAgentDiagnosticsPanel'
 import { statusPillClasses, statusToneClass } from '../../utils/semanticColors'
 
 type Props = {
   vmId: string
   focus?: string
+  autoLoad?: boolean
   onApplied?: () => void
+  onRunAction?: RunGuestActionFn
 }
 
 function severityTone(s: string): 'ok' | 'warn' | 'error' | 'info' | 'neutral' {
@@ -27,7 +29,16 @@ function severityTone(s: string): 'ok' | 'warn' | 'error' | 'info' | 'neutral' {
   return 'neutral'
 }
 
-export default function GuestAiInsightsPanel({ vmId, focus, onApplied }: Props) {
+/** Actions handled on the diagnostics panel — Apply only offers install and approval-gated ops. */
+const DIAGNOSTICS_ACTIONS = new Set(['guest.sync_time', 'guest.fstrim'])
+
+export default function GuestAiInsightsPanel({
+  vmId,
+  focus,
+  autoLoad = false,
+  onApplied,
+  onRunAction,
+}: Props) {
   const toast = useToastContext()
   const [loading, setLoading] = useState(false)
   const [report, setReport] = useState<GuestAiInsightsReport | null>(null)
@@ -45,28 +56,27 @@ export default function GuestAiInsightsPanel({ vmId, focus, onApplied }: Props) 
     }
   }
 
+  useEffect(() => {
+    if (autoLoad) void load(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load on mount / tab enter only
+  }, [vmId, autoLoad])
+
   const applyAction = async (action: string) => {
+    if (DIAGNOSTICS_ACTIONS.has(action)) return
     setApplying(action)
     try {
-      switch (action) {
-        case 'guest.sync_time':
-          await guestSyncTime(vmId)
-          toast.success('Guest time sync completed')
-          break
-        case 'guest.fstrim':
-          await guestFstrim(vmId)
-          toast.success('Filesystem TRIM completed')
-          break
-        case 'guest.install_tools':
+      if (action === 'guest.install_tools') {
+        if (onRunAction) {
+          await onRunAction('install', () => installGuestTools(vmId), GUEST_TOAST_CHANNEL_ATTACH)
+        } else {
           await installGuestTools(vmId)
-          toast.success('Guest tools install queued')
-          break
-        default:
-          toast.error(`Action ${action} requires approval in Zeus hub`)
-          return
+          toast.success(GUEST_TOAST_CHANNEL_ATTACH)
+        }
+        onApplied?.()
+        await load(true)
+        return
       }
-      onApplied?.()
-      await load(true)
+      toast.error(`Action ${action} requires approval in Zeus hub`)
     } catch (e: unknown) {
       toast.error(formatUserError(e))
     } finally {
@@ -77,7 +87,7 @@ export default function GuestAiInsightsPanel({ vmId, focus, onApplied }: Props) 
   return (
     <MacGlassPanel
       title="AI guest intelligence"
-      subtitle="QGA telemetry interpreted by Zeus"
+      subtitle="Guest-agent telemetry interpreted by Zeus"
       action={
         <button type="button" className="btn-secondary text-xs" disabled={loading} onClick={() => void load(true)}>
           {loading ? <Loader2 className="w-3 h-3 animate-spin inline" /> : <Sparkles className="w-3 h-3 inline" />}
@@ -87,7 +97,9 @@ export default function GuestAiInsightsPanel({ vmId, focus, onApplied }: Props) 
     >
       {!report && !loading && (
         <p className="text-sm text-slate-500">
-          Generate a natural-language summary with security and operations recommendations from live guest-agent data.
+          {autoLoad
+            ? 'Insights will load automatically when this tab is open.'
+            : 'Generate a natural-language summary with security and operations recommendations from live guest-agent data.'}
         </p>
       )}
       {loading && !report && (
@@ -101,7 +113,7 @@ export default function GuestAiInsightsPanel({ vmId, focus, onApplied }: Props) 
           {report.llm_powered && (
             <span className={statusPillClasses('info')}>LLM-powered</span>
           )}
-          {report.insights.length > 0 && (
+          {report.insights.length > 0 ? (
             <ul className="space-y-2">
               {report.insights.map((i) => (
                 <li key={i.title} className="rounded-lg border border-white/[0.06] bg-slate-900/40 px-3 py-2">
@@ -110,6 +122,8 @@ export default function GuestAiInsightsPanel({ vmId, focus, onApplied }: Props) 
                 </li>
               ))}
             </ul>
+          ) : (
+            <p className="text-xs text-slate-500">No specific insights — guest telemetry looks nominal.</p>
           )}
           {report.recommendations.length > 0 && (
             <div className="space-y-2">
@@ -120,7 +134,7 @@ export default function GuestAiInsightsPanel({ vmId, focus, onApplied }: Props) 
                     <p className="text-slate-200">{r.label}</p>
                     <p className="text-xs text-slate-500">{r.rationale}</p>
                   </div>
-                  {['guest.sync_time', 'guest.fstrim', 'guest.install_tools'].includes(r.action) && (
+                  {r.action === 'guest.install_tools' && (
                     <button
                       type="button"
                       className="btn-secondary text-xs"
@@ -130,6 +144,9 @@ export default function GuestAiInsightsPanel({ vmId, focus, onApplied }: Props) 
                       {applying === r.action ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                       Apply
                     </button>
+                  )}
+                  {!DIAGNOSTICS_ACTIONS.has(r.action) && r.action !== 'guest.install_tools' && r.action !== 'none' && (
+                    <span className="text-[10px] text-slate-500">Zeus approval</span>
                   )}
                 </div>
               ))}
