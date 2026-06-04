@@ -3,7 +3,7 @@
 // https://zyvor.dev · info@zyvor.dev
 
 import { createContext, useContext, ReactNode } from 'react'
-import { useToast, type ToastAction } from '../hooks/useToast'
+import { useToast, type Toast, type ToastAction } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
 interface ToastContextType {
@@ -15,15 +15,30 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined)
 
+type ToastState = {
+  toasts: Toast[]
+  removeToast: (id: string) => void
+}
+
+const ToastStateContext = createContext<ToastState | undefined>(undefined)
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const { toasts, removeToast, success, error, warning, info } = useToast()
 
   return (
-    <ToastContext.Provider value={{ success, error, warning, info }}>
-      {children}
-      <ToastContainer toasts={toasts} onClose={removeToast} />
-    </ToastContext.Provider>
+    <ToastStateContext.Provider value={{ toasts, removeToast }}>
+      <ToastContext.Provider value={{ success, error, warning, info }}>
+        {children}
+      </ToastContext.Provider>
+    </ToastStateContext.Provider>
   )
+}
+
+/** Mount inside `<BrowserRouter>` so toast action links can use react-router `<Link>`. */
+export function ToastRenderer() {
+  const state = useContext(ToastStateContext)
+  if (!state) return null
+  return <ToastContainer toasts={state.toasts} onClose={state.removeToast} />
 }
 
 export function useToastContext() {

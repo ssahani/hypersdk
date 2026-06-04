@@ -19,11 +19,12 @@ test('live delete vm returns to list without page crash', async ({ page }) => {
   page.on('pageerror', (err) => errors.push(err.message))
 
   await page.goto(`${live}/platform/vms`, { waitUntil: 'domcontentloaded' })
-  await page.waitForLoadState('networkidle').catch(() => {})
-  await expect(page.getByText(/Virtual Machines|Finder/i).first()).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByRole('heading', { name: 'Virtual Machines', exact: true })).toBeVisible({
+    timeout: 45_000,
+  })
 
-  // Prefer an existing stopped VM; otherwise use the first VM link in the table.
-  const vmLink = page.locator('a[href^="/platform/vms/"]').filter({ hasNot: page.locator('text=Create') }).first()
+  // VM detail links only (exclude /console and other sub-routes).
+  const vmLink = page.locator('a[href^="/platform/vms/"]:not([href*="/console"])').first()
   const hasVm = await vmLink.isVisible().catch(() => false)
   test.skip(!hasVm, 'No VMs on host — run live create spec first or create a VM manually')
 

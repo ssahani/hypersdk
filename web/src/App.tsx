@@ -5,7 +5,7 @@
 import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router'
 import { ZyvorFooter } from './components/ZyvorBrand';
 import { Suspense, lazy, useState, useCallback, useMemo, useEffect } from 'react'
-import { ToastProvider } from './contexts/ToastContext'
+import { ToastProvider, ToastRenderer } from './contexts/ToastContext'
 import { WebSocketProvider } from './contexts/WebSocketContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider, useTheme } from './contexts/ThemeContext'
@@ -314,6 +314,7 @@ function AuthenticatedShellRoutes() {
   return (
     <>
           <RouteRecorder />
+          <ToastRenderer />
           <div className={`${shellClass} flex flex-col min-h-screen`}>
             {!isPlatformRoute && <Navbar onOpenHelp={openHelp} />}
             {!isPlatformRoute && <ShellBridgeBar />}

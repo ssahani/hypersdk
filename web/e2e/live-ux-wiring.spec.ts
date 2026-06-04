@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createApiWatch } from './helpers/apiWatch'
-import { ensureLoggedIn, fetchPlatformFlags, setDesktopTier, type DesktopTier } from './helpers/liveAuth'
+import { ensureLoggedIn, fetchPlatformFlags, type DesktopTier } from './helpers/liveAuth'
 
 const live = process.env.PLAYWRIGHT_LIVE_URL?.replace(/\/$/, '')
 test.skip(!live, 'Set PLAYWRIGHT_LIVE_URL to run live UX wiring tests')
@@ -77,8 +77,7 @@ test.describe.configure({ mode: 'serial' })
 for (const entry of manifest.entries) {
   test(`live UX: ${entry.id}`, async ({ page }) => {
     const tier = entry.tier ?? 'normal'
-    await setDesktopTier(page, tier)
-    await ensureLoggedIn(page, live!)
+    await ensureLoggedIn(page, live!, entry.path, tier)
     const flags = await fetchPlatformFlags(page, live!)
 
     if (entry.requires === 'openstack' && !flags.openstackEnabled) {
