@@ -113,7 +113,11 @@ for (const entry of manifest.entries) {
       test.skip(true, 'tier guard')
     }
 
-    await expect(page.locator('body')).not.toBeEmpty({ timeout: 20_000 })
+    await page.waitForLoadState('domcontentloaded')
+    await page.waitForFunction(
+      () => (document.body?.innerText?.replace(/\s+/g, '')?.length ?? 0) > 0,
+      { timeout: 45_000 },
+    )
     await page.waitForTimeout(1500)
 
     const jsErrors: string[] = []

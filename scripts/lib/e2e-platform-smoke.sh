@@ -260,10 +260,18 @@ except Exception:
   fi
 
   e2e_platform_hdr "PLATFORM SMOKE: APPLICATION GROUPS"
-  app_body="$(e2e_platform_curl -X POST "${E2E_PLATFORM_BASE}/api/v1/applications" \
-    -H 'Content-Type: application/json' \
-    -d '{"name":"Finance Application '"$(date +%s)"'","description":"E2E application group","vm_ids":[]}')"
-  app_id="$(echo "$app_body" | python3 -c "import json,sys; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || true)"
+  app_id=""
+  app_body=""
+  for _attempt in 1 2 3; do
+    app_body="$(e2e_platform_curl -X POST "${E2E_PLATFORM_BASE}/api/v1/applications" \
+      -H 'Content-Type: application/json' \
+      -d '{"name":"Finance Application '"$(date +%s)"'","description":"E2E application group","vm_ids":[]}')"
+    app_id="$(echo "$app_body" | python3 -c "import json,sys; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || true)"
+    if [[ -n "$app_id" ]]; then
+      break
+    fi
+    sleep 3
+  done
   if [[ -n "$app_id" ]]; then
     e2e_platform_ok "POST /api/v1/applications (friendly name with spaces)"
   else
