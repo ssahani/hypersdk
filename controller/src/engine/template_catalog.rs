@@ -318,8 +318,28 @@ const CATALOG: &[CatalogTemplate] = &[
     },
 ];
 
+/// Superseded bundled template names (migration 042); removed on every seed/prune.
+const RETIRED_TEMPLATE_NAMES: &[&str] = &[
+    "ubuntu-22.04",
+    "debian-12",
+    "centos-stream-9",
+    "rocky-9",
+    "alma-9",
+    "fedora-40",
+    "fedora-41",
+    "fedora-42",
+    "fedora-43",
+    "rhel-9",
+];
+
 /// Remove marketplace rows that are no longer in the bundled catalog (e.g. fedora-40).
 pub async fn prune_stale_marketplace_templates(pool: &PgPool) -> anyhow::Result<u64> {
+    let retired = sqlx::query("DELETE FROM templates WHERE name = ANY($1)")
+        .bind(RETIRED_TEMPLATE_NAMES)
+        .execute(pool)
+        .await?
+        .rows_affected();
+
     let names: Vec<String> = CATALOG.iter().map(|t| t.name.to_string()).collect();
     let versions: Vec<String> = CATALOG.iter().map(|t| t.version.to_string()).collect();
     let result = sqlx::query(
@@ -335,7 +355,7 @@ pub async fn prune_stale_marketplace_templates(pool: &PgPool) -> anyhow::Result<
     .bind(&versions)
     .execute(pool)
     .await?;
-    Ok(result.rows_affected())
+    Ok(retired + result.rows_affected())
 }
 
 /// Insert bundled marketplace templates (idempotent).

@@ -6,7 +6,7 @@ import { Upload } from 'lucide-react'
 import {
   getTemplateReadiness,
   listPlatformNetworks,
-  listPlatformTemplates,
+  listMarketplaceTemplates,
   seedDefaultTemplates,
   type PlatformNetwork,
   type PlatformTemplate,
@@ -109,7 +109,7 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
 
   const loadCatalog = useCallback(async () => {
     try {
-      let tpls = await listPlatformTemplates()
+      let tpls = await listMarketplaceTemplates()
       if (tpls.length === 0) {
         const seeded = await seedDefaultTemplates()
         tpls = seeded.templates

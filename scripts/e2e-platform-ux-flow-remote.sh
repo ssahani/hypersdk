@@ -29,9 +29,12 @@ http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/health")"
 e2e_platform_curl -X POST "${E2E_PLATFORM_BASE}/api/v1/templates/seed" >/dev/null || true
 
 r="$(e2e_platform_curl "${E2E_PLATFORM_BASE}/api/v1/templates/marketplace")"
-echo "$r" | grep -q 'fedora-44' && ok "marketplace has fedora-44" || bad "missing fedora-44"
-echo "$r" | grep -q 'ubuntu-25.10' && ok "marketplace has ubuntu-25.10" || bad "missing ubuntu-25.10"
-! echo "$r" | grep -q 'fedora-40' && ok "marketplace retired fedora-40" || bad "stale fedora-40 still listed"
+marketplace_has() {
+  echo "$r" | python3 -c "import json,sys; names={t.get('name','') for t in json.load(sys.stdin)}; sys.exit(0 if sys.argv[1] in names else 1)" "$1" 2>/dev/null
+}
+marketplace_has 'fedora-44' && ok "marketplace has fedora-44" || bad "missing fedora-44"
+marketplace_has 'ubuntu-25.10' && ok "marketplace has ubuntu-25.10" || bad "missing ubuntu-25.10"
+marketplace_has 'fedora-40' && bad "stale fedora-40 still listed" || ok "marketplace retired fedora-40"
 
 http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/templates/ubuntu-24.04/1.0.0/readiness")"
 [[ "$http" == "200" ]] && ok "template readiness" || bad "readiness HTTP $http"
