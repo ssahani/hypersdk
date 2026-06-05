@@ -540,6 +540,7 @@ async fn generate_cloud_init(
     let path = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         let default_dir = storage::primary_vm_disk_base_dir(conn)
             .unwrap_or_else(|| "/var/lib/libvirt/images".to_string());
+        let cfg = MachinaConfig::load().libvirt;
         extras::generate_cloud_init_iso(
             &output_path,
             &default_dir,
@@ -547,6 +548,7 @@ async fn generate_cloud_init(
             &username,
             &password,
             &ssh_key,
+            Some(&cfg),
         )
     })
     .await?;

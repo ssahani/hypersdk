@@ -156,6 +156,17 @@ async fn vm_apply(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     vm_lifecycle::sync_phase_from_observed(&state.pool, vm_id).await?;
 
     state.emit_event("vm.apply", format!("VM {} applied on host", row.0));
+
+    let _ = enqueue_task(
+        state,
+        "vm.guest_tools.install",
+        serde_json::json!({ "vm_id": vm_id.to_string() }),
+        Some("vm"),
+        Some(vm_id),
+        Some(host_id),
+    )
+    .await;
+
     update_task_progress(&state.pool, msg.task_id, 100, "VM defined").await?;
     Ok(())
 }

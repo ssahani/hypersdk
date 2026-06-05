@@ -171,6 +171,11 @@ impl LibvirtCtx {
         }
 
         let cloud_iso = maybe_cloud_init_iso(vm, cloud, images_dir)?;
+        machina_core::libvirt::guest_agent_provision::inject_guestkit_into_disk(
+            disk_path,
+            None,
+            None,
+        )?;
 
         let xml = domain_xml_from_spec(vm, disk_path, "qcow2", cloud_iso.as_deref())
             .map_err(|e| LibvirtError::Invalid(e.to_string()))?;
@@ -813,7 +818,8 @@ fn maybe_cloud_init_iso(
     cloud: &CloudInitParams,
     images_dir: &str,
 ) -> Result<Option<String>, LibvirtError> {
-    if vm.spec.cloud_init.is_none() && cloud.user.is_empty() {
+    let guest_default = machina_core::libvirt::guest_agent_provision::guest_agent_enabled(None);
+    if vm.spec.cloud_init.is_none() && cloud.user.is_empty() && !guest_default {
         return Ok(None);
     }
     let ci = vm.spec.cloud_init.as_ref();
@@ -831,6 +837,7 @@ fn maybe_cloud_init_iso(
         user,
         pass,
         key,
+        None,
     )?))
 }
 

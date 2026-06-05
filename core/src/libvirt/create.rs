@@ -125,7 +125,14 @@ pub fn create_vm(
     );
     super::mkosi::materialize_mkosi_if_requested(conn, &mut req, libvirt_cfg, log)?;
     super::virt_builder::materialize_virt_builder_if_requested(conn, &mut req, libvirt_cfg, log)?;
-    super::cloud_init::materialize_cloud_init_seed_if_requested(&mut req, log)?;
+    super::cloud_init::materialize_cloud_init_seed_if_requested(&mut req, libvirt_cfg, log)?;
+    if !req.existing_disk.trim().is_empty() {
+        super::guest_agent_provision::inject_guestkit_into_disk(
+            req.existing_disk.trim(),
+            Some(libvirt_cfg),
+            log,
+        )?;
+    }
     let r = match backend {
         VmCreateBackend::VirtInstall => {
             subprocess::log_line(log, "machina", "Defining VM with virt-install…");
@@ -139,7 +146,7 @@ pub fn create_vm(
                 ));
             }
             subprocess::log_line(log, "machina", "Defining VM with libvirt XML…");
-            create_vm_libvirt_xml(conn, &req, log)
+            create_vm_libvirt_xml(conn, &req, libvirt_cfg, log)
         }
     };
     if r.is_ok() {
@@ -163,6 +170,7 @@ pub fn create_vm(
 fn create_vm_libvirt_xml(
     conn: &Connect,
     req: &CreateVmRequest,
+    libvirt_cfg: &crate::config::LibvirtConfig,
     log: Option<&VmCreateLogSink>,
 ) -> Result<(), LibvirtError> {
     crate::validate::validate_vcpus(req.vcpus)?;
@@ -276,6 +284,7 @@ fn create_vm_libvirt_xml(
         crate::validate::validate_disk_gb(req.disk_gb)?;
         let path = find_disk_path(conn, &req.name)?;
         create_qcow2_disk(&path, req.disk_gb, log)?;
+        super::guest_agent_provision::inject_guestkit_into_disk(&path, Some(libvirt_cfg), log)?;
         path
     };
 

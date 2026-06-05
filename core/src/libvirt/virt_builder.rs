@@ -256,6 +256,8 @@ pub fn materialize_virt_builder_if_requested(
         )));
     }
 
+    super::guest_agent_provision::inject_guestkit_into_disk(&dest, Some(cfg), log)?;
+
     let disk = Path::new(&dest);
     post_customize(disk, req, log)?;
     if req.virt_builder_sysprep {

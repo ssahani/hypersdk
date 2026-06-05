@@ -180,6 +180,7 @@ pub fn materialize_mkosi_if_requested(
         }
     }
 
+    super::guest_agent_provision::inject_guestkit_into_disk(&dest, Some(cfg), log)?;
     req.existing_disk = dest;
     Ok(())
 }

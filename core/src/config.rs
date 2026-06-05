@@ -1099,9 +1099,15 @@ pub struct LibvirtConfig {
     /// Pass `--update` to `virt-builder` (package updates inside the template).
     #[serde(default = "default_true")]
     pub virt_builder_update: bool,
-    /// Packages always installed via `virt-builder --install` for every virt-builder VM (e.g. `["qemu-guest-agent"]`).
+    /// Packages always installed via `virt-builder --install` for every virt-builder VM.
     #[serde(default)]
     pub virt_builder_default_packages: Vec<String>,
+    /// Install GuestKit agent (QGA protocol on `org.qemu.guest_agent.0`) on every new VM by default.
+    #[serde(default = "default_true")]
+    pub guest_agent_by_default: bool,
+    /// Hypervisor path to `guestkit` binary used for cloud-init seed and offline inject.
+    #[serde(default = "default_guestkit_agent_binary")]
+    pub guestkit_agent_binary: String,
     /// Max concurrent async `virt-image-build` jobs (daemon). Default 2.
     #[serde(default = "default_virt_image_build_max_concurrent")]
     pub virt_image_build_max_concurrent: usize,
@@ -1159,6 +1165,10 @@ fn default_port() -> u16 {
 
 fn default_libvirt_uri() -> String {
     "qemu:///system".to_string()
+}
+
+fn default_guestkit_agent_binary() -> String {
+    "/usr/local/bin/guestkit".to_string()
 }
 
 fn default_backup_dir() -> String {
@@ -1219,6 +1229,8 @@ impl Default for LibvirtConfig {
             virt_builder_default_ssh_pubkey_path: String::new(),
             virt_builder_update: true,
             virt_builder_default_packages: Vec::new(),
+            guest_agent_by_default: true,
+            guestkit_agent_binary: default_guestkit_agent_binary(),
             virt_image_build_max_concurrent: default_virt_image_build_max_concurrent(),
             virt_image_build_timeout_secs: 0,
             virt_image_build_min_free_parent_bytes: default_virt_image_build_min_free_parent_bytes(

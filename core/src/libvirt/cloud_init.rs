@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use super::subprocess::{self, VmCreateLogSink};
+use crate::config::LibvirtConfig;
 use crate::state::CreateVmRequest;
 use crate::LibvirtError;
 
@@ -49,22 +50,29 @@ fn sanitize_vm_name_for_file(name: &str) -> String {
 
 pub fn materialize_cloud_init_seed_if_requested(
     req: &mut CreateVmRequest,
+    libvirt_cfg: &LibvirtConfig,
     log: Option<&VmCreateLogSink>,
 ) -> Result<(), LibvirtError> {
     if !req.cloud_init_iso.trim().is_empty() {
         return Ok(());
     }
-    let user = req.cloud_init_user.trim();
+    let mut user = req.cloud_init_user.trim().to_string();
     let pass = req.cloud_init_password.trim();
     let key = req.cloud_init_ssh_pubkey.trim();
-    if user.is_empty() && pass.is_empty() && key.is_empty() {
+    let guest_default = super::guest_agent_provision::guest_agent_enabled(Some(libvirt_cfg));
+    if user.is_empty() && pass.is_empty() && key.is_empty() && !guest_default {
         return Ok(());
     }
 
     if user.is_empty() {
-        return Err(LibvirtError::Invalid(
-            "cloud_init_user is required when using cloud-init automation".into(),
-        ));
+        if guest_default {
+            user = super::guest_agent_provision::DEFAULT_CLOUD_INIT_USER.to_string();
+            req.cloud_init_user = user.clone();
+        } else {
+            return Err(LibvirtError::Invalid(
+                "cloud_init_user is required when using cloud-init automation".into(),
+            ));
+        }
     }
     if !user
         .chars()
@@ -105,8 +113,12 @@ pub fn materialize_cloud_init_seed_if_requested(
         ud.push_str("chpasswd:\n  expire: false\n  list: |\n");
         ud.push_str(&format!("    {}:{}\n", user, pass));
     }
-    ud.push_str("package_update: true\n");
-    ud.push_str("runcmd:\n  - systemctl enable --now guestkit-agent 2>/dev/null || true\n");
+    if !pass.is_empty() || !key.is_empty() {
+        ud.push_str("package_update: true\n");
+    }
+    if guest_default {
+        super::guest_agent_provision::append_guestkit_cloud_config(&mut ud, true);
+    }
 
     let md = format!("instance-id: {}\nlocal-hostname: {}\n", req.name, req.name);
 
@@ -114,6 +126,7 @@ pub fn materialize_cloud_init_seed_if_requested(
         .map_err(|e| LibvirtError::Operation(format!("write {}: {e}", user_data.display())))?;
     fs::write(&meta_data, md)
         .map_err(|e| LibvirtError::Operation(format!("write {}: {e}", meta_data.display())))?;
+    super::guest_agent_provision::stage_guestkit_seed_files(&work_dir, Some(libvirt_cfg), log)?;
 
     // Ensure qemu can read the seed.
     let _ = fs::set_permissions(&user_data, fs::Permissions::from_mode(0o644));
@@ -127,16 +140,31 @@ pub fn materialize_cloud_init_seed_if_requested(
         meta_data.display()
     );
     let mut cmd = Command::new("genisoimage");
-    cmd.args([
-        "-output",
-        seed_iso.to_string_lossy().as_ref(),
-        "-volid",
-        "cidata",
-        "-joliet",
-        "-rock",
-        user_data.to_string_lossy().as_ref(),
-        meta_data.to_string_lossy().as_ref(),
-    ]);
+    let guestkit_staged = work_dir.join("guestkit");
+    if guestkit_staged.is_file() {
+        cmd.args([
+            "-output",
+            seed_iso.to_string_lossy().as_ref(),
+            "-volid",
+            "cidata",
+            "-joliet",
+            "-rock",
+            user_data.to_string_lossy().as_ref(),
+            meta_data.to_string_lossy().as_ref(),
+            guestkit_staged.to_string_lossy().as_ref(),
+        ]);
+    } else {
+        cmd.args([
+            "-output",
+            seed_iso.to_string_lossy().as_ref(),
+            "-volid",
+            "cidata",
+            "-joliet",
+            "-rock",
+            user_data.to_string_lossy().as_ref(),
+            meta_data.to_string_lossy().as_ref(),
+        ]);
+    }
     let out = subprocess::run_command_streaming(cmd, &summary, "genisoimage", log)?;
     if !out.status.success() {
         return Err(LibvirtError::Operation(format!(

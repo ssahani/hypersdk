@@ -484,6 +484,7 @@ pub fn generate_cloud_init_iso(
     username: &str,
     password: &str,
     ssh_key: &str,
+    libvirt_cfg: Option<&crate::config::LibvirtConfig>,
 ) -> Result<String, LibvirtError> {
     let tmp_dir = PathBuf::from("/tmp/machina-cloud-init");
     std::fs::DirBuilder::new()
@@ -503,12 +504,18 @@ pub fn generate_cloud_init_iso(
     std::fs::write(tmp_dir.join("meta-data"), &meta_data)
         .map_err(|e| LibvirtError::Operation(format!("Failed to write meta-data: {e}")))?;
 
+    let guest_default = super::guest_agent_provision::guest_agent_enabled(libvirt_cfg);
+    let mut effective_user = username.to_string();
+    if effective_user.is_empty() && guest_default {
+        effective_user = super::guest_agent_provision::DEFAULT_CLOUD_INIT_USER.to_string();
+    }
+
     // user-data (escape all user-provided values to prevent YAML injection)
     let mut user_data = String::from("#cloud-config\n");
-    if !username.is_empty() {
+    if !effective_user.is_empty() {
         user_data.push_str(&format!(
             "users:\n  - name: {}\n    sudo: ALL=(ALL) NOPASSWD:ALL\n    shell: /bin/bash\n",
-            yaml_escape(username),
+            yaml_escape(&effective_user),
         ));
         if !password.is_empty() {
             user_data.push_str(&format!(
@@ -526,9 +533,13 @@ pub fn generate_cloud_init_iso(
     if !password.is_empty() {
         user_data.push_str("ssh_pwauth: true\n");
     }
+    if guest_default {
+        super::guest_agent_provision::append_guestkit_cloud_config(&mut user_data, true);
+    }
 
     std::fs::write(tmp_dir.join("user-data"), &user_data)
         .map_err(|e| LibvirtError::Operation(format!("Failed to write user-data: {e}")))?;
+    super::guest_agent_provision::stage_guestkit_seed_files(&tmp_dir, libvirt_cfg, None)?;
 
     // Generate ISO (try genisoimage, then mkisofs, then xorriso)
     let iso_path = if output_path.is_empty() {
