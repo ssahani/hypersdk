@@ -1,9 +1,9 @@
 {
-  "host": "212.8.252.194",
+  "host": "175.110.114.93",
   "user": "sus",
-  "base_url": "https://212.8.252.194:5092",
+  "base_url": "https://175.110.114.93:5092",
   "started_at": "2026-06-05T09:50:37Z",
-  "ended_at": "2026-06-05T10:17:20Z",
+  "ended_at": "2026-06-05T10:16:06Z",
   "overall": "passed",
   "phase_failures": 0,
   "phases": [

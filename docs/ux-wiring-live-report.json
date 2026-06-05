@@ -1,7 +1,7 @@
 {
   "host": "212.8.252.194",
-  "generated_at": "2026-06-05T04:57:52.059Z",
-  "passed": 65,
+  "generated_at": "2026-06-05T10:15:47.951Z",
+  "passed": 66,
   "failed": 0,
   "skipped": 19,
   "results": [
@@ -434,6 +434,12 @@
     {
       "id": "platform:/platform/zeus/incidents",
       "path": "/platform/zeus/incidents",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/zeus/approvals",
+      "path": "/platform/zeus/approvals",
       "status": "passed",
       "warnings": 0
     },
