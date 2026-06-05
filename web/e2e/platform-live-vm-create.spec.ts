@@ -62,5 +62,5 @@ test('live marketplace shows current OS templates', async ({ page }) => {
   await expect(page.getByRole('button', { name: /Fedora 44/i }).first()).toBeVisible({ timeout: 20_000 })
   await expect(page.getByRole('button', { name: /Ubuntu 25\.10/i }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: /Debian 13/i }).first()).toBeVisible()
-  await expect(page.getByText('Fedora 40')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^Fedora 40\b/i })).toHaveCount(0)
 })

@@ -318,6 +318,26 @@ const CATALOG: &[CatalogTemplate] = &[
     },
 ];
 
+/// Remove marketplace rows that are no longer in the bundled catalog (e.g. fedora-40).
+pub async fn prune_stale_marketplace_templates(pool: &PgPool) -> anyhow::Result<u64> {
+    let names: Vec<String> = CATALOG.iter().map(|t| t.name.to_string()).collect();
+    let versions: Vec<String> = CATALOG.iter().map(|t| t.version.to_string()).collect();
+    let result = sqlx::query(
+        r#"DELETE FROM templates t
+           WHERE t.marketplace = TRUE
+             AND NOT EXISTS (
+               SELECT 1
+               FROM UNNEST($1::text[], $2::text[]) AS c(name, version)
+               WHERE c.name = t.name AND c.version = t.version
+             )"#,
+    )
+    .bind(&names)
+    .bind(&versions)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
+}
+
 /// Insert bundled marketplace templates (idempotent).
 pub async fn seed_default_templates(pool: &PgPool) -> anyhow::Result<usize> {
     let mut inserted = 0usize;
@@ -355,6 +375,7 @@ pub async fn seed_default_templates(pool: &PgPool) -> anyhow::Result<usize> {
             inserted += 1;
         }
     }
+    let _ = prune_stale_marketplace_templates(pool).await?;
     Ok(inserted)
 }
 

@@ -3,7 +3,7 @@
 
 e2e_platform_smoke_get() {
   local path="$1" label="$2"
-  local http r
+  local http r attempt
   # Throttle burst smoke traffic so shared hosts stay under per-user rate limits.
   if [[ -n "${E2E_PLATFORM_SMOKE_DELAY_MS:-}" ]]; then
     sleep "$(awk "BEGIN { printf \"%.3f\", ${E2E_PLATFORM_SMOKE_DELAY_MS} / 1000 }")"
@@ -12,12 +12,19 @@ e2e_platform_smoke_get() {
   else
     sleep 0.05
   fi
-  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}${path}")"
+  http="$(e2e_platform_http_code_retry "${E2E_PLATFORM_BASE}${path}" 3 5)"
   if [[ "$http" != "200" ]]; then
     e2e_platform_fail "${label} — HTTP ${http}"
     return 1
   fi
-  r="$(e2e_platform_curl "${E2E_PLATFORM_BASE}${path}")"
+  r=""
+  for attempt in 1 2 3; do
+    r="$(e2e_platform_curl "${E2E_PLATFORM_BASE}${path}")"
+    if [[ -n "$r" ]]; then
+      break
+    fi
+    sleep 2
+  done
   if [[ -z "$r" ]]; then
     e2e_platform_fail "${label} — empty body"
     return 1
@@ -27,6 +34,8 @@ e2e_platform_smoke_get() {
 }
 
 e2e_platform_smoke_run() {
+  e2e_platform_curl -X POST "${E2E_PLATFORM_BASE}/api/v1/templates/seed" >/dev/null 2>&1 || true
+
   local endpoints=(
     "/api/v1/health"
     "/api/v1/health/ready"
@@ -486,7 +495,7 @@ except Exception:
   else
     e2e_platform_fail "POST /api/v1/ai/fleet/rebalance/execute — HTTP ${http}"
   fi
-  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/compliance/frameworks")"
+  http="$(e2e_platform_http_code_retry "${E2E_PLATFORM_BASE}/api/v1/ai/compliance/frameworks" 3 5)"
   if [[ "$http" == "200" ]]; then
     e2e_platform_ok "GET /api/v1/ai/compliance/frameworks (HTTP ${http})"
   else

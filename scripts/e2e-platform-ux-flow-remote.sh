@@ -26,6 +26,8 @@ echo "=== UX flow smoke @ ${E2E_PLATFORM_BASE} ==="
 http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/health")"
 [[ "$http" == "200" ]] && ok "health" || bad "health HTTP $http"
 
+e2e_platform_curl -X POST "${E2E_PLATFORM_BASE}/api/v1/templates/seed" >/dev/null || true
+
 r="$(e2e_platform_curl "${E2E_PLATFORM_BASE}/api/v1/templates/marketplace")"
 echo "$r" | grep -q 'fedora-44' && ok "marketplace has fedora-44" || bad "missing fedora-44"
 echo "$r" | grep -q 'ubuntu-25.10' && ok "marketplace has ubuntu-25.10" || bad "missing ubuntu-25.10"

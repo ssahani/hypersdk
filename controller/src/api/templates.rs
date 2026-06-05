@@ -134,6 +134,8 @@ pub async fn list_marketplace_templates(
         .await?;
     if count == 0 {
         let _ = crate::engine::template_catalog::seed_default_templates(&state.pool).await;
+    } else {
+        let _ = crate::engine::template_catalog::prune_stale_marketplace_templates(&state.pool).await;
     }
     let rows = sqlx::query_as::<_, TemplateRow>(&format!(
         "{TEMPLATE_SELECT} WHERE marketplace = TRUE ORDER BY featured DESC, category, name, version"
@@ -149,6 +151,9 @@ pub async fn seed_templates(
     let inserted = crate::engine::template_catalog::seed_default_templates(&state.pool)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
+    let pruned = crate::engine::template_catalog::prune_stale_marketplace_templates(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let rows = sqlx::query_as::<_, TemplateRow>(&format!(
         "{TEMPLATE_SELECT} WHERE marketplace = TRUE ORDER BY featured DESC, category, name, version"
     ))
@@ -156,6 +161,7 @@ pub async fn seed_templates(
     .await?;
     Ok(Json(serde_json::json!({
         "inserted": inserted,
+        "pruned": pruned,
         "templates": rows,
     })))
 }

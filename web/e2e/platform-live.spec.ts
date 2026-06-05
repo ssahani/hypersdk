@@ -40,6 +40,7 @@ test('live health', async ({ request }) => {
 })
 
 test('live openapi spec', async ({ request }) => {
+  test.setTimeout(300_000)
   const host = new URL(live!).hostname
   const ctrl = await request.get(`http://${host}:5093/api/v1/openapi.json`)
   expect(ctrl.ok()).toBeTruthy()

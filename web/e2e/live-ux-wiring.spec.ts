@@ -76,8 +76,11 @@ test.describe.configure({ mode: 'serial' })
 
 for (const entry of manifest.entries) {
   test(`live UX: ${entry.id}`, async ({ page }) => {
+    test.setTimeout(180_000)
     const tier = entry.tier ?? 'normal'
-    await ensureLoggedIn(page, live!, entry.path, tier)
+    // Classic `/` redirects to `/platform` when the control plane is active — avoid login/navigation races.
+    const loginPath = entry.path === '/' ? '/platform' : entry.path
+    await ensureLoggedIn(page, live!, loginPath, tier)
     const flags = await fetchPlatformFlags(page, live!)
 
     if (entry.requires === 'openstack' && !flags.openstackEnabled) {

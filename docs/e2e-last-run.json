@@ -1,11 +1,11 @@
 {
-  "host": "175.110.114.93",
+  "host": "212.8.252.194",
   "user": "sus",
-  "base_url": "https://175.110.114.93:5092",
-  "started_at": "2026-06-04T17:39:35Z",
-  "ended_at": "2026-06-04T17:57:36Z",
+  "base_url": "https://212.8.252.194:5092",
+  "started_at": "2026-06-05T03:48:06Z",
+  "ended_at": "2026-06-05T05:00:42Z",
   "overall": "failed",
-  "phase_failures": 2,
+  "phase_failures": 1,
   "phases": [
     {
       "name": "full-api-daemon",
@@ -13,15 +13,15 @@
     },
     {
       "name": "ux-api-flow",
-      "status": "passed"
+      "status": "failed"
     },
     {
       "name": "live-ux-wiring",
-      "status": "failed"
+      "status": "passed"
     },
     {
       "name": "live-playwright-specs",
-      "status": "failed"
+      "status": "passed"
     }
   ],
   "ux_wiring_report": "/Users/ssahani/tt/machina/docs/ux-wiring-live-report.json",
