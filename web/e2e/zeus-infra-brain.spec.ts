@@ -34,6 +34,39 @@ test('Zeus approvals page lists pending actions', async ({ page }) => {
   await expect(page.getByText('Restart idle-vm')).toBeVisible()
 })
 
+test('Zeus Fleet autonomous wizard dry-run shows plan steps', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/zeus?tab=fleet')
+  await page.getByRole('tab', { name: 'Fleet' }).click()
+  await expect(page.getByRole('heading', { name: 'Autonomous run' })).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: 'Dry-run plan' }).click()
+  await expect(page.getByText('Identify idle VMs')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('Queue rebalance moves')).toBeVisible()
+})
+
+test('Policy page downloads policy YAML', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/policy')
+  await expect(page.getByRole('button', { name: 'Download policy YAML' })).toBeVisible({ timeout: 15_000 })
+  const exportBody = await page.evaluate(async () => {
+    const res = await fetch('/api/v1/platform/controller/api/v1/ai/policy/export', { credentials: 'same-origin' })
+    const json = await res.json() as { yaml: string; rule_count: number }
+    return { ok: res.ok, yaml: json.yaml, rule_count: json.rule_count }
+  })
+  expect(exportBody.ok).toBe(true)
+  expect(exportBody.yaml).toContain('rules:')
+  expect(exportBody.rule_count).toBe(1)
+})
+
+test('Stopped VM overview shows AI troubleshoot panel', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power', stoppedVm: true })
+  await page.goto('/platform/vms/v1')
+  await expect(page.getByRole('heading', { name: 'vm-1' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('heading', { name: 'AI troubleshoot' })).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: 'Run troubleshoot' }).click()
+  await expect(page.getByText('Memory pressure')).toBeVisible({ timeout: 10_000 })
+})
+
 test('AI export and copilot stream mocks respond with credentials', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'advanced' })
   await page.goto('/platform/reports')

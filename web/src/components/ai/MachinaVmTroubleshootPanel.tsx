@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Stethoscope } from 'lucide-react'
 import { troubleshootVm, type DiagnosisReport } from '../../api/ai'
 import { statusBadgeClasses, statusToneClass, riskTone } from '../../utils/semanticColors'
@@ -31,8 +31,6 @@ export default function MachinaVmTroubleshootPanel({
     }
   }, [vmId, vmName, activeSymptom])
 
-  useEffect(() => { void run() }, [run])
-
   return (
     <div className="platform-mac-stat rounded-2xl border border-white/[0.06] bg-slate-900/50 p-5 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -48,7 +46,7 @@ export default function MachinaVmTroubleshootPanel({
             <option value="network">Network</option>
           </select>
           <button type="button" className="btn-secondary text-xs" disabled={loading} onClick={() => void run()}>
-            {loading ? 'Running…' : 'Re-run'}
+            {loading ? 'Running…' : report ? 'Re-run' : 'Run'}
           </button>
         </div>
       </div>

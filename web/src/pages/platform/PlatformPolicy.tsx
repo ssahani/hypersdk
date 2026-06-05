@@ -6,6 +6,7 @@ import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import { MacGlassPanel, MacListRow } from '../../components/platform/mac/PlatformMacUi'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import { listPolicyRules, listProjectQuotas, upsertProjectQuota, type PolicyRule } from '../../api/platform'
+import { getAiPolicyExport } from '../../api/ai'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 
@@ -29,6 +30,22 @@ export default function PlatformPolicy({ embedded }: { embedded?: boolean } = {}
   }, [])
 
   useEffect(() => { void load() }, [load])
+
+  const downloadPolicyYaml = async () => {
+    try {
+      const r = await getAiPolicyExport()
+      const blob = new Blob([r.yaml], { type: 'text/yaml' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'machina-policy.yaml'
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success(`Downloaded ${r.rule_count} rules, ${r.quota_count} quotas`)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    }
+  }
 
   const saveQuota = async () => {
     try {
@@ -58,7 +75,14 @@ export default function PlatformPolicy({ embedded }: { embedded?: boolean } = {}
       actions={embedded ? undefined : <PlatformRefreshButton onClick={() => void load()} />}
       contentClassName="space-y-4"
     >
-      <MacGlassPanel title="Policy rules">
+      <MacGlassPanel
+        title="Policy rules"
+        action={
+          <button type="button" className="btn-secondary text-xs" onClick={() => void downloadPolicyYaml()}>
+            Download policy YAML
+          </button>
+        }
+      >
         {rules.length === 0 ? (
           <p className="text-sm text-slate-400">No policy rules configured.</p>
         ) : (

@@ -17,6 +17,8 @@ import { getVmGuestAiInsights } from '../../api/platform'
 import MachinaVmOutageRca from '../../components/ai/MachinaVmOutageRca'
 import MachinaExplainObjectPanel from '../../components/ai/MachinaExplainObjectPanel'
 import MachinaVmTroubleshootPanel from '../../components/ai/MachinaVmTroubleshootPanel'
+import AiTerminalSuggestStrip from '../../components/ai/AiTerminalSuggestStrip'
+import VmOverviewTroubleshootPanel from '../../components/ai/VmOverviewTroubleshootPanel'
 import MachinaDoctorPanel from '../../components/platform/MachinaDoctorPanel'
 import ExplainButton from '../../components/ai/ExplainButton'
 import OsDiagnosePanel from '../../components/platform/OsDiagnosePanel'
@@ -707,6 +709,12 @@ export default function PlatformVmDetail() {
                   <p className="text-sm text-slate-500">Doctor scan unavailable — open the Doctor tab to retry.</p>
                 )}
               </MacGlassPanel>
+              {vm.observed_state !== 'running' && (
+                <VmOverviewTroubleshootPanel vmId={id!} vmName={vm.name} onOpenDoctor={() => setTab('doctor')} />
+              )}
+              <MacGlassPanel title="AI terminal tips" subtitle="Zeus-suggested commands for this VM">
+                <AiTerminalSuggestStrip vmId={id} vmName={vm.name} compact />
+              </MacGlassPanel>
               <MacGlassPanel title="Organization">
                 <div className="flex flex-wrap gap-3 items-end">
                   <div>
@@ -738,7 +746,7 @@ export default function PlatformVmDetail() {
             defaultUser={sshUser}
             detectedIps={guestIp ? [guestIp] : []}
             onClose={() => setSshDialogOpen(false)}
-            onConnect={(h, u) => navigateVmSshSession(vm.name, h, u)}
+            onConnect={(h, u) => navigateVmSshSession(vm.name, h, u, id)}
           />
 
           {tab === 'doctor' && (

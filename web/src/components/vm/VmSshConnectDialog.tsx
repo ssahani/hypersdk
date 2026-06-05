@@ -15,12 +15,15 @@ export interface VmSshConnectDialogProps {
   onConnect?: (host: string, user: string) => void
 }
 
-export function navigateVmSshSession(vmName: string, host: string, user: string) {
+export function navigateVmSshSession(vmName: string, host: string, user: string, vmId?: string) {
   const h = host.trim()
   const u = user.trim() || 'root'
   if (!h) return
   saveVmSshPrefs(vmName, { host: h, user: u })
-  window.location.href = `/ssh?host=${encodeURIComponent(h)}&user=${encodeURIComponent(u)}`
+  const qs = new URLSearchParams({ host: h, user: u })
+  if (vmId) qs.set('vmId', vmId)
+  if (vmName) qs.set('vmName', vmName)
+  window.location.href = `/ssh?${qs.toString()}`
 }
 
 export default function VmSshConnectDialog({

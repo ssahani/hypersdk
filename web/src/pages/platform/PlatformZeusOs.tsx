@@ -11,6 +11,7 @@ import { usePlatformTabState } from '../../hooks/usePlatformTabState'
 import PlatformZeusHubLaunchpad from '../../components/platform/tahoe/PlatformZeusHubLaunchpad'
 import MachinaInfraGraphBrain from '../../components/ai/MachinaInfraGraphBrain'
 import MachinaInfrastructureMemory from '../../components/ai/MachinaInfrastructureMemory'
+import ZeusAutonomousRunPanel from '../../components/ai/ZeusAutonomousRunPanel'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
 import { getFleetLinuxHealth, type FleetLinuxHealthOverview } from '../../api/platform'
@@ -301,6 +302,7 @@ export default function PlatformZeusOs() {
           )}
         </div>
       )}
+      {tab === 'fleet' && <ZeusAutonomousRunPanel />}
 
       {tab === 'security' && (
         <div className="space-y-4">

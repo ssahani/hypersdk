@@ -68,7 +68,7 @@ export default function AiTerminalCompanion({
       <button
         type="button"
         className="fixed bottom-6 right-6 z-40 btn-primary rounded-full p-3 shadow-lg"
-        title="AI Terminal Companion"
+        title="Zeus terminal tips"
         onClick={() => setOpen((o) => !o)}
       >
         <Bot className="w-5 h-5" />
@@ -76,7 +76,7 @@ export default function AiTerminalCompanion({
       {open && (
         <aside className="fixed bottom-20 right-6 z-40 w-96 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-xl shadow-2xl p-4 space-y-3 text-sm">
           <div className="flex items-center justify-between">
-            <p className="font-semibold flex items-center gap-2"><Terminal className="w-4 h-4" /> Terminal Companion</p>
+            <p className="font-semibold flex items-center gap-2"><Terminal className="w-4 h-4" /> Zeus terminal tips</p>
             <button type="button" onClick={() => setOpen(false)} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
           </div>
           {vmName && (

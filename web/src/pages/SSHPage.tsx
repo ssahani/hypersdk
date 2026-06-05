@@ -5,6 +5,7 @@
 import { useParams, Link, useSearchParams } from 'react-router'
 import { ArrowLeft } from 'lucide-react'
 import SSHConsole from '../components/SSHConsole'
+import AiTerminalSuggestStrip from '../components/ai/AiTerminalSuggestStrip'
 import { statusActionLinkClasses } from '../utils/semanticColors'
 
 export default function SSHPage() {
@@ -12,6 +13,8 @@ export default function SSHPage() {
   const [searchParams] = useSearchParams()
   const hostFromQuery = searchParams.get('host') ?? ''
   const userFromQuery = searchParams.get('user') ?? 'root'
+  const vmIdFromQuery = searchParams.get('vmId') ?? undefined
+  const vmNameFromQuery = searchParams.get('vmName') ?? undefined
 
   const raw = pathHost ?? hostFromQuery
   const host = raw ? decodeURIComponent(raw) : ''
@@ -36,6 +39,9 @@ export default function SSHPage() {
         </Link>
         <h1 className="text-xl font-bold">SSH — {userFromQuery}@{host}</h1>
       </div>
+      {(vmIdFromQuery || vmNameFromQuery) && (
+        <AiTerminalSuggestStrip vmId={vmIdFromQuery} vmName={vmNameFromQuery} defaultOpen={false} />
+      )}
       <SSHConsole host={host} sshUser={userFromQuery} />
     </div>
   )

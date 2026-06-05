@@ -317,8 +317,12 @@ export async function mockPlatformApi(page: Page, opts?: {
   templateNotReady?: boolean
   templateAutoFetch?: boolean
   emptyNetworks?: boolean
+  stoppedVm?: boolean
 }) {
   const tier = opts?.tier ?? 'normal'
+  const vmFixture = opts?.stoppedVm
+    ? { ...sampleVm, observed_state: 'stopped', desired_state: 'stopped', lifecycle_phase: 'idle' }
+    : sampleVm
   let storagePools: Array<{ id: string; name: string; path: string; capacity_gib: number; used_gib: number }> =
     opts?.emptyStorage ? [] : [{ id: 'p1', name: 'default', path: '/var/lib/libvirt/images', capacity_gib: 500, used_gib: 12 }]
   await page.addInitScript((t) => {
@@ -593,6 +597,41 @@ export async function mockPlatformApi(page: Page, opts?: {
         },
       })
     }
+    if (url.includes('/ai/agents')) {
+      return route.fulfill({
+        json: [{ id: 'fleet', name: 'Fleet Agent', description: 'Autonomous fleet ops', task_class: 'fleet' }],
+      })
+    }
+    if (url.includes('/ai/zeus/plan') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          goal: 'Rebalance idle VMs and clear failed tasks',
+          agent_id: 'fleet',
+          steps: [
+            { title: 'Identify idle VMs', detail: 'Scan fleet for stopped guests' },
+            { title: 'Queue rebalance moves', detail: 'Relieve cold hosts' },
+          ],
+        },
+      })
+    }
+    if (url.includes('/ai/zeus/execute') && route.request().method() === 'POST') {
+      return route.fulfill({ json: { message: 'Queued 2 steps for approval' } })
+    }
+    if (url.includes('/ai/policy/export')) {
+      return route.fulfill({ json: { yaml: 'rules:\n- name: default', rule_count: 1, quota_count: 1 } })
+    }
+    if (url.includes('/ai/terminal/suggest') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          vm_name: vmFixture.name,
+          observed_state: vmFixture.observed_state,
+          suggestions: [
+            { label: 'Check disk', command: 'df -h', description: 'Disk usage on guest', scope: 'guest' },
+          ],
+          notes: 'Mock terminal suggestions',
+        },
+      })
+    }
     if (url.includes('/ai/autopilot/propose')) {
       return route.fulfill({
         json: {
@@ -727,18 +766,34 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.includes('/ai/fleet/heatmap')) {
       return route.fulfill({
         json: {
-          summary: '1 hot · 0 cold hosts',
-          hosts: [{ host_id: 'h1', hostname: 'host-1', cpu_percent: 35, memory_percent: 40, classification: 'balanced' }],
+          hosts: [{ host_id: 'h1', hostname: 'host-1', cpu_percent: 35, memory_percent: 40, vm_count: 1, classification: 'balanced' }],
+          hotspots: [],
+          cold_hosts: [],
+          power_waste_hosts: [],
         },
       })
     }
     if (url.includes('/ai/fleet/rebalance')) {
       return route.fulfill({
-        json: { summary: 'No moves suggested', moves: [] },
+        json: { summary: 'No moves suggested', moves: [], estimated_savings_pct: 0 },
+      })
+    }
+    if (url.includes('/fleet/linux-health')) {
+      return route.fulfill({
+        json: {
+          hosts_scanned: 1,
+          pressure_hosts: 0,
+          thermal_alerts: 0,
+          smart_alerts: 0,
+          summary: 'Linux health OK',
+          hosts: [{ host_id: 'h1', hostname: 'host-1', io_pressure_pct: 12, status: 'ok' }],
+        },
       })
     }
     if (url.includes('/ai/fleet/power')) {
-      return route.fulfill({ json: { summary: 'No power waste detected' } })
+      return route.fulfill({
+        json: { summary: 'No power waste detected', total_savings_usd_month: 0, optimizations: [] },
+      })
     }
     if (url.includes('/ai/fleet/summary')) {
       return route.fulfill({ json: { summary: '1 host · 1 VM', hosts: 1, vms: 1, alerts: [] } })
@@ -1560,11 +1615,30 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.match(/\/vms\/[^/]+\/migrations/)) {
       return route.fulfill({ json: [] })
     }
+    if (url.match(/\/vms\/[^/]+\/timeline/)) {
+      return route.fulfill({ json: [] })
+    }
+    if (url.match(/\/vms\/[^/]+\/doctor/)) {
+      return route.fulfill({
+        json: {
+          vm_id: vmFixture.id,
+          vm_name: vmFixture.name,
+          score: 'warn',
+          score_numeric: 62,
+          score_label: 'Degraded',
+          healthy: false,
+          checks_passed: 2,
+          checks_total: 4,
+          issues: [{ id: 'power', severity: 'warn', message: 'VM is not running' }],
+          guest_tools_status: 'unknown',
+        },
+      })
+    }
     if (url.match(/\/vms\/[^/]+(\?|$)/) || url.match(/\/vms\/[^/]+$/)) {
-      return route.fulfill({ json: sampleVm })
+      return route.fulfill({ json: vmFixture })
     }
     if (url.includes('/vms')) {
-      return route.fulfill({ json: [sampleVm] })
+      return route.fulfill({ json: [vmFixture] })
     }
     if (url.includes('/zeus-firewall/overview')) {
       return route.fulfill({
