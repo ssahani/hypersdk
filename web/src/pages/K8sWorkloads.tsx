@@ -17,7 +17,9 @@ import {
   getK8sHelmReleases,
   getK8sIngresses,
   getK8sJobs,
+  getK8sKubevirtVirtualMachines,
   getK8sKubevirtVmSummary,
+  type K8sKubeVirtVM,
   getK8sNamespaces,
   getK8sPersistentVolumeClaims,
   getK8sPersistentVolumes,
@@ -60,6 +62,8 @@ export default function K8sWorkloadsPage() {
   const [services, setServices] = useState<K8sService[]>([])
   const [kubevirtRows, setKubevirtRows] = useState<KubeVirtVmSummaryRow[]>([])
   const [kubevirtListError, setKubevirtListError] = useState<string | null>(null)
+  const [kubevirtVmCrs, setKubevirtVmCrs] = useState<K8sKubeVirtVM[]>([])
+  const [kubevirtCrBusy, setKubevirtCrBusy] = useState(false)
   const [liveKubeVirt, setLiveKubeVirt] = useState<null | { kind: 'vnc' | 'console'; namespace: string; name: string }>(null)
   const [exposeVm, setExposeVm] = useState<null | { name: string; namespace: string; nodeInternalIp?: string | null }>(null)
   const [acting, setActing] = useState<string | null>(null)
@@ -140,6 +144,21 @@ export default function K8sWorkloadsPage() {
     const t = window.setInterval(() => void load(true), 30_000)
     return () => window.clearInterval(t)
   }, [load])
+
+  const loadKubevirtCrs = useCallback(async () => {
+    setKubevirtCrBusy(true)
+    try {
+      const rows = await getK8sKubevirtVirtualMachines(nsValue, ctxTrim)
+      const items = rows.items ?? []
+      setKubevirtVmCrs(items)
+      toast.success(`Loaded ${items.length} VirtualMachine CR(s)`)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+      setKubevirtVmCrs([])
+    } finally {
+      setKubevirtCrBusy(false)
+    }
+  }, [ctxTrim, nsValue, toast])
 
   const copyText = useCallback((label: string, text: string) => {
     void navigator.clipboard.writeText(text).then(() => {
@@ -590,6 +609,20 @@ export default function K8sWorkloadsPage() {
               />
             </div>
           )}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              data-testid="kubevirt-load-crs"
+              disabled={kubevirtCrBusy}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-violet-500/40 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-500/10 disabled:opacity-50"
+              onClick={() => void loadKubevirtCrs()}
+            >
+              {kubevirtCrBusy ? 'Loading CRs…' : 'Load VirtualMachine CRs'}
+            </button>
+            {kubevirtVmCrs.length > 0 && (
+              <span className="text-xs text-slate-500" data-testid="kubevirt-cr-count">{kubevirtVmCrs.length} CR(s) from /k8s/kubevirt/virtualmachines</span>
+            )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[72rem]">
@@ -695,6 +728,11 @@ export default function K8sWorkloadsPage() {
         </div>
         {kubevirtRows.length === 0 && !kubevirtListError && (
           <div className="p-6 text-center text-slate-500 text-sm">No KubeVirt VirtualMachines in scope (or CRD not installed).</div>
+        )}
+        {kubevirtVmCrs.length > 0 && (
+          <div className="border-t border-slate-700/50 p-4">
+            <JsonInspector data={kubevirtVmCrs} />
+          </div>
         )}
       </div>
 

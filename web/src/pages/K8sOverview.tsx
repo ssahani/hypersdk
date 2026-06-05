@@ -21,6 +21,7 @@ import {
   getK8sClusterInventory,
   getK8sClusterInventoryHistory,
   getK8sMetrics,
+  getK8sNodes,
   getK8sOverview,
   K8sMetricsResponse,
   K8sClusterInventoryHistoryResponse,
@@ -306,19 +307,22 @@ export default function K8sOverviewPage() {
   const [bootstrapInstallMetrics, setBootstrapInstallMetrics] = useState(true)
   const [bootstrapBusy, setBootstrapBusy] = useState<ClusterBootstrapPhase | null>(null)
   const [bootstrapLastLog, setBootstrapLastLog] = useState('')
+  const [liveNodesCount, setLiveNodesCount] = useState<number | null>(null)
 
   const load = useCallback(async (background = false) => {
     if (background) setRefreshing(true)
     try {
-      const [ov, inv, metrics] = await Promise.all([
+      const [ov, inv, metrics, liveNodes] = await Promise.all([
         getK8sOverview(ctxTrim),
         getK8sClusterInventory(ctxTrim),
         getK8sMetrics(ctxTrim).catch(() => null),
+        getK8sNodes(ctxTrim).catch(() => [] as K8sNodeInfo[]),
       ])
       setOverview(ov)
       setClusterInventory(inv)
       setK8sMetrics(metrics)
-      setNodes(inv.nodes)
+      setLiveNodesCount(liveNodes.length)
+      setNodes((inv.nodes?.length ?? 0) > 0 ? inv.nodes : liveNodes)
       setLoadError(null)
       try {
         setEnvironment(await getK8sEnvironment())
@@ -517,6 +521,7 @@ export default function K8sOverviewPage() {
     const extra = overview?.extra_resource_counts ?? {}
     const base = [
       { label: 'Nodes', value: overview?.nodes ?? 0 },
+      { label: 'Live API nodes', value: liveNodesCount ?? '—' },
       { label: 'Ready nodes', value: overview?.ready_nodes ?? 0 },
       { label: 'Namespaces', value: overview?.namespaces ?? 0 },
       { label: 'Pods', value: overview?.pods ?? 0 },
@@ -536,7 +541,7 @@ export default function K8sOverviewPage() {
       { label: 'KubeVirt VMs', value: extra.kubevirt_virtualmachines ?? 0 },
     ]
     return [...base, ...tail]
-  }, [overview])
+  }, [overview, liveNodesCount])
 
   return (
     <PageLayout
@@ -599,7 +604,11 @@ export default function K8sOverviewPage() {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3">
         {counts.map((c) => (
-          <div key={c.label} className="bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3">
+          <div
+            key={c.label}
+            className="bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3"
+            data-testid={c.label === 'Live API nodes' ? 'k8s-live-nodes-stat' : undefined}
+          >
             <div className="text-xs text-slate-400">{c.label}</div>
             <div className="text-2xl font-semibold text-white">{c.value}</div>
           </div>

@@ -5,8 +5,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   fetchBackups, triggerBackup, restoreBackup, deleteBackup, verifyBackup,
+  getBackupStatus,
   getSchedule, setSchedule, downloadBackupUrl,
-  BackupInfo, BackupRequest, VerifyResult, ScheduleInfo,
+  BackupInfo, BackupRequest, VerifyResult, ScheduleInfo, BackupStatus,
 } from '../api/backup'
 import { listVMs, VmInfo } from '../api/vm'
 import { useToastContext } from '../contexts/ToastContext'
@@ -56,6 +57,8 @@ export default function BackupsPage() {
   const [nfsTarget, setNfsTarget] = useState('')
   const [retain, setRetain] = useState(7)
   const [showForm, setShowForm] = useState(false)
+  const [statusDetail, setStatusDetail] = useState<Record<string, BackupStatus>>({})
+  const [statusBusy, setStatusBusy] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -79,13 +82,33 @@ export default function BackupsPage() {
     return () => { if (backupTimerRef.current) clearTimeout(backupTimerRef.current) }
   }, [])
 
-  // Auto-refresh while any backup is running
+  const refreshBackupStatus = useCallback(async (id: string) => {
+    setStatusBusy(id)
+    try {
+      const st = await getBackupStatus(id)
+      setStatusDetail((prev) => ({ ...prev, [id]: st }))
+      setBackups((prev) => prev.map((b) => (
+        b.id === id
+          ? { ...b, status: st.status, progress: st.progress.replace(/%$/, ''), status_message: st.message }
+          : b
+      )))
+      return st
+    } finally {
+      setStatusBusy(null)
+    }
+  }, [])
+
+  // Poll live status for running backups (GET /backups/{id}/status)
   useEffect(() => {
-    const hasRunning = backups.some(b => b.status === 'running')
-    if (!hasRunning) return
-    const interval = setInterval(() => load(), 3000)
+    const running = backups.filter((b) => b.status === 'running')
+    if (!running.length) return
+    const poll = () => {
+      void Promise.all(running.map((b) => refreshBackupStatus(b.id))).catch(() => undefined)
+    }
+    poll()
+    const interval = setInterval(poll, 3000)
     return () => clearInterval(interval)
-  }, [backups, load])
+  }, [backups, refreshBackupStatus])
 
   const handleBackup = async () => {
     setRunning(true)
@@ -312,6 +335,11 @@ export default function BackupsPage() {
                         <div className={`h-1.5 rounded-full transition-all ${statusBgClass('info')}`} style={{ width: `${parseInt(b.progress) || 0}%` }} />
                       </div>
                     )}
+                    {(statusDetail[b.id]?.message || b.status_message) && (
+                      <p className="text-[11px] text-slate-500 mt-1 max-w-[12rem] truncate" title={statusDetail[b.id]?.message || b.status_message}>
+                        {statusDetail[b.id]?.message || b.status_message}
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm">
                     {b.vm_filter === 'all' ? (
@@ -334,6 +362,22 @@ export default function BackupsPage() {
                   <td className="px-4 py-3 text-sm text-slate-400">{b.size}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
+                      {b.status === 'running' && (
+                        <button
+                          type="button"
+                          data-testid={`backup-status-${b.id}`}
+                          onClick={() => void refreshBackupStatus(b.id)}
+                          disabled={statusBusy === b.id}
+                          className="p-1.5 hover:bg-slate-600/40 rounded transition"
+                          title="Refresh live backup status"
+                        >
+                          {statusBusy === b.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-slate-300" />
+                          ) : (
+                            <RefreshCw className="w-4 h-4 text-slate-300" />
+                          )}
+                        </button>
+                      )}
                       {b.has_checksums && (
                         <button
                           onClick={() => handleVerify(b)}

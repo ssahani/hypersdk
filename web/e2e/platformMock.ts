@@ -402,6 +402,66 @@ const sampleVm = {
   guest_tools_status: 'healthy',
 }
 
+function k8sNodeFixture(name: string, plane: 'worker' | 'control_plane' | 'mixed', ready = true) {
+  const roles =
+    plane === 'control_plane' ? ['control-plane'] : plane === 'mixed' ? ['control-plane', 'worker'] : ['worker']
+  return {
+    name,
+    roles,
+    ready,
+    kubelet_version: 'v1.29.0',
+    os_image: 'Debian GNU/Linux 12 (bookworm)',
+    kernel_version: '6.1.0-18-amd64',
+    container_runtime: 'containerd://1.7.11',
+    architecture: 'amd64',
+    capacity: { cpu: '4', memory: '8Gi', pods: '110' },
+    allocatable: { cpu: '3800m', memory: '7500Mi', pods: '110' },
+    labels: { 'kubernetes.io/hostname': name },
+    plane,
+    cpu_capacity_millicores: 4000,
+    cpu_allocatable_millicores: 3800,
+    memory_capacity_bytes: 8e9,
+    memory_allocatable_bytes: 7.5e9,
+  }
+}
+
+function k8sPlaneRollup(nodeCount: number, readyCount = nodeCount) {
+  return {
+    node_count: nodeCount,
+    ready_node_count: readyCount,
+    cpu_capacity_millicores: 4000 * nodeCount,
+    cpu_allocatable_millicores: 3800 * nodeCount,
+    memory_capacity_bytes: 8e9 * nodeCount,
+    memory_allocatable_bytes: 7.5e9 * nodeCount,
+  }
+}
+
+const k8sEnvironmentFixture = {
+  kubectl_on_path: true,
+  kubectl_client_version: 'v1.29.0',
+  kubectl_server_reachable: true,
+  kubeconfig_hint: '~/.kube/config',
+  kubeconfig_from_env: false,
+  current_context: 'default',
+  cluster_distribution: 'k3s',
+  cluster_distribution_hints: ['k3s data dir present'],
+  host: {
+    k3s_config_present: true,
+    k3s_data_dir_present: true,
+    rke2_config_present: false,
+    rke2_data_dir_present: false,
+    k3s_systemd: 'active',
+    k3s_agent_systemd: 'inactive',
+    rke2_server_systemd: 'inactive',
+    rke2_agent_systemd: 'inactive',
+    k3s_binary_version: 'v1.29.0+k3s1',
+    rke2_binary_version: null,
+    helm_version: 'v3.14.0',
+    crictl_version: 'v1.29.0',
+  },
+  snippets: {},
+}
+
 export async function mockPlatformApi(page: Page, opts?: {
   tier?: 'normal' | 'power' | 'advanced'
   staleHost?: boolean
@@ -532,6 +592,17 @@ export async function mockPlatformApi(page: Page, opts?: {
         },
       })
     }
+    if (url.includes('/zeus-firewall/operator/execute') && !url.includes('execute-batch') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          dry_run: true,
+          host_id: 'h1',
+          applied: false,
+          operations: 2,
+          message: 'Dry-run: would apply ProductionServer profile on host-1',
+        },
+      })
+    }
     if (url.includes('/zeus-firewall/operator/thresholds')) {
       return route.fulfill({
         json: {
@@ -588,6 +659,159 @@ export async function mockPlatformApi(page: Page, opts?: {
           deployments: 12,
           services: 18,
           distribution: 'k3s',
+        },
+      })
+    }
+    if (url.includes('/k8s/nodes')) {
+      return route.fulfill({
+        json: [k8sNodeFixture('node-1', 'worker'), k8sNodeFixture('node-2', 'control_plane')],
+      })
+    }
+    if (url.includes('/k8s/cluster-inventory/history')) {
+      return route.fulfill({ json: { path: '/var/lib/machina/k8s-inventory.jsonl', entries: [] } })
+    }
+    if (url.includes('/k8s/cluster-inventory')) {
+      return route.fulfill({
+        json: {
+          collected_at_rfc3339: '2026-06-01T12:00:00Z',
+          disclaimer: 'E2E cluster inventory snapshot',
+          nodes: [k8sNodeFixture('node-1', 'worker')],
+          totals_all_nodes: k8sPlaneRollup(1),
+          combined_control_plane_and_mixed: k8sPlaneRollup(0),
+          combined_worker_dataplane_and_mixed: k8sPlaneRollup(1),
+          by_plane: { worker: k8sPlaneRollup(1) },
+          nodes_with_kubelet_minor_skew: 0,
+          topology_nodes_by_zone: { 'zone-a': 1 },
+          topology_nodes_by_region: {},
+          apiserver_major_minor: '1.29',
+          apiserver_git_version: 'v1.29.0+k3s1',
+          cluster_livez_ok: true,
+          cluster_readyz_ok: true,
+        },
+      })
+    }
+    if (url.includes('/k8s/environment')) {
+      return route.fulfill({ json: k8sEnvironmentFixture })
+    }
+    if (url.includes('/k8s/metrics')) {
+      return route.fulfill({
+        json: { metrics_available: false, nodes_top: [], pods_top: [] },
+      })
+    }
+    if (url.includes('/k8s/kubevirt/virtualmachines')) {
+      return route.fulfill({
+        json: {
+          items: [
+            {
+              metadata: { name: 'kv-vm-1', namespace: 'default' },
+              spec: { running: true },
+              status: { printableStatus: 'Running', ready: true },
+            },
+          ],
+        },
+      })
+    }
+    if (url.includes('/k8s/kubevirt/vm-summary')) {
+      return route.fulfill({
+        json: [
+          {
+            name: 'kv-vm-1',
+            namespace: 'default',
+            spec_running: true,
+            vm_printable_status: 'Running',
+            vm_ready: true,
+            virtctl_console: 'virtctl console kv-vm-1 -n default',
+            virtctl_vnc: 'virtctl vnc kv-vm-1 -n default',
+            virtctl_vnc_socks: 'virtctl vnc kv-vm-1 -n default --proxy-only',
+            vnc_subresource_path: '/apis/subresources.kubevirt.io/v1/namespaces/default/virtualmachineinstances/kv-vm-1/vnc',
+          },
+        ],
+      })
+    }
+    if (url.match(/\/k8s\/(namespaces|deployments|pods|services|statefulsets|daemonsets|jobs)(\?|$)/)) {
+      return route.fulfill({ json: { items: [] } })
+    }
+    if (url.includes('/k8s/contexts')) {
+      return route.fulfill({ json: { contexts: ['default'] } })
+    }
+    if (url.match(/\/backups\/[^/]+\/status/)) {
+      return route.fulfill({
+        json: {
+          backup_id: 'b1',
+          status: 'running',
+          message: 'Copying qcow2 images (42%)',
+          progress: '42%',
+          updated: new Date().toISOString(),
+        },
+      })
+    }
+    if (url.includes('/backups/schedule')) {
+      return route.fulfill({
+        json: { installed: true, enabled: false, active: false, next_run: '', last_run: '' },
+      })
+    }
+    if (url.match(/\/api\/v1\/backups(\?|$)/)) {
+      return route.fulfill({
+        json: [{
+          id: 'b1',
+          timestamp: new Date().toISOString(),
+          vm_filter: 'all',
+          vm_count: 2,
+          net_count: 1,
+          with_disks: true,
+          nfs_target: 'local',
+          size: '12 GiB',
+          status: 'running',
+          status_message: '',
+          progress: '10',
+          has_checksums: false,
+        }],
+      })
+    }
+    if (url.includes('/browse/disks')) {
+      return route.fulfill({
+        json: {
+          files: [{ path: '/var/lib/libvirt/images/ubuntu.qcow2', name: 'ubuntu.qcow2', size_bytes: 5e9, format: 'qcow2' }],
+          scan_directories: ['/var/lib/libvirt/images'],
+        },
+      })
+    }
+    if (url.includes('/browse/virt-image-output-roots')) {
+      return route.fulfill({
+        json: { allowed_prefixes: ['/var/lib/libvirt/images'], effective_tmpdir: '/var/tmp' },
+      })
+    }
+    if (url.match(/\/browse\/virt-builder\/probe\//)) {
+      return route.fulfill({
+        json: { virt_builder_allowed: true, name_valid: true, in_cached_catalog: true, hint: 'Template ready for build' },
+      })
+    }
+    if (url.match(/\/browse\/virt-builder\/notes\//)) {
+      return route.fulfill({
+        json: { template: 'debian-12', notes: 'Debian 12 stable — minimal install, cloud-init friendly.' },
+      })
+    }
+    if (url.includes('/browse/virt-image-build') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: { status: 'ok', path: '/var/lib/libvirt/images/e2e-built.qcow2' },
+      })
+    }
+    if (url.includes('/browse/mkosi-workspaces')) {
+      return route.fulfill({
+        json: [{
+          path: '/var/lib/machina/mkosi-defs/fedora',
+          name: 'fedora',
+          images: ['base', 'tools'],
+        }],
+      })
+    }
+    if (url.includes('/browse/virt-builder')) {
+      return route.fulfill({
+        json: {
+          virt_builder_allowed: true,
+          virt_builder_installed: true,
+          templates: ['debian-12', 'ubuntu-24.04'],
+          items: [{ name: 'debian-12' }, { name: 'ubuntu-24.04' }],
         },
       })
     }

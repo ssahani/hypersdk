@@ -14,11 +14,16 @@ import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import EmptyState from '../components/EmptyState'
 import {
+  buildVirtImageDisk,
   deleteDiskImage,
+  getVirtBuilderNotes,
   getVirtImageOutputRoots,
   ImageFile,
   listDiskImages,
+  listMkosiWorkspaces,
   listVirtBuilderTemplates,
+  probeVirtBuilderTemplate,
+  type MkosiWorkspace,
   VirtBuilderListResponse,
 } from '../api/extras'
 import { startVirtImageBuildJob, streamJobLogs } from '../api/jobs'
@@ -63,6 +68,12 @@ export default function DiskImagesPage() {
   const [vbOk, setVbOk] = useState(false)
   const [vbFailed, setVbFailed] = useState(false)
   const [outBrowseOpen, setOutBrowseOpen] = useState(false)
+  const [vbProbe, setVbProbe] = useState<{ name_valid: boolean; in_cached_catalog: boolean; hint?: string | null } | null>(null)
+  const [vbProbeBusy, setVbProbeBusy] = useState(false)
+  const [vbNotes, setVbNotes] = useState<string | null>(null)
+  const [vbNotesBusy, setVbNotesBusy] = useState(false)
+  const [mkosiWorkspaces, setMkosiWorkspaces] = useState<MkosiWorkspace[]>([])
+  const [directBuildBusy, setDirectBuildBusy] = useState(false)
   const [kvPath, setKvPath] = useState<string | null>(null)
   const [osPath, setOsPath] = useState<string | null>(null)
   const [osGlanceName, setOsGlanceName] = useState<string | undefined>()
@@ -84,15 +95,17 @@ export default function DiskImagesPage() {
     setLoading(true)
     try {
       setLoadError(null)
-      const [r, vb, roots] = await Promise.all([
+      const [r, vb, roots, mkosi] = await Promise.all([
         listDiskImages(),
         listVirtBuilderTemplates().catch(() => null),
         getVirtImageOutputRoots().catch(() => null),
+        listMkosiWorkspaces().catch(() => [] as MkosiWorkspace[]),
       ])
       setImages(r.files)
       setScanDirectories(r.scan_directories)
       setVbCatalog(vb)
       setOutputRoots(roots)
+      setMkosiWorkspaces(mkosi)
     } catch (e: unknown) {
       const msg = formatUserError(e)
       setLoadError(msg)
@@ -168,6 +181,51 @@ export default function DiskImagesPage() {
     const status = vbBuilding ? 'running' : vbOk ? 'completed' : vbFailed ? 'failed' : 'running'
     return computeVirtImageBuildTimeline(vbLog, status)
   }, [vbBuilding, vbLog, vbOk, vbFailed])
+
+  const runProbe = async () => {
+    const os = vbOs.trim()
+    if (!os) return
+    setVbProbeBusy(true)
+    setVbProbe(null)
+    try {
+      setVbProbe(await probeVirtBuilderTemplate(os))
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setVbProbeBusy(false)
+    }
+  }
+
+  const loadNotes = async () => {
+    const os = vbOs.trim()
+    if (!os) return
+    setVbNotesBusy(true)
+    setVbNotes(null)
+    try {
+      const r = await getVirtBuilderNotes(os)
+      setVbNotes(r.notes)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setVbNotesBusy(false)
+    }
+  }
+
+  const runDirectBuild = async () => {
+    const os = vbOs.trim()
+    const output = vbOutput.trim()
+    if (!os || !output.startsWith('/')) return
+    setDirectBuildBusy(true)
+    try {
+      const r = await buildVirtImageDisk({ os, output })
+      toast.success(`Direct build finished: ${r.path}`)
+      void load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setDirectBuildBusy(false)
+    }
+  }
 
   const runVirtImageBuild = async () => {
     const os = vbOs.trim()
@@ -392,14 +450,53 @@ export default function DiskImagesPage() {
                   </div>
                 </div>
               </div>
-              <button
-                type="button"
-                disabled={!vbReady || vbBuilding}
-                onClick={() => void runVirtImageBuild()}
-                className="inline-flex items-center rounded-lg bg-cyan-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-cyan-500 disabled:opacity-50"
-              >
-                {vbBuilding ? 'Building…' : 'Start disk build job'}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={!vbReady || vbBuilding || directBuildBusy}
+                  onClick={() => void runVirtImageBuild()}
+                  className="inline-flex items-center rounded-lg bg-cyan-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-cyan-500 disabled:opacity-50"
+                >
+                  {vbBuilding ? 'Building…' : 'Start disk build job'}
+                </button>
+                <button
+                  type="button"
+                  disabled={!vbReady || vbBuilding || directBuildBusy || !vbOutput.trim()}
+                  data-testid="virt-direct-build"
+                  onClick={() => void runDirectBuild()}
+                  className="inline-flex items-center rounded-lg border border-cyan-600/50 px-4 py-2.5 text-sm text-cyan-200 hover:bg-cyan-950/40 disabled:opacity-50"
+                >
+                  {directBuildBusy ? 'Building…' : 'Direct build (sync)'}
+                </button>
+                <button
+                  type="button"
+                  disabled={!vbOs.trim() || vbProbeBusy}
+                  data-testid="virt-probe-template"
+                  onClick={() => void runProbe()}
+                  className="inline-flex items-center rounded-lg border border-slate-600 px-4 py-2.5 text-sm text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+                >
+                  {vbProbeBusy ? 'Probing…' : 'Probe template'}
+                </button>
+                <button
+                  type="button"
+                  disabled={!vbOs.trim() || vbNotesBusy}
+                  data-testid="virt-template-notes"
+                  onClick={() => void loadNotes()}
+                  className="inline-flex items-center rounded-lg border border-slate-600 px-4 py-2.5 text-sm text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+                >
+                  {vbNotesBusy ? 'Loading…' : 'Template notes'}
+                </button>
+              </div>
+              {vbProbe && (
+                <p className="text-xs text-slate-400" data-testid="virt-probe-result">
+                  Probe: {vbProbe.name_valid ? 'valid name' : 'invalid name'}
+                  {vbProbe.in_cached_catalog ? ' · in catalog' : ' · not in catalog'}
+                  {vbProbe.hint ? ` — ${vbProbe.hint}` : ''}
+                </p>
+              )}
+              {vbNotes && (
+                <pre className="text-xs text-slate-300 whitespace-pre-wrap rounded border border-slate-700 bg-slate-950/50 p-3" data-testid="virt-notes-body">{vbNotes}</pre>
+              )}
             </>
           )}
 
@@ -420,6 +517,27 @@ export default function DiskImagesPage() {
           )}
             </>
           )}
+        </div>
+      )}
+
+      {!loading && mkosiWorkspaces.length > 0 && (
+        <div className="rounded-xl border border-violet-800/40 bg-slate-800/50 p-6 space-y-3" data-testid="mkosi-workspaces-panel">
+          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Boxes className="w-5 h-5 text-violet-400" aria-hidden />
+            mkosi workspaces
+          </h2>
+          <p className="text-sm text-slate-400">Discovered under host mkosi-defs paths (GET /browse/mkosi-workspaces).</p>
+          <ul className="text-sm text-slate-300 space-y-2">
+            {mkosiWorkspaces.map((ws) => (
+              <li key={ws.path} className="rounded-lg border border-slate-700/60 bg-slate-900/40 px-3 py-2">
+                <span className="font-mono text-violet-200">{ws.name}</span>
+                <span className="text-slate-500 text-xs block mt-0.5">{ws.path}</span>
+                {ws.images.length > 0 && (
+                  <span className="text-xs text-slate-500">Images: {ws.images.join(', ')}</span>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

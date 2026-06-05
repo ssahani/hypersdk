@@ -21,6 +21,7 @@ import {
   getMultisiteTimeline,
   getOperatorSecurePlan,
   getOperatorThresholds,
+  executeOperatorSecure,
   executeOperatorSecureBatch,
   syncMultisiteFirewall,
   getZeusFirewallStatus,
@@ -122,6 +123,19 @@ export default function PlatformFirewallOverview() {
       toast.error(formatUserError(e))
     } finally {
       setApprovalBusy(false)
+    }
+  }
+
+  const runOperatorSecure = async (hostId: string, profile?: string, dryRun = true) => {
+    setOperatorBusy(true)
+    try {
+      const r = await executeOperatorSecure({ host_id: hostId, profile, dry_run: dryRun })
+      toast.success(r.message || (dryRun ? 'Dry-run complete' : 'Operator secure applied'))
+      await load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setOperatorBusy(false)
     }
   }
 
@@ -261,9 +275,20 @@ export default function PlatformFirewallOverview() {
               </div>
               <ul className="text-xs text-slate-400 space-y-1 max-h-32 overflow-y-auto">
                 {operatorPlan.previews.slice(0, 6).map((p) => (
-                  <li key={p.host_id}>
-                    {p.hostname} → {p.target_profile}
-                    {p.requires_approval ? ' · needs approval' : ' · auto-eligible'}
+                  <li key={p.host_id} className="flex flex-wrap items-center gap-2">
+                    <span>
+                      {p.hostname} → {p.target_profile}
+                      {p.requires_approval ? ' · needs approval' : ' · auto-eligible'}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-secondary text-[10px] py-0.5 px-1.5"
+                      disabled={operatorBusy}
+                      data-testid={`operator-secure-${p.host_id}`}
+                      onClick={() => void runOperatorSecure(p.host_id, p.target_profile, true)}
+                    >
+                      Dry-run host
+                    </button>
                   </li>
                 ))}
               </ul>
