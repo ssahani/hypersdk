@@ -6,6 +6,7 @@ import { MacGlassPanel } from '../platform/mac/PlatformMacUi'
 import {
   analyzeTwinImpact,
   getDigitalTwinGraph,
+  simulateTwinBatch,
   type DigitalTwinGraph,
   type ImpactAnalysis,
 } from '../../api/ai'
@@ -18,6 +19,8 @@ export default function MachinaDigitalTwin() {
   const [simAction, setSimAction] = useState<'shutdown' | 'migrate' | 'isolate' | 'failure'>('shutdown')
   const [simKind, setSimKind] = useState<'host' | 'network' | 'storage' | 'switch' | 'vm'>('host')
   const [busy, setBusy] = useState(false)
+  const [batchBusy, setBatchBusy] = useState(false)
+  const [batchResults, setBatchResults] = useState<Array<ImpactAnalysis & { estimated_downtime_sec?: number; vms_at_risk?: number }>>([])
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -43,14 +46,17 @@ export default function MachinaDigitalTwin() {
 
   useEffect(() => { void load() }, [load])
 
+  const scenarioAction = () =>
+    simKind === 'network' || simKind === 'switch' ? 'isolate' : simKind === 'storage' ? 'drain' : simAction === 'failure' ? 'shutdown' : simAction
+
   const simulate = async () => {
     if (!hostId.trim()) return
     setBusy(true)
     setError(null)
+    setBatchResults([])
     try {
-      const action = simKind === 'network' || simKind === 'switch' ? 'isolate' : simKind === 'storage' ? 'drain' : simAction === 'failure' ? 'shutdown' : simAction
       const result = await analyzeTwinImpact({
-        action,
+        action: scenarioAction(),
         target_kind: simKind,
         target_id: hostId.trim(),
       })
@@ -59,6 +65,27 @@ export default function MachinaDigitalTwin() {
       setError(e instanceof Error ? e.message : 'Impact simulation failed')
     } finally {
       setBusy(false)
+    }
+  }
+
+  const simulateBatch = async () => {
+    if (!hostId.trim()) return
+    setBatchBusy(true)
+    setError(null)
+    try {
+      const scenarios: Array<{ action: string; target_kind: string; target_id: string }> = [
+        { action: scenarioAction(), target_kind: simKind, target_id: hostId.trim() },
+      ]
+      if (simKind === 'host' && networks[0]) {
+        scenarios.push({ action: 'isolate', target_kind: 'network', target_id: networks[0].name })
+      }
+      const result = await simulateTwinBatch(scenarios)
+      setBatchResults(result.results)
+      if (result.results[0]) setImpact(result.results[0])
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Batch simulation failed')
+    } finally {
+      setBatchBusy(false)
     }
   }
 
@@ -104,11 +131,20 @@ export default function MachinaDigitalTwin() {
         <button
           type="button"
           className="btn-primary text-xs"
-          disabled={busy}
+          disabled={busy || batchBusy}
           data-testid="twin-impact-analyze"
           onClick={() => void simulate()}
         >
           {busy ? 'Simulating…' : 'What breaks?'}
+        </button>
+        <button
+          type="button"
+          className="btn-secondary text-xs"
+          disabled={busy || batchBusy}
+          data-testid="twin-batch-simulate"
+          onClick={() => void simulateBatch()}
+        >
+          {batchBusy ? 'Batch…' : 'Batch simulate'}
         </button>
         {graph && (
           <span className="text-xs text-slate-500 flex items-center gap-1">
@@ -117,6 +153,16 @@ export default function MachinaDigitalTwin() {
         )}
       </div>
       {error && <p className={`text-xs mt-2 ${statusToneClass('error')}`}>{error}</p>}
+      {batchResults.length > 1 && (
+        <div className="mt-3 space-y-2">
+          <p className="text-xs text-slate-500 uppercase tracking-wide">Batch scenarios ({batchResults.length})</p>
+          {batchResults.map((r, i) => (
+            <p key={`${r.target}-${i}`} className="text-xs text-slate-400">
+              {i + 1}. {r.summary}
+            </p>
+          ))}
+        </div>
+      )}
       {impact && (
         <div className="mt-4 rounded-xl border border-white/[0.06] bg-slate-900/50 p-4 space-y-2 text-sm">
           <p className="flex items-center gap-2 font-medium text-slate-200">

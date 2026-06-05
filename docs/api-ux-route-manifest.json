@@ -39,6 +39,14 @@
     "/api/v1/hosts/{id}": "page",
     "/api/v1/ai/autopilot/run": "page",
     "/api/v1/enterprise/vault/providers": "page",
-    "/api/v1/enterprise/tenants/policies/{project}": "page"
+    "/api/v1/enterprise/tenants/policies/{project}": "page",
+    "/api/v1/networks/{id}": "page",
+    "/api/v1/templates": "page",
+    "/api/v1/templates/sync-git/webhook": "page",
+    "/api/v1/ai/twin/simulate": "page",
+    "/api/v1/zeus-firewall/targets/{id}/score": "page",
+    "/api/v1/zeus-firewall/approvals": "page",
+    "/api/v1/zeus-firewall/status": "page",
+    "/api/v1/guestkit/status": "page"
   }
 }

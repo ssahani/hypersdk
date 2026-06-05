@@ -358,6 +358,32 @@ const sampleTemplate = {
   auto_fetch: true,
 }
 
+const fleetOnlyTemplate = {
+  id: 'tpl-fleet',
+  name: 'rhel-9',
+  version: '1.0.0',
+  source_disk: '/var/lib/libvirt/images/rhel-9.qcow2',
+  cloud_init: true,
+  os_family: 'linux',
+  category: 'Linux',
+  description: 'Private fleet RHEL 9 image',
+  featured: false,
+  marketplace: false,
+  icon: 'rhel',
+  auto_fetch: false,
+}
+
+const sampleNetwork = {
+  id: 'n1',
+  name: 'default',
+  bridge: 'virbr0',
+  backend: 'bridge',
+  vlan_id: null as number | null,
+  segment_id: null as string | null,
+}
+
+let platformNetworks = [{ ...sampleNetwork }]
+
 const sampleVm = {
   id: 'v1',
   name: 'vm-1',
@@ -419,6 +445,105 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.match(/\/api\/v1\/health(\?|$)/)) {
       return route.fulfill({
         json: { status: 'ok', leader: true, controller_id: 'ctrl-test-1' },
+      })
+    }
+    if (url.includes('/zeus-firewall/status')) {
+      return route.fulfill({
+        json: {
+          zeus_firewall: { enabled: true, agent_count: 1, summary: 'Zeus Firewall daemon active' },
+          packetwolf: { summary: 'PacketWolf IDS active' },
+        },
+      })
+    }
+    if (url.match(/\/zeus-firewall\/targets\/[^/]+\/score/)) {
+      return route.fulfill({
+        json: {
+          score: 78,
+          breakdown: [{ category: 'exposure', status: 'warn', points: -12, detail: '3 high-risk ports open' }],
+          recommendations: [{ label: 'Close port 4444', points: 8, action: 'deny' }],
+        },
+      })
+    }
+    if (url.includes('/zeus-firewall/approvals') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          id: 'apr-1',
+          target_id: 'h1',
+          status: 'pending',
+          profile: 'ProductionServer',
+          created_at: new Date().toISOString(),
+        },
+      })
+    }
+    if (url.includes('/zeus-firewall/overview')) {
+      return route.fulfill({
+        json: {
+          summary: '1 target monitored',
+          critical_count: 1,
+          warning_count: 0,
+          profiles: ['ProductionServer'],
+          targets: [{
+            id: 'h1',
+            name: 'host-1',
+            hostname: 'host-1',
+            kind: 'host',
+            risk: 'critical',
+            score: 72,
+            open_ports: 3,
+            enabled: true,
+            backend: 'nftables',
+            agent_reachable: true,
+            blocked_today: 0,
+            profile: 'ProductionServer',
+          }],
+        },
+      })
+    }
+    if (url.includes('/zeus-firewall/multisite/overview')) {
+      return route.fulfill({
+        json: {
+          summary: '2 sites federated',
+          sites: [
+            { id: 's1', name: 'primary-local', role: 'primary', gitops_namespace: 'zeus-primary', target_count: 1 },
+            { id: 's2', name: 'dr-replica', role: 'dr', gitops_namespace: 'zeus-dr', target_count: 1 },
+          ],
+          compliance_rollup: { sites: [{ site: 'primary-local', grade: 'A' }, { site: 'dr-replica', grade: 'B' }] },
+          policy_conflicts: [],
+        },
+      })
+    }
+    if (url.includes('/zeus-firewall/operator/plan')) {
+      return route.fulfill({
+        json: {
+          summary: '1 host auto-eligible',
+          auto_eligible: 1,
+          approval_required: 0,
+          previews: [{
+            host_id: 'h1',
+            hostname: 'host-1',
+            current_score: 72,
+            target_profile: 'ProductionServer',
+            predicted_score: 90,
+            risk: 'medium',
+            monthly_exposure_usd: 12,
+            requires_approval: false,
+            summary: 'Apply ProductionServer profile',
+          }],
+        },
+      })
+    }
+    if (url.includes('/zeus-firewall/operator/thresholds')) {
+      return route.fulfill({
+        json: {
+          summary: 'Operator thresholds',
+          min_score_auto: 70,
+          max_open_ports: 5,
+        },
+      })
+    }
+    if (url.includes('/zeus-firewall/baremetal/overview')) {
+      return route.fulfill({
+        json: { summary: '0 bare-metal targets', targets: [], scans_pending: 0 },
       })
     }
     if (url.includes('/openstack/status')) {
@@ -1177,16 +1302,28 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({ json: { imported: 1, pools: storagePools } })
     }
     if (url.includes('/networks/discover')) {
-      const nets = opts?.emptyNetworks
-        ? []
-        : [{ id: 'n1', name: 'default', bridge: 'virbr0' }]
+      const nets = opts?.emptyNetworks ? [] : platformNetworks
       return route.fulfill({ json: { imported: nets.length, networks: nets } })
+    }
+    if (url.match(/\/networks\/[^/]+$/) && route.request().method() === 'PATCH') {
+      const id = url.split('/').pop() ?? ''
+      const body = (route.request().postDataJSON() ?? {}) as { bridge?: string; vlan_id?: number }
+      const idx = platformNetworks.findIndex((n) => n.id === id)
+      if (idx >= 0) {
+        platformNetworks[idx] = {
+          ...platformNetworks[idx],
+          bridge: body.bridge ?? platformNetworks[idx].bridge,
+          vlan_id: body.vlan_id ?? platformNetworks[idx].vlan_id,
+        }
+        return route.fulfill({ json: platformNetworks[idx] })
+      }
+      return route.fulfill({ status: 404, json: { error: 'network not found' } })
     }
     if (url.includes('/networks') && route.request().method() === 'POST') {
       return route.fulfill({ json: { id: 'n2', name: 'vm-net', bridge: 'br0', backend: 'bridge' } })
     }
     if (url.includes('/networks') && !url.includes('/discover')) {
-      return route.fulfill({ json: [] })
+      return route.fulfill({ json: platformNetworks })
     }
     if (url.includes('/storage/pools/') && url.includes('/snapshot-policy')) {
       return route.fulfill({
@@ -1742,6 +1879,12 @@ export async function mockPlatformApi(page: Page, opts?: {
         },
       })
     }
+    if (url.includes('/templates/sync-git/webhook') && route.request().method() === 'POST') {
+      return route.fulfill({ json: { synced: 2, source: 'webhook' } })
+    }
+    if (url.includes('/templates/sync-git') && route.request().method() === 'POST') {
+      return route.fulfill({ json: { synced: 1 } })
+    }
     if (url.includes('/templates/seed')) {
       return route.fulfill({ json: { inserted: 1, templates: [sampleTemplate] } })
     }
@@ -1749,7 +1892,7 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({ json: [sampleTemplate] })
     }
     if (url.includes('/templates')) {
-      return route.fulfill({ json: [sampleTemplate] })
+      return route.fulfill({ json: [sampleTemplate, fleetOnlyTemplate] })
     }
     if (url.includes('/vms/prune-missing') && route.request().method() === 'POST') {
       return route.fulfill({ json: { deleted: 2 } })
@@ -1863,6 +2006,40 @@ export async function mockPlatformApi(page: Page, opts?: {
           edges: [{ from: 'vm1', to: 'h1', label: 'runs_on' }],
           node_count: 2,
           edge_count: 1,
+        },
+      })
+    }
+    if (url.includes('/ai/twin/simulate') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          results: [
+            {
+              action: 'shutdown',
+              target: 'host-1',
+              severity: 'high',
+              summary: 'Batch: host shutdown affects 1 VM',
+              affected_vms: ['vm-1'],
+              affected_applications: ['web-tier'],
+              storage_risks: [],
+              network_notes: [],
+              recommendations: ['Evacuate vm-1 before maintenance'],
+              estimated_downtime_sec: 120,
+              vms_at_risk: 1,
+            },
+            {
+              action: 'isolate',
+              target: 'default',
+              severity: 'medium',
+              summary: 'Batch: network isolate blocks east-west traffic',
+              affected_vms: [],
+              affected_applications: [],
+              storage_risks: [],
+              network_notes: ['East-west blocked'],
+              recommendations: [],
+              estimated_downtime_sec: 0,
+              vms_at_risk: 0,
+            },
+          ],
         },
       })
     }
@@ -2114,16 +2291,6 @@ export async function mockPlatformApi(page: Page, opts?: {
       }
       return route.fulfill({ json: [vmFixture, missingVm] })
     }
-    if (url.includes('/zeus-firewall/overview')) {
-      return route.fulfill({
-        json: {
-          summary: '1 target monitored',
-          critical_count: 0,
-          warning_count: 0,
-          targets: [{ id: 'h1', hostname: 'host-1', kind: 'host', risk: 'ok', score: 92 }],
-        },
-      })
-    }
     if (url.includes('/zeus-firewall/multisite/dr-templates')) {
       return route.fulfill({
         json: {
@@ -2223,6 +2390,33 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({
         json: { summary: 'OK', remediations: [], forecasts: [], highlights: [], status: 'idle', tagline: 'OK' },
       })
+    }
+    if (url.includes('/zeus-firewall/overview')) {
+      return route.fulfill({
+        json: {
+          summary: '1 target monitored',
+          critical_count: 1,
+          warning_count: 0,
+          profiles: ['ProductionServer'],
+          targets: [{
+            id: 'h1',
+            name: 'host-1',
+            hostname: 'host-1',
+            kind: 'host',
+            risk: 'critical',
+            score: 72,
+            open_ports: 3,
+            enabled: true,
+            backend: 'nftables',
+            agent_reachable: true,
+            blocked_today: 0,
+            profile: 'ProductionServer',
+          }],
+        },
+      })
+    }
+    if (url.includes('/zeus-firewall/')) {
+      return route.fulfill({ json: { summary: 'Zeus firewall mock', targets: [], profiles: [] } })
     }
     return route.fulfill({ json: [] })
   })

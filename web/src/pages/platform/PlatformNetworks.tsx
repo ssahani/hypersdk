@@ -32,6 +32,7 @@ import {
   listPlatformHosts,
   listPlatformNetworks,
   listPlatformVms,
+  patchPlatformNetwork,
   simulateSegmentConnectivity,
   syncAllHosts,
   exportNetworkSegmentsGitops,
@@ -82,6 +83,8 @@ export default function PlatformNetworks() {
   const [connectivityLoading, setConnectivityLoading] = useState(false)
   const [fleetNetwork, setFleetNetwork] = useState<FleetNetworkOverview | null>(null)
   const [lensVmNames, setLensVmNames] = useState<string[]>([])
+  const [editDraft, setEditDraft] = useState<Record<string, { bridge: string; vlan: string }>>({})
+  const [savingId, setSavingId] = useState<string | null>(null)
 
   const segmentName = (id?: string | null) =>
     segments.find((s) => s.id === id)?.name ?? null
@@ -207,6 +210,27 @@ export default function PlatformNetworks() {
     }
   }
 
+  const networkDraft = (n: PlatformNetwork) =>
+    editDraft[n.id] ?? { bridge: n.bridge ?? '', vlan: n.vlan_id != null ? String(n.vlan_id) : '' }
+
+  const saveNetwork = async (n: PlatformNetwork) => {
+    const draft = networkDraft(n)
+    setSavingId(n.id)
+    try {
+      const vlan = draft.vlan.trim() ? Number.parseInt(draft.vlan, 10) : undefined
+      const updated = await patchPlatformNetwork(n.id, {
+        bridge: draft.bridge.trim() || undefined,
+        vlan_id: vlan != null && !Number.isNaN(vlan) ? vlan : undefined,
+      })
+      toast.success(`Updated ${n.name}`)
+      setRows((prev) => prev.map((row) => (row.id === n.id ? updated : row)))
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setSavingId(null)
+    }
+  }
+
   const runSegmentConnectivity = async (segment: NetworkSegmentOverview) => {
     setConnectivitySegment(segment)
     setConnectivity(null)
@@ -321,6 +345,36 @@ export default function PlatformNetworks() {
                       </dd>
                     </div>
                   </dl>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block text-xs">
+                      <span className="text-slate-500">Bridge</span>
+                      <input
+                        className="input w-full mt-1 font-mono text-xs"
+                        value={networkDraft(n).bridge}
+                        onChange={(e) => setEditDraft((d) => ({ ...d, [n.id]: { ...networkDraft(n), bridge: e.target.value } }))}
+                        placeholder="virbr0"
+                      />
+                    </label>
+                    <label className="block text-xs">
+                      <span className="text-slate-500">VLAN</span>
+                      <input
+                        className="input w-full mt-1 text-xs"
+                        inputMode="numeric"
+                        value={networkDraft(n).vlan}
+                        onChange={(e) => setEditDraft((d) => ({ ...d, [n.id]: { ...networkDraft(n), vlan: e.target.value } }))}
+                        placeholder="—"
+                      />
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-secondary text-xs w-fit"
+                    disabled={savingId === n.id}
+                    data-testid={`network-save-${n.id}`}
+                    onClick={() => void saveNetwork(n)}
+                  >
+                    {savingId === n.id ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Save bridge/VLAN'}
+                  </button>
                   {segments.length > 0 && (
                     <div className="flex flex-wrap gap-2 items-center">
                       <select

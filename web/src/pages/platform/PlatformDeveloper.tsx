@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Code2, Package, Terminal } from 'lucide-react'
+import { Code2, Package, Shield, Terminal, Wrench } from 'lucide-react'
 import PlatformApiConsole from '../../components/platform/PlatformApiConsole'
 import DetailTabs from '../../components/platform/DetailTabs'
 import { MacGlassPanel, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
@@ -12,6 +12,8 @@ import {
   type DeveloperOverview,
   type TerraformResourceSchema,
 } from '../../api/platform'
+import { getGuestkitDaemonStatus, type GuestkitStatus } from '../../api/guestkit'
+import { getZeusFirewallDaemonStatus } from '../../api/zeusFirewall'
 import { formatUserError } from '../../utils/apiError'
 import CopyButton from '../../components/CopyButton'
 import { hubLinkClasses } from '../../utils/semanticColors'
@@ -23,13 +25,22 @@ export default function PlatformDeveloper() {
   const [overview, setOverview] = useState<DeveloperOverview | null>(null)
   const [schemas, setSchemas] = useState<TerraformResourceSchema[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [guestkitDaemon, setGuestkitDaemon] = useState<GuestkitStatus | null>(null)
+  const [zeusDaemon, setZeusDaemon] = useState<Record<string, unknown> | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [o, s] = await Promise.all([getDeveloperOverview(), getTerraformSchema()])
+      const [o, s, gk, zf] = await Promise.all([
+        getDeveloperOverview(),
+        getTerraformSchema(),
+        getGuestkitDaemonStatus().catch(() => null),
+        getZeusFirewallDaemonStatus().catch(() => null),
+      ])
       setOverview(o)
       setSchemas(s)
+      setGuestkitDaemon(gk)
+      setZeusDaemon(zf?.zeus_firewall ?? null)
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
@@ -48,6 +59,28 @@ export default function PlatformDeveloper() {
       actions={<PlatformRefreshButton onClick={() => void load()} />}
       contentClassName="space-y-4"
     >
+      {(guestkitDaemon || zeusDaemon) && (
+        <MacGlassPanel title="Daemon health" subtitle="Co-located machina-daemon services (GET /api/v1/guestkit/status, /zeus-firewall/status)">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {guestkitDaemon && (
+              <MacStatWidget
+                label="GuestKit"
+                value={guestkitDaemon.reachable ? 'Reachable' : 'Unreachable'}
+                icon={<Wrench className="w-4 h-4" />}
+                tone={guestkitDaemon.reachable ? 'ok' : 'warn'}
+              />
+            )}
+            {zeusDaemon && (
+              <MacStatWidget
+                label="Zeus Firewall"
+                value={zeusDaemon.enabled === false ? 'Disabled' : 'Active'}
+                icon={<Shield className="w-4 h-4" />}
+                tone={zeusDaemon.enabled === false ? 'warn' : 'ok'}
+              />
+            )}
+          </div>
+        </MacGlassPanel>
+      )}
       <DetailTabs
         primary={[
           { id: 'sdk', label: 'SDK & Terraform' },

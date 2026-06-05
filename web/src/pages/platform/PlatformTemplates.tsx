@@ -21,13 +21,14 @@ import {
   installMarketplacePlugin,
   publishMarketplacePlugin,
   listMarketplaceTemplates,
+  listPlatformTemplates,
   listMissingTemplateImages,
   seedDefaultTemplates,
   uninstallMarketplacePlugin,
   type MarketplacePlugin,
   type PlatformTemplate,
 } from '../../api/platform'
-import { approvePlatformTemplate, syncGitTemplates } from '../../api/platformTemplatesExtra'
+import { approvePlatformTemplate, syncGitTemplates, syncGitTemplatesWebhook } from '../../api/platformTemplatesExtra'
 import TemplateMissingImagesPanel from '../../components/platform/TemplateMissingImagesPanel'
 import { useToastContext } from '../../contexts/ToastContext'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
@@ -59,6 +60,7 @@ export default function PlatformTemplates() {
   const [tier] = usePlatformDesktopTier()
   const [tab, setTab] = usePlatformTabState<TabId>(MARKETPLACE_TABS.map((t) => t.id), { defaultTab: 'templates' })
   const [rows, setRows] = useState<PlatformTemplate[]>([])
+  const [fleetCatalog, setFleetCatalog] = useState<PlatformTemplate[]>([])
   const [plugins, setPlugins] = useState<MarketplacePlugin[]>([])
   const [pluginCategory, setPluginCategory] = useState<string>('All')
   const [pluginLoading, setPluginLoading] = useState(false)
@@ -120,13 +122,18 @@ export default function PlatformTemplates() {
     setError(null)
     setLoading(true)
     try {
-      let list = await listMarketplaceTemplates()
+      const [marketplace, fleet] = await Promise.all([
+        listMarketplaceTemplates(),
+        listPlatformTemplates().catch(() => [] as PlatformTemplate[]),
+      ])
+      let list = marketplace
       if (list.length === 0 && trySeed) {
         const r = await seedDefaultTemplates()
         list = r.templates
         if (r.inserted > 0) toast.success(`Loaded ${r.templates.length} default templates`)
       }
       setRows(list)
+      setFleetCatalog(fleet)
       const missing = await listMissingTemplateImages().catch(() => null)
       setMissingImages(missing)
     } catch (e: unknown) {
@@ -263,7 +270,7 @@ export default function PlatformTemplates() {
               <button
                 type="button"
                 className="btn-secondary text-sm flex items-center gap-1.5"
-                title="Webhook: POST /api/v1/templates/sync-git/webhook with X-Machina-Template-Sync-Token when MACHINA_TEMPLATES_SYNC_TOKEN is set"
+                title="POST /api/v1/templates/sync-git — pull from configured git remote"
                 onClick={() =>
                   void syncGitTemplates()
                     .then((r) => toast.success(`Synced ${r.synced} template(s) from git`))
@@ -271,6 +278,18 @@ export default function PlatformTemplates() {
                 }
               >
                 <GitBranch className="w-4 h-4" /> Sync git
+              </button>
+              <button
+                type="button"
+                className="btn-secondary text-sm flex items-center gap-1.5"
+                title="CI webhook: POST /api/v1/templates/sync-git/webhook with X-Machina-Template-Sync-Token"
+                onClick={() =>
+                  void syncGitTemplatesWebhook()
+                    .then((r) => toast.success(`Webhook sync: ${r.synced} template(s)${r.source ? ` (${r.source})` : ''}`))
+                    .catch((e) => toast.error(formatUserError(e)))
+                }
+              >
+                <Upload className="w-4 h-4" /> Webhook sync
               </button>
               <Link to="/platform/cloud-init" className="btn-secondary text-sm">
                 Cloud-Init Studio
@@ -302,6 +321,19 @@ export default function PlatformTemplates() {
           onPrefetchQueued={() => void load(false)}
         />
       )}
+      {fleetCatalog.length > 0 && (
+        <MacGlassPanel title="Fleet template catalog" subtitle="Controller-registered golden images (GET /api/v1/templates) — includes marketplace and private fleet images.">
+          <p className="text-sm text-slate-400 mb-2">{fleetCatalog.length} template(s) in fleet catalog</p>
+          <ul className="flex flex-wrap gap-2 text-xs">
+            {fleetCatalog.map((t) => (
+              <li key={`${t.name}-${t.version}`} className="px-2 py-1 rounded-lg bg-slate-800/80 text-slate-300 font-mono">
+                {t.name}:{t.version}
+              </li>
+            ))}
+          </ul>
+        </MacGlassPanel>
+      )}
+
       {loading && rows.length === 0 && <PageSkeleton />}
 
       {!loading && rows.length === 0 && (

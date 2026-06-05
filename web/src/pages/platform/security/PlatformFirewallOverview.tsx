@@ -24,7 +24,10 @@ import {
   executeOperatorSecureBatch,
   syncMultisiteFirewall,
   getZeusFirewallStatus,
+  getFirewallScore,
+  requestFirewallApproval,
   type FirewallOverview,
+  type FirewallScore,
   type FirewallTargetSummary,
   type FleetSecurePlan,
   type MultisiteOverview,
@@ -51,6 +54,9 @@ export default function PlatformFirewallOverview() {
   const [multisiteExtra, setMultisiteExtra] = useState<Record<string, unknown> | Array<Record<string, unknown>> | null>(null)
   const [thresholds, setThresholds] = useState<Record<string, unknown> | null>(null)
   const [baremetalFw, setBaremetalFw] = useState<Record<string, unknown> | null>(null)
+  const [scoreBusy, setScoreBusy] = useState(false)
+  const [scoreSample, setScoreSample] = useState<FirewallScore | null>(null)
+  const [approvalBusy, setApprovalBusy] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
@@ -77,14 +83,47 @@ export default function PlatformFirewallOverview() {
 
   useEffect(() => { void load() }, [load])
 
-  const filtered = useMemo(() => {
-    if (!overview) return []
-    if (kindFilter === 'all') return overview.targets
-    return overview.targets.filter((t) => t.kind === kindFilter)
-  }, [overview, kindFilter])
+  const targets = useMemo(
+    () => (overview && !Array.isArray(overview) && Array.isArray(overview.targets) ? overview.targets : []),
+    [overview],
+  )
 
-  const metalCount = overview?.targets.filter((t) => t.kind === 'bare_metal').length ?? 0
-  const hostCount = overview?.targets.filter((t) => t.kind === 'host').length ?? 0
+  const filtered = useMemo(() => {
+    if (kindFilter === 'all') return targets
+    return targets.filter((t) => t.kind === kindFilter)
+  }, [kindFilter, targets])
+
+  const metalCount = targets.filter((t) => t.kind === 'bare_metal').length
+  const hostCount = targets.filter((t) => t.kind === 'host').length
+  const scoreTarget = filtered.find((t) => t.risk === 'critical' || t.risk === 'high') ?? filtered[0]
+
+  const loadScoreSample = async () => {
+    if (!scoreTarget) return
+    setScoreBusy(true)
+    try {
+      setScoreSample(await getFirewallScore(scoreTarget.id))
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setScoreBusy(false)
+    }
+  }
+
+  const runRequestApproval = async () => {
+    if (!scoreTarget) return
+    setApprovalBusy(true)
+    try {
+      await requestFirewallApproval({
+        target_id: scoreTarget.id,
+        profile: scoreTarget.profile ?? undefined,
+      })
+      toast.success('Firewall change approval requested')
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setApprovalBusy(false)
+    }
+  }
 
   const runOperatorBatch = async (dryRun: boolean) => {
     setOperatorBusy(true)
@@ -132,12 +171,12 @@ export default function PlatformFirewallOverview() {
       title="Zeus Firewall"
       subtitle={
         <span className="flex flex-wrap items-center gap-2 text-sm">
-          {overview && (
+          {overview && !Array.isArray(overview) && (
             <>
               <span className={statusPillClasses(overview.critical_count > 0 ? 'error' : 'ok')}>
                 {overview.critical_count} critical
               </span>
-              <span className="text-slate-400">{overview.targets.length} machines</span>
+              <span className="text-slate-400">{targets.length} machines</span>
             </>
           )}
           {statusLine && <span className="text-slate-500">{statusLine}</span>}
@@ -151,13 +190,13 @@ export default function PlatformFirewallOverview() {
       }
       contentClassName="space-y-4"
     >
-      {overview && (
+      {overview && targets.length > 0 && (
         <>
           <PlatformFilterPills
             value={kindFilter}
             onChange={(id) => setKindFilter(id as KindFilter)}
             options={[
-              { id: 'all', label: 'All', count: overview.targets.length },
+              { id: 'all', label: 'All', count: targets.length },
               { id: 'host', label: 'Hosts', count: hostCount },
               { id: 'bare_metal', label: 'Bare metal', count: metalCount },
             ]}
@@ -167,11 +206,31 @@ export default function PlatformFirewallOverview() {
             <MacStatWidget label="Critical" value={String(overview.critical_count)} icon={<AlertTriangle className="w-5 h-5" />} tone="warn" />
             <MacStatWidget
               label="Compliant"
-              value={String(overview.targets.filter((t) => t.risk === 'low').length)}
+              value={String(targets.filter((t) => t.risk === 'low').length)}
               icon={<CheckCircle2 className="w-5 h-5" />}
               tone="ok"
             />
           </div>
+          {scoreTarget && (
+            <MacGlassPanel title="Risk scoring & approvals" subtitle={`Sample target: ${scoreTarget.name} · POST /targets/{id}/score and /approvals`}>
+              <div className="flex flex-wrap gap-2 mb-3">
+                <button type="button" className="btn-secondary text-xs" disabled={scoreBusy} onClick={() => void loadScoreSample()}>
+                  {scoreBusy ? 'Scoring…' : 'Score sample target'}
+                </button>
+                <button type="button" className="btn-primary text-xs" disabled={approvalBusy} onClick={() => void runRequestApproval()}>
+                  {approvalBusy ? 'Requesting…' : 'Request approval'}
+                </button>
+              </div>
+              {scoreSample && (
+                <div className="text-sm text-slate-300 space-y-2">
+                  <p>Score: <span className="font-semibold text-slate-100">{scoreSample.score}</span></p>
+                  {scoreSample.breakdown.slice(0, 3).map((b) => (
+                    <p key={b.category} className="text-xs text-slate-400">{b.category}: {b.detail} ({b.points} pts)</p>
+                  ))}
+                </div>
+              )}
+            </MacGlassPanel>
+          )}
           <MacGlassPanel title="Machines" subtitle={overview.summary}>
             <div className="platform-launchpad-grid grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-6">
               {filtered.map((t: FirewallTargetSummary) => (
@@ -190,7 +249,7 @@ export default function PlatformFirewallOverview() {
               ))}
             </div>
           </MacGlassPanel>
-          {operatorPlan && operatorPlan.previews.length > 0 && (
+          {operatorPlan && (operatorPlan.previews?.length ?? 0) > 0 && (
             <MacGlassPanel title="AI operator" subtitle={operatorPlan.summary}>
               <div className="flex flex-wrap gap-2 mb-3">
                 <button type="button" className="btn-secondary text-xs" disabled={operatorBusy} onClick={() => void runOperatorBatch(true)}>
@@ -252,7 +311,7 @@ export default function PlatformFirewallOverview() {
                   {syncBusy ? 'Syncing…' : 'Sync primary → DR'}
                 </button>
               </div>
-              {multisite.policy_conflicts.length > 0 && (
+              {(multisite.policy_conflicts?.length ?? 0) > 0 && (
                 <ul className={`mt-3 text-xs space-y-1 ${statusToneClass('warn')}`}>
                   {multisite.policy_conflicts.map((c) => (
                     <li key={c.id}>{c.policy_name}: {c.detail}</li>
