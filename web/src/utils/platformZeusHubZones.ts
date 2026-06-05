@@ -47,6 +47,7 @@ export const ZEUS_HUB_GROUPS: ZeusHubGroup[] = [
       { id: 'topology', label: 'Digital Twin', description: 'Topology and service graph', to: '/platform/topology' },
       { id: 'rightsizing', label: 'Rightsizing', description: 'FinOps VM recommendations', to: '/platform/zeus/rightsizing' },
       { id: 'incidents', label: 'Incidents', description: 'War room for active outages', to: '/platform/zeus/incidents' },
+      { id: 'approvals', label: 'Approvals', description: 'Pending AI actions queue', to: '/platform/zeus/approvals' },
       { id: 'operations', label: 'Operations hub', description: 'Tasks, alerts, and lifecycle', to: '/platform/operations' },
     ],
   },

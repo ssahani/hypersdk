@@ -21,6 +21,7 @@ import PlatformFleetInsights from '../../components/platform/PlatformFleetInsigh
 import RemediateChips from '../../components/platform/RemediateChips'
 import PlatformWelcome from '../../components/platform/PlatformWelcome'
 import InfrastructureDnaStrip from '../../components/platform/InfrastructureDnaStrip'
+import AutopilotSuggestionsStrip from '../../components/ai/AutopilotSuggestionsStrip'
 import TemplateMissingImagesPanel from '../../components/platform/TemplateMissingImagesPanel'
 import EnterpriseSecurityStrip from '../../components/platform/EnterpriseSecurityStrip'
 import PlatformTahoeEmptyState from '../../components/platform/tahoe/PlatformTahoeEmptyState'
@@ -228,6 +229,8 @@ export default function PlatformDashboard() {
       contentClassName="space-y-4"
     >
       <PlatformJarvisBriefing />
+
+      {showPower && <AutopilotSuggestionsStrip />}
 
       {hosts.length === 0 && (
         <PlatformTahoeEmptyState

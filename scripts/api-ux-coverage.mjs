@@ -49,6 +49,7 @@ function surfaceForUiFile(file) {
   const rel = path.relative(WEB_SRC, file).replace(/\\/g, '/')
   if (rel.startsWith('pages/platform/')) return 'page'
   if (rel.startsWith('components/platform/')) return 'page'
+  if (rel.startsWith('components/ai/')) return 'page'
   if (rel.startsWith('pages/OpenStack')) return 'openstack'
   if (rel.startsWith('pages/K8s') || rel === 'pages/KataContainers.tsx') return 'k8s'
   if (rel.startsWith('pages/')) return 'classic'

@@ -19,8 +19,45 @@ test('Zeus rightsizing page loads recommendations', async ({ page }) => {
   await expect(page.getByText('idle-vm')).toBeVisible()
 })
 
-test('Incident commander page loads', async ({ page }) => {
+test('Incident commander page loads fleet RCA', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/zeus/incidents')
   await expect(page.getByText('Incident Commander')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('Fleet RCA')).toBeVisible()
+  await expect(page.getByText(/Network configuration change/)).toBeVisible()
+})
+
+test('Zeus approvals page lists pending actions', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/zeus/approvals')
+  await expect(page.getByText('Zeus approvals')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('Restart idle-vm')).toBeVisible()
+})
+
+test('AI export and copilot stream mocks respond with credentials', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'advanced' })
+  await page.goto('/platform/reports')
+  await expect(page.getByRole('heading', { name: 'Reports' })).toBeVisible({ timeout: 15_000 })
+
+  const [csv, stream] = await page.evaluate(async () => {
+    const csvRes = await fetch('/api/v1/platform/controller/api/v1/ai/cost/export.csv', { credentials: 'same-origin' })
+    const csvText = await csvRes.text()
+    const streamRes = await fetch('/api/v1/platform/controller/api/v1/ai/copilot/stream', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'How is the fleet?' }),
+    })
+    const streamText = await streamRes.text()
+    return [
+      { ok: csvRes.ok, text: csvText },
+      { ok: streamRes.ok, text: streamText },
+    ] as const
+  })
+
+  expect(csv.ok).toBe(true)
+  expect(csv.text).toContain('metric,value')
+  expect(stream.ok).toBe(true)
+  expect(stream.text).toContain('Fleet looks healthy')
+  expect(stream.text).toContain('"type":"chunk"')
 })

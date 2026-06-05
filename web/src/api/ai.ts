@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { platformFetch, getControllerBase, platformHeaders } from './platform'
+import { platformFetch, getControllerBase, platformHeaders, downloadControllerExport } from './platform'
 
 export interface AiSettings {
   enabled: boolean
@@ -683,7 +683,22 @@ export interface MissionStackStatus {
 
 export const getMissionStackStatus = () => platformFetch<MissionStackStatus>('/api/v1/ai/mission/stack/status')
 
-export const getCostAttributionExportUrl = () => '/api/v1/platform/controller/api/v1/ai/cost/attribution/export.csv'
+export const getCostAttributionExportUrl = () => `${getControllerBase()}/api/v1/ai/cost/attribution/export.csv`
+
+export const downloadAiCostExport = () =>
+  downloadControllerExport('/api/v1/ai/cost/export.csv', 'machina-cost-guardian.csv')
+
+export const downloadAiCapacityExport = () =>
+  downloadControllerExport('/api/v1/ai/capacity/export.csv', 'machina-capacity-planner.csv')
+
+export const downloadCostAttributionExport = () =>
+  downloadControllerExport('/api/v1/ai/cost/attribution/export.csv', 'machina-cost-attribution.csv')
+
+export const downloadAiComplianceExport = () =>
+  downloadControllerExport('/api/v1/ai/compliance/export', 'machina-compliance-report.html')
+
+export const downloadAiCompliancePdf = () =>
+  downloadControllerExport('/api/v1/ai/compliance/export.pdf', 'machina-compliance-report.pdf')
 
 export interface BaremetalServer {
   id: string

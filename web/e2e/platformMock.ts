@@ -427,6 +427,18 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.match(/\/fleet\/dna(\?|$|\/)/)) {
       return route.fulfill({ json: fleetDna })
     }
+    if (url.includes('/ai/settings')) {
+      return route.fulfill({
+        json: {
+          enabled: true,
+          mode: 'advisor',
+          provider: 'local',
+          model: 'default',
+          api_key_configured: false,
+          autopilot_interval_secs: 3600,
+        },
+      })
+    }
     if (url.includes('/ai/jarvis/landing')) {
       return route.fulfill({ json: jarvisLanding })
     }
@@ -561,6 +573,92 @@ export async function mockPlatformApi(page: Page, opts?: {
     }
     if (url.includes('/ai/incidents/active')) {
       return route.fulfill({ json: [] })
+    }
+    if (url.includes('/ai/actions/hub')) {
+      return route.fulfill({
+        json: {
+          zeus_actions: [
+            {
+              id: 'act-1',
+              source: 'nl_ops',
+              action_type: 'vm.restart',
+              label: 'Restart idle-vm',
+              review: 'VM stopped 30 days — safe restart candidate',
+              risk: 'low',
+              status: 'pending',
+            },
+          ],
+          total_pending: 1,
+          firewall_pending: 0,
+        },
+      })
+    }
+    if (url.includes('/ai/autopilot/propose')) {
+      return route.fulfill({
+        json: {
+          mode: 'advisor',
+          actions: [
+            {
+              id: 'auto-1',
+              label: 'Power off idle VM',
+              review: 'idle-vm unused 30d',
+              risk: 'low',
+              action_type: 'vm.power_off',
+              object_ref: { vm_id: 'v2' },
+            },
+          ],
+        },
+      })
+    }
+    if (url.includes('/ai/copilot/stream') && route.request().method() === 'POST') {
+      const sse = [
+        'data: {"type":"chunk","text":"Fleet looks healthy. "}',
+        'data: {"type":"chunk","text":"2 VMs running."}',
+        'data: {"type":"done","deterministic":true}',
+      ].join('\n\n') + '\n\n'
+      return route.fulfill({
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+        body: sse,
+      })
+    }
+    if (url.includes('/ai/cost') && !url.includes('/ai/cost/') && route.request().method() === 'GET') {
+      return route.fulfill({
+        json: {
+          estimated_monthly_usd: 120,
+          vm_count: 2,
+          idle_vm_count: 1,
+          oversized_vm_count: 0,
+          snapshot_heavy_count: 0,
+          suggestions: ['Power off idle-vm'],
+        },
+      })
+    }
+    if (url.includes('/ai/capacity') && !url.includes('/ai/capacity/export') && route.request().method() === 'GET') {
+      return route.fulfill({
+        json: {
+          hosts_online: 1,
+          memory_headroom_mib: 8192,
+          avg_cpu_percent: 25,
+          storage_used_gib: 40,
+          storage_capacity_gib: 200,
+          cpu_headroom_percent: 60,
+          estimated_small_vms_addable: 4,
+          recommendations: ['Headroom OK'],
+        },
+      })
+    }
+    if (
+      url.includes('/ai/cost/export.csv')
+      || url.includes('/ai/capacity/export.csv')
+      || url.includes('/ai/cost/attribution/export.csv')
+      || url.includes('/ai/compliance/export')
+    ) {
+      const isPdf = url.includes('.pdf')
+      return route.fulfill({
+        body: isPdf ? '%PDF-1.4 mock' : 'metric,value\nidle_vms,1\n',
+        contentType: isPdf ? 'application/pdf' : 'text/csv',
+      })
     }
     if (url.includes('/ai/nl-ops')) {
       return route.fulfill({

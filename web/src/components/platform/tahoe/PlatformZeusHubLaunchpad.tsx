@@ -36,6 +36,8 @@ function tileIcon(tile: ZeusHubTile) {
       return <Cpu className="w-8 h-8" strokeWidth={1.75} />
     case 'incidents':
       return <ShieldAlert className="w-8 h-8" strokeWidth={1.75} />
+    case 'approvals':
+      return <Shield className="w-8 h-8" strokeWidth={1.75} />
     case 'operations':
       return <Wrench className="w-8 h-8" strokeWidth={1.75} />
     default:

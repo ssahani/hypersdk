@@ -1,0 +1,84 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router'
+import { Bot, Zap } from 'lucide-react'
+import { executeAutopilotAction, getAutopilotProposal, type ProposedAction } from '../../api/ai'
+import { useAi } from '../../contexts/AiContext'
+import { useToastContext } from '../../contexts/ToastContext'
+import { formatUserError } from '../../utils/apiError'
+import { hubLinkClasses } from '../../utils/semanticColors'
+
+export default function AutopilotSuggestionsStrip() {
+  const { mode, openCopilot } = useAi()
+  const toast = useToastContext()
+  const [proposals, setProposals] = useState<ProposedAction[]>([])
+  const [executingId, setExecutingId] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    if (mode === 'off') {
+      setProposals([])
+      return
+    }
+    try {
+      const p = await getAutopilotProposal()
+      setProposals(p.actions.slice(0, 3))
+    } catch {
+      setProposals([])
+    }
+  }, [mode])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  if (proposals.length === 0) return null
+
+  const runAction = async (action: ProposedAction) => {
+    setExecutingId(action.id)
+    try {
+      const r = await executeAutopilotAction(action.action_type, action.object_ref)
+      toast.success(r.message)
+      await load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setExecutingId(null)
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-orange-500/20 bg-orange-500/5 p-4 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-orange-200 flex items-center gap-2">
+          <Zap className="w-4 h-4" /> Autopilot suggestions
+        </p>
+        <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={openCopilot}>
+          <Bot className="w-3.5 h-3.5 inline mr-1" />
+          Open Zeus
+        </button>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {proposals.map((a) => (
+          <div key={a.id} className="rounded-lg border border-white/[0.06] bg-slate-900/40 p-3 text-xs">
+            <p className="font-medium text-slate-200">{a.label}</p>
+            <p className="text-slate-500 mt-0.5 line-clamp-2">{a.review}</p>
+            <div className="flex flex-wrap gap-2 mt-2">
+              <button
+                type="button"
+                className="btn-primary text-[10px]"
+                disabled={executingId === a.id}
+                onClick={() => void runAction(a)}
+              >
+                {executingId === a.id ? 'Running…' : 'Run fix'}
+              </button>
+              <Link to="/platform/zeus/approvals" className={`text-[10px] self-center ${hubLinkClasses()}`}>
+                Approvals
+              </Link>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}

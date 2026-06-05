@@ -121,6 +121,22 @@ export async function platformFetch<T>(path: string, init?: RequestInit): Promis
   return (await res!.json()) as T
 }
 
+/** Authenticated download for controller export endpoints (CSV, PDF, etc.). */
+export async function downloadControllerExport(path: string, filename: string) {
+  const url = `${getControllerBase()}${path.startsWith('/') ? path : `/${path}`}`
+  const res = await fetch(url, { credentials: 'same-origin', headers: platformHeaders() })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(body || `Export failed (${res.status})`)
+  }
+  const blob = await res.blob()
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
 export interface PlatformHost {
   id: string
   hostname: string

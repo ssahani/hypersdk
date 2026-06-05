@@ -27,7 +27,7 @@ import {
   type OperationsOverview,
   type ProjectRow,
 } from '../../api/platform'
-import { getAiCapacity, getAiCost, getAiCompliance, getAiComplianceExportUrl, getAiCompliancePdfUrl, getAiCostExportUrl, getAiCapacityExportUrl, getAiSecurity, getAutopilotHistory, getCostAttribution, getCostAttributionExportUrl, getCostBudget, migrationReadinessReport, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type CostAttributionReport, type ComplianceReport, type CostBudgetReport, type MigrationReadinessReport, type SecurityReport } from '../../api/ai'
+import { downloadAiCapacityExport, downloadAiComplianceExport, downloadAiCompliancePdf, downloadAiCostExport, downloadCostAttributionExport, getAiCapacity, getAiCost, getAiCompliance, getAiSecurity, getAutopilotHistory, getCostAttribution, getCostBudget, migrationReadinessReport, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type CostAttributionReport, type ComplianceReport, type CostBudgetReport, type MigrationReadinessReport, type SecurityReport } from '../../api/ai'
 import { getFirewallExposureFinOps, getFirewallExposureFinOpsExportUrl, type ExposureFinOpsReport } from '../../api/zeusFirewall'
 import { formatUserError } from '../../utils/apiError'
 import { installStateTone } from '../../components/platform/GuestAgentDiagnosticsPanel'
@@ -225,13 +225,17 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
                 <button
                   type="button"
                   className="btn-secondary text-xs"
-                  onClick={() => window.open(getAiComplianceExportUrl(), '_blank', 'noopener')}
+                  onClick={() => void downloadAiComplianceExport().catch((e: unknown) => toast.error(formatUserError(e)))}
                 >
                   Open compliance report
                 </button>
-                <a href={getAiCompliancePdfUrl()} className="btn-secondary text-xs inline-flex items-center" download="machina-compliance-report.pdf">
+                <button
+                  type="button"
+                  className="btn-secondary text-xs"
+                  onClick={() => void downloadAiCompliancePdf().catch((e: unknown) => toast.error(formatUserError(e)))}
+                >
                   Download compliance PDF
-                </a>
+                </button>
               </div>
             )}
             <div className="overflow-x-auto mt-4">
@@ -461,17 +465,17 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
             <button
               type="button"
               className="btn-secondary text-xs"
-              onClick={() => window.open(getAiComplianceExportUrl(), '_blank', 'noopener')}
+              onClick={() => void downloadAiComplianceExport().catch((e: unknown) => toast.error(formatUserError(e)))}
             >
               Open print / PDF view
             </button>
-            <a
-              href={getAiCompliancePdfUrl()}
-              className="btn-secondary text-xs inline-flex items-center"
-              download="machina-compliance-report.pdf"
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              onClick={() => void downloadAiCompliancePdf().catch((e: unknown) => toast.error(formatUserError(e)))}
             >
               Download PDF
-            </a>
+            </button>
           </div>
         </MacGlassPanel>
       )}
@@ -533,9 +537,13 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
           {cost.suggestions.length > 0 && (
             <ul className="mt-3 text-xs text-slate-400 space-y-1">{cost.suggestions.map((s, i) => <li key={i}>• {s}</li>)}</ul>
           )}
-          <a href={getAiCostExportUrl()} className="btn-secondary text-xs inline-flex mt-3" download="machina-cost-guardian.csv">
+          <button
+            type="button"
+            className="btn-secondary text-xs mt-3"
+            onClick={() => void downloadAiCostExport().catch((e: unknown) => toast.error(formatUserError(e)))}
+          >
             Download CFO CSV
-          </a>
+          </button>
         </MacGlassPanel>
       )}
       {!loading && tab === 'reports' && attribution && attribution.teams.length > 0 && (
@@ -548,9 +556,13 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
               </li>
             ))}
           </ul>
-          <a href={getCostAttributionExportUrl()} className="btn-secondary text-xs inline-flex mt-3" download="machina-cost-attribution.csv">
+          <button
+            type="button"
+            className="btn-secondary text-xs mt-3"
+            onClick={() => void downloadCostAttributionExport().catch((e: unknown) => toast.error(formatUserError(e)))}
+          >
             Download chargeback CSV
-          </a>
+          </button>
         </MacGlassPanel>
       )}
       {!loading && tab === 'reports' && autopilotHistory.length > 0 && (
@@ -576,9 +588,13 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
           {aiCap.recommendations.length > 0 && (
             <ul className="mt-3 text-xs text-slate-400 space-y-1">{aiCap.recommendations.map((r, i) => <li key={i}>• {r}</li>)}</ul>
           )}
-          <a href={getAiCapacityExportUrl()} className="btn-secondary text-xs inline-flex mt-3" download="machina-capacity-planner.csv">
+          <button
+            type="button"
+            className="btn-secondary text-xs mt-3"
+            onClick={() => void downloadAiCapacityExport().catch((e: unknown) => toast.error(formatUserError(e)))}
+          >
             Download capacity CSV
-          </a>
+          </button>
         </MacGlassPanel>
       )}
       {!loading && tab === 'reports' && security && security.findings.length > 0 && (

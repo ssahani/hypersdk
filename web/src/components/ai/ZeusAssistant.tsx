@@ -5,6 +5,7 @@ import { Bot, Send, X, Zap } from 'lucide-react'
 import { useLocation } from 'react-router'
 import { useAi } from '../../contexts/AiContext'
 import {
+  aiCopilotStream,
   executeAutopilotAction,
   getAutopilotProposal,
   listZeusAgents,
@@ -50,6 +51,7 @@ export default function ZeusAssistant() {
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([])
   const [busy, setBusy] = useState(false)
+  const [streaming, setStreaming] = useState(false)
   const [proposals, setProposals] = useState<ProposedAction[]>([])
   const [nlOpsPlan, setNlOpsPlan] = useState<NlOpsPlan | null>(null)
   const [executingId, setExecutingId] = useState<string | null>(null)
@@ -109,19 +111,48 @@ export default function ZeusAssistant() {
         setBusy(false)
         return
       }
-      const zeus = await zeusChat({
-        message: text,
-        agent: selectedAgent,
-        vm_id: contextVmId ?? undefined,
-        host_id: contextHostId ?? undefined,
-        vm_ids: contextVmIds.length > 0 ? contextVmIds : undefined,
-        page_path: location.pathname,
-      })
-      setMessages((m) => {
-        const next = [...m]
-        next[assistantIdx] = { role: 'assistant', text: zeus.reply }
-        return next
-      })
+      let streamed = ''
+      let streamFailed = false
+      setStreaming(true)
+      try {
+        await aiCopilotStream(
+          text,
+          contextVmId ?? undefined,
+          (ev) => {
+            if (ev.type === 'chunk' && ev.text) {
+              streamed += ev.text
+              setMessages((m) => {
+                const next = [...m]
+                next[assistantIdx] = { role: 'assistant', text: streamed }
+                return next
+              })
+            } else if (ev.type === 'error') {
+              streamFailed = true
+            }
+          },
+          contextHostId ?? undefined,
+          contextVmIds.length > 0 ? contextVmIds : undefined,
+        )
+      } catch {
+        streamFailed = true
+      } finally {
+        setStreaming(false)
+      }
+      if (streamFailed || !streamed.trim()) {
+        const zeus = await zeusChat({
+          message: text,
+          agent: selectedAgent,
+          vm_id: contextVmId ?? undefined,
+          host_id: contextHostId ?? undefined,
+          vm_ids: contextVmIds.length > 0 ? contextVmIds : undefined,
+          page_path: location.pathname,
+        })
+        setMessages((m) => {
+          const next = [...m]
+          next[assistantIdx] = { role: 'assistant', text: zeus.reply }
+          return next
+        })
+      }
     } catch (e: unknown) {
       setMessages((m) => {
         const next = [...m]
@@ -268,6 +299,9 @@ export default function ZeusAssistant() {
               <p className="whitespace-pre-wrap text-slate-200">{m.text}</p>
             </div>
           ))}
+          {streaming && (
+            <p className="text-[10px] text-orange-400/70 px-1">Streaming…</p>
+          )}
         </div>
         <footer className="p-3 border-t border-white/[0.06] flex gap-2">
           <input

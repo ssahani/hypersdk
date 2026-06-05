@@ -688,6 +688,15 @@
       "actions": []
     },
     {
+      "id": "platform:/platform/zeus/approvals",
+      "shell": "platform",
+      "path": "/platform/zeus/approvals",
+      "tier": "power",
+      "headingPattern": "Zeus approvals",
+      "requires": null,
+      "actions": []
+    },
+    {
       "id": "platform:/platform/zeus/security/cloud",
       "shell": "platform",
       "path": "/platform/zeus/security/cloud",

@@ -1,21 +1,62 @@
 {
-  "generated_at": "2026-05-31T01:57:41.674Z",
-  "controller_total": 292,
-  "daemon_total": 423,
+  "generated_at": "2026-06-05T08:10:59.357Z",
+  "controller_total": 422,
+  "daemon_total": 425,
   "websocket_total": 10,
-  "total_routes": 725,
+  "total_routes": 857,
   "counts": {
-    "page": 174,
-    "console": 535,
+    "page": 246,
+    "unmapped": 64,
+    "console": 531,
     "documented": 16
   },
   "by_source": {
-    "controller": 292,
-    "daemon": 423,
+    "controller": 422,
+    "daemon": 425,
     "websocket": 10
   },
-  "unmapped_count": 0,
+  "unmapped_count": 64,
   "routes": [
+    {
+      "path": "/api/v1/ai/actions",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/actions/{id}/execute",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/ai/actions/{id}/reject",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/ai/actions/hub",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/agents",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
     {
       "path": "/api/v1/ai/autopilot/execute",
       "methods": [
@@ -38,7 +79,7 @@
         "GET"
       ],
       "source": "controller",
-      "surface": "console"
+      "surface": "page"
     },
     {
       "path": "/api/v1/ai/autopilot/run",
@@ -70,7 +111,7 @@
         "GET"
       ],
       "source": "controller",
-      "surface": "console"
+      "surface": "page"
     },
     {
       "path": "/api/v1/ai/compliance",
@@ -86,7 +127,7 @@
         "GET"
       ],
       "source": "controller",
-      "surface": "console"
+      "surface": "page"
     },
     {
       "path": "/api/v1/ai/compliance/export.pdf",
@@ -94,7 +135,7 @@
         "GET"
       ],
       "source": "controller",
-      "surface": "console"
+      "surface": "page"
     },
     {
       "path": "/api/v1/ai/compliance/frameworks",
@@ -126,7 +167,7 @@
         "POST"
       ],
       "source": "controller",
-      "surface": "console"
+      "surface": "page"
     },
     {
       "path": "/api/v1/ai/cost",
@@ -150,7 +191,7 @@
         "GET"
       ],
       "source": "controller",
-      "surface": "console"
+      "surface": "page"
     },
     {
       "path": "/api/v1/ai/cost/budget",
@@ -166,7 +207,15 @@
         "GET"
       ],
       "source": "controller",
-      "surface": "console"
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/enterprise/zeus",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
     },
     {
       "path": "/api/v1/ai/explain",
@@ -204,6 +253,14 @@
       "path": "/api/v1/ai/fleet/gpu-placement",
       "methods": [
         "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/fleet/guest-query",
+      "methods": [
+        "POST"
       ],
       "source": "controller",
       "surface": "page"
@@ -257,12 +314,76 @@
       "surface": "page"
     },
     {
+      "path": "/api/v1/ai/graph",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/ai/graph/at/{timestamp}",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/ai/graph/object/{kind}/{id}",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/ai/graph/path",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/graph/query",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/incidents/{id}/ack",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/ai/incidents/{id}/room",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/ai/incidents/active",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
       "path": "/api/v1/ai/incidents/analyze",
       "methods": [
         "GET"
       ],
       "source": "controller",
-      "surface": "console"
+      "surface": "page"
     },
     {
       "path": "/api/v1/ai/intent/environment",
@@ -276,6 +397,14 @@
       "path": "/api/v1/ai/intent/environment/execute",
       "methods": [
         "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/jarvis/landing",
+      "methods": [
+        "GET"
       ],
       "source": "controller",
       "surface": "page"
@@ -305,7 +434,55 @@
       "surface": "page"
     },
     {
+      "path": "/api/v1/ai/marketplace/agents",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/marketplace/agents/{slug}/install",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/ai/marketplace/agents/{slug}/uninstall",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/ai/memory",
+      "methods": [
+        "DELETE"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/ai/memory/changes-before",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
       "path": "/api/v1/ai/memory/incidents",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/memory/settings",
       "methods": [
         "GET"
       ],
@@ -316,6 +493,14 @@
       "path": "/api/v1/ai/memory/similar",
       "methods": [
         "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/migration/readiness-report",
+      "methods": [
+        "POST"
       ],
       "source": "controller",
       "surface": "page"
@@ -353,6 +538,14 @@
       "surface": "page"
     },
     {
+      "path": "/api/v1/ai/nl-ops",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
       "path": "/api/v1/ai/policy/export",
       "methods": [
         "GET"
@@ -361,12 +554,84 @@
       "surface": "page"
     },
     {
+      "path": "/api/v1/ai/predictions",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/prompts",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/prompts/{id}",
+      "methods": [
+        "PATCH"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/ai/providers",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/providers/{id}",
+      "methods": [
+        "PATCH"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/ai/providers/{id}/models",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/ai/providers/{id}/test",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
       "path": "/api/v1/ai/remediate/hub",
       "methods": [
         "GET"
       ],
       "source": "controller",
       "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/rightsizing/report",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/routing/rules",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
     },
     {
       "path": "/api/v1/ai/runbook",
@@ -393,9 +658,41 @@
       "surface": "page"
     },
     {
+      "path": "/api/v1/ai/security/attack-reconstruct",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/security/explain-event",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
       "path": "/api/v1/ai/security/graph",
       "methods": [
         "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/security/hunt-summary",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/security/nl-search",
+      "methods": [
+        "POST"
       ],
       "source": "controller",
       "surface": "page"
@@ -457,6 +754,22 @@
       "surface": "page"
     },
     {
+      "path": "/api/v1/ai/timeline/replay",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/troubleshoot",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
       "path": "/api/v1/ai/twin/graph",
       "methods": [
         "GET"
@@ -466,6 +779,46 @@
     },
     {
       "path": "/api/v1/ai/twin/impact",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/twin/simulate",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/vm-builder",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/ai/zeus/chat",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/zeus/execute",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/zeus/plan",
       "methods": [
         "POST"
       ],
@@ -633,6 +986,14 @@
       "surface": "console"
     },
     {
+      "path": "/api/v1/cloud-init/validate",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
       "path": "/api/v1/cluster",
       "methods": [
         "GET"
@@ -662,7 +1023,7 @@
         "GET"
       ],
       "source": "controller",
-      "surface": "page"
+      "surface": "console"
     },
     {
       "path": "/api/v1/content/images/{id}/approve",
@@ -873,6 +1234,14 @@
       "surface": "page"
     },
     {
+      "path": "/api/v1/fleet/dna",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
       "path": "/api/v1/fleet/finder",
       "methods": [
         "GET"
@@ -889,6 +1258,14 @@
       "surface": "page"
     },
     {
+      "path": "/api/v1/fleet/gpu",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
       "path": "/api/v1/fleet/keychain",
       "methods": [
         "GET"
@@ -898,6 +1275,14 @@
     },
     {
       "path": "/api/v1/fleet/linux-health",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/fleet/maintenance-mission",
       "methods": [
         "GET"
       ],
@@ -927,6 +1312,22 @@
       ],
       "source": "controller",
       "surface": "page"
+    },
+    {
+      "path": "/api/v1/fleet/snapshot-schedules",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/fleet/snapshot-schedules/{id}",
+      "methods": [
+        "DELETE"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
     },
     {
       "path": "/api/v1/fleet/spaces",
@@ -1006,7 +1407,15 @@
         "GET"
       ],
       "source": "controller",
-      "surface": "console"
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/guestkit/vms/{id}/migrate-plan",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
     },
     {
       "path": "/api/v1/ha/status",
@@ -1071,6 +1480,14 @@
       ],
       "source": "controller",
       "surface": "console"
+    },
+    {
+      "path": "/api/v1/hosts/{id}/gpus",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
     },
     {
       "path": "/api/v1/hosts/{id}/health-check",
@@ -1169,6 +1586,14 @@
       "surface": "page"
     },
     {
+      "path": "/api/v1/kubevirt/sync",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
       "path": "/api/v1/maintenance/schedules",
       "methods": [
         "GET"
@@ -1227,6 +1652,14 @@
     },
     {
       "path": "/api/v1/migrations/advisor",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/network-canvas",
       "methods": [
         "GET"
       ],
@@ -1442,6 +1875,14 @@
       "surface": "page"
     },
     {
+      "path": "/api/v1/proxmox/sync",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
       "path": "/api/v1/recommendations",
       "methods": [
         "GET"
@@ -1459,6 +1900,158 @@
     },
     {
       "path": "/api/v1/reports/finops",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/soc/alerts",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/soc/alerts/{id}",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/soc/asm/summary",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/soc/events",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/soc/forward/replay",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/soc/ingest/run",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/soc/integrations",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/soc/integrations/{integration_type}",
+      "methods": [
+        "PATCH"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/soc/integrations/{integration_type}/test",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/soc/integrations/splunk",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/soc/integrations/splunk/test",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/soc/overview",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/soc/playbook-runs",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/soc/playbooks",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/soc/playbooks/{id}",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/soc/rules",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/soc/rules/{id}",
+      "methods": [
+        "PATCH"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/soc/rules/{id}/test",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/soc/settings",
       "methods": [
         "GET"
       ],
@@ -1586,6 +2179,14 @@
       "surface": "console"
     },
     {
+      "path": "/api/v1/templates/{name}/{version}/approval",
+      "methods": [
+        "PATCH"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
       "path": "/api/v1/templates/{name}/{version}/readiness",
       "methods": [
         "GET"
@@ -1602,7 +2203,39 @@
       "surface": "page"
     },
     {
+      "path": "/api/v1/templates/missing-images",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/templates/prefetch-missing",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
       "path": "/api/v1/templates/seed",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/templates/sync-git",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/templates/sync-git/webhook",
       "methods": [
         "POST"
       ],
@@ -1655,7 +2288,7 @@
         "GET"
       ],
       "source": "controller",
-      "surface": "page"
+      "surface": "console"
     },
     {
       "path": "/api/v1/vms/{id}",
@@ -1722,6 +2355,14 @@
       "surface": "console"
     },
     {
+      "path": "/api/v1/vms/{id}/disk/export",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
       "path": "/api/v1/vms/{id}/disks",
       "methods": [
         "GET"
@@ -1743,7 +2384,31 @@
         "GET"
       ],
       "source": "controller",
-      "surface": "console"
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/vms/{id}/domain-xml",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/vms/{id}/export",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/vms/{id}/export.zip",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
     },
     {
       "path": "/api/v1/vms/{id}/guest-tools/install",
@@ -1754,6 +2419,30 @@
       "surface": "console"
     },
     {
+      "path": "/api/v1/vms/{id}/guest/ai-insights",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/vms/{id}/guest/fs-freeze-status",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/vms/{id}/guest/fstrim",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
       "path": "/api/v1/vms/{id}/guest/health",
       "methods": [
         "GET"
@@ -1762,12 +2451,28 @@
       "surface": "console"
     },
     {
+      "path": "/api/v1/vms/{id}/guest/observability",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
       "path": "/api/v1/vms/{id}/guest/services",
       "methods": [
         "GET"
       ],
       "source": "controller",
       "surface": "console"
+    },
+    {
+      "path": "/api/v1/vms/{id}/guest/sync-time",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
     },
     {
       "path": "/api/v1/vms/{id}/ha",
@@ -1818,7 +2523,63 @@
       "surface": "console"
     },
     {
+      "path": "/api/v1/vms/{id}/pause",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "console"
+    },
+    {
+      "path": "/api/v1/vms/{id}/port-forwards",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/vms/{id}/port-forwards/delete",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/vms/{id}/publish-template",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
       "path": "/api/v1/vms/{id}/reboot",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "console"
+    },
+    {
+      "path": "/api/v1/vms/{id}/resume",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "console"
+    },
+    {
+      "path": "/api/v1/vms/{id}/retire",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/vms/{id}/shutdown",
       "methods": [
         "POST"
       ],
@@ -1882,6 +2643,14 @@
       "surface": "console"
     },
     {
+      "path": "/api/v1/vms/{id}/timeline",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
       "path": "/api/v1/vms/{id}/topology",
       "methods": [
         "GET"
@@ -1898,7 +2667,31 @@
       "surface": "console"
     },
     {
+      "path": "/api/v1/vms/from-iso",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
       "path": "/api/v1/vms/from-template",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/vms/prune-missing",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/vmware/sync",
       "methods": [
         "POST"
       ],
@@ -1920,6 +2713,14 @@
       ],
       "source": "controller",
       "surface": "console"
+    },
+    {
+      "path": "/api/v1/webhook-deliveries/purge",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
     },
     {
       "path": "/api/v1/webhooks",
@@ -2344,6 +3145,246 @@
       ],
       "source": "controller",
       "surface": "console"
+    },
+    {
+      "path": "/api/v1/zeus-security/agents/{id}/bundle",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/zeus-security/alerts/sync",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/zeus-security/asset-inventory",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/zeus-security/correlations",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/zeus-security/enforcement/policies",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/zeus-security/enforcement/policies/{id}/apply",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/zeus-security/enforcement/status",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/zeus-security/fabric/health",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/zeus-security/fleet/threat",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/zeus-security/fleet/timeline",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/zeus-security/graph",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/zeus-security/hosts/{id}/connections",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/zeus-security/hosts/{id}/containers",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/zeus-security/hosts/{id}/dns",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/zeus-security/hosts/{id}/enforcement",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/zeus-security/hosts/{id}/fabric-status",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/zeus-security/hosts/{id}/files",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/zeus-security/hosts/{id}/ports",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/zeus-security/hosts/{id}/process-graph",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/zeus-security/hosts/{id}/processes",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/zeus-security/hosts/{id}/summary",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/zeus-security/hosts/{id}/tetragon/install",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/zeus-security/hosts/{id}/timeline",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/zeus-security/hunt/queries",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/zeus-security/hunt/run/{query_id}",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/zeus-security/k8s/{cluster_id}/export-status",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/zeus-security/k8s/{cluster_id}/tetragon/install",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "unmapped"
+    },
+    {
+      "path": "/api/v1/zeus-security/search",
+      "methods": [
+        "POST"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/zeus-security/sensors",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/zeus-security/status",
+      "methods": [
+        "GET"
+      ],
+      "source": "controller",
+      "surface": "page"
     },
     {
       "path": "/install.sh",
@@ -3368,6 +4409,14 @@
       ],
       "source": "daemon",
       "surface": "console"
+    },
+    {
+      "path": "/api/v1/k8s/kubevirt/virtualmachines/{namespace}/{name}",
+      "methods": [
+        "DELETE"
+      ],
+      "source": "daemon",
+      "surface": "unmapped"
     },
     {
       "path": "/api/v1/k8s/kubevirt/vm-summary",
@@ -4749,6 +5798,14 @@
       "surface": "console"
     },
     {
+      "path": "/api/v1/platform/vnc/{vm_id}",
+      "methods": [
+        "GET"
+      ],
+      "source": "daemon",
+      "surface": "unmapped"
+    },
+    {
       "path": "/api/v1/portforward",
       "methods": [
         "GET"
@@ -5061,7 +6118,7 @@
         "POST"
       ],
       "source": "daemon",
-      "surface": "page"
+      "surface": "console"
     },
     {
       "path": "/api/v1/vms/{name}",

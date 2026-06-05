@@ -663,6 +663,50 @@ export default function PlatformVmDetail() {
                   </div>
                 </MacGlassPanel>
               )}
+              <MacGlassPanel
+                title="Zeus health doctor"
+                subtitle="Live VM diagnostics from the controller doctor API"
+                action={
+                  <button type="button" className="btn-secondary text-xs" disabled={doctorLoading} onClick={() => void runDoctor()}>
+                    {doctorLoading ? 'Scanning…' : 'Rescan'}
+                  </button>
+                }
+              >
+                {doctorLoading && !doctor && <p className="text-sm text-slate-500">Running health scan…</p>}
+                {doctor && (
+                  <div className="space-y-2 text-sm">
+                    <p className="text-slate-200">
+                      Score <span className="font-semibold">{doctor.score_numeric}/100</span>
+                      {' · '}
+                      <span className={statusToneClass(doctor.healthy ? 'ok' : 'warn')}>{doctor.score_label}</span>
+                      {' · '}
+                      <span className="text-slate-500">{doctor.checks_passed}/{doctor.checks_total} checks passed</span>
+                    </p>
+                    {doctor.issues.length > 0 ? (
+                      <ul className="text-xs text-slate-400 space-y-1">
+                        {doctor.issues.slice(0, 3).map((issue) => (
+                          <li key={issue.id}>{issue.message}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-slate-500">All checks passed.</p>
+                    )}
+                    <div className="flex flex-wrap gap-3 pt-1">
+                      <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => setTab('doctor')}>
+                        Full doctor report →
+                      </button>
+                      {info?.guestkit?.enabled && (
+                        <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => setTab('guestHealth')}>
+                          Offline assurance →
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {!doctorLoading && !doctor && (
+                  <p className="text-sm text-slate-500">Doctor scan unavailable — open the Doctor tab to retry.</p>
+                )}
+              </MacGlassPanel>
               <MacGlassPanel title="Organization">
                 <div className="flex flex-wrap gap-3 items-end">
                   <div>
@@ -710,6 +754,14 @@ export default function PlatformVmDetail() {
                 onRefresh={() => void runDoctor()}
                 onTab={(t) => setTab(t as VmDetailTab)}
               />
+              {info?.guestkit?.enabled && (
+                <p className="text-sm text-slate-400">
+                  Stopped VMs:{' '}
+                  <button type="button" className={hubLinkClasses()} onClick={() => setTab('guestHealth')}>
+                    GuestKit offline assurance →
+                  </button>
+                </p>
+              )}
               <MachinaVmTroubleshootPanel vmId={id!} vmName={vm?.name} />
             </div>
           )}

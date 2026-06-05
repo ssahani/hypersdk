@@ -6,6 +6,11 @@
     "/api/v1/metrics/prometheus": "documented",
     "/api/v1/install.sh": "documented",
     "/install.sh": "documented",
-    "/api/v1/hosts/join": "documented"
+    "/api/v1/hosts/join": "documented",
+    "/api/v1/ai/copilot/stream": "page",
+    "/api/v1/ai/incidents/analyze": "page",
+    "/api/v1/ai/autopilot/propose": "page",
+    "/api/v1/vms/{id}/doctor": "page",
+    "/api/v1/guestkit/vms/{id}/doctor": "page"
   }
 }
