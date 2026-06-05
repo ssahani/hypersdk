@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams, useLocation } from 'react-router'
+import { Link, useNavigate, useParams, useLocation } from 'react-router'
 import { ArrowLeft, ExternalLink, Network, Shield, Server, Activity, FileWarning, Bot, Cpu } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
 import OsDiagnosePanel from '../../components/platform/OsDiagnosePanel'
@@ -31,7 +31,10 @@ import {
   syncHost,
   fenceHost,
   patchHost,
+  deleteHost,
   enqueueValidateHost,
+  runHostHealthCheck,
+  validateHost,
   type PlatformHostDetail,
   type HostLinuxObservability,
   type HostLinuxUpdates,
@@ -65,9 +68,12 @@ function psiBar(label: string, pct: number) {
   )
 }
 
+type HostCheck = { name: string; passed: boolean; message: string; remediation?: string }
+
 export default function PlatformHostDetailPage() {
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
+  const navigate = useNavigate()
   const toast = useToastContext()
   const { openCopilot, setContextHostId } = useAi()
   const [section, setSection] = useState<HostDetailTab>('general')
@@ -95,6 +101,9 @@ export default function PlatformHostDetailPage() {
   const [gpuSummary, setGpuSummary] = useState('')
   const [gpuLoading, setGpuLoading] = useState(false)
   const [gpuError, setGpuError] = useState<string | null>(null)
+  const [healthChecks, setHealthChecks] = useState<HostCheck[] | null>(null)
+  const [validationChecks, setValidationChecks] = useState<HostCheck[] | null>(null)
+  const [opsBusy, setOpsBusy] = useState(false)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -248,11 +257,62 @@ export default function PlatformHostDetailPage() {
                 <MacSettingsGroup title="Actions">
                   <div className="p-3 flex flex-wrap gap-2">
                     <button type="button" className="btn-secondary text-sm" onClick={() => void syncHost(id).then(() => toast.success('Sync queued')).catch((e: unknown) => setError(formatUserError(e)))}>Sync</button>
-                    <button type="button" className="btn-secondary text-sm" onClick={() => void enqueueValidateHost(id).then(() => { toast.success('Validation queued'); return load() })}>Validate</button>
+                    <button
+                      type="button"
+                      className="btn-secondary text-sm"
+                      disabled={opsBusy}
+                      onClick={() => {
+                        setOpsBusy(true)
+                        void runHostHealthCheck(id)
+                          .then((r) => setHealthChecks(r.checks ?? []))
+                          .catch((e: unknown) => toast.error(formatUserError(e)))
+                          .finally(() => setOpsBusy(false))
+                      }}
+                    >
+                      Health check
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary text-sm"
+                      disabled={opsBusy}
+                      onClick={() => {
+                        setOpsBusy(true)
+                        void validateHost(id)
+                          .then((r) => setValidationChecks(r.checks ?? []))
+                          .catch((e: unknown) => toast.error(formatUserError(e)))
+                          .finally(() => setOpsBusy(false))
+                      }}
+                    >
+                      Validate now
+                    </button>
+                    <button type="button" className="btn-secondary text-sm" onClick={() => void enqueueValidateHost(id).then(() => { toast.success('Validation queued'); return load() })}>Queue validate</button>
                     <button type="button" className="btn-secondary text-sm" onClick={() => void hostMaintenance(id, 'enter').then(() => toast.success('Maintenance'))}>Maintenance</button>
                     <button type="button" className="btn-danger text-sm" onClick={() => void fenceHost(id).then(() => { toast.success('Fence invoked'); return load() })}>Fence</button>
                   </div>
                 </MacSettingsGroup>
+                {healthChecks && (
+                  <MacSettingsGroup title="Health check results">
+                    <ul className="p-3 text-sm space-y-2">
+                      {healthChecks.map((c) => (
+                        <li key={c.name} className={statusToneClass(c.passed ? 'ok' : 'error')}>
+                          <span className="font-mono text-xs">{c.name}</span>: {c.message}
+                          {c.remediation ? <span className="block text-xs text-slate-500 mt-0.5">→ {c.remediation}</span> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </MacSettingsGroup>
+                )}
+                {validationChecks && (
+                  <MacSettingsGroup title="Validation results">
+                    <ul className="p-3 text-sm space-y-2">
+                      {validationChecks.map((c) => (
+                        <li key={c.name} className={statusToneClass(c.passed ? 'ok' : 'error')}>
+                          <span className="font-mono text-xs">{c.name}</span>: {c.message}
+                        </li>
+                      ))}
+                    </ul>
+                  </MacSettingsGroup>
+                )}
                 <MacSettingsGroup title="Hardware">
                   <div className="p-3 grid gap-2 text-sm md:grid-cols-2">
                     <div>CPU: {host.cpu_model || '—'}</div>
@@ -301,6 +361,32 @@ export default function PlatformHostDetailPage() {
                   <div className="p-3 space-y-2">
                     <textarea className="input min-h-20 text-sm w-full" value={notes} onChange={(e) => setNotes(e.target.value)} />
                     <button type="button" className="btn-secondary text-sm" onClick={() => void patchHost(id, { notes }).then(() => { toast.success('Notes saved'); return load() })}>Save</button>
+                  </div>
+                </MacSettingsGroup>
+                <MacSettingsGroup title="Danger zone">
+                  <div className="p-3 space-y-2">
+                    <p className="text-xs text-slate-500">Removes the host from fleet inventory. VMs must be evacuated first.</p>
+                    <button
+                      type="button"
+                      className="btn-danger text-sm"
+                      disabled={opsBusy || (host.vm_count ?? 0) > 0}
+                      onClick={() => {
+                        if (!window.confirm(`Remove host ${host.hostname} from the fleet?`)) return
+                        setOpsBusy(true)
+                        void deleteHost(id)
+                          .then(() => {
+                            toast.success('Host removed')
+                            navigate('/platform/hosts')
+                          })
+                          .catch((e: unknown) => toast.error(formatUserError(e)))
+                          .finally(() => setOpsBusy(false))
+                      }}
+                    >
+                      Remove host
+                    </button>
+                    {(host.vm_count ?? 0) > 0 && (
+                      <p className="text-xs text-amber-300/90">Evacuate or migrate VMs before removing this host.</p>
+                    )}
                   </div>
                 </MacSettingsGroup>
                 <MacSettingsGroup title="Classic hypervisor tools">

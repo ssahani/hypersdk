@@ -4,11 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { ClipboardList } from 'lucide-react'
 import ExplainButton from '../../components/ai/ExplainButton'
+import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformFilterPills from '../../components/platform/PlatformFilterPills'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import { statusBgClass, taskStatusTone } from '../../utils/semanticColors'
-import { cancelTask, listPlatformTasks, retryTask, type PlatformTask } from '../../api/platform'
+import { cancelTask, getPlatformHealth, getPlatformTask, listPlatformTasks, retryTask, type PlatformTask } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 
@@ -25,17 +26,38 @@ export default function PlatformTasks() {
   const [filter, setFilter] = useState('')
   const [opFilter, setOpFilter] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [controllerHealth, setControllerHealth] = useState<{ status: string; leader?: boolean; controller_id?: string } | null>(null)
+  const [taskDetail, setTaskDetail] = useState<PlatformTask | null>(null)
+  const [detailBusy, setDetailBusy] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      setRows(await listPlatformTasks({ status: filter || undefined, operation: opFilter || undefined }))
+      const [tasks, health] = await Promise.all([
+        listPlatformTasks({ status: filter || undefined, operation: opFilter || undefined }),
+        getPlatformHealth().catch(() => null),
+      ])
+      setRows(tasks)
+      setControllerHealth(health)
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
   }, [filter, opFilter])
 
   useEffect(() => { void load() }, [load])
+
+  const openTaskDetail = useCallback((taskId: string) => {
+    setDetailBusy(true)
+    void getPlatformTask(taskId)
+      .then(setTaskDetail)
+      .catch((e: unknown) => toast.error(formatUserError(e)))
+      .finally(() => setDetailBusy(false))
+  }, [toast])
+
+  useEffect(() => {
+    if (!highlightTaskId) return
+    openTaskDetail(highlightTaskId)
+  }, [highlightTaskId, openTaskDetail])
 
   const highlightRow = useMemo(() => {
     if (!highlightTaskId) return null
@@ -73,6 +95,60 @@ export default function PlatformTasks() {
       actions={<PlatformRefreshButton onClick={() => void load()} />}
       contentClassName="space-y-4"
     >
+      {controllerHealth && (
+        <MacGlassPanel title="Controller health" subtitle="GET /api/v1/health">
+          <dl className="grid gap-2 text-sm sm:grid-cols-3">
+            <div>
+              <dt className="text-xs text-slate-500">Status</dt>
+              <dd className="text-slate-200 capitalize">{controllerHealth.status}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500">Leader</dt>
+              <dd className="text-slate-200">{controllerHealth.leader == null ? '—' : controllerHealth.leader ? 'yes' : 'no'}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500">Controller ID</dt>
+              <dd className="font-mono text-slate-200 text-xs">{controllerHealth.controller_id ?? '—'}</dd>
+            </div>
+          </dl>
+        </MacGlassPanel>
+      )}
+
+      {taskDetail && (
+        <MacGlassPanel
+          title="Task detail"
+          subtitle={taskDetail.id}
+          action={
+            <button type="button" className="btn-secondary text-xs" onClick={() => setTaskDetail(null)}>Close</button>
+          }
+        >
+          <dl className="grid gap-2 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-xs text-slate-500">Operation</dt>
+              <dd className="text-slate-200">{taskDetail.operation}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500">Status</dt>
+              <dd className="text-slate-200 capitalize">{taskDetail.status}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500">Progress</dt>
+              <dd className="text-slate-200">{taskDetail.progress}%</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500">Created</dt>
+              <dd className="text-slate-200">{new Date(taskDetail.created_at).toLocaleString()}</dd>
+            </div>
+            {taskDetail.message && (
+              <div className="sm:col-span-2">
+                <dt className="text-xs text-slate-500">Message</dt>
+                <dd className="text-slate-300">{taskDetail.message}</dd>
+              </div>
+            )}
+          </dl>
+        </MacGlassPanel>
+      )}
+
       <PlatformFilterPills
         value={filter}
         onChange={setFilter}
@@ -112,6 +188,14 @@ export default function PlatformTasks() {
               <div className="flex justify-between items-center text-xs text-slate-500">
                 <span>{t.progress}% {t.message || ''}</span>
                 <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="btn-secondary text-xs"
+                    disabled={detailBusy}
+                    onClick={() => openTaskDetail(t.id)}
+                  >
+                    Details
+                  </button>
                   {t.status === 'pending' && (
                     <button type="button" className="btn-secondary text-xs" onClick={async () => {
                       try { await cancelTask(t.id); toast.success('Cancelled'); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }

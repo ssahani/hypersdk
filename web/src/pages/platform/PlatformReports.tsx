@@ -27,7 +27,7 @@ import {
   type OperationsOverview,
   type ProjectRow,
 } from '../../api/platform'
-import { downloadAiCapacityExport, downloadAiComplianceExport, downloadAiCompliancePdf, downloadAiCostExport, downloadCostAttributionExport, getAiCapacity, getAiCost, getAiCompliance, getAiSecurity, getAutopilotHistory, getCostAttribution, getCostBudget, migrationReadinessReport, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type CostAttributionReport, type ComplianceReport, type CostBudgetReport, type MigrationReadinessReport, type SecurityReport } from '../../api/ai'
+import { downloadAiCapacityExport, downloadAiComplianceExport, downloadAiCompliancePdf, downloadAiCostExport, downloadCostAttributionExport, getAiCapacity, getAiCost, getAiCompliance, getAiSecurity, getAutopilotHistory, getCostAttribution, getCostBudget, migrationReadinessReport, runAutopilotSafe, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type CostAttributionReport, type ComplianceReport, type CostBudgetReport, type MigrationReadinessReport, type SecurityReport } from '../../api/ai'
 import { getFirewallExposureFinOps, getFirewallExposureFinOpsExportUrl, type ExposureFinOpsReport } from '../../api/zeusFirewall'
 import { formatUserError } from '../../utils/apiError'
 import { installStateTone } from '../../components/platform/GuestAgentDiagnosticsPanel'
@@ -67,6 +67,7 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
   const [loading, setLoading] = useState(true)
   const [migrationReport, setMigrationReport] = useState<MigrationReadinessReport | null>(null)
   const [migrationBusy, setMigrationBusy] = useState(false)
+  const [autopilotBusy, setAutopilotBusy] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
@@ -565,16 +566,39 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
           </button>
         </MacGlassPanel>
       )}
-      {!loading && tab === 'reports' && autopilotHistory.length > 0 && (
-        <MacGlassPanel title="Autopilot history" subtitle="Recent audited auto-fix runs">
-          <ul className="text-xs space-y-2 -mt-2">
-            {autopilotHistory.map((h) => (
-              <li key={h.id} className="flex justify-between gap-2 border-b border-white/[0.04] pb-2">
-                <span className="text-slate-300">{h.action.replace('ai.autopilot.', '')}</span>
-                <span className="text-slate-500 shrink-0">{new Date(h.created_at).toLocaleString()}</span>
-              </li>
-            ))}
-          </ul>
+      {!loading && tab === 'reports' && (
+        <MacGlassPanel title="Autopilot" subtitle="POST /api/v1/ai/autopilot/run — safe auto-fix with audit trail">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              disabled={autopilotBusy}
+              onClick={() => {
+                setAutopilotBusy(true)
+                void runAutopilotSafe(undefined, 3)
+                  .then((r) => {
+                    toast.success(`Autopilot: ${r.executed_count} executed, ${r.skipped_count} skipped`)
+                    return load()
+                  })
+                  .catch((e: unknown) => toast.error(formatUserError(e)))
+                  .finally(() => setAutopilotBusy(false))
+              }}
+            >
+              {autopilotBusy ? 'Running…' : 'Run safe autopilot'}
+            </button>
+          </div>
+          {autopilotHistory.length > 0 ? (
+            <ul className="text-xs space-y-2">
+              {autopilotHistory.map((h) => (
+                <li key={h.id} className="flex justify-between gap-2 border-b border-white/[0.04] pb-2">
+                  <span className="text-slate-300">{h.action.replace('ai.autopilot.', '')}</span>
+                  <span className="text-slate-500 shrink-0">{new Date(h.created_at).toLocaleString()}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-slate-500">No autopilot runs recorded yet.</p>
+          )}
         </MacGlassPanel>
       )}
       {!loading && tab === 'reports' && aiCap && (

@@ -30,6 +30,15 @@
     "/api/v1/ai/graph/at/{timestamp}": "page",
     "/api/v1/zeus-security/search": "page",
     "/api/v1/upgrade/matrix": "page",
-    "/api/v1/ai/twin/impact": "page"
+    "/api/v1/ai/twin/impact": "page",
+    "/api/v1/health": "page",
+    "/api/v1/tasks/{id}": "page",
+    "/api/v1/events": "page",
+    "/api/v1/hosts/{id}/health-check": "page",
+    "/api/v1/hosts/{id}/validate": "page",
+    "/api/v1/hosts/{id}": "page",
+    "/api/v1/ai/autopilot/run": "page",
+    "/api/v1/enterprise/vault/providers": "page",
+    "/api/v1/enterprise/tenants/policies/{project}": "page"
   }
 }

@@ -7,7 +7,7 @@ import {
   MacStatWidget,
 } from '../../components/platform/mac/PlatformMacUi'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
-import { getFleetConsole, listAuditLogs, type AuditLog, type FleetConsoleEntry, type FleetConsoleOverview } from '../../api/platform'
+import { getFleetConsole, listAuditLogs, listPlatformEvents, type AuditLog, type FleetConsoleEntry, type FleetConsoleOverview, type PlatformEvent } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
 import { statusBadgeClasses, statusBorderClass } from '../../utils/semanticColors'
 
@@ -57,6 +57,8 @@ function LogLine({ entry }: { entry: FleetConsoleEntry }) {
 export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}) {
   const [fleet, setFleet] = useState<FleetConsoleOverview | null>(null)
   const [controllerAudit, setControllerAudit] = useState<AuditLog[]>([])
+  const [platformEvents, setPlatformEvents] = useState<PlatformEvent[]>([])
+  const [eventKind, setEventKind] = useState('')
   const [source, setSource] = useState<SourceFilter>('all')
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -64,17 +66,19 @@ export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [console, audit] = await Promise.all([
+      const [console, audit, events] = await Promise.all([
         getFleetConsole(),
         listAuditLogs().catch(() => []),
+        listPlatformEvents(eventKind || undefined).catch(() => []),
       ])
       setFleet(console)
       setControllerAudit(audit)
+      setPlatformEvents(events)
     } catch (e: unknown) {
       setError(formatUserError(e))
       setFleet(null)
     }
-  }, [])
+  }, [eventKind])
 
   useEffect(() => { void load() }, [load])
 
@@ -144,6 +148,33 @@ export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
+
+      <MacGlassPanel title="Platform events" subtitle="GET /api/v1/events — controller event bus">
+        <div className="flex flex-wrap gap-2 mb-3">
+          <input
+            className="input text-sm max-w-xs font-mono"
+            placeholder="Filter by kind (e.g. host.sync)"
+            value={eventKind}
+            onChange={(e) => setEventKind(e.target.value)}
+          />
+          <button type="button" className="btn-secondary text-xs" onClick={() => void load()}>
+            Apply
+          </button>
+        </div>
+        {platformEvents.length === 0 ? (
+          <p className="text-sm text-slate-500 py-4 text-center">No platform events for this filter.</p>
+        ) : (
+          <ul className="text-sm text-slate-300 space-y-2">
+            {platformEvents.slice(0, 20).map((e) => (
+              <li key={e.id} className="flex flex-wrap gap-x-2 gap-y-1 border-b border-white/[0.04] pb-2 last:border-0">
+                <time className="text-xs text-slate-500 shrink-0">{formatTime(e.created_at)}</time>
+                <span className="text-[10px] uppercase px-1.5 py-0.5 rounded border border-white/[0.08] text-violet-300">{e.kind}</span>
+                <span>{e.message}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </MacGlassPanel>
 
       <MacGlassPanel title="Log stream" subtitle="Newest first — merged audit, events, and tasks.">
         {!fleet ? (

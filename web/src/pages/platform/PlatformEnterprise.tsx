@@ -15,8 +15,10 @@ import {
   getMfaCompliance,
   getTenantIsolationOverview,
   listVaultProviders,
+  registerVaultProvider,
   syncAllVaultProviders,
   syncVaultProvider,
+  upsertTenantPolicy,
   type EnterpriseSecurityOverview,
   type FipsMatrix,
   type FleetKeychainOverview,
@@ -67,6 +69,11 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
   const [syncBusy, setSyncBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [vaultName, setVaultName] = useState('staging-vault')
+  const [vaultAddress, setVaultAddress] = useState('https://vault.example:8200')
+  const [policyProject, setPolicyProject] = useState('default')
+  const [policyMaxVms, setPolicyMaxVms] = useState('50')
+  const [policyIsolation, setPolicyIsolation] = useState('shared')
 
   const load = useCallback(async () => {
     setError(null)
@@ -203,6 +210,25 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
             {syncBusy ? 'Syncing…' : 'Sync all'}
           </button>
         }>
+          <div className="grid gap-2 sm:grid-cols-3 mb-4 pb-4 border-b border-white/[0.04]">
+            <input className="input text-sm" value={vaultName} onChange={(e) => setVaultName(e.target.value)} placeholder="Provider name" />
+            <input className="input text-sm sm:col-span-2" value={vaultAddress} onChange={(e) => setVaultAddress(e.target.value)} placeholder="https://vault:8200" />
+            <button
+              type="button"
+              className="btn-secondary text-xs sm:col-span-3 w-fit"
+              onClick={() => {
+                setActionError(null)
+                void registerVaultProvider({ name: vaultName.trim(), provider_type: 'hashicorp', address: vaultAddress.trim() })
+                  .then(() => {
+                    toast.success('Vault provider registered')
+                    return load()
+                  })
+                  .catch((e: unknown) => setActionError(formatUserError(e)))
+              }}
+            >
+              Register provider
+            </button>
+          </div>
           <ul className="space-y-2">
             {vaults.map((v) => (
               <li key={v.id} className="flex flex-wrap items-center justify-between gap-2 border border-slate-700/60 rounded-lg p-3">
@@ -269,6 +295,35 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
       {activeTab === 'tenants' && tenants && (
         <MacGlassPanel title="Workspace isolation">
           <p className="text-sm text-slate-400 mb-3">{tenants.summary}</p>
+          <div className="grid gap-2 sm:grid-cols-4 mb-4 pb-4 border-b border-white/[0.04]">
+            <input className="input text-sm" value={policyProject} onChange={(e) => setPolicyProject(e.target.value)} placeholder="Project" />
+            <input className="input text-sm" type="number" min={1} value={policyMaxVms} onChange={(e) => setPolicyMaxVms(e.target.value)} placeholder="Max VMs" />
+            <select className="input text-sm" value={policyIsolation} onChange={(e) => setPolicyIsolation(e.target.value)}>
+              <option value="shared">shared</option>
+              <option value="isolated">isolated</option>
+              <option value="dedicated">dedicated</option>
+            </select>
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              onClick={() => {
+                setActionError(null)
+                const maxVms = Number(policyMaxVms)
+                void upsertTenantPolicy(policyProject.trim(), {
+                  max_vms: Number.isFinite(maxVms) ? maxVms : undefined,
+                  network_isolation: policyIsolation,
+                  enforce_quotas: true,
+                })
+                  .then(() => {
+                    toast.success('Tenant policy saved')
+                    return load()
+                  })
+                  .catch((e: unknown) => setActionError(formatUserError(e)))
+              }}
+            >
+              Save policy
+            </button>
+          </div>
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-slate-500 border-b border-slate-700">
               <tr>

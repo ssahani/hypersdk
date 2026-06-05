@@ -152,6 +152,30 @@ const enterpriseTenants = {
   projects: [{ project_name: 'default', vm_count: 2, max_vms: 50, network_isolation: 'shared', enforce_quotas: true, quota_status: 'ok' }],
 }
 
+const platformTasks = [
+  {
+    id: 'task-migrate-abc123def456',
+    operation: 'vm.migrate',
+    status: 'running',
+    progress: 45,
+    message: 'Copying disk 2/4',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'task-backup-failed-001',
+    operation: 'vm.backup',
+    status: 'failed',
+    progress: 72,
+    message: 'NFS mount timeout',
+    created_at: new Date(Date.now() - 3600_000).toISOString(),
+  },
+]
+
+const platformEvents = [
+  { id: 'pev-1', kind: 'host.sync', message: 'Host h1 inventory sync completed', created_at: new Date().toISOString() },
+  { id: 'pev-2', kind: 'task.completed', message: 'Backup task finished for vm-1', created_at: new Date(Date.now() - 120_000).toISOString() },
+]
+
 const fleetKeychain = {
   summary: '2 credential entries',
   vault_providers: 1,
@@ -388,6 +412,14 @@ export async function mockPlatformApi(page: Page, opts?: {
     }
     if (url.includes('/system/platform-info')) {
       return route.fulfill({ json: platformInfo })
+    }
+    if (url.includes('/api/v1/events') && !url.includes('/events/stream')) {
+      return route.fulfill({ json: platformEvents })
+    }
+    if (url.match(/\/api\/v1\/health(\?|$)/)) {
+      return route.fulfill({
+        json: { status: 'ok', leader: true, controller_id: 'ctrl-test-1' },
+      })
     }
     if (url.includes('/openstack/status')) {
       return route.fulfill({
@@ -802,6 +834,7 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({
         json: {
           estimated_monthly_usd: 120,
+          predicted_next_month_usd: 130,
           vm_count: 2,
           idle_vm_count: 1,
           oversized_vm_count: 0,
@@ -821,6 +854,68 @@ export async function mockPlatformApi(page: Page, opts?: {
           cpu_headroom_percent: 60,
           estimated_small_vms_addable: 4,
           recommendations: ['Headroom OK'],
+        },
+      })
+    }
+    if (url.includes('/ai/compliance') && !url.includes('/export') && route.request().method() === 'GET') {
+      return route.fulfill({
+        json: {
+          score: 82,
+          grade: 'B',
+          summary: 'Fleet compliance OK',
+          markdown: '# Compliance\n',
+          checks: [{ id: 'c1', name: 'TLS', passed: true, detail: 'Controller TLS enabled' }],
+        },
+      })
+    }
+    if (url.includes('/ai/security') && route.request().method() === 'GET' && !url.includes('/ai/security/')) {
+      return route.fulfill({
+        json: {
+          summary: 'No critical findings',
+          findings: [{ id: 'f1', severity: 'low', title: 'Open SSH', detail: 'Port 22 exposed' }],
+        },
+      })
+    }
+    if (url.includes('/ai/cost/budget') && route.request().method() === 'GET') {
+      return route.fulfill({
+        json: {
+          monthly_budget_usd: 500,
+          current_spend_usd: 120,
+          predicted_spend_usd: 140,
+          utilization_pct: 24,
+          status: 'ok',
+          alerts: [],
+        },
+      })
+    }
+    if (url.includes('/ai/cost/attribution') && !url.includes('/export') && route.request().method() === 'GET') {
+      return route.fulfill({
+        json: {
+          summary: '1 team',
+          teams: [{ team: 'platform', vm_count: 2, estimated_monthly_usd: 120, share_pct: 100 }],
+        },
+      })
+    }
+    if (url.includes('/ai/autopilot/history')) {
+      return route.fulfill({
+        json: [
+          { id: 'ap1', action: 'ai.autopilot.restart_agent', created_at: new Date().toISOString(), status: 'ok' },
+        ],
+      })
+    }
+    if (url.includes('/zeus-firewall/finops/exposure') && !url.includes('/export')) {
+      return route.fulfill({
+        json: {
+          summary: '1 high-risk VM',
+          fleet_exposure_monthly_usd: 240,
+          idle_port_waste_usd: 45,
+          cloud_sg_monthly_usd: 80,
+          gpu_exposure_usd: 30,
+          storage_exposure_usd: 20,
+          mission_stack_network_usd: 10,
+          public_port_alerts: [],
+          targets: [],
+          vm_idle_ranking: [{ vm_id: 'v1', vm_name: 'vm-1', rank: 1, waste_usd: 45, idle_ports: 2 }],
         },
       })
     }
@@ -848,7 +943,27 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({ json: enterpriseSecurity })
     }
     if (url.includes('/enterprise/vault/providers') && route.request().method() === 'POST') {
-      return route.fulfill({ status: 500, json: { error: 'vault sync failed' } })
+      return route.fulfill({
+        json: {
+          id: 'vault-new',
+          name: 'staging-vault',
+          provider_type: 'hashicorp',
+          address: 'https://vault.example:8200',
+          status: 'connected',
+        },
+      })
+    }
+    if (url.match(/\/enterprise\/tenants\/policies\/[^/]+$/) && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          project_name: 'default',
+          vm_count: 2,
+          max_vms: 50,
+          network_isolation: 'shared',
+          enforce_quotas: true,
+          quota_status: 'ok',
+        },
+      })
     }
     if (url.includes('/enterprise/vault/sync-all') && route.request().method() === 'POST') {
       return route.fulfill({ status: 500, json: { error: 'vault sync failed' } })
@@ -974,6 +1089,7 @@ export async function mockPlatformApi(page: Page, opts?: {
           memory_used_mib: 4096,
           memory_headroom_mib: 8192,
           avg_cpu_percent: 35,
+          planner_recommendations: [],
         },
       })
     }
@@ -1692,6 +1808,32 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.match(/\/hosts\/[^/]+\/detail/)) {
       return route.fulfill({ json: sampleHostDetail })
     }
+    if (url.match(/\/hosts\/[^/]+\/health-check/) && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          ok: true,
+          checks: [
+            { name: 'agent_ping', passed: true, message: 'QEMU guest agent reachable' },
+            { name: 'libvirt', passed: true, message: 'libvirtd active' },
+            { name: 'disk_pressure', passed: false, message: 'Root FS above 85%', remediation: 'Prune old VM snapshots' },
+          ],
+        },
+      })
+    }
+    if (url.match(/\/hosts\/[^/]+\/validate$/) && route.request().method() === 'GET') {
+      return route.fulfill({
+        json: {
+          ok: true,
+          checks: [
+            { name: 'tls_cert', passed: true, message: 'Agent certificate valid' },
+            { name: 'clock_skew', passed: true, message: 'Clock skew under 2s' },
+          ],
+        },
+      })
+    }
+    if (url.match(/\/hosts\/[^/]+$/) && route.request().method() === 'DELETE') {
+      return route.fulfill({ json: { deleted: true } })
+    }
     if (url.includes('/hosts')) {
       if (opts?.emptyStorage) {
         return route.fulfill({ json: [{ ...sampleHost, state: 'offline' }] })
@@ -1993,8 +2135,25 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.includes('/zeus-firewall/policies')) {
       return route.fulfill({ json: [{ id: 'p1', name: 'production-default', profile: 'ProductionServer', enabled: true }] })
     }
+    if (url.match(/\/api\/v1\/tasks\/[^/]+$/) && route.request().method() === 'GET') {
+      const taskId = url.split('/').pop() ?? ''
+      const task = platformTasks.find((t) => t.id === taskId || t.id.startsWith(taskId)) ?? platformTasks[0]
+      return route.fulfill({ json: task })
+    }
+    if (url.match(/\/api\/v1\/tasks(\?|$)/)) {
+      return route.fulfill({ json: platformTasks })
+    }
+    if (url.includes('/ai/autopilot/run') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          executed_count: 1,
+          skipped_count: 0,
+          results: [{ message: 'Restarted stale guest agent on vm-1' }],
+        },
+      })
+    }
     if (url.includes('/tasks')) {
-      return route.fulfill({ json: [] })
+      return route.fulfill({ json: platformTasks })
     }
     if (url.includes('/notifications')) {
       return route.fulfill({ json: [] })
