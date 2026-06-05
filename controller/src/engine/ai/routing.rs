@@ -126,3 +126,38 @@ pub async fn list_rules(pool: &PgPool) -> anyhow::Result<Vec<RoutingRuleRow>> {
         })
         .collect())
 }
+
+#[derive(Debug, Deserialize)]
+pub struct PatchRoutingRuleBody {
+    pub provider_id: Option<Uuid>,
+    pub model_id: Option<Uuid>,
+    pub enabled: bool,
+}
+
+pub async fn patch_rule(
+    pool: &PgPool,
+    task_class: &str,
+    body: &PatchRoutingRuleBody,
+) -> anyhow::Result<RoutingRuleRow> {
+    let row: (String, Option<Uuid>, Option<Uuid>, bool) = sqlx::query_as(
+        "INSERT INTO ai_routing_rules (task_class, provider_id, model_id, enabled)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (task_class) DO UPDATE SET
+            provider_id = EXCLUDED.provider_id,
+            model_id = EXCLUDED.model_id,
+            enabled = EXCLUDED.enabled
+         RETURNING task_class, provider_id, model_id, enabled",
+    )
+    .bind(task_class)
+    .bind(body.provider_id)
+    .bind(body.model_id)
+    .bind(body.enabled)
+    .fetch_one(pool)
+    .await?;
+    Ok(RoutingRuleRow {
+        task_class: row.0,
+        provider_id: row.1,
+        model_id: row.2,
+        enabled: row.3,
+    })
+}

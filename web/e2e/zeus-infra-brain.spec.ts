@@ -67,6 +67,38 @@ test('Stopped VM overview shows AI troubleshoot panel', async ({ page }) => {
   await expect(page.getByText('Memory pressure')).toBeVisible({ timeout: 10_000 })
 })
 
+test('Zeus settings shows enterprise posture and editable prompts', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/settings?section=zeus')
+  await expect(page.getByText('Enterprise Zeus posture')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('RCA template')).toBeVisible()
+  await page.getByRole('button', { name: 'Edit' }).click()
+  await page.locator('li.border input.input.text-sm').first().fill('Updated RCA')
+  await page.locator('li.border').getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByText('Updated RCA')).toBeVisible({ timeout: 10_000 })
+})
+
+test('AI Providers settings shows task-class routing table', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/settings?section=ai-providers')
+  await expect(page.getByRole('heading', { name: 'Task-class routing' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('Infrastructure')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save' }).first()).toBeVisible()
+})
+
+test('Graph Brain tab shows historical scrubber', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/zeus?tab=brain')
+  await expect(page.getByText('Time scrubber')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('Graph at scrubber')).toBeVisible({ timeout: 10_000 })
+})
+
+test('Zeus Memory tab shows clear memory action', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/zeus?tab=memory')
+  await expect(page.getByRole('button', { name: 'Clear memory' })).toBeVisible({ timeout: 15_000 })
+})
+
 test('AI export and copilot stream mocks respond with credentials', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'advanced' })
   await page.goto('/platform/reports')

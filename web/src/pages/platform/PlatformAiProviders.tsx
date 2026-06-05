@@ -9,10 +9,13 @@ import {
   deleteAiProvider,
   listAiProviderModels,
   listAiProviders,
+  listAiRoutingRules,
   patchAiProvider,
+  patchAiRoutingRule,
   testAiProvider,
   type AiModelRow,
   type AiProviderRow,
+  type RoutingRuleRow,
 } from '../../api/ai'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
@@ -22,25 +25,61 @@ const PROVIDER_KINDS = [
   'azure_openai', 'ollama', 'vllm', 'openai_compatible',
 ]
 
+const TASK_CLASS_LABELS: Record<string, string> = {
+  infrastructure: 'Infrastructure',
+  code_generation: 'Code generation',
+  security_analysis: 'Security analysis',
+  research: 'Research',
+  long_context: 'Long context',
+  fast_local: 'Fast local',
+}
+
+const TASK_CLASSES = Object.keys(TASK_CLASS_LABELS)
+
+type RuleDraft = {
+  provider_id: string
+  model_id: string
+  enabled: boolean
+}
+
 export default function PlatformAiProviders({ embedded }: { embedded?: boolean } = {}) {
   const toast = useToastContext()
   const [providers, setProviders] = useState<AiProviderRow[]>([])
   const [models, setModels] = useState<AiModelRow[]>([])
   const [selected, setSelected] = useState<string | null>(null)
+  const [rules, setRules] = useState<RoutingRuleRow[]>([])
+  const [ruleDrafts, setRuleDrafts] = useState<Record<string, RuleDraft>>({})
+  const [ruleModels, setRuleModels] = useState<Record<string, AiModelRow[]>>({})
   const [name, setName] = useState('OpenAI')
   const [kind, setKind] = useState('openai')
   const [baseUrl, setBaseUrl] = useState('')
   const [modelId, setModelId] = useState('gpt-4o-mini')
   const [apiKey, setApiKey] = useState('')
 
+  const syncRuleDrafts = useCallback((rows: RoutingRuleRow[]) => {
+    const drafts: Record<string, RuleDraft> = {}
+    for (const tc of TASK_CLASSES) {
+      const row = rows.find((r) => r.task_class === tc)
+      drafts[tc] = {
+        provider_id: row?.provider_id ?? '',
+        model_id: row?.model_id ?? '',
+        enabled: row?.enabled ?? true,
+      }
+    }
+    setRuleDrafts(drafts)
+  }, [])
+
   const load = useCallback(async () => {
     const rows = await listAiProviders()
     setProviders(rows)
+    const routing = await listAiRoutingRules().catch(() => [] as RoutingRuleRow[])
+    setRules(routing)
+    syncRuleDrafts(routing)
     if (rows[0] && !selected) {
       setSelected(rows[0].id)
       setModels(await listAiProviderModels(rows[0].id).catch(() => []))
     }
-  }, [selected])
+  }, [selected, syncRuleDrafts])
 
   useEffect(() => { void load().catch(() => {}) }, [load])
 
@@ -48,6 +87,40 @@ export default function PlatformAiProviders({ embedded }: { embedded?: boolean }
     if (!selected) return
     void listAiProviderModels(selected).then(setModels).catch(() => setModels([]))
   }, [selected])
+
+  const loadModelsForProvider = async (providerId: string) => {
+    if (!providerId) {
+      setRuleModels((prev) => ({ ...prev, [providerId]: [] }))
+      return
+    }
+    const m = await listAiProviderModels(providerId).catch(() => [])
+    setRuleModels((prev) => ({ ...prev, [providerId]: m }))
+  }
+
+  useEffect(() => {
+    const ids = new Set(Object.values(ruleDrafts).map((d) => d.provider_id).filter(Boolean))
+    for (const id of ids) {
+      if (!ruleModels[id]) void loadModelsForProvider(id)
+    }
+  }, [ruleDrafts, ruleModels])
+
+  const saveRule = async (taskClass: string) => {
+    const draft = ruleDrafts[taskClass]
+    if (!draft) return
+    try {
+      await patchAiRoutingRule(taskClass, {
+        provider_id: draft.provider_id || null,
+        model_id: draft.model_id || null,
+        enabled: draft.enabled,
+      })
+      toast.success(`Routing saved for ${TASK_CLASS_LABELS[taskClass] ?? taskClass}`)
+      const routing = await listAiRoutingRules()
+      setRules(routing)
+      syncRuleDrafts(routing)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    }
+  }
 
   return (
     <PlatformPageChrome
@@ -131,6 +204,53 @@ export default function PlatformAiProviders({ embedded }: { embedded?: boolean }
             Models: {models.map((m) => m.display_name).join(', ')}
           </div>
         )}
+      </MacGlassPanel>
+
+      <MacGlassPanel title="Task-class routing" subtitle="Map Zeus task classes to provider and model">
+        <div className="space-y-2">
+          {TASK_CLASSES.map((tc) => {
+            const draft = ruleDrafts[tc] ?? { provider_id: '', model_id: '', enabled: true }
+            const modelsForRule = draft.provider_id ? (ruleModels[draft.provider_id] ?? []) : []
+            return (
+              <div key={tc} className="grid gap-2 sm:grid-cols-[10rem_1fr_1fr_auto_auto] items-center text-sm border border-white/[0.06] rounded-lg p-2">
+                <span className="font-medium text-slate-200">{TASK_CLASS_LABELS[tc]}</span>
+                <select
+                  className="input text-xs"
+                  value={draft.provider_id}
+                  onChange={(e) => {
+                    const provider_id = e.target.value
+                    setRuleDrafts((prev) => ({ ...prev, [tc]: { ...draft, provider_id, model_id: '' } }))
+                    if (provider_id) void loadModelsForProvider(provider_id)
+                  }}
+                >
+                  <option value="">Default routing</option>
+                  {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <select
+                  className="input text-xs"
+                  value={draft.model_id}
+                  disabled={!draft.provider_id}
+                  onChange={(e) => setRuleDrafts((prev) => ({ ...prev, [tc]: { ...draft, model_id: e.target.value } }))}
+                >
+                  <option value="">Any model</option>
+                  {modelsForRule.map((m) => <option key={m.id} value={m.id}>{m.display_name}</option>)}
+                </select>
+                <label className="flex items-center gap-1 text-xs text-slate-400">
+                  <input
+                    type="checkbox"
+                    checked={draft.enabled}
+                    onChange={(e) => setRuleDrafts((prev) => ({ ...prev, [tc]: { ...draft, enabled: e.target.checked } }))}
+                  />
+                  On
+                </label>
+                <button type="button" className="btn-secondary text-xs" onClick={() => void saveRule(tc)}>Save</button>
+              </div>
+            )
+          })}
+          {rules.length === 0 && providers.length > 0 && (
+            <p className="text-xs text-slate-500">No custom rules yet — defaults apply until you save a row.</p>
+          )}
+        </div>
       </MacGlassPanel>
     </PlatformPageChrome>
   )

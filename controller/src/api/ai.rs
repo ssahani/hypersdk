@@ -1031,6 +1031,19 @@ pub async fn list_routing_rules(
         .map(Json)
 }
 
+pub async fn patch_routing_rule(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    axum::extract::Path(task_class): axum::extract::Path<String>,
+    Json(body): Json<ai::routing::PatchRoutingRuleBody>,
+) -> Result<Json<ai::routing::RoutingRuleRow>, ApiError> {
+    crate::auth::require_admin(&actor)?;
+    ai::routing::patch_rule(&state.pool, &task_class, &body)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
 pub async fn list_zeus_agents(
     State(_state): State<AppState>,
 ) -> Result<Json<Vec<ai::agents::ZeusAgentInfo>>, ApiError> {
@@ -1231,6 +1244,21 @@ pub async fn zeus_enterprise_overview(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<ai::enterprise_zeus::ZeusEnterpriseOverview>, ApiError> {
+    ai::enterprise_zeus::overview(&state.pool, &actor.username)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn patch_zeus_enterprise_overview(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Json(body): Json<ai::enterprise_zeus::ZeusEnterprisePatch>,
+) -> Result<Json<ai::enterprise_zeus::ZeusEnterpriseOverview>, ApiError> {
+    ai::enterprise_zeus::require_zeus_admin(&actor)?;
+    ai::enterprise_zeus::patch(&state.pool, &body)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     ai::enterprise_zeus::overview(&state.pool, &actor.username)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))

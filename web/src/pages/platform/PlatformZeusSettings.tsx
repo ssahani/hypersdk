@@ -9,34 +9,61 @@ import {
   createAiPrompt,
   deleteAiPrompt,
   getMemorySettings,
+  getZeusEnterpriseOverview,
   installAgentMarketplace,
   listAgentMarketplace,
   listAiPrompts,
+  patchAiPrompt,
   patchMemorySettings,
+  patchZeusEnterprise,
+  purgeMemory,
   uninstallAgentMarketplace,
   type AgentPluginRow,
   type AiPromptRow,
+  type MemorySettings,
+  type ZeusEnterpriseOverview,
 } from '../../api/ai'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { hubLinkClasses } from '../../utils/semanticColors'
+import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
 
 export default function PlatformZeusSettings({ embedded }: { embedded?: boolean } = {}) {
   const toast = useToastContext()
   const [prompts, setPrompts] = useState<AiPromptRow[]>([])
   const [agents, setAgents] = useState<AgentPluginRow[]>([])
-  const [memoryEnabled, setMemoryEnabled] = useState(true)
+  const [memory, setMemory] = useState<MemorySettings>({
+    enabled: true,
+    team_scope: false,
+    project_scope: true,
+    retention_days: 90,
+  })
+  const [enterprise, setEnterprise] = useState<ZeusEnterpriseOverview | null>(null)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editBody, setEditBody] = useState('')
+  const [editTags, setEditTags] = useState('')
+  const [editAgent, setEditAgent] = useState('auto')
+  const [purging, setPurging] = useState(false)
 
   const load = useCallback(async () => {
     setPrompts(await listAiPrompts().catch(() => []))
     setAgents(await listAgentMarketplace().catch(() => []))
     const mem = await getMemorySettings().catch(() => null)
-    if (mem) setMemoryEnabled(mem.enabled)
+    if (mem) setMemory(mem)
+    setEnterprise(await getZeusEnterpriseOverview().catch(() => null))
   }, [])
 
   useEffect(() => { void load() }, [load])
+
+  const startEdit = (p: AiPromptRow) => {
+    setEditingId(p.id)
+    setEditTitle(p.title)
+    setEditBody(p.body)
+    setEditTags((p.tags ?? []).join(', '))
+    setEditAgent(p.agent_id || 'auto')
+  }
 
   return (
     <PlatformPageChrome
@@ -52,18 +79,113 @@ export default function PlatformZeusSettings({ embedded }: { embedded?: boolean 
         <Link to="/platform/zeus/approvals" className={hubLinkClasses()}>Zeus approvals queue →</Link>
         {' '}Review pending AI actions before they run on the fleet.
       </p>
+
+      {enterprise && (
+        <MacGlassPanel title="Enterprise Zeus posture" subtitle="RBAC, air-gap LLM, and audit activity">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+            <p className="text-slate-300">Admin: <span className={enterprise.zeus_admin_role ? 'text-emerald-400' : 'text-slate-500'}>{enterprise.zeus_admin_role ? 'yes' : 'no'}</span></p>
+            <p className="text-slate-300">Execute: <span className={enterprise.zeus_execute_role ? 'text-emerald-400' : 'text-slate-500'}>{enterprise.zeus_execute_role ? 'yes' : 'no'}</span></p>
+            <p className="text-slate-300">Read: <span className="text-emerald-400">{enterprise.zeus_read_role ? 'yes' : 'no'}</span></p>
+            <p className="text-slate-300">Audit 24h: <span className="text-slate-200">{enterprise.audit_events_24h}</span></p>
+          </div>
+          <p className="text-xs text-slate-500 mt-2">
+            SCIM {enterprise.scim_enabled ? 'on' : 'off'} · SSO {enterprise.sso_configured ? 'configured' : 'not configured'}
+          </p>
+          {enterprise.zeus_admin_role && (
+            <label className="flex items-center gap-2 text-sm mt-3">
+              <input
+                type="checkbox"
+                checked={enterprise.air_gap_llm}
+                onChange={(e) => setEnterprise({ ...enterprise, air_gap_llm: e.target.checked })}
+              />
+              Air-gap LLM (local providers only)
+            </label>
+          )}
+          {enterprise.zeus_admin_role && (
+            <button
+              type="button"
+              className="btn-secondary text-xs mt-2"
+              onClick={async () => {
+                try {
+                  setEnterprise(await patchZeusEnterprise({ air_gap_llm: enterprise.air_gap_llm }))
+                  toast.success('Enterprise Zeus settings saved')
+                } catch (e: unknown) { toast.error(formatUserError(e)) }
+              }}
+            >
+              Save air-gap setting
+            </button>
+          )}
+        </MacGlassPanel>
+      )}
+
       <MacGlassPanel title="Memory" subtitle="Enterprise controls for conversation and infrastructure recall">
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={memoryEnabled} onChange={(e) => setMemoryEnabled(e.target.checked)} />
-          Enable Zeus memory
-        </label>
-        <button type="button" className="btn-secondary mt-3" onClick={async () => {
-          try {
-            await patchMemorySettings({ enabled: memoryEnabled })
-            toast.success('Memory settings saved')
-          } catch (e: unknown) { toast.error(formatUserError(e)) }
-        }}>Save memory settings</button>
+        <div className="space-y-3 text-sm">
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={memory.enabled} onChange={(e) => setMemory({ ...memory, enabled: e.target.checked })} />
+            Enable Zeus memory
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={memory.team_scope} onChange={(e) => setMemory({ ...memory, team_scope: e.target.checked })} />
+            Team-scoped memory
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={memory.project_scope} onChange={(e) => setMemory({ ...memory, project_scope: e.target.checked })} />
+            Project-scoped memory
+          </label>
+          <label className="block text-xs text-slate-500">
+            Retention (days)
+            <input
+              type="number"
+              min={1}
+              max={365}
+              className="input mt-1 block w-24 text-sm"
+              value={memory.retention_days}
+              onChange={(e) => setMemory({ ...memory, retention_days: Number(e.target.value) })}
+            />
+          </label>
+        </div>
+        <div className="flex flex-wrap gap-2 mt-3">
+          <button type="button" className="btn-secondary text-xs" onClick={async () => {
+            try {
+              await patchMemorySettings(memory)
+              toast.success('Memory settings saved')
+            } catch (e: unknown) { toast.error(formatUserError(e)) }
+          }}>Save memory settings</button>
+          <button
+            type="button"
+            className="btn-danger text-xs"
+            disabled={purging}
+            onClick={async () => {
+              if (!window.confirm('Purge all infrastructure memory entries? This cannot be undone.')) return
+              setPurging(true)
+              try {
+                const r = await purgeMemory('all')
+                toast.success(`Purged ${r.deleted} memory entries`)
+              } catch (e: unknown) { toast.error(formatUserError(e)) }
+              finally { setPurging(false) }
+            }}
+          >
+            {purging ? 'Purging…' : 'Purge all memory'}
+          </button>
+          <button
+            type="button"
+            className="btn-secondary text-xs"
+            disabled={purging}
+            onClick={async () => {
+              if (!window.confirm('Purge your personal memory entries?')) return
+              setPurging(true)
+              try {
+                const r = await purgeMemory('user')
+                toast.success(`Purged ${r.deleted} entries`)
+              } catch (e: unknown) { toast.error(formatUserError(e)) }
+              finally { setPurging(false) }
+            }}
+          >
+            Purge my memory
+          </button>
+        </div>
       </MacGlassPanel>
+
       <MacGlassPanel title="Prompt library" subtitle="Infrastructure, security, Kubernetes, runbooks, SOPs">
         <div className="grid gap-2 mb-3">
           <input className="input" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -80,15 +202,50 @@ export default function PlatformZeusSettings({ embedded }: { embedded?: boolean 
         </div>
         <ul className="space-y-2 text-sm">
           {prompts.map((p) => (
-            <li key={p.id} className="flex items-start justify-between gap-2 border border-white/[0.06] rounded-lg p-2">
-              <div><p className="font-medium">{p.title}</p><p className="text-xs text-slate-500 line-clamp-2">{p.body}</p></div>
-              <button type="button" className="btn-secondary text-xs" onClick={async () => {
-                try { await deleteAiPrompt(p.id); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
-              }}>Delete</button>
+            <li key={p.id} className="border border-white/[0.06] rounded-lg p-2">
+              {editingId === p.id ? (
+                <div className="space-y-2">
+                  <input className="input text-sm" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                  <textarea className="input min-h-20 text-sm" value={editBody} onChange={(e) => setEditBody(e.target.value)} />
+                  <input className="input text-sm" placeholder="tags (comma-separated)" value={editTags} onChange={(e) => setEditTags(e.target.value)} />
+                  <input className="input text-sm" placeholder="agent_id" value={editAgent} onChange={(e) => setEditAgent(e.target.value)} />
+                  <div className="flex gap-2">
+                    <button type="button" className="btn-primary text-xs" onClick={async () => {
+                      try {
+                        await patchAiPrompt(p.id, {
+                          title: editTitle,
+                          body: editBody,
+                          tags: editTags.split(',').map((t) => t.trim()).filter(Boolean),
+                          agent_id: editAgent,
+                        })
+                        setEditingId(null)
+                        toast.success('Prompt updated')
+                        await load()
+                      } catch (e: unknown) { toast.error(formatUserError(e)) }
+                    }}>Save</button>
+                    <button type="button" className="btn-secondary text-xs" onClick={() => setEditingId(null)}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium">{p.title}</p>
+                    <p className="text-xs text-slate-500 line-clamp-2">{p.body}</p>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <button type="button" className="btn-secondary text-xs" onClick={() => startEdit(p)}>Edit</button>
+                    <button type="button" className="btn-secondary text-xs" onClick={async () => {
+                      try { await deleteAiPrompt(p.id); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
+                    }}>Delete</button>
+                  </div>
+                </div>
+              )}
             </li>
           ))}
+          {prompts.length === 0 && <p className={`text-sm ${statusToneClass('warn')}`}>No prompts yet.</p>}
         </ul>
       </MacGlassPanel>
+
       <MacGlassPanel title="Agent marketplace" subtitle="Install specialist agents (AWS, Terraform, FinOps, …)">
         <div className="space-y-2">
           {agents.map((a) => (

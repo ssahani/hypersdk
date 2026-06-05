@@ -201,6 +201,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/ai/providers/{id}/models", get(ai::list_ai_provider_models))
         .route("/api/v1/ai/providers/{id}/test", post(ai::test_ai_provider))
         .route("/api/v1/ai/routing/rules", get(ai::list_routing_rules))
+        .route(
+            "/api/v1/ai/routing/rules/{task_class}",
+            patch(ai::patch_routing_rule),
+        )
         .route("/api/v1/ai/agents", get(ai::list_zeus_agents))
         .route("/api/v1/ai/zeus/chat", post(ai::zeus_chat))
         .route("/api/v1/ai/prompts", get(ai::list_ai_prompts).post(ai::create_ai_prompt))
@@ -223,7 +227,10 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/ai/marketplace/agents/{slug}/uninstall",
             post(ai::uninstall_agent_marketplace),
         )
-        .route("/api/v1/ai/enterprise/zeus", get(ai::zeus_enterprise_overview))
+        .route(
+            "/api/v1/ai/enterprise/zeus",
+            get(ai::zeus_enterprise_overview).patch(ai::patch_zeus_enterprise_overview),
+        )
         .route("/api/v1/ai/zeus/plan", post(ai::zeus_autonomous_plan))
         .route("/api/v1/ai/zeus/execute", post(ai::zeus_autonomous_execute))
         .route("/api/v1/baremetal/servers", get(baremetal::list_servers).post(baremetal::register_server))

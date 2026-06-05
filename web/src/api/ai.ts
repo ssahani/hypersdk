@@ -825,6 +825,43 @@ export const testAiProvider = (id: string) =>
 export const listAiProviderModels = (id: string) =>
   platformFetch<AiModelRow[]>(`/api/v1/ai/providers/${id}/models`)
 
+export interface RoutingRuleRow {
+  task_class: string
+  provider_id: string | null
+  model_id: string | null
+  enabled: boolean
+}
+
+export const listAiRoutingRules = () => platformFetch<RoutingRuleRow[]>('/api/v1/ai/routing/rules')
+
+export const patchAiRoutingRule = (
+  taskClass: string,
+  body: { provider_id?: string | null; model_id?: string | null; enabled: boolean },
+) =>
+  platformFetch<RoutingRuleRow>(`/api/v1/ai/routing/rules/${encodeURIComponent(taskClass)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+
+export interface ZeusEnterpriseOverview {
+  zeus_admin_role: boolean
+  zeus_execute_role: boolean
+  zeus_read_role: boolean
+  air_gap_llm: boolean
+  audit_events_24h: number
+  scim_enabled: boolean
+  sso_configured: boolean
+}
+
+export const getZeusEnterpriseOverview = () =>
+  platformFetch<ZeusEnterpriseOverview>('/api/v1/ai/enterprise/zeus')
+
+export const patchZeusEnterprise = (body: { air_gap_llm?: boolean }) =>
+  platformFetch<ZeusEnterpriseOverview>('/api/v1/ai/enterprise/zeus', {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+
 export const listZeusAgents = () => platformFetch<ZeusAgentInfo[]>('/api/v1/ai/agents')
 
 export const zeusChat = (body: {
@@ -840,12 +877,19 @@ export const zeusChat = (body: {
 export const listAiPrompts = () => platformFetch<AiPromptRow[]>('/api/v1/ai/prompts')
 export const createAiPrompt = (body: Record<string, unknown>) =>
   platformFetch<AiPromptRow>('/api/v1/ai/prompts', { method: 'POST', body: JSON.stringify(body) })
+export const patchAiPrompt = (
+  id: string,
+  body: { title?: string; body?: string; tags?: string[]; agent_id?: string },
+) =>
+  platformFetch<AiPromptRow>(`/api/v1/ai/prompts/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 export const deleteAiPrompt = (id: string) =>
   platformFetch<{ deleted: boolean }>(`/api/v1/ai/prompts/${id}`, { method: 'DELETE' })
 
 export const getMemorySettings = () => platformFetch<MemorySettings>('/api/v1/ai/memory/settings')
 export const patchMemorySettings = (body: Partial<MemorySettings>) =>
   platformFetch<MemorySettings>('/api/v1/ai/memory/settings', { method: 'PATCH', body: JSON.stringify(body) })
+export const purgeMemory = (scope: 'all' | 'user' = 'all') =>
+  platformFetch<{ deleted: number }>(`/api/v1/ai/memory?scope=${encodeURIComponent(scope)}`, { method: 'DELETE' })
 
 export const createZeusAction = (body: {
   action_type: string

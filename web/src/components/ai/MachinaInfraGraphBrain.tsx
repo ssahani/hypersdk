@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { GitBranch, Search } from 'lucide-react'
 import { MacGlassPanel } from '../platform/mac/PlatformMacUi'
 import MachinaExplainObjectPanel from './MachinaExplainObjectPanel'
+import InfraGraphScrubberPanel from './InfraGraphScrubberPanel'
 import {
   explainInfraPath,
   getInfraGraph,
@@ -78,6 +79,8 @@ export default function MachinaInfraGraphBrain() {
           {graph.node_count} nodes · {graph.edge_count} edges (hosts, VMs, storage, networks, firewall, backups, apps)
         </p>
       )}
+
+      <InfraGraphScrubberPanel hours={4} />
 
       {selected && (
         <MachinaExplainObjectPanel

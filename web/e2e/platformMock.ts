@@ -323,6 +323,7 @@ export async function mockPlatformApi(page: Page, opts?: {
   const vmFixture = opts?.stoppedVm
     ? { ...sampleVm, observed_state: 'stopped', desired_state: 'stopped', lifecycle_phase: 'idle' }
     : sampleVm
+  let promptTitle = 'RCA template'
   let storagePools: Array<{ id: string; name: string; path: string; capacity_gib: number; used_gib: number }> =
     opts?.emptyStorage ? [] : [{ id: 'p1', name: 'default', path: '/var/lib/libvirt/images', capacity_gib: 500, used_gib: 12 }]
   await page.addInitScript((t) => {
@@ -631,6 +632,100 @@ export async function mockPlatformApi(page: Page, opts?: {
           notes: 'Mock terminal suggestions',
         },
       })
+    }
+    if (url.includes('/ai/routing/rules') && route.request().method() === 'PATCH') {
+      return route.fulfill({
+        json: { task_class: 'infrastructure', provider_id: 'prov-1', model_id: 'mod-1', enabled: true },
+      })
+    }
+    if (url.includes('/ai/routing/rules')) {
+      return route.fulfill({
+        json: [
+          { task_class: 'infrastructure', provider_id: 'prov-1', model_id: 'mod-1', enabled: true },
+          { task_class: 'fast_local', provider_id: null, model_id: null, enabled: true },
+        ],
+      })
+    }
+    if (url.includes('/ai/enterprise/zeus') && route.request().method() === 'PATCH') {
+      return route.fulfill({
+        json: {
+          zeus_admin_role: true,
+          zeus_execute_role: true,
+          zeus_read_role: true,
+          air_gap_llm: true,
+          audit_events_24h: 42,
+          scim_enabled: false,
+          sso_configured: false,
+        },
+      })
+    }
+    if (url.includes('/ai/enterprise/zeus')) {
+      return route.fulfill({
+        json: {
+          zeus_admin_role: true,
+          zeus_execute_role: true,
+          zeus_read_role: true,
+          air_gap_llm: false,
+          audit_events_24h: 42,
+          scim_enabled: false,
+          sso_configured: false,
+        },
+      })
+    }
+    if (url.includes('/ai/memory/settings') && route.request().method() === 'PATCH') {
+      return route.fulfill({
+        json: { enabled: true, team_scope: false, project_scope: true, retention_days: 90 },
+      })
+    }
+    if (url.includes('/ai/memory/settings')) {
+      return route.fulfill({
+        json: { enabled: true, team_scope: false, project_scope: true, retention_days: 90 },
+      })
+    }
+    if (url.match(/\/ai\/memory(\?|$)/) && route.request().method() === 'DELETE') {
+      return route.fulfill({ json: { deleted: 5 } })
+    }
+    if (url.match(/\/ai\/prompts\/[^/]+$/) && route.request().method() === 'PATCH') {
+      try {
+        const body = JSON.parse(route.request().postData() ?? '{}') as { title?: string }
+        if (body.title) promptTitle = body.title
+      } catch { /* empty */ }
+      return route.fulfill({
+        json: { id: 'p1', scope: 'personal', title: promptTitle, body: 'Updated body', tags: ['infrastructure'], agent_id: 'auto' },
+      })
+    }
+    if (url.includes('/ai/prompts') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: { id: 'p2', scope: 'personal', title: 'New prompt', body: 'Body', tags: [], agent_id: 'auto' },
+      })
+    }
+    if (url.includes('/ai/prompts')) {
+      return route.fulfill({
+        json: [{ id: 'p1', scope: 'personal', title: promptTitle, body: 'Analyze host pressure', tags: ['infrastructure'], agent_id: 'auto' }],
+      })
+    }
+    if (url.match(/\/ai\/providers\/[^/]+\/models/)) {
+      return route.fulfill({
+        json: [{ id: 'mod-1', provider_id: 'prov-1', model_id: 'gpt-4o-mini', display_name: 'gpt-4o-mini', context_window: 128000, enabled: true }],
+      })
+    }
+    if (url.includes('/ai/providers')) {
+      return route.fulfill({
+        json: [{
+          id: 'prov-1',
+          name: 'OpenAI',
+          kind: 'openai',
+          base_url: '',
+          org_id: '',
+          deployment_name: '',
+          api_key_configured: true,
+          enabled: true,
+          is_default: true,
+        }],
+      })
+    }
+    if (url.includes('/ai/marketplace/agents')) {
+      return route.fulfill({ json: [] })
     }
     if (url.includes('/ai/autopilot/propose')) {
       return route.fulfill({

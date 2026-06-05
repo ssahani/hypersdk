@@ -7,12 +7,17 @@ import { MacGlassPanel } from '../platform/mac/PlatformMacUi'
 import {
   getInfrastructureMemory,
   getMemoryChangesBefore,
+  purgeMemory,
   type InfrastructureMemory,
 } from '../../api/ai'
+import { useToastContext } from '../../contexts/ToastContext'
+import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
 
 export default function MachinaInfrastructureMemory() {
+  const toast = useToastContext()
   const [memory, setMemory] = useState<InfrastructureMemory | null>(null)
+  const [purging, setPurging] = useState(false)
   const [hoursBefore, setHoursBefore] = useState(4)
   const [changesSummary, setChangesSummary] = useState<string | null>(null)
   const [changes, setChanges] = useState<Array<{ at: string; kind: string; summary: string; actor: string }>>([])
@@ -46,7 +51,32 @@ export default function MachinaInfrastructureMemory() {
 
   return (
     <div className="space-y-4">
-      <MacGlassPanel title="Infrastructure memory" subtitle="Persisted incidents and lessons from RCA">
+      <MacGlassPanel
+        title="Infrastructure memory"
+        subtitle="Persisted incidents and lessons from RCA"
+        action={
+          <button
+            type="button"
+            className="btn-danger text-xs"
+            disabled={purging}
+            onClick={async () => {
+              if (!window.confirm('Clear all infrastructure memory entries?')) return
+              setPurging(true)
+              try {
+                const r = await purgeMemory('all')
+                toast.success(`Cleared ${r.deleted} entries`)
+                await load()
+              } catch (e: unknown) {
+                toast.error(formatUserError(e))
+              } finally {
+                setPurging(false)
+              }
+            }}
+          >
+            {purging ? 'Clearing…' : 'Clear memory'}
+          </button>
+        }
+      >
         {error && <p className={`text-sm ${statusToneClass('error')}`}>{error}</p>}
         <p className="text-sm text-slate-400">
           {memory?.incidents.length ?? 0} remembered incident(s)
