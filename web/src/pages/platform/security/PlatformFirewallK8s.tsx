@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { ArrowLeft, CheckCircle2, GitBranch, XCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, GitBranch, Radar, XCircle } from 'lucide-react'
+import { installK8sTetragon, getK8sExportStatus, type K8sExportForwarderStatus } from '../../../api/zeusSecurity'
 import { MacGlassPanel, MacSheet } from '../../../components/platform/mac/PlatformMacUi'
 import PageLayout from '../../../components/PageLayout'
 import CopyButton from '../../../components/CopyButton'
 import { getK8sFirewallStatus, planK8sFirewall, applyK8sFirewall } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
-import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../../utils/semanticColors'
 import { useToastContext } from '../../../contexts/ToastContext'
 
 export default function PlatformFirewallK8s() {
@@ -20,6 +21,10 @@ export default function PlatformFirewallK8s() {
   const [manifestYaml, setManifestYaml] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [clusterId, setClusterId] = useState('k3s')
+  const [exportNs, setExportNs] = useState('kube-system')
+  const [exportStatus, setExportStatus] = useState<K8sExportForwarderStatus | null>(null)
+  const [tetragonBusy, setTetragonBusy] = useState(false)
 
   useEffect(() => {
     getK8sFirewallStatus()
@@ -55,6 +60,60 @@ export default function PlatformFirewallK8s() {
             <p className="text-sm text-slate-100">{ready ? 'kubectl reachable' : 'Cluster not ready'}</p>
             <p className="text-xs text-slate-500">Backend: {backend}</p>
           </div>
+        </div>
+      </MacGlassPanel>
+      <MacGlassPanel title="PacketWolf Tetragon (cluster)" subtitle="Helm install + export forwarder readiness">
+        <div className="space-y-3 max-w-lg text-sm">
+          <label className="block text-xs text-slate-500">Cluster ID</label>
+          <input className="input text-sm w-full font-mono" value={clusterId} onChange={(e) => setClusterId(e.target.value)} placeholder="k3s" />
+          <label className="block text-xs text-slate-500">Export namespace</label>
+          <input className="input text-sm w-full font-mono" value={exportNs} onChange={(e) => setExportNs(e.target.value)} />
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn-secondary text-xs inline-flex items-center gap-1"
+              disabled={tetragonBusy || !clusterId.trim()}
+              onClick={() => {
+                setTetragonBusy(true)
+                void installK8sTetragon(clusterId.trim())
+                  .then((r) => toast.success(r.summary || 'Tetragon install queued'))
+                  .catch((e: unknown) => toast.error(formatUserError(e)))
+                  .finally(() => setTetragonBusy(false))
+              }}
+            >
+              <Radar className="w-3.5 h-3.5" /> Install Tetragon
+            </button>
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              disabled={tetragonBusy || !clusterId.trim()}
+              onClick={() => {
+                setTetragonBusy(true)
+                void getK8sExportStatus(clusterId.trim(), exportNs.trim() || 'kube-system')
+                  .then(setExportStatus)
+                  .catch((e: unknown) => {
+                    setExportStatus(null)
+                    toast.error(formatUserError(e))
+                  })
+                  .finally(() => setTetragonBusy(false))
+              }}
+            >
+              Check export forwarder
+            </button>
+          </div>
+          {exportStatus && (
+            <div className={`rounded-lg border p-3 text-xs ${statusSurfaceClasses(exportStatus.forwarder_deployed ? 'ok' : 'warn')}`}>
+              <p className="font-medium text-slate-200">
+                {exportStatus.forwarder_deployed ? 'Forwarder deployed' : 'Forwarder not ready'}
+                {' · '}
+                {exportStatus.ready_replicas} ready replica(s)
+              </p>
+              <p className="text-slate-500 mt-1">{exportStatus.message}</p>
+              {exportStatus.export_url && (
+                <p className="font-mono text-slate-400 mt-1 truncate">{exportStatus.export_url}</p>
+              )}
+            </div>
+          )}
         </div>
       </MacGlassPanel>
       <MacGlassPanel title="Apply profile to namespace">

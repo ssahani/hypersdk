@@ -1,0 +1,47 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import { test, expect } from '@playwright/test'
+import { mockPlatformApi } from './platformMock'
+
+test('guest health shows live observability refresh', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/vms/v1?tab=guestHealth')
+  await expect(page.getByText('Live guest observability')).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: 'Refresh guest observability' }).click()
+  await expect(page.getByText('Cloud-init')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('done', { exact: true })).toBeVisible()
+})
+
+test('snapshots quiesce shows fs-freeze polling banner', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/vms/v1?tab=snapshots')
+  await page.getByLabel('Guest quiesce').check()
+  await expect(page.getByText('Guest filesystems not frozen')).toBeVisible({ timeout: 10_000 })
+})
+
+test('machine security enforcement tab shows host policies', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/zeus/machines/h1')
+  await expect(page.getByRole('heading', { name: 'Machine security' })).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('tablist').getByRole('button', { name: 'More' }).click()
+  await page.getByRole('menuitem', { name: 'Enforcement' }).click()
+  await expect(page.getByText('Block reverse-shell listeners').first()).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('Fleet policies')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('button', { name: 'Apply here' })).toBeVisible()
+})
+
+test('k8s firewall shows tetragon install and export status', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/zeus/security/k8s')
+  await expect(page.getByRole('heading', { name: 'PacketWolf Tetragon (cluster)' })).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: 'Check export forwarder' }).click()
+  await expect(page.getByText('Forwarder deployed')).toBeVisible({ timeout: 10_000 })
+})
+
+test('storage pool snapshot policy loads on pools tab', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/storage?tab=pools')
+  await expect(page.getByRole('button', { name: 'Snapshot policy' }).first()).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: 'Snapshot policy' }).first().click()
+  await expect(page.getByText('14-day libvirt snapshot retention')).toBeVisible({ timeout: 10_000 })
+})

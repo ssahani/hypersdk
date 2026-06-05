@@ -1062,6 +1062,15 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.includes('/networks') && !url.includes('/discover')) {
       return route.fulfill({ json: [] })
     }
+    if (url.includes('/storage/pools/') && url.includes('/snapshot-policy')) {
+      return route.fulfill({
+        json: {
+          pool_name: 'default',
+          snapshot_retention_days: 14,
+          summary: 'Tier silver · 14-day libvirt snapshot retention',
+        },
+      })
+    }
     if (url.includes('/storage/pools') && route.request().method() === 'POST') {
       return route.fulfill({
         json: { id: 'p2', name: 'datastore-01', path: '/var/lib/libvirt/images', capacity_gib: 500, used_gib: 0, backend: 'directory' },
@@ -1313,6 +1322,31 @@ export async function mockPlatformApi(page: Page, opts?: {
         return route.fulfill({ json: { forwarded: 12, hours: 24 } })
       }
       return route.fulfill({ json: [] })
+    }
+    if (url.match(/\/zeus-security\/k8s\/[^/]+\/tetragon\/install/) && route.request().method() === 'POST') {
+      return route.fulfill({ json: { task_id: 'task-tetragon-k8s', summary: 'Tetragon Helm install queued for k3s' } })
+    }
+    if (url.match(/\/zeus-security\/k8s\/[^/]+\/export-status/)) {
+      return route.fulfill({
+        json: {
+          cluster_id: 'k3s',
+          host_id: 'h1',
+          namespace: 'kube-system',
+          forwarder_deployed: true,
+          ready_replicas: 1,
+          export_url: 'http://127.0.0.1:9091/api/v1/ingest',
+          message: 'Export forwarder ready',
+        },
+      })
+    }
+    if (url.match(/\/zeus-security\/hosts\/[^/]+\/enforcement/)) {
+      return route.fulfill({
+        json: {
+          mode: 'enforce',
+          summary: '1 policy applied on host-1',
+          policies: [{ id: 'pol-deny-nc', name: 'Block reverse-shell listeners', kind: 'deny_process', match: '/usr/bin/nc' }],
+        },
+      })
     }
     if (url.includes('/zeus-security/')) {
       if (url.includes('/status')) {
@@ -1686,6 +1720,27 @@ export async function mockPlatformApi(page: Page, opts?: {
     }
     if (url.match(/\/vms\/guest-health-fail\/guest\/health/)) {
       return route.fulfill({ status: 500, json: { error: 'guest health unavailable' } })
+    }
+    if (url.match(/\/vms\/[^/]+\/guest\/observability/)) {
+      return route.fulfill({
+        json: {
+          hostname: 'vm-1',
+          os_pretty_name: 'Ubuntu 24.04 LTS',
+          cloud_init_status: 'done',
+          filesystems: [{ mountpoint: '/', fs_type: 'ext4', used_bytes: 12e9, total_bytes: 40e9 }],
+          users: [{ username: 'ubuntu', login_time: new Date().toISOString() }],
+        },
+      })
+    }
+    if (url.match(/\/vms\/[^/]+\/guest\/fs-freeze-status/)) {
+      return route.fulfill({
+        json: {
+          action: 'fs_freeze_status',
+          ok: true,
+          message: 'Filesystems not frozen',
+          fs_freeze: { frozen: false, detail: 'No active quiesce' },
+        },
+      })
     }
     if (url.match(/\/vms\/[^/]+\/guest\/health/)) {
       return route.fulfill({

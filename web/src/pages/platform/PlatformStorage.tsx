@@ -36,6 +36,7 @@ import {
   type StoragePool,
   type StorageTierOverview,
 } from '../../api/platform'
+import { getStorageSnapshotPolicy as getPoolSnapshotPolicy } from '../../api/platformStorage'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import {statusBadgeClasses, statusToneClass, hubLinkClasses} from '../../utils/semanticColors'
@@ -73,8 +74,22 @@ export default function PlatformStorage() {
   const [slaRto, setSlaRto] = useState(4)
   const [slaRetention, setSlaRetention] = useState(30)
   const [slaSaving, setSlaSaving] = useState(false)
+  const [snapshotPolicies, setSnapshotPolicies] = useState<Record<string, { pool_name: string; snapshot_retention_days: number; summary: string }>>({})
+  const [snapshotPolicyLoading, setSnapshotPolicyLoading] = useState<string | null>(null)
 
   const tierName = (id?: string | null) => tiers.find((t) => t.id === id)?.name ?? null
+
+  const loadSnapshotPolicy = async (poolId: string) => {
+    setSnapshotPolicyLoading(poolId)
+    try {
+      const r = await getPoolSnapshotPolicy(poolId)
+      setSnapshotPolicies((prev) => ({ ...prev, [poolId]: r }))
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setSnapshotPolicyLoading(null)
+    }
+  }
 
   const load = useCallback(async (autoDiscover = false) => {
     setError(null)
@@ -393,6 +408,21 @@ export default function PlatformStorage() {
                           Bind
                         </button>
                       </div>
+                    )}
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs w-full"
+                      disabled={snapshotPolicyLoading === p.id}
+                      onClick={() => void loadSnapshotPolicy(p.id)}
+                    >
+                      {snapshotPolicyLoading === p.id ? 'Loading policy…' : 'Snapshot policy'}
+                    </button>
+                    {snapshotPolicies[p.id] && (
+                      <p className="text-xs text-slate-400">
+                        {snapshotPolicies[p.id].summary}
+                        {' · '}
+                        <span className="text-violet-300/90">{snapshotPolicies[p.id].snapshot_retention_days}d retention</span>
+                      </p>
                     )}
                     <button
                       type="button"

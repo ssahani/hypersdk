@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import PageLayout from '../../components/PageLayout'
 import { Link, useParams } from 'react-router'
-import { ArrowLeft, Radar } from 'lucide-react'
+import { ArrowLeft, Radar, Shield } from 'lucide-react'
 import {
   MacGlassPanel,
   MacListRow,
@@ -24,7 +24,11 @@ import {
   getHostSecuritySummary,
   getHostSecurityTimeline,
   getHostFabricStatus,
+  getHostEnforcement,
+  getEnforcementPolicies,
+  applyEnforcementPolicy,
   installTetragonSensor,
+  type EnforcementPolicy,
   type HostFabricStatusResponse,
   reconstructAttack,
   type SecurityEvent,
@@ -35,7 +39,7 @@ import AskZeusButton from '../../components/ai/AskZeusButton'
 import DetailTabs from '../../components/platform/DetailTabs'
 import { statusPillClasses, hubLinkClasses } from '../../utils/semanticColors'
 
-type TabId = 'processes' | 'connections' | 'dns' | 'ports' | 'files' | 'events' | 'containers' | 'users' | 'graph'
+type TabId = 'processes' | 'connections' | 'dns' | 'ports' | 'files' | 'events' | 'containers' | 'users' | 'graph' | 'enforcement'
 
 const PRIMARY_TABS: Array<{ id: TabId; label: string }> = [
   { id: 'processes', label: 'Processes' },
@@ -50,6 +54,7 @@ const MORE_TABS: Array<{ id: TabId; label: string; group?: string }> = [
   { id: 'files', label: 'Files', group: 'Artifacts' },
   { id: 'containers', label: 'Containers', group: 'Runtime' },
   { id: 'users', label: 'Users', group: 'Runtime' },
+  { id: 'enforcement', label: 'Enforcement', group: 'Runtime' },
 ]
 
 function eventRow(e: SecurityEvent) {
@@ -73,6 +78,8 @@ export default function PlatformMachineSecurity() {
   const [timeline, setTimeline] = useState<SecurityEvent[]>([])
   const [attackChain, setAttackChain] = useState<string[] | null>(null)
   const [fabricStatus, setFabricStatus] = useState<HostFabricStatusResponse | null>(null)
+  const [hostEnforcement, setHostEnforcement] = useState<Record<string, unknown> | null>(null)
+  const [enforcementPolicies, setEnforcementPolicies] = useState<EnforcementPolicy[]>([])
   const [explain, setExplain] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -110,6 +117,14 @@ export default function PlatformMachineSecurity() {
       } else if (tab === 'containers') {
         const r = await getHostContainers(hostId)
         setContainers(r as Record<string, unknown>)
+        setItems([])
+      } else if (tab === 'enforcement') {
+        const [enf, pol] = await Promise.all([
+          getHostEnforcement(hostId).catch(() => null),
+          getEnforcementPolicies().catch(() => ({ policies: [] as EnforcementPolicy[] })),
+        ])
+        setHostEnforcement(enf)
+        setEnforcementPolicies(pol.policies ?? [])
         setItems([])
       } else {
         setItems([])
@@ -216,6 +231,59 @@ export default function PlatformMachineSecurity() {
           <p className="text-sm text-slate-500 p-3">
             User session events correlate from process exec and privilege escalation timelines.
           </p>
+        ) : tab === 'enforcement' ? (
+          <div className="p-3 space-y-3 text-sm">
+            {hostEnforcement ? (
+              <>
+                <p className="text-slate-300">
+                  Mode: <span className="font-mono">{String(hostEnforcement.mode ?? 'observe')}</span>
+                  {' · '}
+                  {String(hostEnforcement.summary ?? 'Per-host Tetragon enforcement posture')}
+                </p>
+                {Array.isArray(hostEnforcement.policies) && (hostEnforcement.policies as unknown[]).length > 0 ? (
+                  <ul className="divide-y divide-white/[0.04] -mx-1">
+                    {(hostEnforcement.policies as Array<Record<string, unknown>>).map((p, i) => (
+                      <MacListRow
+                        key={String(p.id ?? i)}
+                        title={String(p.name ?? p.id ?? 'policy')}
+                        subtitle={[p.kind, p.match].filter(Boolean).map(String).join(' · ')}
+                      />
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-slate-500">No enforcement policies applied on this host yet.</p>
+                )}
+              </>
+            ) : (
+              <p className="text-slate-500">Enforcement status unavailable — ensure PacketWolf fabric is reachable.</p>
+            )}
+            {enforcementPolicies.length > 0 && (
+              <div className="pt-2 border-t border-white/[0.06] space-y-2">
+                <p className="text-xs text-slate-500 uppercase tracking-wider">Fleet policies</p>
+                {enforcementPolicies.slice(0, 5).map((p) => (
+                  <div key={p.id ?? p.name} className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-slate-300">{p.name}</span>
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs"
+                      disabled={!p.id}
+                      onClick={() => {
+                        if (!p.id || !hostId) return
+                        void applyEnforcementPolicy(p.id, [hostId])
+                          .then((r) => toast.success(r.summary || 'Policy applied'))
+                          .catch((e: unknown) => toast.error(formatUserError(e)))
+                      }}
+                    >
+                      Apply here
+                    </button>
+                  </div>
+                ))}
+                <Link to="/platform/zeus/security/enforcement" className={`text-xs inline-flex items-center gap-1 ${hubLinkClasses()}`}>
+                  <Shield className="w-3 h-3" /> Runtime enforcement workspace
+                </Link>
+              </div>
+            )}
+          </div>
         ) : items.length === 0 ? (
           <p className="text-sm text-slate-500 p-3">No events in this category. Enable PacketWolf + Tetragon sensor.</p>
         ) : (

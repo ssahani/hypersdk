@@ -11,6 +11,8 @@ import GuestAgentDiagnosticsPanel, {
   type RunGuestActionFn,
 } from '../../components/platform/GuestAgentDiagnosticsPanel'
 import GuestkitOfflineAssurancePanel from '../../components/platform/GuestkitOfflineAssurancePanel'
+import GuestFsFreezeBanner from '../../components/platform/GuestFsFreezeBanner'
+import GuestObservabilityStrip from '../../components/platform/GuestObservabilityStrip'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import GuestAiInsightsPanel from '../../components/platform/GuestAiInsightsPanel'
 import { getVmGuestAiInsights } from '../../api/platform'
@@ -883,6 +885,8 @@ export default function PlatformVmDetail() {
                   installing={guestInstalling}
                   onRunAction={runGuestAction}
                 />
+                <GuestObservabilityStrip vmId={id!} className="mt-4" />
+                <GuestFsFreezeBanner vmId={id!} className="mt-3" />
                 <div className="mt-4">
                   <GuestkitOfflineAssurancePanel
                     vmId={id!}
@@ -1090,6 +1094,9 @@ export default function PlatformVmDetail() {
                   <option value="external">External</option>
                 </select>
               </div>
+              {snapQuiesce && vm.observed_state === 'running' && (
+                <GuestFsFreezeBanner vmId={id!} poll className="mt-3" />
+              )}
               <div className="flex flex-wrap gap-2 mt-2">
                 <button
                   type="button"
