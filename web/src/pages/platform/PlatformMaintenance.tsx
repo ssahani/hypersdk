@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import {
   AlertTriangle,
   CalendarClock,
@@ -31,6 +31,7 @@ import {
   deleteMaintenanceSchedule,
   getFleetMaintenanceMission,
   getFleetUpdates,
+  getUpgradeMatrix,
   hostMaintenance,
   listMaintenanceSchedules,
   listPlatformHosts,
@@ -76,9 +77,16 @@ function stepTone(status: MaintenanceStepStatus): string {
 export default function PlatformMaintenance() {
   const toast = useToastContext()
   const [tier] = usePlatformDesktopTier()
+  const [searchParams] = useSearchParams()
   const [tab, setTab] = usePlatformTabState<TabId>(MAINTENANCE_TABS.map((t) => t.id), { defaultTab: 'updates' })
 
   const [fleet, setFleet] = useState<FleetUpdatesOverview | null>(null)
+  const [upgradeMatrix, setUpgradeMatrix] = useState<{
+    controller_version: string
+    recommended_agent: string
+    min_agent: string
+    notes: string
+  } | null>(null)
   const [mission, setMission] = useState<FleetMaintenanceMissionOverview | null>(null)
   const [rows, setRows] = useState<MaintenanceSchedule[]>([])
   const [hosts, setHosts] = useState<PlatformHost[]>([])
@@ -103,19 +111,21 @@ export default function PlatformMaintenance() {
     setLoadingUpdates(true)
     setError(null)
     try {
-      const data = await getFleetUpdates()
+      const [data, matrix] = await Promise.all([getFleetUpdates(), getUpgradeMatrix()])
       setFleet(data)
-      if (!defaultTabSet && data.hosts_with_updates > 0) {
+      setUpgradeMatrix(matrix)
+      if (!defaultTabSet && data.hosts_with_updates > 0 && !searchParams.get('tab')) {
         setDefaultTabSet(true)
         setTab('mission')
       }
     } catch (e: unknown) {
       setError(formatUserError(e))
       setFleet(null)
+      setUpgradeMatrix(null)
     } finally {
       setLoadingUpdates(false)
     }
-  }, [defaultTabSet, setTab])
+  }, [defaultTabSet, searchParams, setTab])
 
   const loadMission = useCallback(async () => {
     setError(null)
@@ -332,6 +342,28 @@ export default function PlatformMaintenance() {
                   <> · <span className="text-slate-300">{fleet.total_pending_packages}</span> pending package(s) counted</>
                 )}
               </p>
+              {upgradeMatrix && (
+                <MacGlassPanel title="Agent upgrade matrix" subtitle="Controller vs enrolled agent compatibility">
+                  <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt className="text-xs text-slate-500">Controller</dt>
+                      <dd className="font-mono text-slate-200">{upgradeMatrix.controller_version}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-slate-500">Recommended agent</dt>
+                      <dd className="font-mono text-slate-200">{upgradeMatrix.recommended_agent}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-slate-500">Minimum agent</dt>
+                      <dd className="font-mono text-slate-200">{upgradeMatrix.min_agent}</dd>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <dt className="text-xs text-slate-500">Notes</dt>
+                      <dd className="text-slate-300">{upgradeMatrix.notes}</dd>
+                    </div>
+                  </dl>
+                </MacGlassPanel>
+              )}
             </>
           )}
           {!fleet && loadingUpdates && (

@@ -27,6 +27,9 @@
     "/api/v1/ai/prompts/{id}": "page",
     "/api/v1/ai/memory": "page",
     "/api/v1/ai/enterprise/zeus": "page",
-    "/api/v1/ai/graph/at/{timestamp}": "page"
+    "/api/v1/ai/graph/at/{timestamp}": "page",
+    "/api/v1/zeus-security/search": "page",
+    "/api/v1/upgrade/matrix": "page",
+    "/api/v1/ai/twin/impact": "page"
   }
 }

@@ -195,7 +195,7 @@ export default function PlatformTopology() {
         </MacGlassPanel>
       )}
 
-      {graph?.warnings.map((w, i) => (
+      {graph?.warnings?.map((w, i) => (
         <div key={i} className={`rounded-xl p-3 text-sm ${statusSurfaceClasses('warn')}`}>
           {w.message}
         </div>

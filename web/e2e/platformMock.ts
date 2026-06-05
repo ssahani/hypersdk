@@ -871,6 +871,16 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.includes('/fleet/updates')) {
       return route.fulfill({ json: fleetUpdates })
     }
+    if (url.includes('/upgrade/matrix')) {
+      return route.fulfill({
+        json: {
+          controller_version: '0.1.0-test',
+          recommended_agent: '0.1.0-test',
+          min_agent: '0.0.9',
+          notes: 'Agents below minimum lose guest health and enforcement RPCs.',
+        },
+      })
+    }
     if (url.includes('/maintenance/schedules') && route.request().method() === 'POST') {
       if (url.includes('fail-schedule')) {
         return route.fulfill({ status: 500, json: { error: 'schedule failed' } })
@@ -1422,6 +1432,15 @@ export async function mockPlatformApi(page: Page, opts?: {
           },
         })
       }
+      if (url.includes('/search') && route.request().method() === 'POST') {
+        return route.fulfill({
+          json: {
+            results: [
+              { summary: 'nc listener on port 4444', host_id: 'h1', severity: 'critical', kind: 'process' },
+            ],
+          },
+        })
+      }
       if (url.includes('/correlations')) {
         return route.fulfill({
           json: { correlations: [{ severity: 'high', summary: 'Suspicious DNS cluster', host_id: 'h2' }] },
@@ -1679,6 +1698,46 @@ export async function mockPlatformApi(page: Page, opts?: {
       }
       const hosts = opts?.staleHost ? [sampleHost, staleHost] : [sampleHost]
       return route.fulfill({ json: hosts })
+    }
+    if (url.match(/\/api\/v1\/topology(\?|$)/)) {
+      return route.fulfill({
+        json: {
+          nodes: [
+            { id: 'h1', name: 'host-1', kind: 'host', state: 'online' },
+            { id: 'sw1', name: 'tor-1', kind: 'switch', state: 'up' },
+          ],
+          edges: [{ from: 'h1', to: 'sw1', label: 'uplink' }],
+          warnings: [],
+        },
+      })
+    }
+    if (url.includes('/ai/twin/graph')) {
+      return route.fulfill({
+        json: {
+          nodes: [
+            { id: 'h1', name: 'host-1', kind: 'host', state: 'online' },
+            { id: 'vm1', name: 'vm-1', kind: 'vm', state: 'running' },
+          ],
+          edges: [{ from: 'vm1', to: 'h1', label: 'runs_on' }],
+          node_count: 2,
+          edge_count: 1,
+        },
+      })
+    }
+    if (url.includes('/ai/twin/impact') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          action: 'shutdown',
+          target: 'host-1',
+          severity: 'high',
+          summary: '1 VM would lose compute if host-1 shuts down',
+          affected_vms: ['vm-1'],
+          affected_applications: ['web-tier'],
+          storage_risks: [],
+          network_notes: ['Default bridge segment isolated'],
+          recommendations: ['Evacuate vm-1 before maintenance'],
+        },
+      })
     }
     if (url.match(/\/vms\/[^/]+\/topology/)) {
       return route.fulfill({

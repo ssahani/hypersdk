@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { GitBranch, Zap } from 'lucide-react'
 import { MacGlassPanel } from '../platform/mac/PlatformMacUi'
 import {
+  analyzeTwinImpact,
   getDigitalTwinGraph,
-  simulateTwinBatch,
   type DigitalTwinGraph,
   type ImpactAnalysis,
 } from '../../api/ai'
@@ -49,12 +49,12 @@ export default function MachinaDigitalTwin() {
     setError(null)
     try {
       const action = simKind === 'network' || simKind === 'switch' ? 'isolate' : simKind === 'storage' ? 'drain' : simAction === 'failure' ? 'shutdown' : simAction
-      const batch = await simulateTwinBatch([{
+      const result = await analyzeTwinImpact({
         action,
         target_kind: simKind,
         target_id: hostId.trim(),
-      }])
-      setImpact(batch.results[0] ?? null)
+      })
+      setImpact(result)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Impact simulation failed')
     } finally {
@@ -101,7 +101,13 @@ export default function MachinaDigitalTwin() {
             ))}
           </select>
         </label>
-        <button type="button" className="btn-primary text-xs" disabled={busy} onClick={() => void simulate()}>
+        <button
+          type="button"
+          className="btn-primary text-xs"
+          disabled={busy}
+          data-testid="twin-impact-analyze"
+          onClick={() => void simulate()}
+        >
           {busy ? 'Simulating…' : 'What breaks?'}
         </button>
         {graph && (

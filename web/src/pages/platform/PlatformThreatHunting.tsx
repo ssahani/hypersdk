@@ -14,6 +14,7 @@ import {
   nlSecuritySearch,
   reconstructAttack,
   runHuntQuery,
+  searchZeusSecurity,
   type HuntQuery,
   type SecurityEvent,
 } from '../../api/zeusSecurity'
@@ -50,6 +51,8 @@ export default function PlatformThreatHunting() {
   const [correlations, setCorrelations] = useState<Array<Record<string, unknown>>>([])
   const [huntQueries, setHuntQueries] = useState<HuntQuery[]>([])
   const [query, setQuery] = useState('')
+  const [structuredQuery, setStructuredQuery] = useState('process.binary:nc')
+  const [structuredHostId, setStructuredHostId] = useState('')
   const [searchHits, setSearchHits] = useState<Array<{ summary: string; host_id?: string }>>([])
   const [searchMeta, setSearchMeta] = useState<{ query: string; llm?: boolean; count?: number; backend?: string } | null>(null)
   const [attackChain, setAttackChain] = useState<string[] | null>(null)
@@ -119,6 +122,24 @@ export default function PlatformThreatHunting() {
       .catch((e: unknown) => setError(formatUserError(e)))
   }
 
+  const runStructuredSearch = () => {
+    if (!structuredQuery.trim()) return
+    void searchZeusSecurity(structuredQuery.trim(), structuredHostId.trim() || undefined)
+      .then((r) => {
+        const hits = (r.results ?? []).slice(0, 12).map((row) => ({
+          summary: String(row.summary ?? row.kind ?? 'event'),
+          host_id: row.host_id ? String(row.host_id) : undefined,
+        }))
+        setSearchHits(hits)
+        setSearchMeta({
+          query: structuredQuery.trim(),
+          count: hits.length,
+          backend: 'opensearch',
+        })
+      })
+      .catch((e: unknown) => setError(formatUserError(e)))
+  }
+
   return (
     <PlatformPageChrome
       error={error}
@@ -174,6 +195,28 @@ export default function PlatformThreatHunting() {
         ) : (
           <p className="text-sm text-slate-500">Generate an operator summary from current correlations and timeline.</p>
         )}
+      </MacGlassPanel>
+
+      <MacGlassPanel title="Structured SIEM search" subtitle="POST /api/v1/zeus-security/search — direct OpenSearch query">
+        <div className="flex flex-wrap gap-2">
+          <input
+            className="input text-sm flex-1 min-w-[14rem] font-mono"
+            value={structuredQuery}
+            onChange={(e) => setStructuredQuery(e.target.value)}
+            placeholder="process.binary:nc AND severity:critical"
+            onKeyDown={(e) => e.key === 'Enter' && runStructuredSearch()}
+          />
+          <input
+            className="input text-sm w-28 font-mono"
+            value={structuredHostId}
+            onChange={(e) => setStructuredHostId(e.target.value)}
+            placeholder="host_id"
+            aria-label="Structured search host filter"
+          />
+          <button type="button" className="btn-secondary text-sm" onClick={runStructuredSearch}>
+            Search index
+          </button>
+        </div>
       </MacGlassPanel>
 
       <MacGlassPanel title="Natural language search" subtitle="LLM query translation + PacketWolf index">
