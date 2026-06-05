@@ -238,10 +238,16 @@ export default function PlatformMigration() {
           </div>
         )}
         {guestkit && (
-          <Link to="/platform/migration?tab=jobs" className="rounded-xl border border-orange-500/30 bg-orange-500/10 p-4 text-sm hover:border-orange-400/50 transition">
-            <p className="font-semibold text-orange-100">GuestKit jobs</p>
-            <p className="text-xs text-orange-200/70 mt-1">Offline disk inspect and migrate planning.</p>
-          </Link>
+          <>
+            <Link to="/platform/migration?tab=jobs" className="rounded-xl border border-orange-500/30 bg-orange-500/10 p-4 text-sm hover:border-orange-400/50 transition">
+              <p className="font-semibold text-orange-100">GuestKit jobs</p>
+              <p className="text-xs text-orange-200/70 mt-1">Offline disk inspect and migrate planning.</p>
+            </Link>
+            <Link to="/platform/vms/v1?tab=guestHealth&guestAction=migrate-plan" className="rounded-xl border border-orange-500/30 bg-orange-500/10 p-4 text-sm hover:border-orange-400/50 transition">
+              <p className="font-semibold text-orange-100">Platform VM migrate plan</p>
+              <p className="text-xs text-orange-200/70 mt-1">Run GuestKit offline KVM migration scoring on an enrolled VM disk.</p>
+            </Link>
+          </>
         )}
       </div>
 

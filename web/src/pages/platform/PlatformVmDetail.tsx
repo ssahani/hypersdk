@@ -87,6 +87,7 @@ import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusB
 import { vmErrorPresentation } from '../../utils/vmErrorPresentation'
 import { loadVmSshPrefs } from '../../utils/vmSshPrefs'
 import VmDailyAccessStrip from '../../components/vm/VmDailyAccessStrip'
+import VmPortForwardPanel from '../../components/vm/VmPortForwardPanel'
 import VmSshConnectDialog, { navigateVmSshSession } from '../../components/vm/VmSshConnectDialog'
 import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
 import { PlatformOpenStackVmLink } from '../../components/platform/PlatformCrossLinks'
@@ -107,7 +108,7 @@ export default function PlatformVmDetail() {
   const tab: VmDetailTab = (
     ['overview', 'doctor', 'console', 'performance', 'disks', 'network', 'guestHealth', 'guestServices', 'security', 'snapshots', 'backup', 'topology', 'events', 'settings'] as VmDetailTab[]
   ).includes(rawTab as VmDetailTab) ? (rawTab as VmDetailTab) : 'overview'
-  const setTab = (next: VmDetailTab) => {
+  const setTab = (next: VmDetailTab, extra?: { guestAction?: string }) => {
     if (next === 'console' && id) {
       navigate(`/platform/vms/${id}/console`)
       return
@@ -116,9 +117,12 @@ export default function PlatformVmDetail() {
       const n = new URLSearchParams(p)
       if (next === 'overview') n.delete('tab')
       else n.set('tab', next)
+      if (extra?.guestAction) n.set('guestAction', extra.guestAction)
+      else n.delete('guestAction')
       return n
     }, { replace: true })
   }
+  const guestMigratePlanAction = searchParams.get('guestAction') === 'migrate-plan'
   const [tier] = usePlatformDesktopTier()
   const { info } = usePlatformInfo()
   const { setContextVmId, setContextSummary, openCopilot } = useAi()
@@ -763,12 +767,26 @@ export default function PlatformVmDetail() {
                 onTab={(t) => setTab(t as VmDetailTab)}
               />
               {info?.guestkit?.enabled && (
-                <p className="text-sm text-slate-400">
-                  Stopped VMs:{' '}
-                  <button type="button" className={hubLinkClasses()} onClick={() => setTab('guestHealth')}>
-                    GuestKit offline assurance →
-                  </button>
-                </p>
+                <MacGlassPanel title="GuestKit offline migration" subtitle="Disk-based KVM migrate plan without a running guest agent">
+                  <p className="text-sm text-slate-400 mb-3">
+                    Score boot blockers and required changes for live migration using the VM disk image while stopped or online.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="btn-secondary text-sm"
+                      onClick={() => setTab('guestHealth', { guestAction: 'migrate-plan' })}
+                    >
+                      Run migrate plan
+                    </button>
+                    <button type="button" className={`btn-secondary text-sm ${hubLinkClasses()}`} onClick={() => setTab('guestHealth')}>
+                      Offline assurance
+                    </button>
+                    <Link to="/platform/migration" className={`btn-secondary text-sm ${hubLinkClasses()}`}>
+                      Migration hub
+                    </Link>
+                  </div>
+                </MacGlassPanel>
               )}
               <MachinaVmTroubleshootPanel vmId={id!} vmName={vm?.name} />
             </div>
@@ -821,10 +839,25 @@ export default function PlatformVmDetail() {
             </div>
           )}
 
-          {tab === 'network' && (
+          {tab === 'network' && vm.inventory_source !== 'kubevirt' && (
+            <div className="space-y-4 pt-2">
+              <MacGlassPanel title="Hypervisor NAT (port forwards)">
+                <VmPortForwardPanel
+                  platformVmId={id!}
+                  vmName={vm.name}
+                  guestIp={guestIp}
+                  onNotify={(msg) => toast.success(msg)}
+                />
+              </MacGlassPanel>
+              <MacGlassPanel title="Spec & bridges">
+                <p className="text-sm text-slate-400">Network configuration is defined in the VM spec. Use migration pre-check for cross-host network validation.</p>
+                <Link to="/platform/networks" className={`text-sm mt-2 inline-block ${hubLinkClasses()}`}>Manage networks →</Link>
+              </MacGlassPanel>
+            </div>
+          )}
+          {tab === 'network' && vm.inventory_source === 'kubevirt' && (
             <MacGlassPanel title="Network" className="pt-2">
-              <p className="text-sm text-slate-400">Network configuration is defined in the VM spec. Use migration pre-check for cross-host network validation.</p>
-              <Link to="/platform/networks" className={`text-sm mt-2 inline-block ${hubLinkClasses()}`}>Manage networks →</Link>
+              <p className="text-sm text-slate-400">KubeVirt networking is managed via the cluster CNI. Use kubectl or the K8s console for service exposure.</p>
             </MacGlassPanel>
           )}
 
@@ -855,6 +888,7 @@ export default function PlatformVmDetail() {
                     vmId={id!}
                     vmState={vm.observed_state}
                     guestkitEnabled={Boolean(info?.guestkit?.enabled)}
+                    autoRunMigratePlan={guestMigratePlanAction}
                   />
                 </div>
                 <OsDiagnosePanel

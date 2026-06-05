@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams, useLocation } from 'react-router'
-import { ArrowLeft, ExternalLink, Network, Shield, Server, Activity, FileWarning, Bot } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Network, Shield, Server, Activity, FileWarning, Bot, Cpu } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
 import OsDiagnosePanel from '../../components/platform/OsDiagnosePanel'
 import MachinaExplainObjectPanel from '../../components/ai/MachinaExplainObjectPanel'
@@ -49,6 +49,7 @@ import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, status
 import { openCenterPopout } from '../../utils/platformCenterPopout'
 import { hostClassicTools } from '../../utils/platformClassicTools'
 import { PlatformClassicToolLinks } from '../../components/platform/PlatformCrossLinks'
+import { getHostGpus, type HostGpuDevice } from '../../api/platformHostGpu'
 
 function psiBar(label: string, pct: number) {
   return (
@@ -90,6 +91,10 @@ export default function PlatformHostDetailPage() {
   const [ipmiAddress, setIpmiAddress] = useState('')
   const [ipmiUser, setIpmiUser] = useState('')
   const [ipmiPass, setIpmiPass] = useState('')
+  const [gpus, setGpus] = useState<HostGpuDevice[]>([])
+  const [gpuSummary, setGpuSummary] = useState('')
+  const [gpuLoading, setGpuLoading] = useState(false)
+  const [gpuError, setGpuError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -126,6 +131,19 @@ export default function PlatformHostDetailPage() {
       ])
       setLinuxObs(obs)
       setLinuxUpdates(updates)
+      setGpuLoading(true)
+      setGpuError(null)
+      try {
+        const g = await getHostGpus(id)
+        setGpus(g.devices ?? [])
+        setGpuSummary(g.nvidia_smi_summary?.trim() ?? '')
+      } catch (e: unknown) {
+        setGpus([])
+        setGpuSummary('')
+        setGpuError(formatUserError(e))
+      } finally {
+        setGpuLoading(false)
+      }
     }
     if (section === 'audit') {
       setAudit(await getHostLinuxAudit(id).catch(() => null))
@@ -345,6 +363,34 @@ export default function PlatformHostDetailPage() {
 
             {section === 'linux' && (
               <div className="space-y-4">
+                <MacGlassPanel title="GPU inventory" subtitle="PCI passthrough · MIG · CUDA readiness from host agent">
+                  {gpuLoading && <p className="text-sm text-slate-500">Scanning GPUs…</p>}
+                  {!gpuLoading && gpuError && (
+                    <p className="text-sm text-amber-300/90">{gpuError}</p>
+                  )}
+                  {!gpuLoading && !gpuError && gpus.length === 0 && (
+                    <p className="text-sm text-slate-500">No discrete GPUs reported on this host.</p>
+                  )}
+                  {!gpuLoading && gpus.length > 0 && (
+                    <ul className="divide-y divide-white/[0.04] -mx-1">
+                      {gpus.map((gpu) => (
+                        <MacListRow
+                          key={gpu.pci_address}
+                          title={gpu.device_name || gpu.pci_address}
+                          subtitle={`${gpu.vendor} · ${gpu.pci_address}${gpu.iommu_group >= 0 ? ` · IOMMU ${gpu.iommu_group}` : ''}${gpu.mig_profile ? ` · MIG ${gpu.mig_profile}` : ''}`}
+                        />
+                      ))}
+                    </ul>
+                  )}
+                  {gpuSummary && (
+                    <pre className="mt-3 text-[10px] font-mono text-slate-500 whitespace-pre-wrap max-h-32 overflow-y-auto">{gpuSummary}</pre>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Link to="/platform/gpu" className={`text-xs inline-flex items-center gap-1 ${hubLinkClasses()}`}>
+                      <Cpu className="w-3.5 h-3.5" /> GPU Command Center
+                    </Link>
+                  </div>
+                </MacGlassPanel>
                 {linuxObs ? (
                   <>
                     <MacGlassPanel title="Pressure stall (PSI)">

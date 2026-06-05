@@ -18,6 +18,8 @@ type Props = {
   vmId: string
   vmState?: string
   guestkitEnabled: boolean
+  /** When true (e.g. from Doctor tab deep link), run migrate plan once on mount. */
+  autoRunMigratePlan?: boolean
 }
 
 function scoreTone(score: number): 'ok' | 'warn' | 'error' {
@@ -26,7 +28,7 @@ function scoreTone(score: number): 'ok' | 'warn' | 'error' {
   return 'error'
 }
 
-export default function GuestkitOfflineAssurancePanel({ vmId, vmState, guestkitEnabled }: Props) {
+export default function GuestkitOfflineAssurancePanel({ vmId, vmState, guestkitEnabled, autoRunMigratePlan = false }: Props) {
   const [gkReachable, setGkReachable] = useState<boolean | null>(null)
   const [doctor, setDoctor] = useState<GuestkitDoctorReport | null>(null)
   const [plan, setPlan] = useState<GuestkitMigratePlanReport | null>(null)
@@ -70,6 +72,11 @@ export default function GuestkitOfflineAssurancePanel({ vmId, vmState, guestkitE
       setBusy(null)
     }
   }, [vmId])
+
+  useEffect(() => {
+    if (!guestkitEnabled || !autoRunMigratePlan) return
+    void runMigratePlan()
+  }, [guestkitEnabled, autoRunMigratePlan, runMigratePlan])
 
   if (!guestkitEnabled) {
     return (

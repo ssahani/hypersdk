@@ -48,3 +48,6 @@ export function downloadVmIacBundle(bundle: VmIacExportBundle) {
   a.click()
   URL.revokeObjectURL(a.href)
 }
+
+export const pruneMissingPlatformVms = () =>
+  platformFetch<{ deleted: number }>('/api/v1/vms/prune-missing', { method: 'POST', body: '{}' })

@@ -1,18 +1,12 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { Copy, Download, ExternalLink, HelpCircle, Loader2, Monitor, Terminal, ArrowRight } from 'lucide-react'
 import type { GuestPortReport } from '../../api/zeusFirewall'
-import {
-  createVmPortForward,
-  deleteVmPortForward,
-  listVmPortForwards,
-  type VmPortForwardRule,
-} from '../../api/platform'
+import VmPortForwardPanel from './VmPortForwardPanel'
 import { hubLinkClasses } from '../../utils/semanticColors'
 import { VM_DAILY_ACCESS_GUIDE_URL } from '../../utils/vmDailyAccessGuide'
-import { formatUserError } from '../../utils/apiError'
 import VmSshConnectDialog, { navigateVmSshSession } from './VmSshConnectDialog'
 
 const HTTP_PORTS = new Set([80, 443, 8080, 8443, 8000, 3000])
@@ -78,35 +72,11 @@ export default function VmDailyAccessStrip({
   onNotify,
 }: VmDailyAccessStripProps) {
   const [sshOpen, setSshOpen] = useState(false)
-  const [pfRules, setPfRules] = useState<VmPortForwardRule[]>([])
-  const [pfLoading, setPfLoading] = useState(false)
-  const [pfHostPort, setPfHostPort] = useState('9080')
-  const [pfVmPort, setPfVmPort] = useState('80')
-  const [pfBusy, setPfBusy] = useState(false)
   const running = vmState === 'running'
   const ip = guestIp.trim()
   const topPorts = (guestPorts?.ports ?? []).slice(0, 5)
 
   const notify = (msg: string) => onNotify?.(msg)
-
-  const loadPf = useCallback(async () => {
-    if (!platformVmId || !ip) {
-      setPfRules([])
-      return
-    }
-    setPfLoading(true)
-    try {
-      setPfRules(await listVmPortForwards(platformVmId))
-    } catch {
-      setPfRules([])
-    } finally {
-      setPfLoading(false)
-    }
-  }, [platformVmId, ip])
-
-  useEffect(() => {
-    void loadPf()
-  }, [loadPf])
 
   const copy = async (text: string, label: string) => {
     try {
@@ -133,49 +103,6 @@ export default function VmDailyAccessStrip({
       }
     } else if (specJson) {
       notify('Spec downloaded')
-    }
-  }
-
-  const createPf = async () => {
-    if (!platformVmId) return
-    const hostPort = parseInt(pfHostPort, 10)
-    const vmPort = parseInt(pfVmPort, 10)
-    if (!Number.isFinite(hostPort) || !Number.isFinite(vmPort)) {
-      notify('Enter valid port numbers')
-      return
-    }
-    setPfBusy(true)
-    try {
-      await createVmPortForward(platformVmId, {
-        protocol: 'tcp',
-        host_port: hostPort,
-        vm_port: vmPort,
-        description: vmName,
-      })
-      notify('NAT rule created on hypervisor')
-      await loadPf()
-    } catch (e: unknown) {
-      notify(formatUserError(e))
-    } finally {
-      setPfBusy(false)
-    }
-  }
-
-  const removePf = async (r: VmPortForwardRule) => {
-    if (!platformVmId) return
-    setPfBusy(true)
-    try {
-      await deleteVmPortForward(platformVmId, {
-        protocol: r.protocol,
-        host_port: r.host_port,
-        vm_port: r.vm_port,
-      })
-      notify('NAT rule removed')
-      await loadPf()
-    } catch (e: unknown) {
-      notify(formatUserError(e))
-    } finally {
-      setPfBusy(false)
     }
   }
 
@@ -347,51 +274,16 @@ export default function VmDailyAccessStrip({
                 </Link>
               )}
             </div>
-            {platformVmId && ip && (
-              <div className="mt-2 space-y-2 rounded-lg border border-slate-800/80 p-2">
-                <p className="text-[10px] uppercase tracking-wider text-slate-500">Expose on hypervisor (NAT)</p>
-                <div className="flex flex-wrap gap-1 items-center text-xs">
-                  <span className="text-slate-500">host</span>
-                  <input
-                    className="input w-16 py-0.5 text-xs font-mono"
-                    value={pfHostPort}
-                    onChange={(e) => setPfHostPort(e.target.value)}
-                    aria-label="Host port"
-                  />
-                  <span className="text-slate-500">→ guest</span>
-                  <input
-                    className="input w-14 py-0.5 text-xs font-mono"
-                    value={pfVmPort}
-                    onChange={(e) => setPfVmPort(e.target.value)}
-                    aria-label="Guest port"
-                  />
-                  <button
-                    type="button"
-                    className="btn-secondary text-xs py-0.5"
-                    disabled={pfBusy || disabled}
-                    onClick={() => void createPf()}
-                  >
-                    Expose
-                  </button>
-                </div>
-                {pfLoading && <p className="text-xs text-slate-500">Loading rules…</p>}
-                {!pfLoading && pfRules.length > 0 && (
-                  <ul className="text-xs font-mono space-y-0.5">
-                    {pfRules.map((r) => (
-                      <li key={r.id} className="flex flex-wrap items-center gap-1">
-                        <span className="text-slate-400">{r.host_port}→{r.vm_port}</span>
-                        <button
-                          type="button"
-                          className="text-red-400/90 hover:underline"
-                          disabled={pfBusy}
-                          onClick={() => void removePf(r)}
-                        >
-                          remove
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+            {platformVmId && (
+              <div className="mt-2 rounded-lg border border-slate-800/80 p-2">
+                <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Expose on hypervisor (NAT)</p>
+                <VmPortForwardPanel
+                  platformVmId={platformVmId}
+                  vmName={vmName}
+                  guestIp={ip}
+                  disabled={disabled}
+                  onNotify={notify}
+                />
               </div>
             )}
           </section>

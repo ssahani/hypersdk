@@ -47,6 +47,7 @@ import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { formatUserError } from '../../utils/apiError'
 import { guestToolsStatusLabel } from '../../utils/guestAgentUx'
 import { installStateTone } from '../../components/platform/GuestAgentDiagnosticsPanel'
+import { pruneMissingPlatformVms } from '../../api/platformVmLifecycle'
 import { toastQueuedOperation } from '../../utils/platformTaskToast'
 import { hubLinkClasses, statusPillClasses, vmStateTone } from '../../utils/semanticColors'
 import VmSshConnectDialog, { navigateVmSshSession } from '../../components/vm/VmSshConnectDialog'
@@ -117,6 +118,7 @@ export default function PlatformVms() {
   const [search, setSearch] = useState('')
   const [selectedVmId, setSelectedVmId] = useState<string | null>(null)
   const [sshVm, setSshVm] = useState<PlatformVm | null>(null)
+  const [pruneBusy, setPruneBusy] = useState(false)
 
   const hostMap = useMemo(() => new Map(hosts.map((h) => [h.id, h.hostname])), [hosts])
   const vmById = useMemo(() => new Map(vms.map((v) => [v.id, v])), [vms])
@@ -350,6 +352,22 @@ export default function PlatformVms() {
     setMigrateModal({ vm, destId: hostId, destName: host.hostname })
   }
 
+  const missingCount = useMemo(() => vms.filter((v) => v.observed_state === 'missing').length, [vms])
+
+  const pruneMissing = async () => {
+    if (!window.confirm(`Remove ${filteredVms.length} missing VM record(s) from inventory? This cannot be undone.`)) return
+    setPruneBusy(true)
+    try {
+      const r = await pruneMissingPlatformVms()
+      toast.success(`Pruned ${r.deleted} missing record(s)`)
+      await load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setPruneBusy(false)
+    }
+  }
+
   const guestGapsCount = useMemo(
     () =>
       vms.filter((v) => {
@@ -363,6 +381,7 @@ export default function PlatformVms() {
     tag ? `#${tag}` :
     project ? project :
     folder === 'guest-gaps' ? 'Guest agent gaps' :
+    folder === 'missing' ? 'Missing from inventory' :
     finder?.smart_folders.find((f) => f.id === folder)?.label ?? 'All VMs'
 
   const runFleetGuestQuery = async () => {
@@ -394,6 +413,16 @@ export default function PlatformVms() {
 
   const toolbar = (
     <>
+      {folder === 'missing' && filteredVms.length > 0 && (
+        <button
+          type="button"
+          className="btn-danger text-sm"
+          disabled={pruneBusy}
+          onClick={() => void pruneMissing()}
+        >
+          {pruneBusy ? 'Pruning…' : 'Prune missing records'}
+        </button>
+      )}
       <button type="button" className="btn-secondary" onClick={() => void load()}><RefreshCw className="w-4 h-4" /></button>
       <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" disabled={fleetGuestBusy} onClick={() => void runFleetGuestQuery()}>
         {fleetGuestBusy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
@@ -598,6 +627,15 @@ export default function PlatformVms() {
     >
       {error && <StructuredErrorBanner error={error} />}
 
+      {folder === 'missing' && filteredVms.length > 0 && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+          <p className="font-medium">Missing from hypervisor inventory</p>
+          <p className="text-xs text-amber-200/80 mt-1">
+            These VM records no longer exist on the host libvirt domain list. Prune removes stale database rows (admin only).
+          </p>
+        </div>
+      )}
+
       {fleetGuestReport && (
         <div className="rounded-xl border border-white/[0.08] bg-slate-900/60 p-4 text-sm relative">
           <button
@@ -701,7 +739,7 @@ export default function PlatformVms() {
                   <SidebarRow active={source === 'libvirt'} label="Libvirt" count={vms.filter((v) => (v.inventory_source ?? 'libvirt') === 'libvirt').length} onClick={() => { const p = new URLSearchParams(searchParams); p.set('source', 'libvirt'); p.delete('folder'); setSearchParams(p, { replace: true }) }} />
                   <SidebarRow active={source === 'kubevirt'} label="KubeVirt" count={vms.filter((v) => v.inventory_source === 'kubevirt').length} onClick={() => { const p = new URLSearchParams(searchParams); p.set('source', 'kubevirt'); p.delete('folder'); setSearchParams(p, { replace: true }) }} />
                   <SidebarRow active={folder === 'discovered'} label="Discovered" count={vms.filter((v) => v.managed === false).length} onClick={() => setFilter({ folder: 'discovered' })} />
-                  <SidebarRow active={folder === 'missing'} label="Missing" count={vms.filter((v) => v.observed_state === 'missing').length} onClick={() => setFilter({ folder: 'missing' })} />
+                  <SidebarRow active={folder === 'missing'} label="Missing" count={missingCount} onClick={() => setFilter({ folder: 'missing' })} />
                 </div>
               </div>
               {(finder?.tags.length ?? 0) > 0 && (

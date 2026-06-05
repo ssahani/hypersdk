@@ -267,6 +267,48 @@ const sampleHost = {
   last_heartbeat_at: new Date().toISOString(),
 }
 
+const sampleHostDetail = {
+  ...sampleHost,
+  agent_console_addr: '127.0.0.1:8788',
+  libvirt_uri: 'qemu+ssh://root@127.0.0.1/system',
+  agent_version: '0.1.0-test',
+  cpu_model: 'Intel Xeon',
+  libvirt_version: '10.0.0',
+  qemu_version: '8.2.0',
+  notes: '',
+  site: 'DC-1',
+  rack: 'Rack A',
+  rack_u: 10,
+  cpu_percent: 35,
+  memory_used_mib: 4096,
+  memory_total_mib: 16384,
+}
+
+const hostGpus = {
+  devices: [
+    {
+      pci_address: '0000:01:00.0',
+      vendor: 'NVIDIA',
+      device_name: 'NVIDIA L40',
+      iommu_group: 14,
+      mig_profile: '',
+    },
+  ],
+  nvidia_smi_summary: 'NVIDIA L40 · 46068 MiB',
+}
+
+const guestkitMigratePlan = {
+  image_path: '/var/lib/libvirt/images/vm-1.qcow2',
+  target: 'kvm',
+  migration_score: 82,
+  boot_score: 88,
+  estimated_downtime_minutes: 5,
+  driver_injections: [],
+  required_changes: ['Verify virtio-scsi drivers post-migration'],
+  licensing_warnings: [],
+  summary: 'KVM migration feasible with minor driver checks',
+}
+
 const staleHost = {
   id: 'h-stale',
   hostname: 'stale-host',
@@ -1540,6 +1582,63 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.includes('/templates')) {
       return route.fulfill({ json: [sampleTemplate] })
     }
+    if (url.includes('/vms/prune-missing') && route.request().method() === 'POST') {
+      return route.fulfill({ json: { deleted: 2 } })
+    }
+    if (url.match(/\/guestkit\/status/)) {
+      return route.fulfill({
+        json: {
+          enabled: true,
+          base_url: 'http://127.0.0.1:8790',
+          insecure_tls: true,
+          reachable: true,
+          library_version: '0.1.0-test',
+          worker_url: 'http://127.0.0.1:8790',
+          worker_reachable: true,
+          summary: 'GuestKit ready',
+        },
+      })
+    }
+    if (url.match(/\/guestkit\/vms\/[^/]+\/migrate-plan/)) {
+      return route.fulfill({ json: guestkitMigratePlan })
+    }
+    if (url.match(/\/guestkit\/vms\/[^/]+\/doctor/)) {
+      return route.fulfill({
+        json: {
+          image_path: '/var/lib/libvirt/images/vm-1.qcow2',
+          target: 'kvm',
+          boot_score: 88,
+          confidence: 0.9,
+          summary: 'Boot assurance OK',
+          blockers: [],
+          warnings: [],
+          checks_passed: 4,
+          checks_total: 4,
+        },
+      })
+    }
+    if (url.match(/\/hosts\/[^/]+\/gpus/)) {
+      return route.fulfill({ json: hostGpus })
+    }
+    if (url.match(/\/hosts\/[^/]+\/linux\/observability/)) {
+      return route.fulfill({
+        json: {
+          pressure: {
+            cpu: { some: 0.02, full: 0 },
+            memory: { some: 0.01, full: 0 },
+            io: { some: 0.03, full: 0 },
+          },
+          thermal: [],
+          smart: [],
+        },
+      })
+    }
+    if (url.match(/\/hosts\/[^/]+\/linux\/updates/)) {
+      return route.fulfill({ json: { summary: 'No pending updates', packages: [] } })
+    }
+    if (url.match(/\/hosts\/[^/]+\/detail/)) {
+      return route.fulfill({ json: sampleHostDetail })
+    }
     if (url.includes('/hosts')) {
       if (opts?.emptyStorage) {
         return route.fulfill({ json: [{ ...sampleHost, state: 'offline' }] })
@@ -1713,6 +1812,26 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.match(/\/vms\/[^/]+\/timeline/)) {
       return route.fulfill({ json: [] })
     }
+    if (url.match(/\/vms\/[^/]+\/port-forwards\/delete/) && route.request().method() === 'POST') {
+      return route.fulfill({ json: { ok: true } })
+    }
+    if (url.match(/\/vms\/[^/]+\/port-forwards/) && route.request().method() === 'POST') {
+      return route.fulfill({ json: { ok: true } })
+    }
+    if (url.match(/\/vms\/[^/]+\/port-forwards/)) {
+      return route.fulfill({
+        json: [
+          {
+            id: 'pf-1',
+            protocol: 'tcp',
+            host_port: 9080,
+            vm_ip: '192.168.122.50',
+            vm_port: 80,
+            description: 'vm-1',
+          },
+        ],
+      })
+    }
     if (url.match(/\/vms\/[^/]+\/doctor/)) {
       return route.fulfill({
         json: {
@@ -1733,7 +1852,11 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({ json: vmFixture })
     }
     if (url.includes('/vms')) {
-      return route.fulfill({ json: [vmFixture] })
+      const missingVm = { ...vmFixture, id: 'v-missing', name: 'ghost-vm', observed_state: 'missing', last_error: 'domain missing from libvirt' }
+      if (url.includes('folder=missing')) {
+        return route.fulfill({ json: [missingVm] })
+      }
+      return route.fulfill({ json: [vmFixture, missingVm] })
     }
     if (url.includes('/zeus-firewall/overview')) {
       return route.fulfill({
