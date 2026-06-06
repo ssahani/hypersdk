@@ -4,9 +4,9 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Cpu,
-  FolderOpen,
   LayoutGrid,
   Monitor,
+  Package,
   Plug,
   Server,
   Settings,
@@ -42,7 +42,7 @@ export type SpotlightNavEntry = {
   kind: 'hub' | 'destination'
 }
 
-export type DesktopHubId = 'integrations' | 'resources' | 'operations' | 'security'
+export type DesktopHubId = 'infrastructure' | 'workloads' | 'operations' | 'administration' | 'security'
 
 export type DesktopHubTile = {
   id: DesktopHubId
@@ -76,7 +76,7 @@ const SETTINGS_ENTRIES: SettingsNavEntry[] = [
   { to: '/platform/settings?section=webhooks', label: 'Webhooks', minTier: 'power' },
   { to: '/platform/settings?section=reports', label: 'Reports', minTier: 'power' },
   { to: '/platform/settings?section=console', label: 'Console', minTier: 'power' },
-  { to: '/platform/settings?section=resources', label: 'Resources', minTier: 'power' },
+  { to: '/platform/settings?section=resources', label: 'Infrastructure', minTier: 'power' },
   { to: '/platform/settings?section=updates', label: 'Updates' },
   { to: '/platform/settings?section=integrations', label: 'Integrations' },
   { to: '/platform/settings?section=support', label: 'Support' },
@@ -99,29 +99,54 @@ const SECURITY_ITEMS: ContextNavItem[] = [
   { to: '/platform/zeus/security/enforcement', label: 'Enforcement' },
 ]
 
-const RESOURCES_ITEMS: ContextNavItem[] = [
-  { to: '/platform/resources', label: 'Overview' },
-  { to: '/platform/storage', label: 'Disk Utility' },
-  { to: '/platform/gpu', label: 'GPU Command Center' },
+const INFRASTRUCTURE_ITEMS: ContextNavItem[] = [
+  { to: '/platform/infrastructure', label: 'Overview' },
+  { to: '/platform/datacenter', label: 'Clusters' },
+  { to: '/platform/hosts', label: 'Hosts' },
+  { to: '/platform/storage', label: 'Storage' },
   { to: '/platform/networks', label: 'Networks' },
+  { to: '/platform/reports', label: 'Capacity' },
+  { to: '/platform/gpu', label: 'GPU Command Center' },
   { to: '/platform/content', label: 'Images & ISOs' },
   { to: '/platform/templates', label: 'Templates' },
   { to: '/platform/cloud-init', label: 'Cloud-Init Studio' },
 ]
 
+const WORKLOADS_ITEMS: ContextNavItem[] = [
+  { to: '/platform/workloads', label: 'Overview' },
+  { to: '/platform/applications', label: 'Applications' },
+  { to: '/platform/vms', label: 'Virtual Machines' },
+  { to: '/k8s/workloads', label: 'Kubernetes Workloads' },
+]
+
+const ADMINISTRATION_ITEMS: ContextNavItem[] = [
+  { to: '/platform/administration', label: 'Overview' },
+  { to: '/platform/users', label: 'Users' },
+  { to: '/platform/projects', label: 'Projects' },
+  { to: '/platform/policy', label: 'Policies' },
+  { to: '/platform/integrations', label: 'Integrations' },
+]
+
+/** @deprecated Use infrastructureNavItemsForTier */
+const RESOURCES_ITEMS = INFRASTRUCTURE_ITEMS
+
 const OPERATIONS_ITEMS: ContextNavItem[] = [
   { to: '/platform/operations', label: 'Overview' },
+  { to: '/platform/activity', label: 'Monitoring' },
+  { to: '/platform/events', label: 'Events' },
+  { to: '/platform/backups', label: 'Backups' },
+  { to: '/platform/maintenance', label: 'Upgrades' },
   { to: '/platform/tasks', label: 'Tasks' },
   { to: '/platform/notifications', label: 'Alerts' },
-  { to: '/platform/activity', label: 'Activity' },
   { to: '/platform/migration', label: 'Migration' },
-  { to: '/platform/backups', label: 'Backups' },
   { to: '/platform/fleet-snapshots', label: 'Fleet Snapshots' },
   { to: '/platform/network-canvas', label: 'Network Canvas' },
-  { to: '/platform/maintenance', label: 'Updates' },
+  { to: '/platform/placement', label: 'Disaster Recovery' },
   { to: '/platform/reports', label: 'Reports' },
   { to: '/platform/topology', label: 'Topology' },
   { to: '/platform/observability', label: 'Observability' },
+  { to: '/platform/recommendations', label: 'Recommendations' },
+  { to: '/platform/blueprints', label: 'Shortcuts' },
 ]
 
 const ZEUS_ITEMS: ContextNavItem[] = [
@@ -142,24 +167,31 @@ const INTEGRATIONS_ITEMS: ContextNavItem[] = [
 /** Hub launchpads — deep routes live inside these pages, not as duplicate chrome. */
 export const DESKTOP_HUB_TILES: DesktopHubTile[] = [
   {
-    id: 'integrations',
-    label: 'Apps & Integrations',
-    href: '/platform/integrations',
-    description: 'OpenStack, Kubernetes, and classic Machina tools',
-    zone: 'Fleet',
+    id: 'infrastructure',
+    label: 'Infrastructure',
+    href: '/platform/infrastructure',
+    description: 'Clusters, hosts, storage, networks, and capacity',
+    zone: 'Platform',
   },
   {
-    id: 'resources',
-    label: 'Resources',
-    href: '/platform/resources',
-    description: 'Disk Utility, networks, images, and templates',
+    id: 'workloads',
+    label: 'Workloads',
+    href: '/platform/workloads',
+    description: 'Applications, VMs, and Kubernetes objects',
     zone: 'Platform',
   },
   {
     id: 'operations',
     label: 'Operations',
     href: '/platform/operations',
-    description: 'Tasks, alerts, lifecycle, and fleet insights',
+    description: 'Monitoring, events, backups, and upgrades',
+    zone: 'Platform',
+  },
+  {
+    id: 'administration',
+    label: 'Administration',
+    href: '/platform/administration',
+    description: 'Users, projects, policies, and integrations',
     zone: 'Platform',
   },
   {
@@ -191,19 +223,31 @@ export const HUB_DEFINITIONS: ContextDefinition[] = [
     spotlightZone: 'Zeus',
   },
   {
-    id: 'resources',
+    id: 'infrastructure',
     match: (p) =>
-      p.startsWith('/platform/storage')
+      p === '/platform/infrastructure'
+      || p === '/platform/resources'
+      || p.startsWith('/platform/datacenter')
+      || p.startsWith('/platform/storage')
       || p.startsWith('/platform/networks')
       || p.startsWith('/platform/content')
       || p.startsWith('/platform/templates')
       || p.startsWith('/platform/cloud-init')
-      || p === '/platform/resources',
-    appLabel: 'Resources',
-    appIcon: FolderOpen,
-    hubPath: '/platform/resources',
-    items: RESOURCES_ITEMS,
-    spotlightZone: 'Resources',
+      || p.startsWith('/platform/gpu'),
+    appLabel: 'Infrastructure',
+    appIcon: Server,
+    hubPath: '/platform/infrastructure',
+    items: INFRASTRUCTURE_ITEMS,
+    spotlightZone: 'Infrastructure',
+  },
+  {
+    id: 'workloads',
+    match: (p) => p === '/platform/workloads' || p.startsWith('/platform/applications'),
+    appLabel: 'Workloads',
+    appIcon: Package,
+    hubPath: '/platform/workloads',
+    items: WORKLOADS_ITEMS,
+    spotlightZone: 'Workloads',
   },
   {
     id: 'operations',
@@ -212,6 +256,7 @@ export const HUB_DEFINITIONS: ContextDefinition[] = [
       || p.startsWith('/platform/tasks')
       || p.startsWith('/platform/notifications')
       || p.startsWith('/platform/activity')
+      || p.startsWith('/platform/events')
       || p.startsWith('/platform/migration')
       || p.startsWith('/platform/backups')
       || p.startsWith('/platform/fleet-snapshots')
@@ -230,6 +275,23 @@ export const HUB_DEFINITIONS: ContextDefinition[] = [
     spotlightZone: 'Operations',
   },
   {
+    id: 'administration',
+    match: (p) =>
+      p === '/platform/administration'
+      || p.startsWith('/platform/users')
+      || p.startsWith('/platform/projects')
+      || p.startsWith('/platform/policy')
+      || p.startsWith('/platform/integrations')
+      || p.startsWith('/platform/api-keys')
+      || p.startsWith('/platform/webhooks')
+      || p.startsWith('/platform/enterprise'),
+    appLabel: 'Administration',
+    appIcon: Settings,
+    hubPath: '/platform/administration',
+    items: ADMINISTRATION_ITEMS,
+    spotlightZone: 'Administration',
+  },
+  {
     id: 'settings',
     match: (p) => p.startsWith('/platform/settings'),
     appLabel: 'Settings',
@@ -237,14 +299,6 @@ export const HUB_DEFINITIONS: ContextDefinition[] = [
     hubPath: '/platform/settings',
     items: [],
     spotlightZone: 'Settings',
-  },
-  {
-    id: 'integrations',
-    match: (p) => p.startsWith('/platform/integrations') || p.startsWith('/platform/applications'),
-    appLabel: 'Apps & Integrations',
-    appIcon: Plug,
-    hubPath: '/platform/integrations',
-    items: INTEGRATIONS_ITEMS,
   },
   {
     id: 'finder',
@@ -256,14 +310,13 @@ export const HUB_DEFINITIONS: ContextDefinition[] = [
   },
   {
     id: 'hosts',
-    match: (p) => p.startsWith('/platform/hosts') || p.startsWith('/platform/datacenter'),
+    match: (p) => p.startsWith('/platform/hosts'),
     appLabel: 'Hosts',
     appIcon: Server,
     hubPath: '/platform/hosts',
     items: [
       { to: '/platform/hosts', label: 'Machines' },
       { to: '/platform/hosts/finder', label: 'Infrastructure Finder' },
-      { to: '/platform/datacenter', label: 'Datacenter' },
       { to: '/platform/enroll', label: 'Add Host' },
     ],
   },
@@ -312,8 +365,20 @@ export function operationsNavItemsForTier(tier: PlatformDesktopTier): ContextNav
   return filterItems(OPERATIONS_ITEMS, tier)
 }
 
+export function infrastructureNavItemsForTier(tier: PlatformDesktopTier): ContextNavItem[] {
+  return filterItems(INFRASTRUCTURE_ITEMS, tier)
+}
+
+export function workloadsNavItemsForTier(tier: PlatformDesktopTier): ContextNavItem[] {
+  return filterItems(WORKLOADS_ITEMS, tier)
+}
+
+export function administrationNavItemsForTier(tier: PlatformDesktopTier): ContextNavItem[] {
+  return filterItems(ADMINISTRATION_ITEMS, tier)
+}
+
 export function resourcesNavItemsForTier(tier: PlatformDesktopTier): ContextNavItem[] {
-  return filterItems(RESOURCES_ITEMS, tier)
+  return infrastructureNavItemsForTier(tier)
 }
 
 export function securityNavItemsForTier(tier: PlatformDesktopTier): ContextNavItem[] {
@@ -352,8 +417,10 @@ const DETAIL_TABS_EXACT = new Set([
 ])
 
 const POWER_CONTEXT_HUB_ROOTS = new Set([
+  '/platform/infrastructure',
+  '/platform/workloads',
   '/platform/operations',
-  '/platform/resources',
+  '/platform/administration',
   '/platform/zeus/security',
   '/platform/integrations',
 ])
@@ -435,7 +502,15 @@ export function isContextNavActive(pathname: string, search: string, item: Conte
     return true
   }
 
-  const exactHubPaths = ['/platform/zeus/security', '/platform/operations', '/platform/resources', '/platform/integrations', '/platform/zeus']
+  const exactHubPaths = [
+    '/platform/zeus/security',
+    '/platform/operations',
+    '/platform/infrastructure',
+    '/platform/workloads',
+    '/platform/administration',
+    '/platform/integrations',
+    '/platform/zeus',
+  ]
   if (exactHubPaths.includes(itemPath)) {
     return pathname === itemPath
   }
@@ -476,8 +551,10 @@ export function spotlightZoneOrder(): string[] {
   return [
     'Platform hubs',
     'Settings',
+    'Infrastructure',
+    'Workloads',
     'Operations',
-    'Resources',
+    'Administration',
     'Security',
     'Zeus',
     'Favorites',
@@ -493,8 +570,10 @@ const SPOTLIGHT_HUB_ZONES: Array<{
   description: string
 }> = [
   { zone: 'Settings', itemsForTier: settingsItemsForTier, description: 'Settings workspace' },
+  { zone: 'Infrastructure', itemsForTier: infrastructureNavItemsForTier, description: 'Infrastructure workspace' },
+  { zone: 'Workloads', itemsForTier: workloadsNavItemsForTier, description: 'Workloads workspace' },
   { zone: 'Operations', itemsForTier: operationsNavItemsForTier, description: 'Operations workspace' },
-  { zone: 'Resources', itemsForTier: resourcesNavItemsForTier, description: 'Resources workspace' },
+  { zone: 'Administration', itemsForTier: administrationNavItemsForTier, description: 'Administration workspace' },
   { zone: 'Security', itemsForTier: securityNavItemsForTier, description: 'Security workspace' },
   { zone: 'Zeus', itemsForTier: zeusNavItemsForTier, description: 'Zeus workspace' },
 ]

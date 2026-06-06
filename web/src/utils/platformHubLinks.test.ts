@@ -19,6 +19,8 @@ describe('platformHubLinks', () => {
   it('resolves desktop hub hrefs with tier-aware operations fallback', () => {
     expect(hubHrefForTier('operations', 'normal')).toBe('/platform/notifications')
     expect(hubHrefForTier('operations', 'power')).toBe('/platform/operations')
-    expect(hubHrefForTier('resources', 'power')).toBe('/platform/resources')
+    expect(hubHrefForTier('infrastructure', 'power')).toBe('/platform/infrastructure')
+    expect(hubHrefForTier('resources', 'power')).toBe('/platform/infrastructure')
+    expect(hubHrefForTier('integrations', 'power')).toBe('/platform/administration')
   })
 })

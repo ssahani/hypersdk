@@ -32,10 +32,10 @@ describe('spotlightNavForTier', () => {
     expect(ops.some((entry) => entry.label === 'Observability')).toBe(true)
   })
 
-  it('includes resources workspaces on power tier', () => {
+  it('includes infrastructure workspaces on power tier', () => {
     const entries = spotlightNavForTier('power')
-    const resources = entries.filter((entry) => entry.zone === 'Resources')
-    expect(resources.some((entry) => entry.label === 'Networks')).toBe(true)
+    const infrastructure = entries.filter((entry) => entry.zone === 'Infrastructure')
+    expect(infrastructure.some((entry) => entry.label === 'Networks')).toBe(true)
   })
 
   it('includes security workspaces on advanced tier', () => {

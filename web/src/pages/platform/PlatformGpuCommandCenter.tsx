@@ -105,7 +105,7 @@ export default function PlatformGpuCommandCenter() {
       error={error}
       onErrorRetry={() => void load()}
       contentLoading={loading && !overview}
-      prepend={<PlatformBackLink to="/platform/resources" label="Resources" />}
+      prepend={<PlatformBackLink to="/platform/infrastructure" label="Infrastructure" />}
       title="GPU Command Center"
       subtitle={
         <span className="flex flex-col gap-1">

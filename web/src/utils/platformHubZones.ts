@@ -18,7 +18,7 @@ export function showPlatformHubsForTier(tier: PlatformDesktopTier): boolean {
 }
 
 /** Shown on Normal tier as muted dock previews until Power user is enabled. */
-export const DOCK_PREVIEW_HUB_PATHS: string[] = ['/platform/resources', '/platform/operations']
+export const DOCK_PREVIEW_HUB_PATHS: string[] = ['/platform/infrastructure', '/platform/operations']
 
 export function dockPreviewPathsForTier(tier: PlatformDesktopTier): string[] {
   return tier === 'normal' ? DOCK_PREVIEW_HUB_PATHS : []

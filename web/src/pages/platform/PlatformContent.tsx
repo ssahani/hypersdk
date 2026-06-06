@@ -116,7 +116,7 @@ export default function PlatformContent() {
     <PlatformPageChrome
       error={error}
       onErrorRetry={() => void load()}
-      prepend={<PlatformBackLink to="/platform/resources" label="Resources" />}
+      prepend={<PlatformBackLink to="/platform/infrastructure" label="Infrastructure" />}
       title="Content Library"
       subtitle="ISO grid with approval inbox — upload golden images for templates."
       icon={<Disc className="w-6 h-6 text-slate-400" />}

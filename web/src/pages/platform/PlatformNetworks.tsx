@@ -249,7 +249,7 @@ export default function PlatformNetworks() {
     <PlatformPageChrome
       error={error}
       onErrorRetry={() => void load(false)}
-      prepend={<PlatformBackLink to="/platform/resources" label="Resources" />}
+      prepend={<PlatformBackLink to="/platform/infrastructure" label="Infrastructure" />}
       title="Networks"
       subtitle="Overlays, libvirt bridges, IPAM — NSX-class segments and micro-segmentation."
       icon={<Network className="w-6 h-6 text-slate-400" />}

@@ -11,8 +11,8 @@ import {
   AlertTriangle,
   Shield,
   LayoutGrid,
-  FolderOpen,
   Wrench,
+  Settings,
 } from 'lucide-react'
 import PlatformPageChrome, { PlatformRefreshButton, platformStatSubtitle } from '../../components/platform/PlatformPageChrome'
 import ActionCard from '../../components/platform/ActionCard'
@@ -54,7 +54,8 @@ import { statusPillClasses } from '../../utils/semanticColors'
 import { loadJarvisShell } from '../../utils/platformJarvisShell'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tierAtLeast } from '../../utils/platformDesktopTier'
-import { hubTilesForTier, showPlatformHubsForTier, DOCK_PREVIEW_HUB_PATHS } from '../../utils/platformHubZones'
+import { showPlatformHubsForTier, DOCK_PREVIEW_HUB_PATHS, hubTilesForTier } from '../../utils/platformHubZones'
+import PlatformDashboardZones from '../../components/platform/PlatformDashboardZones'
 import { operationsHubHref } from '../../utils/platformHubLinks'
 import { unlockDockPreviewPath } from '../../utils/platformDockPins'
 
@@ -121,12 +122,14 @@ export default function PlatformDashboard() {
 
   const hubActionIcon = (id: string) => {
     switch (id) {
-      case 'integrations':
+      case 'infrastructure':
+        return <Server className="w-5 h-5" />
+      case 'workloads':
         return <Boxes className="w-5 h-5" />
-      case 'resources':
-        return <FolderOpen className="w-5 h-5" />
       case 'operations':
         return <Wrench className="w-5 h-5" />
+      case 'administration':
+        return <Settings className="w-5 h-5" />
       case 'security':
         return <Shield className="w-5 h-5" />
       default:
@@ -179,24 +182,27 @@ export default function PlatformDashboard() {
   }
 
   const launchpadGrid = (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <ActionCard icon={<Plus className="w-5 h-5" />} title="Create VM" subtitle="4-step wizard — OS cards, custom size" onClick={() => setWizardOpen(true)} />
-      {!showPlatformHubsForTier(tier) && (
-        <>
-          <ActionCard icon={<Boxes className="w-5 h-5" />} title="Apps & Integrations" subtitle="OpenStack, K8s, classic tools" to="/platform/integrations" />
-          <ActionCard icon={<Server className="w-5 h-5" />} title="Add Host" subtitle="Enroll a hypervisor" to="/platform/enroll" />
-          <ActionCard icon={<Bell className="w-5 h-5" />} title="Alerts" subtitle={`${warnings} need attention`} to={operationsHubHref(tier)} />
-        </>
-      )}
-      {showPlatformHubsForTier(tier) && hubTiles.map((hub) => (
-        <ActionCard
-          key={hub.id}
-          icon={hubActionIcon(hub.id)}
-          title={hub.label}
-          subtitle={hub.description}
-          to={hub.href}
-        />
-      ))}
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <ActionCard icon={<Plus className="w-5 h-5" />} title="Create VM" subtitle="4-step wizard — OS cards, custom size" onClick={() => setWizardOpen(true)} />
+        {!showPlatformHubsForTier(tier) && (
+          <>
+            <ActionCard icon={<Boxes className="w-5 h-5" />} title="Apps & Integrations" subtitle="OpenStack, K8s, classic tools" to="/platform/integrations" />
+            <ActionCard icon={<Server className="w-5 h-5" />} title="Add Host" subtitle="Enroll a hypervisor" to="/platform/enroll" />
+            <ActionCard icon={<Bell className="w-5 h-5" />} title="Alerts" subtitle={`${warnings} need attention`} to={operationsHubHref(tier)} />
+          </>
+        )}
+        {showPlatformHubsForTier(tier) && hubTiles.filter((hub) => hub.id === 'security').map((hub) => (
+          <ActionCard
+            key={hub.id}
+            icon={hubActionIcon(hub.id)}
+            title={hub.label}
+            subtitle={hub.description}
+            to={hub.href}
+          />
+        ))}
+      </div>
+      {showPlatformHubsForTier(tier) && <PlatformDashboardZones tier={tier} />}
     </div>
   )
 
@@ -243,7 +249,7 @@ export default function PlatformDashboard() {
         </PlatformTahoeEmptyState>
       )}
 
-      <MacGlassPanel title="Launchpad" subtitle={jarvisLanding ? 'Create workloads or open a hub' : undefined}>
+      <MacGlassPanel title="Launchpad" subtitle={jarvisLanding ? 'Create workloads or browse by zone' : 'Infrastructure · Workloads · Operations · Administration'}>
         {launchpadGrid}
         {tier === 'normal' && previewHubTiles.length > 0 && (
           <div className="space-y-3 mt-4 pt-4 border-t border-white/[0.04]">

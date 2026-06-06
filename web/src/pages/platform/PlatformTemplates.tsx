@@ -253,7 +253,7 @@ export default function PlatformTemplates() {
     <PlatformPageChrome
       error={error}
       onErrorRetry={() => void load(false)}
-      prepend={<PlatformBackLink to="/platform/resources" label="Resources" />}
+      prepend={<PlatformBackLink to="/platform/infrastructure" label="Infrastructure" />}
       title="Marketplace"
       subtitle="Golden image templates and platform integration plugins."
       icon={<Package className="w-6 h-6 text-slate-400" />}

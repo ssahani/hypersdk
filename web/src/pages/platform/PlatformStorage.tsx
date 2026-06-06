@@ -197,7 +197,7 @@ export default function PlatformStorage() {
       error={error}
       onErrorRetry={() => void load(false)}
       className="platform-readable"
-      prepend={<PlatformBackLink to="/platform/resources" label="Resources" />}
+      prepend={<PlatformBackLink to="/platform/infrastructure" label="Infrastructure" />}
       title="Storage"
       subtitle={
         <span className="flex flex-col gap-1">

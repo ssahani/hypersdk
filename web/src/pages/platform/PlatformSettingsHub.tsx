@@ -120,7 +120,7 @@ const SECTIONS: Array<{ id: SettingsSection; label: string; icon: React.ReactNod
   { id: 'webhooks', label: 'Webhooks', icon: <Workflow className="w-4 h-4" />, fullPath: '/platform/webhooks' },
   { id: 'reports', label: 'Reports', icon: <FileBarChart className="w-4 h-4" />, fullPath: '/platform/reports' },
   { id: 'console', label: 'Console', icon: <Terminal className="w-4 h-4" />, fullPath: '/platform/events' },
-  { id: 'resources', label: 'Resources', icon: <HardDrive className="w-4 h-4" />, fullPath: '/platform/resources' },
+  { id: 'resources', label: 'Infrastructure', icon: <HardDrive className="w-4 h-4" />, fullPath: '/platform/infrastructure' },
   { id: 'updates', label: 'Updates', icon: <RefreshCw className="w-4 h-4" /> },
   { id: 'integrations', label: 'Apps & Integrations', icon: <Plug className="w-4 h-4" />, fullPath: '/platform/integrations' },
   { id: 'support', label: 'Support', icon: <LifeBuoy className="w-4 h-4" />, fullPath: '/platform/support' },
@@ -611,7 +611,7 @@ export default function PlatformSettingsHub() {
 
       {section === 'resources' && (
         <div>
-          <SettingsWorkspaceLink to="/platform/resources" label="Open full Resources hub" />
+          <SettingsWorkspaceLink to="/platform/infrastructure" label="Open full Infrastructure hub" />
           <PlatformResourcesHub embedded />
         </div>
       )}

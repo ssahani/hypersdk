@@ -128,6 +128,9 @@ const PlatformMaintenance = lazy(() => import('./pages/platform/PlatformMaintena
 const PlatformProjects = lazy(() => import('./pages/platform/PlatformProjects'))
 const PlatformNotifications = lazy(() => import('./pages/platform/PlatformNotifications'))
 const PlatformResourcesHub = lazy(() => import('./pages/platform/PlatformResourcesHub'))
+const PlatformInfrastructureHub = lazy(() => import('./pages/platform/PlatformInfrastructureHub'))
+const PlatformWorkloadsHub = lazy(() => import('./pages/platform/PlatformWorkloadsHub'))
+const PlatformAdministrationHub = lazy(() => import('./pages/platform/PlatformAdministrationHub'))
 const PlatformOperationsHub = lazy(() => import('./pages/platform/PlatformOperationsHub'))
 const PlatformSettingsHub = lazy(() => import('./pages/platform/PlatformSettingsHub'))
 const PlatformMigration = lazy(() => import('./pages/platform/PlatformMigration'))
@@ -398,6 +401,9 @@ function AuthenticatedShellRoutes() {
                   <Route path="zeus/security/policies" element={<PlatformFirewallPolicies />} />
                   <Route path="policy" element={<PlatformPolicy />} />
                   <Route path="integrations" element={<PlatformIntegrations />} />
+                  <Route path="infrastructure" element={<PlatformInfrastructureHub />} />
+                  <Route path="workloads" element={<PlatformWorkloadsHub />} />
+                  <Route path="administration" element={<PlatformAdministrationHub />} />
                   <Route path="resources" element={<PlatformResourcesHub />} />
                   <Route path="operations" element={<PlatformOperationsHub />} />
                   <Route path="blueprints" element={<PlatformBlueprints />} />

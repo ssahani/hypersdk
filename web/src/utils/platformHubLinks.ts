@@ -20,7 +20,12 @@ export function activityHubHref(tier: PlatformDesktopTier): string {
 }
 
 /** Tier-aware href for a desktop hub tile (Operations falls back on Normal). */
-export function hubHrefForTier(hubId: DesktopHubTile['id'], tier: PlatformDesktopTier): string {
+export function hubHrefForTier(
+  hubId: DesktopHubTile['id'] | 'resources' | 'integrations',
+  tier: PlatformDesktopTier,
+): string {
   if (hubId === 'operations') return operationsHubHref(tier)
+  if (hubId === 'resources') return '/platform/infrastructure'
+  if (hubId === 'integrations') return '/platform/administration'
   return DESKTOP_HUB_TILES.find((hub) => hub.id === hubId)?.href ?? '/platform'
 }

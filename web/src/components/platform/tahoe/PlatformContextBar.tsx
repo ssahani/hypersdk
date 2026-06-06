@@ -20,7 +20,9 @@ function ContextPill({ item, pathname, search }: { item: ContextNavItem; pathnam
   const hasQuery = item.to.includes('?')
   const hubExact =
     item.to === '/platform/zeus/security'
-    || item.to === '/platform/resources'
+    || item.to === '/platform/infrastructure'
+    || item.to === '/platform/workloads'
+    || item.to === '/platform/administration'
     || item.to === '/platform/operations'
     || item.to === '/platform/integrations'
     || item.to === '/platform/zeus'

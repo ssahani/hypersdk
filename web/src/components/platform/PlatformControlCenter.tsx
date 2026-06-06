@@ -16,8 +16,8 @@ import {
   Sparkles,
   Activity,
   Boxes,
-  FolderOpen,
   Wrench,
+  Settings,
 } from 'lucide-react'
 import {
   getCapacityReport,
@@ -120,12 +120,14 @@ export default function PlatformControlCenter() {
 
   const hubIcon = (id: DesktopHubTile['id']) => {
     switch (id) {
-      case 'integrations':
+      case 'infrastructure':
+        return <Server className={`w-4 h-4 ${statusToneClass('info')}`} />
+      case 'workloads':
         return <Boxes className={`w-4 h-4 ${statusToneClass('info')}`} />
-      case 'resources':
-        return <FolderOpen className={`w-4 h-4 ${statusToneClass('info')}`} />
       case 'operations':
         return <Wrench className={`w-4 h-4 ${statusToneClass('ok')}`} />
+      case 'administration':
+        return <Settings className={`w-4 h-4 ${statusToneClass('info')}`} />
       case 'security':
         return <Shield className="w-4 h-4 text-violet-400" />
       default:
@@ -135,19 +137,25 @@ export default function PlatformControlCenter() {
 
   const hubValue = (id: DesktopHubTile['id']): { value: string; tone?: 'ok' | 'warn'; spark?: string } => {
     switch (id) {
-      case 'integrations':
+      case 'infrastructure':
         return {
-          value: info?.openstack?.enabled
-            ? (info.openstack.configured ? 'OpenStack ready' : 'OpenStack setup')
-            : 'Fleet apps',
-        }
-      case 'resources':
-        return {
-          value: storageTierCount || segmentCount ? 'Infrastructure libraries' : 'Open hub',
+          value: storageTierCount || segmentCount ? 'Fleet foundation' : 'Open hub',
           spark: [storageTierCount ? `${storageTierCount} tier(s)` : null, segmentCount ? `${segmentCount} segment(s)` : null]
             .filter(Boolean)
             .join(' · ') || undefined,
           tone: storageTierCount || segmentCount ? 'ok' : undefined,
+        }
+      case 'workloads':
+        return {
+          value: `${running} running`,
+          spark: vms.length ? `${vms.length} total VMs` : undefined,
+          tone: vms.length ? 'ok' : undefined,
+        }
+      case 'administration':
+        return {
+          value: info?.openstack?.enabled
+            ? (info.openstack.configured ? 'OpenStack ready' : 'OpenStack setup')
+            : 'Users & policies',
         }
       case 'operations':
         return {
