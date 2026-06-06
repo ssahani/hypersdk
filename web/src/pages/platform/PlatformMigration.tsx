@@ -7,7 +7,7 @@ import { MacGlassPanel, MacListRow } from '../../components/platform/mac/Platfor
 import DetailTabs from '../../components/platform/DetailTabs'
 import PlatformPageChrome, { PlatformBackLink } from '../../components/platform/PlatformPageChrome'
 import { usePlatformTabState } from '../../hooks/usePlatformTabState'
-import { getHypersdkStatus, listHypersdkProviders, listHypersdkProviderVms, submitHypersdkMigration, hypersdkProxyGet } from '../../api/hypersdk'
+import { getHypersdkStatus, listHypersdkProviders, listHypersdkProviderVms, submitHypersdkMigration, hypersdkProxyGet, hypersdkProxyPost } from '../../api/hypersdk'
 import { getGuestkitStatus, guestkitDoctor, guestkitMigratePlan, submitGuestkitInspectJob, getGuestkitJob, listGuestkitJobsDaemon, getGuestkitCapabilitiesDaemon, type GuestkitJobRow } from '../../api/guestkit'
 import JsonInspector from '../../components/platform/JsonInspector'
 import { getMigrationAdvisor, type MigrationAdvisorReport } from '../../api/ai'
@@ -295,6 +295,21 @@ export default function PlatformMigration() {
               }}
             >
               GET proxy
+            </button>
+            <button
+              type="button"
+              data-testid="hypersdk-proxy-post"
+              className="btn-secondary text-xs"
+              onClick={async () => {
+                try {
+                  setHsProxyResult(await hypersdkProxyPost(hsProxyPath, { probe: true }))
+                  toast.success('POST proxy OK')
+                } catch (e: unknown) {
+                  toast.error(formatUserError(e))
+                }
+              }}
+            >
+              POST proxy
             </button>
           </div>
           {hsProxyResult ? <JsonInspector data={hsProxyResult} /> : null}

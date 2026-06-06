@@ -17,6 +17,7 @@ import {
   postFleetCreateVm,
   fleetPeerProxy,
   fleetPrometheusAggregateUrl,
+  getFleetPrometheusTargets,
   type FleetPeerStatus,
   type FleetVmRow,
   type FleetMetricsResponse,
@@ -48,6 +49,8 @@ export default function FleetPage() {
   const [placementBusy, setPlacementBusy] = useState(false)
   const [createVmName, setCreateVmName] = useState('')
   const [createBusy, setCreateBusy] = useState(false)
+  const [promTargets, setPromTargets] = useState<Awaited<ReturnType<typeof getFleetPrometheusTargets>> | null>(null)
+  const [promTargetsBusy, setPromTargetsBusy] = useState(false)
 
   const load = useCallback(async () => {
     setLoadError(null)
@@ -213,7 +216,31 @@ export default function FleetPage() {
             >
               {t('fleet.prometheusOpen')}
             </a>
+            <button
+              type="button"
+              data-testid="fleet-prometheus-targets-load"
+              disabled={promTargetsBusy}
+              className="btn-secondary text-sm"
+              onClick={() => {
+                setPromTargetsBusy(true)
+                void getFleetPrometheusTargets()
+                  .then(setPromTargets)
+                  .catch((e: unknown) => toast.error(formatUserError(e)))
+                  .finally(() => setPromTargetsBusy(false))
+              }}
+            >
+              {promTargetsBusy ? 'Loading…' : 'Load scrape targets'}
+            </button>
           </div>
+          {promTargets && (
+            <div className="text-xs text-slate-400 space-y-1" data-testid="fleet-prometheus-targets">
+              <p>{promTargets.note}</p>
+              <p>
+                Metrics path: <code className="text-slate-300">{promTargets.metrics_path}</code> ·{' '}
+                {promTargets.scrape_configs.length} scrape config(s)
+              </p>
+            </div>
+          )}
         </section>
       ) : null}
 

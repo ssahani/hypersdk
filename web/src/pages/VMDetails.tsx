@@ -8,7 +8,7 @@ import {
   getVM, getVMMetrics, getVMXml, startVM, stopVM, shutdownVM, rebootVM, pauseVM, resumeVM,
   setAutostart, setVcpus, setMemory, setMemoryBalloon, setBootOrder,
   cloneVM, renameVM, migrateVM, resizeDisk, attachInterface, detachInterface,
-  getInterfaces, getBootConfig, hasManagedSave, managedSave, managedSaveRemove,
+  getInterfaces, getHostname, getBootConfig, hasManagedSave, managedSave, managedSaveRemove,
   getGuestObservability, getGuestHealth, type GuestObservability, type GuestHealthReport,
   insertCdrom, ejectCdrom, getVMLogs, getCpuTune, getMemTune, getKubeVirtBundle, KubeVirtBundle,
   postKubeVirtApply, postKubeVirtUpload, postKubeVirtStart, type KubeVirtClusterExecResult,
@@ -121,6 +121,8 @@ export default function VMDetailsPage() {
   const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([])
   const [guestIps, setGuestIps] = useState<GuestIpAddress[]>([])
   const [guestObs, setGuestObs] = useState<GuestObservability | null>(null)
+  const [guestApiHostname, setGuestApiHostname] = useState<string | null>(null)
+  const [guestHostnameBusy, setGuestHostnameBusy] = useState(false)
   const [guestHealth, setGuestHealth] = useState<GuestHealthReport | null>(null)
   const [platformDoctor, setPlatformDoctor] = useState<VmDoctorReport | null>(null)
   const [networkGateways, setNetworkGateways] = useState<Record<string, string>>({})
@@ -315,6 +317,12 @@ export default function VMDetailsPage() {
           setGuestObs(null)
         }
         try {
+          const hn = await getHostname(name, conn)
+          setGuestApiHostname(hn.hostname?.trim() ? hn.hostname : null)
+        } catch {
+          setGuestApiHostname(null)
+        }
+        try {
           setGuestHealth(await getGuestHealth(name, conn))
         } catch {
           setGuestHealth(null)
@@ -324,6 +332,7 @@ export default function VMDetailsPage() {
         setGuestIps([])
         setGuestObs(null)
         setGuestHealth(null)
+        setGuestApiHostname(null)
         setNetworkGateways({})
         setGuestIfQueriedAt(null)
       }
@@ -1265,6 +1274,30 @@ export default function VMDetailsPage() {
               {bootConfig.kernel && <InfoRow label="Kernel" value={bootConfig.kernel} />}
               {bootConfig.initrd && <InfoRow label="Initrd" value={bootConfig.initrd} />}
               {bootConfig.cmdline && <InfoRow label="Cmdline" value={bootConfig.cmdline} />}
+            </div>
+          )}
+
+          {(guestApiHostname || vm?.state === 'running') && (
+            <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 flex flex-wrap items-center justify-between gap-3" data-testid="vm-api-hostname">
+              <div>
+                <div className="text-xs text-slate-500">Guest hostname (GET /vms/…/hostname)</div>
+                <div className="text-sm font-mono text-slate-200">{guestApiHostname ?? '—'}</div>
+              </div>
+              <button
+                type="button"
+                disabled={guestHostnameBusy || vm?.state !== 'running'}
+                className="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-50"
+                onClick={() => {
+                  if (!name) return
+                  setGuestHostnameBusy(true)
+                  void getHostname(name, conn)
+                    .then((r) => setGuestApiHostname(r.hostname?.trim() ? r.hostname : null))
+                    .catch((e: unknown) => toast.error(formatUserError(e)))
+                    .finally(() => setGuestHostnameBusy(false))
+                }}
+              >
+                {guestHostnameBusy ? 'Refreshing…' : 'Refresh hostname'}
+              </button>
             </div>
           )}
 

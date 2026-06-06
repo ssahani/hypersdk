@@ -5,12 +5,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { startPackerGoldenBuildJob, streamJobLogs } from '../api/jobs'
-import { createVMWithProgress, CreateVmRequest, VmTemplate, vmDetailRoute } from '../api/vm'
+import { createVMWithProgress, CreateVmRequest, getTemplates, VmTemplate, vmDetailRoute } from '../api/vm'
 import { getLibvirtSummary } from '../api/host'
 import { listNetworks, NetworkInfo } from '../api/network'
-import { listIsos, listSavedTemplates, ImageFile } from '../api/extras'
+import { generateCloudInit, listIsos, listSavedTemplates, ImageFile } from '../api/extras'
 import { listPools, listVolumes, StoragePoolInfo, StorageVolumeInfo } from '../api/storage'
-import { guestOsDetect, guestOsList, type GuestOsRow } from '../api/guestImages'
+import { guestOsDetect, guestOsList, guestRhelImageUrl, type GuestOsRow } from '../api/guestImages'
 import {
   createVmDefaultsStorageKey,
   loadCreateVmDefaults,
@@ -151,6 +151,11 @@ export default function CreateVMPage() {
 
   const [sessionRole, setSessionRole] = useState<SessionRole | null>(null)
   const [guestOsRows, setGuestOsRows] = useState<GuestOsRow[]>([])
+  const [libvirtTemplates, setLibvirtTemplates] = useState<VmTemplate[]>([])
+  const [cloudInitGenBusy, setCloudInitGenBusy] = useState(false)
+  const [rhelAccessToken, setRhelAccessToken] = useState('')
+  const [rhelImageBusy, setRhelImageBusy] = useState(false)
+  const [rhelImageHint, setRhelImageHint] = useState<string | null>(null)
 
   const vmCreateTimeline = useMemo(
     () => computeVmCreateTimeline(createLog, submitting, createProgressOk, createProgressFailed),
@@ -252,6 +257,12 @@ export default function CreateVMPage() {
     guestOsList()
       .then((r) => setGuestOsRows(r.oses ?? []))
       .catch(() => setGuestOsRows([]))
+  }, [])
+
+  useEffect(() => {
+    getTemplates()
+      .then(setLibvirtTemplates)
+      .catch(() => setLibvirtTemplates([]))
   }, [])
 
   useEffect(() => {
@@ -904,6 +915,38 @@ export default function CreateVMPage() {
                 </option>
               ))}
             </select>
+            {MACHINA_PACKER_SCRIPT_GUESTS.find((g) => g.virtInstallDownloadOs === virtInstallInstallOs)?.family === 'rpm' && (
+              <div className="space-y-2 rounded-lg border border-rose-500/30 bg-rose-950/20 p-3">
+                <label className="block text-sm text-slate-400">RHEL-family offline image token (POST /guest-images/rhel-url)</label>
+                <input
+                  type="password"
+                  value={rhelAccessToken}
+                  onChange={(e) => setRhelAccessToken(e.target.value)}
+                  className="input-field font-mono text-xs"
+                  placeholder="offline access token"
+                />
+                <button
+                  type="button"
+                  data-testid="rhel-image-url"
+                  disabled={rhelImageBusy || !rhelAccessToken.trim()}
+                  className="px-3 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded-lg text-sm"
+                  onClick={() => {
+                    setRhelImageBusy(true)
+                    void guestRhelImageUrl({ access_token: rhelAccessToken.trim(), rhel_version: '9' })
+                      .then((r) => {
+                        const raw = r.raw as { href?: string; image?: { href?: string } } | undefined
+                        const href = raw?.href ?? raw?.image?.href
+                        setRhelImageHint(href ? `Resolved: ${href}` : r.error ?? 'No image URL in response')
+                      })
+                      .catch((e: unknown) => setRhelImageHint(formatUserError(e)))
+                      .finally(() => setRhelImageBusy(false))
+                  }}
+                >
+                  {rhelImageBusy ? 'Resolving…' : 'Resolve RHEL image URL'}
+                </button>
+                {rhelImageHint && <p className="text-xs text-slate-400 break-all" data-testid="rhel-image-result">{rhelImageHint}</p>}
+              </div>
+            )}
           </div>
         )}
 
@@ -923,6 +966,26 @@ export default function CreateVMPage() {
           </div>
         )}
       </div>
+
+      {libvirtTemplates.length > 0 && (
+        <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50 space-y-2" data-testid="libvirt-templates-panel">
+          <h2 className="text-base font-semibold text-white flex items-center gap-2">
+            <LayoutTemplate className="w-5 h-5 text-cyan-400" aria-hidden />
+            Libvirt template catalog
+          </h2>
+          <p className="text-xs text-slate-500">GET /api/v1/templates — distinct from saved golden templates below.</p>
+          <ul className="text-sm text-slate-300 space-y-1">
+            {libvirtTemplates.slice(0, 8).map((t) => (
+              <li key={t.name} className="font-mono text-cyan-200/90">
+                {t.name}
+                <span className="text-slate-500 text-xs ml-2">
+                  {t.vcpus} vCPU · {t.memory_mb} MiB · {t.disk_gb} GiB
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* VM details */}
       <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
@@ -1269,6 +1332,29 @@ export default function CreateVMPage() {
           <input type="checkbox" checked={pathCheckOff} onChange={(e) => setPathCheckOff(e.target.checked)} className="rounded" />
           Ignore path-in-use check (busy images / volumes)
         </label>
+        <button
+          type="button"
+          data-testid="cloud-init-generate"
+          disabled={cloudInitGenBusy || !vmName.trim() || !cloudInitUser.trim()}
+          className="px-3 py-2 bg-violet-700 hover:bg-violet-600 disabled:opacity-50 rounded-lg text-sm"
+          onClick={() => {
+            setCloudInitGenBusy(true)
+            void generateCloudInit(
+              vmName.trim(),
+              cloudInitUser.trim(),
+              cloudInitPassword,
+              cloudInitSshKey,
+            )
+              .then((r) => {
+                setCloudInitIso(r.path)
+                toast.success(`Seed ISO: ${r.path}`)
+              })
+              .catch((e: unknown) => toast.error(formatUserError(e)))
+              .finally(() => setCloudInitGenBusy(false))
+          }}
+        >
+          {cloudInitGenBusy ? 'Generating…' : 'Generate seed ISO (POST /cloud-init)'}
+        </button>
       </div>
       </div>
       )}

@@ -5,6 +5,10 @@ import { Settings } from 'lucide-react'
 import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import {
+  getControllerBase,
+  getDirectControllerBase,
+  PLATFORM_CONTROLLER_PROXY,
+  setControllerConfig,
   getClusterSummary,
   getClusterLeadership,
   getClusterSettings,
@@ -45,6 +49,10 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
   const [ai, setAi] = useState<AiSettings>({ enabled: false, mode: 'advisor', provider: 'openai', model: 'gpt-4o-mini', api_key_configured: false, autopilot_interval_secs: 0, autopilot_max_actions: 5, fleet_peer_urls: [] })
   const [fleetPeers, setFleetPeers] = useState('')
   const [aiKey, setAiKey] = useState('')
+  const [controllerUrl, setControllerUrl] = useState('')
+  const [controllerUser, setControllerUser] = useState('')
+  const [controllerPass, setControllerPass] = useState('')
+  const [directControllerUrl, setDirectControllerUrl] = useState('')
 
   const load = useCallback(async () => {
     setError(null)
@@ -75,6 +83,11 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
 
   useEffect(() => { void load() }, [load])
 
+  useEffect(() => {
+    setControllerUrl(getControllerBase())
+    setDirectControllerUrl(getDirectControllerBase())
+  }, [])
+
   return (
     <PlatformPageChrome
       hideHeader={embedded}
@@ -87,6 +100,38 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
       actions={embedded ? undefined : <PlatformRefreshButton onClick={() => void load()} />}
       contentClassName="space-y-4"
     >
+      <MacGlassPanel title="Controller connection" subtitle="HTTP API base and direct WebSocket console URL.">
+        <p className="text-xs text-slate-500">
+          Daemon proxy: <code className="text-slate-300">{PLATFORM_CONTROLLER_PROXY}</code>
+        </p>
+        <label className="text-sm block mt-2">
+          Controller base URL
+          <input className="input mt-1 block w-full font-mono text-xs" value={controllerUrl} onChange={(e) => setControllerUrl(e.target.value)} placeholder="http://127.0.0.1:5093" />
+        </label>
+        <p className="text-xs text-slate-500 mt-2">
+          Direct console base: <code className="text-slate-300 break-all">{directControllerUrl}</code>
+        </p>
+        <div className="grid gap-2 md:grid-cols-2 mt-2">
+          <input className="input" placeholder="Basic auth user" value={controllerUser} onChange={(e) => setControllerUser(e.target.value)} />
+          <input className="input" type="password" placeholder="Basic auth password" value={controllerPass} onChange={(e) => setControllerPass(e.target.value)} />
+        </div>
+        <button
+          type="button"
+          data-testid="controller-config-save"
+          className="btn-secondary mt-2"
+          onClick={() => {
+            if (!controllerUrl.trim()) {
+              toast.error('Controller URL is required')
+              return
+            }
+            setControllerConfig(controllerUrl.trim(), controllerUser, controllerPass)
+            setDirectControllerUrl(getDirectControllerBase())
+            toast.success('Controller connection saved locally')
+          }}
+        >
+          Save controller config
+        </button>
+      </MacGlassPanel>
       {leadership && (
         <MacGlassPanel title="Controller leadership">
           <div className="space-y-2 text-sm">

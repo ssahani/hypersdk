@@ -55,6 +55,19 @@
     "/api/v1/browse/mkosi-workspaces": "page",
     "/api/v1/zeus-firewall/operator/execute": "page",
     "/api/v1/k8s/nodes": "page",
-    "/api/v1/k8s/kubevirt/virtualmachines": "page"
+    "/api/v1/k8s/kubevirt/virtualmachines": "page",
+    "/api/v1/ai/compliance/export": "page",
+    "/api/v1/ai/compliance/export.pdf": "page",
+    "/api/v1/ai/cost/export.csv": "page",
+    "/api/v1/ai/capacity/export.csv": "page",
+    "/api/v1/ai/cost/attribution/export.csv": "page",
+    "/api/v1/cloud-init": "page",
+    "/api/v1/vms/{name}/hostname": "page",
+    "/api/v1/fleet/prometheus-targets": "page",
+    "/api/v1/soc/playbooks/{id}": "page",
+    "/api/v1/guest-images/rhel-url": "page",
+    "/api/v1/hypersdk/proxy": "page",
+    "/api/v1/kubevirt/qcow2-bundle": "page",
+    "/api/v1/platform/controller": "page"
   }
 }

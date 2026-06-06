@@ -27,7 +27,35 @@ import {
   type OperationsOverview,
   type ProjectRow,
 } from '../../api/platform'
-import { downloadAiCapacityExport, downloadAiComplianceExport, downloadAiCompliancePdf, downloadAiCostExport, downloadCostAttributionExport, getAiCapacity, getAiCost, getAiCompliance, getAiSecurity, getAutopilotHistory, getCostAttribution, getCostBudget, migrationReadinessReport, runAutopilotSafe, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type CostAttributionReport, type ComplianceReport, type CostBudgetReport, type MigrationReadinessReport, type SecurityReport } from '../../api/ai'
+import {
+  downloadAiCapacityExport,
+  downloadAiComplianceExport,
+  downloadAiCompliancePdf,
+  downloadAiCostExport,
+  downloadCostAttributionExport,
+  getAiCapacity,
+  getAiCapacityExportUrl,
+  getAiCompliance,
+  getAiComplianceExportUrl,
+  getAiCompliancePdfUrl,
+  getAiCost,
+  getAiCostExportUrl,
+  getAiSecurity,
+  getAutopilotHistory,
+  getCostAttribution,
+  getCostAttributionExportUrl,
+  getCostBudget,
+  migrationReadinessReport,
+  runAutopilotSafe,
+  type AutopilotHistoryEntry,
+  type CapacityPlan,
+  type CostAnalysis,
+  type CostAttributionReport,
+  type ComplianceReport,
+  type CostBudgetReport,
+  type MigrationReadinessReport,
+  type SecurityReport,
+} from '../../api/ai'
 import { getFirewallExposureFinOps, getFirewallExposureFinOpsExportUrl, type ExposureFinOpsReport } from '../../api/zeusFirewall'
 import { formatUserError } from '../../utils/apiError'
 import { installStateTone } from '../../components/platform/GuestAgentDiagnosticsPanel'
@@ -223,6 +251,12 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
             <p className="text-sm text-slate-400 mt-1">Fleet compliance grade: {showback.fleet_grade}</p>
             {compliance && (
               <div className="flex flex-wrap gap-2 mt-3">
+                <a className="btn-secondary text-xs" href={getAiComplianceExportUrl()} target="_blank" rel="noreferrer" data-testid="reports-compliance-export-url">
+                  Open compliance export URL
+                </a>
+                <a className="btn-secondary text-xs" href={getAiCompliancePdfUrl()} download data-testid="reports-compliance-pdf-url">
+                  Compliance PDF URL
+                </a>
                 <button
                   type="button"
                   className="btn-secondary text-xs"
@@ -463,6 +497,12 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
             >
               Download Markdown
             </button>
+            <a className="btn-secondary text-xs" href={getAiComplianceExportUrl()} target="_blank" rel="noreferrer" data-testid="reports-compliance-export-url">
+              Export URL (HTML)
+            </a>
+            <a className="btn-secondary text-xs" href={getAiCompliancePdfUrl()} download data-testid="reports-compliance-pdf-url">
+              Export URL (PDF)
+            </a>
             <button
               type="button"
               className="btn-secondary text-xs"
@@ -538,13 +578,18 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
           {cost.suggestions.length > 0 && (
             <ul className="mt-3 text-xs text-slate-400 space-y-1">{cost.suggestions.map((s, i) => <li key={i}>• {s}</li>)}</ul>
           )}
-          <button
-            type="button"
-            className="btn-secondary text-xs mt-3"
-            onClick={() => void downloadAiCostExport().catch((e: unknown) => toast.error(formatUserError(e)))}
-          >
-            Download CFO CSV
-          </button>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <a className="btn-secondary text-xs" href={getAiCostExportUrl()} download data-testid="reports-cost-export-url">
+              Export cost CSV URL
+            </a>
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              onClick={() => void downloadAiCostExport().catch((e: unknown) => toast.error(formatUserError(e)))}
+            >
+              Download CFO CSV
+            </button>
+          </div>
         </MacGlassPanel>
       )}
       {!loading && tab === 'reports' && attribution && attribution.teams.length > 0 && (
@@ -557,13 +602,18 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
               </li>
             ))}
           </ul>
-          <button
-            type="button"
-            className="btn-secondary text-xs mt-3"
-            onClick={() => void downloadCostAttributionExport().catch((e: unknown) => toast.error(formatUserError(e)))}
-          >
-            Download chargeback CSV
-          </button>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <a className="btn-secondary text-xs" href={getCostAttributionExportUrl()} download data-testid="reports-attribution-export-url">
+              Attribution CSV URL
+            </a>
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              onClick={() => void downloadCostAttributionExport().catch((e: unknown) => toast.error(formatUserError(e)))}
+            >
+              Download chargeback CSV
+            </button>
+          </div>
         </MacGlassPanel>
       )}
       {!loading && tab === 'reports' && (
@@ -612,13 +662,18 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
           {aiCap.recommendations.length > 0 && (
             <ul className="mt-3 text-xs text-slate-400 space-y-1">{aiCap.recommendations.map((r, i) => <li key={i}>• {r}</li>)}</ul>
           )}
-          <button
-            type="button"
-            className="btn-secondary text-xs mt-3"
-            onClick={() => void downloadAiCapacityExport().catch((e: unknown) => toast.error(formatUserError(e)))}
-          >
-            Download capacity CSV
-          </button>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <a className="btn-secondary text-xs" href={getAiCapacityExportUrl()} download data-testid="reports-capacity-export-url">
+              Capacity CSV URL
+            </a>
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              onClick={() => void downloadAiCapacityExport().catch((e: unknown) => toast.error(formatUserError(e)))}
+            >
+              Download capacity CSV
+            </button>
+          </div>
         </MacGlassPanel>
       )}
       {!loading && tab === 'reports' && security && security.findings.length > 0 && (

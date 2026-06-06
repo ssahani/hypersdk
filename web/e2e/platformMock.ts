@@ -358,6 +358,15 @@ const sampleTemplate = {
   auto_fetch: true,
 }
 
+const libvirtTemplateFixture = {
+  name: 'debian-12-small',
+  description: 'Debian 12 minimal libvirt template',
+  vcpus: 2,
+  memory_mb: 2048,
+  disk_gb: 20,
+  os_variant: 'debian12',
+}
+
 const fleetOnlyTemplate = {
   id: 'tpl-fleet',
   name: 'rhel-9',
@@ -733,6 +742,99 @@ export async function mockPlatformApi(page: Page, opts?: {
     }
     if (url.includes('/k8s/contexts')) {
       return route.fulfill({ json: { contexts: ['default'] } })
+    }
+    if (url.includes('/cloud-init') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: { status: 'ok', path: '/var/lib/libvirt/images/seed-e2e.iso' },
+      })
+    }
+    if (url.match(/\/api\/v1\/templates(\?|$)/)) {
+      return route.fulfill({ json: [libvirtTemplateFixture] })
+    }
+    if (url.includes('/fleet/prometheus-targets')) {
+      return route.fulfill({
+        json: {
+          enabled: true,
+          metrics_path: '/api/v1/fleet/prometheus',
+          note: 'E2E fleet Prometheus scrape configs',
+          scrape_configs: [{ job_name: 'machina-fleet', targets: ['127.0.0.1:8788'] }],
+        },
+      })
+    }
+    if (url.includes('/fleet/status')) {
+      return route.fulfill({
+        json: { enabled: true, peers: [], primary_peer: '', standby_peer: '' },
+      })
+    }
+    if (url.includes('/fleet/metrics')) {
+      return route.fulfill({
+        json: {
+          enabled: true,
+          local: { host_cpu_percent: 20, host_memory_percent: 40, load_1: 0.5, vm_count: 1, vms_running: 1 },
+          peers: [],
+        },
+      })
+    }
+    if (url.includes('/fleet/vms')) {
+      return route.fulfill({ json: { enabled: true, vms: [] } })
+    }
+    if (url.includes('/fleet/alerts')) {
+      return route.fulfill({ json: { peers: [], total_unacknowledged: 0 } })
+    }
+    if (url.includes('/guest-images/rhel-url') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: { raw: { href: 'https://access.redhat.com/downloads/content/e2e-rhel-9' } },
+      })
+    }
+    if (url.includes('/hypersdk/status')) {
+      return route.fulfill({
+        json: { enabled: true, base_url: 'http://127.0.0.1:8787', insecure_tls: true, reachable: true },
+      })
+    }
+    if (url.includes('/hypersdk/providers/list')) {
+      return route.fulfill({ json: { providers: [{ provider: 'vmware', connected: true, name: 'vcenter-lab' }] } })
+    }
+    if (url.includes('/hypersdk/proxy') && route.request().method() === 'POST') {
+      return route.fulfill({ json: { ok: true, method: 'POST', path: '/providers', probe: true } })
+    }
+    if (url.includes('/hypersdk/proxy')) {
+      return route.fulfill({ json: { providers: [{ provider: 'vmware', connected: true }] } })
+    }
+    if (url.includes('/hypersdk/providers/vms')) {
+      return route.fulfill({ json: { vms: [{ name: 'vcenter-vm-1', status: 'poweredOn' }] } })
+    }
+    if (url.includes('/kubevirt/qcow2-bundle') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          libvirt_vm: 'qcow2-import',
+          libvirt_root_disk: '/var/lib/libvirt/images/e2e.qcow2',
+          namespace: 'default',
+          virtual_machine_name: 'kv-e2e',
+          datavolume_name: 'dv-e2e',
+          upload_size_gi: 20,
+          cluster_exec_enabled: true,
+          yaml: 'apiVersion: kubevirt.io/v1\nkind: VirtualMachine\n',
+          virtctl_image_upload_example: 'virtctl image-upload dv-e2e',
+        },
+      })
+    }
+    if (url.includes('/kubevirt/qcow2-bundle')) {
+      return route.fulfill({
+        json: {
+          libvirt_vm: 'qcow2-import',
+          libvirt_root_disk: '/var/lib/libvirt/images/e2e.qcow2',
+          namespace: 'default',
+          virtual_machine_name: 'kv-e2e',
+          datavolume_name: 'dv-e2e',
+          upload_size_gi: 20,
+          cluster_exec_enabled: true,
+          yaml: 'apiVersion: kubevirt.io/v1\nkind: VirtualMachine\n',
+          virtctl_image_upload_example: 'virtctl image-upload dv-e2e',
+        },
+      })
+    }
+    if (url.match(/\/vms\/[^/]+\/hostname/)) {
+      return route.fulfill({ json: { hostname: 'vm-1-guest.local' } })
     }
     if (url.match(/\/backups\/[^/]+\/status/)) {
       return route.fulfill({

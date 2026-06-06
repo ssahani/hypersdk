@@ -14,6 +14,7 @@ import {
   getSocIntegrations,
   getSocOverview,
   getSocPlaybookRuns,
+  getSocPlaybook,
   getSocPlaybooks,
   getSocSettings,
   getSocRules,
@@ -84,6 +85,8 @@ export default function PlatformSoc() {
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null)
   const [selectedPlaybookId, setSelectedPlaybookId] = useState<string | null>(null)
   const [newPlaybook, setNewPlaybook] = useState(false)
+  const [playbookDetail, setPlaybookDetail] = useState<SocPlaybook | null>(null)
+  const [playbookReloadBusy, setPlaybookReloadBusy] = useState(false)
   const [socWebhookUrl, setSocWebhookUrl] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -162,6 +165,17 @@ export default function PlatformSoc() {
 
   const selectedAlert = alerts.find((a) => a.id === selectedAlertId) ?? null
   const selectedPlaybook = playbooks.find((p) => p.id === selectedPlaybookId) ?? null
+  const editorPlaybook = playbookDetail ?? selectedPlaybook
+
+  useEffect(() => {
+    if (!selectedPlaybookId || newPlaybook) {
+      setPlaybookDetail(null)
+      return
+    }
+    void getSocPlaybook(selectedPlaybookId)
+      .then(setPlaybookDetail)
+      .catch(() => setPlaybookDetail(null))
+  }, [selectedPlaybookId, newPlaybook])
 
   const toggleRule = async (r: SocRule) => {
     try {
@@ -478,6 +492,7 @@ export default function PlatformSoc() {
                           onClick={() => {
                             setSelectedPlaybookId(p.id)
                             setNewPlaybook(false)
+                            setPlaybookDetail(null)
                           }}
                         >
                           <p className="font-medium text-sm text-slate-100 flex items-center gap-2">
@@ -513,8 +528,29 @@ export default function PlatformSoc() {
                 )}
               </MacGlassPanel>
             </div>
+            {!newPlaybook && selectedPlaybookId && (
+              <button
+                type="button"
+                data-testid="soc-playbook-reload"
+                disabled={playbookReloadBusy}
+                className="btn-secondary text-xs"
+                onClick={() => {
+                  if (!selectedPlaybookId) return
+                  setPlaybookReloadBusy(true)
+                  void getSocPlaybook(selectedPlaybookId)
+                    .then((pb) => {
+                      setPlaybookDetail(pb)
+                      toast.success(`Reloaded ${pb.name}`)
+                    })
+                    .catch((e: unknown) => toast.error(formatUserError(e)))
+                    .finally(() => setPlaybookReloadBusy(false))
+                }}
+              >
+                {playbookReloadBusy ? 'Reloading…' : 'Reload from API'}
+              </button>
+            )}
             <SocPlaybookEditor
-              playbook={newPlaybook ? null : selectedPlaybook}
+              playbook={newPlaybook ? null : editorPlaybook}
               globalWebhookUrl={socWebhookUrl}
               isNew={newPlaybook}
               onSaved={() => {

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Boxes, Copy, Loader2, X } from 'lucide-react'
 import {
   getQcow2KubeVirtBundle,
+  postQcow2KubeVirtBundle,
   postQcow2KubeVirtApply,
   postQcow2KubeVirtStart,
   postQcow2KubeVirtUpload,
@@ -91,7 +92,22 @@ export default function KubeVirtQcow2Modal({ open, qcow2Path, onClose }: Props) 
   return (
     <ModalBackdrop onClose={onClose}>
       <ModalShell onClose={onClose} qcow2Path={qcow2Path}>
-        <GuestOsFields guestOs={guestOs} setGuestOs={setGuestOs} onRegenerate={() => void loadBundle()} />
+        <GuestOsFields
+          guestOs={guestOs}
+          setGuestOs={setGuestOs}
+          onRegenerate={() => void loadBundle()}
+          onPostBundle={async () => {
+            setLoading(true)
+            try {
+              setBundle(await postQcow2KubeVirtBundle(requestBody()))
+              toast.success('Bundle rebuilt via POST')
+            } catch (e: unknown) {
+              toast.error(formatUserError(e))
+            } finally {
+              setLoading(false)
+            }
+          }}
+        />
         <OverrideFields
           namespace={namespace}
           setNamespace={setNamespace}
@@ -176,10 +192,12 @@ function GuestOsFields({
   guestOs,
   setGuestOs,
   onRegenerate,
+  onPostBundle,
 }: {
   guestOs: 'auto' | 'linux' | 'windows'
   setGuestOs: (v: 'auto' | 'linux' | 'windows') => void
   onRegenerate: () => void
+  onPostBundle: () => void
 }) {
   return (
     <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 p-3 space-y-3">
@@ -193,9 +211,14 @@ function GuestOsFields({
         <option value="linux">Linux</option>
         <option value="windows">Windows</option>
       </select>
-      <button type="button" className="text-xs text-violet-400 hover:underline" onClick={onRegenerate}>
-        Regenerate YAML with overrides below
-      </button>
+      <div className="flex flex-wrap gap-3">
+        <button type="button" className="text-xs text-violet-400 hover:underline" onClick={onRegenerate}>
+          Regenerate YAML (GET)
+        </button>
+        <button type="button" data-testid="kubevirt-post-bundle" className="text-xs text-cyan-400 hover:underline" onClick={onPostBundle}>
+          Rebuild bundle (POST)
+        </button>
+      </div>
     </div>
   )
 }
