@@ -23,13 +23,14 @@ impl AgentService {
 
     async fn libvirt_call<T, F>(&self, f: F) -> Result<T, Status>
     where
-        F: FnOnce(&libvirt_ops::LibvirtCtx) -> Result<T, machina_core::LibvirtError> + Send + 'static,
+        F: FnOnce(&mut libvirt_ops::LibvirtCtx) -> Result<T, machina_core::LibvirtError> + Send + 'static,
         T: Send + 'static,
     {
         let libvirt = self.libvirt.clone();
         tokio::task::spawn_blocking(move || {
-            let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
-            f(&ctx)
+            let mut ctx =
+                libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
+            f(&mut ctx)
         })
         .await
         .map_err(|e| Status::internal(e.to_string()))?
@@ -60,7 +61,8 @@ impl HostAgent for AgentService {
         let st = self.state.read().await;
         let libvirt = self.libvirt.clone();
         let (vms, stats) = tokio::task::spawn_blocking(move || {
-            let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
+            let mut ctx =
+                libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
             let vms = ctx.list_vms()?;
             let stats = ctx.host_resource_stats().unwrap_or((0.0, 0, 0));
             Ok::<_, machina_core::LibvirtError>((vms, stats))
@@ -277,7 +279,8 @@ impl HostAgent for AgentService {
         let libvirt = self.libvirt.clone();
         let vm_name = req.vm_name.clone();
         let (host, port) = tokio::task::spawn_blocking(move || {
-            let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
+            let mut ctx =
+                libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
             ctx.resolve_vnc(&vm_name)
         })
         .await

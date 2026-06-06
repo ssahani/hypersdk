@@ -92,9 +92,22 @@ export default function PlatformConsole() {
       }
       error={error}
       errorHints={
-        error?.toLowerCase().includes('transport')
-          ? ['Ensure machina-agent is running on the host (systemctl status machina-agent)', 'Sync hosts from Platform → Hosts if the host shows offline']
-          : undefined
+        error?.toLowerCase().includes('not found')
+          ? [
+              'This VM id is missing from the platform database (deleted VM or stale bookmark / Spotlight entry).',
+              'Open Platform → VMs and pick a current machine, or Platform → Hosts → Sync all to refresh inventory.',
+            ]
+          : error?.toLowerCase().includes('hypervisor') || error?.toLowerCase().includes('libvirt')
+            ? [
+                'The guest is not running on libvirt, or inventory is out of date.',
+                'Start the VM from Platform → VMs, then retry console. Sync hosts if the list looks wrong.',
+              ]
+            : error?.toLowerCase().includes('transport') || error?.toLowerCase().includes('agent')
+              ? [
+                  'Ensure machina-agent is running (systemctl status machina-agent).',
+                  'Sync hosts from Platform → Hosts if the host shows offline.',
+                ]
+              : undefined
       }
       onErrorRetry={() => setConnectKey((k) => k + 1)}
       className={isPopout ? 'h-[calc(100dvh-3rem)] flex flex-col min-h-0' : 'flex flex-col min-h-0'}

@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate } from 'react-router'
 import { ExternalLink, Plus, X } from 'lucide-react'
 import {
   loadPlatformDesktopTabs,
+  platformDesktopTabActive,
   platformPageLabel,
   removePlatformDesktopTab,
   upsertPlatformDesktopTab,
@@ -57,7 +58,7 @@ export default function PlatformMacDesktopTabs() {
   return (
     <div className="mac-desktop-tabs flex items-center gap-1 px-2 sm:px-3 py-1 border-b border-white/[0.06] bg-black/20 overflow-x-auto shrink-0">
       {tabs.map((tab) => {
-        const active = tab.path === location.pathname
+        const active = platformDesktopTabActive(location.pathname, tab.path)
         return (
           <Link
             key={tab.path}

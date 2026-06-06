@@ -25,6 +25,7 @@ pub struct VmListEntry {
 }
 
 pub struct LibvirtCtx {
+    uri: String,
     pub conn: Connect,
 }
 
@@ -39,10 +40,30 @@ impl LibvirtCtx {
     pub fn open(uri: &str) -> Result<Self, LibvirtError> {
         let conn = Connect::open(Some(uri))
             .map_err(|e| LibvirtError::Connection(format!("libvirt connect {uri}: {e}")))?;
-        Ok(Self { conn })
+        Ok(Self {
+            uri: uri.to_string(),
+            conn,
+        })
     }
 
-    pub fn list_vms(&self) -> Result<Vec<VmListEntry>, LibvirtError> {
+    /// Re-open libvirt when the XML-RPC socket goes stale (common after libvirtd restart).
+    pub fn ensure_alive(&mut self) -> Result<(), LibvirtError> {
+        if self.conn.is_alive().unwrap_or(false) {
+            return Ok(());
+        }
+        tracing::warn!(
+            "machina-agent: libvirt connection stale, reconnecting to {}",
+            self.uri
+        );
+        let _ = self.conn.close();
+        self.conn = Connect::open(Some(&self.uri)).map_err(|e| {
+            LibvirtError::Connection(format!("libvirt reconnect {}: {e}", self.uri))
+        })?;
+        Ok(())
+    }
+
+    pub fn list_vms(&mut self) -> Result<Vec<VmListEntry>, LibvirtError> {
+        self.ensure_alive()?;
         let vms = domain::list_vms(&self.conn)?;
         Ok(vms
             .into_iter()
@@ -361,7 +382,8 @@ impl LibvirtCtx {
         Ok(())
     }
 
-    pub fn resolve_vnc(&self, name: &str) -> Result<(String, u16), LibvirtError> {
+    pub fn resolve_vnc(&mut self, name: &str) -> Result<(String, u16), LibvirtError> {
+        self.ensure_alive()?;
         machina_core::libvirt::vnc::resolve_vnc_tcp(&self.conn, name)
     }
 

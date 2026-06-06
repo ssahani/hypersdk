@@ -24,6 +24,7 @@ import { usePlatformInfo } from '../../../contexts/PlatformInfoContext'
 import { dispatchOpenHelp } from '../../../utils/openHelp'
 import {
   loadPlatformDesktopTabs,
+  platformDesktopTabActive,
   PLATFORM_DESKTOP_TABS_EVENT,
 } from '../../../utils/platformDesktopTabs'
 
@@ -156,7 +157,7 @@ export default function PlatformMacAppMenus() {
               <PlatformMacMenuItem
                 key={tab.path}
                 label={tab.label}
-                checked={location.pathname === tab.path}
+                checked={platformDesktopTabActive(location.pathname, tab.path)}
                 onClick={() => go(tab.path)}
               />
             ))}

@@ -37,7 +37,7 @@ async fn vnc_ws(
 
 async fn handle_vnc(socket: WebSocket, name: String, libvirt: Arc<Mutex<LibvirtCtx>>) {
     let resolved = tokio::task::spawn_blocking(move || {
-        let ctx = libvirt
+        let mut ctx = libvirt
             .lock()
             .map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
         ctx.resolve_vnc(&name)
