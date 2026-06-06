@@ -8,6 +8,7 @@ import PageSkeleton from '../../components/PageSkeleton'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import DetailTabs from '../../components/platform/DetailTabs'
 import { MacGlassPanel, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
+import RunbookExecutionSheet, { parseRunbookStepsJson, type RunbookExecutionResult } from '../../components/platform/RunbookExecutionSheet'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import { usePlatformTabState } from '../../hooks/usePlatformTabState'
 import {
@@ -91,6 +92,9 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
   const [showback, setShowback] = useState<OpsShowbackOverview | null>(null)
   const [runbookBusy, setRunbookBusy] = useState<string | null>(null)
   const [runbookError, setRunbookError] = useState<{ label: string; message: string } | null>(null)
+  const [runbookResult, setRunbookResult] = useState<RunbookExecutionResult | null>(null)
+  const [runbookSheetOpen, setRunbookSheetOpen] = useState(false)
+  const [expandedExecution, setExpandedExecution] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [migrationReport, setMigrationReport] = useState<MigrationReadinessReport | null>(null)
@@ -143,11 +147,18 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
 
   useEffect(() => { void load() }, [load])
 
-  const runRunbook = async (incident: string, title: string) => {
+  const runRunbook = async (incident: string, title: string, context: Record<string, unknown> = {}) => {
     setRunbookBusy(incident)
     setRunbookError(null)
     try {
-      const r = await executeOpsRunbook(incident)
+      const r = await executeOpsRunbook(incident, context)
+      setRunbookResult({
+        title: r.title || title,
+        summary: r.summary,
+        steps: r.steps ?? [],
+        commands: r.commands ?? [],
+      })
+      setRunbookSheetOpen(true)
       toast.success(r.summary)
       await load()
     } catch (e: unknown) {
@@ -218,15 +229,35 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
           {executions.length > 0 && (
             <MacGlassPanel title="Recent executions" subtitle="Operator runbook history.">
               <ul className="text-xs space-y-2 text-slate-400">
-                {executions.map((ex) => (
-                  <li key={ex.id} className="border-b border-white/[0.04] pb-2">
-                    <span className="text-slate-300">{ex.incident}</span> — {ex.summary}
-                    <span className="text-slate-600 block">{new Date(ex.created_at).toLocaleString()}</span>
-                  </li>
-                ))}
+                {executions.map((ex) => {
+                  const steps = parseRunbookStepsJson(ex.steps_json)
+                  const expanded = expandedExecution === ex.id
+                  return (
+                    <li key={ex.id} className="border-b border-white/[0.04] pb-2">
+                      <button
+                        type="button"
+                        className="text-left w-full"
+                        onClick={() => setExpandedExecution(expanded ? null : ex.id)}
+                      >
+                        <span className="text-slate-300">{ex.incident}</span> — {ex.summary}
+                        <span className="text-slate-600 block">{new Date(ex.created_at).toLocaleString()}</span>
+                      </button>
+                      {expanded && steps.length > 0 && (
+                        <ol className="mt-2 list-decimal list-inside text-slate-500 space-y-1">
+                          {steps.map((s, i) => <li key={`${ex.id}-${i}`}>{s}</li>)}
+                        </ol>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             </MacGlassPanel>
           )}
+          <RunbookExecutionSheet
+            open={runbookSheetOpen}
+            onClose={() => setRunbookSheetOpen(false)}
+            result={runbookResult}
+          />
         </>
       )}
 

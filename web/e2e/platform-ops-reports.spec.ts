@@ -8,7 +8,9 @@ test('Reports runbooks tab executes catalog playbook', async ({ page }) => {
   await page.goto('/platform/reports?tab=runbooks')
   await expect(page.getByText('Host offline recovery')).toBeVisible({ timeout: 15_000 })
   await page.getByRole('button', { name: 'Execute' }).click()
-  await expect(page.getByText(/Runbook steps recorded|Runbooks/i).first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('dialog')).toContainText('Verify host heartbeat')
+  await expect(page.getByRole('dialog')).toContainText('systemctl status libvirtd')
 })
 
 test('Reports showback tab shows project rollup', async ({ page }) => {

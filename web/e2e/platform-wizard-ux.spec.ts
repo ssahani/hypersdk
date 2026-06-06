@@ -26,6 +26,20 @@ test('storage pool wizard shows Next through review', async ({ page }) => {
   await expect(page.getByText('Backend: directory')).toBeVisible()
 })
 
+test('create vm wizard prefetches auto-fetch golden image', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power', templateAutoFetch: true })
+  await page.goto('/platform/vms?create=prefetch-vm')
+  await expect(page.getByRole('heading', { name: 'Create Virtual Machine' })).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: 'Next' }).click()
+  await expect(page.getByText(/Will download on first create/i)).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('button', { name: 'Download now' })).toBeVisible({ timeout: 10_000 })
+  const prefetchReq = page.waitForResponse(
+    (r) => r.url().includes('prefetch-missing') && r.request().method() === 'POST',
+  )
+  await page.getByRole('button', { name: 'Download now' }).click()
+  await prefetchReq
+})
+
 test('templates page can prefetch missing golden images', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/templates')

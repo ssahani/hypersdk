@@ -6,10 +6,20 @@ import { Siren, Sparkles } from 'lucide-react'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
 import { ackIncident, analyzeIncident, getActiveIncidents, getIncidentRoom, type ActiveIncident, type IncidentAnalysis } from '../../api/ai'
+import { executeOpsRunbook } from '../../api/platform'
+import RunbookExecutionSheet, { type RunbookExecutionResult } from '../../components/platform/RunbookExecutionSheet'
+import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
 
+function inferRunbookIncident(incident: ActiveIncident): string {
+  const text = `${incident.title} ${incident.summary}`.toLowerCase()
+  if (text.includes('offline') || text.includes('host down') || text.includes('unreachable')) return 'host-offline'
+  return 'host-offline'
+}
+
 export default function PlatformIncidentCommander() {
+  const toast = useToastContext()
   const [incidents, setIncidents] = useState<ActiveIncident[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [room, setRoom] = useState<Awaited<ReturnType<typeof getIncidentRoom>> | null>(null)
@@ -18,6 +28,9 @@ export default function PlatformIncidentCommander() {
   const [rcaHours, setRcaHours] = useState(4)
   const [fleetRca, setFleetRca] = useState<IncidentAnalysis | null>(null)
   const [rcaLoading, setRcaLoading] = useState(false)
+  const [runbookBusy, setRunbookBusy] = useState(false)
+  const [runbookResult, setRunbookResult] = useState<RunbookExecutionResult | null>(null)
+  const [runbookSheetOpen, setRunbookSheetOpen] = useState(false)
 
   const loadRca = useCallback(async (hours = rcaHours) => {
     setRcaLoading(true)
@@ -60,6 +73,27 @@ export default function PlatformIncidentCommander() {
   const acknowledge = async (id: string) => {
     await ackIncident(id)
     void load()
+  }
+
+  const runPlaybook = async () => {
+    if (!room || !selected) return
+    const slug = inferRunbookIncident(room.incident)
+    setRunbookBusy(true)
+    try {
+      const r = await executeOpsRunbook(slug, { incident_id: selected })
+      setRunbookResult({
+        title: r.title,
+        summary: r.summary,
+        steps: r.steps ?? [],
+        commands: r.commands ?? [],
+      })
+      setRunbookSheetOpen(true)
+      toast.success(r.summary)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setRunbookBusy(false)
+    }
   }
 
   return (
@@ -156,11 +190,24 @@ export default function PlatformIncidentCommander() {
                 <ol className="text-xs text-slate-500 list-decimal list-inside space-y-1">
                   {room.runbook_steps.slice(0, 5).map((s) => <li key={s}>{s}</li>)}
                 </ol>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <button type="button" className="btn-primary text-xs" disabled={runbookBusy} onClick={() => void runPlaybook()}>
+                    {runbookBusy ? 'Running…' : 'Run playbook'}
+                  </button>
+                  <Link to="/platform/reports?tab=runbooks" className={`text-xs ${hubLinkClasses()}`}>
+                    Full runbook catalog →
+                  </Link>
+                </div>
               </div>
             )}
           </MacGlassPanel>
         )}
       </div>
+      <RunbookExecutionSheet
+        open={runbookSheetOpen}
+        onClose={() => setRunbookSheetOpen(false)}
+        result={runbookResult}
+      />
     </PlatformPageChrome>
   )
 }

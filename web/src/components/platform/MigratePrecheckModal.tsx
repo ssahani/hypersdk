@@ -9,7 +9,7 @@ interface MigratePrecheckModalProps {
   destHostId: string
   destHostName: string
   onClose: () => void
-  onDone: () => void
+  onDone: (taskId?: string) => void
 }
 
 export default function MigratePrecheckModal({ vm, destHostId, destHostName, onClose, onDone }: MigratePrecheckModalProps) {
@@ -30,8 +30,8 @@ export default function MigratePrecheckModal({ vm, destHostId, destHostName, onC
   const migrate = async () => {
     setBusy(true)
     try {
-      await vmMigrate(vm.id, { dest_host_id: destHostId })
-      onDone()
+      const r = await vmMigrate(vm.id, { dest_host_id: destHostId })
+      onDone(r.task_id)
       onClose()
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Migration failed')

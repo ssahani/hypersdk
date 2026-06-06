@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router'
 import { Cpu, Monitor, RefreshCw, Server } from 'lucide-react'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton, platformStatSubtitle } from '../../components/platform/PlatformPageChrome'
@@ -43,9 +43,13 @@ function profileLabel(kind: GpuProfileKind) {
 }
 
 export default function PlatformGpuCommandCenter() {
+  const navigate = useNavigate()
   const [overview, setOverview] = useState<FleetGpuOverview | null>(null)
   const [workload, setWorkload] = useState('inference')
-  const [placement, setPlacement] = useState<{ summary: string; candidates: Array<{ hostname: string; gpu_capable: boolean; score: number; reason: string }> } | null>(null)
+  const [placement, setPlacement] = useState<{
+    summary: string
+    candidates: Array<{ host_id?: string; hostname: string; gpu_capable: boolean; score: number; reason: string }>
+  } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [placementBusy, setPlacementBusy] = useState(false)
@@ -99,6 +103,19 @@ export default function PlatformGpuCommandCenter() {
   useEffect(() => { void load() }, [load])
   useEffect(() => { void loadPlacement() }, [loadPlacement])
   useEffect(() => { void loadPci() }, [loadPci])
+
+  const hostIdByName = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const h of overview?.hosts ?? []) map.set(h.hostname, h.host_id)
+    return map
+  }, [overview?.hosts])
+
+  const createVmOnHost = (hostname: string, hostId?: string) => {
+    const id = hostId ?? hostIdByName.get(hostname)
+    const params = new URLSearchParams({ create: 'gpu-workload' })
+    if (id) params.set('host_id', id)
+    navigate(`/platform/vms?${params.toString()}`)
+  }
 
   return (
     <PlatformPageChrome
@@ -258,13 +275,22 @@ export default function PlatformGpuCommandCenter() {
                   <p className="text-sm text-slate-300 mb-3">{placement.summary}</p>
                   <ul className="text-sm space-y-2">
                     {placement.candidates.map((c) => (
-                      <li key={c.hostname} className="flex flex-wrap justify-between gap-2 border-b border-white/[0.04] pb-2">
+                      <li key={c.hostname} className="flex flex-wrap justify-between gap-2 border-b border-white/[0.04] pb-2 items-center">
                         <span className="inline-flex items-center gap-1.5 text-slate-200">
                           <Server className="w-3.5 h-3.5 shrink-0" />
                           {c.hostname}
                           {c.gpu_capable && <span className={`text-[10px] px-1.5 py-0.5 rounded ${statusBadgeClasses('ok')}`}>GPU</span>}
                         </span>
-                        <span className="text-xs text-slate-500">{c.reason} · score {c.score.toFixed(0)}</span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs text-slate-500">{c.reason} · score {c.score.toFixed(0)}</span>
+                          <button
+                            type="button"
+                            className="btn-secondary text-xs"
+                            onClick={() => createVmOnHost(c.hostname, c.host_id)}
+                          >
+                            Create VM here
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>

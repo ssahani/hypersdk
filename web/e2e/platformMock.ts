@@ -471,6 +471,17 @@ const k8sEnvironmentFixture = {
   snippets: {},
 }
 
+const placementRecommendation = {
+  vm_id: 'v1',
+  vm_name: 'vm-1',
+  from_host_id: 'h1',
+  from_host_name: 'host-1',
+  to_host_id: 'h2',
+  to_host_name: 'host-2',
+  reason: 'CPU pressure on source host',
+  score: 8.5,
+}
+
 export async function mockPlatformApi(page: Page, opts?: {
   tier?: 'normal' | 'power' | 'advanced'
   staleHost?: boolean
@@ -479,6 +490,7 @@ export async function mockPlatformApi(page: Page, opts?: {
   templateAutoFetch?: boolean
   emptyNetworks?: boolean
   stoppedVm?: boolean
+  placementRecommendations?: boolean
 }) {
   const tier = opts?.tier ?? 'normal'
   const vmFixture = opts?.stoppedVm
@@ -487,6 +499,7 @@ export async function mockPlatformApi(page: Page, opts?: {
   let promptTitle = 'RCA template'
   let storagePools: Array<{ id: string; name: string; path: string; capacity_gib: number; used_gib: number }> =
     opts?.emptyStorage ? [] : [{ id: 'p1', name: 'default', path: '/var/lib/libvirt/images', capacity_gib: 500, used_gib: 12 }]
+  let templateReadinessPolls = 0
   await page.addInitScript((t) => {
     localStorage.setItem('zyvor-platform-welcome-done', '1')
     localStorage.setItem('machina-platform-desktop-tier', t)
@@ -1523,9 +1536,30 @@ export async function mockPlatformApi(page: Page, opts?: {
         },
       })
     }
+    if (url.includes('/ai/fleet/rebalance/execute') && route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as { dry_run?: boolean } | null
+      const moves = [{ vm_id: 'v1', vm_name: 'vm-1', from_host: 'host-1', to_host: 'host-2', reason: 'relieve hotspot' }]
+      if (body?.dry_run === false) {
+        return route.fulfill({
+          json: {
+            dry_run: false,
+            task_ids: ['task-migrate-abc123def456'],
+            moves,
+            summary: 'Queued 1 live migration',
+          },
+        })
+      }
+      return route.fulfill({
+        json: { dry_run: true, task_ids: [], moves, summary: 'Preview: 1 move(s) would be queued' },
+      })
+    }
     if (url.includes('/ai/fleet/rebalance')) {
       return route.fulfill({
-        json: { summary: 'No moves suggested', moves: [], estimated_savings_pct: 0 },
+        json: {
+          summary: '1 move suggested',
+          moves: [{ vm_id: 'v1', vm_name: 'vm-1', from_host: 'host-1', to_host: 'host-2', reason: 'relieve hotspot' }],
+          estimated_savings_pct: 12,
+        },
       })
     }
     if (url.includes('/fleet/linux-health')) {
@@ -1561,7 +1595,16 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({ json: [] })
     }
     if (url.includes('/operations/runbooks') && route.request().method() === 'POST') {
-      return route.fulfill({ json: { summary: 'Runbook steps recorded', steps: ['Verify host heartbeat', 'Restart libvirtd if needed'] } })
+      return route.fulfill({
+        json: {
+          execution_id: 'ex-1',
+          incident: 'host-offline',
+          title: 'Host offline recovery',
+          steps: ['Verify host heartbeat', 'Restart libvirtd if needed'],
+          commands: ['systemctl status libvirtd'],
+          summary: 'Runbook steps recorded',
+        },
+      })
     }
     if (url.includes('/operations/runbooks')) {
       return route.fulfill({ json: opsRunbooks })
@@ -1633,7 +1676,7 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({ json: [] })
     }
     if (url.includes('/placement/recommendations') || url.includes('/placement/refresh')) {
-      return route.fulfill({ json: [] })
+      return route.fulfill({ json: opts?.placementRecommendations ? [placementRecommendation] : [] })
     }
     if (url.includes('/ha/status')) {
       return route.fulfill({
@@ -2234,14 +2277,16 @@ export async function mockPlatformApi(page: Page, opts?: {
         })
       }
       if (opts?.templateAutoFetch) {
+        templateReadinessPolls += 1
+        const fetched = templateReadinessPolls > 1
         return route.fulfill({
           json: {
-            disk_exists: false,
+            disk_exists: fetched,
             host_online: 1,
             cloud_init: true,
             ready: true,
             auto_fetch: true,
-            remediation: 'Golden image will download over SSH on first create.',
+            remediation: fetched ? 'Disk present on 1 online host(s).' : 'Golden image will download over SSH on first create.',
             source_disk: sampleTemplate.source_disk,
           },
         })
@@ -2659,6 +2704,17 @@ export async function mockPlatformApi(page: Page, opts?: {
           guest_tools_status: 'unknown',
         },
       })
+    }
+    if (url.match(/\/vms\/[^/]+\/migrate\/precheck/) && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          ok: true,
+          checks: [{ name: 'storage', passed: true, message: 'Shared storage reachable' }],
+        },
+      })
+    }
+    if (url.match(/\/vms\/[^/]+\/migrate/) && route.request().method() === 'POST') {
+      return route.fulfill({ json: { task_id: 'task-migrate-abc123def456' } })
     }
     if (url.match(/\/vms\/[^/]+(\?|$)/) || url.match(/\/vms\/[^/]+$/)) {
       return route.fulfill({ json: vmFixture })

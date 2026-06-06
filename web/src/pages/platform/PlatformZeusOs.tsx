@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
+import { useToastContext } from '../../contexts/ToastContext'
+import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
+import { toastQueuedOperation } from '../../utils/platformTaskToast'
+import { tasksHubHref } from '../../utils/platformHubLinks'
 import { Cpu, Search, Server, Shield, Workflow } from 'lucide-react'
 import { MacGlassPanel, MacListRow } from '../../components/platform/mac/PlatformMacUi'
 import DetailTabs from '../../components/platform/DetailTabs'
@@ -59,6 +63,8 @@ const ZEUS_TABS: Array<{ id: Tab; label: string }> = [
 ]
 
 export default function PlatformZeusOs() {
+  const toast = useToastContext()
+  const [tier] = usePlatformDesktopTier()
   const [tab, setTab] = usePlatformTabState<Tab>(ZEUS_TABS.map((t) => t.id), { defaultTab: 'fleet' })
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -77,6 +83,8 @@ export default function PlatformZeusOs() {
   const [metalProfile, setMetalProfile] = useState('BareMetalBmc')
   const [capacitySummary, setCapacitySummary] = useState<string | null>(null)
   const [rebalancePreview, setRebalancePreview] = useState<string | null>(null)
+  const [rebalanceExecuteBusy, setRebalanceExecuteBusy] = useState(false)
+  const [rebalanceTaskIds, setRebalanceTaskIds] = useState<string[]>([])
   const [frameworksSummary, setFrameworksSummary] = useState<string | null>(null)
   const [gpuSummary, setGpuSummary] = useState<string | null>(null)
   const [diagnosisSummary, setDiagnosisSummary] = useState<string | null>(null)
@@ -287,17 +295,54 @@ export default function PlatformZeusOs() {
                   <li key={m.vm_id}>{m.vm_name}: {m.from_host} → {m.to_host}</li>
                 ))}
               </ul>
-              <button
-                type="button"
-                className="btn-secondary text-xs mt-3"
-                onClick={async () => {
-                  const r = await executeFleetRebalance(true)
-                  setRebalancePreview(r.summary)
-                }}
-              >
-                Preview execute
-              </button>
+              <div className="flex flex-wrap gap-2 mt-3">
+                <button
+                  type="button"
+                  className="btn-secondary text-xs"
+                  onClick={async () => {
+                    const r = await executeFleetRebalance(true)
+                    setRebalancePreview(r.summary)
+                  }}
+                >
+                  Preview execute
+                </button>
+                {rebalance.moves.length > 0 && (
+                  <button
+                    type="button"
+                    className="btn-primary text-xs"
+                    disabled={rebalanceExecuteBusy}
+                    onClick={async () => {
+                      const n = rebalance.moves.length
+                      if (!window.confirm(`Queue up to ${n} live migration${n === 1 ? '' : 's'}?`)) return
+                      setRebalanceExecuteBusy(true)
+                      try {
+                        const r = await executeFleetRebalance(false, n)
+                        setRebalancePreview(r.summary)
+                        setRebalanceTaskIds(r.task_ids ?? [])
+                        if (r.task_ids?.length) {
+                          toastQueuedOperation(toast, `Rebalance queued (${r.task_ids.length} moves)`, r.task_ids[0], tier)
+                        } else {
+                          toast.success(r.summary)
+                        }
+                      } catch (e: unknown) {
+                        toast.error(formatUserError(e))
+                      } finally {
+                        setRebalanceExecuteBusy(false)
+                      }
+                    }}
+                  >
+                    {rebalanceExecuteBusy ? 'Queuing…' : 'Execute moves'}
+                  </button>
+                )}
+              </div>
               {rebalancePreview && <p className="text-xs text-slate-400 mt-2">{rebalancePreview}</p>}
+              {rebalanceTaskIds.length > 0 && (
+                <p className="text-xs mt-2">
+                  <Link to={tasksHubHref(tier)} className={hubLinkClasses()}>
+                    View migration tasks ({rebalanceTaskIds.length}) →
+                  </Link>
+                </p>
+              )}
             </MacGlassPanel>
           )}
         </div>

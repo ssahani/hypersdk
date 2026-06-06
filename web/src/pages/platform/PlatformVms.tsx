@@ -224,6 +224,7 @@ export default function PlatformVms() {
       os: searchParams.get('os') ?? undefined,
       size: searchParams.get('size') ?? undefined,
       network: searchParams.get('network') ?? undefined,
+      hostId: searchParams.get('host_id') ?? undefined,
     })
     setWizardOpen(true)
     const next = new URLSearchParams(searchParams)
@@ -231,6 +232,7 @@ export default function PlatformVms() {
     next.delete('os')
     next.delete('size')
     next.delete('network')
+    next.delete('host_id')
     setSearchParams(next, { replace: true })
   }, [searchParams, setSearchParams])
 
@@ -284,6 +286,7 @@ export default function PlatformVms() {
           template_ref: `${payload.os}@${payload.templateVersion ?? '1.0.0'}`,
           name: payload.name,
           memory: spec.memory,
+          host_id: payload.hostId,
           template_vars: { hostname: payload.name, name: payload.name },
           cloud_init_user: cloudInitUserForOs(payload.os),
           cloud_init_ssh_pubkey: payload.cloudInitSshPubkey,
@@ -802,7 +805,11 @@ export default function PlatformVms() {
           destHostId={migrateModal.destId}
           destHostName={migrateModal.destName}
           onClose={() => setMigrateModal(null)}
-          onDone={() => { toast.success('Migration queued'); void load() }}
+          onDone={(taskId) => {
+            if (taskId) toastQueuedOperation(toast, `Migrating ${migrateModal.vm.name}`, taskId, tier)
+            else toast.success('Migration queued')
+            void load()
+          }}
         />
       )}
       {sshVm && (

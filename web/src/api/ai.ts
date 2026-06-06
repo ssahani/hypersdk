@@ -608,9 +608,10 @@ export const executeMissionStack = (query: string, dryRun = true) =>
   })
 
 export const getGpuPlacement = (workload = 'inference') =>
-  platformFetch<{ summary: string; candidates: Array<{ hostname: string; gpu_capable: boolean; score: number; reason: string }> }>(
-    `/api/v1/ai/fleet/gpu-placement?workload=${encodeURIComponent(workload)}`,
-  )
+  platformFetch<{
+    summary: string
+    candidates: Array<{ host_id?: string; hostname: string; gpu_capable: boolean; score: number; reason: string }>
+  }>(`/api/v1/ai/fleet/gpu-placement?workload=${encodeURIComponent(workload)}`)
 
 export const diagnoseKnowledge = (query: string) =>
   platformFetch<{ summary: string; hypotheses: Array<{ title: string; confidence: number; evidence: string; action: string }> }>(

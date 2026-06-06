@@ -4,9 +4,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { Activity } from 'lucide-react'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
+import MigratePrecheckModal from '../../components/platform/MigratePrecheckModal'
 import {
   getClusterSettings,
   getHaStatus,
+  getPlatformVm,
   getPlacementRecommendations,
   listFenceEvents,
   listMigrationJobs,
@@ -17,17 +19,25 @@ import {
   type HaStatusResponse,
   type MigrationJob,
   type PlacementRecommendation,
+  type PlatformVm,
 } from '../../api/platform'
+import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
+import { toastQueuedOperation } from '../../utils/platformTaskToast'
 import {statusToneClass, hubLinkClasses} from '../../utils/semanticColors'
 
 export default function PlatformPlacement() {
+  const toast = useToastContext()
+  const [tier] = usePlatformDesktopTier()
   const [rows, setRows] = useState<PlacementRecommendation[]>([])
   const [ha, setHa] = useState<HaStatusResponse | null>(null)
   const [settings, setSettings] = useState<ClusterSettings | null>(null)
   const [migrations, setMigrations] = useState<MigrationJob[]>([])
   const [fences, setFences] = useState<FenceEvent[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [migrateModal, setMigrateModal] = useState<{ vm: PlatformVm; destId: string; destName: string } | null>(null)
+  const [migrateLoading, setMigrateLoading] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -80,6 +90,18 @@ export default function PlatformPlacement() {
   useEffect(() => {
     void load()
   }, [load])
+
+  const openMigrate = async (r: PlacementRecommendation) => {
+    setMigrateLoading(r.vm_id)
+    try {
+      const vm = await getPlatformVm(r.vm_id)
+      setMigrateModal({ vm, destId: r.to_host_id, destName: r.to_host_name })
+    } catch (e: unknown) {
+      setError(formatUserError(e))
+    } finally {
+      setMigrateLoading(null)
+    }
+  }
 
   return (
     <PlatformPageChrome
@@ -140,9 +162,19 @@ export default function PlatformPlacement() {
           <ul className="space-y-3 text-sm">
             {rows.map((r) => (
               <li key={`${r.vm_id}-${r.to_host_id}`} className="border-b border-slate-800 pb-3">
-                <div className="flex justify-between gap-4">
-                  <Link to={`/platform/vms/${r.vm_id}`} className={`$font-medium ${hubLinkClasses()}`}>{r.vm_name}</Link>
-                  <span className="text-slate-500">score {r.score.toFixed(1)}</span>
+                <div className="flex flex-wrap justify-between gap-4 items-start">
+                  <Link to={`/platform/vms/${r.vm_id}`} className={`font-medium ${hubLinkClasses()}`}>{r.vm_name}</Link>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-slate-500">score {r.score.toFixed(1)}</span>
+                    <button
+                      type="button"
+                      className="btn-primary text-xs"
+                      disabled={migrateLoading === r.vm_id}
+                      onClick={() => void openMigrate(r)}
+                    >
+                      {migrateLoading === r.vm_id ? 'Loading…' : 'Migrate'}
+                    </button>
+                  </div>
                 </div>
                 <p className="text-slate-400 mt-1">{r.from_host_name} → {r.to_host_name}</p>
                 <p className="text-slate-500 mt-1">{r.reason}</p>
@@ -178,6 +210,19 @@ export default function PlatformPlacement() {
             ))}
           </ul>
         </section>
+      )}
+      {migrateModal && (
+        <MigratePrecheckModal
+          vm={migrateModal.vm}
+          destHostId={migrateModal.destId}
+          destHostName={migrateModal.destName}
+          onClose={() => setMigrateModal(null)}
+          onDone={(taskId) => {
+            if (taskId) toastQueuedOperation(toast, `Migrating ${migrateModal.vm.name}`, taskId, tier)
+            else toast.success('Migration queued')
+            void load()
+          }}
+        />
       )}
     </PlatformPageChrome>
   )

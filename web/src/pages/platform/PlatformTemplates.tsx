@@ -418,7 +418,13 @@ export default function PlatformTemplates() {
                 <p className="text-xs text-slate-500">{deploySheet.category}</p>
               </div>
             </div>
-            <VmWizardReadinessBanner loading={readinessLoading} readiness={readiness} />
+            <VmWizardReadinessBanner
+              loading={readinessLoading}
+              readiness={readiness}
+              templateName={deploySheet.name}
+              templateVersion={deploySheet.version}
+              onReadinessChange={setReadiness}
+            />
             <label className="block text-sm">
               <span className="text-slate-400">VM name</span>
               <input className="input w-full mt-1" value={deployName} onChange={(e) => setDeployName(e.target.value)} />

@@ -93,8 +93,12 @@ export default function PlatformMigration() {
     }
   }, [])
 
-  const migrateVm = async (vm: ScanVm) => {
+  const migrateVm = async (vm: ScanVm, force = false) => {
     if (!hypersdk || vm.name.startsWith('(')) return
+    if (!force && vm.status === 'check' && vm.advisor?.risks?.length) {
+      const risks = vm.advisor.risks.slice(0, 5).join('\n• ')
+      if (!window.confirm(`Migration advisor warnings:\n• ${risks}\n\nContinue anyway?`)) return
+    }
     setMigrating(vm.name)
     try {
       const r = await submitHypersdkMigration({
@@ -329,9 +333,11 @@ export default function PlatformMigration() {
             <button
               key={s.id}
               type="button"
-              disabled={loading || (s.id === 'vcenter' && !hypersdk)}
+              data-testid={s.id === 'esxi' ? 'migration-source-esxi' : undefined}
+              disabled={loading || ((s.id === 'vcenter' || s.id === 'esxi') && !hypersdk)}
               onClick={() => {
                 if (s.id === 'vcenter') void scanSource('vmware')
+                else if (s.id === 'esxi') void scanSource('esxi')
                 else if (s.id === 'openstack') navigate('/openstack/migrations')
                 else if (s.id === 'ova' || s.id === 'vmdk' || s.id === 'cloud') navigate('/import')
               }}
@@ -375,8 +381,13 @@ export default function PlatformMigration() {
                     {vm.status}
                   </span>
                   {hypersdk && vm.status === 'ready' && (
-                    <button type="button" className="btn-primary text-xs flex items-center gap-1" disabled={migrating === vm.name} onClick={() => void migrateVm(vm)}>
+                    <button type="button" className="btn-primary text-xs flex items-center gap-1" disabled={migrating === vm.name} onClick={() => void migrateVm(vm, true)}>
                       <Play className="w-3 h-3" /> {migrating === vm.name ? 'Submitting…' : 'Migrate'}
+                    </button>
+                  )}
+                  {hypersdk && vm.status === 'check' && (
+                    <button type="button" className="btn-secondary text-xs flex items-center gap-1" disabled={migrating === vm.name} onClick={() => void migrateVm(vm)}>
+                      <Play className="w-3 h-3" /> {migrating === vm.name ? 'Submitting…' : 'Migrate with warnings'}
                     </button>
                   )}
                 </div>

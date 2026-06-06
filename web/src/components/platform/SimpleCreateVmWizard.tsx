@@ -5,9 +5,11 @@ import { Link } from 'react-router'
 import { Upload } from 'lucide-react'
 import {
   getTemplateReadiness,
+  listPlatformHosts,
   listPlatformNetworks,
   listMarketplaceTemplates,
   seedDefaultTemplates,
+  type PlatformHost,
   type PlatformNetwork,
   type PlatformTemplate,
 } from '../../api/platform'
@@ -36,6 +38,7 @@ export interface VmWizardInitial {
   os?: string
   size?: string
   network?: string
+  hostId?: string
 }
 
 export interface VmWizardWindowsOptions {
@@ -55,6 +58,7 @@ export interface VmWizardPayload {
   customSpec?: { cores: number; memoryGiB: number; diskGiB: number }
   windows?: VmWizardWindowsOptions
   templateVersion?: string
+  hostId?: string
   /** When true, parent should call createFromTemplate */
   fromTemplate?: boolean
 }
@@ -98,6 +102,8 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
   const [busy, setBusy] = useState(false)
   const [templates, setTemplates] = useState<PlatformTemplate[]>([])
   const [networks, setNetworks] = useState<PlatformNetwork[]>([])
+  const [hosts, setHosts] = useState<PlatformHost[]>([])
+  const [hostId, setHostId] = useState<string>('')
   const [readinessLoading, setReadinessLoading] = useState(false)
   const [readiness, setReadiness] = useState<TemplateReadiness | null>(null)
   const [virtio, setVirtio] = useState(true)
@@ -115,14 +121,19 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
         tpls = seeded.templates
       }
       setTemplates(tpls)
-      const nets = await listPlatformNetworks()
+      const [nets, hostList] = await Promise.all([
+        listPlatformNetworks(),
+        listPlatformHosts().catch(() => [] as PlatformHost[]),
+      ])
       setNetworks(nets)
+      setHosts(hostList.filter((h) => h.state === 'online'))
       if (nets.length > 0 && !nets.some((n) => n.name === network)) {
         setNetwork(nets[0].name)
       }
     } catch {
       setTemplates([])
       setNetworks([])
+      setHosts([])
     }
   }, [network])
 
@@ -133,6 +144,8 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
     if (initial?.os) setOs(initial.os)
     if (initial?.size) setSizeState((s) => ({ ...s, size: initial.size! }))
     if (initial?.network) setNetwork(initial.network)
+    if (initial?.hostId) setHostId(initial.hostId)
+    else setHostId('')
     void loadCatalog()
   }, [open, initial, loadCatalog])
 
@@ -222,6 +235,7 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
               }
             : undefined,
         templateVersion: matchedTemplate?.version,
+        hostId: hostId || undefined,
         fromTemplate: needsReadiness,
       }
       if (isWindows) {
@@ -317,7 +331,15 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
               )
             })}
           </div>
-          {needsReadiness && <VmWizardReadinessBanner loading={readinessLoading} readiness={readiness} />}
+          {needsReadiness && matchedTemplate && (
+            <VmWizardReadinessBanner
+              loading={readinessLoading}
+              readiness={readiness}
+              templateName={matchedTemplate.name}
+              templateVersion={matchedTemplate.version}
+              onReadinessChange={setReadiness}
+            />
+          )}
           {isCustomIso && (
             <p className="text-xs text-amber-200/80 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
               Custom ISO opens the dedicated install wizard when you finish this flow.
@@ -327,7 +349,22 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
       )}
 
       {step === 2 && (
-        <VmWizardSizeStep state={sizeState} onChange={(patch) => setSizeState((s) => ({ ...s, ...patch }))} />
+        <div className="space-y-4">
+          <VmWizardSizeStep state={sizeState} onChange={(patch) => setSizeState((s) => ({ ...s, ...patch }))} />
+          {hosts.length > 0 && (
+            <label className="block text-sm">
+              <span className="text-slate-300">Placement host (optional)</span>
+              <select className="input w-full mt-1" value={hostId} onChange={(e) => setHostId(e.target.value)}>
+                <option value="">Automatic — controller picks host</option>
+                {hosts.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.hostname}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
       )}
 
       {step === 3 && (
@@ -406,7 +443,15 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
             </div>
           )}
 
-          {needsReadiness && <VmWizardReadinessBanner loading={readinessLoading} readiness={readiness} />}
+          {needsReadiness && matchedTemplate && (
+            <VmWizardReadinessBanner
+              loading={readinessLoading}
+              readiness={readiness}
+              templateName={matchedTemplate.name}
+              templateVersion={matchedTemplate.version}
+              onReadinessChange={setReadiness}
+            />
+          )}
           {!info?.guestkit?.enabled && (
             <p className="text-xs text-orange-200/80 rounded-lg border border-orange-500/25 bg-orange-500/10 px-3 py-2">
               GuestKit offline assurance is disabled. Migrated or stopped VMs can be scored on disk via{' '}
@@ -437,6 +482,12 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
               <span className="text-slate-500">Network:</span>{' '}
               <span className="text-slate-100">{networkOptions.find((n) => n.id === network)?.label ?? network}</span>
             </p>
+            {hostId && (
+              <p>
+                <span className="text-slate-500">Host:</span>{' '}
+                <span className="text-slate-100">{hosts.find((h) => h.id === hostId)?.hostname ?? hostId}</span>
+              </p>
+            )}
           </div>
         </div>
       )}
