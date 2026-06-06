@@ -22,6 +22,7 @@ import {
 import {
   getCapacityReport,
   getClusterSummary,
+  getFleetUpdates,
   listNotifications,
   listPlatformHosts,
   listPlatformTasks,
@@ -67,11 +68,12 @@ export default function PlatformControlCenter() {
   const [segmentCount, setSegmentCount] = useState(0)
   const [storageTierCount, setStorageTierCount] = useState(0)
   const [syncing, setSyncing] = useState(false)
+  const [hostsRebootRequired, setHostsRebootRequired] = useState(0)
   const [jarvisShell, setJarvisShell] = useState(() => loadJarvisShell(tier))
 
   const load = useCallback(async () => {
     try {
-      const [h, v, t, c, cap, alerts, zs, op, segs, storageTiers] = await Promise.all([
+      const [h, v, t, c, cap, alerts, zs, op, segs, storageTiers, updates] = await Promise.all([
         listPlatformHosts(),
         listPlatformVms(),
         listPlatformTasks(),
@@ -82,6 +84,7 @@ export default function PlatformControlCenter() {
         getOperatorSecurePlan().catch(() => null),
         getNetworkSegmentsOverview().catch(() => ({ segments: [] })),
         getStorageTiersOverview().catch(() => ({ tiers: [], summary: '' })),
+        getFleetUpdates().catch(() => null),
       ])
       setHosts(h)
       setVms(v)
@@ -93,6 +96,7 @@ export default function PlatformControlCenter() {
       setOperatorSummary(op?.summary ?? null)
       setSegmentCount(segs.segments?.length ?? 0)
       setStorageTierCount(storageTiers.tiers?.length ?? 0)
+      setHostsRebootRequired(updates?.hosts_reboot_required ?? 0)
     } catch {
       /* optional panel */
     }
@@ -287,6 +291,15 @@ export default function PlatformControlCenter() {
                   label="Linux pressure"
                   value={desktop?.linux_summary ?? linuxHealth?.summary ?? 'Hosts under IO/thermal pressure'}
                   href="/platform/hosts"
+                  tone="warn"
+                />
+              )}
+              {hostsRebootRequired > 0 && (
+                <Row
+                  icon={<RefreshCw className={`w-4 h-4 ${statusToneClass('warn')}`} />}
+                  label="Reboot required"
+                  value={`${hostsRebootRequired} host(s) pending reboot after patches`}
+                  href="/platform/maintenance?tab=updates"
                   tone="warn"
                 />
               )}

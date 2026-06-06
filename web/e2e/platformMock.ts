@@ -67,32 +67,32 @@ const fleetMission = {
 }
 
 const fleetMaintenanceMission = {
-  summary: '1 host(s) with updates · 0 in maintenance · 0 pending schedule(s)',
+  summary: '1 host(s) with updates · 1 in maintenance · 0 pending schedule(s)',
   hosts_with_updates: 1,
-  hosts_in_maintenance: 0,
+  hosts_in_maintenance: 1,
   pending_schedules: 0,
   hosts: [
     {
       host_id: 'h1',
       hostname: 'host-1',
       state: 'online',
-      maintenance_mode: false,
+      maintenance_mode: true,
       validation_status: 'ok',
       pending_packages: 3,
-      reboot_required: false,
+      reboot_required: true,
       agent_drift: false,
       update_summary: '3 packages would be upgraded',
-      recommended_step: 'schedule',
+      recommended_step: 'apply_preview',
       steps: [
         { id: 'scan', label: 'Scan fleet', status: 'done', detail: null },
         { id: 'assess', label: 'Assess risk', status: 'done', detail: '3 packages would be upgraded' },
-        { id: 'schedule', label: 'Schedule window', status: 'ready', detail: null },
-        { id: 'enter_maintenance', label: 'Enter maintenance', status: 'blocked', detail: null },
+        { id: 'schedule', label: 'Schedule window', status: 'done', detail: null },
+        { id: 'enter_maintenance', label: 'Enter maintenance', status: 'done', detail: null },
         { id: 'evacuate', label: 'Evacuate VMs', status: 'skipped', detail: null },
-        { id: 'apply_preview', label: 'Apply preview', status: 'blocked', detail: 'Preview on host' },
+        { id: 'apply_preview', label: 'Apply preview', status: 'ready', detail: 'Preview or apply via platform' },
         { id: 'verify_exit', label: 'Verify & exit', status: 'pending', detail: null },
       ],
-      blockers: ['Schedule a maintenance window before entering maintenance.'],
+      blockers: [],
     },
   ],
 }
@@ -196,7 +196,7 @@ const fleetUpdates = {
   recommended_agent: '0.1.0-test',
   hosts_scanned: 1,
   hosts_with_updates: 1,
-  hosts_reboot_required: 0,
+  hosts_reboot_required: 1,
   agent_drift_count: 0,
   total_pending_packages: 3,
   hosts: [
@@ -208,8 +208,44 @@ const fleetUpdates = {
       backend: 'apt',
       pending_count: 3,
       summary: '3 packages would be upgraded',
-      reboot_required: false,
+      reboot_required: true,
       status: 'updates',
+      packages: [
+        { name: 'libc6', current: '2.35', available: '2.36', security: true },
+        { name: 'openssl', current: '3.0.2', available: '3.0.3', security: true },
+      ],
+    },
+  ],
+}
+
+const fleetActivity = {
+  summary: '1 running VM(s) · 1 host(s) · 0 under Linux pressure',
+  running_vms: 1,
+  pressure_hosts: 0,
+  top_vms: [
+    {
+      vm_id: 'v1',
+      vm_name: 'vm-1',
+      host_id: 'h1',
+      observed_state: 'running',
+      cpu_percent: 12,
+      memory_used_mib: 2048,
+      memory_mib: 4096,
+    },
+  ],
+  hosts: [
+    {
+      host_id: 'h1',
+      hostname: 'host-1',
+      state: 'online',
+      cpu_percent: 35,
+      memory_percent: 40,
+      vm_count: 2,
+      io_pressure_pct: 3,
+      cpu_pressure_pct: 2,
+      memory_pressure_pct: 1,
+      thermal_max_c: 0,
+      status: 'ok',
     },
   ],
 }
@@ -286,7 +322,7 @@ const sampleHost = {
   hostname: 'host-1',
   address: '127.0.0.1',
   state: 'online',
-  maintenance_mode: false,
+  maintenance_mode: true,
   vm_count: 2,
   last_heartbeat_at: new Date().toISOString(),
 }
@@ -532,6 +568,103 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.match(/\/api\/v1\/health(\?|$)/)) {
       return route.fulfill({
         json: { status: 'ok', leader: true, controller_id: 'ctrl-test-1' },
+      })
+    }
+    if (url.match(/\/hosts\/[^/]+\/linux\/observability/)) {
+      return route.fulfill({
+        json: {
+          pressure: {
+            cpu: { some: 0.02, full: 0.01, total: 0.03 },
+            memory: { some: 0.01, full: 0, total: 0.02 },
+            io: { some: 0.03, full: 0, total: 0.04 },
+          },
+          disk_io: [{ device: 'sda', read_bytes: 1e9, write_bytes: 2e8 }],
+          thermal: [],
+          smart: [],
+          bpf: { programs_loaded: 2, events_per_sec: 12 },
+          cgroup: { memory_current: 1e9, cpu_usage_usec: 5e8 },
+          vm_cgroups: [{ vm_name: 'vm-1', memory_bytes: 2e9 }],
+        },
+      })
+    }
+    if (url.match(/\/hosts\/[^/]+\/linux\/(network-diag|audit|filesystems|processes|updates)/)) {
+      if (url.includes('/network-diag')) {
+        return route.fulfill({
+          json: {
+            networkd_active: true,
+            resolved_active: true,
+            interfaces: [{ name: 'eth0', state: 'routable', addresses: ['10.0.0.1'] }],
+            networkctl_status: '● systemd-networkd.service - Network Configuration\n   Active: active',
+            resolvectl_status: 'Global\n       DNS Servers: 10.0.0.53',
+          },
+        })
+      }
+      if (url.includes('/audit')) {
+        return route.fulfill({
+          json: {
+            available: true,
+            auditd_active: true,
+            avc_count: 1,
+            events: [
+              { type: 'avc', message: 'denied { read } for pid=1234 comm="curl"', summary: 'denied { read } for pid=1234' },
+            ],
+            summary: '1 recent AVC event',
+          },
+        })
+      }
+      if (url.includes('/filesystems')) {
+        return route.fulfill({
+          json: {
+            filesystems: [{
+              mount_point: '/',
+              fstype: 'ext4',
+              source: '/dev/sda1',
+              size_bytes: 40e9,
+              used_bytes: 12e9,
+              avail_bytes: 28e9,
+              use_percent: 30,
+            }],
+          },
+        })
+      }
+      if (url.includes('/processes')) {
+        return route.fulfill({
+          json: {
+            processes: [{ pid: 1, user: 'root', cpu_percent: 0.1, rss_kb: 10240, command: 'systemd' }],
+          },
+        })
+      }
+      return route.fulfill({
+        json: {
+          summary: '3 packages pending',
+          backend: 'apt',
+          pending_count: 3,
+          reboot_required: true,
+          packages: [
+            { name: 'libc6', current: '2.35', available: '2.36', security: true },
+            { name: 'openssl', current: '3.0.2', available: '3.0.3', security: true },
+          ],
+        },
+      })
+    }
+    if (url.match(/\/hosts\/[^/]+\/linux\/package-upgrade/) && route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as { dry_run?: boolean } | null
+      if (body?.dry_run) {
+        return route.fulfill({
+          json: {
+            dry_run: true,
+            summary: '3 packages would be upgraded (libc6, openssl, curl)',
+            result: { ok: true, stdout: 'Inst libc6 [2.36]\nInst openssl [3.0.3]' },
+          },
+        })
+      }
+      return route.fulfill({
+        json: { task_id: 'task-linux-upgrade-1', summary: 'Linux package upgrade queued' },
+      })
+    }
+    if (url.match(/\/hosts\/[^/]+\/linux\/reboot/) && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: { task_id: 'task-linux-reboot-1', summary: 'Host reboot queued' },
       })
     }
     if (url.includes('/zeus-firewall/status')) {
@@ -1566,13 +1699,16 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({
         json: {
           hosts_scanned: 1,
-          pressure_hosts: 0,
+          pressure_hosts: 1,
           thermal_alerts: 0,
           smart_alerts: 0,
-          summary: 'Linux health OK',
-          hosts: [{ host_id: 'h1', hostname: 'host-1', io_pressure_pct: 12, status: 'ok' }],
+          summary: '1 host(s) scanned · 1 under pressure · 0 thermal · 0 SMART',
+          hosts: [{ host_id: 'h1', hostname: 'host-1', io_pressure_pct: 55, thermal_max_c: 0, smart_failures: 0, status: 'pressure' }],
         },
       })
+    }
+    if (url.includes('/fleet/activity')) {
+      return route.fulfill({ json: fleetActivity })
     }
     if (url.includes('/ai/fleet/power')) {
       return route.fulfill({
@@ -1651,7 +1787,7 @@ export async function mockPlatformApi(page: Page, opts?: {
         json: [{ project: 'default', max_vms: 50, max_vcpu: 200, max_memory_mib: 409600, max_storage_gib: 5000 }],
       })
     }
-    if (url.includes('/audit')) {
+    if (url.includes('/audit') && !url.includes('/linux/audit')) {
       return route.fulfill({ json: [{ id: 'a1', actor: 'admin', action: 'login', created_at: new Date().toISOString() }] })
     }
     if (url.includes('/observability/overview')) {
@@ -2406,22 +2542,6 @@ export async function mockPlatformApi(page: Page, opts?: {
     }
     if (url.match(/\/hosts\/[^/]+\/gpus/)) {
       return route.fulfill({ json: hostGpus })
-    }
-    if (url.match(/\/hosts\/[^/]+\/linux\/observability/)) {
-      return route.fulfill({
-        json: {
-          pressure: {
-            cpu: { some: 0.02, full: 0 },
-            memory: { some: 0.01, full: 0 },
-            io: { some: 0.03, full: 0 },
-          },
-          thermal: [],
-          smart: [],
-        },
-      })
-    }
-    if (url.match(/\/hosts\/[^/]+\/linux\/updates/)) {
-      return route.fulfill({ json: { summary: 'No pending updates', packages: [] } })
     }
     if (url.match(/\/hosts\/[^/]+\/detail/)) {
       return route.fulfill({ json: sampleHostDetail })

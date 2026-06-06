@@ -7,6 +7,7 @@ import { useFleetDesktop } from '../../../hooks/useFleetDesktop'
 import { usePlatformDesktopTier } from '../../../hooks/usePlatformDesktopTier'
 import { activityHubHref, operationsHubHref } from '../../../utils/platformHubLinks'
 import { getSreForecast, getZeusApprovalHub, getPredictions, type SreForecast, type Prediction } from '../../../api/ai'
+import { getFleetUpdates } from '../../../api/platform'
 import { useAi } from '../../../contexts/AiContext'
 import { hubLinkClasses, statusBgClass, statusSurfaceClasses, statusToneClass } from '../../../utils/semanticColors'
 
@@ -25,6 +26,7 @@ export default function PlatformDynamicIsland() {
   const [forecasts, setForecasts] = useState<SreForecast[]>([])
   const [topPrediction, setTopPrediction] = useState<Prediction | null>(null)
   const [zeusPending, setZeusPending] = useState(0)
+  const [rebootRequiredHosts, setRebootRequiredHosts] = useState(0)
 
   useEffect(() => {
     void getSreForecast()
@@ -41,10 +43,16 @@ export default function PlatformDynamicIsland() {
       .catch(() => setZeusPending(0))
   }, [])
 
+  useEffect(() => {
+    void getFleetUpdates()
+      .then((u) => setRebootRequiredHosts(u.hosts_reboot_required ?? 0))
+      .catch(() => setRebootRequiredHosts(0))
+  }, [])
+
   const pressure = linuxHealth?.pressure_hosts ?? desktop?.pressure_hosts ?? 0
   const criticalForecast = forecasts.find((f) => f.severity === 'critical')
   const failedTasks = desktop?.failed_tasks_24h ?? 0
-  const actionableIssues = (desktop?.slo_breach_count ?? 0) + pressure
+  const actionableIssues = (desktop?.slo_breach_count ?? 0) + pressure + rebootRequiredHosts
   const alertBacklog = desktop?.unread_notifications ?? 0
 
   const state = useMemo(() => {
@@ -110,9 +118,15 @@ export default function PlatformDynamicIsland() {
               <Link to={operationsHubHref(tier)} className={hubLinkClasses('hover:underline')} onClick={() => setExpanded(false)}>Operations hub</Link>
             </p>
           )}
+          {rebootRequiredHosts > 0 && (
+            <p className={`text-xs mb-2 ${statusToneClass('warn')} opacity-90`}>
+              {rebootRequiredHosts} host{rebootRequiredHosts === 1 ? '' : 's'} need reboot after OS patches —{' '}
+              <Link to="/platform/maintenance?tab=updates" className={hubLinkClasses('hover:underline')} onClick={() => setExpanded(false)}>Maintenance</Link>
+            </p>
+          )}
           {actionableIssues > 0 && (
             <p className={`text-xs mb-2 ${statusToneClass('warn')} opacity-90`}>
-              {actionableIssues} open issue{actionableIssues === 1 ? '' : 's'} (SLO breaches, host pressure)
+              {actionableIssues} open issue{actionableIssues === 1 ? '' : 's'} (SLO breaches, host pressure, reboots)
             </p>
           )}
           {topPrediction && !criticalForecast && (

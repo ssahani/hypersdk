@@ -938,6 +938,15 @@ except Exception:
     e2e_platform_smoke_get "/api/v1/hosts/${host_id}/linux/observability" "GET /api/v1/hosts/{id}/linux/observability" || true
     e2e_platform_smoke_get "/api/v1/hosts/${host_id}/linux/network-diag" "GET /api/v1/hosts/{id}/linux/network-diag" || true
     e2e_platform_smoke_get "/api/v1/hosts/${host_id}/linux/audit" "GET /api/v1/hosts/{id}/linux/audit" || true
+    e2e_platform_smoke_get "/api/v1/hosts/${host_id}/linux/filesystems" "GET /api/v1/hosts/{id}/linux/filesystems" || true
+    e2e_platform_smoke_get "/api/v1/hosts/${host_id}/linux/processes?order=cpu&limit=10" "GET /api/v1/hosts/{id}/linux/processes" || true
+    http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/hosts/${host_id}/linux/package-upgrade" \
+      -H 'Content-Type: application/json' -d '{"dry_run":true}')"
+    if [[ "$http" == "200" ]]; then
+      e2e_platform_ok "POST /api/v1/hosts/{id}/linux/package-upgrade preview (HTTP ${http})"
+    else
+      e2e_platform_fail "POST package-upgrade preview — HTTP ${http}"
+    fi
   fi
   vm_id="$(e2e_platform_curl -s "${E2E_PLATFORM_BASE}/api/v1/vms" | python3 -c 'import sys,json; v=json.load(sys.stdin); print(v[0]["id"] if v else "")' 2>/dev/null || true)"
   if [[ -n "$vm_id" ]]; then

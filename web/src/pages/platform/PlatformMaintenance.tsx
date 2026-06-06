@@ -36,6 +36,8 @@ import {
   listMaintenanceSchedules,
   listPlatformHosts,
   upgradeHostAgent,
+  previewHostPackageUpgrade,
+  applyHostPackageUpgrade,
   type FleetMaintenanceMissionOverview,
   type FleetUpdatesOverview,
   type MaintenanceMissionHost,
@@ -48,6 +50,7 @@ import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusChipClasses } from '../../utils/semanticColors'
 import { operationsHubHref } from '../../utils/platformHubLinks'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
+import { toastQueuedOperation } from '../../utils/platformTaskToast'
 
 type TabId = 'mission' | 'updates' | 'schedules'
 
@@ -99,6 +102,8 @@ export default function PlatformMaintenance() {
   const [runAt, setRunAt] = useState('')
   const [defaultTabSet, setDefaultTabSet] = useState(false)
   const [enrollOpen, setEnrollOpen] = useState(false)
+  const [previewSummary, setPreviewSummary] = useState<string | null>(null)
+  const [upgradeBusy, setUpgradeBusy] = useState(false)
 
   const loadSchedules = useCallback(async () => {
     const [schedules, hostRows] = await Promise.all([listMaintenanceSchedules(), listPlatformHosts()])
@@ -160,6 +165,11 @@ export default function PlatformMaintenance() {
   const hostName = (id: string) => hosts.find((h) => h.id === id)?.hostname || id.slice(0, 8)
   const selectedMission = mission?.hosts.find((h) => h.host_id === missionHostId) ?? mission?.hosts[0] ?? null
   const timeline = selectedMission ? missionTimelineProps(selectedMission.steps) : null
+
+  const maintenanceUpgradeTargets = useMemo(
+    () => (mission?.hosts ?? []).filter((h) => h.maintenance_mode && (h.pending_packages ?? 0) > 0),
+    [mission],
+  )
 
   const runMissionAction = async (label: string, fn: () => Promise<unknown>) => {
     setActionError(null)
@@ -295,13 +305,69 @@ export default function PlatformMaintenance() {
                           Upgrade agent
                         </button>
                       )}
+                      <button
+                        type="button"
+                        className="btn-secondary text-sm"
+                        disabled={upgradeBusy || !(selectedMission.pending_packages ?? 0)}
+                        onClick={() => {
+                          if (!selectedMission) return
+                          setUpgradeBusy(true)
+                          void previewHostPackageUpgrade(selectedMission.host_id)
+                            .then((r) => {
+                              setPreviewSummary(r.summary ?? 'Preview complete')
+                              toast.success('Package upgrade preview ready')
+                            })
+                            .catch((e: unknown) => toast.error(formatUserError(e)))
+                            .finally(() => setUpgradeBusy(false))
+                        }}
+                      >
+                        Preview upgrade
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-primary text-sm"
+                        disabled={!selectedMission.maintenance_mode || !(selectedMission.pending_packages ?? 0)}
+                        onClick={() => {
+                          if (!selectedMission) return
+                          if (!window.confirm('Apply OS package upgrades on this host? VMs may be affected.')) return
+                          void applyHostPackageUpgrade(selectedMission.host_id)
+                            .then((r) => {
+                              toastQueuedOperation(toast, 'Package upgrade queued', r.task_id, tier)
+                              return loadMission()
+                            })
+                            .catch((e: unknown) => toast.error(formatUserError(e)))
+                        }}
+                      >
+                        Apply upgrades
+                      </button>
+                      {maintenanceUpgradeTargets.length > 1 && (
+                        <button
+                          type="button"
+                          className="btn-secondary text-sm"
+                          onClick={() => {
+                            if (!window.confirm(`Apply upgrades on ${maintenanceUpgradeTargets.length} host(s) in maintenance?`)) return
+                            void Promise.all(maintenanceUpgradeTargets.map((h) => applyHostPackageUpgrade(h.host_id)))
+                              .then((results) => {
+                                const last = results[results.length - 1]
+                                if (last) toastQueuedOperation(toast, `Queued ${results.length} upgrade(s)`, last.task_id, tier)
+                                return loadMission()
+                              })
+                              .catch((e: unknown) => toast.error(formatUserError(e)))
+                          }}
+                        >
+                          Upgrade all in maintenance
+                        </button>
+                      )}
                       <Link
                         to={`/platform/hosts/${selectedMission.host_id}?tab=linux`}
                         className="btn-secondary text-sm inline-flex items-center"
                       >
-                        Package preview (host)
+                        Host Linux tab
                       </Link>
                     </div>
+                    {previewSummary && (
+                      <p className="text-xs text-slate-400 mt-3 font-mono whitespace-pre-wrap">{previewSummary}</p>
+                    )}
                   </MacGlassPanel>
                 </>
               )}

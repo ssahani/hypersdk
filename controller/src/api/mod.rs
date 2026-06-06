@@ -94,6 +94,13 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/hosts/{id}/linux/observability", get(host_os::host_linux_observability))
         .route("/api/v1/hosts/{id}/linux/network-diag", get(host_os::host_network_diagnostics))
         .route("/api/v1/hosts/{id}/linux/audit", get(host_os::host_linux_audit))
+        .route("/api/v1/hosts/{id}/linux/filesystems", get(host_os::host_linux_filesystems))
+        .route("/api/v1/hosts/{id}/linux/processes", get(host_os::host_linux_processes))
+        .route(
+            "/api/v1/hosts/{id}/linux/package-upgrade",
+            post(host_os::host_linux_package_upgrade),
+        )
+        .route("/api/v1/hosts/{id}/linux/reboot", post(host_os::host_linux_reboot))
         .route("/api/v1/hosts/{id}/diagnose", post(host_os::diagnose_host))
         .route("/api/v1/hosts/{id}/maintenance", post(hosts::host_maintenance))
         .route("/api/v1/vms", get(vms::list_vms).post(vms::create_vm))

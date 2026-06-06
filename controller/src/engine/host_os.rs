@@ -58,7 +58,7 @@ pub async fn network_diagnostics(
         }
     };
     match agent_client::get_systemd_network_diagnostics(&addr).await {
-        Ok(v) => Ok(v),
+        Ok(v) => Ok(normalize_network_diagnostics(v)),
         Err(e) => {
             tracing::warn!("network diagnostics for {hostname} via {addr}: {e}");
             Ok(serde_json::json!({
@@ -86,7 +86,8 @@ pub async fn linux_audit(
     host_id: Uuid,
 ) -> anyhow::Result<serde_json::Value> {
     let (_, addr) = resolve_agent_addr(pool, cfg, host_id).await?;
-    agent_client::get_linux_audit(&addr).await
+    let raw = agent_client::get_linux_audit(&addr).await?;
+    Ok(normalize_linux_audit(raw))
 }
 
 pub async fn linux_package_updates(
@@ -95,7 +96,144 @@ pub async fn linux_package_updates(
     host_id: Uuid,
 ) -> anyhow::Result<serde_json::Value> {
     let (_, addr) = resolve_agent_addr(pool, cfg, host_id).await?;
-    agent_client::get_linux_package_updates(&addr).await
+    let raw = agent_client::get_linux_package_updates(&addr).await?;
+    Ok(normalize_linux_package_updates(raw))
+}
+
+pub async fn linux_filesystems(
+    pool: &PgPool,
+    cfg: &ControllerConfig,
+    host_id: Uuid,
+) -> anyhow::Result<serde_json::Value> {
+    let (_, addr) = resolve_agent_addr(pool, cfg, host_id).await?;
+    let rows = agent_client::get_linux_filesystems(&addr).await?;
+    Ok(serde_json::json!({ "filesystems": rows }))
+}
+
+pub async fn linux_top_processes(
+    pool: &PgPool,
+    cfg: &ControllerConfig,
+    host_id: Uuid,
+    limit: u32,
+    order: &str,
+) -> anyhow::Result<serde_json::Value> {
+    let (_, addr) = resolve_agent_addr(pool, cfg, host_id).await?;
+    let rows = agent_client::get_linux_top_processes(&addr, limit, order).await?;
+    Ok(serde_json::json!({ "processes": rows }))
+}
+
+pub async fn require_maintenance_mode(pool: &PgPool, host_id: Uuid) -> anyhow::Result<()> {
+    let maintenance: bool = sqlx::query_scalar("SELECT maintenance_mode FROM hosts WHERE id = $1")
+        .bind(host_id)
+        .fetch_one(pool)
+        .await?;
+    if !maintenance {
+        anyhow::bail!("host must be in maintenance mode before package apply or reboot");
+    }
+    Ok(())
+}
+
+pub async fn apply_linux_package_upgrade(
+    pool: &PgPool,
+    cfg: &ControllerConfig,
+    host_id: Uuid,
+    dry_run: bool,
+) -> anyhow::Result<serde_json::Value> {
+    if !dry_run {
+        require_maintenance_mode(pool, host_id).await?;
+    }
+    let (_, addr) = resolve_agent_addr(pool, cfg, host_id).await?;
+    agent_client::apply_linux_package_upgrade(&addr, dry_run).await
+}
+
+pub async fn reboot_linux_host(
+    pool: &PgPool,
+    cfg: &ControllerConfig,
+    host_id: Uuid,
+) -> anyhow::Result<()> {
+    require_maintenance_mode(pool, host_id).await?;
+    let (_, addr) = resolve_agent_addr(pool, cfg, host_id).await?;
+    agent_client::host_linux_reboot(&addr).await
+}
+
+pub fn normalize_linux_audit(raw: serde_json::Value) -> serde_json::Value {
+    let events = raw
+        .get("events")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let avc = raw.get("avc_count").and_then(|v| v.as_u64()).unwrap_or(0);
+    let available = raw.get("available").and_then(|v| v.as_bool()).unwrap_or(!events.is_empty());
+    serde_json::json!({
+        "available": available,
+        "auditd_active": available,
+        "source": raw.get("source").cloned().unwrap_or(serde_json::Value::Null),
+        "recent_events": events.len(),
+        "avc_count": avc,
+        "summary": format!("{} recent event(s) · {} AVC", events.len(), avc),
+        "events": events,
+    })
+}
+
+pub fn normalize_linux_package_updates(raw: serde_json::Value) -> serde_json::Value {
+    let packages = raw.get("packages").cloned().unwrap_or_else(|| serde_json::json!([]));
+    let pending = raw.get("pending_count").and_then(|v| v.as_u64());
+    serde_json::json!({
+        "backend": raw.get("backend"),
+        "probed": raw.get("probed"),
+        "pending_count": pending,
+        "summary": raw.get("summary").and_then(|v| v.as_str()).unwrap_or(""),
+        "hint": raw.get("hint"),
+        "error": raw.get("error"),
+        "reboot_required": raw.get("reboot_required").and_then(|v| v.as_bool()).unwrap_or(false),
+        "packages": packages,
+    })
+}
+
+pub fn normalize_network_diagnostics(raw: serde_json::Value) -> serde_json::Value {
+    let networkd_active = raw
+        .get("systemd_networkd_active")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let nm_active = raw
+        .get("network_manager_active")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let resolvectl = raw
+        .get("resolvectl_status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let resolved_active = resolvectl.contains("Active: active") || resolvectl.contains("DNS Servers");
+    let mut interfaces = Vec::new();
+    if let Some(list) = raw.get("networkctl_list").and_then(|v| v.as_str()) {
+        for line in list.lines().skip(1) {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 2 {
+                interfaces.push(serde_json::json!({
+                    "name": parts[0],
+                    "state": parts.get(1).unwrap_or(&""),
+                    "kind": parts.get(2).unwrap_or(&""),
+                }));
+            }
+        }
+    }
+    let mut out = raw;
+    if let Some(obj) = out.as_object_mut() {
+        obj.insert("networkd_active".into(), serde_json::json!(networkd_active));
+        obj.insert("resolved_active".into(), serde_json::json!(resolved_active));
+        obj.insert("network_manager_active".into(), serde_json::json!(nm_active));
+        obj.insert("interfaces".into(), serde_json::Value::Array(interfaces));
+        obj.insert(
+            "summary".into(),
+            serde_json::json!(format!(
+                "networkd {} · NetworkManager {} · resolved {}",
+                if networkd_active { "active" } else { "inactive" },
+                if nm_active { "active" } else { "inactive" },
+                if resolved_active { "active" } else { "inactive" }
+            )),
+        );
+    }
+    out
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]

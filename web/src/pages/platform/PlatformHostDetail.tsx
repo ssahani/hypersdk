@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate, useParams, useLocation } from 'react-router'
+import { Link, useNavigate, useParams, useLocation, useSearchParams } from 'react-router'
 import { ArrowLeft, ExternalLink, Network, Shield, Server, Activity, FileWarning, Bot, Cpu } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
 import OsDiagnosePanel from '../../components/platform/OsDiagnosePanel'
@@ -23,8 +23,15 @@ import {
   getPlatformHostDetail,
   getHostLinuxObservability,
   getHostLinuxUpdates,
+  getHostLinuxFilesystems,
+  getHostLinuxProcesses,
+  previewHostPackageUpgrade,
+  applyHostPackageUpgrade,
+  rebootHostLinux,
   getHostNetworkDiag,
   getHostLinuxAudit,
+  type HostLinuxFilesystem,
+  type HostLinuxProcess,
   getHostLldp,
   diagnoseHost,
   hostMaintenance,
@@ -53,6 +60,8 @@ import { openCenterPopout } from '../../utils/platformCenterPopout'
 import { hostClassicTools } from '../../utils/platformClassicTools'
 import { PlatformClassicToolLinks } from '../../components/platform/PlatformCrossLinks'
 import { getHostGpus, type HostGpuDevice } from '../../api/platformHostGpu'
+import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
+import { toastQueuedOperation } from '../../utils/platformTaskToast'
 
 function psiBar(label: string, pct: number) {
   return (
@@ -70,10 +79,20 @@ function psiBar(label: string, pct: number) {
 
 type HostCheck = { name: string; passed: boolean; message: string; remediation?: string }
 
+const TAB_PARAM: Record<string, HostDetailTab> = {
+  general: 'general',
+  network: 'network',
+  linux: 'linux',
+  security: 'security',
+  audit: 'audit',
+}
+
 export default function PlatformHostDetailPage() {
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const [tier] = usePlatformDesktopTier()
   const toast = useToastContext()
   const { openCopilot, setContextHostId } = useAi()
   const [section, setSection] = useState<HostDetailTab>('general')
@@ -104,6 +123,10 @@ export default function PlatformHostDetailPage() {
   const [healthChecks, setHealthChecks] = useState<HostCheck[] | null>(null)
   const [validationChecks, setValidationChecks] = useState<HostCheck[] | null>(null)
   const [opsBusy, setOpsBusy] = useState(false)
+  const [filesystems, setFilesystems] = useState<HostLinuxFilesystem[]>([])
+  const [processes, setProcesses] = useState<HostLinuxProcess[]>([])
+  const [upgradePreview, setUpgradePreview] = useState<string | null>(null)
+  const [linuxOpsBusy, setLinuxOpsBusy] = useState(false)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -134,12 +157,16 @@ export default function PlatformHostDetailPage() {
       setLldp(l)
     }
     if (section === 'linux') {
-      const [obs, updates] = await Promise.all([
+      const [obs, updates, fs, procs] = await Promise.all([
         getHostLinuxObservability(id).catch(() => null),
         getHostLinuxUpdates(id).catch(() => null),
+        getHostLinuxFilesystems(id).catch(() => ({ filesystems: [] })),
+        getHostLinuxProcesses(id, 'memory', 15).catch(() => ({ processes: [] })),
       ])
       setLinuxObs(obs)
       setLinuxUpdates(updates)
+      setFilesystems(fs.filesystems ?? [])
+      setProcesses(procs.processes ?? [])
       setGpuLoading(true)
       setGpuError(null)
       try {
@@ -176,6 +203,10 @@ export default function PlatformHostDetailPage() {
 
   useEffect(() => { void load() }, [load])
   useEffect(() => { void loadOs() }, [loadOs])
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab && TAB_PARAM[tab]) setSection(TAB_PARAM[tab])
+  }, [searchParams])
   useEffect(() => {
     void getLocalFirewallInventory().then(setLocalFw).catch(() => setLocalFw(null))
   }, [])
@@ -416,13 +447,26 @@ export default function PlatformHostDetailPage() {
               <div className="space-y-4">
                 {netDiag ? (
                   <MacGlassPanel title="systemd networking">
-                    <div className="grid gap-2 sm:grid-cols-2 text-sm mb-3">
-                      <div>networkd: <span className={statusToneClass(netDiag.systemd_networkd_active ? 'ok' : 'warn')}>{netDiag.systemd_networkd_active ? 'active' : 'inactive'}</span></div>
+                    <div className="grid gap-2 sm:grid-cols-2 text-sm mb-3 p-3">
+                      <div>networkd: <span className={statusToneClass((netDiag.networkd_active ?? netDiag.systemd_networkd_active) ? 'ok' : 'warn')}>{(netDiag.networkd_active ?? netDiag.systemd_networkd_active) ? 'active' : 'inactive'}</span></div>
                       <div>resolved: <span className={statusToneClass(netDiag.resolved_active ? 'ok' : 'warn')}>{netDiag.resolved_active ? 'active' : 'inactive'}</span></div>
+                      {netDiag.summary && <p className="sm:col-span-2 text-xs text-slate-500">{netDiag.summary}</p>}
                     </div>
                     {(netDiag.interfaces ?? []).slice(0, 8).map((iface) => (
-                      <MacListRow key={iface.name} title={iface.name} subtitle={(iface.addresses ?? []).join(', ') || iface.state || '—'} />
+                      <MacListRow key={iface.name} title={iface.name} subtitle={(iface.addresses ?? []).join(', ') || iface.state || iface.kind || '—'} />
                     ))}
+                    {netDiag.networkctl_status_all && (
+                      <details className="p-3 text-xs">
+                        <summary className="cursor-pointer text-slate-400">networkctl status</summary>
+                        <pre className="mt-2 font-mono text-slate-500 max-h-48 overflow-auto whitespace-pre-wrap">{netDiag.networkctl_status_all.slice(0, 6000)}</pre>
+                      </details>
+                    )}
+                    {netDiag.resolvectl_status && (
+                      <details className="p-3 text-xs">
+                        <summary className="cursor-pointer text-slate-400">resolvectl status</summary>
+                        <pre className="mt-2 font-mono text-slate-500 max-h-48 overflow-auto whitespace-pre-wrap">{netDiag.resolvectl_status.slice(0, 4000)}</pre>
+                      </details>
+                    )}
                   </MacGlassPanel>
                 ) : (
                   <PlatformEmptyState
@@ -481,11 +525,54 @@ export default function PlatformHostDetailPage() {
                   <>
                     <MacGlassPanel title="Pressure stall (PSI)">
                       <div className="space-y-3">
-                        {psiBar('CPU', cpuPsi)}
-                        {psiBar('Memory', memPsi)}
-                        {psiBar('I/O', ioPsi)}
+                        {psiBar('CPU some', cpuPsi)}
+                        {psiBar('CPU full', (linuxObs.pressure?.cpu?.full ?? 0) * 100)}
+                        {psiBar('Memory some', memPsi)}
+                        {psiBar('Memory full', (linuxObs.pressure?.memory?.full ?? 0) * 100)}
+                        {psiBar('I/O some', ioPsi)}
+                        {psiBar('I/O full', (linuxObs.pressure?.io?.full ?? 0) * 100)}
                       </div>
                     </MacGlassPanel>
+                    {(linuxObs.disk_io ?? []).length > 0 && (
+                      <MacGlassPanel title="Block I/O">
+                        {(linuxObs.disk_io ?? []).slice(0, 8).map((d) => (
+                          <MacListRow
+                            key={d.device}
+                            title={d.device}
+                            subtitle={`read ${Math.round(d.read_bytes / 1_048_576)} MiB · write ${Math.round(d.write_bytes / 1_048_576)} MiB`}
+                          />
+                        ))}
+                      </MacGlassPanel>
+                    )}
+                    {filesystems.length > 0 && (
+                      <MacGlassPanel title="Filesystems">
+                        {filesystems.slice(0, 10).map((f) => (
+                          <MacListRow
+                            key={f.mount_point}
+                            title={f.mount_point}
+                            subtitle={`${f.fstype} · ${f.use_percent.toFixed(0)}% used`}
+                          />
+                        ))}
+                      </MacGlassPanel>
+                    )}
+                    {processes.length > 0 && (
+                      <MacGlassPanel title="Top processes">
+                        {processes.map((p) => (
+                          <MacListRow
+                            key={p.pid}
+                            title={p.command || p.args || `pid ${p.pid}`}
+                            subtitle={`${p.user} · ${p.cpu_percent.toFixed(1)}% CPU · ${Math.round(p.rss_kb / 1024)} MiB RSS`}
+                          />
+                        ))}
+                      </MacGlassPanel>
+                    )}
+                    {linuxObs.bpf && (
+                      <MacGlassPanel title="eBPF summary">
+                        <p className="text-sm text-slate-400 p-3 font-mono text-xs">
+                          {JSON.stringify(linuxObs.bpf)}
+                        </p>
+                      </MacGlassPanel>
+                    )}
                     {(linuxObs.thermal ?? []).length > 0 && (
                       <MacGlassPanel title="Thermal">
                         {(linuxObs.thermal ?? []).map((t) => (
@@ -506,20 +593,84 @@ export default function PlatformHostDetailPage() {
                       </MacGlassPanel>
                     )}
                     {linuxUpdates && (
-                      <MacGlassPanel title="Package updates" subtitle={linuxUpdates.summary}>
+                      <MacGlassPanel
+                        title="Package updates"
+                        subtitle={`${linuxUpdates.backend ?? 'distro'} · ${linuxUpdates.summary ?? ''}${linuxUpdates.reboot_required ? ' · reboot required' : ''}`}
+                      >
+                        <div className="p-3 flex flex-wrap gap-2 border-b border-white/[0.06] mb-2">
+                          <button
+                            type="button"
+                            className="btn-secondary text-xs"
+                            disabled={linuxOpsBusy}
+                            onClick={() => {
+                              if (!id) return
+                              setLinuxOpsBusy(true)
+                              void previewHostPackageUpgrade(id)
+                                .then((r) => {
+                                  const out = String((r.result as { stdout?: string })?.stdout ?? r.summary ?? 'Preview complete')
+                                  setUpgradePreview(out.slice(0, 4000))
+                                  toast.success('Upgrade preview ready')
+                                })
+                                .catch((e: unknown) => toast.error(formatUserError(e)))
+                                .finally(() => setLinuxOpsBusy(false))
+                            }}
+                          >
+                            Preview upgrade
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary text-xs"
+                            disabled={linuxOpsBusy || !host?.maintenance_mode}
+                            title={host?.maintenance_mode ? undefined : 'Enter maintenance mode first'}
+                            onClick={() => {
+                              if (!id || !window.confirm('Apply all pending package upgrades on this host?')) return
+                              setLinuxOpsBusy(true)
+                              void applyHostPackageUpgrade(id)
+                                .then((r) => toastQueuedOperation(toast, r.summary, r.task_id, tier))
+                                .catch((e: unknown) => toast.error(formatUserError(e)))
+                                .finally(() => setLinuxOpsBusy(false))
+                            }}
+                          >
+                            Apply upgrade
+                          </button>
+                          {linuxUpdates.reboot_required && (
+                            <button
+                              type="button"
+                              className="btn-secondary text-xs"
+                              disabled={linuxOpsBusy || !host?.maintenance_mode}
+                              onClick={() => {
+                                if (!id || !window.confirm('Reboot this hypervisor now?')) return
+                                setLinuxOpsBusy(true)
+                                void rebootHostLinux(id)
+                                  .then((r) => toastQueuedOperation(toast, r.summary, r.task_id, tier))
+                                  .catch((e: unknown) => toast.error(formatUserError(e)))
+                                  .finally(() => setLinuxOpsBusy(false))
+                              }}
+                            >
+                              Reboot host
+                            </button>
+                          )}
+                        </div>
                         {(linuxUpdates.packages ?? []).length === 0 ? (
-                          <p className="text-sm text-slate-400">No pending updates.</p>
+                          <p className="text-sm text-slate-400 p-3">
+                            {(linuxUpdates.pending_count ?? 0) > 0
+                              ? `${linuxUpdates.pending_count} pending update(s) — package list not enumerated`
+                              : 'No pending updates.'}
+                          </p>
                         ) : (
                           <ul className="divide-y divide-white/[0.04] -mx-1 max-h-48 overflow-y-auto">
-                            {linuxUpdates.packages.slice(0, 20).map((p) => (
+                            {linuxUpdates.packages!.slice(0, 20).map((p) => (
                               <MacListRow
                                 key={p.name}
                                 title={p.name}
-                                subtitle={`${p.current} → ${p.available}`}
+                                subtitle={[p.current, p.available].filter(Boolean).join(' → ') || 'pending'}
                                 badge={p.security ? <span className={`text-[10px] ${statusToneClass('warn')}`}>security</span> : undefined}
                               />
                             ))}
                           </ul>
+                        )}
+                        {upgradePreview && (
+                          <pre className="mt-2 p-2 text-[10px] font-mono text-slate-400 max-h-40 overflow-auto bg-slate-950/50 rounded-lg">{upgradePreview}</pre>
                         )}
                       </MacGlassPanel>
                     )}
@@ -595,16 +746,24 @@ export default function PlatformHostDetailPage() {
             {section === 'audit' && (
               <MacGlassPanel title="Linux audit">
                 {audit ? (
-                  <div className="text-sm space-y-2">
+                  <div className="text-sm space-y-2 p-3">
                     <p className="text-slate-300">{audit.summary || 'Audit report loaded'}</p>
                     <div className="grid gap-2 sm:grid-cols-2 text-slate-400">
                       <div>auditd: {audit.auditd_active ? 'active' : 'inactive'}</div>
-                      <div>rules: {audit.rules_count ?? '—'}</div>
-                      <div>recent events: {audit.recent_events ?? '—'}</div>
+                      <div>AVC count: {audit.avc_count ?? '—'}</div>
+                      <div>recent events: {audit.recent_events ?? audit.events?.length ?? '—'}</div>
                     </div>
+                    {(audit.events ?? []).length > 0 && (
+                      <ul className="mt-3 space-y-1 max-h-64 overflow-y-auto font-mono text-[10px] text-slate-500">
+                        {audit.events!.slice(0, 20).map((ev, i) => (
+                          <li key={i} className="border-b border-white/[0.04] pb-1">{String(ev.summary ?? ev.message ?? JSON.stringify(ev))}</li>
+                        ))}
+                      </ul>
+                    )}
+                    <Link to="/platform/zeus/security" className={`text-xs inline-flex mt-2 ${hubLinkClasses()}`}>Security Center →</Link>
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-500">Audit report unavailable.</p>
+                  <p className="text-sm text-slate-500 p-3">Audit report unavailable.</p>
                 )}
               </MacGlassPanel>
             )}

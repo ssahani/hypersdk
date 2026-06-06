@@ -1060,6 +1060,125 @@ impl HostAgent for AgentService {
         }
     }
 
+    async fn apply_linux_package_upgrade(
+        &self,
+        request: Request<ApplyLinuxPackageUpgradeRequest>,
+    ) -> Result<Response<ApplyLinuxPackageUpgradeResponse>, Status> {
+        let dry_run = request.into_inner().dry_run;
+        match tokio::task::spawn_blocking(move || {
+            if dry_run {
+                machina_core::host_platform::package_upgrade_preview()
+            } else {
+                machina_core::host_platform::package_upgrade()
+            }
+        })
+        .await
+        {
+            Ok(Ok(result)) => match serde_json::to_string(&result) {
+                Ok(json) => Ok(Response::new(ApplyLinuxPackageUpgradeResponse {
+                    ok: result.ok,
+                    json,
+                    message: if result.stderr.is_empty() {
+                        result.stdout.clone()
+                    } else {
+                        result.stderr.clone()
+                    },
+                })),
+                Err(e) => Ok(Response::new(ApplyLinuxPackageUpgradeResponse {
+                    ok: false,
+                    json: String::new(),
+                    message: e.to_string(),
+                })),
+            },
+            Ok(Err(e)) => Ok(Response::new(ApplyLinuxPackageUpgradeResponse {
+                ok: false,
+                json: String::new(),
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn host_linux_reboot(
+        &self,
+        _request: Request<HostLinuxRebootRequest>,
+    ) -> Result<Response<HostLinuxRebootResponse>, Status> {
+        match tokio::task::spawn_blocking(machina_core::libvirt::extras::host_reboot).await {
+            Ok(Ok(())) => Ok(Response::new(HostLinuxRebootResponse {
+                ok: true,
+                message: "Host reboot initiated".into(),
+            })),
+            Ok(Err(e)) => Ok(Response::new(HostLinuxRebootResponse {
+                ok: false,
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn get_linux_filesystems(
+        &self,
+        _request: Request<GetLinuxFilesystemsRequest>,
+    ) -> Result<Response<GetLinuxFilesystemsResponse>, Status> {
+        match tokio::task::spawn_blocking(machina_core::libvirt::extras::list_host_filesystems).await {
+            Ok(Ok(rows)) => match serde_json::to_string(&rows) {
+                Ok(json) => Ok(Response::new(GetLinuxFilesystemsResponse {
+                    ok: true,
+                    json,
+                    message: String::new(),
+                })),
+                Err(e) => Ok(Response::new(GetLinuxFilesystemsResponse {
+                    ok: false,
+                    json: String::new(),
+                    message: e.to_string(),
+                })),
+            },
+            Ok(Err(e)) => Ok(Response::new(GetLinuxFilesystemsResponse {
+                ok: false,
+                json: String::new(),
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn get_linux_top_processes(
+        &self,
+        request: Request<GetLinuxTopProcessesRequest>,
+    ) -> Result<Response<GetLinuxTopProcessesResponse>, Status> {
+        let req = request.into_inner();
+        let limit = req.limit.max(1).min(64);
+        let order = if req.order.eq_ignore_ascii_case("cpu") {
+            machina_core::libvirt::extras::HostTopProcessOrder::Cpu
+        } else {
+            machina_core::libvirt::extras::HostTopProcessOrder::Rss
+        };
+        match tokio::task::spawn_blocking(move || {
+            machina_core::libvirt::extras::list_host_top_processes(limit, order)
+        })
+        .await
+        {
+            Ok(Ok(rows)) => match serde_json::to_string(&rows) {
+                Ok(json) => Ok(Response::new(GetLinuxTopProcessesResponse {
+                    ok: true,
+                    json,
+                    message: String::new(),
+                })),
+                Err(e) => Ok(Response::new(GetLinuxTopProcessesResponse {
+                    ok: false,
+                    json: String::new(),
+                    message: e.to_string(),
+                })),
+            },
+            Ok(Err(e)) => Ok(Response::new(GetLinuxTopProcessesResponse {
+                ok: false,
+                json: String::new(),
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
     async fn apply_security_bundle(
         &self,
         request: Request<ApplySecurityBundleRequest>,

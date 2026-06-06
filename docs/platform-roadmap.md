@@ -254,6 +254,17 @@ Presentation-only sweep documented in [`next-big-sweep.md`](next-big-sweep.md):
 - **UI:** [`PlatformJarvisBriefing`](../web/src/components/platform/PlatformJarvisBriefing.tsx) intent-first landing (all tiers); [`platformJarvisShell.ts`](../web/src/utils/platformJarvisShell.ts) hides sidebar on Normal tier; Control Center toggle; Spotlight open event from Jarvis search
 - **E2e:** [`platform-jarvis-shell.spec.ts`](../web/e2e/platform-jarvis-shell.spec.ts); **84/84** local bundle green
 
+## Batch 69 deliverables (Linux Base OS sweep — Phase 59)
+
+- **Agent:** `ApplyLinuxPackageUpgrade`, `HostLinuxReboot`, `GetLinuxFilesystems`, `GetLinuxTopProcesses`
+- **Controller:** maintenance-gated package apply + reboot tasks; audit/network/updates API normalizers; `PackageUpdateCheck.packages[]`
+- **UI:** Host System Settings Linux depth; Maintenance mission apply; fleet Linux health on Zeus OS, Activity Monitor, hosts list; reboot-required in Control Center / Dynamic Island
+- **E2e:** [`platform-linux-os.spec.ts`](../web/e2e/platform-linux-os.spec.ts); doc [`zeus-os-ai-692-701.md`](zeus-os-ai-692-701.md)
+
+| Phase | AI | Focus |
+|-------|-----|--------|
+| **59** | 692–701 | **Linux Base OS** — remote patch apply, reboot, host+fleet depth |
+
 ## Batch 68 deliverables (Infrastructure Earth v2 — shipped)
 
 - **Globe site legend:** clickable site chips on [`InfrastructureEarthGlobe`](../web/src/components/platform/InfrastructureEarthGlobe.tsx) deep-link to Machine Finder (`?site=…`)

@@ -179,7 +179,7 @@ fn build_steps(
             id: MissionStepId::ApplyPreview,
             label: "Apply preview".into(),
             status: preview_status,
-            detail: Some("Preview on host — operator applies packages on-host (no autonomous apply).".into()),
+            detail: Some("Preview or apply via platform — host must be in maintenance mode.".into()),
         },
         MissionStepState {
             id: MissionStepId::VerifyExit,

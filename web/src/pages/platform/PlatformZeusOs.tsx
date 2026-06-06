@@ -7,7 +7,7 @@ import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { toastQueuedOperation } from '../../utils/platformTaskToast'
 import { tasksHubHref } from '../../utils/platformHubLinks'
 import { Cpu, Search, Server, Shield, Workflow } from 'lucide-react'
-import { MacGlassPanel, MacListRow } from '../../components/platform/mac/PlatformMacUi'
+import { MacGlassPanel, MacListRow, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
 import DetailTabs from '../../components/platform/DetailTabs'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
@@ -242,11 +242,35 @@ export default function PlatformZeusOs() {
           {fleetSummaryLine && <p className="text-sm text-slate-400">{fleetSummaryLine}</p>}
           {linuxHealth && (
             <MacGlassPanel title="Fleet Linux health" subtitle="PSI · thermal · SMART rollup from hypervisors">
+              <div className="grid gap-3 sm:grid-cols-3 mb-3">
+                <MacStatWidget
+                  label="Pressure hosts"
+                  value={String(linuxHealth.pressure_hosts)}
+                  icon={<Server className="w-4 h-4" />}
+                  tone={linuxHealth.pressure_hosts > 0 ? 'warn' : 'ok'}
+                />
+                <MacStatWidget
+                  label="Thermal alerts"
+                  value={String(linuxHealth.thermal_alerts)}
+                  icon={<Cpu className="w-4 h-4" />}
+                  tone={linuxHealth.thermal_alerts > 0 ? 'warn' : 'ok'}
+                />
+                <MacStatWidget
+                  label="SMART alerts"
+                  value={String(linuxHealth.smart_alerts)}
+                  icon={<Shield className="w-4 h-4" />}
+                  tone={linuxHealth.smart_alerts > 0 ? 'warn' : 'ok'}
+                />
+              </div>
               <p className="text-sm text-slate-300">{linuxHealth.summary}</p>
+              <div className="flex flex-wrap gap-3 text-xs mt-2">
+                <Link to="/platform/activity" className={hubLinkClasses()}>Activity Monitor →</Link>
+                <Link to="/platform/maintenance?tab=mission" className={hubLinkClasses()}>Maintenance mission →</Link>
+              </div>
               {linuxHealth.hosts.length > 0 && (
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 text-xs mt-3">
                   {linuxHealth.hosts.slice(0, 6).map((h) => (
-                    <Link key={h.host_id} to={`/platform/hosts/${h.host_id}`} className="rounded-lg border border-white/[0.06] p-2 hover:bg-slate-800/40">
+                    <Link key={h.host_id} to={`/platform/hosts/${h.host_id}?tab=linux`} className="rounded-lg border border-white/[0.06] p-2 hover:bg-slate-800/40">
                       <p className="font-medium text-slate-200">{h.hostname}</p>
                       <p className="text-slate-500">IO {h.io_pressure_pct.toFixed(0)}% · {h.status}</p>
                     </Link>

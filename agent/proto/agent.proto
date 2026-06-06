@@ -40,6 +40,10 @@ service HostAgent {
   rpc GetSystemdNetworkDiagnostics(GetSystemdNetworkDiagnosticsRequest) returns (GetSystemdNetworkDiagnosticsResponse);
   rpc GetLinuxAudit(GetLinuxAuditRequest) returns (GetLinuxAuditResponse);
   rpc GetLinuxPackageUpdates(GetLinuxPackageUpdatesRequest) returns (GetLinuxPackageUpdatesResponse);
+  rpc ApplyLinuxPackageUpgrade(ApplyLinuxPackageUpgradeRequest) returns (ApplyLinuxPackageUpgradeResponse);
+  rpc HostLinuxReboot(HostLinuxRebootRequest) returns (HostLinuxRebootResponse);
+  rpc GetLinuxFilesystems(GetLinuxFilesystemsRequest) returns (GetLinuxFilesystemsResponse);
+  rpc GetLinuxTopProcesses(GetLinuxTopProcessesRequest) returns (GetLinuxTopProcessesResponse);
   rpc ApplySecurityBundle(ApplySecurityBundleRequest) returns (ApplySecurityBundleResponse);
   rpc GetSecurityFabricStatus(GetSecurityFabricStatusRequest) returns (GetSecurityFabricStatusResponse);
   rpc ListPortForwards(ListPortForwardsRequest) returns (ListPortForwardsResponse);
@@ -501,6 +505,42 @@ message GetLinuxAuditResponse {
 message GetLinuxPackageUpdatesRequest {}
 
 message GetLinuxPackageUpdatesResponse {
+  bool ok = 1;
+  string json = 2;
+  string message = 3;
+}
+
+message ApplyLinuxPackageUpgradeRequest {
+  bool dry_run = 1;
+}
+
+message ApplyLinuxPackageUpgradeResponse {
+  bool ok = 1;
+  string json = 2;
+  string message = 3;
+}
+
+message HostLinuxRebootRequest {}
+
+message HostLinuxRebootResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message GetLinuxFilesystemsRequest {}
+
+message GetLinuxFilesystemsResponse {
+  bool ok = 1;
+  string json = 2;
+  string message = 3;
+}
+
+message GetLinuxTopProcessesRequest {
+  uint32 limit = 1;
+  string order = 2;
+}
+
+message GetLinuxTopProcessesResponse {
   bool ok = 1;
   string json = 2;
   string message = 3;

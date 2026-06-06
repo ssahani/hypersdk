@@ -45,6 +45,13 @@ test('k8s firewall shows tetragon install and export status', async ({ page }) =
   await expect(page.getByText('Forwarder deployed')).toBeVisible({ timeout: 10_000 })
 })
 
+test('host audit tab renders recent AVC events', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/hosts/h1?tab=audit')
+  await expect(page.getByText(/AVC|audit/i).first()).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('denied { read }')).toBeVisible({ timeout: 10_000 })
+})
+
 test('storage pool snapshot policy loads on pools tab', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/storage?tab=pools')

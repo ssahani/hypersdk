@@ -52,6 +52,9 @@ Each phase ships: **backend aggregator or agent lift → Mac UI pane → Spotlig
 | **46** | 662–671 | **Shortcuts** — blueprint Launchpad grid | **Shipped (v1)** |
 | **47** | 672–681 | **Stage Manager** — workspace spaces strip | **Shipped (v1)** |
 | **48** | 682–691 | **General** — fleet desktop prefs + dock editor | **Shipped (v1)** |
+| **59** | 692–701 | **Linux Base OS** — remote patch apply, reboot, host+fleet depth | **Shipped (v1)** |
+
+Layer **6 Network** and Layer **9 Software Update** depth: see [`zeus-os-ai-692-701.md`](zeus-os-ai-692-701.md) (network-diag + package apply/reboot).
 
 ---
 

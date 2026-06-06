@@ -11,9 +11,11 @@ import { gradientForName } from '../../components/platform/mac/PlatformMacUi'
 import {
   enqueueValidateHost,
   hostMaintenance,
+  getFleetLinuxHealth,
   listPlatformHosts,
   syncAllHosts,
   syncHost,
+  type FleetLinuxHostItem,
   type PlatformHost,
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
@@ -35,6 +37,7 @@ export default function PlatformHosts() {
   const [searchParams] = useSearchParams()
   const filterOffline = searchParams.get('filter') === 'offline'
   const [hosts, setHosts] = useState<PlatformHost[]>([])
+  const [linuxByHost, setLinuxByHost] = useState<Record<string, FleetLinuxHostItem>>({})
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -51,7 +54,14 @@ export default function PlatformHosts() {
   const load = useCallback(async () => {
     setError(null)
     try {
-      setHosts(await listPlatformHosts())
+      const [rows, linux] = await Promise.all([
+        listPlatformHosts(),
+        getFleetLinuxHealth().catch(() => null),
+      ])
+      setHosts(rows)
+      const map: Record<string, FleetLinuxHostItem> = {}
+      for (const h of linux?.hosts ?? []) map[h.host_id] = h
+      setLinuxByHost(map)
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
@@ -103,6 +113,7 @@ export default function PlatformHosts() {
             <th className="p-3">State</th>
             <th className="p-3">VMs</th>
             <th className="p-3">CPU</th>
+            <th className="p-3">Linux</th>
           </tr>
         </thead>
         <tbody>
@@ -116,6 +127,17 @@ export default function PlatformHosts() {
               <td className="p-3 capitalize text-center">{h.state}</td>
               <td className="p-3 text-center">{h.vm_count}</td>
               <td className="p-3 text-center">{h.cpu_percent != null ? `${h.cpu_percent.toFixed(0)}%` : '—'}</td>
+              <td className="p-3 text-center">
+                {linuxByHost[h.id] ? (
+                  <span className={`text-[10px] uppercase px-2 py-0.5 rounded border ${
+                    linuxByHost[h.id].status === 'ok'
+                      ? statusPillClasses('ok')
+                      : statusPillClasses('warn')
+                  }`}>
+                    {linuxByHost[h.id].status}
+                  </span>
+                ) : '—'}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -145,7 +167,10 @@ export default function PlatformHosts() {
               </p>
             </div>
           </div>
-          <p className="text-xs text-white/50">{h.vm_count} VM(s) · {h.cpu_percent != null ? `${h.cpu_percent.toFixed(0)}% CPU` : 'CPU —'}</p>
+          <p className="text-xs text-white/50">
+            {h.vm_count} VM(s) · {h.cpu_percent != null ? `${h.cpu_percent.toFixed(0)}% CPU` : 'CPU —'}
+            {linuxByHost[h.id] ? ` · Linux ${linuxByHost[h.id].status}` : ''}
+          </p>
         </button>
       ))}
     </div>

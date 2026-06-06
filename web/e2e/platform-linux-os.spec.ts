@@ -1,0 +1,33 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import { test, expect } from '@playwright/test'
+import { mockPlatformApi } from './platformMock'
+
+test('host Linux tab shows PSI and package preview', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/hosts/h1?tab=linux')
+  await expect(page.getByRole('heading', { name: 'host-1' })).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('tab', { name: 'Linux' }).click()
+  await expect(page.getByText('Pressure stall (PSI)')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('button', { name: 'Preview upgrade' })).toBeVisible()
+  await page.getByRole('button', { name: 'Preview upgrade' }).click()
+  await expect(page.getByText('Upgrade preview ready')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(/Inst libc6/i)).toBeVisible({ timeout: 10_000 })
+})
+
+test('maintenance mission apply upgrades queues task', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/maintenance?tab=mission')
+  await expect(page.getByText('Apply preview: ready')).toBeVisible({ timeout: 15_000 })
+  page.once('dialog', (d) => d.accept())
+  await page.getByRole('button', { name: 'Apply upgrades' }).click()
+  await expect(page.getByText('Package upgrade queued')).toBeVisible({ timeout: 10_000 })
+})
+
+test('Zeus OS fleet linux-health card visible', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/zeus?tab=fleet')
+  await expect(page.getByText('Fleet Linux health')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('Pressure hosts')).toBeVisible()
+  await expect(page.getByText('1 host(s) scanned')).toBeVisible()
+})

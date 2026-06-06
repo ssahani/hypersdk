@@ -28,6 +28,8 @@ pub struct HostActivityItem {
     pub memory_percent: f32,
     pub vm_count: i32,
     pub io_pressure_pct: f64,
+    pub cpu_pressure_pct: f64,
+    pub memory_pressure_pct: f64,
     pub thermal_max_c: f64,
     pub status: String,
 }
@@ -84,6 +86,15 @@ pub async fn overview(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Result<F
     .fetch_all(pool)
     .await?;
 
+    fn psi_pct(obs: &serde_json::Value, key: &str) -> f64 {
+        obs.get("pressure")
+            .and_then(|p| p.get(key))
+            .and_then(|i| i.get("some"))
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0)
+            * 100.0
+    }
+
     let mut hosts = Vec::new();
     let mut pressure_hosts = 0usize;
 
@@ -103,21 +114,19 @@ pub async fn overview(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Result<F
                 memory_percent: mem_pct,
                 vm_count,
                 io_pressure_pct: 0.0,
+                cpu_pressure_pct: 0.0,
+                memory_pressure_pct: 0.0,
                 thermal_max_c: 0.0,
                 status: "offline".into(),
             });
             continue;
         }
 
-        let (io_pressure_pct, thermal_max_c, status) =
+        let (io_pressure_pct, cpu_pressure_pct, memory_pressure_pct, thermal_max_c, status) =
             if let Ok(obs) = host_os::linux_observability(pool, cfg, id).await {
-                let io = obs
-                    .get("pressure")
-                    .and_then(|p| p.get("io"))
-                    .and_then(|i| i.get("some"))
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0)
-                    * 100.0;
+                let io = psi_pct(&obs, "io");
+                let cpu_psi = psi_pct(&obs, "cpu");
+                let mem_psi = psi_pct(&obs, "memory");
                 let thermal_max = obs
                     .get("thermal")
                     .and_then(|t| t.as_array())
@@ -127,7 +136,7 @@ pub async fn overview(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Result<F
                             .fold(0.0_f64, f64::max)
                     })
                     .unwrap_or(0.0);
-                let st = if io > 50.0 {
+                let st = if io > 50.0 || cpu_psi > 50.0 || mem_psi > 50.0 {
                     "pressure"
                 } else if thermal_max > 80.0 {
                     "thermal"
@@ -136,11 +145,11 @@ pub async fn overview(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Result<F
                 } else {
                     "ok"
                 };
-                (io, thermal_max, st)
+                (io, cpu_psi, mem_psi, thermal_max, st)
             } else if cpu_percent > 85.0 || mem_pct > 85.0 {
-                (0.0, 0.0, "hot")
+                (0.0, 0.0, 0.0, 0.0, "hot")
             } else {
-                (0.0, 0.0, "ok")
+                (0.0, 0.0, 0.0, 0.0, "ok")
             };
 
         if status == "pressure" || status == "thermal" {
@@ -155,6 +164,8 @@ pub async fn overview(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Result<F
             memory_percent: mem_pct,
             vm_count,
             io_pressure_pct,
+            cpu_pressure_pct,
+            memory_pressure_pct,
             thermal_max_c,
             status: status.into(),
         });

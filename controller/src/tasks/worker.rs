@@ -43,6 +43,8 @@ async fn process_one(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> 
         "host.tetragon.install" => host_tetragon_install(state, msg).await?,
         "k8s.tetragon.install" => k8s_tetragon_install(state, msg).await?,
         "host.enforcement.apply" => host_enforcement_apply(state, msg).await?,
+        "host.linux.package_upgrade" => host_linux_package_upgrade(state, msg).await?,
+        "host.linux.reboot" => host_linux_reboot(state, msg).await?,
         "host.agent.upgrade" => host_agent_upgrade(state, msg).await?,
         "storage.pool.provision" => storage_pool_provision(state, msg).await?,
         "network.provision" => network_provision(state, msg).await?,
@@ -1340,6 +1342,56 @@ async fn k8s_tetragon_install(state: &AppState, msg: &TaskMessage) -> anyhow::Re
         msg.task_id,
         100,
         &helm.message,
+    )
+    .await?;
+    Ok(())
+}
+
+async fn host_linux_package_upgrade(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
+    let host_id = msg
+        .payload
+        .get("host_id")
+        .and_then(|v| v.as_str())
+        .and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or_else(|| anyhow::anyhow!("host_id missing"))?;
+    update_task_progress(
+        &state.pool,
+        msg.task_id,
+        20,
+        "applying distro package upgrades on hypervisor",
+    )
+    .await?;
+    let result = crate::engine::host_os::apply_linux_package_upgrade(
+        &state.pool,
+        &state.config,
+        host_id,
+        false,
+    )
+    .await?;
+    let summary = result
+        .get("stdout")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .unwrap_or_else(|| "Package upgrade completed".into());
+    update_task_progress(&state.pool, msg.task_id, 100, &summary).await?;
+    Ok(())
+}
+
+async fn host_linux_reboot(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
+    let host_id = msg
+        .payload
+        .get("host_id")
+        .and_then(|v| v.as_str())
+        .and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or_else(|| anyhow::anyhow!("host_id missing"))?;
+    update_task_progress(&state.pool, msg.task_id, 30, "initiating hypervisor reboot").await?;
+    crate::engine::host_os::reboot_linux_host(&state.pool, &state.config, host_id).await?;
+    update_task_progress(
+        &state.pool,
+        msg.task_id,
+        100,
+        "Reboot command sent — host may go offline briefly",
     )
     .await?;
     Ok(())

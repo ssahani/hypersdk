@@ -37,6 +37,17 @@ fn find_bin(name: &str) -> String {
 // ── Package manager detection ─────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PackageUpdateItem {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub available: Option<String>,
+    #[serde(default)]
+    pub security: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PackageUpdateCheck {
     /// `apt`, `dnf`, `microdnf`, `yum`, `apk`, `pacman`, `zypper`, or `unknown`
     pub backend: String,
@@ -52,6 +63,8 @@ pub struct PackageUpdateCheck {
     /// Linux: true when `/var/run/reboot-required` exists (Debian/Ubuntu family after many upgrades).
     #[serde(default)]
     pub reboot_required: bool,
+    #[serde(default)]
+    pub packages: Vec<PackageUpdateItem>,
 }
 
 /// Prefer Debian family before RPM so Ubuntu WSL with stray `dnf` still uses apt.
@@ -140,12 +153,26 @@ pub fn check_package_updates() -> Result<PackageUpdateCheck, LibvirtError> {
             hint: Some("Only available on Linux hypervisors".into()),
             error: None,
             reboot_required: false,
+            packages: Vec::new(),
         });
     }
     #[cfg(target_os = "linux")]
     {
         check_package_updates_linux()
     }
+}
+
+#[cfg(target_os = "linux")]
+fn push_package_item(out: &mut PackageUpdateCheck, name: &str, current: Option<&str>, available: Option<&str>, security: bool) {
+    if out.packages.len() >= 64 {
+        return;
+    }
+    out.packages.push(PackageUpdateItem {
+        name: name.to_string(),
+        current: current.map(String::from),
+        available: available.map(String::from),
+        security,
+    });
 }
 
 #[cfg(target_os = "linux")]
@@ -159,6 +186,7 @@ fn check_package_updates_linux() -> Result<PackageUpdateCheck, LibvirtError> {
         hint: None,
         error: None,
         reboot_required: false,
+        packages: Vec::new(),
     };
 
     let r = match backend {
@@ -223,6 +251,16 @@ fn probe_apt_updates(out: &mut PackageUpdateCheck) -> Result<(), LibvirtError> {
             out.hint = Some(
                 "Debian/Ubuntu: `apt-get -s upgrade` via sh+tail (no install performed)".into(),
             );
+            for line in combined.lines() {
+                let t = line.trim();
+                if let Some(rest) = t.strip_prefix("Inst ") {
+                    let name = rest.split_whitespace().next().unwrap_or("");
+                    if !name.is_empty() {
+                        let security = t.contains("-security") || t.contains("security");
+                        push_package_item(out, name, None, None, security);
+                    }
+                }
+            }
         }
         Err(e) => out.error = Some(e.to_string()),
     }
@@ -251,6 +289,20 @@ fn probe_dnf_updates(bin: &str, out: &mut PackageUpdateCheck) -> Result<(), Libv
                 let err = String::from_utf8_lossy(&output.stderr);
                 if !err.trim().is_empty() {
                     out.error = Some(err.trim().chars().take(400).collect::<String>());
+                }
+            }
+            let mut names_cmd = Command::new(find_bin("sh"));
+            names_cmd.arg("-c").arg(format!(
+                "set -o pipefail; {exe} repoquery --upgrades --qf '%{{name}}' --cacheonly 2>/dev/null | tail -n 64"
+            ));
+            if let Ok(names_out) = run_with_budget(&mut names_cmd, PROBE_BUDGET) {
+                if names_out.status.success() {
+                    for line in String::from_utf8_lossy(&names_out.stdout).lines() {
+                        let name = line.trim();
+                        if !name.is_empty() {
+                            push_package_item(out, name, None, None, false);
+                        }
+                    }
                 }
             }
         }

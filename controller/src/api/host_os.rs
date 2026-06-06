@@ -48,6 +48,104 @@ pub async fn host_linux_package_updates(
         .map_err(|e| ApiError::internal(e.to_string()))
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct LinuxProcessQuery {
+    pub limit: Option<u32>,
+    pub order: Option<String>,
+}
+
+pub async fn host_linux_filesystems(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    host_os::linux_filesystems(&state.pool, &state.config, id)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn host_linux_processes(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Query(q): Query<LinuxProcessQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    host_os::linux_top_processes(
+        &state.pool,
+        &state.config,
+        id,
+        q.limit.unwrap_or(20).min(64),
+        q.order.as_deref().unwrap_or("memory"),
+    )
+    .await
+    .map(Json)
+    .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct LinuxPackageUpgradeBody {
+    #[serde(default)]
+    pub dry_run: bool,
+}
+
+pub async fn host_linux_package_upgrade(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<LinuxPackageUpgradeBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    use crate::tasks::enqueue::enqueue_task;
+
+    if body.dry_run {
+        let result = host_os::apply_linux_package_upgrade(&state.pool, &state.config, id, true)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+        return Ok(Json(serde_json::json!({
+            "dry_run": true,
+            "result": result,
+            "summary": "Package upgrade preview completed"
+        })));
+    }
+    host_os::require_maintenance_mode(&state.pool, id)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    let task_id = enqueue_task(
+        &state,
+        "host.linux.package_upgrade",
+        serde_json::json!({ "host_id": id.to_string() }),
+        Some("host"),
+        Some(id),
+        Some(id),
+    )
+    .await?;
+    Ok(Json(serde_json::json!({
+        "task_id": task_id.to_string(),
+        "summary": "Linux package upgrade queued"
+    })))
+}
+
+pub async fn host_linux_reboot(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    use crate::tasks::enqueue::enqueue_task;
+
+    host_os::require_maintenance_mode(&state.pool, id)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    let task_id = enqueue_task(
+        &state,
+        "host.linux.reboot",
+        serde_json::json!({ "host_id": id.to_string() }),
+        Some("host"),
+        Some(id),
+        Some(id),
+    )
+    .await?;
+    Ok(Json(serde_json::json!({
+        "task_id": task_id.to_string(),
+        "summary": "Host reboot queued"
+    })))
+}
+
 pub async fn vm_guest_health(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

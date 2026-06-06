@@ -708,6 +708,64 @@ pub async fn get_linux_package_updates(addr: &str) -> anyhow::Result<serde_json:
     }
 }
 
+pub async fn apply_linux_package_upgrade(addr: &str, dry_run: bool) -> anyhow::Result<serde_json::Value> {
+    let mut client = connect(addr).await?;
+    let resp = client
+        .apply_linux_package_upgrade(ApplyLinuxPackageUpgradeRequest { dry_run })
+        .await?
+        .into_inner();
+    if resp.ok {
+        let value = serde_json::from_str(&resp.json).unwrap_or_else(|_| {
+            serde_json::json!({ "stdout": resp.message, "ok": true })
+        });
+        Ok(value)
+    } else {
+        anyhow::bail!(resp.message)
+    }
+}
+
+pub async fn host_linux_reboot(addr: &str) -> anyhow::Result<()> {
+    let mut client = connect(addr).await?;
+    let resp = client
+        .host_linux_reboot(HostLinuxRebootRequest {})
+        .await?
+        .into_inner();
+    if resp.ok {
+        Ok(())
+    } else {
+        anyhow::bail!(resp.message)
+    }
+}
+
+pub async fn get_linux_filesystems(addr: &str) -> anyhow::Result<serde_json::Value> {
+    let mut client = connect(addr).await?;
+    let resp = client
+        .get_linux_filesystems(GetLinuxFilesystemsRequest {})
+        .await?
+        .into_inner();
+    if resp.ok {
+        serde_json::from_str(&resp.json).map_err(|e| anyhow::anyhow!("linux filesystems json: {e}"))
+    } else {
+        anyhow::bail!(resp.message)
+    }
+}
+
+pub async fn get_linux_top_processes(addr: &str, limit: u32, order: &str) -> anyhow::Result<serde_json::Value> {
+    let mut client = connect(addr).await?;
+    let resp = client
+        .get_linux_top_processes(GetLinuxTopProcessesRequest {
+            limit,
+            order: order.to_string(),
+        })
+        .await?
+        .into_inner();
+    if resp.ok {
+        serde_json::from_str(&resp.json).map_err(|e| anyhow::anyhow!("linux processes json: {e}"))
+    } else {
+        anyhow::bail!(resp.message)
+    }
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct PortForwardRuleDto {
     pub id: String,

@@ -600,20 +600,29 @@ export const getHostLldp = (hostId: string) =>
 
 export type HostLinuxObservability = {
   pressure?: {
-    cpu?: { some: number; full: number; available?: boolean }
-    memory?: { some: number; full: number; available?: boolean }
-    io?: { some: number; full: number; available?: boolean }
+    cpu?: { some: number; full: number; total?: number; available?: boolean }
+    memory?: { some: number; full: number; total?: number; available?: boolean }
+    io?: { some: number; full: number; total?: number; available?: boolean }
     available?: boolean
   }
   thermal?: Array<{ sensor: string; label: string; temp_celsius: number; critical_celsius?: number }>
   smart?: Array<{ device: string; passed: boolean; summary: string; probed: boolean }>
-  disk_io?: Array<{ device: string; read_bytes: number; write_bytes: number }>
+  disk_io?: Array<{ device: string; read_bytes: number; write_bytes: number; read_ios?: number; write_ios?: number }>
+  cgroup?: Record<string, unknown>
+  bpf?: Record<string, unknown>
+  vm_cgroups?: Array<Record<string, unknown>>
 }
 
 export type HostNetworkDiag = {
   systemd_networkd_active?: boolean
+  networkd_active?: boolean
+  network_manager_active?: boolean
   resolved_active?: boolean
-  interfaces?: Array<{ name: string; state?: string; addresses?: string[] }>
+  summary?: string
+  interfaces?: Array<{ name: string; state?: string; kind?: string; addresses?: string[] }>
+  networkctl_list?: string
+  networkctl_status_all?: string
+  resolvectl_status?: string
   networkd_recent_logs?: string
   resolved_recent_logs?: string
 }
@@ -621,9 +630,12 @@ export type HostNetworkDiag = {
 export type HostLinuxAuditReport = {
   auditd_active?: boolean
   auditd_enabled?: boolean
+  available?: boolean
   rules_count?: number
   recent_events?: number
+  avc_count?: number
   summary?: string
+  events?: Array<Record<string, unknown>>
 }
 
 export const getHostLinuxObservability = (hostId: string) =>
@@ -981,6 +993,8 @@ export type HostActivityItem = {
   memory_percent: number
   vm_count: number
   io_pressure_pct: number
+  cpu_pressure_pct: number
+  memory_pressure_pct: number
   thermal_max_c: number
   status: string
 }
@@ -1551,13 +1565,61 @@ export interface PolicyRule {
 export const listPolicyRules = () => platformFetch<PolicyRule[]>('/api/v1/policy/rules')
 
 export interface HostLinuxUpdates {
-  host_id: string
-  summary: string
-  packages: Array<{ name: string; current: string; available: string; security?: boolean }>
+  host_id?: string
+  backend?: string
+  pending_count?: number
+  summary?: string
+  reboot_required?: boolean
+  packages?: Array<{ name: string; current?: string; available?: string; security?: boolean }>
 }
 
 export const getHostLinuxUpdates = (hostId: string) =>
   platformFetch<HostLinuxUpdates>(`/api/v1/hosts/${hostId}/linux/updates`)
+
+export type HostLinuxFilesystem = {
+  source: string
+  fstype: string
+  mount_point: string
+  size_bytes: number
+  used_bytes: number
+  avail_bytes: number
+  use_percent: number
+}
+
+export type HostLinuxProcess = {
+  pid: number
+  user: string
+  cpu_percent: number
+  rss_kb: number
+  command: string
+  args?: string
+}
+
+export const getHostLinuxFilesystems = (hostId: string) =>
+  platformFetch<{ filesystems: HostLinuxFilesystem[] }>(`/api/v1/hosts/${hostId}/linux/filesystems`)
+
+export const getHostLinuxProcesses = (hostId: string, order: 'cpu' | 'memory' = 'memory', limit = 20) =>
+  platformFetch<{ processes: HostLinuxProcess[] }>(
+    `/api/v1/hosts/${hostId}/linux/processes?order=${order}&limit=${limit}`,
+  )
+
+export const previewHostPackageUpgrade = (hostId: string) =>
+  platformFetch<{ dry_run: boolean; result?: Record<string, unknown>; summary?: string }>(
+    `/api/v1/hosts/${hostId}/linux/package-upgrade`,
+    { method: 'POST', body: JSON.stringify({ dry_run: true }) },
+  )
+
+export const applyHostPackageUpgrade = (hostId: string) =>
+  platformFetch<{ task_id: string; summary: string }>(
+    `/api/v1/hosts/${hostId}/linux/package-upgrade`,
+    { method: 'POST', body: JSON.stringify({ dry_run: false }) },
+  )
+
+export const rebootHostLinux = (hostId: string) =>
+  platformFetch<{ task_id: string; summary: string }>(
+    `/api/v1/hosts/${hostId}/linux/reboot`,
+    { method: 'POST', body: '{}' },
+  )
 
 export interface VmMigrationRecord {
   id: string

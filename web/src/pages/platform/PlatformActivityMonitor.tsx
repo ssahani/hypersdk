@@ -117,6 +117,8 @@ export default function PlatformActivityMonitor() {
                 <div className="mt-2 space-y-1 pl-1 max-w-md">
                   {bar('CPU', h.cpu_percent, 'cpu')}
                   {bar('Memory', h.memory_percent, 'mem')}
+                  {h.cpu_pressure_pct > 0 && bar('CPU PSI', h.cpu_pressure_pct, 'io')}
+                  {h.memory_pressure_pct > 0 && bar('Mem PSI', h.memory_pressure_pct, 'io')}
                   {h.io_pressure_pct > 0 && bar('IO PSI', h.io_pressure_pct, 'io')}
                   {h.thermal_max_c > 0 && bar('Thermal', Math.min(100, h.thermal_max_c), 'thermal')}
                 </div>
