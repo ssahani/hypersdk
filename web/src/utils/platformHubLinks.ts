@@ -26,6 +26,8 @@ export function hubHrefForTier(
 ): string {
   if (hubId === 'operations') return operationsHubHref(tier)
   if (hubId === 'resources') return '/platform/infrastructure'
-  if (hubId === 'integrations') return '/platform/administration'
+  if (hubId === 'integrations') {
+    return tierAtLeast(tier, 'power') ? '/platform/administration' : '/platform/integrations'
+  }
   return DESKTOP_HUB_TILES.find((hub) => hub.id === hubId)?.href ?? '/platform'
 }

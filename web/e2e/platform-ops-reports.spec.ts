@@ -15,8 +15,8 @@ test('Reports showback tab shows project rollup', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/reports?tab=showback')
   await expect(page.getByText(/Compliance showback/i)).toBeVisible({ timeout: 15_000 })
-  await expect(page.locator('#main-content').getByText('default', { exact: true })).toBeVisible()
-  await expect(page.getByText(/Fleet compliance grade: B\+/i)).toBeVisible()
+  await expect(page.getByText(/Fleet compliance grade: B\+/i)).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('cell', { name: 'default', exact: true })).toBeVisible({ timeout: 15_000 })
 })
 
 test('Operations hub links to runbooks', async ({ page }) => {

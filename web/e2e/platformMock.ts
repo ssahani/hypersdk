@@ -491,6 +491,11 @@ export async function mockPlatformApi(page: Page, opts?: {
     localStorage.setItem('zyvor-platform-welcome-done', '1')
     localStorage.setItem('machina-platform-desktop-tier', t)
     localStorage.removeItem('machina_platform_controller')
+    try {
+      sessionStorage.removeItem('machina-fleet-insights-expanded')
+    } catch {
+      /* ignore */
+    }
   }, tier)
 
   await page.route('**/api/v1/**', async (route) => {

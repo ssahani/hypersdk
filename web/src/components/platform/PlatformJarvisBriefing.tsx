@@ -49,6 +49,13 @@ export default function PlatformJarvisBriefing() {
     void getJarvisLanding()
       .catch(() => ({ intents: [], search_hits: [] }))
       .then((landing) => setRawIntents(landing.intents ?? []))
+  }, [])
+
+  useEffect(() => {
+    if (!desktop) return
+    void getJarvisLanding()
+      .catch(() => ({ intents: [], search_hits: [] }))
+      .then((landing) => setRawIntents(landing.intents ?? []))
   }, [desktop])
 
   const intents = useMemo(() => filterIntents(rawIntents, tier), [rawIntents, tier])

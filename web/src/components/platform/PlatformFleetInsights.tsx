@@ -7,6 +7,25 @@ import { statusPillClasses } from '../../utils/semanticColors'
 
 const EXPANDED_KEY = 'machina-fleet-insights-expanded'
 
+function readExpandedPreference(defaultOpen: boolean): boolean {
+  try {
+    const raw = sessionStorage.getItem(EXPANDED_KEY)
+    if (raw === '1') return true
+    if (raw === '0') return false
+  } catch {
+    /* ignore */
+  }
+  return defaultOpen
+}
+
+function writeExpandedPreference(open: boolean) {
+  try {
+    sessionStorage.setItem(EXPANDED_KEY, open ? '1' : '0')
+  } catch {
+    /* ignore */
+  }
+}
+
 type PlatformFleetInsightsProps = {
   badgeCount: number
   defaultOpen?: boolean
@@ -18,25 +37,12 @@ export default function PlatformFleetInsights({
   defaultOpen = false,
   children,
 }: PlatformFleetInsightsProps) {
-  const [open, setOpen] = useState(() => {
-    try {
-      const raw = localStorage.getItem(EXPANDED_KEY)
-      if (raw === '1') return true
-      if (raw === '0') return false
-    } catch {
-      /* ignore */
-    }
-    return defaultOpen
-  })
+  const [open, setOpen] = useState(() => readExpandedPreference(defaultOpen))
 
   const toggle = () => {
     setOpen((v) => {
       const next = !v
-      try {
-        localStorage.setItem(EXPANDED_KEY, next ? '1' : '0')
-      } catch {
-        /* ignore */
-      }
+      writeExpandedPreference(next)
       return next
     })
   }

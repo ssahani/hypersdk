@@ -33,6 +33,15 @@ test('create VM shows libvirt templates, cloud-init generate, and RHEL URL', asy
   await expect(page.getByText('Seed ISO: /var/lib/libvirt/images/seed-e2e.iso')).toBeVisible({ timeout: 10_000 })
 })
 
+test('create VM single-page form exposes cloud-init section', async ({ page }) => {
+  await mockPlatformApi(page)
+  await page.goto('/create', { waitUntil: 'networkidle' })
+  await expect(page.getByTestId('create-vm-single-page')).toBeVisible({ timeout: 15_000 })
+  await page.getByTestId('create-vm-single-page').click()
+  await expect(page.locator('#create-vm-step-3')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByTestId('cloud-init-generate-hint')).toBeVisible()
+})
+
 test('fleet page loads prometheus scrape targets', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/fleet')

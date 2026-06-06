@@ -8,10 +8,8 @@ test('classic storage empty state links back to platform via shell bridge', asyn
   await page.goto('/storage')
   await expect(page.getByText('No storage pools')).toBeVisible({ timeout: 15_000 })
   const backLink = page.locator('.shell-bridge-bar').getByRole('link', { name: /Back to Platform/i })
-  await Promise.all([
-    page.waitForURL(/\/platform/),
-    backLink.click(),
-  ])
+  await backLink.click()
+  await expect(page).toHaveURL(/\/platform/, { timeout: 20_000 })
 })
 
 test('classic navbar help opens platform guide dialog', async ({ page }) => {

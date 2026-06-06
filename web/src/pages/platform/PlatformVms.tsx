@@ -190,8 +190,8 @@ export default function PlatformVms() {
         listPlatformHosts(),
         getFleetFinder().catch(() => null),
       ])
-      setVms(v)
-      setHosts(h)
+      setVms(Array.isArray(v) ? v : [])
+      setHosts(Array.isArray(h) ? h : [])
       setFinder(f)
     } catch (e: unknown) {
       const err = e as PlatformApiError

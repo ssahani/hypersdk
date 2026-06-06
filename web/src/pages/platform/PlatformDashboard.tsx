@@ -91,9 +91,9 @@ export default function PlatformDashboard() {
         getAiSecurity().catch(() => null),
         listMissingTemplateImages().catch(() => ({ missing: [], count: 0, auto_fetch_count: 0, summary: '' })),
       ])
-      setHosts(hosts)
-      setVms(v)
-      setTasks(t)
+      setHosts(Array.isArray(hosts) ? hosts : [])
+      setVms(Array.isArray(v) ? v : [])
+      setTasks(Array.isArray(t) ? t : [])
       setCluster(c)
       setCapacity(cap)
       setSecurity(sec)

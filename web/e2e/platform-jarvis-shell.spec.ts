@@ -7,7 +7,7 @@ test('Jarvis shell hides sidebar on Normal tier dashboard', async ({ page }) => 
   await mockPlatformApi(page, { tier: 'normal' })
   await page.goto('/platform')
   await expect(page.getByTestId('platform-jarvis-shell')).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByRole('button', { name: 'Maintenance Mission' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Maintenance Mission' })).toBeVisible({ timeout: 15_000 })
   await expect(page.locator('aside.platform-sidebar')).toHaveCount(0)
 })
 

@@ -21,10 +21,20 @@ test('platform to K8s and back via shell bridge', async ({ page }) => {
   const bar = page.locator('.shell-bridge-bar')
   await expect(bar).toBeVisible({ timeout: 20_000 })
   const backLink = bar.getByRole('link', { name: /Back to Platform/i })
-  await Promise.all([
-    page.waitForURL(/\/platform/),
-    backLink.click(),
-  ])
+  await backLink.click()
+  await expect(page).toHaveURL(/\/platform/, { timeout: 20_000 })
+})
+
+test('normal tier shell bridge links to integrations hub', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'normal' })
+  await page.goto('/storage')
+  await waitForPlatformSession(page)
+  const bar = page.locator('.shell-bridge-bar')
+  await expect(bar).toBeVisible({ timeout: 20_000 })
+  const integrationsLink = bar.getByRole('link', { name: /Apps.*Integrations/i })
+  await expect(integrationsLink).toHaveAttribute('href', /\/platform\/integrations$/)
+  await integrationsLink.click()
+  await expect(page).toHaveURL(/\/platform\/integrations/, { timeout: 20_000 })
 })
 
 test('OpenStack subnav links to platform when fleet mode', async ({ page }) => {
@@ -33,10 +43,8 @@ test('OpenStack subnav links to platform when fleet mode', async ({ page }) => {
   await waitForPlatformSession(page)
   const platformLink = page.getByRole('link', { name: /Platform desktop/i })
   await expect(platformLink).toBeVisible({ timeout: 20_000 })
-  await Promise.all([
-    page.waitForURL(/\/platform/),
-    platformLink.click(),
-  ])
+  await platformLink.click()
+  await expect(page).toHaveURL(/\/platform/, { timeout: 20_000 })
 })
 
 test('classic storage shows empty state when no pools', async ({ page }) => {

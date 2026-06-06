@@ -196,7 +196,7 @@ export default function CreateVMPage() {
         listPools(),
       ])
       if (netR.status === 'fulfilled') {
-        setNetworks(netR.value)
+        setNetworks(Array.isArray(netR.value) ? netR.value : [])
       } else {
         warnings.push(`Networks: ${formatUserError(netR.reason)}`)
         setNetworks([])
@@ -208,8 +208,9 @@ export default function CreateVMPage() {
         setIsoScan([])
       }
       if (poolR.status === 'fulfilled') {
-        setPools(poolR.value)
-        setDiskPool((prev) => prev || (poolR.value[0]?.name ?? ''))
+        const poolList = Array.isArray(poolR.value) ? poolR.value : []
+        setPools(poolList)
+        setDiskPool((prev) => prev || (poolList[0]?.name ?? ''))
       } else {
         warnings.push(`Storage pools: ${formatUserError(poolR.reason)}`)
         setPools([])
@@ -234,11 +235,12 @@ export default function CreateVMPage() {
     if (pageFlow !== 'golden') return
     listSavedTemplates()
       .then((t) => {
-        setSavedTemplates(t)
+        const templates = Array.isArray(t) ? t : []
+        setSavedTemplates(templates)
         setSelectedTemplateName((prev) => {
-          if (prev && t.some((x) => x.name === prev)) return prev
-          const withGolden = t.filter((x) => x.base_image)
-          return withGolden[0]?.name ?? t[0]?.name ?? ''
+          if (prev && templates.some((x) => x.name === prev)) return prev
+          const withGolden = templates.filter((x) => x.base_image)
+          return withGolden[0]?.name ?? templates[0]?.name ?? ''
         })
       })
       .catch(() => setSavedTemplates([]))
@@ -261,7 +263,7 @@ export default function CreateVMPage() {
 
   useEffect(() => {
     getTemplates()
-      .then(setLibvirtTemplates)
+      .then((t) => setLibvirtTemplates(Array.isArray(t) ? t : []))
       .catch(() => setLibvirtTemplates([]))
   }, [])
 
@@ -644,6 +646,27 @@ export default function CreateVMPage() {
     }
   }
 
+  const scrollCreateFormToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const showSinglePageForm = () => {
+    setUseInstallWizard(false)
+    scrollCreateFormToTop()
+  }
+
+  const showGuidedSteps = () => {
+    setUseInstallWizard(true)
+    setInstallWizardStep(0)
+    scrollCreateFormToTop()
+  }
+
+  const cloudInitGenerateBlockedReason = !vmName.trim()
+    ? 'Enter a VM name on the Machine details section first.'
+    : !cloudInitUser.trim()
+      ? 'Enter a cloud-init username.'
+      : null
+
   const sourceTabs: {
     id: InstallSource
     label: string
@@ -745,8 +768,9 @@ export default function CreateVMPage() {
           trailing={
             <button
               type="button"
+              data-testid="create-vm-single-page"
               className="text-xs text-slate-400 hover:text-slate-200 underline"
-              onClick={() => setUseInstallWizard(false)}
+              onClick={showSinglePageForm}
             >
               Single-page form
             </button>
@@ -757,11 +781,9 @@ export default function CreateVMPage() {
         <div className="text-right mb-2">
           <button
             type="button"
+            data-testid="create-vm-guided-steps"
             className="text-xs text-cyan-400 hover:underline"
-            onClick={() => {
-              setUseInstallWizard(true)
-              setInstallWizardStep(0)
-            }}
+            onClick={showGuidedSteps}
           >
             Use guided steps
           </button>
@@ -1332,6 +1354,11 @@ export default function CreateVMPage() {
           <input type="checkbox" checked={pathCheckOff} onChange={(e) => setPathCheckOff(e.target.checked)} className="rounded" />
           Ignore path-in-use check (busy images / volumes)
         </label>
+        {cloudInitGenerateBlockedReason && (
+          <p className="text-xs text-amber-400/90" data-testid="cloud-init-generate-hint">
+            {cloudInitGenerateBlockedReason}
+          </p>
+        )}
         <button
           type="button"
           data-testid="cloud-init-generate"
