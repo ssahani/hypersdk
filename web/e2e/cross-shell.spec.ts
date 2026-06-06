@@ -27,7 +27,9 @@ test('classic navbar help opens platform guide dialog', async ({ page }) => {
 test('platform help menu opens platform guide dialog', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
   await page.goto('/platform/vms')
-  await expect(page.getByText('Finder').first()).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('heading', { level: 1, name: 'Virtual Machines' })).toBeVisible({
+    timeout: 15_000,
+  })
   await page.locator('.mac-menubar-inner').getByRole('button', { name: 'Help', exact: true }).click()
   await page.locator('.mac-menu-panel').getByRole('button', { name: 'Platform guide…' }).click()
   await expect(page.getByRole('dialog', { name: 'Help' })).toBeVisible({ timeout: 10_000 })

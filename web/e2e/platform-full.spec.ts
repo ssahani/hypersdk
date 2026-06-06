@@ -23,7 +23,7 @@ const NORMAL_ROUTES: Array<{ path: string; heading: string | RegExp }> = [
 ]
 
 const ADVANCED_ROUTES: Array<{ path: string; heading: string | RegExp }> = [
-  { path: '/platform/resources', heading: 'Resources' },
+  { path: '/platform/infrastructure', heading: 'Infrastructure' },
   { path: '/platform/operations', heading: 'Operations' },
   { path: '/platform/policy', heading: 'Policy & Quotas' },
   { path: '/platform/events', heading: 'Logs & Audit' },
@@ -37,7 +37,7 @@ const POWER_ROUTES: Array<{ path: string; heading: string | RegExp }> = [
   { path: '/platform/placement', heading: 'Placement & HA' },
   { path: '/platform/policy', heading: 'Policy & Quotas' },
   { path: '/platform/api-keys', heading: /API keys/i },
-  { path: '/platform/resources', heading: 'Resources' },
+  { path: '/platform/infrastructure', heading: 'Infrastructure' },
 ]
 
 test.describe('power tier platform routes', () => {

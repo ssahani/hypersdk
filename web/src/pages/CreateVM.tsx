@@ -202,7 +202,7 @@ export default function CreateVMPage() {
         setNetworks([])
       }
       if (isoR.status === 'fulfilled') {
-        setIsoScan(isoR.value.files)
+        setIsoScan(isoR.value.files ?? [])
       } else {
         warnings.push(`ISO scan: ${formatUserError(isoR.reason)}`)
         setIsoScan([])

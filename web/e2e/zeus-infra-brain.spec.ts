@@ -82,7 +82,9 @@ test('AI Providers settings shows task-class routing table', async ({ page }) =>
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/settings?section=ai-providers')
   await expect(page.getByRole('heading', { name: 'Task-class routing' })).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByText('Infrastructure')).toBeVisible()
+  await expect(
+    page.locator('span.font-medium.text-slate-200').filter({ hasText: /^Infrastructure$/ }).first(),
+  ).toBeVisible()
   await expect(page.getByRole('button', { name: 'Save' }).first()).toBeVisible()
 })
 

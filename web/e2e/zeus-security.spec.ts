@@ -15,8 +15,8 @@ test('Machine Security view shows process tabs', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/zeus/machines/h1')
   await expect(page.getByRole('heading', { name: 'Machine security' })).toBeVisible({ timeout: 15_000 })
-  const tabBar = page.locator('div.flex.flex-wrap.items-center.gap-1.border-b').filter({
-    has: page.getByRole('button', { name: 'Processes' }),
+  const tabBar = page.getByRole('tablist').filter({
+    has: page.getByRole('tab', { name: 'Processes' }),
   })
   await tabBar.getByRole('button', { name: 'More' }).click()
   await page.getByRole('menuitem', { name: 'Containers' }).click()

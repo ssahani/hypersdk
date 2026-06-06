@@ -220,9 +220,9 @@ test('mobile jump nav navigates to resources on power tier', async ({ page }) =>
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/platform')
   const jump = page.getByRole('combobox', { name: 'Navigate platform' })
-  await jump.selectOption('/platform/resources')
-  await expect(page).toHaveURL(/\/platform\/resources/)
-  await expect(page.getByRole('heading', { name: 'Resources' })).toBeVisible({ timeout: 15_000 })
+  await jump.selectOption('/platform/infrastructure')
+  await expect(page).toHaveURL(/\/platform\/infrastructure/)
+  await expect(page.getByRole('heading', { name: 'Infrastructure' })).toBeVisible({ timeout: 15_000 })
 })
 
 test('spotlight lists resources workspaces on power tier', async ({ page }) => {
@@ -234,7 +234,7 @@ test('spotlight lists resources workspaces on power tier', async ({ page }) => {
     has: page.getByPlaceholder('Zeus — search or ask…'),
   })
   await expect(
-    spotlight.getByRole('button', { name: 'Networks Resources workspace' }),
+    spotlight.getByRole('button', { name: 'Networks Infrastructure workspace' }),
   ).toBeVisible()
 })
 
@@ -289,8 +289,8 @@ test('spotlight hides legacy Pages category on platform desktop', async ({ page 
   const spotlight = page.locator('.liquid-glass-modal-backdrop').filter({
     has: page.getByPlaceholder('Zeus — search or ask…'),
   })
-  await expect(spotlight.getByText('Infrastructure', { exact: true })).toHaveCount(0)
   await expect(spotlight.getByText('Pages', { exact: true })).toHaveCount(0)
+  await expect(spotlight.getByText('Resources workspace', { exact: true })).toHaveCount(0)
 })
 
 test('Go menu operations navigates without tier bounce on power tier', async ({ page }) => {

@@ -35,9 +35,13 @@ test.describe('Platform guest UX', () => {
     await page.goto('/platform/vms')
     await page.getByPlaceholder('Search VMs…').fill('empty-test')
     await page.getByRole('button', { name: 'Analyze guests' }).click()
-    await expect(page.getByText('No VMs matched for empty-test query.')).toBeVisible({ timeout: 15_000 })
+    const reportCard = page.locator('div.rounded-xl').filter({
+      has: page.getByLabel('Dismiss fleet guest report'),
+    })
+    await expect(reportCard.getByText('No VMs matched for empty-test query.')).toBeVisible({ timeout: 15_000 })
+    await page.locator('aside.fixed.right-0 header button').click()
     await page.getByLabel('Dismiss fleet guest report').click()
-    await expect(page.getByText('No VMs matched for empty-test query.')).not.toBeVisible()
+    await expect(reportCard).not.toBeVisible()
   })
 
   test('fleet guest query VM rows deep-link to guest health tab', async ({ page }) => {
