@@ -40,7 +40,23 @@ pub async fn vm_console(
     let host_id = row.1.ok_or_else(|| ApiError::bad_request("vm has no host"))?;
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
-    let info = agent_client::get_console(&mut client, &row.0).await?;
+    let info = agent_client::get_console(&mut client, &row.0).await.map_err(|e| {
+        let msg = e.to_string();
+        if msg.contains("Not found") || msg.contains("not found") {
+            ApiError::not_found(format!(
+                "VM '{}' is not on the hypervisor (stopped, removed, or inventory stale)",
+                row.0
+            ))
+            .with_remediation(
+                "Platform → Hosts → Sync all, then open the VM from Platform → VMs (running guests only).",
+            )
+        } else if msg.contains("socket is closed") {
+            ApiError::internal("Host agent lost its libvirt connection")
+                .with_remediation("On the host: sudo systemctl restart libvirtd machina-agent")
+        } else {
+            ApiError::internal(msg)
+        }
+    })?;
     let ws_token = state.ws_tokens.issue(id).await;
     Ok(Json(ConsoleInfo {
         vm_id: id.to_string(),

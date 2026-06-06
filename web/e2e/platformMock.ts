@@ -748,8 +748,14 @@ export async function mockPlatformApi(page: Page, opts?: {
         json: { status: 'ok', path: '/var/lib/libvirt/images/seed-e2e.iso' },
       })
     }
-    if (url.match(/\/api\/v1\/templates(\?|$)/)) {
+    if (url.includes('/platform/controller') && /\/api\/v1\/templates\/?(\?.*)?$/.test(url)) {
+      return route.fulfill({ json: [sampleTemplate, fleetOnlyTemplate] })
+    }
+    if (!url.includes('/platform/controller') && /\/api\/v1\/templates\/?(\?.*)?$/.test(url)) {
       return route.fulfill({ json: [libvirtTemplateFixture] })
+    }
+    if (url.includes('/templates/saved')) {
+      return route.fulfill({ json: [] })
     }
     if (url.includes('/fleet/prometheus-targets')) {
       return route.fulfill({
@@ -780,6 +786,24 @@ export async function mockPlatformApi(page: Page, opts?: {
     }
     if (url.includes('/fleet/alerts')) {
       return route.fulfill({ json: { peers: [], total_unacknowledged: 0 } })
+    }
+    if (url.includes('/libvirt/summary')) {
+      return route.fulfill({
+        json: {
+          configured_uri: 'qemu:///system',
+          libvirt_connected: true,
+          libvirt_system_socket_present: true,
+          libvirt_session_socket_present: false,
+        },
+      })
+    }
+    if (url.includes('/guest-images/os-list')) {
+      return route.fulfill({
+        json: { oses: [{ short_id: 'alma9', name: 'AlmaLinux', version: '9' }] },
+      })
+    }
+    if (url.includes('/system/create-vm-defaults')) {
+      return route.fulfill({ json: {} })
     }
     if (url.includes('/guest-images/rhel-url') && route.request().method() === 'POST') {
       return route.fulfill({
@@ -868,6 +892,14 @@ export async function mockPlatformApi(page: Page, opts?: {
           progress: '10',
           has_checksums: false,
         }],
+      })
+    }
+    if (url.includes('/browse/isos')) {
+      return route.fulfill({
+        json: {
+          files: [{ path: '/var/lib/libvirt/images/debian-12.iso', name: 'debian-12.iso', size_bytes: 8e8, format: 'iso' }],
+          scan_directories: ['/var/lib/libvirt/images'],
+        },
       })
     }
     if (url.includes('/browse/disks')) {
@@ -1617,7 +1649,22 @@ export async function mockPlatformApi(page: Page, opts?: {
         },
       })
     }
-    if (url.includes('/migrations')) {
+    if (url.includes('/migrations/advisor')) {
+      return route.fulfill({
+        json: {
+          vm_name: 'vcenter-vm-1',
+          provider: 'vmware',
+          readiness_percent: 85,
+          safe: ['virtio drivers present'],
+          risks: [],
+          recommended_target: { hypervisor: 'kvm' },
+          remediation: [],
+          guestkit_migration_score: 82,
+          guestkit_summary: 'KVM migration feasible',
+        },
+      })
+    }
+    if (url.match(/\/api\/v1\/migrations(\?|$)/)) {
       return route.fulfill({ json: [] })
     }
     if (url.includes('/fence/events')) {
@@ -1649,7 +1696,8 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({ json: { id: 'n2', name: 'vm-net', bridge: 'br0', backend: 'bridge' } })
     }
     if (url.includes('/networks') && !url.includes('/discover')) {
-      return route.fulfill({ json: platformNetworks })
+      const nets = opts?.emptyNetworks ? [] : platformNetworks
+      return route.fulfill({ json: nets })
     }
     if (url.includes('/storage/pools/') && url.includes('/snapshot-policy')) {
       return route.fulfill({

@@ -22,7 +22,7 @@ test.describe.serial('template readiness', () => {
   async function openTemplateDeploy(page: import('@playwright/test').Page) {
     await mockPlatformApi(page, { tier: 'power' })
     await page.goto('/platform/templates')
-    await page.getByRole('button', { name: /^Templates$/ }).click()
+    await page.getByRole('tab', { name: /^Templates$/ }).click()
     await expect(page.getByText('ubuntu-24.04').first()).toBeVisible({ timeout: 20_000 })
     await page.getByRole('button', { name: /Get · Deploy VM/i }).first().click()
   }
@@ -36,12 +36,12 @@ test.describe.serial('template readiness', () => {
   test('template deploy sheet shows not-ready remediation', async ({ page }) => {
     await mockPlatformApi(page, { tier: 'power', templateNotReady: true })
     await page.goto('/platform/templates')
-    await page.getByRole('button', { name: /^Templates$/ }).click()
+    await page.getByRole('tab', { name: /^Templates$/ }).click()
     await expect(page.getByText('ubuntu-24.04').first()).toBeVisible({ timeout: 20_000 })
     await page.getByRole('button', { name: /Get · Deploy VM/i }).first().click()
     await expect(page.getByText('Missing disk image')).toBeVisible({ timeout: 20_000 })
     await expect(page.getByText(/Upload the golden image/i)).toBeVisible()
-    await expect(page.getByRole('link', { name: /Upload image in Content Library/i })).toBeVisible()
+    await expect(page.getByRole('link', { name: /Content Library/i })).toBeVisible()
   })
 })
 

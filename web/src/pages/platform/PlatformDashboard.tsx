@@ -97,7 +97,7 @@ export default function PlatformDashboard() {
       setCluster(c)
       setCapacity(cap)
       setSecurity(sec)
-      setMissingImages(missing.missing)
+      setMissingImages(missing.missing ?? [])
       setMissingImagesSummary(missing.summary)
       setMissingAutoFetchCount(missing.auto_fetch_count)
     } catch (e: unknown) {

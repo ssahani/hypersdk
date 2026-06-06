@@ -8,7 +8,7 @@ test('guest health shows live observability refresh', async ({ page }) => {
   await page.goto('/platform/vms/v1?tab=guestHealth')
   await expect(page.getByText('Live guest observability')).toBeVisible({ timeout: 15_000 })
   await page.getByRole('button', { name: 'Refresh guest observability' }).click()
-  await expect(page.getByText('Cloud-init')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('Cloud-init', { exact: true })).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText('done', { exact: true })).toBeVisible()
 })
 

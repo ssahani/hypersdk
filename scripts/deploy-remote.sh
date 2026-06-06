@@ -550,6 +550,11 @@ for svc in machina-daemon libvirtd machina-controller machina-agent postgresql; 
 done
 if systemctl is-active machina-controller &>/dev/null; then
   curl -sf http://127.0.0.1:5093/api/v1/health && echo || echo '⚠️  platform health check failed'
+  if [ -f $REMOTE_DIR/scripts/lib/platform-sweep-remote.sh ]; then
+    echo '▶ Platform inventory sweep (sync + prune stale VMs)'
+    sudo bash $REMOTE_DIR/scripts/lib/platform-sweep-remote.sh || echo '⚠️  platform sweep had issues'
+    sudo systemctl restart machina-agent 2>/dev/null || true
+  fi
 fi
 " || warn "service status check failed"
 

@@ -14,8 +14,8 @@ test('GPU Command Center shows host inventory and placement advisor', async ({ p
 
 test('Resources hub links to GPU Command Center', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
-  await page.goto('/platform/resources')
-  await page.locator('.tahoe-content').getByRole('link', { name: 'GPU Command Center' }).click()
+  await page.goto('/platform/infrastructure')
+  await page.getByRole('link', { name: 'GPU Command Center' }).click()
   await expect(page).toHaveURL(/\/platform\/gpu/)
   await expect(page.getByRole('heading', { name: /GPU Command Center/i })).toBeVisible({ timeout: 15_000 })
 })
