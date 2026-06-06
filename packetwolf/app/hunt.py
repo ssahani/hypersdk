@@ -52,6 +52,27 @@ HUNT_QUERIES: list[dict[str, str]] = [
         "description": "Reads/writes to credential and auth files",
         "severity": "critical",
     },
+    {
+        "id": "dns-tunneling",
+        "name": "DNS tunneling labels",
+        "query": "dns OR query OR entropy OR tunnel",
+        "description": "High-entropy long DNS labels indicative of tunneling",
+        "severity": "high",
+    },
+    {
+        "id": "lateral-ssh",
+        "name": "Lateral SSH movement",
+        "query": "ssh OR scp OR rsync OR lateral",
+        "description": "SSH/SCP burst patterns across fleet hosts",
+        "severity": "high",
+    },
+    {
+        "id": "container-escape",
+        "name": "Container escape indicators",
+        "query": "hostPID OR hostNetwork OR /proc/ OR container escape",
+        "description": "Sensitive mount and host namespace abuse from k8s workloads",
+        "severity": "critical",
+    },
 ]
 
 

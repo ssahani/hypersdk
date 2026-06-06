@@ -385,19 +385,19 @@ pub struct ApplyEnforcementBody {
     pub host_ids: Vec<String>,
 }
 
-pub async fn apply_enforcement_policy(
-    State(state): State<AppState>,
-    Path(policy_id): Path<String>,
-    Json(body): Json<ApplyEnforcementBody>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+async fn enqueue_enforcement_bundle_sync(
+    state: &AppState,
+    host_ids: &[String],
+    policy_id: &str,
+) -> Result<Vec<String>, ApiError> {
     use crate::tasks::enqueue::enqueue_task;
     use uuid::Uuid;
 
-    let pw = packetwolf_bridge::apply_enforcement_policy(&state.config, &policy_id, &body.host_ids).await;
-    for host_id in &body.host_ids {
+    let mut task_ids = Vec::new();
+    for host_id in host_ids {
         let host_uuid = Uuid::parse_str(host_id).ok();
-        let _ = enqueue_task(
-            &state,
+        let task_id = enqueue_task(
+            state,
             "host.enforcement.apply",
             serde_json::json!({
                 "host_id": host_id,
@@ -407,11 +407,169 @@ pub async fn apply_enforcement_policy(
             host_uuid,
             host_uuid,
         )
-        .await;
+        .await?;
+        task_ids.push(task_id.to_string());
     }
+    Ok(task_ids)
+}
+
+pub async fn apply_enforcement_policy(
+    State(state): State<AppState>,
+    Path(policy_id): Path<String>,
+    Json(body): Json<ApplyEnforcementBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let pw = packetwolf_bridge::apply_enforcement_policy(&state.config, &policy_id, &body.host_ids).await;
+    let task_ids = enqueue_enforcement_bundle_sync(&state, &body.host_ids, &policy_id).await?;
     Ok(Json(serde_json::json!({
         "packetwolf": pw,
+        "task_ids": task_ids,
         "summary": format!("Enforcement policy {policy_id} queued for {} host(s)", body.host_ids.len())
+    })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PatchEnforcementPolicyBody {
+    pub enabled: Option<bool>,
+    pub r#match: Option<String>,
+    pub description: Option<String>,
+}
+
+pub async fn patch_enforcement_policy(
+    State(state): State<AppState>,
+    Path(policy_id): Path<String>,
+    Json(body): Json<PatchEnforcementPolicyBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let payload = serde_json::json!({
+        "enabled": body.enabled,
+        "match": body.r#match,
+        "description": body.description,
+    });
+    let pw = packetwolf_bridge::patch_enforcement_policy(&state.config, &policy_id, payload).await;
+    let sync_hosts: Vec<String> = pw
+        .get("sync_hosts")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|h| h.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+    let task_ids = if sync_hosts.is_empty() {
+        vec![]
+    } else {
+        enqueue_enforcement_bundle_sync(&state, &sync_hosts, &policy_id).await?
+    };
+    Ok(Json(serde_json::json!({
+        "packetwolf": pw,
+        "task_ids": task_ids,
+        "summary": format!("Enforcement policy {policy_id} updated")
+    })))
+}
+
+pub async fn delete_enforcement_policy(
+    State(state): State<AppState>,
+    Path(policy_id): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let pw = packetwolf_bridge::delete_enforcement_policy(&state.config, &policy_id).await;
+    let sync_hosts: Vec<String> = pw
+        .get("removed_from_hosts")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|h| h.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+    let task_ids = if sync_hosts.is_empty() {
+        vec![]
+    } else {
+        enqueue_enforcement_bundle_sync(&state, &sync_hosts, &policy_id).await?
+    };
+    Ok(Json(serde_json::json!({
+        "packetwolf": pw,
+        "task_ids": task_ids,
+        "summary": format!("Enforcement policy {policy_id} deleted")
+    })))
+}
+
+pub async fn enforcement_policy_tetragon(
+    State(state): State<AppState>,
+    Path(policy_id): Path<String>,
+) -> Json<serde_json::Value> {
+    Json(packetwolf_bridge::enforcement_policy_tetragon(&state.config, &policy_id).await)
+}
+
+pub async fn install_fleet_tetragon(State(state): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+    use crate::tasks::enqueue::enqueue_task;
+
+    let rows: Vec<(Uuid,)> = sqlx::query_as("SELECT id FROM hosts WHERE state = 'online' ORDER BY hostname")
+        .fetch_all(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut task_ids = Vec::new();
+    for (host_uuid,) in &rows {
+        let id = host_uuid.to_string();
+        let _ = packetwolf_bridge::register_sensor(&state.config, &id).await;
+        let _ = packetwolf_bridge::queue_tetragon_install(&state.config, &id).await;
+        let task_id = enqueue_task(
+            &state,
+            "host.tetragon.install",
+            serde_json::json!({
+                "host_id": id,
+                "packetwolf_base_url": state.config.packetwolf_base_url,
+            }),
+            Some("host"),
+            Some(*host_uuid),
+            Some(*host_uuid),
+        )
+        .await?;
+        task_ids.push(task_id.to_string());
+    }
+    Ok(Json(serde_json::json!({
+        "task_ids": task_ids,
+        "hosts": rows.len(),
+        "summary": format!("Tetragon enrollment queued for {} online host(s)", rows.len())
+    })))
+}
+
+pub async fn fleet_sensors(State(state): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+    let pw = packetwolf_bridge::sensors(&state.config).await;
+    let sensors = pw
+        .get("sensors")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let hosts: Vec<(Uuid, String, String)> =
+        sqlx::query_as("SELECT id, hostname, state FROM hosts ORDER BY hostname")
+            .fetch_all(&state.pool)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+    let sensor_by_host: std::collections::HashMap<String, serde_json::Value> = sensors
+        .iter()
+        .filter_map(|s| {
+            let hid = s.get("host_id")?.as_str()?;
+            Some((hid.to_string(), s.clone()))
+        })
+        .collect();
+    let matrix: Vec<serde_json::Value> = hosts
+        .iter()
+        .map(|(id, hostname, host_state)| {
+            let id_str = id.to_string();
+            let sensor = sensor_by_host.get(&id_str).or_else(|| sensor_by_host.get(hostname));
+            serde_json::json!({
+                "host_id": id_str,
+                "hostname": hostname,
+                "host_state": host_state,
+                "sensor": sensor,
+                "tetragon_status": sensor.and_then(|s| s.get("status")).and_then(|v| v.as_str()).unwrap_or("missing"),
+                "last_event_at": sensor.and_then(|s| s.get("last_event_at")),
+            })
+        })
+        .collect();
+    Ok(Json(serde_json::json!({
+        "sensors": sensors,
+        "matrix": matrix,
+        "summary": format!("{} host(s) · {} PacketWolf sensor(s)", hosts.len(), sensors.len())
     })))
 }
 

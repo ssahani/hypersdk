@@ -340,7 +340,14 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/zeus-security/k8s/{cluster_id}/export-status", get(zeus_security::k8s_export_status))
         .route("/api/v1/zeus-security/enforcement/status", get(zeus_security::enforcement_status))
         .route("/api/v1/zeus-security/enforcement/policies", get(zeus_security::enforcement_policies).post(zeus_security::create_enforcement_policy))
+        .route("/api/v1/zeus-security/enforcement/policies/{id}/tetragon", get(zeus_security::enforcement_policy_tetragon))
         .route("/api/v1/zeus-security/enforcement/policies/{id}/apply", post(zeus_security::apply_enforcement_policy))
+        .route(
+            "/api/v1/zeus-security/enforcement/policies/{id}",
+            patch(zeus_security::patch_enforcement_policy).delete(zeus_security::delete_enforcement_policy),
+        )
+        .route("/api/v1/zeus-security/fleet/tetragon/install", post(zeus_security::install_fleet_tetragon))
+        .route("/api/v1/zeus-security/fleet/sensors", get(zeus_security::fleet_sensors))
         .route("/api/v1/zeus-security/hosts/{id}/enforcement", get(zeus_security::host_enforcement))
         .route("/api/v1/zeus-security/hosts/{id}/fabric-status", get(zeus_security::host_fabric_status))
         .route("/api/v1/zeus-security/agents/{id}/bundle", get(zeus_security::agent_security_bundle))

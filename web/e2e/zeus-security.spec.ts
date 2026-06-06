@@ -28,6 +28,9 @@ test('Runtime enforcement workspace loads', async ({ page }) => {
   await page.goto('/platform/zeus/security/enforcement')
   await expect(page.getByRole('heading', { name: 'Runtime enforcement' })).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('Block reverse-shell listeners')).toBeVisible()
+  await expect(page.getByText('Target hosts')).toBeVisible()
+  await page.getByRole('button', { name: 'Preview' }).first().click()
+  await expect(page.getByText('TracingPolicy preview')).toBeVisible({ timeout: 10_000 })
 })
 
 test('Threat hunting workspace loads', async ({ page }) => {

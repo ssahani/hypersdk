@@ -13,6 +13,7 @@ import {
   type ServiceMapEdge,
   type ServiceMapNode,
 } from '../../api/platformNetworkCanvas'
+import EbpfActionMenu from '../../components/platform/EbpfActionMenu'
 import { hubLinkClasses, statusBadgeClasses, statusToneClass } from '../../utils/semanticColors'
 
 type CanvasNode = { id: string; label: string; kind: string; detail?: string }
@@ -164,9 +165,12 @@ export default function PlatformNetworkCanvas() {
 
         {localAnomalies.length > 0 && (
           <MacGlassPanel title="Anomalies" subtitle="Machina topology warnings + PacketWolf detections">
-            <ul className="list-disc pl-4 text-xs text-amber-200/90 space-y-1">
+            <ul className="text-xs text-amber-200/90 space-y-2">
               {localAnomalies.map((a) => (
-                <li key={a}>{a}</li>
+                <li key={a} className="flex flex-wrap items-center justify-between gap-2">
+                  <span>{a}</span>
+                  <Link to="/platform/zeus/security" className={`text-[10px] ${hubLinkClasses()}`}>Fabric health</Link>
+                </li>
               ))}
             </ul>
           </MacGlassPanel>
@@ -175,12 +179,22 @@ export default function PlatformNetworkCanvas() {
         {threats.length > 0 && (
           <MacGlassPanel title="Threat pulse" subtitle="PacketWolf /api/v1/network/threats">
             <ul className="text-xs space-y-2">
-              {threats.slice(0, 6).map((t, i) => (
-                <li key={i} className="border-b border-white/[0.04] pb-2">
-                  <span className={statusToneClass(t.severity === 'critical' ? 'error' : 'warn')}>{t.title ?? 'Threat'}</span>
-                  {t.summary && <p className="text-slate-500 mt-0.5">{t.summary}</p>}
+              {threats.slice(0, 6).map((t, i) => {
+                const threat = t as { title?: string; severity?: string; summary?: string; host_id?: string; suggested_kind?: string; suggested_match?: string; port?: number }
+                return (
+                <li key={i} className="border-b border-white/[0.04] pb-2 space-y-1">
+                  <span className={statusToneClass(threat.severity === 'critical' ? 'error' : 'warn')}>{threat.title ?? 'Threat'}</span>
+                  {threat.summary && <p className="text-slate-500 mt-0.5">{threat.summary}</p>}
+                  <EbpfActionMenu
+                    hostId={threat.host_id}
+                    suggestedKind={threat.suggested_kind ?? 'deny_port'}
+                    suggestedMatch={threat.suggested_match ?? (threat.port ? `${threat.port}/tcp` : '4444/tcp')}
+                    huntQueryId="reverse-shell"
+                    compact
+                  />
                 </li>
-              ))}
+                )
+              })}
             </ul>
           </MacGlassPanel>
         )}
@@ -207,7 +221,16 @@ export default function PlatformNetworkCanvas() {
                     <li key={e.id} className={`truncate ${edgeTone(e.health)}`}>
                       {e.source} → {e.target}
                       {e.dropped_count != null && e.dropped_count > 0 && (
-                        <span className="text-slate-500"> ({e.dropped_count} dropped)</span>
+                        <>
+                          <span className="text-slate-500"> ({e.dropped_count} dropped)</span>
+                          {' '}
+                          <Link
+                            to={`/platform/zeus/security/enforcement?kind=deny_port&match=${encodeURIComponent('4444/tcp')}`}
+                            className={hubLinkClasses()}
+                          >
+                            enforce
+                          </Link>
+                        </>
                       )}
                     </li>
                   ))}

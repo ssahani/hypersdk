@@ -140,6 +140,16 @@ Responses include `llm_powered: true` when the model was used. Threat Hunting wo
 - **Machina:** `/api/v1/zeus-security/fabric/health`, `/hunt/queries`, `/hunt/run/{id}`; alert sync includes fabric issues
 - **UI:** Threat Hunting saved queries + search backend badge; Security Center fabric health panel
 
+## Phase 12 — eBPF feature sweep (PW-37–PW-42)
+
+- **Policy lifecycle:** `PATCH`/`DELETE` `/api/v1/enforcement/policies/{id}`, `GET .../tetragon` TracingPolicy preview; agent bundle `removed_policies[]` for cleanup on delete/disable
+- **New policy kinds:** `deny_file`, `deny_cap`, `deny_namespace` — Tetragon generation + ingest-time `verdict: blocked` evaluation
+- **Fleet Tetragon:** `POST /api/v1/zeus-security/fleet/tetragon/install` enqueues `host.tetragon.install` for all online hosts; `GET /fleet/sensors` joins PacketWolf sensors with controller hostnames
+- **Correlator depth:** `crypto_miner`, `dns_tunneling`, `lateral_ssh`, `container_escape` rules + aligned hunt playbooks
+- **Threat → action bridges:** `EbpfActionMenu` on Security Center, hunt, network canvas, machine security, SOC — prefill Runtime Enforcement via query params
+- **UI:** Runtime Enforcement host multi-select, fleet apply, preview/delete/toggle; Security Center sensor matrix + fleet enroll CTA
+- **Agent:** `apply_security_bundle` removes deleted policy files and best-effort `systemctl try-reload-or-restart tetragon.service`
+
 ## UI routes
 
 | Route | Page |

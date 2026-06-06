@@ -498,6 +498,7 @@ Full batch table: [`zeus-os-ai-172-371.md`](zeus-os-ai-172-371.md)
 | 25 | PW-28–PW-30 | **PacketWolf Phase 9** — production Tetragon install (systemd + export), K8s Helm apply | **Shipped (v1)** |
 | 26 | PW-31–PW-33 | **PacketWolf Phase 10** — K8s Tetragon → PacketWolf export forwarder | **Shipped (v1)** |
 | 27 | PW-34–PW-36 | **PacketWolf Phase 11** — OpenSearch hunt playbooks, merged search, fabric health | **Shipped (v1)** |
+| 27b | PW-37–PW-42 | **PacketWolf Phase 12** — enforcement lifecycle, new policy kinds, fleet Tetragon, threat→action bridges | **Shipped (v1)** |
 | 28 | 212–231 | Cloud edge — AWS/Azure/GCP SG read | **Shipped (v1)** |
 | 19 | 232–251 | Guest in-guest QEMU-agent port scan | **Shipped (v1)** |
 | 20 | 252–271 | Connectivity matrix simulation GA | **Shipped (v1)** |

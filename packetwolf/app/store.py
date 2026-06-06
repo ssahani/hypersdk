@@ -21,6 +21,7 @@ _sensors: dict[str, dict[str, Any]] = {}
 _policies: dict[str, enforcer.EnforcementPolicy] = {}
 _enforcement_stats: dict[str, int] = {"blocked_total": 0, "by_policy": {}}
 _pending_tetragon: dict[str, dict[str, Any]] = {}
+_removed_policies: dict[str, list[str]] = defaultdict(list)
 _process_edges: dict[str, list[tuple[int, int, str]]] = defaultdict(list)
 _seeded = False
 
@@ -530,6 +531,64 @@ def create_enforcement_policy(req: enforcer.CreatePolicyRequest) -> dict[str, An
     return pol.model_dump(mode="json")
 
 
+def _queue_policy_removal(host_ids: list[str], policy_id: str) -> None:
+    name = enforcer.tetragon_policy_name(policy_id)
+    for hid in host_ids:
+        if name not in _removed_policies[hid]:
+            _removed_policies[hid].append(name)
+
+
+def patch_enforcement_policy(policy_id: str, req: enforcer.PatchPolicyRequest) -> dict[str, Any]:
+    _seed_demo()
+    pol = _policies.get(policy_id)
+    if not pol:
+        return {"ok": False, "error": "policy not found"}
+    was_enabled = pol.enabled
+    if req.enabled is not None:
+        pol.enabled = req.enabled
+    if req.match is not None:
+        pol.match = req.match
+    if req.description is not None:
+        pol.description = req.description
+    if req.enabled is False and was_enabled:
+        _queue_policy_removal(pol.applied_hosts, policy_id)
+    return {
+        "ok": True,
+        "policy": pol.model_dump(mode="json"),
+        "tetragon_policy": enforcer.to_tetragon_policy(pol),
+        "sync_hosts": pol.applied_hosts if pol.applied_hosts else [],
+    }
+
+
+def delete_enforcement_policy(policy_id: str) -> dict[str, Any]:
+    _seed_demo()
+    pol = _policies.pop(policy_id, None)
+    if not pol:
+        return {"ok": False, "error": "policy not found"}
+    tetragon_name = enforcer.tetragon_policy_name(policy_id)
+    _queue_policy_removal(pol.applied_hosts, policy_id)
+    return {
+        "ok": True,
+        "policy_id": policy_id,
+        "tetragon_policy": tetragon_name,
+        "removed_from_hosts": pol.applied_hosts,
+    }
+
+
+def get_enforcement_policy_tetragon(policy_id: str) -> dict[str, Any]:
+    _seed_demo()
+    pol = _policies.get(policy_id)
+    if not pol:
+        return {"ok": False, "error": "policy not found"}
+    tetragon = enforcer.to_tetragon_policy(pol)
+    return {
+        "ok": True,
+        "policy_id": policy_id,
+        "tetragon_policy": tetragon,
+        "tetragon_policy_name": enforcer.tetragon_policy_name(policy_id),
+    }
+
+
 def apply_enforcement_policy(policy_id: str, host_ids: list[str]) -> dict[str, Any]:
     _seed_demo()
     pol = _policies.get(policy_id)
@@ -678,16 +737,23 @@ def agent_bundle(host_id: str) -> dict[str, Any]:
         for p in _policies.values()
         if p.enabled and (not p.applied_hosts or host_id in p.applied_hosts)
     ]
+    removed = list(_removed_policies.get(host_id, []))
     return {
         "host_id": host_id,
         "tetragon_install": _pending_tetragon.get(host_id),
         "tracing_policies": tracing,
+        "removed_policies": removed,
         "policy_count": len(tracing),
         "sensor": _sensors.get(host_id),
     }
 
 
 def ack_agent_bundle(host_id: str) -> dict[str, Any]:
-    removed = _pending_tetragon.pop(host_id, None)
-    return {"host_id": host_id, "acknowledged": removed is not None}
+    removed_install = _pending_tetragon.pop(host_id, None)
+    removed_policies = _removed_policies.pop(host_id, [])
+    return {
+        "host_id": host_id,
+        "acknowledged": removed_install is not None or bool(removed_policies),
+        "removed_policies_cleared": removed_policies,
+    }
 

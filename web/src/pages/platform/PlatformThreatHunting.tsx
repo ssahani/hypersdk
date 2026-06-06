@@ -1,7 +1,8 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
+import EbpfActionMenu, { correlationKindToEnforce } from '../../components/platform/EbpfActionMenu'
 import { Bot, Search, Sparkles } from 'lucide-react'
 import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
@@ -47,6 +48,7 @@ function extractSearchHits(payload: Record<string, unknown>): Array<{ summary: s
 }
 
 export default function PlatformThreatHunting() {
+  const [searchParams] = useSearchParams()
   const [timeline, setTimeline] = useState<SecurityEvent[]>([])
   const [correlations, setCorrelations] = useState<Array<Record<string, unknown>>>([])
   const [huntQueries, setHuntQueries] = useState<HuntQuery[]>([])
@@ -78,6 +80,16 @@ export default function PlatformThreatHunting() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+
+  useEffect(() => {
+    const q = searchParams.get('query')
+    const host = searchParams.get('host')
+    if (q) {
+      if (host) setStructuredHostId(host)
+      runHunt(q)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- prefill from URL once
+  }, [searchParams])
 
   const applySearchResponse = (r: {
     search_query: string
@@ -263,16 +275,15 @@ export default function PlatformThreatHunting() {
         {searchHits.length > 0 && (
           <ul className="mt-2 space-y-1">
             {searchHits.map((h, i) => (
-              <li key={i} className="text-sm text-slate-300">
-                {h.summary}
-                {h.host_id ? (
-                  <>
-                    {' '}
-                    <Link to={`/platform/zeus/machines/${h.host_id}`} className={`text-xs ${hubLinkClasses()}`}>
-                      {h.host_id}
-                    </Link>
-                  </>
-                ) : null}
+              <li key={i} className="text-sm text-slate-300 flex flex-wrap items-center gap-2 justify-between">
+                <span>{h.summary}</span>
+                <EbpfActionMenu
+                  hostId={h.host_id}
+                  suggestedKind="deny_process"
+                  suggestedMatch="/usr/bin/nc"
+                  huntQueryId="reverse-shell"
+                  compact
+                />
               </li>
             ))}
           </ul>
@@ -284,19 +295,26 @@ export default function PlatformThreatHunting() {
       {correlations.length > 0 && (
         <MacGlassPanel title="Threat correlations" subtitle="Rule engine findings">
           <ul className="text-sm text-slate-300 space-y-2">
-            {correlations.map((c, i) => (
-              <li key={i}>
-                <span className={statusToneClass(riskTone(String(c.severity)))}>{String(c.severity)}</span> · {String(c.summary)}
-                {c.host_id ? (
-                  <>
-                    {' '}
-                    <Link to={`/platform/zeus/machines/${String(c.host_id)}`} className={hubLinkClasses()}>
-                      {String(c.host_id)}
-                    </Link>
-                  </>
-                ) : null}
-              </li>
-            ))}
+            {correlations.map((c, i) => {
+              const enforce = correlationKindToEnforce(String(c.kind ?? ''))
+              return (
+                <li key={i} className="flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    <span className={statusToneClass(riskTone(String(c.severity)))}>{String(c.severity)}</span>
+                    {' · '}
+                    {String(c.summary)}
+                  </span>
+                  <EbpfActionMenu
+                    hostId={c.host_id ? String(c.host_id) : undefined}
+                    suggestedKind={enforce.kind}
+                    suggestedMatch={enforce.match}
+                    huntQueryId={enforce.huntId}
+                    policyName={String(c.summary)}
+                    compact
+                  />
+                </li>
+              )
+            })}
           </ul>
         </MacGlassPanel>
       )}

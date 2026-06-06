@@ -62,6 +62,22 @@ pub fn apply_security_bundle(bundle_json: &str, dry_run: bool) -> Result<Securit
         let _ = fs::create_dir_all(&dir);
     }
 
+    let removed = bundle
+        .get("removed_policies")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    for name in &removed {
+        let Some(name_str) = name.as_str() else {
+            continue;
+        };
+        let path = dir.join(format!("{name_str}.json"));
+        if path.is_file() && !dry_run {
+            fs::remove_file(&path).map_err(LibvirtError::map_op("remove tetragon policy"))?;
+        }
+        operations.push(format!("remove {}", path.display()));
+    }
+
     for (i, pol) in policies.iter().enumerate() {
         let name = pol
             .pointer("/metadata/name")
@@ -120,10 +136,29 @@ pub fn apply_security_bundle(bundle_json: &str, dry_run: bool) -> Result<Securit
     write_file(&manifest_path, bundle_json, dry_run)?;
     operations.push(format!("write {}", manifest_path.display()));
 
+    let mut reload_message = String::new();
+    if !dry_run && (policies_written > 0 || !removed.is_empty()) {
+        let reload = std::process::Command::new("systemctl")
+            .args(["try-reload-or-restart", "tetragon.service"])
+            .output();
+        match reload {
+            Ok(out) if out.status.success() => {
+                operations.push("systemctl try-reload-or-restart tetragon.service".into());
+                reload_message = "tetragon reloaded".into();
+            }
+            Ok(_) => operations.push("systemctl reload skipped (unit missing or failed)".into()),
+            Err(_) => operations.push("systemctl reload skipped (systemctl unavailable)".into()),
+        }
+    }
+
     let message = if dry_run {
         "Dry run — no files written".into()
+    } else if !install_message.is_empty() && !reload_message.is_empty() {
+        format!("Applied {policies_written} TracingPolicy file(s); {install_message}; {reload_message}")
     } else if !install_message.is_empty() {
         format!("Applied {policies_written} TracingPolicy file(s); {install_message}")
+    } else if !reload_message.is_empty() {
+        format!("Applied {policies_written} TracingPolicy file(s); {reload_message}")
     } else {
         format!("Applied {policies_written} TracingPolicy file(s)")
     };

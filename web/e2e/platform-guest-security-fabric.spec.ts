@@ -27,7 +27,14 @@ test('machine security enforcement tab shows host policies', async ({ page }) =>
   await page.getByRole('menuitem', { name: 'Enforcement' }).click()
   await expect(page.getByText('Block reverse-shell listeners').first()).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('Fleet policies')).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByRole('button', { name: 'Apply here' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Apply here' }).first()).toBeVisible()
+})
+
+test('runtime enforcement lists new policy kinds', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/zeus/security/enforcement')
+  await expect(page.getByText('Block shadow file read')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('Block raw socket capability')).toBeVisible()
 })
 
 test('k8s firewall shows tetragon install and export status', async ({ page }) => {

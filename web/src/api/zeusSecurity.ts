@@ -267,10 +267,50 @@ export const createEnforcementPolicy = (body: {
   })
 
 export const applyEnforcementPolicy = (policyId: string, hostIds: string[]) =>
-  platformFetch<{ summary: string }>(`/api/v1/zeus-security/enforcement/policies/${encodeURIComponent(policyId)}/apply`, {
+  platformFetch<{ summary: string; task_ids?: string[] }>(`/api/v1/zeus-security/enforcement/policies/${encodeURIComponent(policyId)}/apply`, {
     method: 'POST',
     body: JSON.stringify({ host_ids: hostIds }),
   })
+
+export const patchEnforcementPolicy = (
+  policyId: string,
+  body: { enabled?: boolean; match?: string; description?: string },
+) =>
+  platformFetch<{ summary: string; task_ids?: string[]; packetwolf?: Record<string, unknown> }>(
+    `/api/v1/zeus-security/enforcement/policies/${encodeURIComponent(policyId)}`,
+    { method: 'PATCH', body: JSON.stringify(body) },
+  )
+
+export const deleteEnforcementPolicy = (policyId: string) =>
+  platformFetch<{ summary: string; task_ids?: string[] }>(
+    `/api/v1/zeus-security/enforcement/policies/${encodeURIComponent(policyId)}`,
+    { method: 'DELETE' },
+  )
+
+export const getEnforcementPolicyTetragon = (policyId: string) =>
+  platformFetch<{ tetragon_policy?: Record<string, unknown>; tetragon_policy_name?: string }>(
+    `/api/v1/zeus-security/enforcement/policies/${encodeURIComponent(policyId)}/tetragon`,
+  )
+
+export interface FleetSensorRow {
+  host_id: string
+  hostname: string
+  host_state: string
+  tetragon_status: string
+  last_event_at?: string
+  sensor?: Record<string, unknown>
+}
+
+export const getFleetSensors = () =>
+  platformFetch<{ matrix: FleetSensorRow[]; summary?: string; sensors?: Array<Record<string, unknown>> }>(
+    '/api/v1/zeus-security/fleet/sensors',
+  )
+
+export const installFleetTetragon = () =>
+  platformFetch<{ task_ids: string[]; hosts: number; summary: string }>(
+    '/api/v1/zeus-security/fleet/tetragon/install',
+    { method: 'POST', body: '{}' },
+  )
 
 export const getHostEnforcement = (hostId: string) =>
   platformFetch<Record<string, unknown>>(`/api/v1/zeus-security/hosts/${hostId}/enforcement`)

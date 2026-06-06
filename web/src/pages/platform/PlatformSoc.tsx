@@ -37,6 +37,7 @@ import {
   type SocRule,
 } from '../../api/soc'
 import { getFleetThreatSummary } from '../../api/zeusSecurity'
+import EbpfActionMenu from '../../components/platform/EbpfActionMenu'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusBadgeClasses, statusToneClass } from '../../utils/semanticColors'
@@ -378,6 +379,13 @@ export default function PlatformSoc() {
                           {a.assigned_to ? ` · ${a.assigned_to}` : ''}
                         </p>
                       </div>
+                      <EbpfActionMenu
+                        suggestedKind="deny_process"
+                        suggestedMatch="/usr/bin/nc"
+                        huntQueryId={a.title.toLowerCase().includes('dns') ? 'dns-tunneling' : 'reverse-shell'}
+                        policyName={a.title}
+                        compact
+                      />
                     </button>
                   </li>
                 ))}

@@ -2133,9 +2133,53 @@ export async function mockPlatformApi(page: Page, opts?: {
           },
         })
       }
-      if (url.includes('/enforcement/policies') && url.includes('/apply')) {
+      if (url.includes('/fleet/tetragon/install') && route.request().method() === 'POST') {
         return route.fulfill({
-          json: { ok: true, summary: 'Applied Block reverse-shell listeners to 1 host(s)' },
+          json: {
+            task_ids: ['task-fleet-tetragon-1'],
+            hosts: 2,
+            summary: 'Tetragon enrollment queued for 2 online host(s)',
+          },
+        })
+      }
+      if (url.includes('/fleet/sensors')) {
+        return route.fulfill({
+          json: {
+            summary: '2 host(s) · 1 PacketWolf sensor(s)',
+            sensors: [{ host_id: 'h1', status: 'healthy', tetragon_version: '1.0.0', last_event_at: new Date().toISOString() }],
+            matrix: [
+              { host_id: 'h1', hostname: 'host-1', host_state: 'online', tetragon_status: 'healthy' },
+              { host_id: 'h2', hostname: 'host-2', host_state: 'online', tetragon_status: 'missing' },
+            ],
+          },
+        })
+      }
+      if (url.match(/\/enforcement\/policies\/[^/]+\/tetragon/)) {
+        return route.fulfill({
+          json: {
+            ok: true,
+            tetragon_policy_name: 'packetwolf-pol-deny-nc',
+            tetragon_policy: {
+              apiVersion: 'cilium.io/v1alpha1',
+              kind: 'TracingPolicy',
+              metadata: { name: 'packetwolf-pol-deny-nc' },
+            },
+          },
+        })
+      }
+      if (url.match(/\/enforcement\/policies\/[^/]+\/apply/)) {
+        return route.fulfill({
+          json: { ok: true, summary: 'Applied Block reverse-shell listeners to 1 host(s)', task_ids: ['task-enforce-1'] },
+        })
+      }
+      if (url.match(/\/enforcement\/policies\/[^/]+/) && route.request().method() === 'PATCH') {
+        return route.fulfill({
+          json: { summary: 'Enforcement policy pol-deny-nc updated', task_ids: ['task-patch-1'] },
+        })
+      }
+      if (url.match(/\/enforcement\/policies\/[^/]+/) && route.request().method() === 'DELETE') {
+        return route.fulfill({
+          json: { summary: 'Enforcement policy pol-deny-nc deleted', task_ids: ['task-delete-1'] },
         })
       }
       if (url.includes('/enforcement/policies') && route.request().method() === 'POST') {
@@ -2147,7 +2191,9 @@ export async function mockPlatformApi(page: Page, opts?: {
         return route.fulfill({
           json: {
             policies: [
-              { id: 'pol-deny-nc', name: 'Block reverse-shell listeners', kind: 'deny_process', match: '/usr/bin/nc', enabled: true },
+              { id: 'pol-deny-nc', name: 'Block reverse-shell listeners', kind: 'deny_process', match: '/usr/bin/nc', enabled: true, scope: 'fleet' },
+              { id: 'pol-deny-shadow', name: 'Block shadow file read', kind: 'deny_file', match: '/etc/shadow', enabled: true },
+              { id: 'pol-deny-raw', name: 'Block raw socket capability', kind: 'deny_cap', match: 'CAP_NET_RAW', enabled: true },
             ],
           },
         })
@@ -2157,7 +2203,12 @@ export async function mockPlatformApi(page: Page, opts?: {
       }
       if (url.includes('/agents/') && url.includes('/bundle')) {
         return route.fulfill({
-          json: { host_id: 'h1', policy_count: 2, tracing_policies: [{ kind: 'TracingPolicy' }] },
+          json: {
+            host_id: 'h1',
+            policy_count: 2,
+            removed_policies: [],
+            tracing_policies: [{ kind: 'TracingPolicy' }],
+          },
         })
       }
       if (url.includes('/alerts/sync')) {

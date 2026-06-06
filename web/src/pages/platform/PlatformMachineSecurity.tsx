@@ -38,6 +38,7 @@ import { useToastContext } from '../../contexts/ToastContext'
 import AskZeusButton from '../../components/ai/AskZeusButton'
 import DetailTabs from '../../components/platform/DetailTabs'
 import { statusPillClasses, hubLinkClasses } from '../../utils/semanticColors'
+import EbpfActionMenu from '../../components/platform/EbpfActionMenu'
 
 type TabId = 'processes' | 'connections' | 'dns' | 'ports' | 'files' | 'events' | 'containers' | 'users' | 'graph' | 'enforcement'
 
@@ -288,14 +289,29 @@ export default function PlatformMachineSecurity() {
           <p className="text-sm text-slate-500 p-3">No events in this category. Enable PacketWolf + Tetragon sensor.</p>
         ) : (
           <>
-            {items.slice(0, 30).map((e, i) => (
-              <MacListRow
-                key={e.id ?? i}
-                title={eventRow(e)}
-                subtitle={eventSub(e)}
-                onClick={() => void explainSecurityEvent(e, hostId).then((r) => setExplain(r.explanation)).catch(() => setExplain(null))}
-              />
-            ))}
+            {items.slice(0, 30).map((e, i) => {
+              const isDns = e.kind === 'dns_query' || Boolean(e.dns?.query)
+              const isProcess = Boolean(e.process?.binary)
+              return (
+                <MacListRow
+                  key={e.id ?? i}
+                  title={eventRow(e)}
+                  subtitle={eventSub(e)}
+                  onClick={() => void explainSecurityEvent(e, hostId).then((r) => setExplain(r.explanation)).catch(() => setExplain(null))}
+                  trailing={
+                    (isDns || isProcess) ? (
+                      <EbpfActionMenu
+                        hostId={hostId}
+                        suggestedKind={isDns ? 'deny_dns' : 'deny_process'}
+                        suggestedMatch={isDns ? String(e.dns?.query ?? '*.xyz') : String(e.process?.binary ?? '')}
+                        policyName={eventRow(e)}
+                        compact
+                      />
+                    ) : undefined
+                  }
+                />
+              )
+            })}
             {explain && (
               <div className="p-3 text-sm text-slate-300 border-t border-white/[0.06]">{explain}</div>
             )}

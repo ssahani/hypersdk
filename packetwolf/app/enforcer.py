@@ -18,6 +18,9 @@ class EnforceKind(str, Enum):
     DENY_DNS = "deny_dns"
     DENY_PORT = "deny_port"
     DENY_IP = "deny_ip"
+    DENY_FILE = "deny_file"
+    DENY_CAP = "deny_cap"
+    DENY_NAMESPACE = "deny_namespace"
 
 
 class EnforcementPolicy(BaseModel):
@@ -45,6 +48,16 @@ class CreatePolicyRequest(BaseModel):
 
 class ApplyPolicyRequest(BaseModel):
     host_ids: list[str]
+
+
+class PatchPolicyRequest(BaseModel):
+    enabled: bool | None = None
+    match: str | None = None
+    description: str | None = None
+
+
+def tetragon_policy_name(policy_id: str) -> str:
+    return f"packetwolf-{policy_id}"
 
 
 def default_policies() -> list[EnforcementPolicy]:
@@ -79,6 +92,21 @@ def default_policies() -> list[EnforcementPolicy]:
             match="185.220.100.0/24",
             description="Deny traffic to a sample Tor exit CIDR",
         ),
+        EnforcementPolicy(
+            id="pol-deny-shadow-read",
+            name="Block shadow file read",
+            kind=EnforceKind.DENY_FILE,
+            match="/etc/shadow",
+            description="Deny open/write on /etc/shadow",
+            applied_hosts=["h1"],
+        ),
+        EnforcementPolicy(
+            id="pol-deny-raw-socket",
+            name="Block raw socket capability",
+            kind=EnforceKind.DENY_CAP,
+            match="CAP_NET_RAW",
+            description="Deny CAP_NET_RAW for packet capture abuse",
+        ),
     ]
 
 
@@ -87,7 +115,7 @@ def to_tetragon_policy(policy: EnforcementPolicy) -> dict[str, Any]:
     base = {
         "apiVersion": "cilium.io/v1alpha1",
         "kind": "TracingPolicy",
-        "metadata": {"name": f"packetwolf-{policy.id}"},
+        "metadata": {"name": tetragon_policy_name(policy.id)},
     }
     if policy.kind == EnforceKind.DENY_PROCESS:
         base["spec"] = {
@@ -134,6 +162,47 @@ def to_tetragon_policy(policy: EnforcementPolicy) -> dict[str, Any]:
                 }
             ],
             "protocol": proto or "tcp",
+        }
+    elif policy.kind == EnforceKind.DENY_FILE:
+        base["spec"] = {
+            "kprobes": [
+                {
+                    "call": "security_file_open",
+                    "syscall": "open",
+                    "args": [{"index": 0, "type": "string"}],
+                    "selectors": [
+                        {
+                            "matchArgs": [{"index": 0, "operator": "Prefix", "values": [policy.match.rstrip("*")]}],
+                            "matchActions": [{"action": "Post"}, {"action": "Sigkill"}],
+                        }
+                    ],
+                }
+            ]
+        }
+    elif policy.kind == EnforceKind.DENY_CAP:
+        base["spec"] = {
+            "kprobes": [
+                {
+                    "call": "cap_capable",
+                    "selectors": [
+                        {
+                            "matchCapabilities": [{"type": "Effective", "operator": "In", "values": [policy.match]}],
+                            "matchActions": [{"action": "Sigkill"}],
+                        }
+                    ],
+                }
+            ]
+        }
+    elif policy.kind == EnforceKind.DENY_NAMESPACE:
+        base["spec"] = {
+            "podSelector": {},
+            "namespaceSelector": {"matchLabels": {}},
+            "k8s": [
+                {
+                    "namespace": policy.match,
+                    "selectors": [{"matchActions": [{"action": "Post"}]}],
+                }
+            ],
         }
     else:
         base["spec"] = {
@@ -203,6 +272,18 @@ def evaluate_event(event: dict[str, Any], policies: list[EnforcementPolicy], hos
         elif pol.kind == EnforceKind.DENY_IP and kind == "network_connect":
             dst = (event.get("network") or {}).get("dst_ip", "")
             if _ip_in_cidr(pol.match, dst) or dst == pol.match:
+                return pol.id
+        elif pol.kind == EnforceKind.DENY_FILE and kind in ("file_open", "file_write", "security"):
+            path = (event.get("file") or {}).get("path", "")
+            if path and (fnmatch.fnmatch(path, pol.match) or path.startswith(pol.match.rstrip("*"))):
+                return pol.id
+        elif pol.kind == EnforceKind.DENY_CAP and kind in ("capability", "security"):
+            cap = (event.get("process") or {}).get("capability", "") or event.get("capability", "")
+            if cap and pol.match in str(cap):
+                return pol.id
+        elif pol.kind == EnforceKind.DENY_NAMESPACE:
+            ns = (event.get("k8s") or {}).get("namespace", "")
+            if ns and (ns == pol.match or fnmatch.fnmatch(ns, pol.match)):
                 return pol.id
     return None
 

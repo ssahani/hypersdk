@@ -241,6 +241,30 @@ def create_enforcement_policy(body: enforcer.CreatePolicyRequest) -> dict:
     return {"policy": pol}
 
 
+@app.patch("/api/v1/enforcement/policies/{policy_id}")
+def patch_enforcement_policy(policy_id: str, body: enforcer.PatchPolicyRequest) -> dict:
+    result = store.patch_enforcement_policy(policy_id, body)
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=result.get("error", "policy not found"))
+    return result
+
+
+@app.delete("/api/v1/enforcement/policies/{policy_id}")
+def delete_enforcement_policy(policy_id: str) -> dict:
+    result = store.delete_enforcement_policy(policy_id)
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=result.get("error", "policy not found"))
+    return result
+
+
+@app.get("/api/v1/enforcement/policies/{policy_id}/tetragon")
+def enforcement_policy_tetragon(policy_id: str) -> dict:
+    result = store.get_enforcement_policy_tetragon(policy_id)
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=result.get("error", "policy not found"))
+    return result
+
+
 @app.post("/api/v1/enforcement/policies/{policy_id}/apply")
 def apply_enforcement_policy(policy_id: str, body: enforcer.ApplyPolicyRequest) -> dict:
     return store.apply_enforcement_policy(policy_id, body.host_ids)

@@ -12,19 +12,22 @@ import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import SecurityTimelinePanel from '../../components/platform/SecurityTimelinePanel'
 import {
   getFleetSecurityTimeline,
+  getFleetSensors,
   getFleetThreatSummary,
   getFabricHealth,
   getZeusSecurityGraph,
-  getZeusSecuritySensors,
   getZeusSecurityStatus,
+  installFleetTetragon,
   nlSecuritySearch,
   syncSecurityAlerts,
+  type FleetSensorRow,
   type FleetThreatSummary,
   type FabricHealth,
   type SecurityEvent,
   type SecurityGraph,
   type ZeusSecurityStatus,
 } from '../../api/zeusSecurity'
+import EbpfActionMenu from '../../components/platform/EbpfActionMenu'
 import { formatUserError } from '../../utils/apiError'
 import { riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, hubLinkClasses } from '../../utils/semanticColors'
 import { useToastContext } from '../../contexts/ToastContext'
@@ -70,6 +73,8 @@ export default function PlatformSecurityCenter() {
   const [threat, setThreat] = useState<FleetThreatSummary | null>(null)
   const [graph, setGraph] = useState<SecurityGraph | null>(null)
   const [sensorCount, setSensorCount] = useState(0)
+  const [sensorMatrix, setSensorMatrix] = useState<FleetSensorRow[]>([])
+  const [fleetEnrollBusy, setFleetEnrollBusy] = useState(false)
   const [timeline, setTimeline] = useState<SecurityEvent[]>([])
   const [fabricHealth, setFabricHealth] = useState<FabricHealth | null>(null)
   const [nlQuery, setNlQuery] = useState('')
@@ -82,18 +87,19 @@ export default function PlatformSecurityCenter() {
     setError(null)
     setLoading(true)
     try {
-      const [st, th, gr, sensors, tl, health] = await Promise.all([
+      const [st, th, gr, fleetSensors, tl, health] = await Promise.all([
         getZeusSecurityStatus(),
         getFleetThreatSummary(),
         getZeusSecurityGraph(),
-        getZeusSecuritySensors(),
+        getFleetSensors(),
         getFleetSecurityTimeline(24),
         getFabricHealth(),
       ])
       setStatus(st)
       setThreat(th)
       setGraph(gr)
-      setSensorCount(sensors.sensors?.length ?? 0)
+      setSensorCount(fleetSensors.sensors?.length ?? fleetSensors.matrix?.length ?? 0)
+      setSensorMatrix(fleetSensors.matrix ?? [])
       setTimeline(tl.events ?? [])
       setFabricHealth(health)
     } catch (e: unknown) {
@@ -119,6 +125,16 @@ export default function PlatformSecurityCenter() {
 
   const score = threat?.fleet_threat_score ?? 0
   const critical = threat?.critical_events ?? []
+  const unhealthySensors = sensorMatrix.filter((r) => r.tetragon_status !== 'healthy' && r.host_state === 'online')
+
+  const enrollFleetTetragon = () => {
+    if (!window.confirm(`Enroll Tetragon on all online hosts (${unhealthySensors.length || 'fleet'} sensor gap)?`)) return
+    setFleetEnrollBusy(true)
+    void installFleetTetragon()
+      .then((r) => toast.success(r.summary))
+      .catch((e: unknown) => toast.error(formatUserError(e)))
+      .finally(() => setFleetEnrollBusy(false))
+  }
 
   return (
     <PlatformPageChrome
@@ -177,6 +193,10 @@ export default function PlatformSecurityCenter() {
                     <Link to={`/platform/zeus/machines/${issue.host_id}`} className={`text-xs ${hubLinkClasses()}`}>
                       {issue.host_id}
                     </Link>
+                    {' · '}
+                    <Link to="/platform/zeus/security/enforcement" className={`text-xs ${hubLinkClasses()}`}>
+                      enforcement
+                    </Link>
                   </>
                 ) : null}
               </li>
@@ -212,25 +232,54 @@ export default function PlatformSecurityCenter() {
             />
           </div>
 
+          <MacGlassPanel
+            title="Tetragon sensor matrix"
+            subtitle="Fleet enrollment status — PacketWolf sensors joined with controller hosts"
+            action={
+              unhealthySensors.length > 0 ? (
+                <button type="button" className="btn-secondary text-xs" disabled={fleetEnrollBusy} onClick={enrollFleetTetragon}>
+                  Enroll fleet Tetragon
+                </button>
+              ) : undefined
+            }
+          >
+            {sensorMatrix.length === 0 ? (
+              <p className="text-sm text-slate-500">No hosts enrolled.</p>
+            ) : (
+              <ul className="text-sm space-y-2">
+                {sensorMatrix.slice(0, 12).map((row) => (
+                  <li key={row.host_id} className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.04] pb-2">
+                    <span className="text-slate-300">
+                      {row.hostname || row.host_id}
+                      <span className={`ml-2 text-xs ${statusToneClass(row.tetragon_status === 'healthy' ? 'ok' : 'warn')}`}>
+                        {row.tetragon_status}
+                      </span>
+                      <span className="text-slate-500 text-xs ml-2">{row.host_state}</span>
+                    </span>
+                    <Link to={`/platform/zeus/machines/${row.host_id}`} className={`text-xs ${hubLinkClasses()}`}>
+                      Machine security
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </MacGlassPanel>
+
           <MacGlassPanel title="Critical" subtitle="Requires attention">
             {critical.length === 0 ? (
               <p className="text-sm text-slate-500">No critical security events in the current window.</p>
             ) : (
               <ul className="space-y-2">
                 {critical.slice(0, 8).map((ev, i) => (
-                  <li key={i} className={`text-sm flex items-start gap-2 ${statusToneClass('error')}`}>
-                    <span className="shrink-0">•</span>
-                    <span>
-                      {String(ev.summary ?? ev.kind ?? 'event')}
-                      {ev.host_id ? (
-                        <>
-                          {' '}
-                          <Link to={`/platform/zeus/machines/${String(ev.host_id)}`} className={hubLinkClasses()}>
-                            ({String(ev.host_id)})
-                          </Link>
-                        </>
-                      ) : null}
-                    </span>
+                  <li key={i} className={`text-sm flex flex-wrap items-center justify-between gap-2 ${statusToneClass('error')}`}>
+                    <span>{String(ev.summary ?? ev.kind ?? 'event')}</span>
+                    <EbpfActionMenu
+                      hostId={ev.host_id ? String(ev.host_id) : undefined}
+                      suggestedKind="deny_process"
+                      suggestedMatch="/usr/bin/nc"
+                      huntQueryId="reverse-shell"
+                      compact
+                    />
                   </li>
                 ))}
               </ul>
@@ -253,10 +302,13 @@ export default function PlatformSecurityCenter() {
               <button type="button" className="btn-secondary text-sm" onClick={runNlSearch}>Search</button>
             </div>
             {nlResults && (
-              <p className="text-sm text-slate-400">
-                {nlResults}
-                {nlLlm ? <span className="text-violet-300/80 ml-1">· AI</span> : null}
-              </p>
+              <div className="space-y-2">
+                <p className="text-sm text-slate-400">
+                  {nlResults}
+                  {nlLlm ? <span className="text-violet-300/80 ml-1">· AI</span> : null}
+                </p>
+                <EbpfActionMenu suggestedKind="deny_process" suggestedMatch={nlQuery.trim() || '/usr/bin/nc'} huntQueryId="reverse-shell" compact />
+              </div>
             )}
           </MacGlassPanel>
 

@@ -132,6 +132,34 @@ fn post_json(cfg: &ControllerConfig, path: &str, body: Value) -> Option<Value> {
         .and_then(|r| r.json().ok())
 }
 
+fn patch_json(cfg: &ControllerConfig, path: &str, body: Value) -> Option<Value> {
+    if !cfg.packetwolf_enabled {
+        return None;
+    }
+    let Ok(client) = build_client(cfg.packetwolf_insecure_tls, 15) else {
+        return None;
+    };
+    let url = format!("{}{}", cfg.packetwolf_base_url.trim_end_matches('/'), path);
+    auth_headers(cfg, client.patch(&url).json(&body))
+        .send()
+        .ok()
+        .and_then(|r| r.json().ok())
+}
+
+fn delete_json(cfg: &ControllerConfig, path: &str) -> Option<Value> {
+    if !cfg.packetwolf_enabled {
+        return None;
+    }
+    let Ok(client) = build_client(cfg.packetwolf_insecure_tls, 15) else {
+        return None;
+    };
+    let url = format!("{}{}", cfg.packetwolf_base_url.trim_end_matches('/'), path);
+    auth_headers(cfg, client.delete(&url))
+        .send()
+        .ok()
+        .and_then(|r| r.json().ok())
+}
+
 pub async fn fabric_get(cfg: &ControllerConfig, path: &str) -> Value {
     let cfg = cfg.clone();
     let path = path.to_string();
@@ -144,6 +172,22 @@ pub async fn fabric_post(cfg: &ControllerConfig, path: &str, body: Value) -> Val
     let cfg = cfg.clone();
     let path = path.to_string();
     tokio::task::spawn_blocking(move || post_json(&cfg, &path, body).unwrap_or_else(|| serde_json::json!({"ok": false})))
+        .await
+        .unwrap_or_else(|_| serde_json::json!({"ok": false}))
+}
+
+pub async fn fabric_patch(cfg: &ControllerConfig, path: &str, body: Value) -> Value {
+    let cfg = cfg.clone();
+    let path = path.to_string();
+    tokio::task::spawn_blocking(move || patch_json(&cfg, &path, body).unwrap_or_else(|| serde_json::json!({"ok": false})))
+        .await
+        .unwrap_or_else(|_| serde_json::json!({"ok": false}))
+}
+
+pub async fn fabric_delete(cfg: &ControllerConfig, path: &str) -> Value {
+    let cfg = cfg.clone();
+    let path = path.to_string();
+    tokio::task::spawn_blocking(move || delete_json(&cfg, &path).unwrap_or_else(|| serde_json::json!({"ok": false})))
         .await
         .unwrap_or_else(|_| serde_json::json!({"ok": false}))
 }
@@ -486,6 +530,18 @@ pub async fn apply_enforcement_policy(
 ) -> serde_json::Value {
     let body = serde_json::json!({ "host_ids": host_ids });
     fabric_post(cfg, &format!("/api/v1/enforcement/policies/{policy_id}/apply"), body).await
+}
+
+pub async fn patch_enforcement_policy(cfg: &ControllerConfig, policy_id: &str, body: Value) -> Value {
+    fabric_patch(cfg, &format!("/api/v1/enforcement/policies/{policy_id}"), body).await
+}
+
+pub async fn delete_enforcement_policy(cfg: &ControllerConfig, policy_id: &str) -> Value {
+    fabric_delete(cfg, &format!("/api/v1/enforcement/policies/{policy_id}")).await
+}
+
+pub async fn enforcement_policy_tetragon(cfg: &ControllerConfig, policy_id: &str) -> Value {
+    fabric_get(cfg, &format!("/api/v1/enforcement/policies/{policy_id}/tetragon")).await
 }
 
 pub async fn host_enforcement(cfg: &ControllerConfig, host_id: &str) -> serde_json::Value {
