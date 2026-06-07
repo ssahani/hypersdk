@@ -24,13 +24,13 @@ pub async fn vm_guest_ports(
     cfg: &ControllerConfig,
     vm_id: &str,
 ) -> anyhow::Result<GuestPortReport> {
-    let vm_uuid = Uuid::parse_str(vm_id)?;
-    let row: (String, Uuid) =
+    let vm_uuid = Uuid::parse_str(vm_id).map_err(|e| anyhow::anyhow!("invalid vm id: {e}"))?;
+    let row: Option<(String, Uuid)> =
         sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
             .bind(vm_uuid)
-            .fetch_one(pool)
+            .fetch_optional(pool)
             .await?;
-    let (vm_name, host_id) = row;
+    let (vm_name, host_id) = row.ok_or_else(|| anyhow::anyhow!("vm not found"))?;
     let agent_addr: String =
         sqlx::query_scalar("SELECT COALESCE(agent_grpc_addr, '') FROM hosts WHERE id = $1")
             .bind(host_id)

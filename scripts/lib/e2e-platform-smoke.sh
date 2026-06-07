@@ -679,9 +679,17 @@ except Exception:
   else
     e2e_platform_ok "POST firewall plan dry-run — skipped (no hosts)"
   fi
+  vm_id="$(e2e_platform_curl "${E2E_PLATFORM_BASE}/api/v1/vms" | python3 -c "
+import json, sys
+try:
+    vms = json.load(sys.stdin)
+    print(vms[0]['id'] if vms else '')
+except Exception:
+    print('')
+" 2>/dev/null)"
   if [[ -n "$vm_id" ]]; then
     http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/zeus-firewall/vms/${vm_id}/guest-ports")"
-    if [[ "$http" == "200" || "$http" == "502" || "$http" == "503" ]]; then
+    if [[ "$http" == "200" || "$http" == "404" || "$http" == "502" || "$http" == "503" ]]; then
       e2e_platform_ok "GET /api/v1/zeus-firewall/vms/{id}/guest-ports (HTTP ${http}, soft)"
     else
       e2e_platform_fail "GET /api/v1/zeus-firewall/vms/{id}/guest-ports — HTTP ${http}"

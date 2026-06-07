@@ -540,7 +540,16 @@ pub async fn vm_guest_ports(
 ) -> Result<Json<zeus_firewall::guest_ports::GuestPortReport>, ApiError> {
     zeus_firewall::guest_ports::vm_guest_ports(&state.pool, &state.config, &id)
         .await
-        .map_err(|e| ApiError::bad_request(e.to_string()))
+        .map_err(|e| {
+            let msg = e.to_string();
+            if msg.contains("invalid vm id") {
+                ApiError::bad_request(msg)
+            } else if msg.contains("vm not found") {
+                ApiError::not_found(msg)
+            } else {
+                ApiError::internal(msg)
+            }
+        })
         .map(Json)
 }
 

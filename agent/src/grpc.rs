@@ -1076,7 +1076,8 @@ impl HostAgent for AgentService {
         {
             Ok(Ok(result)) => match serde_json::to_string(&result) {
                 Ok(json) => Ok(Response::new(ApplyLinuxPackageUpgradeResponse {
-                    ok: result.ok,
+                    // Preview is a successful probe even when apt/dnf simulate exits non-zero.
+                    ok: dry_run || result.ok,
                     json,
                     message: if result.stderr.is_empty() {
                         result.stdout.clone()
