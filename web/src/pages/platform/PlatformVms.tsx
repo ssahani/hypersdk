@@ -52,7 +52,7 @@ import { guestToolsStatusLabel } from '../../utils/guestAgentUx'
 import { installStateTone } from '../../components/platform/GuestAgentDiagnosticsPanel'
 import { pruneMissingPlatformVms } from '../../api/platformVmLifecycle'
 import { toastQueuedOperation } from '../../utils/platformTaskToast'
-import { hubLinkClasses, statusBadgeClasses, statusPillClasses, vmStateTone } from '../../utils/semanticColors'
+import { hubLinkClasses, statusPillClasses, vmStateTone } from '../../utils/semanticColors'
 import VmSshConnectDialog, { navigateVmSshSession } from '../../components/vm/VmSshConnectDialog'
 
 type ViewMode = 'launchpad' | 'list' | 'columns'
@@ -460,6 +460,28 @@ export default function PlatformVms() {
 
   const toolbar = (
     <>
+      {selectedVmIds.size > 0 && (
+        <>
+          <span className="text-xs text-slate-400 hidden sm:inline">{selectedVmIds.size} selected</span>
+          <button
+            type="button"
+            className="btn-danger text-sm inline-flex items-center gap-1"
+            disabled={batchDeleteBusy}
+            onClick={() => setBatchDeleteOpen(true)}
+          >
+            <Trash2 className="w-4 h-4" />
+            {batchDeleteBusy ? 'Deleting…' : `Delete (${selectedVmIds.size})`}
+          </button>
+          <button type="button" className="btn-secondary text-sm" onClick={() => setSelectedVmIds(new Set())}>
+            Clear
+          </button>
+        </>
+      )}
+      {selectedVmIds.size === 0 && filteredVms.length > 0 && (
+        <button type="button" className="btn-secondary text-sm" onClick={toggleAllVisible}>
+          Select all
+        </button>
+      )}
       {folder === 'missing' && filteredVms.length > 0 && (
         <button
           type="button"
@@ -765,16 +787,36 @@ export default function PlatformVms() {
                 onClick={() => setFilter({ folder: 'guest-gaps' })}
               />
             </aside>
-            <div className="w-52 shrink-0 border-r border-white/[0.06] overflow-y-auto">
+            <div className="w-56 shrink-0 border-r border-white/[0.06] overflow-y-auto">
+              <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.06] text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                <input
+                  type="checkbox"
+                  aria-label="Select all visible VMs"
+                  checked={filteredVms.length > 0 && selectedVmIds.size === filteredVms.length}
+                  onChange={toggleAllVisible}
+                />
+                <span className="flex-1">VMs</span>
+              </div>
               {filteredVms.map((v) => (
-                <button
+                <div
                   key={v.id}
-                  type="button"
-                  onClick={() => setSelectedVmId(v.id)}
-                  className={`w-full text-left px-3 py-2 text-sm border-b border-white/[0.04] ${selectedVm?.id === v.id ? 'bg-sky-500/15 text-sky-100' : 'text-white/80 hover:bg-white/[0.03]'}`}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm border-b border-white/[0.04] ${selectedVm?.id === v.id ? 'bg-sky-500/15 text-sky-100' : 'text-white/80 hover:bg-white/[0.03]'}`}
                 >
-                  {v.name}
-                </button>
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${v.name}`}
+                    checked={selectedVmIds.has(v.id)}
+                    onChange={() => toggleVmSelect(v.id)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <button
+                    type="button"
+                    className="flex-1 text-left truncate"
+                    onClick={() => setSelectedVmId(v.id)}
+                  >
+                    {v.name}
+                  </button>
+                </div>
               ))}
             </div>
             <div className="flex-1 min-w-0 overflow-y-auto">
@@ -885,14 +927,17 @@ export default function PlatformVms() {
       )}
 
       {selectedVmIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 border border-white/[0.08] rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3">
+        <div
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[80] bg-slate-900/95 backdrop-blur border border-red-500/30 rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3"
+          data-testid="platform-vm-bulk-bar"
+        >
           <span className="text-sm font-medium text-slate-200">{selectedVmIds.size} selected</span>
           <div className="w-px h-5 bg-white/[0.08]" />
           <button
             type="button"
             disabled={batchDeleteBusy}
             onClick={() => setBatchDeleteOpen(true)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition inline-flex items-center gap-1 ${statusBadgeClasses('error')}`}
+            className="btn-danger text-sm inline-flex items-center gap-1"
           >
             <Trash2 className="w-3.5 h-3.5" />
             {batchDeleteBusy ? 'Deleting…' : 'Delete'}
