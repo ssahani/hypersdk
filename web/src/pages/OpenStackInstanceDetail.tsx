@@ -83,6 +83,7 @@ function OpenStackInstanceDetailContent() {
   const load = useCallback(async () => {
     if (!id) return
     setLoadError(null)
+    setLoading(true)
     try {
       const [data, vols, stackR] = await Promise.all([
         getOpenStackInstance(id),
@@ -134,7 +135,9 @@ function OpenStackInstanceDetailContent() {
       toast.success(`Deleted '${inst.name}'`)
       navigate('/openstack/instances')
     } catch (e: unknown) {
-      toast.error(`Delete failed: ${formatUserError(e)}`)
+      const message = formatUserError(e)
+      setActionError({ label: 'Delete', message })
+      toast.error(`Delete failed: ${message}`)
     }
   }
 
@@ -146,7 +149,9 @@ function OpenStackInstanceDetailContent() {
       toast.success(`Force-deleted '${inst.name}'`)
       navigate('/openstack/instances')
     } catch (e: unknown) {
-      toast.error(`Force delete failed: ${formatUserError(e)}`)
+      const message = formatUserError(e)
+      setActionError({ label: 'Force delete', message })
+      toast.error(`Force delete failed: ${message}`)
     }
   }
 
@@ -155,9 +160,12 @@ function OpenStackInstanceDetailContent() {
     setSnapshotBusy(true)
     try {
       await snapshotOpenStackInstance(inst.id, snapshotName.trim())
+      setActionError(null)
       toast.success(`Snapshot requested: ${snapshotName}`)
     } catch (e: unknown) {
-      toast.error(`Snapshot failed: ${formatUserError(e)}`)
+      const message = formatUserError(e)
+      setActionError({ label: 'Snapshot', message })
+      toast.error(`Snapshot failed: ${message}`)
     } finally {
       setSnapshotBusy(false)
     }

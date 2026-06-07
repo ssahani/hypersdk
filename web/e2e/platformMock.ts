@@ -529,6 +529,7 @@ export async function mockPlatformApi(page: Page, opts?: {
   stoppedVm?: boolean
   placementRecommendations?: boolean
   hostMaintenanceMode?: boolean
+  emptyRunbooks?: boolean
 }) {
   const tier = opts?.tier ?? 'normal'
   const hostMaintenanceMode = opts?.hostMaintenanceMode ?? true
@@ -1764,7 +1765,13 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({ json: opsShowback })
     }
     if (url.includes('/operations/overview')) {
-      return route.fulfill({ json: { runbook_count: 1, executions_24h: 0, compliance_grade: 'B+' } })
+      return route.fulfill({
+        json: {
+          runbook_count: opts?.emptyRunbooks ? 0 : 1,
+          executions_24h: 0,
+          compliance_grade: 'B+',
+        },
+      })
     }
     if (url.includes('/operations/executions')) {
       return route.fulfill({ json: [] })
@@ -1782,7 +1789,7 @@ export async function mockPlatformApi(page: Page, opts?: {
       })
     }
     if (url.includes('/operations/runbooks')) {
-      return route.fulfill({ json: opsRunbooks })
+      return route.fulfill({ json: opts?.emptyRunbooks ? [] : opsRunbooks })
     }
     if (url.includes('/reports/capacity')) {
       return route.fulfill({

@@ -62,9 +62,11 @@ export default function PlatformThreatHunting() {
   const [attackLlm, setAttackLlm] = useState(false)
   const [huntSummary, setHuntSummary] = useState<{ summary: string; actions: string[]; llm?: boolean } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     setError(null)
+    setLoading(true)
     try {
       const [tl, corr, hunts] = await Promise.all([
         getFleetSecurityTimeline(48),
@@ -76,6 +78,8 @@ export default function PlatformThreatHunting() {
       setHuntQueries(hunts.queries ?? [])
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -161,8 +165,11 @@ export default function PlatformThreatHunting() {
       subtitle="Search · timeline · graph · evidence · AI summary"
       icon={<Search className="w-6 h-6 text-slate-400" />}
       actions={<PlatformRefreshButton onClick={() => void load()} />}
+      contentLoading={loading && timeline.length === 0 && huntQueries.length === 0}
       contentClassName="space-y-4"
     >
+      {!loading && (
+        <>
       {huntQueries.length > 0 && (
         <MacGlassPanel title="Saved hunt queries" subtitle="OpenSearch-backed SOC playbooks">
           <div className="flex flex-wrap gap-2">
@@ -331,6 +338,8 @@ export default function PlatformThreatHunting() {
             ))}
           </ol>
         </MacGlassPanel>
+      )}
+        </>
       )}
     </PlatformPageChrome>
   )

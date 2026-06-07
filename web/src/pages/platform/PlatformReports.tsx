@@ -194,6 +194,10 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
             <ErrorBanner
               title={`${runbookError.label} failed`}
               headline={runbookError.message}
+              hints={[
+                'Verify the controller is reachable and you have operator permissions.',
+                'Open Operations hub to review failed tasks from the same window.',
+              ]}
               onDismiss={() => setRunbookError(null)}
             />
           )}
@@ -229,8 +233,13 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
               ))}
             </ul>
           </MacGlassPanel>
-          {executions.length > 0 && (
-            <MacGlassPanel title="Recent executions" subtitle="Operator runbook history.">
+          <MacGlassPanel title="Recent executions" subtitle="Operator runbook history.">
+            {executions.length === 0 ? (
+              <PlatformEmptyState
+                title="No runbook executions yet"
+                subtitle="Execute a catalog playbook to record steps and commands here."
+              />
+            ) : (
               <ul className="text-xs space-y-2 text-slate-400">
                 {executions.map((ex) => {
                   const steps = parseRunbookStepsJson(ex.steps_json)
@@ -254,8 +263,8 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
                   )
                 })}
               </ul>
-            </MacGlassPanel>
-          )}
+            )}
+          </MacGlassPanel>
           <RunbookExecutionSheet
             open={runbookSheetOpen}
             onClose={() => setRunbookSheetOpen(false)}

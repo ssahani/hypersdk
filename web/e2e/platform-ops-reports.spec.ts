@@ -30,3 +30,25 @@ test('Operations hub links to runbooks', async ({ page }) => {
   await expect(page).toHaveURL(/\/platform\/reports\?tab=runbooks/)
   await expect(page.getByText('Host offline recovery')).toBeVisible({ timeout: 15_000 })
 })
+
+test('Reports runbooks tab shows empty catalog and executions', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power', emptyRunbooks: true })
+  await page.goto('/platform/reports?tab=runbooks')
+  await expect(page.getByText('No runbooks')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('No runbook executions yet')).toBeVisible({ timeout: 15_000 })
+})
+
+test('Activity Monitor loads fleet summary', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/activity')
+  await expect(page.getByRole('heading', { name: 'Activity Monitor' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText(/1 running VM\(s\) · 1 host\(s\)/)).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('link', { name: 'vm-1' })).toBeVisible({ timeout: 15_000 })
+})
+
+test('Threat hunting workspace loads saved queries', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/zeus/security/hunt')
+  await expect(page.getByRole('heading', { name: 'Threat hunting' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('button', { name: 'Reverse shell listeners' })).toBeVisible({ timeout: 15_000 })
+})

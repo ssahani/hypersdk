@@ -32,14 +32,18 @@ export default function PlatformActivityMonitor() {
   const [tab, setTab] = useState<Tab>('vms')
   const [data, setData] = useState<FleetActivityOverview | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     setError(null)
+    setLoading(true)
     try {
       setData(await getFleetActivity())
     } catch (e: unknown) {
       setError(formatUserError(e))
       setData(null)
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -56,6 +60,7 @@ export default function PlatformActivityMonitor() {
       subtitle="Fleet-wide CPU, memory, and Linux PSI — macOS Activity Monitor for your hypervisors."
       icon={<Activity className="w-6 h-6 text-slate-400" />}
       actions={<PlatformRefreshButton onClick={() => void load()} />}
+      contentLoading={loading && !data}
       contentClassName="space-y-4"
     >
       <div className="flex flex-wrap gap-3 text-xs">
@@ -75,7 +80,7 @@ export default function PlatformActivityMonitor() {
         onChange={setTab}
       />
 
-      {tab === 'vms' && (
+      {!loading && tab === 'vms' && (
         data?.top_vms.length ? (
           <ul className="space-y-2">
             {data.top_vms.map((vm) => {
@@ -99,7 +104,7 @@ export default function PlatformActivityMonitor() {
         )
       )}
 
-      {tab === 'hosts' && (
+      {!loading && tab === 'hosts' && (
         data?.hosts.length ? (
           <MacGlassPanel title="Hypervisor hosts" subtitle="Inventory CPU/memory + Linux PSI when agent online">
             {data.hosts.map((h) => (
