@@ -104,7 +104,9 @@ async fn main() -> anyhow::Result<()> {
     let manager = LibvirtManager::new(&config.libvirt).map_err(|e| anyhow::anyhow!("{e}"))?;
 
     info!("Connected to libvirt ({})", manager.primary_uri_display());
-    match manager.with_conn(machina_core::libvirt::network::bootstrap_autostart_networks) {
+    match manager.with_conn(|conn| {
+        Ok(machina_core::libvirt::network::bootstrap_autostart_networks(conn))
+    }) {
         Ok(failures) => {
             for (name, err) in &failures {
                 tracing::warn!("libvirt network '{name}' autostart failed at daemon boot: {err}");
