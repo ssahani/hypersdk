@@ -9,7 +9,7 @@ use virt::connect::Connect;
 use virt::domain::Domain;
 use virt::sys;
 
-use crate::libvirt::guest_agent::get_guest_interfaces;
+use crate::libvirt::guest_agent::guest_ipv4_from_virsh;
 use crate::state::{DiskInfo, FilesystemInfo, InterfaceInfo, VmDetails, VmInfo};
 use crate::xml;
 use crate::LibvirtError;
@@ -43,13 +43,9 @@ pub fn lookup_domain(conn: &Connect, name: &str) -> Result<Domain, LibvirtError>
         .map_err(|e| LibvirtError::NotFound(format!("VM '{name}' not found: {e}")))
 }
 
-fn first_guest_ipv4(conn: &Connect, name: &str) -> Option<String> {
-    get_guest_interfaces(conn, name).ok().and_then(|addrs| {
-        addrs
-            .iter()
-            .find(|a| a.ip_type == "ipv4" && !a.address.starts_with("127."))
-            .map(|a| a.address.clone())
-    })
+fn first_guest_ipv4(_conn: &Connect, name: &str) -> Option<String> {
+    // Avoid libvirt FFI interface_addresses — qemu driver can SIGSEGV on legacy guests.
+    guest_ipv4_from_virsh(name)
 }
 
 pub fn list_vms(conn: &Connect) -> Result<Vec<VmInfo>, LibvirtError> {

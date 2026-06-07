@@ -76,6 +76,47 @@ fn iface_addrs(domain: &Domain, src: u32) -> Vec<virt::domain::Interface> {
     domain.interface_addresses(src, 0).unwrap_or_default()
 }
 
+/// Resolve guest IPv4 via `virsh domifaddr` so a bad qemu/libvirt FFI response cannot SIGSEGV the daemon.
+pub fn guest_ipv4_from_virsh(name: &str) -> Option<String> {
+    use std::process::Command;
+    for source in ["lease", "agent", "arp"] {
+        let Ok(out) = Command::new("virsh").args(["domifaddr", name, "--source", source]).output()
+        else {
+            continue;
+        };
+        if !out.status.success() {
+            continue;
+        }
+        let text = String::from_utf8_lossy(&out.stdout);
+        if let Some(ip) = parse_virsh_domifaddr_ipv4(&text) {
+            return Some(ip);
+        }
+    }
+    None
+}
+
+fn parse_virsh_domifaddr_ipv4(output: &str) -> Option<String> {
+    for line in output.lines().skip(2) {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let cols: Vec<&str> = line.split_whitespace().collect();
+        if cols.len() < 4 {
+            continue;
+        }
+        if cols[2] != "ipv4" {
+            continue;
+        }
+        let addr = cols[3].split('/').next()?.trim();
+        if addr.starts_with("127.") || addr == "0.0.0.0" {
+            continue;
+        }
+        return Some(addr.to_string());
+    }
+    None
+}
+
 fn push_ifaces(
     out: &mut Vec<GuestIpAddress>,
     seen: &mut HashSet<(String, String, String)>,

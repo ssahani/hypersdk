@@ -99,7 +99,8 @@ fn collect_domain_metrics(domain: &Domain, name: &str) -> Result<VmMetrics, Libv
     let state = domain_state_label(info.state).to_string();
     let cpu_time_ns = info.cpu_time;
 
-    let mem_stats = match domain.memory_stats(8) {
+  // flags=0 — tag 8 is VIR_DOMAIN_MEMORY_STAT_ACTUAL_BALLOON, not a collection flag.
+    let mem_stats = match domain.memory_stats(0) {
         Ok(stats) => stats,
         Err(e) => {
             warn!("Failed to get memory stats for VM '{}': {}", name, e);
