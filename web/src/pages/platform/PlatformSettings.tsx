@@ -2,7 +2,35 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Settings } from 'lucide-react'
-import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
+import { MacGlassPanel, MacSettingsGroup, MacSettingsGroupBody } from '../../components/platform/mac/PlatformMacUi'
+
+function SettingsBlock({
+  title,
+  subtitle,
+  embedded,
+  children,
+}: {
+  title: string
+  subtitle?: string
+  embedded?: boolean
+  children: React.ReactNode
+}) {
+  if (embedded) {
+    return (
+      <MacSettingsGroup title={title}>
+        <MacSettingsGroupBody>
+          {subtitle ? <p className="text-xs text-slate-400 leading-relaxed">{subtitle}</p> : null}
+          {children}
+        </MacSettingsGroupBody>
+      </MacSettingsGroup>
+    )
+  }
+  return (
+    <MacGlassPanel title={title} subtitle={subtitle}>
+      {children}
+    </MacGlassPanel>
+  )
+}
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import {
   getControllerBase,
@@ -100,16 +128,16 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
       actions={embedded ? undefined : <PlatformRefreshButton onClick={() => void load()} />}
       contentClassName="space-y-4"
     >
-      <MacGlassPanel title="Controller connection" subtitle="HTTP API base and direct WebSocket console URL.">
-        <p className="text-xs text-slate-500">
-          Daemon proxy: <code className="text-slate-300">{PLATFORM_CONTROLLER_PROXY}</code>
+      <SettingsBlock embedded={embedded} title="Controller connection" subtitle="HTTP API base and direct WebSocket console URL.">
+        <p className="text-xs text-slate-400">
+          Daemon proxy: <code className="text-slate-200">{PLATFORM_CONTROLLER_PROXY}</code>
         </p>
-        <label className="text-sm block mt-2">
+        <label className="text-sm block mt-2 text-slate-200">
           Controller base URL
           <input className="input mt-1 block w-full font-mono text-xs" value={controllerUrl} onChange={(e) => setControllerUrl(e.target.value)} placeholder="http://127.0.0.1:5093" />
         </label>
-        <p className="text-xs text-slate-500 mt-2">
-          Direct console base: <code className="text-slate-300 break-all">{directControllerUrl}</code>
+        <p className="text-xs text-slate-400 mt-2">
+          Direct console base: <code className="text-slate-200 break-all">{directControllerUrl}</code>
         </p>
         <div className="grid gap-2 md:grid-cols-2 mt-2">
           <input className="input" placeholder="Basic auth user" value={controllerUser} onChange={(e) => setControllerUser(e.target.value)} />
@@ -131,27 +159,27 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
         >
           Save controller config
         </button>
-      </MacGlassPanel>
+      </SettingsBlock>
       {leadership && (
-        <MacGlassPanel title="Controller leadership">
+        <SettingsBlock embedded={embedded} title="Controller leadership">
           <div className="space-y-2 text-sm">
-          <p className="text-slate-400">
-            This instance: <span className="text-slate-200">{leadership.controller_id}</span>
+          <p className="text-slate-300">
+            This instance: <span className="text-slate-100">{leadership.controller_id}</span>
             {' · '}
             {leadership.is_leader ? <span className={statusToneClass('ok')}>leader</span> : <span className={statusToneClass('warn')}>follower</span>}
           </p>
-          <p className="text-slate-500">Holder: {leadership.holder_id || 'none'} · lease until {new Date(leadership.lease_until).toLocaleString()}</p>
+          <p className="text-slate-400">Holder: {leadership.holder_id || 'none'} · lease until {new Date(leadership.lease_until).toLocaleString()}</p>
           </div>
-        </MacGlassPanel>
+        </SettingsBlock>
       )}
-      <MacGlassPanel title="Cluster">
+      <SettingsBlock embedded={embedded} title="Cluster">
         <input className="input" value={clusterName} onChange={(e) => setClusterName(e.target.value)} />
         <button type="button" className="btn-secondary" onClick={async () => {
           try { await patchCluster({ name: clusterName }); toast.success('Cluster updated'); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
         }}>Save cluster name</button>
-      </MacGlassPanel>
-      <MacGlassPanel title="Inventory sync" subtitle="Leader-only periodic host inventory sync. Set 0 to disable.">
-        <label className="text-sm block">
+      </SettingsBlock>
+      <SettingsBlock embedded={embedded} title="Inventory sync" subtitle="Leader-only periodic host inventory sync. Set 0 to disable.">
+        <label className="text-sm block text-slate-200">
           Interval (seconds)
           <input type="number" min={0} max={86400} className="input mt-1 block w-40" value={syncInterval}
             onChange={(e) => setSyncInterval(Number(e.target.value))} />
@@ -163,9 +191,9 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
             await load()
           } catch (e: unknown) { toast.error(formatUserError(e)) }
         }}>Save sync interval</button>
-      </MacGlassPanel>
-      <MacGlassPanel title="OIDC login">
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={oidc.enabled} onChange={(e) => setOidc({ ...oidc, enabled: e.target.checked })} /> Enable OIDC</label>
+      </SettingsBlock>
+      <SettingsBlock embedded={embedded} title="OIDC login">
+        <label className="flex items-center gap-2 text-sm text-slate-200"><input type="checkbox" checked={oidc.enabled} onChange={(e) => setOidc({ ...oidc, enabled: e.target.checked })} /> Enable OIDC</label>
         <input className="input" placeholder="issuer URL" value={oidc.issuer} onChange={(e) => setOidc({ ...oidc, issuer: e.target.value })} />
         <input className="input" placeholder="client id" value={oidc.client_id} onChange={(e) => setOidc({ ...oidc, client_id: e.target.value })} />
         <input className="input" type="password" placeholder="client secret" value={oidc.client_secret} onChange={(e) => setOidc({ ...oidc, client_secret: e.target.value })} />
@@ -178,8 +206,8 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
             <a href={getOidcLoginUrl()} className="btn-primary inline-flex items-center">Login with OIDC</a>
           )}
         </div>
-      </MacGlassPanel>
-      <MacGlassPanel title="Project quotas" subtitle="0 = unlimited. Enforced on VM create.">
+      </SettingsBlock>
+      <SettingsBlock embedded={embedded} title="Project quotas" subtitle="0 = unlimited. Enforced on VM create.">
         {quotas.length > 0 && (
           <ul className="text-xs text-slate-400 space-y-1">
             {quotas.map((q) => (
@@ -201,13 +229,13 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
             await load()
           } catch (e: unknown) { toast.error(formatUserError(e)) }
         }}>Save quota</button>
-      </MacGlassPanel>
-      <MacGlassPanel title="Zeus AI (BYOK)" subtitle="Deterministic engines work with AI disabled. Optional LLM improves NL parsing and explanations. Configure providers under Settings → AI Providers.">
-        <label className="flex items-center gap-2 text-sm">
+      </SettingsBlock>
+      <SettingsBlock embedded={embedded} title="Zeus AI (BYOK)" subtitle="Deterministic engines work with AI disabled. Optional LLM improves NL parsing and explanations. Configure providers under Settings → AI Providers.">
+        <label className="flex items-center gap-2 text-sm text-slate-200">
           <input type="checkbox" checked={ai.enabled} onChange={(e) => setAi({ ...ai, enabled: e.target.checked })} />
           Enable Zeus AI
         </label>
-        <label className="text-sm block">
+        <label className="text-sm block text-slate-200">
           Mode
           <select className="input mt-1 block w-full max-w-xs" value={ai.mode} onChange={(e) => setAi({ ...ai, mode: e.target.value })}>
             <option value="advisor">Advisor — recommend only</option>
@@ -215,7 +243,7 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
             <option value="autopilot">Autopilot — auto-run low-risk fixes (configurable batch)</option>
           </select>
         </label>
-        <label className="text-sm block">
+        <label className="text-sm block text-slate-200">
           Autopilot max actions per batch
           <input
             type="number"
@@ -227,7 +255,7 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
           />
         </label>
         {ai.mode === 'autopilot' && (
-          <label className="text-sm block">
+          <label className="text-sm block text-slate-200">
             Scheduled Autopilot interval (seconds)
             <input
               type="number"
@@ -237,15 +265,15 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
               value={ai.autopilot_interval_secs}
               onChange={(e) => setAi({ ...ai, autopilot_interval_secs: Number(e.target.value) })}
             />
-            <span className="text-xs text-slate-500">0 = manual only. Leader runs safe batch on interval.</span>
+            <span className="text-xs text-slate-400">0 = manual only. Leader runs safe batch on interval.</span>
             {ai.autopilot_last_run && (
-              <span className="text-xs text-slate-500 block mt-1">
+              <span className="text-xs text-slate-400 block mt-1">
                 Last run: {new Date(ai.autopilot_last_run).toLocaleString()}
               </span>
             )}
           </label>
         )}
-        <label className="text-sm block">
+        <label className="text-sm block text-slate-200">
           Fleet peer controller URLs (one per line, for multi-cluster Zeus summary)
           <textarea
             className="input mt-1 block w-full max-w-lg min-h-20 font-mono text-xs"
@@ -279,8 +307,8 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
             toast.success('AI settings saved')
           } catch (e: unknown) { toast.error(formatUserError(e)) }
         }}>Save AI settings</button>
-      </MacGlassPanel>
-      <MacGlassPanel title="CPU compatibility matrix">
+      </SettingsBlock>
+      <SettingsBlock embedded={embedded} title="CPU compatibility matrix">
         <textarea className="input font-mono text-xs min-h-32" value={cpuJson} onChange={(e) => setCpuJson(e.target.value)} />
         <button type="button" className="btn-secondary" onClick={async () => {
           try {
@@ -290,7 +318,7 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
             toast.success('CPU matrix updated')
           } catch (e: unknown) { toast.error(formatUserError(e)) }
         }}>Save matrix ({cpuRules.length} rules)</button>
-      </MacGlassPanel>
+      </SettingsBlock>
     </PlatformPageChrome>
   )
 }

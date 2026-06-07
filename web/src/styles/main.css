@@ -802,6 +802,20 @@ a.tahoe-context-app-title:hover {
   line-height: 1.45;
 }
 
+.mac-settings-detail label {
+  color: var(--text-primary);
+}
+
+.mac-settings-detail .text-slate-500 {
+  color: var(--text-secondary);
+}
+
+.mac-settings-detail .input,
+.mac-settings-detail select,
+.mac-settings-detail textarea {
+  color: var(--text-primary);
+}
+
 .platform-mac-desktop .mac-menu-panel button,
 .platform-mac-desktop .mac-dock-tooltip {
   font-size: 0.8125rem;

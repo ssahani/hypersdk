@@ -219,12 +219,12 @@ export function MacToggle({
 }) {
   const toggleId = id ?? label.replace(/\s+/g, '-').toLowerCase()
   return (
-    <div className="flex items-start justify-between gap-4 py-2">
+    <div className="flex items-start justify-between gap-4 px-4 py-3 border-b border-white/[0.04] last:border-0">
       <div className="min-w-0">
         <label htmlFor={toggleId} className="text-sm font-medium text-slate-100 cursor-pointer">
           {label}
         </label>
-        {description && <p className="text-xs text-slate-500 mt-0.5">{description}</p>}
+        {description && <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{description}</p>}
       </div>
       <button
         id={toggleId}
@@ -365,7 +365,7 @@ export function MacSettingsPane({
           ))}
         </nav>
       </aside>
-      <div className="flex-1 min-w-0 p-5 xl:p-8">{children}</div>
+      <div className="mac-settings-detail flex-1 min-w-0 p-5 xl:p-8 platform-readable text-slate-200">{children}</div>
     </div>
   )
 }
@@ -380,11 +380,22 @@ export function MacSettingsGroup({
   return (
     <section className="mb-6 last:mb-0">
       {title && (
-        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 px-1">{title}</h3>
+        <h3 className="text-sm font-medium text-slate-300 mb-2 px-1">{title}</h3>
       )}
-      <div className="rounded-xl border border-white/[0.06] bg-slate-900/40 overflow-hidden divide-y divide-white/[0.04]">
+      <div className="rounded-xl border border-white/[0.08] bg-slate-900/60 overflow-hidden divide-y divide-white/[0.05] text-slate-300">
         {children}
       </div>
     </section>
   )
+}
+
+/** Padded prose block inside a MacSettingsGroup (list rows stay full-bleed). */
+export function MacSettingsGroupBody({
+  children,
+  className = '',
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
+  return <div className={`px-4 py-3 space-y-3 ${className}`}>{children}</div>
 }

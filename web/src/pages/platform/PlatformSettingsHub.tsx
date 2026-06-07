@@ -22,6 +22,7 @@ import PlatformEnterprise from './PlatformEnterprise'
 import {
   MacSettingsPane,
   MacSettingsGroup,
+  MacSettingsGroupBody,
   MacToggle,
   MacListRow,
 } from '../../components/platform/mac/PlatformMacUi'
@@ -269,11 +270,12 @@ export default function PlatformSettingsHub() {
           <PlatformAppearanceSettings />
           <PlatformSettings embedded />
           <MacSettingsGroup title="Classic daemon automation">
-            <p className="text-xs text-slate-500 mb-2">Single-host alerts and API tokens from the libvirt daemon — mirror of Settings → Automation in classic UI.</p>
-            <p className="text-sm text-slate-300">{daemonAlerts} active alert(s) · {daemonTokens} API token(s)</p>
-            <Link to="/settings?tab=automation" className={`text-sm inline-block mt-2 ${hubLinkClasses()}`}>Open classic automation →</Link>
+            <MacSettingsGroupBody>
+              <p className="text-xs text-slate-400 leading-relaxed">Single-host alerts and API tokens from the libvirt daemon — mirror of Settings → Automation in classic UI.</p>
+              <p className="text-sm text-slate-200">{daemonAlerts} active alert(s) · {daemonTokens} API token(s)</p>
+              <Link to="/settings?tab=automation" className={`text-sm inline-block ${hubLinkClasses()}`}>Open classic automation →</Link>
+            </MacSettingsGroupBody>
           </MacSettingsGroup>
-          <FleetSettingsPane kind="general" />
         </div>
       )}
 
@@ -284,7 +286,9 @@ export default function PlatformSettingsHub() {
       {section === 'security' && (
         <div className="space-y-6">
           <MacSettingsGroup title="Security">
-            <BrowserSessionInfo />
+            <MacSettingsGroupBody className="pb-0">
+              <BrowserSessionInfo />
+            </MacSettingsGroupBody>
             <MacToggle
               label="Require confirmation for production VM deletion"
               description="Deletes queue for approval when enabled cluster-wide."
@@ -299,7 +303,9 @@ export default function PlatformSettingsHub() {
               disabled={saving}
               onChange={(v) => void toggleAdminMfa(v)}
             />
-            <p className="text-xs text-slate-500 pt-2">Audit logging is always enabled for platform operations.</p>
+            <MacSettingsGroupBody className="pt-0">
+              <p className="text-xs text-slate-400">Audit logging is always enabled for platform operations.</p>
+            </MacSettingsGroupBody>
           </MacSettingsGroup>
 
           {enterprise && (
