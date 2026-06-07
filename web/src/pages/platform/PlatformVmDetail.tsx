@@ -85,6 +85,7 @@ import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError, isPlatformNotFoundError } from '../../utils/apiError'
 import { GUEST_TOAST_CHANNEL_ATTACH, qgaHealthy } from '../../utils/guestAgentUx'
 import { toastQueuedOperation } from '../../utils/platformTaskToast'
+import { purgeVmShortcuts } from '../../utils/vmShortcuts'
 import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone, vmStateTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 import { vmErrorPresentation } from '../../utils/vmErrorPresentation'
 import { loadVmSshPrefs } from '../../utils/vmSshPrefs'
@@ -383,6 +384,7 @@ export default function PlatformVmDetail() {
     if (!id) return
     try {
       const r = await vmDelete(id, true)
+      if (vm?.name) purgeVmShortcuts([vm.name])
       navigate('/platform/vms', { replace: true, state: { vmDeleteTaskId: r.task_id, vmDeleteLabel: label } })
     } catch (e: unknown) {
       toast.error(formatUserError(e))

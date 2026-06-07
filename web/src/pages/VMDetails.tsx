@@ -34,6 +34,7 @@ import { loadVmSshPrefs } from '../utils/vmSshPrefs'
 import VmDailyAccessStrip from '../components/vm/VmDailyAccessStrip'
 import VmSshConnectDialog, { navigateVmSshSession } from '../components/vm/VmSshConnectDialog'
 import { addRecentVM } from '../utils/recentVMs'
+import { purgeVmShortcuts } from '../utils/vmShortcuts'
 import { guestIpv4GatewayHints } from '../utils/guestIpv4GatewayHints'
 import { getSession, type SessionRole } from '../api/auth'
 import { snapshotForest, type SnapshotTreeNode } from '../utils/snapshotTree'
@@ -849,6 +850,7 @@ export default function VMDetailsPage() {
         setDeleteUndefine(merged)
         toast.info('Retrying delete with UEFI NVRAM removal (same as virsh undefine --nvram)…')
       }, conn)
+      purgeVmShortcuts([name])
       toast.success(
         nvramRetried
           ? 'VM deleted (UEFI NVRAM removed as required by libvirt)'

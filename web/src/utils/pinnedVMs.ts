@@ -21,3 +21,10 @@ export function togglePin(name: string) {
   else list.push(name)
   localStorage.setItem(KEY, JSON.stringify(list))
 }
+
+export function removePinnedVMs(names: string[]) {
+  if (!names.length) return
+  const drop = new Set(names)
+  const next = getPinnedVMs().filter((n) => !drop.has(n))
+  localStorage.setItem(KEY, JSON.stringify(next))
+}

@@ -9,6 +9,7 @@ import {
   VmInfo, vmDetailRoute, vmConsoleRoute, vmScopeKey,
 } from '../api/vm'
 import { deleteVmWithNvramRetry } from '../utils/deleteVmWithNvramRetry'
+import { purgeVmShortcuts } from '../utils/vmShortcuts'
 import { getStateBadgeClasses } from '../utils/vm'
 import { useToastContext } from '../contexts/ToastContext'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
@@ -164,7 +165,15 @@ export default function VMList() {
     )
     const ok = results.filter((r) => r.status === 'fulfilled').length
     const fail = results.filter((r) => r.status === 'rejected').length
-    if (ok > 0) toast.success(`Delete: ${ok} succeeded`)
+    if (ok > 0) {
+      purgeVmShortcuts(
+        Array.from(selectedVMs)
+          .filter((_, i) => results[i].status === 'fulfilled')
+          .map((key) => vms.find((v) => vmScopeKey(v) === key)?.name)
+          .filter((n): n is string => Boolean(n)),
+      )
+      toast.success(`Delete: ${ok} succeeded`)
+    }
     if (fail > 0) toast.error(`Delete: ${fail} failed`)
     setSelectedVMs(new Set())
     load()

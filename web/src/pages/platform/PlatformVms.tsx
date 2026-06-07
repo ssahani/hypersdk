@@ -51,6 +51,7 @@ import { formatUserError } from '../../utils/apiError'
 import { guestToolsStatusLabel } from '../../utils/guestAgentUx'
 import { installStateTone } from '../../components/platform/GuestAgentDiagnosticsPanel'
 import { pruneMissingPlatformVms } from '../../api/platformVmLifecycle'
+import { purgeVmShortcuts } from '../../utils/vmShortcuts'
 import { toastQueuedOperation } from '../../utils/platformTaskToast'
 import { hubLinkClasses, statusPillClasses, vmStateTone } from '../../utils/semanticColors'
 import VmSshConnectDialog, { navigateVmSshSession } from '../../components/vm/VmSshConnectDialog'
@@ -367,6 +368,7 @@ export default function PlatformVms() {
     if (!window.confirm(`Remove ${filteredVms.length} missing VM record(s) from inventory? This cannot be undone.`)) return
     setPruneBusy(true)
     try {
+      purgeVmShortcuts(filteredVms.map((v) => v.name))
       const r = await pruneMissingPlatformVms()
       toast.success(`Pruned ${r.deleted} missing record(s)`)
       await load()
@@ -406,7 +408,15 @@ export default function PlatformVms() {
     )
     const ok = results.filter((r) => r.status === 'fulfilled').length
     const fail = results.filter((r) => r.status === 'rejected').length
-    if (ok > 0) toast.success(`Delete queued for ${ok} VM(s)`)
+    if (ok > 0) {
+      purgeVmShortcuts(
+        ids
+          .filter((_, i) => results[i].status === 'fulfilled')
+          .map((id) => vmById.get(id)?.name)
+          .filter((n): n is string => Boolean(n)),
+      )
+      toast.success(`Delete queued for ${ok} VM(s)`)
+    }
     if (fail > 0) toast.error(`${fail} VM(s) could not be deleted`)
     setSelectedVmIds(new Set())
     setBatchDeleteBusy(false)

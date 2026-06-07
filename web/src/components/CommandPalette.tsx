@@ -365,8 +365,13 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
     }
   }
 
-  // Recent VMs
-  const recentNames = getRecentVMs()
+  const knownVmNames = new Set([
+    ...vms.map((v) => v.name),
+    ...platformVms.map((pv) => pv.name),
+  ])
+
+  // Recent VMs (drop names deleted from inventory)
+  const recentNames = getRecentVMs().filter((n) => knownVmNames.has(n))
   for (const rName of recentNames) {
     items.push({
       id: `recent-${rName}`,
@@ -378,7 +383,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   }
 
   // Pinned VMs
-  const pinnedNames = getPinnedVMs()
+  const pinnedNames = getPinnedVMs().filter((n) => knownVmNames.has(n))
   for (const pName of pinnedNames) {
     if (recentNames.includes(pName)) continue // avoid duplicates with Recent
     items.push({
