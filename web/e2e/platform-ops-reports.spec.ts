@@ -16,7 +16,7 @@ test('Reports runbooks tab executes catalog playbook', async ({ page }) => {
 test('Reports showback tab shows project rollup', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/reports?tab=showback')
-  await expect(page.getByText(/Compliance showback/i)).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('heading', { name: 'Compliance showback' })).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText(/Fleet compliance grade: B\+/i)).toBeVisible({ timeout: 15_000 })
   await expect(page.getByRole('cell', { name: 'default', exact: true })).toBeVisible({ timeout: 15_000 })
 })

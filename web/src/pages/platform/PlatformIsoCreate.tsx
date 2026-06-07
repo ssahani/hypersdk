@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { Disc, Loader2, Upload } from 'lucide-react'
+import { Disc, Upload } from 'lucide-react'
 import PlatformPageChrome, { PlatformBackLink } from '../../components/platform/PlatformPageChrome'
 import PlatformStepWizard from '../../components/platform/PlatformStepWizard'
 import VmWizardSizeStep, { sizeStepValid, type VmWizardSizeState } from '../../components/platform/VmWizardSizeStep'
@@ -135,12 +135,9 @@ export default function PlatformIsoCreate() {
       prepend={<PlatformBackLink to="/platform/content" label="Content Library" />}
       title="Create VM from ISO"
       subtitle="Guided install from approved Content Library images."
+      contentLoading={loading}
     >
-      {loading ? (
-        <p className="text-sm text-slate-400 flex items-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin" /> Loading approved images…
-        </p>
-      ) : approved.length === 0 ? (
+      {!loading && approved.length === 0 ? (
         <PlatformEmptyState
           title="No approved ISOs"
           subtitle="Upload and approve an ISO in the Content Library first."

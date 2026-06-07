@@ -33,6 +33,13 @@ test('create VM shows libvirt templates, cloud-init generate, and RHEL URL', asy
   await expect(page.getByText('Seed ISO: /var/lib/libvirt/images/seed-e2e.iso')).toBeVisible({ timeout: 10_000 })
 })
 
+test('create VM survives empty ISO catalog', async ({ page }) => {
+  await mockPlatformApi(page, { emptyIsos: true })
+  await page.goto('/create', { waitUntil: 'networkidle' })
+  await expect(page.getByRole('heading', { level: 1, name: 'Create new guest VM' })).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId('libvirt-templates-panel')).toBeVisible({ timeout: 20_000 })
+})
+
 test('create VM single-page form exposes cloud-init section', async ({ page }) => {
   await mockPlatformApi(page)
   await page.goto('/create', { waitUntil: 'networkidle' })

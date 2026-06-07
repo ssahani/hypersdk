@@ -522,13 +522,32 @@ export async function mockPlatformApi(page: Page, opts?: {
   tier?: 'normal' | 'power' | 'advanced'
   staleHost?: boolean
   emptyStorage?: boolean
+  emptyIsos?: boolean
   templateNotReady?: boolean
   templateAutoFetch?: boolean
   emptyNetworks?: boolean
   stoppedVm?: boolean
   placementRecommendations?: boolean
+  hostMaintenanceMode?: boolean
 }) {
   const tier = opts?.tier ?? 'normal'
+  const hostMaintenanceMode = opts?.hostMaintenanceMode ?? true
+  const hostDetail = { ...sampleHostDetail, maintenance_mode: hostMaintenanceMode }
+  const listHost = { ...sampleHost, maintenance_mode: hostMaintenanceMode }
+  const maintenanceMission = hostMaintenanceMode
+    ? fleetMaintenanceMission
+    : {
+        ...fleetMaintenanceMission,
+        summary: '1 host(s) with updates · 0 in maintenance · 0 pending schedule(s)',
+        hosts_in_maintenance: 0,
+        hosts: fleetMaintenanceMission.hosts.map((h) => ({
+          ...h,
+          maintenance_mode: false,
+          steps: h.steps.map((s) =>
+            s.id === 'enter_maintenance' ? { ...s, status: 'ready' as const } : s,
+          ),
+        })),
+      }
   const vmFixture = opts?.stoppedVm
     ? { ...sampleVm, observed_state: 'stopped', desired_state: 'stopped', lifecycle_phase: 'idle' }
     : sampleVm
@@ -1047,10 +1066,12 @@ export async function mockPlatformApi(page: Page, opts?: {
     }
     if (url.includes('/browse/isos')) {
       return route.fulfill({
-        json: {
-          files: [{ path: '/var/lib/libvirt/images/debian-12.iso', name: 'debian-12.iso', size_bytes: 8e8, format: 'iso' }],
-          scan_directories: ['/var/lib/libvirt/images'],
-        },
+        json: opts?.emptyIsos
+          ? { files: [], scan_directories: ['/var/lib/libvirt/images'] }
+          : {
+              files: [{ path: '/var/lib/libvirt/images/debian-12.iso', name: 'debian-12.iso', size_bytes: 8e8, format: 'iso' }],
+              scan_directories: ['/var/lib/libvirt/images'],
+            },
       })
     }
     if (url.includes('/browse/disks')) {
@@ -1128,8 +1149,26 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.includes('/fleet/finder')) {
       return route.fulfill({ json: fleetFinder })
     }
+    if (url.includes('/network-canvas')) {
+      return route.fulfill({
+        json: {
+          topology: {
+            nodes: [{ id: 'h1', name: 'host-1', kind: 'host', state: 'online' }],
+            edges: [],
+          },
+          flows: { flows: [] },
+          flow_stats: { dropped: 0, forwarded: 12 },
+          anomalies: { anomalies: [] },
+          packetwolf: { enabled: true, reachable: false, summary: 'PacketWolf not configured on this host' },
+          network_pulse: {
+            enabled: false,
+            service_map: { nodes: [], edges: [], meta: { stats: { services: 0, connections: 0, blocked: 0, warnings: 0 } } },
+          },
+        },
+      })
+    }
     if (url.includes('/fleet/maintenance-mission')) {
-      return route.fulfill({ json: fleetMaintenanceMission })
+      return route.fulfill({ json: maintenanceMission })
     }
     if (url.match(/\/fleet\/mission(\?|$|\/)/)) {
       return route.fulfill({ json: fleetMission })
@@ -2544,7 +2583,7 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({ json: hostGpus })
     }
     if (url.match(/\/hosts\/[^/]+\/detail/)) {
-      return route.fulfill({ json: sampleHostDetail })
+      return route.fulfill({ json: hostDetail })
     }
     if (url.match(/\/hosts\/[^/]+\/health-check/) && route.request().method() === 'POST') {
       return route.fulfill({
@@ -2576,7 +2615,7 @@ export async function mockPlatformApi(page: Page, opts?: {
       if (opts?.emptyStorage) {
         return route.fulfill({ json: [{ ...sampleHost, state: 'offline' }] })
       }
-      const hosts = opts?.staleHost ? [sampleHost, staleHost] : [sampleHost]
+      const hosts = opts?.staleHost ? [listHost, staleHost] : [listHost]
       return route.fulfill({ json: hosts })
     }
     if (url.match(/\/api\/v1\/topology(\?|$)/)) {

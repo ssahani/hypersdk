@@ -7,7 +7,6 @@ import { readSshPubkeyFile } from '../../utils/sshPubkeyImport'
 import DetailTabs from '../../components/platform/DetailTabs'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import { usePlatformTabState } from '../../hooks/usePlatformTabState'
-import PageSkeleton from '../../components/PageSkeleton'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import VmWizardReadinessBanner from '../../components/platform/VmWizardReadinessBanner'
 import type { TemplateReadiness } from '../../api/platform'
@@ -334,7 +333,11 @@ export default function PlatformTemplates() {
         </MacGlassPanel>
       )}
 
-      {loading && rows.length === 0 && <PageSkeleton />}
+      {loading && rows.length === 0 && (
+        <div className="flex items-center justify-center h-32" aria-busy="true" aria-label="Loading">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+        </div>
+      )}
 
       {!loading && rows.length === 0 && (
         <PlatformEmptyState

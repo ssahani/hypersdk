@@ -162,3 +162,22 @@ test('developer route redirects at power tier', async ({ page }) => {
   await page.goto('/platform/developer')
   await expect(page).toHaveURL(/\/platform\/settings/, { timeout: 15_000 })
 })
+
+test('zeus OS fleet tab loads without JS crash', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', (err) => errors.push(err.message))
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/zeus?tab=fleet')
+  await expect(page.getByRole('heading', { name: 'Machina Zeus OS' })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByText('Fleet Linux health')).toBeVisible({ timeout: 15_000 })
+  expect(errors.filter((e) => !e.includes('ResizeObserver'))).toEqual([])
+})
+
+test('network canvas loads without JS crash', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', (err) => errors.push(err.message))
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/network-canvas')
+  await expect(page.getByRole('heading', { name: 'Network canvas' })).toBeVisible({ timeout: 20_000 })
+  expect(errors.filter((e) => !e.includes('ResizeObserver'))).toEqual([])
+})

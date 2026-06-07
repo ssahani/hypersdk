@@ -11,6 +11,7 @@ import { MacGlassPanel, MacListRow, MacStatWidget } from '../../components/platf
 import DetailTabs from '../../components/platform/DetailTabs'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
+import PageSkeleton from '../../components/PageSkeleton'
 import { usePlatformTabState } from '../../hooks/usePlatformTabState'
 import PlatformZeusHubLaunchpad from '../../components/platform/tahoe/PlatformZeusHubLaunchpad'
 import MachinaInfraGraphBrain from '../../components/ai/MachinaInfraGraphBrain'
@@ -98,6 +99,9 @@ export default function PlatformZeusOs() {
   const [fleetDiagnoseQuery, setFleetDiagnoseQuery] = useState('fleet linux pressure and failed tasks')
   const [fleetDiagnoseSummary, setFleetDiagnoseSummary] = useState<string | null>(null)
   const [fleetSummaryLine, setFleetSummaryLine] = useState<string | null>(null)
+  const [securityLoaded, setSecurityLoaded] = useState(false)
+  const [servicesLoaded, setServicesLoaded] = useState(false)
+  const [baremetalLoaded, setBaremetalLoaded] = useState(false)
 
   const loadFleet = useCallback(async () => {
     setError(null)
@@ -127,6 +131,8 @@ export default function PlatformZeusOs() {
 
   const loadSecurity = useCallback(async () => {
     setError(null)
+    setLoading(true)
+    setSecurityLoaded(false)
     try {
       await getSecurityGraph()
       const path = await analyzeAttackPath('attacker', 'db-prod')
@@ -135,13 +141,18 @@ export default function PlatformZeusOs() {
       setFrameworksSummary(
         fw.frameworks.map((f) => `${f.framework} ${f.grade} (${f.score})`).join(' · ') || fw.summary,
       )
+      setSecurityLoaded(true)
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
   const loadServices = useCallback(async () => {
     setError(null)
+    setLoading(true)
+    setServicesLoaded(false)
     try {
       const [sg, mem, impact] = await Promise.all([
         getServiceGraph(),
@@ -151,17 +162,25 @@ export default function PlatformZeusOs() {
       setServiceCount(sg.service_count)
       setMemoryCount(mem.incidents.length)
       if (impact) setServiceImpact(impact.summary)
+      setServicesLoaded(true)
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
   const loadBaremetal = useCallback(async () => {
     setError(null)
+    setLoading(true)
+    setBaremetalLoaded(false)
     try {
       setBaremetal(await listBaremetalServers())
+      setBaremetalLoaded(true)
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -202,6 +221,13 @@ export default function PlatformZeusOs() {
     if (tab === 'baremetal') return loadBaremetal()
   }, [tab, loadFleet, loadSecurity, loadServices, loadBaremetal])
 
+  const tabContentLoading = loading && (
+    (tab === 'fleet' && !heatmap) ||
+    (tab === 'security' && !securityLoaded) ||
+    (tab === 'services' && !servicesLoaded) ||
+    (tab === 'baremetal' && !baremetalLoaded)
+  )
+
   return (
     <PlatformPageChrome
       error={error}
@@ -234,10 +260,9 @@ export default function PlatformZeusOs() {
       <PlatformZeusHubLaunchpad activeTab={tab} />
       <DetailTabs primary={ZEUS_TABS} active={tab} onChange={setTab} />
 
-      {tab === 'fleet' && loading && !heatmap && (
-        <p className="text-sm text-slate-500">Loading fleet intelligence…</p>
-      )}
-      {tab === 'fleet' && heatmap && (
+      {tabContentLoading && <PageSkeleton />}
+
+      {tab === 'fleet' && !tabContentLoading && heatmap && (
         <div className="space-y-4">
           {fleetSummaryLine && <p className="text-sm text-slate-400">{fleetSummaryLine}</p>}
           {linuxHealth && (
@@ -371,9 +396,9 @@ export default function PlatformZeusOs() {
           )}
         </div>
       )}
-      {tab === 'fleet' && <ZeusAutonomousRunPanel />}
+      {tab === 'fleet' && !tabContentLoading && <ZeusAutonomousRunPanel />}
 
-      {tab === 'security' && (
+      {tab === 'security' && !tabContentLoading && (
         <div className="space-y-4">
           <MacGlassPanel title="Security hubs" subtitle="Threat intelligence and host firewall — open a hub for full detail">
             <div className="flex flex-wrap gap-3">
@@ -423,7 +448,7 @@ export default function PlatformZeusOs() {
         </MacGlassPanel>
       )}
 
-      {tab === 'services' && (
+      {tab === 'services' && !tabContentLoading && (
         <MacGlassPanel title="Service graph & infrastructure memory" subtitle="Application → VM dependencies + incident recall">
           <p className="text-sm text-slate-400">{serviceCount} application service(s) mapped · {memoryCount} remembered incident(s)</p>
           {serviceImpact && <p className="text-xs text-slate-400 mt-2">{serviceImpact}</p>}
@@ -431,7 +456,7 @@ export default function PlatformZeusOs() {
         </MacGlassPanel>
       )}
 
-      {tab === 'baremetal' && (
+      {tab === 'baremetal' && !tabContentLoading && (
         <div className="space-y-4">
           <MacGlassPanel title="Bare metal servers" subtitle="Redfish / IPMI inventory + Zeus Firewall policy">
             <div className="flex flex-wrap gap-2 mb-3">

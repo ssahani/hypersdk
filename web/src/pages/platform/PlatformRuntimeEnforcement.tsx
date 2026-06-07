@@ -11,7 +11,6 @@ import {
   MacStatWidget,
 } from '../../components/platform/mac/PlatformMacUi'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
-import PageSkeleton from '../../components/PageSkeleton'
 import {
   applyEnforcementPolicy,
   createEnforcementPolicy,
@@ -196,10 +195,9 @@ export default function PlatformRuntimeEnforcement() {
       subtitle="eBPF deny rules — process · DNS · port · IP · file · cap · namespace via Tetragon TracingPolicy"
       icon={<Shield className="w-6 h-6 text-slate-400" />}
       actions={<PlatformRefreshButton onClick={() => void load()} />}
+      contentLoading={loading && !status}
       contentClassName="space-y-4"
     >
-      {loading && !status && <PageSkeleton />}
-
       {status && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MacStatWidget label="Mode" value={status.mode ?? 'observe'} icon={<ShieldBan className="w-4 h-4" />} />

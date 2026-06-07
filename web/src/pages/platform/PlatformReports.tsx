@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { BookOpen, DollarSign, FolderKanban, PieChart } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
-import PageSkeleton from '../../components/PageSkeleton'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import DetailTabs from '../../components/platform/DetailTabs'
 import { MacGlassPanel, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
@@ -183,7 +182,11 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
       contentClassName="space-y-4"
     >
       <DetailTabs primary={REPORT_TABS} active={tab} onChange={setTab} />
-      {loading && <PageSkeleton />}
+      {loading && (
+        <div className="flex items-center justify-center h-32" aria-busy="true" aria-label="Loading">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+        </div>
+      )}
 
       {!loading && tab === 'runbooks' && (
         <>

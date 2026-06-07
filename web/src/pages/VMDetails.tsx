@@ -367,7 +367,7 @@ export default function VMDetailsPage() {
   useEffect(() => {
     listNetworks().then(setNetworks).catch((e: unknown) => toast.warning(`Networks: ${formatUserError(e)}`))
     listUsbDevices().then(setUsbDevices).catch((e: unknown) => toast.warning(`USB devices: ${formatUserError(e)}`))
-    listIsos().then((r) => setIsoFiles(r.files)).catch((e: unknown) => toast.warning(`ISO list: ${formatUserError(e)}`))
+    listIsos().then((r) => setIsoFiles(r.files ?? [])).catch((e: unknown) => toast.warning(`ISO list: ${formatUserError(e)}`))
     listPciDevices().then(setPciDevices).catch((e: unknown) => toast.warning(`PCI devices: ${formatUserError(e)}`))
     listIommuGroups().then(setIommuGroups).catch((e: unknown) => toast.warning(`IOMMU groups: ${formatUserError(e)}`))
   }, [])

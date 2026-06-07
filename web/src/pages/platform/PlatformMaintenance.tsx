@@ -47,7 +47,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { hubLinkClasses, statusChipClasses } from '../../utils/semanticColors'
+import { hubLinkClasses, statusChipClasses, statusSurfaceClasses } from '../../utils/semanticColors'
 import { operationsHubHref } from '../../utils/platformHubLinks'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { toastQueuedOperation } from '../../utils/platformTaskToast'
@@ -255,6 +255,23 @@ export default function PlatformMaintenance() {
                   )}
                   {selectedMission.update_summary && (
                     <p className="text-xs text-slate-500">{selectedMission.update_summary}</p>
+                  )}
+                  {!selectedMission.maintenance_mode && (selectedMission.pending_packages ?? 0) > 0 && (
+                    <div className={`rounded-lg border p-3 text-sm ${statusSurfaceClasses('warn')}`}>
+                      <p className="font-medium">Step blocked — enter maintenance</p>
+                      <p className="mt-1 opacity-90">
+                        {selectedMission.pending_packages} pending package update(s) cannot be applied until this host is in maintenance mode.
+                      </p>
+                      <button
+                        type="button"
+                        className="btn-primary text-xs mt-2"
+                        onClick={() => void runMissionAction('Enter maintenance', () =>
+                          hostMaintenance(selectedMission.host_id, 'enter', true),
+                        )}
+                      >
+                        Enter maintenance
+                      </button>
+                    </div>
                   )}
 
                   <MacGlassPanel title="Operator actions" subtitle="Confirmed steps only — no autonomous package apply.">

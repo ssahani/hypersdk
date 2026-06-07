@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { Activity, Network, Server, ShieldAlert } from 'lucide-react'
-import PageLayout from '../../components/PageLayout'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
+import { formatUserError } from '../../utils/apiError'
 import { MacGlassPanel, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
 import {
   getNetworkCanvas,
@@ -49,7 +49,7 @@ export default function PlatformNetworkCanvas() {
     try {
       setData(await getNetworkCanvas())
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load network canvas')
+      setError(formatUserError(e))
     } finally {
       setLoading(false)
     }
@@ -114,13 +114,16 @@ export default function PlatformNetworkCanvas() {
   const forwarded = stats?.forwarded ?? stats?.allowed ?? 0
 
   return (
-    <PageLayout compact title="Network canvas" subtitle="Machina fleet topology + PacketWolf Network Brain (K8s/Hubble)">
-      <PlatformPageChrome
-        error={error}
-        onErrorRetry={() => void load()}
-        actions={<PlatformRefreshButton onClick={() => void load()} />}
-        contentClassName="space-y-4"
-      >
+    <PlatformPageChrome
+      compact
+      title="Network canvas"
+      subtitle="Machina fleet topology + PacketWolf Network Brain (K8s/Hubble)"
+      error={error}
+      onErrorRetry={() => void load()}
+      actions={<PlatformRefreshButton onClick={() => void load()} />}
+      contentLoading={loading && !data}
+      contentClassName="space-y-4"
+    >
         {data?.packetwolf && (
           <p
             className={`text-xs px-3 py-2 rounded-lg border ${
@@ -134,7 +137,7 @@ export default function PlatformNetworkCanvas() {
           </p>
         )}
 
-        {!loading && (mapStats || liveConnections != null) && (
+        {(mapStats || liveConnections != null) && (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {mapStats && (
               <>
@@ -321,7 +324,6 @@ export default function PlatformNetworkCanvas() {
             Topology map
           </Link>
         </p>
-      </PlatformPageChrome>
-    </PageLayout>
+    </PlatformPageChrome>
   )
 }

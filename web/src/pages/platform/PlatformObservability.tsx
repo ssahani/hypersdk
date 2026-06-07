@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Activity, Gauge, Timer } from 'lucide-react'
-import PageSkeleton from '../../components/PageSkeleton'
 import { MacGlassPanel, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import {
@@ -83,9 +82,9 @@ export default function PlatformObservability() {
       subtitle="SLO dashboards and API trace inventory."
       icon={<Gauge className="w-6 h-6 text-slate-400" />}
       actions={<PlatformRefreshButton onClick={() => void load()} />}
+      contentLoading={loading && !overview && !error}
       contentClassName="space-y-4"
     >
-      {loading && !overview && !error && <PageSkeleton />}
       {overview && (
         <>
           <p className="text-sm text-slate-400">{overview.summary}</p>

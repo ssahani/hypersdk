@@ -272,7 +272,7 @@ export default function PlatformMigration() {
                   const r = await guestkitDoctor(diskPath.trim(), 'kvm', true)
                   setGkSummary(`${r.boot_score.toFixed(0)}% boot · ${r.summary}`)
                 } catch (e: unknown) {
-                  setGkSummary(e instanceof Error ? e.message : 'GuestKit doctor failed')
+                  setGkSummary(formatUserError(e))
                 }
               }}
             >

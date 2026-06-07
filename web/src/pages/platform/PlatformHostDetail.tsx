@@ -55,7 +55,7 @@ import { useAi } from '../../contexts/AiContext'
 import AskZeusButton from '../../components/ai/AskZeusButton'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, utilizationBarClass, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone, utilizationBarClass, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 import { openCenterPopout } from '../../utils/platformCenterPopout'
 import { hostClassicTools } from '../../utils/platformClassicTools'
 import { PlatformClassicToolLinks } from '../../components/platform/PlatformCrossLinks'
@@ -597,6 +597,30 @@ export default function PlatformHostDetailPage() {
                         title="Package updates"
                         subtitle={`${linuxUpdates.backend ?? 'distro'} · ${linuxUpdates.summary ?? ''}${linuxUpdates.reboot_required ? ' · reboot required' : ''}`}
                       >
+                        {!host?.maintenance_mode && ((linuxUpdates.pending_count ?? 0) > 0 || linuxUpdates.reboot_required) && (
+                          <div className={`mx-3 mt-3 rounded-lg border p-3 text-xs ${statusSurfaceClasses('warn')}`}>
+                            <p className="font-medium">Maintenance mode required</p>
+                            <p className="mt-1 opacity-90">Enter maintenance before applying package upgrades or rebooting this hypervisor.</p>
+                            <button
+                              type="button"
+                              className="btn-secondary text-xs mt-2"
+                              disabled={linuxOpsBusy || !id}
+                              onClick={() => {
+                                if (!id) return
+                                setLinuxOpsBusy(true)
+                                void hostMaintenance(id, 'enter')
+                                  .then(() => {
+                                    toast.success('Maintenance mode entered')
+                                    return load()
+                                  })
+                                  .catch((e: unknown) => toast.error(formatUserError(e)))
+                                  .finally(() => setLinuxOpsBusy(false))
+                              }}
+                            >
+                              Enter maintenance
+                            </button>
+                          </div>
+                        )}
                         <div className="p-3 flex flex-wrap gap-2 border-b border-white/[0.06] mb-2">
                           <button
                             type="button"

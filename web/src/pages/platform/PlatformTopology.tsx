@@ -5,7 +5,6 @@ import { Link } from 'react-router'
 import { Cable, GitBranch, Layers } from 'lucide-react'
 import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
-import PageSkeleton from '../../components/PageSkeleton'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import { formatUserError } from '../../utils/apiError'
 import { statusSurfaceClasses, statusToneClass, hubLinkClasses } from '../../utils/semanticColors'
@@ -90,10 +89,10 @@ export default function PlatformTopology() {
       subtitle="Digital twin graph — hosts, VMs, overlay segments, and LLDP uplinks"
       icon={<GitBranch className="w-6 h-6 text-slate-400" />}
       actions={<PlatformRefreshButton onClick={() => void load()} label="Refresh LLDP" />}
+      contentLoading={loading && !graph}
       contentClassName="space-y-4"
     >
-      {loading && !graph && <PageSkeleton />}
-      {!loading && graph && graph.nodes.length === 0 && (
+      {graph && graph.nodes.length === 0 && (
         <PlatformEmptyState
           icon={GitBranch}
           title="Topology is empty"

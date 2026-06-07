@@ -58,7 +58,7 @@ export default function PlatformHosts() {
         listPlatformHosts(),
         getFleetLinuxHealth().catch(() => null),
       ])
-      setHosts(rows)
+      setHosts(Array.isArray(rows) ? rows : [])
       const map: Record<string, FleetLinuxHostItem> = {}
       for (const h of linux?.hosts ?? []) map[h.host_id] = h
       setLinuxByHost(map)
@@ -129,13 +129,19 @@ export default function PlatformHosts() {
               <td className="p-3 text-center">{h.cpu_percent != null ? `${h.cpu_percent.toFixed(0)}%` : '—'}</td>
               <td className="p-3 text-center">
                 {linuxByHost[h.id] ? (
-                  <span className={`text-[10px] uppercase px-2 py-0.5 rounded border ${
-                    linuxByHost[h.id].status === 'ok'
-                      ? statusPillClasses('ok')
-                      : statusPillClasses('warn')
-                  }`}>
-                    {linuxByHost[h.id].status}
-                  </span>
+                  linuxByHost[h.id].status === 'ok' ? (
+                    <span className={`text-[10px] uppercase px-2 py-0.5 rounded border ${statusPillClasses('ok')}`}>
+                      {linuxByHost[h.id].status}
+                    </span>
+                  ) : (
+                    <Link
+                      to={`/platform/hosts/${h.id}?tab=linux`}
+                      className={`text-[10px] uppercase px-2 py-0.5 rounded border hover:underline ${statusPillClasses('warn')}`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {linuxByHost[h.id].status}
+                    </Link>
+                  )
                 ) : '—'}
               </td>
             </tr>
@@ -169,7 +175,14 @@ export default function PlatformHosts() {
           </div>
           <p className="text-xs text-white/50">
             {h.vm_count} VM(s) · {h.cpu_percent != null ? `${h.cpu_percent.toFixed(0)}% CPU` : 'CPU —'}
-            {linuxByHost[h.id] ? ` · Linux ${linuxByHost[h.id].status}` : ''}
+            {linuxByHost[h.id] && linuxByHost[h.id].status !== 'ok' ? (
+              <>
+                {' · '}
+                <Link to={`/platform/hosts/${h.id}?tab=linux`} className={hubLinkClasses('hover:underline')} onClick={(e) => e.stopPropagation()}>
+                  Linux {linuxByHost[h.id].status}
+                </Link>
+              </>
+            ) : linuxByHost[h.id] ? ` · Linux ${linuxByHost[h.id].status}` : ''}
           </p>
         </button>
       ))}

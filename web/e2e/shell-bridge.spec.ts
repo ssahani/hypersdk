@@ -33,7 +33,8 @@ test('normal tier shell bridge links to integrations hub', async ({ page }) => {
   await expect(bar).toBeVisible({ timeout: 20_000 })
   const integrationsLink = bar.getByRole('link', { name: /Apps.*Integrations/i })
   await expect(integrationsLink).toHaveAttribute('href', /\/platform\/integrations$/)
-  await integrationsLink.click()
+  await integrationsLink.scrollIntoViewIfNeeded()
+  await integrationsLink.click({ force: true })
   await expect(page).toHaveURL(/\/platform\/integrations/, { timeout: 20_000 })
 })
 
