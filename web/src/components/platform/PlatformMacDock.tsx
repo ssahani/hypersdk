@@ -7,6 +7,7 @@ import { Search, Sparkles } from 'lucide-react'
 import { useAi } from '../../contexts/AiContext'
 import { unlockDockPreviewPath, usePlatformDockItems } from '../../utils/platformDockPins'
 import { useToastContext } from '../../contexts/ToastContext'
+import { platformDesktopTabGroup } from '../../utils/platformDesktopTabs'
 
 function openSpotlight() {
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
@@ -27,6 +28,11 @@ export default function PlatformMacDock() {
   const isActive = (path: string) => {
     if (path === '/platform') return location.pathname === '/platform'
     return location.pathname === path || location.pathname.startsWith(`${path}/`)
+  }
+
+  const goDock = (path: string) => {
+    const hub = platformDesktopTabGroup(path)
+    navigate(hub)
   }
 
   const dock = (
@@ -56,14 +62,20 @@ export default function PlatformMacDock() {
               </button>
             )
           }
+          const hub = platformDesktopTabGroup(item.path)
           return (
             <Link
               key={item.path}
-              to={item.path}
+              to={hub}
               title={item.label}
               aria-label={item.label}
               className={cls}
               aria-current={active ? 'page' : undefined}
+              onClick={(e) => {
+                if (location.pathname === hub) return
+                e.preventDefault()
+                goDock(item.path)
+              }}
             >
               <Icon className="h-6 w-6" strokeWidth={1.75} />
               <span className="mac-dock-tooltip">{item.label}</span>

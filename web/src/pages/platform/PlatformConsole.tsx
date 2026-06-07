@@ -65,9 +65,16 @@ export default function PlatformConsole() {
       icon={<Terminal className="w-6 h-6 text-slate-400" />}
       prepend={
         !isPopout ? (
-          <Link to={`/platform/vms/${id}`} className={`text-sm inline-flex items-center gap-1 ${hubLinkClasses()}`}>
-            <ArrowLeft className="w-4 h-4" /> Back to VM
-          </Link>
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <Link to="/platform/vms" className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>
+              <ArrowLeft className="w-4 h-4" /> VM list
+            </Link>
+            {id && !error?.toLowerCase().includes('not found') ? (
+              <Link to={`/platform/vms/${id}`} className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>
+                Back to VM
+              </Link>
+            ) : null}
+          </div>
         ) : undefined
       }
       actions={

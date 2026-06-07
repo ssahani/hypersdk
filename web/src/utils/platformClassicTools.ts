@@ -12,6 +12,12 @@ export type ClassicToolCard = {
 /** Classic Machina daemon UI routes bridged from Platform Integrations and host detail. */
 export const CLASSIC_TOOL_CARDS: ClassicToolCard[] = [
   {
+    id: 'vms',
+    title: 'Libvirt VMs',
+    description: 'Classic virtual machine list — power, console, snapshots, and libvirt actions.',
+    href: '/vms',
+  },
+  {
     id: 'import',
     title: 'Import VM',
     description: 'OVF/OVA, VMDK, and disk import wizard — same flow as classic Machina.',

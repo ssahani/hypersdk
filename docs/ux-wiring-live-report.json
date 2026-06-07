@@ -1,7 +1,7 @@
 {
-  "host": "212.8.252.194",
-  "generated_at": "2026-06-05T19:54:40.016Z",
-  "passed": 39,
+  "host": "175.110.114.93",
+  "generated_at": "2026-06-07T06:58:52.304Z",
+  "passed": 17,
   "failed": 0,
   "skipped": 19,
   "results": [
@@ -218,138 +218,6 @@
     {
       "id": "platform:/platform",
       "path": "/platform",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/activity",
-      "path": "/platform/activity",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/api-keys",
-      "path": "/platform/api-keys",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/applications",
-      "path": "/platform/applications",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/backups",
-      "path": "/platform/backups",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/blueprints",
-      "path": "/platform/blueprints",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/content",
-      "path": "/platform/content",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/developer",
-      "path": "/platform/developer",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/enroll",
-      "path": "/platform/enroll",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/enterprise",
-      "path": "/platform/enterprise",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/events",
-      "path": "/platform/events",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/hosts",
-      "path": "/platform/hosts",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/integrations",
-      "path": "/platform/integrations",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/maintenance",
-      "path": "/platform/maintenance",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/migration",
-      "path": "/platform/migration",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/networks",
-      "path": "/platform/networks",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/notifications",
-      "path": "/platform/notifications",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/observability",
-      "path": "/platform/observability",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/placement",
-      "path": "/platform/placement",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/policy",
-      "path": "/platform/policy",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/projects",
-      "path": "/platform/projects",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/recommendations",
-      "path": "/platform/recommendations",
-      "status": "passed",
-      "warnings": 0
-    },
-    {
-      "id": "platform:/platform/reports",
-      "path": "/platform/reports",
       "status": "passed",
       "warnings": 0
     }

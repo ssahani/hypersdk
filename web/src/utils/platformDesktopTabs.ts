@@ -35,7 +35,8 @@ export function platformDesktopTabActive(currentPath: string, tabPath: string): 
 function normalizePlatformDesktopTabs(tabs: PlatformDesktopTab[]): PlatformDesktopTab[] {
   const byGroup = new Map<string, PlatformDesktopTab>()
   for (const tab of tabs) {
-    byGroup.set(platformDesktopTabGroup(tab.path), tab)
+    const group = platformDesktopTabGroup(tab.path)
+    byGroup.set(group, { path: group, label: tab.label })
   }
   return Array.from(byGroup.values()).slice(-MAX_PLATFORM_DESKTOP_TABS)
 }
@@ -67,8 +68,10 @@ function save(tabs: PlatformDesktopTab[]) {
 
 export function upsertPlatformDesktopTab(tab: PlatformDesktopTab): PlatformDesktopTab[] {
   const group = platformDesktopTabGroup(tab.path)
+  // One window per app hub — store the hub path so dock / Window menus never reopen stale child URLs.
+  const canonical: PlatformDesktopTab = { path: group, label: tab.label }
   const rest = loadPlatformDesktopTabs().filter((t) => platformDesktopTabGroup(t.path) !== group)
-  const next = normalizePlatformDesktopTabs([...rest, tab])
+  const next = normalizePlatformDesktopTabs([...rest, canonical])
   save(next)
   return next
 }

@@ -42,7 +42,7 @@ export default function PlatformMacDesktopTabs() {
     e.stopPropagation()
     const next = removePlatformDesktopTab(path)
     setTabs(next)
-    if (location.pathname === path) {
+    if (platformDesktopTabActive(location.pathname, path)) {
       navigate(next[next.length - 1]?.path || '/platform')
     }
   }
