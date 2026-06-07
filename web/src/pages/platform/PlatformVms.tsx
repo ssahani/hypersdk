@@ -12,9 +12,11 @@ import {
   Sparkles,
   Tag,
   Terminal,
+  Trash2,
   X,
 } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import FinderView, { type FinderViewMode } from '../../components/platform/mac/FinderView'
@@ -34,6 +36,7 @@ import {
   getFleetFinder,
   listPlatformHosts,
   listPlatformVms,
+  vmDelete,
   type CreatePlatformVmBody,
   type FleetFinderOverview,
   type PlatformApiError,
@@ -49,7 +52,7 @@ import { guestToolsStatusLabel } from '../../utils/guestAgentUx'
 import { installStateTone } from '../../components/platform/GuestAgentDiagnosticsPanel'
 import { pruneMissingPlatformVms } from '../../api/platformVmLifecycle'
 import { toastQueuedOperation } from '../../utils/platformTaskToast'
-import { hubLinkClasses, statusPillClasses, vmStateTone } from '../../utils/semanticColors'
+import { hubLinkClasses, statusBadgeClasses, statusPillClasses, vmStateTone } from '../../utils/semanticColors'
 import VmSshConnectDialog, { navigateVmSshSession } from '../../components/vm/VmSshConnectDialog'
 
 type ViewMode = 'launchpad' | 'list' | 'columns'
@@ -117,6 +120,9 @@ export default function PlatformVms() {
   const [dropHost, setDropHost] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [selectedVmId, setSelectedVmId] = useState<string | null>(null)
+  const [selectedVmIds, setSelectedVmIds] = useState<Set<string>>(new Set())
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
+  const [batchDeleteBusy, setBatchDeleteBusy] = useState(false)
   const [sshVm, setSshVm] = useState<PlatformVm | null>(null)
   const [pruneBusy, setPruneBusy] = useState(false)
 
@@ -371,6 +377,44 @@ export default function PlatformVms() {
     }
   }
 
+  const toggleVmSelect = (id: string) => {
+    setSelectedVmIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleAllVisible = () => {
+    if (selectedVmIds.size === filteredVms.length) setSelectedVmIds(new Set())
+    else setSelectedVmIds(new Set(filteredVms.map((v) => v.id)))
+  }
+
+  const handleBatchDelete = async () => {
+    setBatchDeleteOpen(false)
+    setBatchDeleteBusy(true)
+    const ids = Array.from(selectedVmIds)
+    const results = await Promise.allSettled(
+      ids.map((id) => {
+        const vm = vmById.get(id)
+        if (vm?.inventory_source === 'kubevirt') {
+          return Promise.reject(new Error(`${vm.name}: KubeVirt guests must be deleted from the cluster`))
+        }
+        return vmDelete(id, true)
+      }),
+    )
+    const ok = results.filter((r) => r.status === 'fulfilled').length
+    const fail = results.filter((r) => r.status === 'rejected').length
+    if (ok > 0) toast.success(`Delete queued for ${ok} VM(s)`)
+    if (fail > 0) toast.error(`${fail} VM(s) could not be deleted`)
+    setSelectedVmIds(new Set())
+    setBatchDeleteBusy(false)
+    await load()
+  }
+
+  useEffect(() => { setSelectedVmIds(new Set()) }, [search, folder, tag, project, source])
+
   const guestGapsCount = useMemo(
     () =>
       vms.filter((v) => {
@@ -478,6 +522,14 @@ export default function PlatformVms() {
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-slate-400 border-b border-white/[0.04]">
+            <th className="p-3 w-10">
+              <input
+                type="checkbox"
+                aria-label="Select all visible VMs"
+                checked={filteredVms.length > 0 && selectedVmIds.size === filteredVms.length}
+                onChange={toggleAllVisible}
+              />
+            </th>
             <th className="p-3">Name</th>
             <th className="p-3">Source</th>
             <th className="p-3">State</th>
@@ -500,6 +552,14 @@ export default function PlatformVms() {
               className={`border-b border-slate-900/80 cursor-pointer ${selectedVmId === v.id ? 'bg-sky-500/10' : 'hover:bg-white/[0.02]'}`}
               onClick={() => setSelectedVmId(v.id)}
             >
+              <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  aria-label={`Select ${v.name}`}
+                  checked={selectedVmIds.has(v.id)}
+                  onChange={() => toggleVmSelect(v.id)}
+                />
+              </td>
               <td className="p-3"><Link to={`/platform/vms/${v.id}`} className={`hover:underline ${hubLinkClasses()}`} onClick={(e) => e.stopPropagation()}>{v.name}</Link></td>
               <td className="p-3 text-xs text-slate-500 capitalize">{v.inventory_source ?? 'libvirt'}</td>
               <td className="p-3 capitalize">
@@ -823,6 +883,36 @@ export default function PlatformVms() {
           onConnect={(h, u) => navigateVmSshSession(sshVm.name, h, u)}
         />
       )}
+
+      {selectedVmIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900 border border-white/[0.08] rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3">
+          <span className="text-sm font-medium text-slate-200">{selectedVmIds.size} selected</span>
+          <div className="w-px h-5 bg-white/[0.08]" />
+          <button
+            type="button"
+            disabled={batchDeleteBusy}
+            onClick={() => setBatchDeleteOpen(true)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition inline-flex items-center gap-1 ${statusBadgeClasses('error')}`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {batchDeleteBusy ? 'Deleting…' : 'Delete'}
+          </button>
+          <button type="button" onClick={() => setSelectedVmIds(new Set())} className="p-1.5 hover:bg-white/[0.06] rounded-lg transition" title="Clear selection" aria-label="Clear selection">
+            <X className="w-4 h-4 text-slate-400" />
+          </button>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={batchDeleteOpen}
+        title="Delete VMs"
+        message={`Permanently delete ${selectedVmIds.size} VM(s)? Each guest is stopped if running, then removed from libvirt and inventory. Type DELETE to confirm.`}
+        confirmLabel="Delete all"
+        typeToMatch="DELETE"
+        typeToMatchLabel="Type DELETE (all caps) to confirm bulk delete:"
+        onConfirm={() => void handleBatchDelete()}
+        onCancel={() => setBatchDeleteOpen(false)}
+      />
     </PageLayout>
   )
 }

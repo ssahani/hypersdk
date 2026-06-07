@@ -44,15 +44,60 @@ pub fn start_network(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     Ok(())
 }
 
+const DEFAULT_NETWORK_TEMPLATE: &str = "/usr/share/libvirt/networks/default.xml";
+
+/// Re-define the packaged `default` NAT network when libvirt cannot create `virbr0` (stale state).
+pub fn repair_default_network(conn: &Connect) -> Result<(), LibvirtError> {
+    let xml = std::fs::read_to_string(DEFAULT_NETWORK_TEMPLATE).map_err(|e| {
+        LibvirtError::Operation(format!("read {DEFAULT_NETWORK_TEMPLATE}: {e}"))
+    })?;
+    if let Ok(net) = Network::lookup_by_name(conn, "default") {
+        if net.is_active().unwrap_or(false) {
+            let _ = net.destroy();
+        }
+        let _ = net.undefine();
+    }
+    Network::define_xml(conn, &xml).map_err(|e| {
+        LibvirtError::Operation(format!("Failed to redefine default network: {e}"))
+    })?;
+    let net = lookup_network(conn, "default")?;
+    let _ = net.set_autostart(true);
+    net.create()
+        .map_err(|e| LibvirtError::Operation(format!("Failed to start repaired default network: {e}")))?;
+    Ok(())
+}
+
 /// Start a defined libvirt network if it is not already active (e.g. before starting a guest that uses it).
 pub fn ensure_network_active(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let net = lookup_network(conn, name)?;
     if net.is_active().unwrap_or(false) {
         return Ok(());
     }
-    net.create()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to start network '{name}': {e}")))?;
-    Ok(())
+    match net.create() {
+        Ok(_) => Ok(()),
+        Err(e) if name == "default" && e.to_string().contains("File exists") => {
+            repair_default_network(conn)
+        }
+        Err(e) => Err(LibvirtError::Operation(format!(
+            "Failed to start network '{name}': {e}"
+        ))),
+    }
+}
+
+/// Start every persistent network marked autostart that is currently inactive (daemon boot helper).
+pub fn bootstrap_autostart_networks(conn: &Connect) -> Vec<(String, String)> {
+    let Ok(networks) = list_networks(conn) else {
+        return Vec::new();
+    };
+    let mut failures = Vec::new();
+    for n in networks {
+        if n.autostart && !n.active {
+            if let Err(e) = ensure_network_active(conn, &n.name) {
+                failures.push((n.name, e.to_string()));
+            }
+        }
+    }
+    failures
 }
 
 pub fn stop_network(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
