@@ -2,6 +2,7 @@
 
 pub mod console_ws;
 pub mod grpc;
+pub mod libvirt_invoke;
 pub mod libvirt_ops;
 pub mod provision_ops;
 pub mod state;

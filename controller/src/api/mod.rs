@@ -59,11 +59,12 @@ mod templates;
 mod topology;
 mod upgrade;
 mod users;
+mod vm_libvirt;
 mod vms;
 mod webhooks;
 
 use axum::middleware;
-use axum::routing::{delete, get, patch, post};
+use axum::routing::{delete, get, patch, post, put};
 use axum::Router;
 
 use crate::auth::auth_middleware;
@@ -131,6 +132,13 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/vms/{id}/memory", post(vms::set_vm_memory))
         .route("/api/v1/vms/{id}/libvirt-details", get(vms::get_vm_libvirt_details))
         .route("/api/v1/vms/batch/power", post(vms::batch_vm_power))
+        .route("/api/v1/vms/batch/snapshots", post(vms::batch_vm_snapshot))
+        .route("/api/v1/vms/batch/delete", post(vms::batch_vm_delete))
+        .route("/api/v1/vms/{id}/libvirt", get(vm_libvirt::query_vm_libvirt).post(vm_libvirt::invoke_vm_libvirt))
+        .route(
+            "/api/v1/hosts/{id}/libvirt",
+            get(vm_libvirt::query_host_libvirt),
+        )
         .route("/api/v1/vms/{id}/metrics", get(vms::get_vm_metrics))
         .route("/api/v1/vms/{id}/adopt", post(vms::adopt_vm))
         .route("/api/v1/vms/{id}/health-check", post(health_check::vm_health_check))
@@ -443,7 +451,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/network-canvas", get(network_canvas::network_canvas))
         .route("/api/v1/vms/{id}/topology", get(topology::vm_topology))
         .route("/api/v1/vms/{id}/spec", get(vms::get_vm_spec))
-        .route("/api/v1/vms/{id}/domain-xml", get(vms::get_vm_domain_xml))
+        .route(
+            "/api/v1/vms/{id}/domain-xml",
+            get(vms::get_vm_domain_xml).put(vm_libvirt::put_vm_domain_xml),
+        )
         .route(
             "/api/v1/vms/{id}/port-forwards",
             get(vms::list_vm_port_forwards).post(vms::create_vm_port_forward),

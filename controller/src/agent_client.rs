@@ -541,6 +541,67 @@ pub async fn set_memory(
     vm_op_response(resp.ok, &resp.message)
 }
 
+pub async fn vm_libvirt_query(
+    client: &mut HostAgentClient<Channel>,
+    vm_name: &str,
+    action: &str,
+    payload: &serde_json::Value,
+) -> anyhow::Result<serde_json::Value> {
+    let resp = client
+        .vm_libvirt_query(VmLibvirtQueryRequest {
+            vm_name: vm_name.to_string(),
+            action: action.to_string(),
+            payload_json: serde_json::to_string(payload)?,
+        })
+        .await?
+        .into_inner();
+    if resp.ok {
+        serde_json::from_str(&resp.result_json).map_err(|e| anyhow::anyhow!("decode query: {e}"))
+    } else {
+        anyhow::bail!("{}", resp.message)
+    }
+}
+
+pub async fn vm_libvirt_invoke(
+    client: &mut HostAgentClient<Channel>,
+    vm_name: &str,
+    action: &str,
+    payload: &serde_json::Value,
+) -> anyhow::Result<serde_json::Value> {
+    let resp = client
+        .vm_libvirt_invoke(VmLibvirtInvokeRequest {
+            vm_name: vm_name.to_string(),
+            action: action.to_string(),
+            payload_json: serde_json::to_string(payload)?,
+        })
+        .await?
+        .into_inner();
+    if resp.ok {
+        serde_json::from_str(&resp.result_json).map_err(|e| anyhow::anyhow!("decode invoke: {e}"))
+    } else {
+        anyhow::bail!("{}", resp.message)
+    }
+}
+
+pub async fn host_libvirt_query(
+    client: &mut HostAgentClient<Channel>,
+    action: &str,
+    payload: &serde_json::Value,
+) -> anyhow::Result<serde_json::Value> {
+    let resp = client
+        .host_libvirt_query(HostLibvirtQueryRequest {
+            action: action.to_string(),
+            payload_json: serde_json::to_string(payload)?,
+        })
+        .await?
+        .into_inner();
+    if resp.ok {
+        serde_json::from_str(&resp.result_json).map_err(|e| anyhow::anyhow!("decode host query: {e}"))
+    } else {
+        anyhow::bail!("{}", resp.message)
+    }
+}
+
 pub async fn get_vm_details(
     client: &mut HostAgentClient<Channel>,
     vm_name: &str,

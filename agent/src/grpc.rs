@@ -893,6 +893,95 @@ impl HostAgent for AgentService {
         }
     }
 
+    async fn vm_libvirt_query(
+        &self,
+        request: Request<VmLibvirtQueryRequest>,
+    ) -> Result<Response<VmLibvirtQueryResponse>, Status> {
+        let req = request.into_inner();
+        let libvirt = self.libvirt.clone();
+        let vm_name = req.vm_name.clone();
+        let action = req.action.clone();
+        let payload: serde_json::Value =
+            serde_json::from_str(&req.payload_json).unwrap_or(serde_json::json!({}));
+        match tokio::task::spawn_blocking(move || {
+            let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
+            crate::libvirt_invoke::vm_query(&ctx.conn, &vm_name, &action, &payload)
+        })
+        .await
+        {
+            Ok(Ok(result)) => Ok(Response::new(VmLibvirtQueryResponse {
+                ok: true,
+                result_json: serde_json::to_string(&result).unwrap_or_else(|_| "{}".into()),
+                message: String::new(),
+            })),
+            Ok(Err(e)) => Ok(Response::new(VmLibvirtQueryResponse {
+                ok: false,
+                result_json: String::new(),
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn vm_libvirt_invoke(
+        &self,
+        request: Request<VmLibvirtInvokeRequest>,
+    ) -> Result<Response<VmLibvirtInvokeResponse>, Status> {
+        let req = request.into_inner();
+        let libvirt = self.libvirt.clone();
+        let vm_name = req.vm_name.clone();
+        let action = req.action.clone();
+        let payload: serde_json::Value =
+            serde_json::from_str(&req.payload_json).unwrap_or(serde_json::json!({}));
+        match tokio::task::spawn_blocking(move || {
+            let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
+            crate::libvirt_invoke::vm_invoke(&ctx.conn, &vm_name, &action, &payload)
+        })
+        .await
+        {
+            Ok(Ok(result)) => Ok(Response::new(VmLibvirtInvokeResponse {
+                ok: true,
+                result_json: serde_json::to_string(&result).unwrap_or_else(|_| "{}".into()),
+                message: String::new(),
+            })),
+            Ok(Err(e)) => Ok(Response::new(VmLibvirtInvokeResponse {
+                ok: false,
+                result_json: String::new(),
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn host_libvirt_query(
+        &self,
+        request: Request<HostLibvirtQueryRequest>,
+    ) -> Result<Response<HostLibvirtQueryResponse>, Status> {
+        let req = request.into_inner();
+        let libvirt = self.libvirt.clone();
+        let action = req.action.clone();
+        let payload: serde_json::Value =
+            serde_json::from_str(&req.payload_json).unwrap_or(serde_json::json!({}));
+        match tokio::task::spawn_blocking(move || {
+            let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
+            crate::libvirt_invoke::host_query(&ctx.conn, &action, &payload)
+        })
+        .await
+        {
+            Ok(Ok(result)) => Ok(Response::new(HostLibvirtQueryResponse {
+                ok: true,
+                result_json: serde_json::to_string(&result).unwrap_or_else(|_| "{}".into()),
+                message: String::new(),
+            })),
+            Ok(Err(e)) => Ok(Response::new(HostLibvirtQueryResponse {
+                ok: false,
+                result_json: String::new(),
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
     async fn get_guest_health(
         &self,
         request: Request<GetGuestHealthRequest>,

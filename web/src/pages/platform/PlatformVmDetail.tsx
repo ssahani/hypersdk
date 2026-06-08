@@ -110,6 +110,7 @@ import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { tasksHubHref } from '../../utils/platformHubLinks'
 import { downloadVmIacBundle, downloadVmIacZip, exportVmDisk, exportVmIac, retirePlatformVm, type VmIacExportBundle } from '../../api/platformVmLifecycle'
 import { publishVmAsTemplate } from '../../api/platformTemplatesExtra'
+import PlatformVmAdvanced from '../../components/platform/PlatformVmAdvanced'
 
 export default function PlatformVmDetail() {
   const location = useLocation()
@@ -120,7 +121,7 @@ export default function PlatformVmDetail() {
   const tabParam = searchParams.get('tab')
   const rawTab = tabParam === 'guestPorts' ? 'security' : tabParam
   const tab: VmDetailTab = (
-    ['overview', 'doctor', 'console', 'performance', 'disks', 'network', 'guestHealth', 'guestServices', 'security', 'snapshots', 'backup', 'topology', 'events', 'settings'] as VmDetailTab[]
+    ['overview', 'doctor', 'console', 'performance', 'disks', 'network', 'guestHealth', 'guestServices', 'security', 'snapshots', 'backup', 'topology', 'events', 'settings', 'advanced'] as VmDetailTab[]
   ).includes(rawTab as VmDetailTab) ? (rawTab as VmDetailTab) : 'overview'
   const setTab = (next: VmDetailTab, extra?: { guestAction?: string }) => {
     if (next === 'console' && id) {
@@ -394,7 +395,7 @@ export default function PlatformVmDetail() {
   useEffect(() => {
     if (tab === 'security' && id) void loadGuestPorts()
     if (tab === 'guestServices' && id) void loadGuestServices()
-    if ((tab === 'disks' || tab === 'network' || tab === 'settings') && id && vm?.inventory_source !== 'kubevirt') {
+    if ((tab === 'disks' || tab === 'network' || tab === 'settings' || tab === 'advanced') && id && vm?.inventory_source !== 'kubevirt') {
       void loadLibvirtDetails()
       if (tab === 'network') {
         void listPlatformNetworks()
@@ -418,7 +419,7 @@ export default function PlatformVmDetail() {
         toast.success(label)
       }
       await load()
-      if (tab === 'disks' || tab === 'network' || tab === 'settings') await loadLibvirtDetails()
+      if (tab === 'disks' || tab === 'network' || tab === 'settings' || tab === 'advanced') await loadLibvirtDetails()
     } catch (e: unknown) {
       toast.error(formatUserError(e))
     }
@@ -1564,6 +1565,17 @@ export default function PlatformVmDetail() {
                 {specData ? <JsonInspector data={specData} /> : <p className="text-sm text-slate-500">Spec unavailable</p>}
               </MacGlassPanel>
             </div>
+          )}
+
+          {tab === 'advanced' && vm.inventory_source !== 'kubevirt' && (
+            <PlatformVmAdvanced
+              vmId={id!}
+              hostId={vm.host_id}
+              vmName={vm.name}
+              managed={vm.managed}
+              libvirtDetails={libvirtDetails}
+              onChanged={() => void loadLibvirtDetails()}
+            />
           )}
         </>
       )}

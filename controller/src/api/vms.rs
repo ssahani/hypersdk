@@ -1251,6 +1251,166 @@ pub async fn batch_vm_power(
 }
 
 #[derive(Debug, Deserialize)]
+pub struct BatchVmSnapshotBody {
+    pub vm_ids: Vec<Uuid>,
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default = "default_true")]
+    pub disk_only: bool,
+    #[serde(default)]
+    pub quiesce: bool,
+    #[serde(default)]
+    pub storage_mode: String,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+pub async fn batch_vm_snapshot(
+    State(state): State<AppState>,
+    Json(body): Json<BatchVmSnapshotBody>,
+) -> Result<Json<BatchVmPowerResponse>, ApiError> {
+    machina_spec::validate_name(&body.name).map_err(|e| ApiError::bad_request(e.to_string()))?;
+    let mut results = Vec::with_capacity(body.vm_ids.len());
+    for (i, vm_id) in body.vm_ids.into_iter().enumerate() {
+        let snap_name = if i == 0 {
+            body.name.clone()
+        } else {
+            format!("{}-{}", body.name, i + 1)
+        };
+        let host_id: Option<Uuid> = match sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+            .bind(vm_id)
+            .fetch_optional(&state.pool)
+            .await?
+        {
+            Some(h) => h,
+            None => {
+                results.push(BatchVmPowerItem {
+                    vm_id: vm_id.to_string(),
+                    task_id: None,
+                    error: Some("vm not found".into()),
+                });
+                continue;
+            }
+        };
+        let snapshot_id = Uuid::new_v4();
+        if sqlx::query(
+            "INSERT INTO snapshot_records (id, vm_id, name, status) VALUES ($1, $2, $3, 'pending')",
+        )
+        .bind(snapshot_id)
+        .bind(vm_id)
+        .bind(&snap_name)
+        .execute(&state.pool)
+        .await
+        .is_err()
+        {
+            results.push(BatchVmPowerItem {
+                vm_id: vm_id.to_string(),
+                task_id: None,
+                error: Some("failed to record snapshot".into()),
+            });
+            continue;
+        }
+        match enqueue_task(
+            &state,
+            "vm.snapshot",
+            serde_json::json!({
+                "vm_id": vm_id.to_string(),
+                "snapshot_id": snapshot_id.to_string(),
+                "name": snap_name,
+                "description": body.description,
+                "disk_only": body.disk_only,
+                "quiesce": body.quiesce,
+                "storage_mode": body.storage_mode,
+            }),
+            Some("vm"),
+            Some(vm_id),
+            host_id,
+        )
+        .await
+        {
+            Ok(task_id) => results.push(BatchVmPowerItem {
+                vm_id: vm_id.to_string(),
+                task_id: Some(task_id.to_string()),
+                error: None,
+            }),
+            Err(e) => results.push(BatchVmPowerItem {
+                vm_id: vm_id.to_string(),
+                task_id: None,
+                error: Some(e.message),
+            }),
+        }
+    }
+    Ok(Json(BatchVmPowerResponse { results }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BatchVmDeleteBody {
+    pub vm_ids: Vec<Uuid>,
+    #[serde(default)]
+    pub confirmed: bool,
+}
+
+pub async fn batch_vm_delete(
+    State(state): State<AppState>,
+    Json(body): Json<BatchVmDeleteBody>,
+) -> Result<Json<BatchVmPowerResponse>, ApiError> {
+    let require: bool = sqlx::query_scalar(
+        "SELECT require_vm_delete_approval FROM clusters ORDER BY created_at LIMIT 1",
+    )
+    .fetch_one(&state.pool)
+    .await
+    .unwrap_or(false);
+    if require && !body.confirmed {
+        return Err(ApiError::bad_request(
+            "VM deletion requires approval — resubmit with {\"confirmed\": true}",
+        ));
+    }
+    let mut results = Vec::with_capacity(body.vm_ids.len());
+    for vm_id in body.vm_ids {
+        let host_id: Option<Uuid> = match sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+            .bind(vm_id)
+            .fetch_optional(&state.pool)
+            .await?
+        {
+            Some(h) => h,
+            None => {
+                results.push(BatchVmPowerItem {
+                    vm_id: vm_id.to_string(),
+                    task_id: None,
+                    error: Some("vm not found".into()),
+                });
+                continue;
+            }
+        };
+        match enqueue_task(
+            &state,
+            "vm.delete",
+            serde_json::json!({ "vm_id": vm_id.to_string() }),
+            Some("vm"),
+            Some(vm_id),
+            host_id,
+        )
+        .await
+        {
+            Ok(task_id) => results.push(BatchVmPowerItem {
+                vm_id: vm_id.to_string(),
+                task_id: Some(task_id.to_string()),
+                error: None,
+            }),
+            Err(e) => results.push(BatchVmPowerItem {
+                vm_id: vm_id.to_string(),
+                task_id: None,
+                error: Some(e.message),
+            }),
+        }
+    }
+    Ok(Json(BatchVmPowerResponse { results }))
+}
+
+#[derive(Debug, Deserialize)]
 pub struct CreateVmPortForwardBody {
     pub protocol: String,
     pub host_port: u16,

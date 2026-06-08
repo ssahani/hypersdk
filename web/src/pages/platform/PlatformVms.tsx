@@ -3,6 +3,7 @@
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  Camera,
   Copy,
   FolderOpen,
   Monitor,
@@ -33,6 +34,7 @@ import SimpleCreateVmWizard, {
 } from '../../components/platform/SimpleCreateVmWizard'
 import WindowsCreateWizard from '../../components/platform/WindowsCreateWizard'
 import MigratePrecheckModal from '../../components/platform/MigratePrecheckModal'
+import { batchVmSnapshot } from '../../api/platformVmLibvirt'
 import {
   adoptPlatformVm,
   batchVmPower,
@@ -401,6 +403,30 @@ export default function PlatformVms() {
     else setSelectedVmIds(new Set(filteredVms.map((v) => v.id)))
   }
 
+  const handleBatchSnapshot = async () => {
+    const ids = Array.from(selectedVmIds).filter((id) => vmById.get(id)?.inventory_source !== 'kubevirt')
+    if (ids.length === 0) {
+      toast.error('Batch snapshot applies to libvirt VMs only')
+      return
+    }
+    const name = window.prompt('Snapshot name prefix', `batch-${Date.now()}`)?.trim()
+    if (!name) return
+    setBatchPowerBusy(true)
+    try {
+      const r = await batchVmSnapshot({ vm_ids: ids, name, disk_only: true })
+      const ok = r.results.filter((x) => x.task_id).length
+      const fail = r.results.filter((x) => x.error).length
+      if (ok > 0) toast.success(`Snapshot queued for ${ok} VM(s)`)
+      if (fail > 0) toast.error(`${fail} VM(s) failed`)
+      setSelectedVmIds(new Set())
+      await load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setBatchPowerBusy(false)
+    }
+  }
+
   const handleBatchPower = async (action: 'start' | 'stop' | 'shutdown' | 'pause' | 'resume') => {
     const ids = Array.from(selectedVmIds).filter((id) => vmById.get(id)?.inventory_source !== 'kubevirt')
     if (ids.length === 0) {
@@ -517,6 +543,9 @@ export default function PlatformVms() {
           </button>
           <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" disabled={batchPowerBusy} onClick={() => void handleBatchPower('resume')}>
             <Play className="w-4 h-4" /> Resume
+          </button>
+          <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" disabled={batchPowerBusy} onClick={() => void handleBatchSnapshot()}>
+            <Camera className="w-4 h-4" /> Snapshot
           </button>
           <button
             type="button"

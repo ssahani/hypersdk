@@ -17,6 +17,7 @@ export type VmDetailTab =
   | 'topology'
   | 'events'
   | 'settings'
+  | 'advanced'
 
 const PRIMARY = [
   { id: 'overview' as const, label: 'Overview' },
@@ -36,6 +37,7 @@ const MORE = [
   { id: 'topology' as const, label: 'Topology', group: 'Fleet' },
   { id: 'events' as const, label: 'Events', group: 'Fleet' },
   { id: 'settings' as const, label: 'Settings', group: 'Admin' },
+  { id: 'advanced' as const, label: 'Advanced', group: 'Admin' },
 ]
 
 interface VmDetailTabsProps {
