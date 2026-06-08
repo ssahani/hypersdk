@@ -86,7 +86,8 @@ import { formatUserError, isPlatformNotFoundError } from '../../utils/apiError'
 import { GUEST_TOAST_CHANNEL_ATTACH, qgaHealthy } from '../../utils/guestAgentUx'
 import { toastQueuedOperation } from '../../utils/platformTaskToast'
 import { purgeVmShortcuts } from '../../utils/vmShortcuts'
-import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone, vmStateTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
+import VmStatusBadge from '../../components/VmStatusBadge'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 import { vmErrorPresentation } from '../../utils/vmErrorPresentation'
 import { loadVmSshPrefs } from '../../utils/vmSshPrefs'
 import VmDailyAccessStrip from '../../components/vm/VmDailyAccessStrip'
@@ -399,8 +400,6 @@ export default function PlatformVmDetail() {
         ? hostRow.address
         : `${hostRow.hostname} — update host enrollment`
       : hostName || 'No host'
-  const stateTone = vm ? vmStateTone(vm.observed_state) : 'neutral'
-  const lifecycleTone = vm?.lifecycle_phase === 'running' ? 'ok' : vm?.lifecycle_phase === 'error' ? 'error' : 'neutral'
 
   const resolvedGuestIp =
     guestHealth?.guest_ip?.trim() || health?.guest_ip?.trim() || vm?.guest_ip?.trim() || ''
@@ -501,9 +500,9 @@ export default function PlatformVmDetail() {
       title={vm?.name ?? 'Virtual machine'}
       subtitle={vm ? (
         <span className="flex flex-wrap items-center gap-2 text-sm">
-          <span className={statusPillClasses(stateTone)}>{vm.observed_state}</span>
+          <VmStatusBadge state={vm.observed_state} />
           {vm.lifecycle_phase && vm.lifecycle_phase !== vm.observed_state && (
-            <span className={statusPillClasses(lifecycleTone)}>{vm.lifecycle_phase}</span>
+            <VmStatusBadge state={vm.lifecycle_phase} />
           )}
           <span className="text-slate-500">·</span>
           <span className="text-slate-400" title={hostRow?.address ?? undefined}>{hostLabel}</span>

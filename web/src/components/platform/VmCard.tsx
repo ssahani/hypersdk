@@ -3,7 +3,9 @@
 import { Link } from 'react-router'
 import { Monitor, Cpu, MemoryStick } from 'lucide-react'
 import type { PlatformVm } from '../../api/platform'
-import { statusBadgeClasses, statusToneClass } from '../../utils/semanticColors'
+import VmStatusBadge from '../VmStatusBadge'
+import { statusBadgeClasses } from '../../utils/semanticColors'
+import { vmCardAccentClass, vmSemanticKind } from '../../utils/vmVisual'
 
 interface VmCardProps {
   vm: PlatformVm
@@ -15,16 +17,19 @@ interface VmCardProps {
 }
 
 export default function VmCard({ vm, hostLabel, cpuPercent, memoryUsedMib, draggable, onDragStart }: VmCardProps) {
-  const running = vm.observed_state === 'running'
+  const kind = vmSemanticKind(vm.observed_state || vm.desired_state)
+  const running = kind === 'running'
   const inner = (
     <>
       <div className="flex items-start gap-3">
-        <div className={`p-2.5 rounded-xl ${running ? statusBadgeClasses('ok') : 'bg-slate-800 text-slate-400'}`}>
+        <div className={`p-2.5 rounded-xl ${running ? statusBadgeClasses('ok') : 'bg-slate-800/80 text-slate-400'}`}>
           <Monitor className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-slate-100 truncate group-hover:text-white">{vm.name}</h3>
-          <p className="text-xs text-slate-500 mt-0.5 capitalize">{vm.observed_state || vm.desired_state}</p>
+          <div className="mt-1">
+            <VmStatusBadge state={vm.observed_state || vm.desired_state} />
+          </div>
         </div>
         {vm.managed === false && (
           <span className={`text-[10px] px-1.5 py-0.5 rounded ${statusBadgeClasses('warn')}`}>Discovered</span>
@@ -37,7 +42,7 @@ export default function VmCard({ vm, hostLabel, cpuPercent, memoryUsedMib, dragg
       {hostLabel && <p className="mt-2 text-[10px] text-slate-600 truncate">{hostLabel}</p>}
     </>
   )
-  const className = 'platform-vm-card group block rounded-2xl border border-slate-800/80 bg-slate-900/50 p-4 hover:border-slate-600/80 hover:bg-slate-900/80 transition-all hover:shadow-lg hover:shadow-black/20'
+  const className = `platform-vm-card machina-vm-card-accent ${vmCardAccentClass(vm.observed_state || vm.desired_state)} group block rounded-2xl border border-slate-800/80 bg-slate-900/50 p-4 hover:border-slate-600/80 hover:bg-slate-900/80 transition-all hover:shadow-lg hover:shadow-black/20`
   if (draggable) {
     return (
       <div

@@ -211,6 +211,10 @@ code {
   backdrop-filter: blur(12px);
 }
 
+.platform-vm-card.machina-vm-card-accent {
+  border-left-width: 4px;
+}
+
 /* ── Machina Platform: macOS Tahoe / Liquid Glass (aligned with v9s) ── */
 .mac-desktop-root {
   --mac-vibrancy: rgba(12, 18, 32, 0.88);
@@ -685,9 +689,124 @@ a.tahoe-context-app-title:hover {
   --machina-accent-ai: rgb(168, 85, 247);
   --machina-accent-network: var(--machina-accent);
   --machina-accent-security: var(--machina-status-error);
+
+  /* VM state palette (HyperSDK k8s-vms aligned) */
+  --machina-vm-running: #10b981;
+  --machina-vm-stopped: #6b7280;
+  --machina-vm-paused: #a855f7;
+  --machina-vm-creating: #f59e0b;
+  --machina-vm-failed: #ef4444;
+  --machina-vm-migrating: #3b82f6;
+  --machina-vm-suspended: #3b82f6;
+  --machina-vm-unknown: #94a3b8;
 }
 
 /* Usage: network/nav → --machina-accent-network; AI/copilot → --machina-accent-ai; risk → --machina-accent-security */
+
+/* VM status badges (HyperSDK-inspired, glass-friendly soft + optional solid) */
+.machina-vm-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.machina-vm-status--running {
+  background: color-mix(in srgb, var(--machina-vm-running) 18%, transparent);
+  color: color-mix(in srgb, var(--machina-vm-running) 88%, white);
+  border: 1px solid color-mix(in srgb, var(--machina-vm-running) 32%, transparent);
+}
+
+.machina-vm-status--stopped {
+  background: color-mix(in srgb, var(--machina-vm-stopped) 18%, transparent);
+  color: color-mix(in srgb, var(--machina-vm-stopped) 92%, white);
+  border: 1px solid color-mix(in srgb, var(--machina-vm-stopped) 32%, transparent);
+}
+
+.machina-vm-status--paused {
+  background: color-mix(in srgb, var(--machina-vm-paused) 18%, transparent);
+  color: color-mix(in srgb, var(--machina-vm-paused) 88%, white);
+  border: 1px solid color-mix(in srgb, var(--machina-vm-paused) 32%, transparent);
+}
+
+.machina-vm-status--creating {
+  background: color-mix(in srgb, var(--machina-vm-creating) 18%, transparent);
+  color: color-mix(in srgb, var(--machina-vm-creating) 88%, white);
+  border: 1px solid color-mix(in srgb, var(--machina-vm-creating) 32%, transparent);
+}
+
+.machina-vm-status--failed {
+  background: color-mix(in srgb, var(--machina-vm-failed) 18%, transparent);
+  color: color-mix(in srgb, var(--machina-vm-failed) 88%, white);
+  border: 1px solid color-mix(in srgb, var(--machina-vm-failed) 32%, transparent);
+}
+
+.machina-vm-status--migrating,
+.machina-vm-status--suspended {
+  background: color-mix(in srgb, var(--machina-vm-migrating) 18%, transparent);
+  color: color-mix(in srgb, var(--machina-vm-migrating) 88%, white);
+  border: 1px solid color-mix(in srgb, var(--machina-vm-migrating) 32%, transparent);
+}
+
+.machina-vm-status--unknown {
+  background: color-mix(in srgb, var(--machina-vm-unknown) 18%, transparent);
+  color: color-mix(in srgb, var(--machina-vm-unknown) 92%, white);
+  border: 1px solid color-mix(in srgb, var(--machina-vm-unknown) 32%, transparent);
+}
+
+.machina-vm-status--solid.machina-vm-status--running { background: var(--machina-vm-running); color: #fff; border-color: transparent; }
+.machina-vm-status--solid.machina-vm-status--stopped { background: var(--machina-vm-stopped); color: #fff; border-color: transparent; }
+.machina-vm-status--solid.machina-vm-status--paused { background: var(--machina-vm-paused); color: #fff; border-color: transparent; }
+.machina-vm-status--solid.machina-vm-status--creating { background: var(--machina-vm-creating); color: #fff; border-color: transparent; }
+.machina-vm-status--solid.machina-vm-status--failed { background: var(--machina-vm-failed); color: #fff; border-color: transparent; }
+.machina-vm-status--solid.machina-vm-status--migrating,
+.machina-vm-status--solid.machina-vm-status--suspended { background: var(--machina-vm-migrating); color: #fff; border-color: transparent; }
+.machina-vm-status--solid.machina-vm-status--unknown { background: var(--machina-vm-unknown); color: #fff; border-color: transparent; }
+
+.machina-vm-dot {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.machina-vm-dot--running { background: var(--machina-vm-running); }
+.machina-vm-dot--stopped { background: var(--machina-vm-stopped); }
+.machina-vm-dot--paused { background: var(--machina-vm-paused); }
+.machina-vm-dot--creating { background: var(--machina-vm-creating); }
+.machina-vm-dot--failed { background: var(--machina-vm-failed); }
+.machina-vm-dot--migrating,
+.machina-vm-dot--suspended { background: var(--machina-vm-migrating); }
+.machina-vm-dot--unknown { background: var(--machina-vm-unknown); }
+
+.machina-vm-dot--pulse {
+  animation: machina-vm-pulse 2s ease-in-out infinite;
+}
+
+@keyframes machina-vm-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, var(--machina-vm-running) 45%, transparent); }
+  50% { opacity: 0.85; box-shadow: 0 0 0 4px color-mix(in srgb, var(--machina-vm-running) 0%, transparent); }
+}
+
+.machina-vm-card-accent {
+  border-left: 4px solid var(--machina-vm-unknown);
+}
+
+.machina-vm-card-accent--running { border-left-color: var(--machina-vm-running); }
+.machina-vm-card-accent--stopped { border-left-color: var(--machina-vm-stopped); }
+.machina-vm-card-accent--paused { border-left-color: var(--machina-vm-paused); }
+.machina-vm-card-accent--creating { border-left-color: var(--machina-vm-creating); }
+.machina-vm-card-accent--failed { border-left-color: var(--machina-vm-failed); }
+.machina-vm-card-accent--migrating,
+.machina-vm-card-accent--suspended { border-left-color: var(--machina-vm-migrating); }
+.machina-vm-card-accent--unknown { border-left-color: var(--machina-vm-unknown); }
 
 /* Retrofit legacy platform cards/tables to glass inside desktop shell */
 .tahoe-page-root .card,

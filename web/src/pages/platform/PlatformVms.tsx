@@ -53,7 +53,9 @@ import { installStateTone } from '../../components/platform/GuestAgentDiagnostic
 import { pruneMissingPlatformVms } from '../../api/platformVmLifecycle'
 import { purgeVmShortcuts } from '../../utils/vmShortcuts'
 import { toastQueuedOperation } from '../../utils/platformTaskToast'
-import { hubLinkClasses, statusPillClasses, vmStateTone } from '../../utils/semanticColors'
+import VmStatusBadge from '../../components/VmStatusBadge'
+import { hubLinkClasses, statusPillClasses } from '../../utils/semanticColors'
+import { vmLaunchpadGradient, vmSemanticKind } from '../../utils/vmVisual'
 import VmSshConnectDialog, { navigateVmSshSession } from '../../components/vm/VmSshConnectDialog'
 
 type ViewMode = 'launchpad' | 'list' | 'columns'
@@ -516,7 +518,7 @@ export default function PlatformVms() {
   const vmGrid = view === 'launchpad' ? (
     <div className="grid gap-6 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
       {filteredVms.map((v) => {
-        const running = v.observed_state === 'running'
+        const running = vmSemanticKind(v.observed_state) === 'running'
         return (
           <div
             key={v.id}
@@ -532,8 +534,8 @@ export default function PlatformVms() {
             <Link to={`/platform/vms/${v.id}`} onClick={(e) => e.stopPropagation()} className="block">
               <LaunchpadAppIcon
                 name={v.name}
-                icon={<Monitor className={`w-8 h-8 sm:w-9 sm:h-9 ${running ? '' : 'opacity-60'}`} />}
-                gradient={running ? 'from-emerald-600 to-teal-700' : 'from-slate-600 to-slate-800'}
+                icon={<Monitor className={`w-8 h-8 sm:w-9 sm:h-9 ${running ? '' : 'opacity-75'}`} />}
+                gradient={vmLaunchpadGradient(v.observed_state)}
               />
             </Link>
             {running && v.inventory_source !== 'kubevirt' && (
@@ -594,11 +596,8 @@ export default function PlatformVms() {
               </td>
               <td className="p-3"><Link to={`/platform/vms/${v.id}`} className={`hover:underline ${hubLinkClasses()}`} onClick={(e) => e.stopPropagation()}>{v.name}</Link></td>
               <td className="p-3 text-xs text-slate-500 capitalize">{v.inventory_source ?? 'libvirt'}</td>
-              <td className="p-3 capitalize">
-                {v.observed_state}
-                {v.observed_state === 'missing' && (
-                  <span className="ml-1 text-[10px] text-amber-400/90">(missing)</span>
-                )}
+              <td className="p-3">
+                <VmStatusBadge state={v.observed_state} />
               </td>
               <td className="p-3 text-xs text-slate-500">{(v.tags ?? []).join(', ') || '—'}</td>
               <td className="p-3 text-slate-500">
@@ -659,11 +658,11 @@ export default function PlatformVms() {
     <div className="platform-finder-inspector p-4 space-y-3 h-full overflow-y-auto">
       <div className="flex items-center gap-2 flex-wrap">
         <h3 className="font-semibold text-white">{selectedVm.name}</h3>
-        <span className={statusPillClasses(vmStateTone(selectedVm.observed_state))}>{selectedVm.observed_state}</span>
+        <VmStatusBadge state={selectedVm.observed_state} />
       </div>
       <dl className="grid grid-cols-2 gap-2 text-xs">
         <div><dt className="platform-finder-inspector-label">Source</dt><dd className="capitalize text-white">{selectedVm.inventory_source ?? 'libvirt'}</dd></div>
-        <div><dt className="platform-finder-inspector-label">State</dt><dd className="capitalize text-white">{selectedVm.observed_state}{selectedVm.observed_state === 'missing' ? ' (missing from inventory)' : ''}</dd></div>
+        <div><dt className="platform-finder-inspector-label">State</dt><dd><VmStatusBadge state={selectedVm.observed_state} /></dd></div>
         <div><dt className="platform-finder-inspector-label">Host</dt><dd className="text-white">{selectedVm.inventory_source === 'kubevirt' ? (selectedVm.k8s_namespace ?? 'default') : selectedVm.host_id ? hostMap.get(selectedVm.host_id) : '—'}</dd></div>
         <div><dt className="platform-finder-inspector-label">vCPU</dt><dd className="text-white">{selectedVm.vcpus}</dd></div>
         <div><dt className="platform-finder-inspector-label">Memory</dt><dd className="text-white">{Math.round(selectedVm.memory_mib / 1024)} Gi</dd></div>

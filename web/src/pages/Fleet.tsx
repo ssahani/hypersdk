@@ -26,6 +26,7 @@ import {
 } from '../api/fleet'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import VmStatusBadge from '../components/VmStatusBadge'
 import { hubLinkClasses, statusToneClass } from '../utils/semanticColors'
 import { useTranslation } from 'react-i18next'
 
@@ -471,7 +472,9 @@ export default function FleetPage() {
                     )}
                   </td>
                   <td className="px-4 py-2 text-slate-400">{vm.peer}</td>
-                  <td className="px-4 py-2">{vm.state}</td>
+                  <td className="px-4 py-2">
+                    <VmStatusBadge state={vm.state} />
+                  </td>
                   <td className="px-4 py-2 text-right">
                     {vm.peer !== 'local' ? (
                       <div className="flex justify-end gap-1">

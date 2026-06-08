@@ -1,24 +1,13 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { statusBadgeClasses, statusBgClass, vmStateTone } from './semanticColors'
-
-export const stateColors: Record<string, string> = {
-  running: statusBgClass('ok'),
-  shutoff: statusBgClass('error'),
-  paused: statusBgClass('warn'),
-  'shutting down': statusBgClass('warn'),
-  crashed: statusBgClass('error'),
-  blocked: statusBgClass('info'),
-  suspended: statusBgClass('info'),
-  unknown: statusBgClass('neutral'),
-}
+import { vmStatusBadgeClasses, vmStatusDotClass } from './vmVisual'
 
 export function getStateColor(state: string): string {
-  return stateColors[state] || stateColors.unknown
+  return vmStatusDotClass(state)
 }
 
 export function getStateBadgeClasses(state: string): string {
-  return statusBadgeClasses(vmStateTone(state))
+  return vmStatusBadgeClasses(state)
 }
 
 export function formatBytes(bytes: number): string {

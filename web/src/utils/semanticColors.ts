@@ -70,11 +70,31 @@ export function statusDestructiveButtonClasses(extra = ''): string {
 }
 
 export function vmStateTone(state: string): 'ok' | 'warn' | 'error' | 'info' | 'neutral' {
-  const s = state.toLowerCase()
-  if (s === 'running' || s === 'active') return 'ok'
-  if (s === 'shutoff' || s === 'crashed' || s === 'error') return 'error'
-  if (s === 'paused' || s === 'shutting down') return 'warn'
-  if (s === 'suspended' || s === 'blocked') return 'info'
+  const s = state.toLowerCase().trim().replace(/_/g, ' ')
+  if (s === 'running' || s === 'active' || s === 'poweredon' || s === 'powered on') return 'ok'
+  if (s === 'failed' || s === 'crashed' || s === 'error') return 'error'
+  if (
+    s === 'paused' ||
+    s === 'shutting down' ||
+    s === 'missing' ||
+    s === 'creating' ||
+    s === 'building' ||
+    s === 'provisioning' ||
+    s === 'pending'
+  ) {
+    return 'warn'
+  }
+  if (s.includes('migrat') || s === 'suspended' || s === 'blocked') return 'info'
+  if (
+    s === 'shutoff' ||
+    s === 'stopped' ||
+    s === 'shut off' ||
+    s === 'poweredoff' ||
+    s === 'powered off' ||
+    s === 'inactive'
+  ) {
+    return 'neutral'
+  }
   return 'neutral'
 }
 

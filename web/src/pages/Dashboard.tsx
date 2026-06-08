@@ -549,7 +549,7 @@ export default function Dashboard() {
             vms.slice(0, 10).map((vm) => (
               <div key={vmScopeKey(vm)} className="flex items-center justify-between px-6 py-3.5 table-row-hover group">
                 <Link to={vmDetailRoute(vm.name, vm.libvirt_connection)} className="flex items-center gap-4 flex-1 min-w-0">
-                  <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${getStateColor(vm.state)} ${vm.state === 'running' ? 'animate-pulse-dot' : ''}`} />
+                  <div className={`shrink-0 ${getStateColor(vm.state)}`} />
                   <div className="min-w-0">
                     <div className="font-medium text-white group-hover:text-[var(--machina-status-info)] transition truncate flex items-center gap-2">
                       {vm.name}
