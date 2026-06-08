@@ -603,12 +603,16 @@ export function spotlightEntriesForTier(tier: PlatformDesktopTier, info: Platfor
 
   for (const { zone, itemsForTier, description } of SPOTLIGHT_HUB_ZONES) {
     for (const item of itemsForTier(tier)) {
+      const itemDescription =
+        item.to.includes('section=users') || item.to === '/platform/users'
+          ? 'Add user · RBAC roles · platform accounts'
+          : description
       push({
         id: `${zone.toLowerCase()}-${item.label}`,
         label: item.label,
         path: item.to,
         zone,
-        description,
+        description: itemDescription,
         kind: 'destination',
       })
     }

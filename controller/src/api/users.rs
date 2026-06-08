@@ -30,6 +30,52 @@ fn default_role() -> String {
     "operator".into()
 }
 
+fn validate_username(username: &str) -> Result<String, ApiError> {
+    let username = username.trim();
+    if username.is_empty() {
+        return Err(
+            ApiError::bad_request("username is required")
+                .with_code("invalid_request")
+                .with_remediation("Enter a non-empty username (letters, numbers, dash, underscore)."),
+        );
+    }
+    if username.len() > 64 {
+        return Err(ApiError::bad_request("username must be at most 64 characters").with_code("invalid_request"));
+    }
+    if !username
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+    {
+        return Err(
+            ApiError::bad_request("username contains invalid characters")
+                .with_code("invalid_name")
+                .with_remediation("Use letters, numbers, dash, underscore, or dot only."),
+        );
+    }
+    Ok(username.to_string())
+}
+
+fn validate_password(password: &str) -> Result<(), ApiError> {
+    if password.len() < 8 {
+        return Err(
+            ApiError::bad_request("password must be at least 8 characters")
+                .with_code("invalid_request")
+                .with_remediation("Choose a longer password for platform login."),
+        );
+    }
+    Ok(())
+}
+
+fn validate_role(role: &str) -> Result<String, ApiError> {
+    match role {
+        "admin" | "operator" | "viewer" => Ok(role.to_string()),
+        _ => Err(
+            ApiError::bad_request("role must be admin, operator, or viewer")
+                .with_code("invalid_request"),
+        ),
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct PatchUserBody {
     pub role: Option<String>,
@@ -55,14 +101,17 @@ pub async fn create_user(
     Json(body): Json<CreateUserBody>,
 ) -> Result<Json<UserRow>, ApiError> {
     require_admin(&actor)?;
+    let username = validate_username(&body.username)?;
+    validate_password(&body.password)?;
+    let role = validate_role(&body.role)?;
     let id = Uuid::new_v4();
     let hash = bcrypt::hash(&body.password, bcrypt::DEFAULT_COST)
         .map_err(|e| ApiError::internal(e.to_string()))?;
     sqlx::query("INSERT INTO users (id, username, password_hash, role) VALUES ($1, $2, $3, $4)")
         .bind(id)
-        .bind(&body.username)
+        .bind(&username)
         .bind(hash)
-        .bind(&body.role)
+        .bind(&role)
         .execute(&state.pool)
         .await?;
     let row = sqlx::query_as::<_, UserRow>(
@@ -82,6 +131,7 @@ pub async fn patch_user(
 ) -> Result<Json<UserRow>, ApiError> {
     require_admin(&actor)?;
     if let Some(role) = &body.role {
+        let role = validate_role(role)?;
         sqlx::query("UPDATE users SET role = $1 WHERE id = $2")
             .bind(role)
             .bind(id)
@@ -89,6 +139,7 @@ pub async fn patch_user(
             .await?;
     }
     if let Some(pass) = &body.password {
+        validate_password(pass)?;
         let hash = bcrypt::hash(pass, bcrypt::DEFAULT_COST)
             .map_err(|e| ApiError::internal(e.to_string()))?;
         sqlx::query("UPDATE users SET password_hash = $1 WHERE id = $2")
@@ -112,6 +163,17 @@ pub async fn delete_user(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_admin(&actor)?;
+    let row: (String,) = sqlx::query_as("SELECT username FROM users WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await?;
+    if row.0 == actor.username {
+        return Err(
+            ApiError::bad_request("cannot delete your own account")
+                .with_code("invalid_request")
+                .with_remediation("Sign in as another admin or delete a different user."),
+        );
+    }
     sqlx::query("DELETE FROM users WHERE id = $1")
         .bind(id)
         .execute(&state.pool)
@@ -119,9 +181,46 @@ pub async fn delete_user(
     Ok(Json(serde_json::json!({ "deleted": true })))
 }
 
-pub async fn me(Extension(actor): Extension<AuthUser>) -> Json<serde_json::Value> {
-    Json(serde_json::json!({
+#[derive(Debug, Serialize)]
+pub struct PruneInvalidUsersResponse {
+    pub deleted: u64,
+}
+
+pub async fn prune_invalid_users(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<PruneInvalidUsersResponse>, ApiError> {
+    require_admin(&actor)?;
+    let result = sqlx::query(
+        "DELETE FROM users WHERE username IS NULL OR btrim(username) = '' RETURNING id",
+    )
+    .execute(&state.pool)
+    .await?;
+    Ok(Json(PruneInvalidUsersResponse {
+        deleted: result.rows_affected(),
+    }))
+}
+
+pub async fn me(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let row: Option<UserRow> = sqlx::query_as(
+        "SELECT id, username, role, created_at FROM users WHERE username = $1",
+    )
+    .bind(&actor.username)
+    .fetch_optional(&state.pool)
+    .await?;
+    if let Some(row) = row {
+        return Ok(Json(serde_json::json!({
+            "id": row.id,
+            "username": row.username,
+            "role": row.role,
+            "created_at": row.created_at,
+        })));
+    }
+    Ok(Json(serde_json::json!({
         "username": actor.username,
         "role": actor.role,
-    }))
+    })))
 }

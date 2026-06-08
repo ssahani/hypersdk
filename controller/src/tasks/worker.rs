@@ -234,14 +234,16 @@ async fn vm_delete(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
     vm_lifecycle::set_vm_phase(&state.pool, vm_id, vm_lifecycle::PHASE_DELETING).await?;
 
-    let row: (String, Option<Uuid>, String, Option<String>) = sqlx::query_as(
-        "SELECT name, host_id, COALESCE(inventory_source, 'libvirt'), k8s_namespace FROM vms WHERE id = $1",
+    let row: (String, Option<Uuid>, String, Option<String>, String) = sqlx::query_as(
+        "SELECT name, host_id, COALESCE(inventory_source, 'libvirt'), k8s_namespace, observed_state FROM vms WHERE id = $1",
     )
     .bind(vm_id)
     .fetch_one(&state.pool)
     .await?;
 
-    if row.2 == "kubevirt" {
+    if row.4 == "missing" {
+        // Domain already absent from hypervisor inventory — drop the stale DB row only.
+    } else if row.2 == "kubevirt" {
         let ns = row.3.unwrap_or_else(|| "default".into());
         crate::engine::kubevirt_inventory::delete_kubevirt_vm(
             &state.config.daemon_base_url,
@@ -253,6 +255,8 @@ async fn vm_delete(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         let agent_addr = host_agent_addr(&state.pool, host_id).await?;
         let mut client = agent_client::connect(&agent_addr).await?;
         agent_client::delete_vm(&mut client, &row.0).await?;
+    } else {
+        // No host assigned — inventory row only.
     }
 
     sqlx::query("DELETE FROM vms WHERE id = $1")

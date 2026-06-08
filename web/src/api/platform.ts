@@ -1597,7 +1597,7 @@ export const deleteVmPortForward = (
   })
 
 export const vmDelete = (id: string, confirmed = false) =>
-  platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/delete`, {
+  platformFetch<{ task_id: string; status?: string; operation?: string }>(`/api/v1/vms/${id}/delete`, {
     method: 'POST',
     body: JSON.stringify(confirmed ? { confirmed: true } : {}),
   })
@@ -2075,13 +2075,31 @@ export const deleteVmSnapshot = (vmId: string, name: string) =>
   platformFetch<{ task_id: string }>(`/api/v1/vms/${vmId}/snapshots/${encodeURIComponent(name)}`, { method: 'DELETE' })
 
 export const listUsers = () => platformFetch<PlatformUser[]>('/api/v1/users')
-export const getCurrentUser = () => platformFetch<PlatformUser>('/api/v1/users/me')
+
+export function normalizePlatformUser(raw: Partial<PlatformUser> & { username?: string; role?: string }): PlatformUser | null {
+  const username = raw.username?.trim()
+  if (!username) return null
+  return {
+    id: raw.id ?? '',
+    username,
+    role: raw.role ?? 'viewer',
+    created_at: raw.created_at ?? '',
+  }
+}
+
+export const getCurrentUser = async () => {
+  const raw = await platformFetch<Partial<PlatformUser> & { username: string; role: string }>('/api/v1/users/me')
+  return normalizePlatformUser(raw) ?? { id: '', username: raw.username, role: raw.role, created_at: '' }
+}
 export const createUser = (body: { username: string; password: string; role?: string }) =>
   platformFetch<PlatformUser>('/api/v1/users', { method: 'POST', body: JSON.stringify(body) })
 export const patchUser = (id: string, body: { username?: string; role?: string }) =>
   platformFetch<PlatformUser>(`/api/v1/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 export const deleteUser = (id: string) =>
   platformFetch<{ deleted: boolean }>(`/api/v1/users/${id}`, { method: 'DELETE' })
+
+export const pruneInvalidUsers = () =>
+  platformFetch<{ deleted: number }>('/api/v1/users/prune-invalid', { method: 'POST', body: '{}' })
 
 export const revokeEnrollmentToken = (token: string) =>
   platformFetch<{ revoked: boolean }>(`/api/v1/enrollment/tokens/${encodeURIComponent(token)}`, { method: 'DELETE' })

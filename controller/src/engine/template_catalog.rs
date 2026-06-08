@@ -31,6 +31,9 @@ fn catalog_firewall_profile(t: &CatalogTemplate) -> &'static str {
     }
 }
 
+/// Shared Ubuntu 24.04 golden image used by cloud-init appliance profiles (DB, proxy, VPN, etc.).
+const UBUNTU_2404_DISK: &str = "/var/lib/libvirt/images/ubuntu-24.04.qcow2";
+
 const CATALOG: &[CatalogTemplate] = &[
     CatalogTemplate {
         name: "ubuntu-24.04",
@@ -166,7 +169,7 @@ const CATALOG: &[CatalogTemplate] = &[
     CatalogTemplate {
         name: "postgresql-16",
         version: "1.0.0",
-        source_disk: "/var/lib/libvirt/images/postgresql-16.qcow2",
+        source_disk: UBUNTU_2404_DISK,
         download_url: None,
         cloud_init: true,
         os_family: "linux",
@@ -179,7 +182,7 @@ const CATALOG: &[CatalogTemplate] = &[
     CatalogTemplate {
         name: "mysql-8",
         version: "1.0.0",
-        source_disk: "/var/lib/libvirt/images/mysql-8.qcow2",
+        source_disk: UBUNTU_2404_DISK,
         download_url: None,
         cloud_init: true,
         os_family: "linux",
@@ -192,7 +195,7 @@ const CATALOG: &[CatalogTemplate] = &[
     CatalogTemplate {
         name: "mariadb-11",
         version: "1.0.0",
-        source_disk: "/var/lib/libvirt/images/mariadb-11.qcow2",
+        source_disk: UBUNTU_2404_DISK,
         download_url: None,
         cloud_init: true,
         os_family: "linux",
@@ -205,7 +208,7 @@ const CATALOG: &[CatalogTemplate] = &[
     CatalogTemplate {
         name: "redis-7",
         version: "1.0.0",
-        source_disk: "/var/lib/libvirt/images/redis-7.qcow2",
+        source_disk: UBUNTU_2404_DISK,
         download_url: None,
         cloud_init: true,
         os_family: "linux",
@@ -218,10 +221,8 @@ const CATALOG: &[CatalogTemplate] = &[
     CatalogTemplate {
         name: "photon-os",
         version: "1.0.0",
-        source_disk: "/var/lib/libvirt/images/photon-os.qcow2",
-        download_url: Some(
-            "https://packages.vmware.com/photon/5.0/prod/updates/x86_64/images/photon_cloud_image-5.0-c00179534-generic.qcow2",
-        ),
+        source_disk: UBUNTU_2404_DISK,
+        download_url: None,
         cloud_init: true,
         os_family: "linux",
         category: "Appliance",
@@ -233,7 +234,7 @@ const CATALOG: &[CatalogTemplate] = &[
     CatalogTemplate {
         name: "nginx-proxy",
         version: "1.0.0",
-        source_disk: "/var/lib/libvirt/images/nginx-proxy.qcow2",
+        source_disk: UBUNTU_2404_DISK,
         download_url: None,
         cloud_init: true,
         os_family: "linux",
@@ -246,7 +247,7 @@ const CATALOG: &[CatalogTemplate] = &[
     CatalogTemplate {
         name: "wireguard-vpn",
         version: "1.0.0",
-        source_disk: "/var/lib/libvirt/images/wireguard-vpn.qcow2",
+        source_disk: UBUNTU_2404_DISK,
         download_url: None,
         cloud_init: true,
         os_family: "linux",

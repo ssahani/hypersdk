@@ -76,3 +76,10 @@ export function vmStatusDotClass(state: string | undefined | null): string {
   const pulse = kind === 'running' ? ' machina-vm-dot--pulse' : ''
   return `machina-vm-dot machina-vm-dot--${kind}${pulse}`
 }
+
+/** Safe GiB label for VM memory — avoids NaN when API omits memory_mib. */
+export function formatVmMemoryGiB(mib: number | undefined | null): string {
+  const n = Number(mib)
+  if (!Number.isFinite(n) || n <= 0) return '—'
+  return `${Math.round(n / 1024)} Gi`
+}

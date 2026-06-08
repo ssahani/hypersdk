@@ -19,7 +19,11 @@ pub fn require_admin(user: &AuthUser) -> Result<(), crate::api::ApiError> {
     if user.role == "admin" {
         Ok(())
     } else {
-        Err(crate::api::ApiError::bad_request("admin role required"))
+        Err(
+            crate::api::ApiError::bad_request("admin role required")
+                .with_code("forbidden")
+                .with_remediation("Sign in with an administrator account to manage users."),
+        )
     }
 }
 

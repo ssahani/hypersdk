@@ -533,6 +533,14 @@ pub async fn get_vm_domain_xml(
     Ok(Json(serde_json::json!({ "xml": xml })))
 }
 
+async fn delete_vm_inventory_row(pool: &sqlx::PgPool, vm_id: Uuid) -> Result<String, ApiError> {
+    let name: Option<String> = sqlx::query_scalar("DELETE FROM vms WHERE id = $1 RETURNING name")
+        .bind(vm_id)
+        .fetch_optional(pool)
+        .await?;
+    name.ok_or_else(|| ApiError::not_found("vm not found"))
+}
+
 pub async fn delete_vm(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -550,10 +558,27 @@ pub async fn delete_vm(
         ));
     }
 
-    let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
-        .bind(id)
-        .fetch_one(&state.pool)
-        .await?;
+    let meta: (Option<Uuid>, String) = sqlx::query_as(
+        "SELECT host_id, observed_state FROM vms WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await?;
+
+    if meta.1 == "missing" {
+        let name = delete_vm_inventory_row(&state.pool, id).await?;
+        state.emit_event(
+            "vm.pruned",
+            format!("Pruned missing VM record {name} from inventory"),
+        );
+        return Ok(Json(TaskResponse {
+            task_id: id.to_string(),
+            status: "completed".into(),
+            operation: "vm.delete".into(),
+        }));
+    }
+
+    let host_id = meta.0;
 
     let task_id = enqueue_task(
         &state,
@@ -928,6 +953,36 @@ pub async fn prune_missing_vms(
         );
     }
     Ok(Json(PruneMissingResponse { deleted }))
+}
+
+#[derive(Debug, Serialize)]
+pub struct PruneVmInventoryResponse {
+    pub deleted: bool,
+    pub name: String,
+}
+
+pub async fn prune_vm_inventory_record(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<PruneVmInventoryResponse>, ApiError> {
+    let observed: String = sqlx::query_scalar("SELECT observed_state FROM vms WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await?;
+    if observed != "missing" {
+        return Err(ApiError::bad_request(
+            "Only missing VM records can be pruned — use delete for guests still on the hypervisor",
+        ));
+    }
+    let name = delete_vm_inventory_row(&state.pool, id).await?;
+    state.emit_event(
+        "vm.pruned",
+        format!("Pruned missing VM record {name} from inventory"),
+    );
+    Ok(Json(PruneVmInventoryResponse {
+        deleted: true,
+        name,
+    }))
 }
 
 #[derive(Debug, Deserialize)]
@@ -1370,21 +1425,41 @@ pub async fn batch_vm_delete(
     }
     let mut results = Vec::with_capacity(body.vm_ids.len());
     for vm_id in body.vm_ids {
-        let host_id: Option<Uuid> = match sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
-            .bind(vm_id)
-            .fetch_optional(&state.pool)
-            .await?
-        {
-            Some(h) => h,
-            None => {
-                results.push(BatchVmPowerItem {
+        let row: Option<(Option<Uuid>, String)> = sqlx::query_as(
+            "SELECT host_id, observed_state FROM vms WHERE id = $1",
+        )
+        .bind(vm_id)
+        .fetch_optional(&state.pool)
+        .await?;
+        let Some((host_id, observed_state)) = row else {
+            results.push(BatchVmPowerItem {
+                vm_id: vm_id.to_string(),
+                task_id: None,
+                error: Some("vm not found".into()),
+            });
+            continue;
+        };
+        if observed_state == "missing" {
+            match delete_vm_inventory_row(&state.pool, vm_id).await {
+                Ok(name) => {
+                    state.emit_event(
+                        "vm.pruned",
+                        format!("Pruned missing VM record {name} from inventory"),
+                    );
+                    results.push(BatchVmPowerItem {
+                        vm_id: vm_id.to_string(),
+                        task_id: None,
+                        error: None,
+                    });
+                }
+                Err(e) => results.push(BatchVmPowerItem {
                     vm_id: vm_id.to_string(),
                     task_id: None,
-                    error: Some("vm not found".into()),
-                });
-                continue;
+                    error: Some(e.message),
+                }),
             }
-        };
+            continue;
+        }
         match enqueue_task(
             &state,
             "vm.delete",

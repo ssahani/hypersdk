@@ -217,16 +217,18 @@ pub async fn get_template_readiness(
     Ok(Json(readiness))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct PrefetchMissingImagesBody {
+    #[serde(default)]
     pub host_id: Option<uuid::Uuid>,
 }
 
 pub async fn prefetch_missing_template_images(
     State(state): State<AppState>,
     Extension(_actor): Extension<AuthUser>,
-    Json(body): Json<PrefetchMissingImagesBody>,
+    body: Option<Json<PrefetchMissingImagesBody>>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    let body = body.map(|j| j.0).unwrap_or_default();
     let host_id = if let Some(id) = body.host_id {
         id
     } else {

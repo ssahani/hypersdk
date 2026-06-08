@@ -109,6 +109,12 @@ export function isPlatformNotFoundError(e: unknown): boolean {
 }
 
 export function formatUserError(e: unknown): string {
+  if (e && typeof e === 'object' && 'remediation' in e) {
+    const remediation = (e as { remediation?: string }).remediation
+    const base = e instanceof Error ? sanitizeErrorText(e.message) : ''
+    if (remediation && base) return `${base} — ${remediation}`
+    if (remediation) return remediation
+  }
   if (e instanceof Error) {
     const msg = sanitizeErrorText(e.message)
     const m = msg.match(ERROR_CODE_RE)

@@ -34,7 +34,7 @@ import SimpleCreateVmWizard, {
 } from '../../components/platform/SimpleCreateVmWizard'
 import WindowsCreateWizard from '../../components/platform/WindowsCreateWizard'
 import MigratePrecheckModal from '../../components/platform/MigratePrecheckModal'
-import { batchVmSnapshot } from '../../api/platformVmLibvirt'
+import { batchVmDelete, batchVmSnapshot } from '../../api/platformVmLibvirt'
 import {
   adoptPlatformVm,
   batchVmPower,
@@ -43,7 +43,6 @@ import {
   getFleetFinder,
   listPlatformHosts,
   listPlatformVms,
-  vmDelete,
   type CreatePlatformVmBody,
   type FleetFinderOverview,
   type PlatformApiError,
@@ -62,12 +61,14 @@ import { purgeVmShortcuts } from '../../utils/vmShortcuts'
 import { toastQueuedOperation } from '../../utils/platformTaskToast'
 import VmStatusBadge from '../../components/VmStatusBadge'
 import { hubLinkClasses, statusPillClasses } from '../../utils/semanticColors'
-import { vmLaunchpadGradient, vmSemanticKind } from '../../utils/vmVisual'
+import { formatVmMemoryGiB, vmLaunchpadGradient, vmSemanticKind } from '../../utils/vmVisual'
 import VmSshConnectDialog, { navigateVmSshSession } from '../../components/vm/VmSshConnectDialog'
 
 type ViewMode = 'launchpad' | 'list' | 'columns'
 
 const VM_VIEW_STORAGE_KEY = 'platform-vms-view'
+/** Filtered client-side only — must not be sent to listPlatformVms folder param. */
+const CLIENT_ONLY_FOLDERS = new Set(['guest-gaps'])
 
 function readStoredView(): ViewMode {
   try {
@@ -200,7 +201,7 @@ export default function PlatformVms() {
       if (source) listParams.source = source
       if (tag) listParams.tag = tag
       else if (project) listParams.project = project
-      else if (folder && folder !== 'all') listParams.folder = folder
+      else if (folder && folder !== 'all' && !CLIENT_ONLY_FOLDERS.has(folder)) listParams.folder = folder
 
       const [v, h, f] = await Promise.all([
         listPlatformVms(listParams),
@@ -372,8 +373,6 @@ export default function PlatformVms() {
     setMigrateModal({ vm, destId: hostId, destName: host.hostname })
   }
 
-  const missingCount = useMemo(() => vms.filter((v) => v.observed_state === 'missing').length, [vms])
-
   const pruneMissing = async () => {
     if (!window.confirm(`Remove ${filteredVms.length} missing VM record(s) from inventory? This cannot be undone.`)) return
     setPruneBusy(true)
@@ -452,31 +451,46 @@ export default function PlatformVms() {
   const handleBatchDelete = async () => {
     setBatchDeleteOpen(false)
     setBatchDeleteBusy(true)
-    const ids = Array.from(selectedVmIds)
-    const results = await Promise.allSettled(
-      ids.map((id) => {
-        const vm = vmById.get(id)
-        if (vm?.inventory_source === 'kubevirt') {
-          return Promise.reject(new Error(`${vm.name}: KubeVirt guests must be deleted from the cluster`))
+    try {
+      const ids = Array.from(selectedVmIds)
+      const libvirtIds = ids.filter((id) => vmById.get(id)?.inventory_source !== 'kubevirt')
+      const kubevirtCount = ids.length - libvirtIds.length
+      if (libvirtIds.length === 0) {
+        toast.error('KubeVirt guests must be deleted from the cluster')
+        return
+      }
+      const r = await batchVmDelete(libvirtIds, true)
+      const okItems = r.results.filter((x) => !x.error)
+      const failItems = r.results.filter((x) => x.error)
+      if (okItems.length > 0) {
+        purgeVmShortcuts(
+          okItems
+            .map((x) => vmById.get(x.vm_id)?.name)
+            .filter((n): n is string => Boolean(n)),
+        )
+        const pruned = okItems.filter((x) => !x.task_id).length
+        const queued = okItems.length - pruned
+        if (pruned > 0 && queued > 0) {
+          toast.success(`Removed ${pruned} stale record(s), delete queued for ${queued} VM(s)`)
+        } else if (pruned > 0) {
+          toast.success(`Removed ${pruned} stale VM record(s) from inventory`)
+        } else {
+          toast.success(`Delete queued for ${queued} VM(s)`)
         }
-        return vmDelete(id, true)
-      }),
-    )
-    const ok = results.filter((r) => r.status === 'fulfilled').length
-    const fail = results.filter((r) => r.status === 'rejected').length
-    if (ok > 0) {
-      purgeVmShortcuts(
-        ids
-          .filter((_, i) => results[i].status === 'fulfilled')
-          .map((id) => vmById.get(id)?.name)
-          .filter((n): n is string => Boolean(n)),
-      )
-      toast.success(`Delete queued for ${ok} VM(s)`)
+      }
+      if (failItems.length > 0) {
+        toast.error(`${failItems.length} VM(s) could not be deleted`)
+      }
+      if (kubevirtCount > 0) {
+        toast.error(`${kubevirtCount} KubeVirt guest(s) skipped — delete from the cluster`)
+      }
+      setSelectedVmIds(new Set())
+      await load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setBatchDeleteBusy(false)
     }
-    if (fail > 0) toast.error(`${fail} VM(s) could not be deleted`)
-    setSelectedVmIds(new Set())
-    setBatchDeleteBusy(false)
-    await load()
   }
 
   useEffect(() => { setSelectedVmIds(new Set()) }, [search, folder, tag, project, source])
@@ -696,7 +710,7 @@ export default function PlatformVms() {
                 )}
               </td>
               <td className="p-3">{v.vcpus}</td>
-              <td className="p-3">{Math.round(v.memory_mib / 1024)} Gi</td>
+              <td className="p-3">{formatVmMemoryGiB(v.memory_mib)}</td>
               <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
                 {running && libvirt && (
                   <div className="inline-flex gap-1 justify-end">
@@ -737,7 +751,7 @@ export default function PlatformVms() {
         <div><dt className="platform-finder-inspector-label">State</dt><dd><VmStatusBadge state={selectedVm.observed_state} /></dd></div>
         <div><dt className="platform-finder-inspector-label">Host</dt><dd className="text-white">{selectedVm.inventory_source === 'kubevirt' ? (selectedVm.k8s_namespace ?? 'default') : selectedVm.host_id ? hostMap.get(selectedVm.host_id) : '—'}</dd></div>
         <div><dt className="platform-finder-inspector-label">vCPU</dt><dd className="text-white">{selectedVm.vcpus}</dd></div>
-        <div><dt className="platform-finder-inspector-label">Memory</dt><dd className="text-white">{Math.round(selectedVm.memory_mib / 1024)} Gi</dd></div>
+        <div><dt className="platform-finder-inspector-label">Memory</dt><dd className="text-white">{formatVmMemoryGiB(selectedVm.memory_mib)}</dd></div>
         {selectedVm.guest_ip && (
           <div className="col-span-2"><dt className="platform-finder-inspector-label">Guest IP</dt><dd className="font-mono text-emerald-300/90">{selectedVm.guest_ip}</dd></div>
         )}
@@ -867,7 +881,7 @@ export default function PlatformVms() {
           <div className="flex min-h-[420px] border border-white/[0.06] rounded-xl overflow-hidden">
             <aside className="w-44 shrink-0 border-r border-white/[0.06] p-2 space-y-0.5 overflow-y-auto">
               {(finder?.smart_folders ?? []).map((f) => (
-                <SidebarRow key={f.id} active={!tag && !project && folder === f.id} label={f.label} count={f.count} onClick={() => setFilter({ folder: f.id })} />
+                <SidebarRow key={f.id} active={!tag && !project && !source && folder === f.id} label={f.label} count={f.count} onClick={() => setFilter({ folder: f.id })} />
               ))}
               <SidebarRow
                 active={!tag && !project && folder === 'guest-gaps'}
@@ -932,8 +946,7 @@ export default function PlatformVms() {
                   <SidebarRow active={!source && !tag && !project && folder === 'all'} label="All sources" count={vms.length} onClick={() => { const p = new URLSearchParams(searchParams); p.delete('source'); setSearchParams(p, { replace: true }) }} />
                   <SidebarRow active={source === 'libvirt'} label="Libvirt" count={vms.filter((v) => (v.inventory_source ?? 'libvirt') === 'libvirt').length} onClick={() => { const p = new URLSearchParams(searchParams); p.set('source', 'libvirt'); p.delete('folder'); setSearchParams(p, { replace: true }) }} />
                   <SidebarRow active={source === 'kubevirt'} label="KubeVirt" count={vms.filter((v) => v.inventory_source === 'kubevirt').length} onClick={() => { const p = new URLSearchParams(searchParams); p.set('source', 'kubevirt'); p.delete('folder'); setSearchParams(p, { replace: true }) }} />
-                  <SidebarRow active={folder === 'discovered'} label="Discovered" count={vms.filter((v) => v.managed === false).length} onClick={() => setFilter({ folder: 'discovered' })} />
-                  <SidebarRow active={folder === 'missing'} label="Missing" count={missingCount} onClick={() => setFilter({ folder: 'missing' })} />
+                  <SidebarRow active={!source && folder === 'discovered'} label="Discovered" count={vms.filter((v) => v.managed === false).length} onClick={() => setFilter({ folder: 'discovered' })} />
                 </div>
               </div>
               {(finder?.tags.length ?? 0) > 0 && (

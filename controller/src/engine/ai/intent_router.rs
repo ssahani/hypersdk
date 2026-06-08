@@ -237,8 +237,29 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
-    if ql.contains("users and groups") || ql.contains("users & groups") || ql.contains("workspace switch")
-        || ql.contains("switch workspace") || ql.contains("switch tenant")
+    if ql.contains("add user")
+        || ql.contains("create user")
+        || ql.contains("new user")
+        || ql.contains("add platform user")
+    {
+        intents.push(intent(
+            "add-platform-user",
+            "Add platform user",
+            "Open Users settings to create an RBAC account (admin, operator, or viewer).",
+            "navigate",
+            None,
+            Some("/platform/users".into()),
+            None,
+        ));
+    }
+    if ql.contains("users and groups")
+        || ql.contains("users & groups")
+        || ql.contains("workspace switch")
+        || ql.contains("switch workspace")
+        || ql.contains("switch tenant")
+        || ql == "users"
+        || ql.contains("manage users")
+        || ql.contains("platform users")
     {
         intents.push(intent(
             "fleet-users",
@@ -246,7 +267,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             "Platform RBAC accounts and workspace (tenant) switcher.",
             "navigate",
             None,
-            Some("/platform/users?tab=workspaces".into()),
+            Some("/platform/users".into()),
             None,
         ));
     }

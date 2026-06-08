@@ -107,6 +107,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/vms", get(vms::list_vms).post(vms::create_vm))
         .route("/api/v1/vms/prune-missing", post(vms::prune_missing_vms))
         .route(
+            "/api/v1/vms/{id}/prune-inventory",
+            post(vms::prune_vm_inventory_record),
+        )
+        .route(
             "/api/v1/enrollment/tokens/{token}",
             delete(enrollment::revoke_enrollment_token),
         )
@@ -714,6 +718,7 @@ pub fn router(state: AppState) -> Router {
             post(content::reject_content_image),
         )
         .route("/api/v1/users", get(users::list_users).post(users::create_user))
+        .route("/api/v1/users/prune-invalid", post(users::prune_invalid_users))
         .route("/api/v1/users/me", get(users::me))
         .route(
             "/api/v1/users/{id}",

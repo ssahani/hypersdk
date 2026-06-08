@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { describe, expect, it } from 'vitest'
-import { vmLaunchpadGradient, vmSemanticKind, vmStatusBadgeClasses } from './vmVisual'
+import { formatVmMemoryGiB, vmLaunchpadGradient, vmSemanticKind, vmStatusBadgeClasses } from './vmVisual'
 import { vmStateTone } from './semanticColors'
 
 describe('vmVisual', () => {
@@ -32,5 +32,11 @@ describe('vmVisual', () => {
     expect(vmLaunchpadGradient('running')).toContain('emerald')
     expect(vmLaunchpadGradient('paused')).toContain('purple')
     expect(vmLaunchpadGradient('stopped')).toContain('gray')
+  })
+
+  it('formats memory safely when mib is missing', () => {
+    expect(formatVmMemoryGiB(1024)).toBe('1 Gi')
+    expect(formatVmMemoryGiB(undefined)).toBe('—')
+    expect(formatVmMemoryGiB(null)).toBe('—')
   })
 })

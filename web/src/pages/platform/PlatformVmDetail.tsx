@@ -99,6 +99,7 @@ import { purgeVmShortcuts } from '../../utils/vmShortcuts'
 import VmStatusBadge from '../../components/VmStatusBadge'
 import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 import { vmErrorPresentation } from '../../utils/vmErrorPresentation'
+import { formatVmMemoryGiB } from '../../utils/vmVisual'
 import { loadVmSshPrefs } from '../../utils/vmSshPrefs'
 import VmDailyAccessStrip from '../../components/vm/VmDailyAccessStrip'
 import VmPortForwardPanel from '../../components/vm/VmPortForwardPanel'
@@ -108,7 +109,7 @@ import { PlatformOpenStackVmLink } from '../../components/platform/PlatformCross
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { tasksHubHref } from '../../utils/platformHubLinks'
-import { downloadVmIacBundle, downloadVmIacZip, exportVmDisk, exportVmIac, retirePlatformVm, type VmIacExportBundle } from '../../api/platformVmLifecycle'
+import { downloadVmIacBundle, downloadVmIacZip, exportVmDisk, exportVmIac, pruneStaleVmRecord, retirePlatformVm, type VmIacExportBundle } from '../../api/platformVmLifecycle'
 import { publishVmAsTemplate } from '../../api/platformTemplatesExtra'
 import PlatformVmAdvanced from '../../components/platform/PlatformVmAdvanced'
 
@@ -428,8 +429,20 @@ export default function PlatformVmDetail() {
   const queueVmDelete = async (label: string) => {
     if (!id) return
     try {
+      if (vm?.observed_state === 'missing') {
+        const r = await pruneStaleVmRecord(id)
+        if (r.name) purgeVmShortcuts([r.name])
+        toast.success(label)
+        navigate('/platform/vms', { replace: true })
+        return
+      }
       const r = await vmDelete(id, true)
       if (vm?.name) purgeVmShortcuts([vm.name])
+      if (r.status === 'completed') {
+        toast.success(label)
+        navigate('/platform/vms', { replace: true })
+        return
+      }
       navigate('/platform/vms', { replace: true, state: { vmDeleteTaskId: r.task_id, vmDeleteLabel: label } })
     } catch (e: unknown) {
       toast.error(formatUserError(e))
@@ -551,7 +564,7 @@ export default function PlatformVmDetail() {
           <span className="text-slate-500">·</span>
           <span className="text-slate-400" title={hostRow?.address ?? undefined}>{hostLabel}</span>
           <span className="text-slate-500">·</span>
-          <span className="text-slate-400">{vm.vcpus} vCPU · {Math.round(vm.memory_mib / 1024)} GiB</span>
+          <span className="text-slate-400">{vm.vcpus ?? '—'} vCPU · {formatVmMemoryGiB(vm.memory_mib)}</span>
           {guestIp && (
             <>
               <span className="text-slate-500">·</span>

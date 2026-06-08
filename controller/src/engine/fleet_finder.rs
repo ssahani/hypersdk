@@ -40,7 +40,12 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetFinderOverview> {
     .fetch_one(pool)
     .await?;
     let stopped: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM vms WHERE observed_state != 'running'",
+        "SELECT COUNT(*) FROM vms WHERE observed_state NOT IN ('running', 'missing')",
+    )
+    .fetch_one(pool)
+    .await?;
+    let missing: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM vms WHERE observed_state = 'missing'",
     )
     .fetch_one(pool)
     .await?;
@@ -74,7 +79,7 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetFinderOverview> {
     .await
     .unwrap_or(0);
     let ha_enabled: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ha_policies WHERE enabled = TRUE",
+        "SELECT COUNT(*) FROM vms v JOIN ha_policies hp ON hp.vm_id = v.id WHERE hp.enabled = TRUE",
     )
     .fetch_one(pool)
     .await
@@ -131,6 +136,12 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetFinderOverview> {
             label: "Discovered".into(),
             count: discovered,
             icon: "discovered".into(),
+        },
+        SmartFolder {
+            id: "missing".into(),
+            label: "Missing".into(),
+            count: missing,
+            icon: "missing".into(),
         },
         SmartFolder {
             id: "untagged".into(),

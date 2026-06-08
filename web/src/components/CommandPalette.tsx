@@ -618,7 +618,15 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
     }
   }
 
-  const filtered = q ? items.filter(i => i.label.toLowerCase().includes(q) || (i.sublabel || '').toLowerCase().includes(q) || i.category === 'Platform Commands') : items
+  const queryTokens = q.split(/\s+/).filter(Boolean)
+  const matchesQuery = (label: string, sublabel?: string, category?: string) => {
+    if (queryTokens.length === 0) return true
+    const hay = `${label} ${sublabel ?? ''} ${category ?? ''}`.toLowerCase()
+    return queryTokens.every((token) => hay.includes(token))
+  }
+  const filtered = q
+    ? items.filter((i) => matchesQuery(i.label, i.sublabel, i.category) || i.category === 'Platform Commands')
+    : items
 
   // Group by category
   const categories = [

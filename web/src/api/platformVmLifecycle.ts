@@ -51,3 +51,9 @@ export function downloadVmIacBundle(bundle: VmIacExportBundle) {
 
 export const pruneMissingPlatformVms = () =>
   platformFetch<{ deleted: number }>('/api/v1/vms/prune-missing', { method: 'POST', body: '{}' })
+
+export const pruneStaleVmRecord = (id: string) =>
+  platformFetch<{ deleted: boolean; name: string }>(`/api/v1/vms/${id}/prune-inventory`, {
+    method: 'POST',
+    body: '{}',
+  })

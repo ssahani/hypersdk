@@ -18,6 +18,7 @@ import {
   getCurrentUser,
   getFleetUsers,
   listUsers,
+  pruneInvalidUsers,
   patchUser,
   type FleetUsersOverview,
   type PlatformUser,
@@ -44,21 +45,57 @@ export default function PlatformUsers({ embedded }: { embedded?: boolean } = {})
   const [rows, setRows] = useState<PlatformUser[]>([])
   const [me, setMe] = useState<PlatformUser | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [user, setUser] = useState('')
-  const [pass, setPass] = useState('')
+  const [formError, setFormError] = useState<string | null>(null)
+  const [newUsername, setNewUsername] = useState('')
+  const [newPassword, setNewPassword] = useState('')
   const [role, setRole] = useState('operator')
+  const [addBusy, setAddBusy] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
     try {
+      await pruneInvalidUsers().catch(() => null)
       const [f, users, current] = await Promise.all([getFleetUsers(), listUsers(), getCurrentUser().catch(() => null)])
       setFleet(f)
-      setRows(users)
+      setRows(users.filter((u) => u.username?.trim()))
       setMe(current)
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
   }, [])
+
+  const validateNewUser = () => {
+    const username = newUsername.trim()
+    if (!username) return 'Username is required.'
+    if (!/^[a-zA-Z0-9._-]+$/.test(username)) {
+      return 'Username may only contain letters, numbers, dot, dash, and underscore.'
+    }
+    if (newPassword.length < 8) return 'Password must be at least 8 characters.'
+    return null
+  }
+
+  const handleAddUser = async () => {
+    const validation = validateNewUser()
+    if (validation) {
+      setFormError(validation)
+      return
+    }
+    setFormError(null)
+    setAddBusy(true)
+    try {
+      await createUser({ username: newUsername.trim(), password: newPassword, role })
+      toast.success(`User ${newUsername.trim()} created`)
+      setNewUsername('')
+      setNewPassword('')
+      await load()
+    } catch (e: unknown) {
+      const message = formatUserError(e)
+      setFormError(message)
+      toast.error(message)
+    } finally {
+      setAddBusy(false)
+    }
+  }
 
   useEffect(() => { void load() }, [load])
 
@@ -100,52 +137,106 @@ export default function PlatformUsers({ embedded }: { embedded?: boolean } = {})
 
       {tab === 'users' && (
         <>
-          <div className="card p-4 grid gap-3 md:grid-cols-4">
-            <input className="input" placeholder="username" value={user} onChange={(e) => setUser(e.target.value)} />
-            <input className="input" type="password" placeholder="password" value={pass} onChange={(e) => setPass(e.target.value)} />
-            <select className="input" value={role} onChange={(e) => setRole(e.target.value)}>
-              <option value="admin">admin</option>
-              <option value="operator">operator</option>
-              <option value="viewer">viewer</option>
-            </select>
-            <button type="button" className="btn-primary w-fit flex items-center gap-2" onClick={async () => {
-              try {
-                await createUser({ username: user, password: pass, role })
-                toast.success('User created')
-                await load()
-              } catch (e: unknown) { toast.error(formatUserError(e)) }
-            }}><Plus className="w-4 h-4" /> Add user</button>
+          <div className="card p-4 space-y-3">
+            <p className="text-xs text-slate-500">Platform login accounts stored in the controller database (separate from OS/PAM users).</p>
+            <div className="grid gap-3 md:grid-cols-4 md:items-end">
+              <label className="block space-y-1">
+                <span className="text-xs text-slate-400">Username</span>
+                <input
+                  className="input w-full"
+                  placeholder="jane.ops"
+                  value={newUsername}
+                  autoComplete="off"
+                  onChange={(e) => { setNewUsername(e.target.value); setFormError(null) }}
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs text-slate-400">Password</span>
+                <input
+                  className="input w-full"
+                  type="password"
+                  placeholder="min. 8 characters"
+                  value={newPassword}
+                  autoComplete="new-password"
+                  onChange={(e) => { setNewPassword(e.target.value); setFormError(null) }}
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs text-slate-400">Role</span>
+                <select className="input w-full" value={role} onChange={(e) => setRole(e.target.value)}>
+                  <option value="admin">admin</option>
+                  <option value="operator">operator</option>
+                  <option value="viewer">viewer</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                className="btn-primary w-fit flex items-center gap-2"
+                disabled={addBusy}
+                onClick={() => void handleAddUser()}
+              >
+                <Plus className="w-4 h-4" /> {addBusy ? 'Adding…' : 'Add user'}
+              </button>
+            </div>
+            {formError && (
+              <p className="text-sm text-red-300" role="alert">{formError}</p>
+            )}
           </div>
           <div className="card overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="text-slate-400 border-b border-slate-800"><th className="p-3 text-left">User</th><th className="p-3">Role</th><th className="p-3" /></tr></thead>
-              <tbody>{rows.map((u) => (
-                <tr key={u.id} className="border-b border-slate-900">
-                  <td className="p-3">{u.username}</td>
-                  <td className="p-3">
-                    <select
-                      className="input text-xs capitalize"
-                      value={u.role}
-                      onChange={async (e) => {
-                        try {
-                          await patchUser(u.id, { role: e.target.value })
-                          toast.success('Role updated')
-                          await load()
-                        } catch (err: unknown) { toast.error(formatUserError(err)) }
-                      }}
-                    >
-                      <option value="admin">admin</option>
-                      <option value="operator">operator</option>
-                      <option value="viewer">viewer</option>
-                    </select>
-                  </td>
-                  <td className="p-3 text-right">
-                    <button type="button" className="btn-secondary text-xs" onClick={async () => {
-                      try { await deleteUser(u.id); toast.success('Deleted'); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
-                    }}>Delete</button>
-                  </td>
+            <table className="w-full text-sm min-w-[420px]">
+              <thead>
+                <tr className="text-slate-400 border-b border-slate-800">
+                  <th className="p-3 text-left w-[40%]">User</th>
+                  <th className="p-3 text-left w-[35%]">Role</th>
+                  <th className="p-3 text-right w-[25%]">Actions</th>
                 </tr>
-              ))}</tbody>
+              </thead>
+              <tbody>
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="p-6 text-center text-slate-500">No platform users yet — add one above.</td>
+                  </tr>
+                ) : rows.map((u) => (
+                  <tr key={u.id} className="border-b border-slate-900">
+                    <td className="p-3 font-medium text-slate-200">{u.username}</td>
+                    <td className="p-3">
+                      <select
+                        className="input text-xs capitalize w-full max-w-[160px]"
+                        value={u.role}
+                        onChange={async (e) => {
+                          try {
+                            await patchUser(u.id, { role: e.target.value })
+                            toast.success('Role updated')
+                            await load()
+                          } catch (err: unknown) { toast.error(formatUserError(err)) }
+                        }}
+                      >
+                        <option value="admin">admin</option>
+                        <option value="operator">operator</option>
+                        <option value="viewer">viewer</option>
+                      </select>
+                    </td>
+                    <td className="p-3 text-right">
+                      <button
+                        type="button"
+                        className="btn-secondary text-xs"
+                        disabled={me?.username === u.username}
+                        title={me?.username === u.username ? 'Cannot delete your own account' : undefined}
+                        onClick={async () => {
+                          if (!window.confirm(`Delete user ${u.username}?`)) return
+                          try {
+                            await deleteUser(u.id)
+                            toast.success('User deleted')
+                            await load()
+                          } catch (e: unknown) { toast.error(formatUserError(e)) }
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         </>
