@@ -56,6 +56,12 @@ async fn process_one(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> 
         "vm.backup" => vm_backup(state, msg).await?,
         "vm.backup.restore" => vm_backup_restore(state, msg).await?,
         "vm.disk.attach" => vm_disk_attach(state, msg).await?,
+        "vm.disk.detach" => vm_disk_detach(state, msg).await?,
+        "vm.disk.resize" => vm_disk_resize(state, msg).await?,
+        "vm.nic.attach" => vm_nic_attach(state, msg).await?,
+        "vm.nic.detach" => vm_nic_detach(state, msg).await?,
+        "vm.autostart" => vm_autostart(state, msg).await?,
+        "vm.resize" => vm_resize(state, msg).await?,
         "vm.guest_tools.install" => vm_guest_tools_install(state, msg).await?,
         "templates.prefetch_missing" => templates_prefetch_missing(state, msg).await?,
         other => anyhow::bail!("unknown operation: {other}"),
@@ -1563,6 +1569,158 @@ async fn vm_disk_attach(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
     agent_client::attach_disk(&mut client, &row.0, &disk_path, &target_dev).await?;
     state.emit_event("vm.disk.attach", format!("Attached disk to {}", row.0));
     update_task_progress(&state.pool, msg.task_id, 100, "disk attached").await?;
+    Ok(())
+}
+
+async fn vm_host_row(pool: &PgPool, vm_id: Uuid) -> anyhow::Result<(String, Uuid)> {
+    let row: (String, Option<Uuid>) =
+        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+            .bind(vm_id)
+            .fetch_one(pool)
+            .await?;
+    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
+    Ok((row.0, host_id))
+}
+
+async fn vm_disk_detach(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
+    let vm_id: Uuid = msg.payload["vm_id"]
+        .as_str()
+        .and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
+    let target_dev = msg.payload["target_dev"]
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("target_dev missing"))?
+        .to_string();
+    let (name, host_id) = vm_host_row(&state.pool, vm_id).await?;
+    let agent_addr = host_agent_addr(&state.pool, host_id).await?;
+    let mut client = agent_client::connect(&agent_addr).await?;
+    agent_client::detach_disk(&mut client, &name, &target_dev).await?;
+    state.emit_event("vm.disk.detach", format!("Detached disk {target_dev} from {name}"));
+    update_task_progress(&state.pool, msg.task_id, 100, "disk detached").await?;
+    Ok(())
+}
+
+async fn vm_disk_resize(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
+    let vm_id: Uuid = msg.payload["vm_id"]
+        .as_str()
+        .and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
+    let target_dev = msg.payload["target_dev"]
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("target_dev missing"))?
+        .to_string();
+    let size_gb = msg.payload["size_gb"]
+        .as_u64()
+        .ok_or_else(|| anyhow::anyhow!("size_gb missing"))?;
+    let (name, host_id) = vm_host_row(&state.pool, vm_id).await?;
+    let agent_addr = host_agent_addr(&state.pool, host_id).await?;
+    let mut client = agent_client::connect(&agent_addr).await?;
+    agent_client::resize_disk(&mut client, &name, &target_dev, size_gb).await?;
+    state.emit_event(
+        "vm.disk.resize",
+        format!("Resized disk {target_dev} on {name} to {size_gb} GiB"),
+    );
+    update_task_progress(&state.pool, msg.task_id, 100, "disk resized").await?;
+    Ok(())
+}
+
+async fn vm_nic_attach(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
+    let vm_id: Uuid = msg.payload["vm_id"]
+        .as_str()
+        .and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
+    let network = msg.payload["network"]
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("network missing"))?
+        .to_string();
+    let model = msg.payload["model"]
+        .as_str()
+        .unwrap_or("virtio")
+        .to_string();
+    let (name, host_id) = vm_host_row(&state.pool, vm_id).await?;
+    let agent_addr = host_agent_addr(&state.pool, host_id).await?;
+    let mut client = agent_client::connect(&agent_addr).await?;
+    agent_client::attach_nic(&mut client, &name, &network, &model).await?;
+    state.emit_event("vm.nic.attach", format!("Attached NIC on {network} to {name}"));
+    update_task_progress(&state.pool, msg.task_id, 100, "nic attached").await?;
+    Ok(())
+}
+
+async fn vm_nic_detach(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
+    let vm_id: Uuid = msg.payload["vm_id"]
+        .as_str()
+        .and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
+    let mac = msg.payload["mac_address"]
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("mac_address missing"))?
+        .to_string();
+    let (name, host_id) = vm_host_row(&state.pool, vm_id).await?;
+    let agent_addr = host_agent_addr(&state.pool, host_id).await?;
+    let mut client = agent_client::connect(&agent_addr).await?;
+    agent_client::detach_nic(&mut client, &name, &mac).await?;
+    state.emit_event("vm.nic.detach", format!("Detached NIC {mac} from {name}"));
+    update_task_progress(&state.pool, msg.task_id, 100, "nic detached").await?;
+    Ok(())
+}
+
+async fn vm_autostart(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
+    let vm_id: Uuid = msg.payload["vm_id"]
+        .as_str()
+        .and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
+    let enabled = msg.payload["enabled"].as_bool().unwrap_or(false);
+    let (name, host_id) = vm_host_row(&state.pool, vm_id).await?;
+    let agent_addr = host_agent_addr(&state.pool, host_id).await?;
+    let mut client = agent_client::connect(&agent_addr).await?;
+    agent_client::set_autostart(&mut client, &name, enabled).await?;
+    state.emit_event(
+        "vm.autostart",
+        format!("Autostart {} for {name}", if enabled { "enabled" } else { "disabled" }),
+    );
+    update_task_progress(&state.pool, msg.task_id, 100, "autostart updated").await?;
+    Ok(())
+}
+
+async fn vm_resize(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
+    let vm_id: Uuid = msg.payload["vm_id"]
+        .as_str()
+        .and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
+    let kind = msg.payload["kind"]
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("kind missing"))?;
+    let (name, host_id) = vm_host_row(&state.pool, vm_id).await?;
+    let agent_addr = host_agent_addr(&state.pool, host_id).await?;
+    let mut client = agent_client::connect(&agent_addr).await?;
+    match kind {
+        "vcpus" => {
+            let count = msg.payload["count"]
+                .as_u64()
+                .ok_or_else(|| anyhow::anyhow!("count missing"))? as u32;
+            agent_client::set_vcpus(&mut client, &name, count).await?;
+            sqlx::query("UPDATE vms SET vcpus = $1, updated_at = NOW() WHERE id = $2")
+                .bind(count as i32)
+                .bind(vm_id)
+                .execute(&state.pool)
+                .await?;
+            state.emit_event("vm.resize", format!("Set {name} vCPUs to {count}"));
+        }
+        "memory" => {
+            let memory_mb = msg.payload["memory_mb"]
+                .as_u64()
+                .ok_or_else(|| anyhow::anyhow!("memory_mb missing"))?;
+            agent_client::set_memory(&mut client, &name, memory_mb).await?;
+            sqlx::query("UPDATE vms SET memory_mib = $1, updated_at = NOW() WHERE id = $2")
+                .bind(memory_mb as i64)
+                .bind(vm_id)
+                .execute(&state.pool)
+                .await?;
+            state.emit_event("vm.resize", format!("Set {name} memory to {memory_mb} MiB"));
+        }
+        other => anyhow::bail!("unknown resize kind: {other}"),
+    }
+    update_task_progress(&state.pool, msg.task_id, 100, "resize complete").await?;
     Ok(())
 }
 

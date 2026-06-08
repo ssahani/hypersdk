@@ -1415,6 +1415,98 @@ export const attachVmDisk = (id: string, body: { disk_path: string; target_dev?:
     body: JSON.stringify(body),
   })
 
+export interface VmLibvirtDisk {
+  device: string
+  source: string
+  driver: string
+  target: string
+  bus?: string
+  cache?: string
+  readonly?: boolean
+  shareable?: boolean
+}
+
+export interface VmLibvirtInterface {
+  mac_address: string
+  source: string
+  model: string
+}
+
+export interface VmLibvirtDetails {
+  name: string
+  uuid: string
+  state: string
+  vcpus: number
+  memory_mb: number
+  os_type: string
+  arch: string
+  autostart: boolean
+  persistent: boolean
+  interfaces: VmLibvirtInterface[]
+  disks: VmLibvirtDisk[]
+}
+
+export const getVmLibvirtDetails = (id: string) =>
+  platformFetch<VmLibvirtDetails>(`/api/v1/vms/${id}/libvirt-details`)
+
+export const detachVmDisk = (id: string, target: string) =>
+  platformFetch<{ task_id: string }>(
+    `/api/v1/vms/${id}/disks/detach/${encodeURIComponent(target)}`,
+    { method: 'POST' },
+  )
+
+export const resizeVmDisk = (id: string, target: string, size_gb: number) =>
+  platformFetch<{ task_id: string }>(
+    `/api/v1/vms/${id}/disks/resize/${encodeURIComponent(target)}`,
+    { method: 'POST', body: JSON.stringify({ size_gb }) },
+  )
+
+export const attachVmNic = (id: string, body: { network: string; model?: string }) =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/nics/attach`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const detachVmNic = (id: string, mac: string) =>
+  platformFetch<{ task_id: string }>(
+    `/api/v1/vms/${id}/nics/detach/${encodeURIComponent(mac)}`,
+    { method: 'POST' },
+  )
+
+export const setVmAutostart = (id: string, enabled: boolean) =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/autostart`, {
+    method: 'POST',
+    body: JSON.stringify({ enabled }),
+  })
+
+export const setVmVcpus = (id: string, count: number) =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/vcpus`, {
+    method: 'POST',
+    body: JSON.stringify({ count }),
+  })
+
+export const setVmMemory = (id: string, memory_mb: number) =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/memory`, {
+    method: 'POST',
+    body: JSON.stringify({ memory_mb }),
+  })
+
+export const batchVmPower = (
+  vm_ids: string[],
+  action: VmPowerAction,
+  opts?: { mode?: 'agent' },
+) =>
+  platformFetch<{
+    results: Array<{ vm_id: string; task_id?: string; error?: string }>
+  }>('/api/v1/vms/batch/power', {
+    method: 'POST',
+    body: JSON.stringify({
+      vm_ids,
+      action,
+      ...(opts?.mode ? { mode: opts.mode } : {}),
+    }),
+  })
+
 export const listPlatformTemplates = () => platformFetch<PlatformTemplate[]>('/api/v1/templates')
 export const listMarketplaceTemplates = () => platformFetch<PlatformTemplate[]>('/api/v1/templates/marketplace')
 export const seedDefaultTemplates = () =>

@@ -113,6 +113,24 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/vms/{id}", get(vms::get_vm).patch(vms::patch_vm))
         .route("/api/v1/vms/{id}/disks", get(vms::list_vm_disks))
         .route("/api/v1/vms/{id}/disks/attach", post(vms::attach_vm_disk))
+        .route(
+            "/api/v1/vms/{id}/disks/detach/{target}",
+            post(vms::detach_vm_disk),
+        )
+        .route(
+            "/api/v1/vms/{id}/disks/resize/{target}",
+            post(vms::resize_vm_disk),
+        )
+        .route("/api/v1/vms/{id}/nics/attach", post(vms::attach_vm_nic))
+        .route(
+            "/api/v1/vms/{id}/nics/detach/{mac}",
+            post(vms::detach_vm_nic),
+        )
+        .route("/api/v1/vms/{id}/autostart", post(vms::set_vm_autostart))
+        .route("/api/v1/vms/{id}/vcpus", post(vms::set_vm_vcpus))
+        .route("/api/v1/vms/{id}/memory", post(vms::set_vm_memory))
+        .route("/api/v1/vms/{id}/libvirt-details", get(vms::get_vm_libvirt_details))
+        .route("/api/v1/vms/batch/power", post(vms::batch_vm_power))
         .route("/api/v1/vms/{id}/metrics", get(vms::get_vm_metrics))
         .route("/api/v1/vms/{id}/adopt", post(vms::adopt_vm))
         .route("/api/v1/vms/{id}/health-check", post(health_check::vm_health_check))

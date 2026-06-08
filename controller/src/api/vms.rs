@@ -985,6 +985,271 @@ pub async fn attach_vm_disk(
     }))
 }
 
+pub async fn get_vm_libvirt_details(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<machina_core::state::VmDetails>, ApiError> {
+    let row: (String, Option<Uuid>, String) = sqlx::query_as(
+        "SELECT name, host_id, COALESCE(inventory_source, 'libvirt') FROM vms WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await?;
+    if row.2 == "kubevirt" {
+        return Err(ApiError::bad_request(
+            "Libvirt details are only available for libvirt-managed VMs",
+        ));
+    }
+    let host_id = row
+        .1
+        .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
+    let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut client = crate::agent_client::connect(&agent_addr)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let details = crate::agent_client::get_vm_details(&mut client, &row.0)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(details))
+}
+
+async fn enqueue_vm_host_task(
+    state: &AppState,
+    vm_id: Uuid,
+    operation: &str,
+    payload: serde_json::Value,
+) -> Result<Json<TaskResponse>, ApiError> {
+    let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+        .bind(vm_id)
+        .fetch_one(&state.pool)
+        .await?;
+    let task_id = enqueue_task(
+        state,
+        operation,
+        payload,
+        Some("vm"),
+        Some(vm_id),
+        host_id,
+    )
+    .await?;
+    Ok(Json(TaskResponse {
+        task_id: task_id.to_string(),
+        status: "pending".into(),
+        operation: operation.to_string(),
+    }))
+}
+
+pub async fn detach_vm_disk(
+    State(state): State<AppState>,
+    Path((id, target)): Path<(Uuid, String)>,
+) -> Result<Json<TaskResponse>, ApiError> {
+    enqueue_vm_host_task(
+        &state,
+        id,
+        "vm.disk.detach",
+        serde_json::json!({
+            "vm_id": id.to_string(),
+            "target_dev": target,
+        }),
+    )
+    .await
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ResizeVmDiskBody {
+    pub size_gb: u64,
+}
+
+pub async fn resize_vm_disk(
+    State(state): State<AppState>,
+    Path((id, target)): Path<(Uuid, String)>,
+    Json(body): Json<ResizeVmDiskBody>,
+) -> Result<Json<TaskResponse>, ApiError> {
+    enqueue_vm_host_task(
+        &state,
+        id,
+        "vm.disk.resize",
+        serde_json::json!({
+            "vm_id": id.to_string(),
+            "target_dev": target,
+            "size_gb": body.size_gb,
+        }),
+    )
+    .await
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AttachNicBody {
+    pub network: String,
+    #[serde(default = "default_nic_model")]
+    pub model: String,
+}
+
+fn default_nic_model() -> String {
+    "virtio".into()
+}
+
+pub async fn attach_vm_nic(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<AttachNicBody>,
+) -> Result<Json<TaskResponse>, ApiError> {
+    enqueue_vm_host_task(
+        &state,
+        id,
+        "vm.nic.attach",
+        serde_json::json!({
+            "vm_id": id.to_string(),
+            "network": body.network,
+            "model": body.model,
+        }),
+    )
+    .await
+}
+
+pub async fn detach_vm_nic(
+    State(state): State<AppState>,
+    Path((id, mac)): Path<(Uuid, String)>,
+) -> Result<Json<TaskResponse>, ApiError> {
+    enqueue_vm_host_task(
+        &state,
+        id,
+        "vm.nic.detach",
+        serde_json::json!({
+            "vm_id": id.to_string(),
+            "mac_address": mac,
+        }),
+    )
+    .await
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetAutostartBody {
+    pub enabled: bool,
+}
+
+pub async fn set_vm_autostart(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<SetAutostartBody>,
+) -> Result<Json<TaskResponse>, ApiError> {
+    enqueue_vm_host_task(
+        &state,
+        id,
+        "vm.autostart",
+        serde_json::json!({
+            "vm_id": id.to_string(),
+            "enabled": body.enabled,
+        }),
+    )
+    .await
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetVcpusBody {
+    pub count: u32,
+}
+
+pub async fn set_vm_vcpus(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<SetVcpusBody>,
+) -> Result<Json<TaskResponse>, ApiError> {
+    enqueue_vm_host_task(
+        &state,
+        id,
+        "vm.resize",
+        serde_json::json!({
+            "vm_id": id.to_string(),
+            "kind": "vcpus",
+            "count": body.count,
+        }),
+    )
+    .await
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetMemoryBody {
+    pub memory_mb: u64,
+}
+
+pub async fn set_vm_memory(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<SetMemoryBody>,
+) -> Result<Json<TaskResponse>, ApiError> {
+    enqueue_vm_host_task(
+        &state,
+        id,
+        "vm.resize",
+        serde_json::json!({
+            "vm_id": id.to_string(),
+            "kind": "memory",
+            "memory_mb": body.memory_mb,
+        }),
+    )
+    .await
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BatchVmPowerBody {
+    pub vm_ids: Vec<Uuid>,
+    pub action: String,
+    #[serde(default)]
+    pub mode: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BatchVmPowerItem {
+    pub vm_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BatchVmPowerResponse {
+    pub results: Vec<BatchVmPowerItem>,
+}
+
+pub async fn batch_vm_power(
+    State(state): State<AppState>,
+    Json(body): Json<BatchVmPowerBody>,
+) -> Result<Json<BatchVmPowerResponse>, ApiError> {
+    let action = body.action.as_str();
+    if !matches!(action, "start" | "stop" | "shutdown" | "reboot" | "pause" | "resume") {
+        return Err(ApiError::bad_request("invalid batch power action"));
+    }
+    let operation = format!("vm.{action}");
+    let mut results = Vec::with_capacity(body.vm_ids.len());
+    for vm_id in body.vm_ids {
+        match power_action(
+            &state,
+            vm_id,
+            action,
+            &operation,
+            body.mode.clone(),
+        )
+        .await
+        {
+            Ok(Json(task)) => results.push(BatchVmPowerItem {
+                vm_id: vm_id.to_string(),
+                task_id: Some(task.task_id),
+                error: None,
+            }),
+            Err(e) => results.push(BatchVmPowerItem {
+                vm_id: vm_id.to_string(),
+                task_id: None,
+                error: Some(e.message),
+            }),
+        }
+    }
+    Ok(Json(BatchVmPowerResponse { results }))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct CreateVmPortForwardBody {
     pub protocol: String,

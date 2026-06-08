@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
-import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield, ExternalLink, Monitor, Pause, Power, Server, Loader2 } from 'lucide-react'
+import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield, ExternalLink, Monitor, Pause, Power, Server, Loader2, Network, ToggleLeft, ToggleRight } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
 import GuestToolsStrip from '../../components/platform/GuestToolsStrip'
 import GuestAgentDiagnosticsPanel, {
@@ -40,6 +40,16 @@ import {
   getVmMigrations,
   runVmHealthCheck,
   attachVmDisk,
+  attachVmNic,
+  detachVmDisk,
+  detachVmNic,
+  getVmLibvirtDetails,
+  listPlatformNetworks,
+  resizeVmDisk,
+  setVmAutostart,
+  setVmMemory,
+  setVmVcpus,
+  type VmLibvirtDetails,
   adoptPlatformVm,
   getVmHaPolicy,
   listPlatformHosts,
@@ -162,6 +172,15 @@ export default function PlatformVmDetail() {
   const [metrics, setMetrics] = useState<{ cpu_percent: number; memory_used_mib: number; updated_at: string } | null>(null)
   const [attachPath, setAttachPath] = useState('/var/lib/libvirt/images/data.qcow2')
   const [attachDev, setAttachDev] = useState('vdb')
+  const [libvirtDetails, setLibvirtDetails] = useState<VmLibvirtDetails | null>(null)
+  const [libvirtDetailsLoading, setLibvirtDetailsLoading] = useState(false)
+  const [resizeTarget, setResizeTarget] = useState('')
+  const [resizeGb, setResizeGb] = useState('10')
+  const [nicNetwork, setNicNetwork] = useState('default')
+  const [nicModel, setNicModel] = useState('virtio')
+  const [platformNetworks, setPlatformNetworks] = useState<Array<{ name: string }>>([])
+  const [resizeVcpus, setResizeVcpus] = useState('')
+  const [resizeMemoryGiB, setResizeMemoryGiB] = useState('')
   const [health, setHealth] = useState<VmHealthReport | null>(null)
   const [doctor, setDoctor] = useState<VmDoctorReport | null>(null)
   const [healthLoading, setHealthLoading] = useState(false)
@@ -357,10 +376,33 @@ export default function PlatformVmDetail() {
     void loadGuestPorts()
   }, [id, vm?.observed_state, vm?.inventory_source, loadGuestPorts])
 
+  const loadLibvirtDetails = useCallback(async () => {
+    if (!id || vm?.inventory_source === 'kubevirt') return
+    setLibvirtDetailsLoading(true)
+    try {
+      const details = await getVmLibvirtDetails(id)
+      setLibvirtDetails(details)
+      if (!resizeVcpus) setResizeVcpus(String(details.vcpus))
+      if (!resizeMemoryGiB) setResizeMemoryGiB(String(Math.round(details.memory_mb / 1024)))
+    } catch {
+      setLibvirtDetails(null)
+    } finally {
+      setLibvirtDetailsLoading(false)
+    }
+  }, [id, resizeMemoryGiB, resizeVcpus, vm?.inventory_source])
+
   useEffect(() => {
     if (tab === 'security' && id) void loadGuestPorts()
     if (tab === 'guestServices' && id) void loadGuestServices()
-  }, [tab, id, loadGuestPorts, loadGuestServices])
+    if ((tab === 'disks' || tab === 'network' || tab === 'settings') && id && vm?.inventory_source !== 'kubevirt') {
+      void loadLibvirtDetails()
+      if (tab === 'network') {
+        void listPlatformNetworks()
+          .then((nets) => setPlatformNetworks(nets.map((n) => ({ name: n.name }))))
+          .catch(() => setPlatformNetworks([]))
+      }
+    }
+  }, [tab, id, loadGuestPorts, loadGuestServices, loadLibvirtDetails, vm?.inventory_source])
 
   useEffect(() => {
     setContextVmId(id ?? null)
@@ -376,6 +418,7 @@ export default function PlatformVmDetail() {
         toast.success(label)
       }
       await load()
+      if (tab === 'disks' || tab === 'network' || tab === 'settings') await loadLibvirtDetails()
     } catch (e: unknown) {
       toast.error(formatUserError(e))
     }
@@ -825,8 +868,39 @@ export default function PlatformVmDetail() {
 
           {tab === 'disks' && (
             <div className="space-y-4 pt-2">
+              <MacGlassPanel title="Libvirt disks" subtitle="Live hypervisor inventory">
+                {libvirtDetailsLoading ? (
+                  <p className="text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</p>
+                ) : libvirtDetails?.disks.length ? (
+                  <ul className="text-sm text-slate-400 space-y-3">
+                    {libvirtDetails.disks.map((d) => (
+                      <li key={d.target} className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.04] pb-2">
+                        <span>
+                          <span className="font-mono text-slate-200">{d.target}</span>
+                          {' · '}{d.device}
+                          {d.source ? ` · ${d.source}` : ''}
+                        </span>
+                        {d.device === 'disk' && (
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              className="btn-secondary text-xs"
+                              disabled={vm.managed === false}
+                              onClick={() => void act(`Detach ${d.target} queued`, () => detachVmDisk(id, d.target))}
+                            >
+                              Detach
+                            </button>
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-500">No disks reported from libvirt.</p>
+                )}
+              </MacGlassPanel>
               {disks.length > 0 && (
-                <MacGlassPanel title="Attached disks">
+                <MacGlassPanel title="Platform disk records">
                   <ul className="text-sm text-slate-400 space-y-2">{disks.map((d) => (
                     <li key={d.id}>{d.name} · {d.size_gib} GiB · {d.storage_class}{d.path ? ` · ${d.path}` : ''}</li>
                   ))}</ul>
@@ -839,11 +913,85 @@ export default function PlatformVmDetail() {
                   <button type="button" className="btn-secondary" disabled={vm.managed === false} onClick={() => void act('Attach disk queued', () => attachVmDisk(id, { disk_path: attachPath, target_dev: attachDev }))}>Attach</button>
                 </div>
               </MacGlassPanel>
+              <MacGlassPanel title="Resize block device">
+                <div className="flex flex-wrap gap-3 items-end">
+                  <label className="text-xs text-slate-500">
+                    Target
+                    <select className="input mt-1 block min-w-[8rem]" value={resizeTarget} onChange={(e) => setResizeTarget(e.target.value)}>
+                      <option value="">Select…</option>
+                      {(libvirtDetails?.disks ?? []).filter((d) => d.device === 'disk').map((d) => (
+                        <option key={d.target} value={d.target}>{d.target}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs text-slate-500">Size (GiB)<input type="number" min={1} className="input mt-1 block w-24" value={resizeGb} onChange={(e) => setResizeGb(e.target.value)} /></label>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={vm.managed === false || !resizeTarget || !resizeGb}
+                    onClick={() => void act('Resize disk queued', () => resizeVmDisk(id, resizeTarget, Number(resizeGb)))}
+                  >
+                    Resize
+                  </button>
+                </div>
+              </MacGlassPanel>
             </div>
           )}
 
           {tab === 'network' && vm.inventory_source !== 'kubevirt' && (
             <div className="space-y-4 pt-2">
+              <MacGlassPanel title="Network interfaces" subtitle="Hot-plug NICs via libvirt">
+                {libvirtDetailsLoading ? (
+                  <p className="text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</p>
+                ) : libvirtDetails?.interfaces.length ? (
+                  <ul className="text-sm text-slate-400 space-y-3">
+                    {libvirtDetails.interfaces.map((iface) => (
+                      <li key={iface.mac_address} className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.04] pb-2">
+                        <span className="flex items-center gap-2"><Network className="w-4 h-4 text-slate-500" />{iface.mac_address} · {iface.source} · {iface.model}</span>
+                        <button
+                          type="button"
+                          className="btn-secondary text-xs"
+                          disabled={vm.managed === false}
+                          onClick={() => void act('Detach NIC queued', () => detachVmNic(id, iface.mac_address))}
+                        >
+                          Detach
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-500">No interfaces attached.</p>
+                )}
+                <div className="flex flex-wrap gap-3 items-end mt-4 pt-3 border-t border-white/[0.04]">
+                  <label className="text-xs text-slate-500">
+                    Network
+                    {platformNetworks.length > 0 ? (
+                      <select className="input mt-1 block min-w-[12rem]" value={nicNetwork} onChange={(e) => setNicNetwork(e.target.value)}>
+                        {platformNetworks.map((n) => <option key={n.name} value={n.name}>{n.name}</option>)}
+                      </select>
+                    ) : (
+                      <input className="input mt-1 block min-w-[12rem]" value={nicNetwork} onChange={(e) => setNicNetwork(e.target.value)} />
+                    )}
+                  </label>
+                  <label className="text-xs text-slate-500">
+                    Model
+                    <select className="input mt-1 block w-28" value={nicModel} onChange={(e) => setNicModel(e.target.value)}>
+                      <option value="virtio">virtio</option>
+                      <option value="e1000">e1000</option>
+                      <option value="e1000e">e1000e</option>
+                      <option value="rtl8139">rtl8139</option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={vm.managed === false || !nicNetwork.trim()}
+                    onClick={() => void act('Attach NIC queued', () => attachVmNic(id, { network: nicNetwork.trim(), model: nicModel }))}
+                  >
+                    Attach NIC
+                  </button>
+                </div>
+              </MacGlassPanel>
               <MacGlassPanel title="Hypervisor NAT (port forwards)">
                 <VmPortForwardPanel
                   platformVmId={id!}
@@ -852,8 +1000,8 @@ export default function PlatformVmDetail() {
                   onNotify={(msg) => toast.success(msg)}
                 />
               </MacGlassPanel>
-              <MacGlassPanel title="Spec & bridges">
-                <p className="text-sm text-slate-400">Network configuration is defined in the VM spec. Use migration pre-check for cross-host network validation.</p>
+              <MacGlassPanel title="Platform networks">
+                <p className="text-sm text-slate-400">Attach NICs to libvirt networks provisioned on the host.</p>
                 <Link to="/platform/networks" className={`text-sm mt-2 inline-block ${hubLinkClasses()}`}>Manage networks →</Link>
               </MacGlassPanel>
             </div>
@@ -1199,6 +1347,57 @@ export default function PlatformVmDetail() {
 
           {tab === 'settings' && (
             <div className="space-y-4">
+              {vm.inventory_source !== 'kubevirt' && (
+                <MacGlassPanel title="Boot & sizing">
+                  <div className="flex flex-wrap items-center gap-4 mb-4">
+                    <span className="text-sm text-slate-400">Autostart on host boot</span>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-2 text-sm"
+                      disabled={vm.managed === false || libvirtDetailsLoading}
+                      onClick={() => void act(
+                        libvirtDetails?.autostart ? 'Autostart disabled' : 'Autostart enabled',
+                        () => setVmAutostart(id, !libvirtDetails?.autostart),
+                      )}
+                    >
+                      {libvirtDetails?.autostart ? (
+                        <><ToggleRight className={`w-5 h-5 ${statusToneClass('ok')}`} /> Enabled</>
+                      ) : (
+                        <><ToggleLeft className="w-5 h-5 text-slate-500" /> Disabled</>
+                      )}
+                    </button>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="text-xs text-slate-500">
+                      vCPUs
+                      <input type="number" min={1} className="input mt-1 block w-full" value={resizeVcpus} onChange={(e) => setResizeVcpus(e.target.value)} />
+                    </label>
+                    <label className="text-xs text-slate-500">
+                      Memory (GiB)
+                      <input type="number" min={1} className="input mt-1 block w-full" value={resizeMemoryGiB} onChange={(e) => setResizeMemoryGiB(e.target.value)} />
+                    </label>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <button
+                      type="button"
+                      className="btn-secondary text-sm"
+                      disabled={vm.managed === false || !resizeVcpus}
+                      onClick={() => void act('vCPU resize queued', () => setVmVcpus(id, Number(resizeVcpus)))}
+                    >
+                      Apply vCPUs
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary text-sm"
+                      disabled={vm.managed === false || !resizeMemoryGiB}
+                      onClick={() => void act('Memory resize queued', () => setVmMemory(id, Number(resizeMemoryGiB) * 1024))}
+                    >
+                      Apply memory
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">Config changes apply to the libvirt domain definition (offline resize). Running guests may need a reboot for some changes.</p>
+                </MacGlassPanel>
+              )}
               <MacGlassPanel title="High availability">
                 <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={ha.enabled} onChange={(e) => setHa({ ...ha, enabled: e.target.checked })} /> Restart on host failure</label>
                 <label className="flex items-center gap-2 text-sm mt-2"><input type="checkbox" checked={ha.fence_on_failure} onChange={(e) => setHa({ ...ha, fence_on_failure: e.target.checked })} /> Fence host on failure</label>

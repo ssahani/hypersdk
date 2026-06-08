@@ -6,10 +6,14 @@ import {
   Copy,
   FolderOpen,
   Monitor,
+  Pause,
+  Play,
   Plus,
+  Power,
   RefreshCw,
   Server,
   Sparkles,
+  Square,
   Tag,
   Terminal,
   Trash2,
@@ -31,6 +35,7 @@ import WindowsCreateWizard from '../../components/platform/WindowsCreateWizard'
 import MigratePrecheckModal from '../../components/platform/MigratePrecheckModal'
 import {
   adoptPlatformVm,
+  batchVmPower,
   createFromTemplate,
   createPlatformVm,
   getFleetFinder,
@@ -126,6 +131,7 @@ export default function PlatformVms() {
   const [selectedVmIds, setSelectedVmIds] = useState<Set<string>>(new Set())
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
   const [batchDeleteBusy, setBatchDeleteBusy] = useState(false)
+  const [batchPowerBusy, setBatchPowerBusy] = useState(false)
   const [sshVm, setSshVm] = useState<PlatformVm | null>(null)
   const [pruneBusy, setPruneBusy] = useState(false)
 
@@ -395,6 +401,28 @@ export default function PlatformVms() {
     else setSelectedVmIds(new Set(filteredVms.map((v) => v.id)))
   }
 
+  const handleBatchPower = async (action: 'start' | 'stop' | 'shutdown' | 'pause' | 'resume') => {
+    const ids = Array.from(selectedVmIds).filter((id) => vmById.get(id)?.inventory_source !== 'kubevirt')
+    if (ids.length === 0) {
+      toast.error('Batch power applies to libvirt VMs only')
+      return
+    }
+    setBatchPowerBusy(true)
+    try {
+      const r = await batchVmPower(ids, action)
+      const ok = r.results.filter((x) => x.task_id).length
+      const fail = r.results.filter((x) => x.error).length
+      if (ok > 0) toast.success(`${action} queued for ${ok} VM(s)`)
+      if (fail > 0) toast.error(`${fail} VM(s) could not be updated`)
+      setSelectedVmIds(new Set())
+      await load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setBatchPowerBusy(false)
+    }
+  }
+
   const handleBatchDelete = async () => {
     setBatchDeleteOpen(false)
     setBatchDeleteBusy(true)
@@ -475,10 +503,25 @@ export default function PlatformVms() {
       {selectedVmIds.size > 0 && (
         <>
           <span className="text-xs text-slate-400 hidden sm:inline">{selectedVmIds.size} selected</span>
+          <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" disabled={batchPowerBusy} onClick={() => void handleBatchPower('start')}>
+            <Play className="w-4 h-4" /> Start
+          </button>
+          <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" disabled={batchPowerBusy} onClick={() => void handleBatchPower('shutdown')}>
+            <Power className="w-4 h-4" /> Shutdown
+          </button>
+          <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" disabled={batchPowerBusy} onClick={() => void handleBatchPower('stop')}>
+            <Square className="w-4 h-4" /> Force stop
+          </button>
+          <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" disabled={batchPowerBusy} onClick={() => void handleBatchPower('pause')}>
+            <Pause className="w-4 h-4" /> Pause
+          </button>
+          <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" disabled={batchPowerBusy} onClick={() => void handleBatchPower('resume')}>
+            <Play className="w-4 h-4" /> Resume
+          </button>
           <button
             type="button"
             className="btn-danger text-sm inline-flex items-center gap-1"
-            disabled={batchDeleteBusy}
+            disabled={batchDeleteBusy || batchPowerBusy}
             onClick={() => setBatchDeleteOpen(true)}
           >
             <Trash2 className="w-4 h-4" />

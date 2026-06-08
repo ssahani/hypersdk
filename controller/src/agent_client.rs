@@ -421,8 +421,138 @@ pub async fn attach_disk(
         })
         .await?
         .into_inner();
-    if resp.ok {
+    vm_op_response(resp.ok, &resp.message)
+}
+
+fn vm_op_response(ok: bool, message: &str) -> anyhow::Result<()> {
+    if ok {
         Ok(())
+    } else {
+        anyhow::bail!("{message}")
+    }
+}
+
+pub async fn detach_disk(
+    client: &mut HostAgentClient<Channel>,
+    vm_name: &str,
+    target_dev: &str,
+) -> anyhow::Result<()> {
+    let resp = client
+        .detach_disk(DetachDiskRequest {
+            vm_name: vm_name.to_string(),
+            target_dev: target_dev.to_string(),
+        })
+        .await?
+        .into_inner();
+    vm_op_response(resp.ok, &resp.message)
+}
+
+pub async fn resize_disk(
+    client: &mut HostAgentClient<Channel>,
+    vm_name: &str,
+    target_dev: &str,
+    size_gb: u64,
+) -> anyhow::Result<()> {
+    let resp = client
+        .resize_disk(ResizeDiskRequest {
+            vm_name: vm_name.to_string(),
+            target_dev: target_dev.to_string(),
+            size_gb,
+        })
+        .await?
+        .into_inner();
+    vm_op_response(resp.ok, &resp.message)
+}
+
+pub async fn attach_nic(
+    client: &mut HostAgentClient<Channel>,
+    vm_name: &str,
+    network: &str,
+    model: &str,
+) -> anyhow::Result<()> {
+    let resp = client
+        .attach_nic(AttachNicRequest {
+            vm_name: vm_name.to_string(),
+            network: network.to_string(),
+            model: model.to_string(),
+        })
+        .await?
+        .into_inner();
+    vm_op_response(resp.ok, &resp.message)
+}
+
+pub async fn detach_nic(
+    client: &mut HostAgentClient<Channel>,
+    vm_name: &str,
+    mac_address: &str,
+) -> anyhow::Result<()> {
+    let resp = client
+        .detach_nic(DetachNicRequest {
+            vm_name: vm_name.to_string(),
+            mac_address: mac_address.to_string(),
+        })
+        .await?
+        .into_inner();
+    vm_op_response(resp.ok, &resp.message)
+}
+
+pub async fn set_autostart(
+    client: &mut HostAgentClient<Channel>,
+    vm_name: &str,
+    enabled: bool,
+) -> anyhow::Result<()> {
+    let resp = client
+        .set_autostart(SetAutostartRequest {
+            vm_name: vm_name.to_string(),
+            enabled,
+        })
+        .await?
+        .into_inner();
+    vm_op_response(resp.ok, &resp.message)
+}
+
+pub async fn set_vcpus(
+    client: &mut HostAgentClient<Channel>,
+    vm_name: &str,
+    count: u32,
+) -> anyhow::Result<()> {
+    let resp = client
+        .set_vcpus(SetVcpusRequest {
+            vm_name: vm_name.to_string(),
+            count,
+        })
+        .await?
+        .into_inner();
+    vm_op_response(resp.ok, &resp.message)
+}
+
+pub async fn set_memory(
+    client: &mut HostAgentClient<Channel>,
+    vm_name: &str,
+    memory_mb: u64,
+) -> anyhow::Result<()> {
+    let resp = client
+        .set_memory(SetMemoryRequest {
+            vm_name: vm_name.to_string(),
+            memory_mb,
+        })
+        .await?
+        .into_inner();
+    vm_op_response(resp.ok, &resp.message)
+}
+
+pub async fn get_vm_details(
+    client: &mut HostAgentClient<Channel>,
+    vm_name: &str,
+) -> anyhow::Result<machina_core::state::VmDetails> {
+    let resp = client
+        .get_vm_details(GetVmDetailsRequest {
+            vm_name: vm_name.to_string(),
+        })
+        .await?
+        .into_inner();
+    if resp.ok {
+        serde_json::from_str(&resp.details_json).map_err(|e| anyhow::anyhow!("decode vm details: {e}"))
     } else {
         anyhow::bail!("{}", resp.message)
     }

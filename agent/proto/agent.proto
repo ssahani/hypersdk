@@ -28,6 +28,14 @@ service HostAgent {
   rpc ProvisionStoragePool(ProvisionStoragePoolRequest) returns (ProvisionStoragePoolResponse);
   rpc ProvisionNetwork(ProvisionNetworkRequest) returns (ProvisionNetworkResponse);
   rpc AttachDisk(AttachDiskRequest) returns (AttachDiskResponse);
+  rpc DetachDisk(DetachDiskRequest) returns (DetachDiskResponse);
+  rpc ResizeDisk(ResizeDiskRequest) returns (ResizeDiskResponse);
+  rpc AttachNic(AttachNicRequest) returns (AttachNicResponse);
+  rpc DetachNic(DetachNicRequest) returns (DetachNicResponse);
+  rpc SetAutostart(SetAutostartRequest) returns (SetAutostartResponse);
+  rpc SetVcpus(SetVcpusRequest) returns (SetVcpusResponse);
+  rpc SetMemory(SetMemoryRequest) returns (SetMemoryResponse);
+  rpc GetVmDetails(GetVmDetailsRequest) returns (GetVmDetailsResponse);
   rpc GetGuestHealth(GetGuestHealthRequest) returns (GetGuestHealthResponse);
   rpc GetGuestObservability(GetGuestObservabilityRequest) returns (GetGuestObservabilityResponse);
   rpc GuestAgentAction(GuestAgentActionRequest) returns (GuestAgentActionResponse);
@@ -377,6 +385,88 @@ message AttachDiskRequest {
 message AttachDiskResponse {
   bool ok = 1;
   string message = 2;
+}
+
+message DetachDiskRequest {
+  string vm_name = 1;
+  string target_dev = 2;
+}
+
+message DetachDiskResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message ResizeDiskRequest {
+  string vm_name = 1;
+  string target_dev = 2;
+  uint64 size_gb = 3;
+}
+
+message ResizeDiskResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message AttachNicRequest {
+  string vm_name = 1;
+  string network = 2;
+  string model = 3;
+}
+
+message AttachNicResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message DetachNicRequest {
+  string vm_name = 1;
+  string mac_address = 2;
+}
+
+message DetachNicResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message SetAutostartRequest {
+  string vm_name = 1;
+  bool enabled = 2;
+}
+
+message SetAutostartResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message SetVcpusRequest {
+  string vm_name = 1;
+  uint32 count = 2;
+}
+
+message SetVcpusResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message SetMemoryRequest {
+  string vm_name = 1;
+  uint64 memory_mb = 2;
+}
+
+message SetMemoryResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message GetVmDetailsRequest {
+  string vm_name = 1;
+}
+
+message GetVmDetailsResponse {
+  bool ok = 1;
+  string details_json = 2;
+  string message = 3;
 }
 
 message GetGuestHealthRequest {

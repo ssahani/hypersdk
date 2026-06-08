@@ -372,14 +372,39 @@ impl LibvirtCtx {
     }
 
     pub fn delete(&self, name: &str) -> Result<(), LibvirtError> {
-        let dom = Domain::lookup_by_name(&self.conn, name)
-            .map_err(|e| LibvirtError::NotFound(format!("VM '{name}': {e}")))?;
-        if dom.is_active().unwrap_or(false) {
-            let _ = dom.destroy();
-        }
-        dom.undefine()
-            .map_err(|e| LibvirtError::Operation(format!("undefine: {e}")))?;
-        Ok(())
+        machina_core::libvirt::domain::delete_vm(&self.conn, name)
+    }
+
+    pub fn get_vm_details(&self, name: &str) -> Result<machina_core::state::VmDetails, LibvirtError> {
+        machina_core::libvirt::domain::get_vm_details(&self.conn, name)
+    }
+
+    pub fn detach_disk(&self, vm_name: &str, target_dev: &str) -> Result<(), LibvirtError> {
+        machina_core::libvirt::device::detach_disk(&self.conn, vm_name, target_dev)
+    }
+
+    pub fn resize_disk(&self, vm_name: &str, target_dev: &str, size_gb: u64) -> Result<(), LibvirtError> {
+        machina_core::libvirt::device::resize_block_device(&self.conn, vm_name, target_dev, size_gb)
+    }
+
+    pub fn attach_nic(&self, vm_name: &str, network: &str, model: &str) -> Result<(), LibvirtError> {
+        machina_core::libvirt::device::attach_interface(&self.conn, vm_name, network, model)
+    }
+
+    pub fn detach_nic(&self, vm_name: &str, mac: &str) -> Result<(), LibvirtError> {
+        machina_core::libvirt::device::detach_interface(&self.conn, vm_name, mac)
+    }
+
+    pub fn set_autostart(&self, name: &str, enabled: bool) -> Result<(), LibvirtError> {
+        machina_core::libvirt::domain::set_autostart(&self.conn, name, enabled)
+    }
+
+    pub fn set_vcpus(&self, name: &str, count: u32) -> Result<(), LibvirtError> {
+        machina_core::libvirt::resize::set_vcpus(&self.conn, name, count)
+    }
+
+    pub fn set_memory(&self, name: &str, memory_mb: u64) -> Result<(), LibvirtError> {
+        machina_core::libvirt::resize::set_memory(&self.conn, name, memory_mb)
     }
 
     pub fn resolve_vnc(&mut self, name: &str) -> Result<(String, u16), LibvirtError> {

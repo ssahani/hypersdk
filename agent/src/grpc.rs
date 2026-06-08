@@ -38,6 +38,27 @@ impl AgentService {
     }
 }
 
+async fn run_vm_op<Req, F>(
+    request: Request<Req>,
+    libvirt: Arc<std::sync::Mutex<libvirt_ops::LibvirtCtx>>,
+    op: F,
+) -> Result<(), String>
+where
+    Req: Send + 'static,
+    F: FnOnce(&libvirt_ops::LibvirtCtx, Req) -> Result<(), machina_core::LibvirtError>
+        + Send
+        + 'static,
+{
+    let req = request.into_inner();
+    tokio::task::spawn_blocking(move || {
+        let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
+        op(&ctx, req)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
+}
+
 #[tonic::async_trait]
 impl HostAgent for AgentService {
     async fn register(
@@ -696,6 +717,176 @@ impl HostAgent for AgentService {
             })),
             Ok(Err(e)) => Ok(Response::new(AttachDiskResponse {
                 ok: false,
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn detach_disk(
+        &self,
+        request: Request<DetachDiskRequest>,
+    ) -> Result<Response<DetachDiskResponse>, Status> {
+        match run_vm_op(request, self.libvirt.clone(), |ctx, req| {
+            ctx.detach_disk(&req.vm_name, &req.target_dev)
+        })
+        .await
+        {
+            Ok(()) => Ok(Response::new(DetachDiskResponse {
+                ok: true,
+                message: "detached".into(),
+            })),
+            Err(e) => Ok(Response::new(DetachDiskResponse {
+                ok: false,
+                message: e,
+            })),
+        }
+    }
+
+    async fn resize_disk(
+        &self,
+        request: Request<ResizeDiskRequest>,
+    ) -> Result<Response<ResizeDiskResponse>, Status> {
+        match run_vm_op(request, self.libvirt.clone(), |ctx, req| {
+            ctx.resize_disk(&req.vm_name, &req.target_dev, req.size_gb)
+        })
+        .await
+        {
+            Ok(()) => Ok(Response::new(ResizeDiskResponse {
+                ok: true,
+                message: "resized".into(),
+            })),
+            Err(e) => Ok(Response::new(ResizeDiskResponse {
+                ok: false,
+                message: e,
+            })),
+        }
+    }
+
+    async fn attach_nic(
+        &self,
+        request: Request<AttachNicRequest>,
+    ) -> Result<Response<AttachNicResponse>, Status> {
+        match run_vm_op(request, self.libvirt.clone(), |ctx, req| {
+            ctx.attach_nic(&req.vm_name, &req.network, &req.model)
+        })
+        .await
+        {
+            Ok(()) => Ok(Response::new(AttachNicResponse {
+                ok: true,
+                message: "attached".into(),
+            })),
+            Err(e) => Ok(Response::new(AttachNicResponse {
+                ok: false,
+                message: e,
+            })),
+        }
+    }
+
+    async fn detach_nic(
+        &self,
+        request: Request<DetachNicRequest>,
+    ) -> Result<Response<DetachNicResponse>, Status> {
+        match run_vm_op(request, self.libvirt.clone(), |ctx, req| {
+            ctx.detach_nic(&req.vm_name, &req.mac_address)
+        })
+        .await
+        {
+            Ok(()) => Ok(Response::new(DetachNicResponse {
+                ok: true,
+                message: "detached".into(),
+            })),
+            Err(e) => Ok(Response::new(DetachNicResponse {
+                ok: false,
+                message: e,
+            })),
+        }
+    }
+
+    async fn set_autostart(
+        &self,
+        request: Request<SetAutostartRequest>,
+    ) -> Result<Response<SetAutostartResponse>, Status> {
+        match run_vm_op(request, self.libvirt.clone(), |ctx, req| {
+            ctx.set_autostart(&req.vm_name, req.enabled)
+        })
+        .await
+        {
+            Ok(()) => Ok(Response::new(SetAutostartResponse {
+                ok: true,
+                message: "updated".into(),
+            })),
+            Err(e) => Ok(Response::new(SetAutostartResponse {
+                ok: false,
+                message: e,
+            })),
+        }
+    }
+
+    async fn set_vcpus(
+        &self,
+        request: Request<SetVcpusRequest>,
+    ) -> Result<Response<SetVcpusResponse>, Status> {
+        match run_vm_op(request, self.libvirt.clone(), |ctx, req| {
+            ctx.set_vcpus(&req.vm_name, req.count)
+        })
+        .await
+        {
+            Ok(()) => Ok(Response::new(SetVcpusResponse {
+                ok: true,
+                message: "updated".into(),
+            })),
+            Err(e) => Ok(Response::new(SetVcpusResponse {
+                ok: false,
+                message: e,
+            })),
+        }
+    }
+
+    async fn set_memory(
+        &self,
+        request: Request<SetMemoryRequest>,
+    ) -> Result<Response<SetMemoryResponse>, Status> {
+        match run_vm_op(request, self.libvirt.clone(), |ctx, req| {
+            ctx.set_memory(&req.vm_name, req.memory_mb)
+        })
+        .await
+        {
+            Ok(()) => Ok(Response::new(SetMemoryResponse {
+                ok: true,
+                message: "updated".into(),
+            })),
+            Err(e) => Ok(Response::new(SetMemoryResponse {
+                ok: false,
+                message: e,
+            })),
+        }
+    }
+
+    async fn get_vm_details(
+        &self,
+        request: Request<GetVmDetailsRequest>,
+    ) -> Result<Response<GetVmDetailsResponse>, Status> {
+        let req = request.into_inner();
+        let libvirt = self.libvirt.clone();
+        let vm_name = req.vm_name.clone();
+        match tokio::task::spawn_blocking(move || {
+            let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
+            ctx.get_vm_details(&vm_name)
+        })
+        .await
+        {
+            Ok(Ok(details)) => {
+                let details_json = serde_json::to_string(&details).unwrap_or_default();
+                Ok(Response::new(GetVmDetailsResponse {
+                    ok: true,
+                    details_json,
+                    message: String::new(),
+                }))
+            }
+            Ok(Err(e)) => Ok(Response::new(GetVmDetailsResponse {
+                ok: false,
+                details_json: String::new(),
                 message: e.to_string(),
             })),
             Err(e) => Err(Status::internal(e.to_string())),
