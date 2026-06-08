@@ -223,12 +223,20 @@ export default function MissionControlOverlay() {
             <ul className="space-y-2 text-sm max-h-64 overflow-y-auto">
               {hosts.map((h) => (
                 <li key={h.id}>
-                  <Link to={`/platform/hosts/${h.id}`} className={`flex justify-between ${statusActionLinkClasses('info', 'hover:opacity-90')}`} onClick={closeMissionControl}>
+                  <Link
+                    to={`/platform/hosts/finder?host=${encodeURIComponent(h.id)}`}
+                    className={`flex justify-between ${statusActionLinkClasses('info', 'hover:opacity-90')}`}
+                    onClick={closeMissionControl}
+                    title="Open in Machine Finder"
+                  >
                     <span>{h.hostname}</span>
                     <span className={statusToneClass(hostStateTone(h.state))}>{h.state}</span>
                   </Link>
                 </li>
               ))}
+              <Link to="/platform/hosts/finder" className={`text-xs ${statusActionLinkClasses('info')}`} onClick={closeMissionControl}>
+                Open Machine Finder →
+              </Link>
             </ul>
           </section>
           <section className="rounded-2xl border border-white/[0.06] bg-slate-900/50 p-4 space-y-3">
@@ -236,7 +244,14 @@ export default function MissionControlOverlay() {
             <ul className="space-y-2 text-sm max-h-64 overflow-y-auto">
               {vms.slice(0, 24).map((v) => (
                 <li key={v.id}>
-                  <Link to={`/platform/vms/${v.id}`} className={`flex justify-between ${statusActionLinkClasses('info', 'hover:opacity-90')}`} onClick={closeMissionControl}>
+                  <Link
+                    to={v.host_id
+                      ? `/platform/hosts/finder?host=${encodeURIComponent(v.host_id)}&vm=${encodeURIComponent(v.id)}`
+                      : `/platform/vms/${v.id}`}
+                    className={`flex justify-between ${statusActionLinkClasses('info', 'hover:opacity-90')}`}
+                    onClick={closeMissionControl}
+                    title={v.host_id ? 'Open in Machine Finder' : 'Open VM'}
+                  >
                     <span className="truncate">{v.name}</span>
                     <span className="text-slate-500 shrink-0 ml-2">{v.observed_state}</span>
                   </Link>

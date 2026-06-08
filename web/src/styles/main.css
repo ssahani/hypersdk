@@ -802,6 +802,45 @@ a.tahoe-context-app-title:hover {
   line-height: 1.45;
 }
 
+/* Finder inspector panels — readable labels on Tahoe glass */
+.platform-finder-inspector {
+  color: rgb(241 245 249);
+}
+
+.platform-finder-inspector .platform-finder-inspector-label,
+.platform-finder-inspector dt {
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: rgb(148 163 184);
+  font-weight: 500;
+}
+
+.platform-finder-inspector .platform-finder-inspector-section,
+.platform-finder-inspector .platform-finder-inspector-col-header {
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(203 213 225);
+}
+
+.platform-finder-inspector .platform-finder-inspector-empty {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: rgb(148 163 184);
+}
+
+.platform-finder-inspector .platform-finder-inspector-subtitle {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: rgb(148 163 184);
+}
+
+.platform-finder-inspector .platform-finder-inspector-cta {
+  font-weight: 600;
+}
+
 .mac-settings-detail label {
   color: var(--text-primary);
 }

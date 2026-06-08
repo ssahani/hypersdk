@@ -304,3 +304,14 @@ fn collect_vcpu_stats_linux(vm_name: &str) -> Vec<VmVcpuMetrics> {
     }
     map.into_values().collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::domain_state_label;
+
+    #[test]
+    fn domain_state_label_maps_running() {
+        assert_eq!(domain_state_label(1), "running");
+        assert_eq!(domain_state_label(5), "shutoff");
+    }
+}

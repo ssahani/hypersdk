@@ -20,6 +20,7 @@ import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusB
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tasksHubHref } from '../../utils/platformHubLinks'
 import PageSkeleton from '../../components/PageSkeleton'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 
 const SOURCES = [
   { id: 'vcenter', label: 'VMware vCenter', desc: 'Scan via HyperSDK when enabled' },
@@ -327,32 +328,58 @@ export default function PlatformMigration() {
       )}
 
       <section>
-        <h2 className="text-sm font-semibold text-slate-400 mb-3">Where is your VM coming from?</h2>
+        <h2 className="text-sm font-semibold text-slate-300 mb-3">Where is your VM coming from?</h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          {SOURCES.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              data-testid={s.id === 'esxi' ? 'migration-source-esxi' : undefined}
-              disabled={loading || ((s.id === 'vcenter' || s.id === 'esxi') && !hypersdk)}
-              onClick={() => {
-                if (s.id === 'vcenter') void scanSource('vmware')
-                else if (s.id === 'esxi') void scanSource('esxi')
-                else if (s.id === 'openstack') navigate('/openstack/migrations')
-                else if (s.id === 'ova' || s.id === 'vmdk' || s.id === 'cloud') navigate('/import')
-              }}
-              className="text-left p-4 rounded-2xl border border-white/[0.06] bg-slate-900/50 hover:border-white/10 transition disabled:opacity-50"
-            >
-              <p className="font-semibold text-slate-100">{s.label}</p>
-              <p className="text-xs text-slate-500 mt-1">{s.desc}</p>
-            </button>
-          ))}
+          {SOURCES.map((s) => {
+            const needsHypersdk = s.id === 'vcenter' || s.id === 'esxi'
+            const disabled = loading || (needsHypersdk && !hypersdk)
+            const hint = needsHypersdk && !hypersdk
+              ? 'Enable HyperSDK in Integrations to scan VMware sources.'
+              : s.id === 'openstack' && !openstack
+                ? 'Enable OpenStack in daemon config to use Glance import.'
+                : null
+            return (
+              <button
+                key={s.id}
+                type="button"
+                data-testid={s.id === 'esxi' ? 'migration-source-esxi' : undefined}
+                disabled={disabled}
+                onClick={() => {
+                  if (s.id === 'vcenter') void scanSource('vmware')
+                  else if (s.id === 'esxi') void scanSource('esxi')
+                  else if (s.id === 'openstack') navigate('/openstack/migrations')
+                  else if (s.id === 'ova' || s.id === 'vmdk' || s.id === 'cloud') navigate('/import')
+                }}
+                className="text-left p-4 rounded-2xl border border-white/[0.08] bg-slate-900/50 hover:border-white/14 hover:bg-slate-900/70 transition disabled:opacity-55 disabled:hover:border-white/[0.08]"
+                title={hint ?? undefined}
+              >
+                <p className="font-semibold text-slate-100">{s.label}</p>
+                <p className="text-xs text-slate-400 mt-1">{hint ?? s.desc}</p>
+              </button>
+            )
+          })}
         </div>
+        {!hypersdk && !guestkit && !openstack && (
+          <p className="mt-3 text-xs text-slate-400">
+            No migration backends are enabled. Use OVF/OVA or cloud image import, or enable HyperSDK, GuestKit, or OpenStack under{' '}
+            <Link to="/platform/integrations" className={hubLinkClasses()}>Integrations</Link>.
+          </p>
+        )}
       </section>
 
       <section className="platform-mac-panel rounded-2xl border border-white/[0.06] p-5 space-y-4">
-        <h2 className="font-semibold">Scan results</h2>
+        <h2 className="font-semibold text-slate-100">Scan results</h2>
         {loading && <p className="text-sm text-slate-400">Scanning source…</p>}
+        {!loading && scan.length === 0 && (
+          <PlatformEmptyState
+            icon={ArrowRightLeft}
+            title="No scan yet"
+            subtitle="Pick a source above to discover VMs, or use single-VM import for OVF/OVA and cloud images."
+          >
+            <Link to="/import" className="tahoe-btn-primary text-sm">Open import wizard</Link>
+            <Link to="/platform/integrations" className={`tahoe-btn-ghost text-sm ${hubLinkClasses()}`}>Migration integrations</Link>
+          </PlatformEmptyState>
+        )}
         {scan.length > 0 && (
           <ul className="divide-y divide-slate-800">
             {scan.map((vm) => (

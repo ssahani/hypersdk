@@ -55,36 +55,47 @@ function FinderColumn<T>({
   )
 }
 
-function HostInspector({ host, vms }: { host: MissionHost; vms: PlatformVm[] }) {
+function HostInspector({ host, vms, onSelectVm }: { host: MissionHost; vms: PlatformVm[]; onSelectVm?: (vmId: string) => void }) {
   const tone = hostStateTone(host.state, false, host.maintenance_mode)
   return (
-    <div className="p-4 space-y-4 h-full overflow-y-auto">
+    <div className="platform-finder-inspector p-4 space-y-4 h-full overflow-y-auto">
       <div>
         <h3 className="font-semibold text-white flex items-center gap-2">
           <Server className="w-4 h-4 shrink-0" />
           {host.hostname}
         </h3>
-        <p className="text-xs text-white/50 mt-1">{host.address || '—'}</p>
+        <p className="platform-finder-inspector-subtitle mt-1">{host.address || '—'}</p>
       </div>
       <dl className="grid grid-cols-2 gap-2 text-xs">
-        <div><dt className="text-white/40">Site</dt><dd className="text-white">{host.site || '—'}</dd></div>
-        <div><dt className="text-white/40">Rack</dt><dd className="text-white">{host.rack || '—'}</dd></div>
-        <div><dt className="text-white/40">Rack U</dt><dd className="text-white">{host.rack_u ?? '—'}</dd></div>
-        <div><dt className="text-white/40">State</dt><dd className={`capitalize ${tone === 'ok' ? statusToneClass('ok') : tone === 'error' ? statusToneClass('error') : statusToneClass('warn')}`}>{host.maintenance_mode ? 'maintenance' : host.state}</dd></div>
-        <div><dt className="text-white/40">CPU</dt><dd>{host.cpu_percent.toFixed(0)}%</dd></div>
-        <div><dt className="text-white/40">VMs</dt><dd>{host.vm_count}</dd></div>
+        <div><dt className="platform-finder-inspector-label">Site</dt><dd className="text-white">{host.site || '—'}</dd></div>
+        <div><dt className="platform-finder-inspector-label">Rack</dt><dd className="text-white">{host.rack || '—'}</dd></div>
+        <div><dt className="platform-finder-inspector-label">Rack U</dt><dd className="text-white">{host.rack_u ?? '—'}</dd></div>
+        <div><dt className="platform-finder-inspector-label">State</dt><dd className={`capitalize ${tone === 'ok' ? statusToneClass('ok') : tone === 'error' ? statusToneClass('error') : statusToneClass('warn')}`}>{host.maintenance_mode ? 'maintenance' : host.state}</dd></div>
+        <div><dt className="platform-finder-inspector-label">CPU</dt><dd>{host.cpu_percent.toFixed(0)}%</dd></div>
+        <div><dt className="platform-finder-inspector-label">VMs</dt><dd>{host.vm_count}</dd></div>
       </dl>
-      <Link to={`/platform/hosts/${host.id}`} className="btn-primary text-sm block text-center">Open host</Link>
+      <Link to={`/platform/hosts/${host.id}`} className="platform-finder-inspector-cta btn-primary text-sm block text-center">Open host</Link>
       {vms.length > 0 && (
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40 mb-2">Virtual machines</p>
+          <p className="platform-finder-inspector-section mb-2">Virtual machines</p>
           <ul className="space-y-1 text-sm">
             {vms.map((vm) => (
               <li key={vm.id}>
-                <Link to={`/platform/vms/${vm.id}`} className={`inline-flex items-center gap-1.5 hover:underline ${hubLinkClasses()}`}>
-                  <Monitor className="w-3.5 h-3.5 shrink-0" />
-                  {vm.name}
-                </Link>
+                {onSelectVm ? (
+                  <button
+                    type="button"
+                    onClick={() => onSelectVm(vm.id)}
+                    className={`inline-flex items-center gap-1.5 hover:underline text-left ${hubLinkClasses()}`}
+                  >
+                    <Monitor className="w-3.5 h-3.5 shrink-0" />
+                    {vm.name}
+                  </button>
+                ) : (
+                  <Link to={`/platform/vms/${vm.id}`} className={`inline-flex items-center gap-1.5 hover:underline ${hubLinkClasses()}`}>
+                    <Monitor className="w-3.5 h-3.5 shrink-0" />
+                    {vm.name}
+                  </Link>
+                )}
               </li>
             ))}
           </ul>
@@ -99,18 +110,18 @@ function VmInspector({ vm }: { vm: PlatformVm }) {
   const libvirt = vm.inventory_source !== 'kubevirt'
   const ip = vm.guest_ip?.trim() ?? ''
   return (
-    <div className="p-4 space-y-3 h-full overflow-y-auto">
+    <div className="platform-finder-inspector p-4 space-y-3 h-full overflow-y-auto">
       <h3 className="font-semibold text-white flex items-center gap-2">
         <Monitor className="w-4 h-4" />
         {vm.name}
       </h3>
       <dl className="grid grid-cols-2 gap-2 text-xs">
-        <div><dt className="text-white/40">State</dt><dd className="capitalize text-white">{vm.observed_state}</dd></div>
-        <div><dt className="text-white/40">vCPU</dt><dd className="text-white">{vm.vcpus}</dd></div>
-        <div><dt className="text-white/40">Memory</dt><dd className="text-white">{Math.round(vm.memory_mib / 1024)} Gi</dd></div>
-        <div><dt className="text-white/40">Managed</dt><dd className="text-white">{vm.managed === false ? 'discovered' : 'yes'}</dd></div>
+        <div><dt className="platform-finder-inspector-label">State</dt><dd className="capitalize text-white">{vm.observed_state}</dd></div>
+        <div><dt className="platform-finder-inspector-label">vCPU</dt><dd className="text-white">{vm.vcpus}</dd></div>
+        <div><dt className="platform-finder-inspector-label">Memory</dt><dd className="text-white">{Math.round(vm.memory_mib / 1024)} Gi</dd></div>
+        <div><dt className="platform-finder-inspector-label">Managed</dt><dd className="text-white">{vm.managed === false ? 'discovered' : 'yes'}</dd></div>
         {ip && (
-          <div className="col-span-2"><dt className="text-white/40">Guest IP</dt><dd className="font-mono text-emerald-300/90">{ip}</dd></div>
+          <div className="col-span-2"><dt className="platform-finder-inspector-label">Guest IP</dt><dd className="font-mono text-emerald-300/90">{ip}</dd></div>
         )}
       </dl>
       {running && libvirt && (
@@ -140,7 +151,7 @@ function VmInspector({ vm }: { vm: PlatformVm }) {
           )}
         </div>
       )}
-      <Link to={`/platform/vms/${vm.id}`} className="btn-primary text-sm block text-center">Open VM</Link>
+      <Link to={`/platform/vms/${vm.id}`} className="platform-finder-inspector-cta btn-primary text-sm block text-center">Open VM</Link>
     </div>
   )
 }
@@ -248,9 +259,9 @@ export default function MachineFinderGeography({
         {selectedVm ? (
           <VmInspector vm={selectedVm} />
         ) : selectedHost ? (
-          <HostInspector host={selectedHost} vms={hostVms} />
+          <HostInspector host={selectedHost} vms={hostVms} onSelectVm={onSelectVm} />
         ) : (
-          <p className="p-4 text-sm text-white/40">Select site → rack → host → VM</p>
+          <p className="platform-finder-inspector platform-finder-inspector-empty p-4">Select site → rack → host → VM</p>
         )}
       </div>
     </div>

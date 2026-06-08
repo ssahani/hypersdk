@@ -190,19 +190,25 @@ export default function PlatformHosts() {
   )
 
   const inspector = selected ? (
-    <div className="p-4 space-y-4 h-full overflow-y-auto">
+    <div className="platform-finder-inspector p-4 space-y-4 h-full overflow-y-auto">
       <div>
         <h3 className="font-semibold text-white">{selected.hostname}</h3>
-        <p className="text-xs text-white/50 mt-1">{selected.address || '—'}</p>
+        <p className="platform-finder-inspector-subtitle mt-1">{selected.address || '—'}</p>
       </div>
       <dl className="grid grid-cols-2 gap-2 text-xs">
-        <div><dt className="text-white/40">State</dt><dd className="text-white capitalize">{selected.state}</dd></div>
-        <div><dt className="text-white/40">VMs</dt><dd className="text-white">{selected.vm_count}</dd></div>
-        <div><dt className="text-white/40">Validation</dt><dd className="capitalize">{selected.validation_status || 'pending'}</dd></div>
-        <div><dt className="text-white/40">CPU</dt><dd>{selected.cpu_percent != null ? `${selected.cpu_percent.toFixed(0)}%` : '—'}</dd></div>
+        <div><dt className="platform-finder-inspector-label">State</dt><dd className="text-white capitalize">{selected.state}</dd></div>
+        <div><dt className="platform-finder-inspector-label">VMs</dt><dd className="text-white">{selected.vm_count}</dd></div>
+        <div><dt className="platform-finder-inspector-label">Validation</dt><dd className="capitalize">{selected.validation_status || 'pending'}</dd></div>
+        <div><dt className="platform-finder-inspector-label">CPU</dt><dd>{selected.cpu_percent != null ? `${selected.cpu_percent.toFixed(0)}%` : '—'}</dd></div>
       </dl>
       <div className="flex flex-col gap-2">
-        <Link to={`/platform/hosts/${selected.id}`} className="btn-primary text-sm text-center">Open host</Link>
+        <Link to={`/platform/hosts/${selected.id}`} className="platform-finder-inspector-cta btn-primary text-sm text-center">Open host</Link>
+        <Link
+          to={`/platform/hosts/finder?host=${encodeURIComponent(selected.id)}`}
+          className="btn-secondary text-xs text-center"
+        >
+          Open in Machine Finder
+        </Link>
         <button type="button" className="btn-secondary text-xs" disabled={busy !== null} onClick={() => void act(selected.id, () => enqueueValidateHost(selected.id), 'Validation queued')}>Validate</button>
         <button type="button" className="btn-secondary text-xs" disabled={busy !== null} onClick={() => void act(selected.id, () => syncHost(selected.id), 'Sync queued')}>Sync</button>
         <button type="button" className="btn-secondary text-xs" disabled={busy !== null} onClick={() => void act(selected.id, () => hostMaintenance(selected.id, 'enter'), 'Maintenance entered')}>
@@ -227,7 +233,7 @@ export default function PlatformHosts() {
         ))}
       </div>
       <div className="flex-1 min-w-0 overflow-y-auto">
-        {selected ? inspector : <p className="p-4 text-sm text-white/40">Select a host</p>}
+        {selected ? inspector : <p className="platform-finder-inspector platform-finder-inspector-empty p-4">Select a host</p>}
       </div>
     </div>
   )

@@ -8,7 +8,6 @@ use chrono::Local;
 use chrono::NaiveDateTime;
 use chrono::TimeZone;
 use virt::connect::Connect;
-use virt::domain::Domain;
 
 use super::domain::lookup_domain;
 use super::extras::DhcpLease;
@@ -72,8 +71,58 @@ pub struct GuestFilesystem {
     pub used_bytes: u64,
 }
 
-fn iface_addrs(domain: &Domain, src: u32) -> Vec<virt::domain::Interface> {
-    domain.interface_addresses(src, 0).unwrap_or_default()
+/// Parse `virsh domifaddr` table rows into guest addresses (avoids qemu/libvirt FFI SIGSEGV).
+fn parse_virsh_domifaddr_rows(output: &str, source: &'static str) -> Vec<GuestIpAddress> {
+    let mut out = Vec::new();
+    for line in output.lines().skip(2) {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let cols: Vec<&str> = line.split_whitespace().collect();
+        if cols.len() < 4 {
+            continue;
+        }
+        let name = cols[0].to_string();
+        let mac = cols[1].to_string();
+        let ip_type = cols[2].to_string();
+        let addr = cols[3].split('/').next().unwrap_or("").trim().to_string();
+        if addr.is_empty() || addr == "0.0.0.0" {
+            continue;
+        }
+        let prefix = cols[3]
+            .split('/')
+            .nth(1)
+            .and_then(|p| p.parse::<u32>().ok())
+            .unwrap_or(if ip_type == "ipv4" { 32 } else { 128 });
+        out.push(GuestIpAddress {
+            name,
+            mac,
+            ip_type: ip_type.clone(),
+            address: addr,
+            prefix,
+            source: source.to_string(),
+            dhcp_hostname: None,
+            dhcp_expires_at: None,
+            lease_seconds_remaining: None,
+            dns_ptr: None,
+        });
+    }
+    out
+}
+
+fn guest_interfaces_from_virsh(name: &str, source: &'static str) -> Vec<GuestIpAddress> {
+    use std::process::Command;
+    let Ok(out) = Command::new("virsh")
+        .args(["domifaddr", name, "--source", source])
+        .output()
+    else {
+        return Vec::new();
+    };
+    if !out.status.success() {
+        return Vec::new();
+    }
+    parse_virsh_domifaddr_rows(&String::from_utf8_lossy(&out.stdout), source)
 }
 
 /// Resolve guest IPv4 via `virsh domifaddr` so a bad qemu/libvirt FFI response cannot SIGSEGV the daemon.
@@ -117,64 +166,31 @@ fn parse_virsh_domifaddr_ipv4(output: &str) -> Option<String> {
     None
 }
 
-fn push_ifaces(
-    out: &mut Vec<GuestIpAddress>,
-    seen: &mut HashSet<(String, String, String)>,
-    ifaces: &[virt::domain::Interface],
-    source: &'static str,
-) {
-    for iface in ifaces {
-        for addr in &iface.addrs {
-            let key = (iface.name.clone(), iface.hwaddr.clone(), addr.addr.clone());
-            if seen.insert(key) {
-                out.push(GuestIpAddress {
-                    name: iface.name.clone(),
-                    mac: iface.hwaddr.clone(),
-                    ip_type: if addr.typed == 0 {
-                        "ipv4".to_string()
-                    } else {
-                        "ipv6".to_string()
-                    },
-                    address: addr.addr.clone(),
-                    prefix: addr.prefix as u32,
-                    source: source.to_string(),
-                    dhcp_hostname: None,
-                    dhcp_expires_at: None,
-                    lease_seconds_remaining: None,
-                    dns_ptr: None,
-                });
-            }
-        }
-    }
-}
-
 /// DHCP lease first, then ARP table, then QEMU guest agent (Cockpit-machines order).
+/// Uses `virsh domifaddr` subprocesses — avoids libvirt FFI `interface_addresses` SIGSEGV on legacy guests.
 pub fn get_guest_interfaces(
     conn: &Connect,
     name: &str,
 ) -> Result<Vec<GuestIpAddress>, LibvirtError> {
-    let domain = lookup_domain(conn, name)?;
+    let _domain = lookup_domain(conn, name)?;
     let mut result = Vec::new();
     let mut seen = HashSet::new();
 
-    push_ifaces(
-        &mut result,
-        &mut seen,
-        &iface_addrs(&domain, virt::sys::VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE),
-        "lease",
-    );
-    push_ifaces(
-        &mut result,
-        &mut seen,
-        &iface_addrs(&domain, virt::sys::VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_ARP),
-        "arp",
-    );
-    push_ifaces(
-        &mut result,
-        &mut seen,
-        &iface_addrs(&domain, virt::sys::VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_AGENT),
-        "agent",
-    );
+    for (source, rows) in [
+        ("lease", guest_interfaces_from_virsh(name, "lease")),
+        ("arp", guest_interfaces_from_virsh(name, "arp")),
+        ("agent", guest_interfaces_from_virsh(name, "agent")),
+    ] {
+        for addr in rows {
+            let key = (addr.name.clone(), addr.mac.clone(), addr.address.clone());
+            if seen.insert(key) {
+                result.push(GuestIpAddress {
+                    source: source.to_string(),
+                    ..addr
+                });
+            }
+        }
+    }
 
     Ok(result)
 }
@@ -464,4 +480,34 @@ fn qemu_agent_json(vm_name: &str, cmd_json: &str) -> Option<serde_json::Value> {
 fn base64_decode(s: &str) -> Option<Vec<u8>> {
   use base64::Engine;
   base64::engine::general_purpose::STANDARD.decode(s.trim()).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_virsh_domifaddr_ipv4, parse_virsh_domifaddr_rows};
+
+    const SAMPLE: &str = r#" Name       MAC address          Protocol     Address
+-------------------------------------------------------------------------------
+ vnet0      52:54:00:12:34:56    ipv4         192.168.122.10/24
+ vnet0      52:54:00:12:34:56    ipv6         fe80::5054:ff:fe12:3456/64
+"#;
+
+    #[test]
+    fn parse_virsh_domifaddr_ipv4_skips_loopback() {
+        let out = r#" Name       MAC address          Protocol     Address
+-------------------------------------------------------------------------------
+ lo         00:00:00:00:00:00    ipv4         127.0.0.1/8
+ eth0       52:54:00:12:34:56    ipv4         10.0.0.5/24
+"#;
+        assert_eq!(parse_virsh_domifaddr_ipv4(out).as_deref(), Some("10.0.0.5"));
+    }
+
+    #[test]
+    fn parse_virsh_domifaddr_rows_parses_ipv4_and_ipv6() {
+        let rows = parse_virsh_domifaddr_rows(SAMPLE, "lease");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].address, "192.168.122.10");
+        assert_eq!(rows[0].source, "lease");
+        assert_eq!(rows[1].ip_type, "ipv6");
+    }
 }

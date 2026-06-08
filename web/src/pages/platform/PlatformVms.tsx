@@ -656,19 +656,19 @@ export default function PlatformVms() {
   )
 
   const inspector = selectedVm ? (
-    <div className="p-4 space-y-3 h-full overflow-y-auto">
+    <div className="platform-finder-inspector p-4 space-y-3 h-full overflow-y-auto">
       <div className="flex items-center gap-2 flex-wrap">
         <h3 className="font-semibold text-white">{selectedVm.name}</h3>
         <span className={statusPillClasses(vmStateTone(selectedVm.observed_state))}>{selectedVm.observed_state}</span>
       </div>
       <dl className="grid grid-cols-2 gap-2 text-xs">
-        <div><dt className="text-white/40">Source</dt><dd className="capitalize text-white">{selectedVm.inventory_source ?? 'libvirt'}</dd></div>
-        <div><dt className="text-white/40">State</dt><dd className="capitalize text-white">{selectedVm.observed_state}{selectedVm.observed_state === 'missing' ? ' (missing from inventory)' : ''}</dd></div>
-        <div><dt className="text-white/40">Host</dt><dd className="text-white">{selectedVm.inventory_source === 'kubevirt' ? (selectedVm.k8s_namespace ?? 'default') : selectedVm.host_id ? hostMap.get(selectedVm.host_id) : '—'}</dd></div>
-        <div><dt className="text-white/40">vCPU</dt><dd className="text-white">{selectedVm.vcpus}</dd></div>
-        <div><dt className="text-white/40">Memory</dt><dd className="text-white">{Math.round(selectedVm.memory_mib / 1024)} Gi</dd></div>
+        <div><dt className="platform-finder-inspector-label">Source</dt><dd className="capitalize text-white">{selectedVm.inventory_source ?? 'libvirt'}</dd></div>
+        <div><dt className="platform-finder-inspector-label">State</dt><dd className="capitalize text-white">{selectedVm.observed_state}{selectedVm.observed_state === 'missing' ? ' (missing from inventory)' : ''}</dd></div>
+        <div><dt className="platform-finder-inspector-label">Host</dt><dd className="text-white">{selectedVm.inventory_source === 'kubevirt' ? (selectedVm.k8s_namespace ?? 'default') : selectedVm.host_id ? hostMap.get(selectedVm.host_id) : '—'}</dd></div>
+        <div><dt className="platform-finder-inspector-label">vCPU</dt><dd className="text-white">{selectedVm.vcpus}</dd></div>
+        <div><dt className="platform-finder-inspector-label">Memory</dt><dd className="text-white">{Math.round(selectedVm.memory_mib / 1024)} Gi</dd></div>
         {selectedVm.guest_ip && (
-          <div className="col-span-2"><dt className="text-white/40">Guest IP</dt><dd className="font-mono text-emerald-300/90">{selectedVm.guest_ip}</dd></div>
+          <div className="col-span-2"><dt className="platform-finder-inspector-label">Guest IP</dt><dd className="font-mono text-emerald-300/90">{selectedVm.guest_ip}</dd></div>
         )}
       </dl>
       <div className="flex flex-wrap gap-2">
@@ -698,7 +698,15 @@ export default function PlatformVms() {
           </button>
         )}
       </div>
-      <Link to={`/platform/vms/${selectedVm.id}`} className="btn-primary text-sm block text-center">Open VM</Link>
+      <Link to={`/platform/vms/${selectedVm.id}`} className="platform-finder-inspector-cta btn-primary text-sm block text-center">Open VM</Link>
+      {selectedVm.host_id && (
+        <Link
+          to={`/platform/hosts/finder?host=${encodeURIComponent(selectedVm.host_id)}&vm=${encodeURIComponent(selectedVm.id)}`}
+          className="btn-secondary text-xs block text-center"
+        >
+          Open in Machine Finder
+        </Link>
+      )}
       {selectedVm.managed === false && (
         <button type="button" className="btn-secondary text-xs" onClick={async () => {
           try { await adoptPlatformVm(selectedVm.id); toast.success('Adopted'); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
@@ -798,7 +806,7 @@ export default function PlatformVms() {
               />
             </aside>
             <div className="w-56 shrink-0 border-r border-white/[0.06] overflow-y-auto">
-              <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.06] text-[10px] font-semibold uppercase tracking-wider text-white/40">
+              <div className="platform-finder-inspector-col-header flex items-center gap-2 px-3 py-2 border-b border-white/[0.06]">
                 <input
                   type="checkbox"
                   aria-label="Select all visible VMs"
@@ -830,7 +838,7 @@ export default function PlatformVms() {
               ))}
             </div>
             <div className="flex-1 min-w-0 overflow-y-auto">
-              {selectedVm ? inspector : <p className="p-4 text-sm text-white/40">Select a VM</p>}
+              {selectedVm ? inspector : <p className="platform-finder-inspector platform-finder-inspector-empty p-4">Select a VM</p>}
             </div>
           </div>
         }

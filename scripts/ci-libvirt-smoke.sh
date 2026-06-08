@@ -13,4 +13,7 @@ virsh -c "${LIBVIRT_DEFAULT_URI:-qemu:///system}" list --all || {
   exit 0
 }
 
+echo "Running machina-core guest network parser tests…"
+cargo test -p machina-core guest_agent::tests -- --nocapture
+
 echo "libvirt smoke OK"

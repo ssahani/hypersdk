@@ -30,7 +30,6 @@ import { getClusterSettings, patchClusterSettings, getEnterpriseSecurityOverview
 import JsonInspector, { asArray, asRecord } from '../../components/platform/JsonInspector'
 import { getAiPolicyExport } from '../../api/ai'
 import { getFirewallOverview, type FirewallOverview } from '../../api/zeusFirewall'
-import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import { listAlertRules, listAlerts, listTokens } from '../../api/automation'
 import { getSession, type AuthSession } from '../../api/auth'
 import { useToastContext } from '../../contexts/ToastContext'
