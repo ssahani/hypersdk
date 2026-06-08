@@ -286,7 +286,8 @@ fn resolve_image_path(image_path: &str) -> anyhow::Result<PathBuf> {
 async fn submit_worker_job(cfg: &ControllerConfig, job: JobDocument) -> anyhow::Result<GuestkitJobSubmitResult> {
     let client = worker_client(cfg)?;
     let url = format!("{}/api/v1/jobs", cfg.guestkit_worker_url.trim_end_matches('/'));
-    let body = serde_json::json!({ "job": job });
+    // Worker JobSubmitRequest flattens JobDocument at the root (not under "job").
+    let body = serde_json::to_value(&job)?;
     let resp = client.post(&url).json(&body).send().await?;
     let status = resp.status();
     let out: serde_json::Value = resp.json().await.unwrap_or_default();
