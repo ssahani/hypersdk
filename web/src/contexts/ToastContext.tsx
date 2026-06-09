@@ -18,15 +18,16 @@ const ToastContext = createContext<ToastContextType | undefined>(undefined)
 type ToastState = {
   toasts: Toast[]
   removeToast: (id: string) => void
+  clearAll: () => void
 }
 
 const ToastStateContext = createContext<ToastState | undefined>(undefined)
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const { toasts, removeToast, success, error, warning, info } = useToast()
+  const { toasts, removeToast, clearAll, success, error, warning, info } = useToast()
 
   return (
-    <ToastStateContext.Provider value={{ toasts, removeToast }}>
+    <ToastStateContext.Provider value={{ toasts, removeToast, clearAll }}>
       <ToastContext.Provider value={{ success, error, warning, info }}>
         {children}
       </ToastContext.Provider>
@@ -38,7 +39,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 export function ToastRenderer() {
   const state = useContext(ToastStateContext)
   if (!state) return null
-  return <ToastContainer toasts={state.toasts} onClose={state.removeToast} />
+  return (
+    <ToastContainer
+      toasts={state.toasts}
+      onClose={state.removeToast}
+      onClearAll={state.clearAll}
+    />
+  )
 }
 
 export function useToastContext() {

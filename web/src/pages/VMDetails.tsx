@@ -151,6 +151,7 @@ export default function VMDetailsPage() {
           ? 'Enable upload_enabled in machina config'
           : null
   const prevMetricsRef = useRef<VmMetrics | null>(null)
+  const lastLoadErrorToastAt = useRef(0)
 
   const conn = useMemo(
     () => searchParams.get('connection') ?? vm?.libvirt_connection ?? undefined,
@@ -356,7 +357,11 @@ export default function VMDetailsPage() {
       const msg = formatUserError(e)
       setLoadError(msg)
       setVM(null)
-      toast.error(`Failed to load VM: ${msg}`)
+      const now = Date.now()
+      if (now - lastLoadErrorToastAt.current > 12_000) {
+        lastLoadErrorToastAt.current = now
+        toast.error(`Failed to load VM: ${msg}`)
+      }
     } finally {
       setLoading(false)
     }

@@ -16,6 +16,8 @@ export interface Toast {
   action?: ToastAction
 }
 
+const MAX_VISIBLE_TOASTS = 8
+
 /** Normalize kubectl stderr so duplicate TLS spam dedupes across retries. */
 function errorToastDedupeKey(message: string): string {
   const stripped = message
@@ -26,11 +28,34 @@ function errorToastDedupeKey(message: string): string {
 
 export function useToast() {
   const [toasts, setToasts] = useState<Toast[]>([])
-  const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const lastErrorToastRef = useRef<{ key: string; at: number; id: string } | null>(null)
 
+  const cancelTimer = useCallback((id: string) => {
+    const timer = timersRef.current.get(id)
+    if (timer) {
+      clearTimeout(timer)
+      timersRef.current.delete(id)
+    }
+  }, [])
+
   useEffect(() => {
-    return () => { timersRef.current.forEach(clearTimeout) }
+    const timers = timersRef.current
+    return () => {
+      timers.forEach(clearTimeout)
+      timers.clear()
+    }
+  }, [])
+
+  const removeToast = useCallback((id: string) => {
+    cancelTimer(id)
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }, [cancelTimer])
+
+  const clearAll = useCallback(() => {
+    timersRef.current.forEach(clearTimeout)
+    timersRef.current.clear()
+    setToasts([])
   }, [])
 
   const addToast = useCallback((
@@ -40,18 +65,20 @@ export function useToast() {
     action?: ToastAction,
   ) => {
     const id = crypto.randomUUID()
-    setToasts((prev) => [...prev, { id, message, type, action }])
+    setToasts((prev) => {
+      const next = [...prev, { id, message, type, action }]
+      if (next.length <= MAX_VISIBLE_TOASTS) return next
+      const dropped = next.slice(0, next.length - MAX_VISIBLE_TOASTS)
+      dropped.forEach((t) => cancelTimer(t.id))
+      return next.slice(-MAX_VISIBLE_TOASTS)
+    })
     const timer = setTimeout(() => {
-      timersRef.current.delete(timer)
+      timersRef.current.delete(id)
       setToasts((prev) => prev.filter((t) => t.id !== id))
     }, duration)
-    timersRef.current.add(timer)
+    timersRef.current.set(id, timer)
     return id
-  }, [])
-
-  const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id))
-  }, [])
+  }, [cancelTimer])
 
   const error = useCallback(
     (msg: string, d?: number) => {
@@ -71,6 +98,7 @@ export function useToast() {
   return {
     toasts,
     removeToast,
+    clearAll,
     success: (msg: string, d?: number, action?: ToastAction) => addToast(msg, 'success', d, action),
     error,
     warning: (msg: string, d?: number, action?: ToastAction) => addToast(msg, 'warning', d, action),
