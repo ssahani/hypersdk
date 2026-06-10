@@ -113,7 +113,7 @@ function PlatformDesktopShell() {
         <PopoutTitleBar title={platformPageLabel(location.pathname)} />
         <div className="tahoe-canvas relative flex-1">
           <div className="tahoe-mesh pointer-events-none" aria-hidden />
-          <div className="relative z-[1] p-3 lg:p-4 platform-readable tahoe-readable-stack py-4 pb-8">
+          <div className="relative z-[1] p-3 lg:p-4 platform-readable tahoe-readable-stack py-4 pb-8 platform-mac-scroll-body">
             <Outlet />
           </div>
         </div>

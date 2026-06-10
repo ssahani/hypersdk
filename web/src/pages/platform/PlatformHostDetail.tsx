@@ -682,7 +682,7 @@ export default function PlatformHostDetailPage() {
                               : 'No pending updates.'}
                           </p>
                         ) : (
-                          <ul className="divide-y divide-white/[0.04] -mx-1 max-h-48 overflow-y-auto">
+                          <ul className="divide-y divide-white/[0.04] -mx-1">
                             {linuxUpdates.packages!.slice(0, 20).map((p) => (
                               <MacListRow
                                 key={p.name}
@@ -778,7 +778,7 @@ export default function PlatformHostDetailPage() {
                       <div>recent events: {audit.recent_events ?? audit.events?.length ?? '—'}</div>
                     </div>
                     {(audit.events ?? []).length > 0 && (
-                      <ul className="mt-3 space-y-1 max-h-64 overflow-y-auto font-mono text-[10px] text-slate-500">
+                      <ul className="mt-3 space-y-1 font-mono text-[10px] text-slate-500">
                         {audit.events!.slice(0, 20).map((ev, i) => (
                           <li key={i} className="border-b border-white/[0.04] pb-1">{String(ev.summary ?? ev.message ?? JSON.stringify(ev))}</li>
                         ))}

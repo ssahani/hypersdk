@@ -5,7 +5,7 @@ import { mockPlatformApi } from './platformMock'
 import { mockAuthenticatedApi } from './helpers/authMock'
 import { expectPageScrolls } from './helpers/platformTestHelpers'
 
-const SHORT_VIEWPORT = 480
+const SHORT_VIEWPORT = 400
 
 test.describe('platform pages document scroll', () => {
   for (const [path, heading] of [
@@ -30,6 +30,27 @@ test.describe('platform pages document scroll', () => {
     await mockPlatformApi(page, { tier: 'power' })
     await page.goto('/platform/vms/v1')
     await expect(page.getByRole('heading', { name: /vm-1/i }).first()).toBeVisible({ timeout: 20_000 })
+    await expectPageScrolls(page, { viewportHeight: SHORT_VIEWPORT })
+  })
+
+  test('/platform/vms/:id keeps detail tabs sticky while scrolling', async ({ page }) => {
+    await mockPlatformApi(page, { tier: 'power' })
+    await page.goto('/platform/vms/v1')
+    await expect(page.getByRole('tab', { name: 'Overview' })).toBeVisible({ timeout: 20_000 })
+    await page.setViewportSize({ width: 1280, height: 400 })
+    const before = await page.getByRole('tab', { name: 'Overview' }).boundingBox()
+    await page.evaluate(() => window.scrollTo(0, 1200))
+    const after = await page.getByRole('tab', { name: 'Overview' }).boundingBox()
+    expect(before).not.toBeNull()
+    expect(after).not.toBeNull()
+    expect(after!.y).toBeLessThan(before!.y + 80)
+    expect(after!.y).toBeLessThan(320)
+  })
+
+  test('/platform/hosts/:id scrolls on host detail', async ({ page }) => {
+    await mockPlatformApi(page, { tier: 'power' })
+    await page.goto('/platform/hosts/h1')
+    await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 20_000 })
     await expectPageScrolls(page, { viewportHeight: SHORT_VIEWPORT })
   })
 })

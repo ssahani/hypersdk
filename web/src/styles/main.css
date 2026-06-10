@@ -271,6 +271,31 @@ code {
   transform: scale(1.04);
 }
 
+.mac-popout-root .platform-mac-scroll-body {
+  scroll-padding-top: 3.5rem;
+  scroll-padding-bottom: 2rem;
+}
+
+.platform-detail-tabs-sticky {
+  position: sticky;
+  top: 6.5rem;
+  z-index: 25;
+  margin: 0 -0.25rem 0.75rem;
+  padding: 0.35rem 0.25rem 0.65rem;
+  background: rgba(8, 12, 22, 0.82);
+  backdrop-filter: blur(calc(var(--blur-liquid) + 6px)) saturate(1.3);
+  -webkit-backdrop-filter: blur(calc(var(--blur-liquid) + 6px)) saturate(1.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.mac-popout-root .platform-detail-tabs-sticky {
+  top: 2.75rem;
+}
+
+.liquid-glass-app #main-content.app-shell {
+  scroll-margin-top: 4rem;
+}
+
 .mac-finder-sidebar {
   position: sticky;
   top: 6.5rem;

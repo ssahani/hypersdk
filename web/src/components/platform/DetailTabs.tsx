@@ -46,7 +46,8 @@ export default function DetailTabs<T extends string>({
   let lastGroup = ''
 
   return (
-    <div role="tablist" className="flex flex-wrap items-center gap-1 border-b border-slate-800/80 pb-3">
+    <div className="platform-detail-tabs-sticky">
+      <div role="tablist" className="flex flex-wrap items-center gap-1 pb-1">
       {primary.map((tab) => (
         <button
           key={tab.id}
@@ -104,6 +105,7 @@ export default function DetailTabs<T extends string>({
           )}
         </div>
       )}
+      </div>
     </div>
   )
 }

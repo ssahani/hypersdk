@@ -1207,7 +1207,7 @@ export default function PlatformVmDetail() {
               {timeline.length > 0 && (
                 <div className="mb-4 pb-4 border-b border-white/5">
                   <h3 className="text-sm font-semibold mb-2">Time Machine</h3>
-                  <ul className="text-xs space-y-2 max-h-48 overflow-y-auto">
+                  <ul className="text-xs space-y-2">
                     {timeline.map((e) => (
                       <li key={`${e.kind}-${e.id}`} className="flex flex-wrap items-center justify-between gap-2 text-slate-400">
                         <span>
@@ -1338,7 +1338,7 @@ export default function PlatformVmDetail() {
               ) : (
                 <div className="space-y-3 text-sm">
                   <p className="text-slate-400">{topology.nodes.length} nodes · {topology.edges.length} edges</p>
-                  <ul className="divide-y divide-white/[0.04] max-h-64 overflow-y-auto">
+                  <ul className="divide-y divide-white/[0.04]">
                     {topology.nodes.map((n) => (
                       <li key={n.id} className="py-2 flex justify-between gap-2">
                         <span className="text-slate-200">{n.name}</span>
