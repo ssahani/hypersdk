@@ -204,7 +204,7 @@ export default function PlatformHosts() {
       <div className="flex flex-col gap-2">
         <Link to={`/platform/hosts/${selected.id}`} className="platform-finder-inspector-cta btn-primary text-sm text-center">Open host</Link>
         <Link
-          to={`/platform/hosts/finder?host=${encodeURIComponent(selected.id)}`}
+          to={`/platform/vms?lens=topology&host=${encodeURIComponent(selected.id)}`}
           className="btn-secondary text-xs text-center"
         >
           Open in Machine Finder

@@ -42,7 +42,7 @@ export const DASHBOARD_ZONE_DEFS: DashboardZoneDef[] = [
     hubPath: '/platform/workloads',
     tiles: [
       { id: 'applications', to: '/platform/applications', label: 'Applications', minTier: 'power' },
-      { id: 'vms', to: '/platform/vms', label: 'Virtual Machines' },
+      { id: 'vms', to: '/platform/vms', label: 'Machine Finder' },
       { id: 'pods', to: '/k8s/workloads', label: 'Containers / Pods', minTier: 'power' },
       { id: 'deployments', to: '/k8s/workloads', label: 'Deployments', minTier: 'power' },
       { id: 'cronjobs', to: '/k8s/workloads', label: 'Cron Jobs', minTier: 'power' },

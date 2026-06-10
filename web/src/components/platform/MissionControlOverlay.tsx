@@ -229,7 +229,7 @@ export default function MissionControlOverlay() {
               {hosts.map((h) => (
                 <li key={h.id}>
                   <Link
-                    to={`/platform/hosts/finder?host=${encodeURIComponent(h.id)}`}
+                    to={`/platform/vms?lens=topology&host=${encodeURIComponent(h.id)}`}
                     className={`flex justify-between ${statusActionLinkClasses('info', 'hover:opacity-90')}`}
                     onClick={closeMissionControl}
                     title="Open in Machine Finder"
@@ -239,7 +239,7 @@ export default function MissionControlOverlay() {
                   </Link>
                 </li>
               ))}
-              <Link to="/platform/hosts/finder" className={`text-xs ${statusActionLinkClasses('info')}`} onClick={closeMissionControl}>
+              <Link to="/platform/vms?lens=topology" className={`text-xs ${statusActionLinkClasses('info')}`} onClick={closeMissionControl}>
                 Open Machine Finder →
               </Link>
             </ul>
@@ -251,7 +251,7 @@ export default function MissionControlOverlay() {
                 <li key={v.id}>
                   <Link
                     to={v.host_id
-                      ? `/platform/hosts/finder?host=${encodeURIComponent(v.host_id)}&vm=${encodeURIComponent(v.id)}`
+                      ? `/platform/vms?lens=topology&host=${encodeURIComponent(v.host_id)}&vm=${encodeURIComponent(v.id)}`
                       : `/platform/vms/${v.id}`}
                     className={`flex justify-between ${statusActionLinkClasses('info', 'hover:opacity-90')}`}
                     onClick={closeMissionControl}

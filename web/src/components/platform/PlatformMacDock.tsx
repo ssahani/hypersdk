@@ -1,16 +1,22 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { Search, Sparkles } from 'lucide-react'
 import { useAi } from '../../contexts/AiContext'
 import { unlockDockPreviewPath, usePlatformDockItems } from '../../utils/platformDockPins'
 import { useToastContext } from '../../contexts/ToastContext'
-import { platformDesktopTabGroup } from '../../utils/platformDesktopTabs'
+import { platformDesktopTabActive, platformDesktopTabGroup } from '../../utils/platformDesktopTabs'
 
 function openSpotlight() {
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
+}
+
+function isMachineFinderRoot(pathname: string): boolean {
+  if (!pathname.startsWith('/platform/vms')) return false
+  const rest = pathname.slice('/platform/vms'.length)
+  return rest === '' || rest === '/'
 }
 
 export default function PlatformMacDock() {
@@ -20,15 +26,40 @@ export default function PlatformMacDock() {
   const { openCopilot } = useAi()
   const dockItems = usePlatformDockItems()
   const [mounted, setMounted] = useState(false)
+  const [dockVisible, setDockVisible] = useState(true)
+  const hideTimerRef = useRef<number | null>(null)
+  const autoHide = isMachineFinderRoot(location.pathname)
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  const isActive = (path: string) => {
-    if (path === '/platform') return location.pathname === '/platform'
-    return location.pathname === path || location.pathname.startsWith(`${path}/`)
-  }
+  useEffect(() => {
+    if (!autoHide) {
+      setDockVisible(true)
+      return
+    }
+
+    const scheduleHide = () => {
+      if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current)
+      hideTimerRef.current = window.setTimeout(() => setDockVisible(false), 2800)
+    }
+
+    const onMove = (e: MouseEvent) => {
+      const nearBottom = window.innerHeight - e.clientY < 56
+      if (nearBottom) {
+        setDockVisible(true)
+        scheduleHide()
+      }
+    }
+
+    scheduleHide()
+    window.addEventListener('mousemove', onMove)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current)
+    }
+  }, [autoHide, location.pathname])
 
   const goDock = (path: string) => {
     const hub = platformDesktopTabGroup(path)
@@ -36,11 +67,15 @@ export default function PlatformMacDock() {
   }
 
   const dock = (
-    <footer className="mac-dock flex" role="navigation" aria-label="Platform dock">
+    <footer
+      className={`mac-dock flex ${autoHide ? 'mac-dock-autohide' : ''} ${autoHide && !dockVisible ? 'mac-dock-hidden' : ''}`}
+      role="navigation"
+      aria-label="Platform dock"
+    >
       <div className="mac-dock-inner mac-dock-inner-scroll">
         {dockItems.map((item) => {
           const Icon = item.icon
-          const active = !item.preview && isActive(item.path)
+          const active = !item.preview && platformDesktopTabActive(location.pathname, item.path)
           const cls = `mac-dock-item ${active ? 'mac-dock-item-active' : ''} ${item.preview ? 'mac-dock-item-preview' : ''}`
           if (item.preview) {
             return (

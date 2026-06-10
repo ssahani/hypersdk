@@ -115,7 +115,7 @@ const INFRASTRUCTURE_ITEMS: ContextNavItem[] = [
 const WORKLOADS_ITEMS: ContextNavItem[] = [
   { to: '/platform/workloads', label: 'Overview' },
   { to: '/platform/applications', label: 'Applications' },
-  { to: '/platform/vms', label: 'Virtual Machines' },
+  { to: '/platform/vms', label: 'Machine Finder' },
   { to: '/k8s/workloads', label: 'Kubernetes Workloads' },
 ]
 
@@ -306,7 +306,7 @@ export const HUB_DEFINITIONS: ContextDefinition[] = [
     appLabel: 'Finder',
     appIcon: Monitor,
     hubPath: '/platform/vms',
-    items: [{ to: '/platform/vms', label: 'Virtual Machines' }],
+    items: [{ to: '/platform/vms', label: 'Machine Finder' }],
   },
   {
     id: 'hosts',
@@ -316,7 +316,7 @@ export const HUB_DEFINITIONS: ContextDefinition[] = [
     hubPath: '/platform/hosts',
     items: [
       { to: '/platform/hosts', label: 'Machines' },
-      { to: '/platform/hosts/finder', label: 'Infrastructure Finder' },
+      { to: '/platform/vms?lens=topology', label: 'Topology lens' },
       { to: '/platform/enroll', label: 'Add Host' },
     ],
   },

@@ -16,7 +16,7 @@ export function platformDesktopTabGroup(pathname: string): string {
   const path = pathname.split('?')[0]
   if (path === '/platform' || path === '/platform/') return '/platform'
   if (path.startsWith('/platform/vms')) return '/platform/vms'
-  if (path.startsWith('/platform/hosts/finder')) return '/platform/hosts/finder'
+  if (path.startsWith('/platform/hosts/finder')) return '/platform/vms'
   if (path.startsWith('/platform/hosts')) return '/platform/hosts'
   if (path.startsWith('/platform/settings')) return '/platform/settings'
   if (path.startsWith('/platform/integrations')) return '/platform/integrations'

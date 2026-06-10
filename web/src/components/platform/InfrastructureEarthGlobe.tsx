@@ -56,9 +56,9 @@ export function sitesFromMission(mission: FleetMissionOverview): GlobeSite[] {
 
 function finderHref(siteName: string): string {
   if (siteName === 'Unassigned') {
-    return `/platform/hosts/finder?site=${UNASSIGNED_SITE}&rack=${encodeURIComponent(UNASSIGNED_RACK)}`
+    return `/platform/vms?lens=topology&site=${UNASSIGNED_SITE}&rack=${encodeURIComponent(UNASSIGNED_RACK)}`
   }
-  return `/platform/hosts/finder?site=${encodeURIComponent(siteName)}`
+  return `/platform/vms?lens=topology&site=${encodeURIComponent(siteName)}`
 }
 
 function healthColor(pct: number): string {

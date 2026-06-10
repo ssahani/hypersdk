@@ -5,7 +5,7 @@ import { mockPlatformApi } from './platformMock'
 
 test('Machine Finder shows site → rack → host → VM columns', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
-  await page.goto('/platform/hosts/finder')
+  await page.goto('/platform/vms?lens=topology')
   await expect(page.getByRole('heading', { name: /Machine Finder/i })).toBeVisible({ timeout: 15_000 })
   await expect(page.getByRole('button', { name: 'DC-1' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Rack A' })).toBeVisible()
@@ -42,7 +42,7 @@ test('Machine Finder auto-selects sole unassigned host and opens inspector', asy
       },
     })
   })
-  await page.goto('/platform/hosts/finder')
+  await page.goto('/platform/vms?lens=topology')
   await expect(page.getByRole('heading', { name: /Machine Finder/i })).toBeVisible({ timeout: 15_000 })
   await expect(page).toHaveURL(/host=host-local/, { timeout: 10_000 })
   await expect(page.getByRole('link', { name: 'Open host' })).toBeVisible({ timeout: 10_000 })
@@ -51,7 +51,7 @@ test('Machine Finder auto-selects sole unassigned host and opens inspector', asy
 
 test('Hosts context includes Infrastructure Finder route', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
-  await page.goto('/platform/hosts/finder')
+  await page.goto('/platform/vms?lens=topology')
   await expect(page.getByRole('heading', { name: /Machine Finder/i })).toBeVisible({ timeout: 15_000 })
   await expect(page.getByRole('link', { name: 'Mission Control' })).toBeVisible()
 })

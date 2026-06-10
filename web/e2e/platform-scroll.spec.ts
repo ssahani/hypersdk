@@ -16,7 +16,7 @@ test.describe('platform pages document scroll', () => {
     ['/platform/templates', /fleet template catalog/i],
     ['/platform/networks', /networks/i],
     ['/platform/zeus/security', /security center/i],
-    ['/platform/hosts/finder', /machine finder/i],
+    ['/platform/vms?lens=topology', /machine finder|topology/i],
     ['/platform/zeus/rightsizing', /vm rightsizing/i],
     ['/platform/create-iso', /create vm from iso/i],
     ['/platform/events', /logs & audit/i],

@@ -6,7 +6,7 @@ import { mockPlatformApi } from './platformMock'
 
 test('Machine Finder shows Infrastructure Earth globe site legend', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
-  await page.goto('/platform/hosts/finder')
+  await page.goto('/platform/vms?lens=topology')
   await expect(page.getByRole('heading', { name: /Machine Finder/i })).toBeVisible({ timeout: 15_000 })
   const legend = page.getByTestId('infrastructure-earth-legend')
   await expect(legend).toBeVisible({ timeout: 15_000 })

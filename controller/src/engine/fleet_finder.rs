@@ -84,6 +84,76 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetFinderOverview> {
     .fetch_one(pool)
     .await
     .unwrap_or(0);
+    let no_ip: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM vms WHERE guest_ip IS NULL OR guest_ip = ''",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+    let guest_agent_missing: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(*) FROM vms
+        WHERE COALESCE(inventory_source, 'libvirt') != 'kubevirt'
+          AND (guest_tools_status IS NULL
+               OR guest_tools_status NOT IN ('healthy', 'installed'))
+        "#,
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+    let migration_ready: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(*) FROM vms
+        WHERE observed_state NOT IN ('running', 'missing')
+          AND COALESCE(managed, TRUE) = TRUE
+        "#,
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+    let needs_attention: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(DISTINCT v.id) FROM vms v
+        LEFT JOIN vm_metrics m ON m.vm_id = v.id
+        WHERE NOT EXISTS (
+            SELECT 1 FROM backup_records b
+            WHERE b.vm_id = v.id AND b.status = 'completed'
+              AND b.created_at > NOW() - INTERVAL '7 days'
+        )
+        OR (v.guest_ip IS NULL OR v.guest_ip = '')
+        OR (COALESCE(v.inventory_source, 'libvirt') != 'kubevirt'
+            AND (v.guest_tools_status IS NULL
+                 OR v.guest_tools_status NOT IN ('healthy', 'installed')))
+        OR (m.cpu_percent > 85)
+        "#,
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+    let libvirt_src: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM vms WHERE COALESCE(inventory_source, 'libvirt') = 'libvirt'",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+    let kubevirt_src: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM vms WHERE inventory_source = 'kubevirt'",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+    let vmware_src: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM vms WHERE inventory_source IN ('vmware', 'vsphere')",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+    let openstack_src: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM vms WHERE inventory_source = 'openstack'",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
 
     let tag_rows: Vec<(String, i64)> = sqlx::query_as(
         r#"
@@ -115,7 +185,7 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetFinderOverview> {
     let smart_folders = vec![
         SmartFolder {
             id: "all".into(),
-            label: "All VMs".into(),
+            label: "All Machines".into(),
             count: all,
             icon: "all".into(),
         },
@@ -130,6 +200,36 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetFinderOverview> {
             label: "Stopped".into(),
             count: stopped,
             icon: "stopped".into(),
+        },
+        SmartFolder {
+            id: "needs_attention".into(),
+            label: "Needs Attention".into(),
+            count: needs_attention,
+            icon: "attention".into(),
+        },
+        SmartFolder {
+            id: "unprotected".into(),
+            label: "No Backup".into(),
+            count: unprotected,
+            icon: "backup".into(),
+        },
+        SmartFolder {
+            id: "no_ip".into(),
+            label: "No IP".into(),
+            count: no_ip,
+            icon: "network".into(),
+        },
+        SmartFolder {
+            id: "guest_agent_missing".into(),
+            label: "Guest Agent Missing".into(),
+            count: guest_agent_missing,
+            icon: "agent".into(),
+        },
+        SmartFolder {
+            id: "migration_ready".into(),
+            label: "Migration Ready".into(),
+            count: migration_ready,
+            icon: "migrate".into(),
         },
         SmartFolder {
             id: "discovered".into(),
@@ -156,12 +256,6 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetFinderOverview> {
             icon: "cpu".into(),
         },
         SmartFolder {
-            id: "unprotected".into(),
-            label: "No backup (7d)".into(),
-            count: unprotected,
-            icon: "backup".into(),
-        },
-        SmartFolder {
             id: "ha_enabled".into(),
             label: "HA enabled".into(),
             count: ha_enabled,
@@ -181,9 +275,7 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetFinderOverview> {
 
     Ok(FleetFinderOverview {
         summary: format!(
-            "{all} VM(s) · {running} running · {} tag(s) · {} project(s)",
-            tags.len(),
-            projects.len()
+            "{all} machines · {running} running · {stopped} stopped · {unprotected} need backup · libvirt {libvirt_src} · kubevirt {kubevirt_src} · vmware {vmware_src} · openstack {openstack_src}",
         ),
         smart_folders,
         tags,

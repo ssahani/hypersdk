@@ -16,7 +16,7 @@ function LivingHostCard({ host }: { host: MissionHost }) {
 
   return (
     <Link
-      to={`/platform/hosts/finder?host=${encodeURIComponent(host.id)}&site=${encodeURIComponent(host.site.trim() || '__unassigned__')}&rack=${encodeURIComponent(host.rack.trim() || (host.site.trim() ? 'Unassigned rack' : 'All hosts'))}`}
+      to={`/platform/vms?lens=topology&host=${encodeURIComponent(host.id)}&site=${encodeURIComponent(host.site.trim() || '__unassigned__')}&rack=${encodeURIComponent(host.rack.trim() || (host.site.trim() ? 'Unassigned rack' : 'All hosts'))}`}
       className={`block rounded-xl border p-3 transition hover:scale-[1.02] hover:border-[color-mix(in_srgb,var(--machina-status-info)_40%,transparent)] ${
         online ? statusSurfaceClasses('ok') : 'border-white/[0.08] bg-slate-900/60'
       }`}
@@ -73,7 +73,7 @@ export default function InfrastructureEarthView({ mission }: { mission: FleetMis
           {mission.summary.hosts} hosts · {mission.summary.vms} VMs · {mission.summary.health_pct}% healthy
         </span>
         <Link
-          to="/platform/hosts/finder"
+          to="/platform/vms?lens=topology"
           className={`inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] px-3 py-1 transition hover:border-white/[0.14] ${hubLinkClasses()}`}
         >
           <MapPin className="w-3.5 h-3.5" />

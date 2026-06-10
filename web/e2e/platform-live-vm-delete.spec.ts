@@ -19,7 +19,7 @@ test('live delete vm returns to list without page crash', async ({ page }) => {
   page.on('pageerror', (err) => errors.push(err.message))
 
   await page.goto(`${live}/platform/vms`, { waitUntil: 'domcontentloaded' })
-  await expect(page.getByRole('heading', { name: 'Virtual Machines', exact: true })).toBeVisible({
+  await expect(page.getByRole('heading', { name: 'Machine Finder', exact: true })).toBeVisible({
     timeout: 45_000,
   })
 

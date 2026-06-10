@@ -1,0 +1,51 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router'
+import { getFleetHeatmap, type FleetHeatmap } from '../../../api/ai'
+import { formatUserError } from '../../../utils/apiError'
+
+export default function MachineFinderHeatmapLens() {
+  const [data, setData] = useState<FleetHeatmap | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    void getFleetHeatmap()
+      .then(setData)
+      .catch((e: unknown) => setError(formatUserError(e)))
+  }, [])
+
+  if (error) return <p className="text-sm text-red-300 p-4">{error}</p>
+  if (!data) return <p className="text-sm text-slate-500 p-4">Loading heatmap…</p>
+
+  const cells = data.hosts ?? []
+
+  return (
+    <div className="card p-4 space-y-3" data-testid="machine-finder-heatmap">
+      <div className="flex items-center justify-between">
+        <h3 className="font-medium text-white">Fleet heatmap</h3>
+        <Link to="/platform/zeus" className="btn-secondary text-xs">Open Zeus OS</Link>
+      </div>
+      {data.hotspots?.length > 0 && (
+        <p className="text-sm text-amber-200/90">Hotspots: {data.hotspots.join(', ')}</p>
+      )}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+        {cells.slice(0, 24).map((cell) => {
+          const intensity = Math.min(100, Math.max(cell.cpu_percent, cell.memory_percent))
+          return (
+            <div
+              key={cell.host_id}
+              className="rounded-lg border border-white/[0.06] p-3 text-xs"
+              style={{ background: `rgba(239, 68, 68, ${intensity / 200})` }}
+            >
+              <p className="font-medium truncate">{cell.hostname}</p>
+              <p className="text-slate-400">CPU {cell.cpu_percent.toFixed(0)}% · {cell.vm_count} VMs</p>
+              <p className="text-slate-500 capitalize">{cell.classification}</p>
+            </div>
+          )
+        })}
+      </div>
+      {cells.length === 0 && <p className="text-sm text-slate-500">No heatmap data yet.</p>}
+    </div>
+  )
+}

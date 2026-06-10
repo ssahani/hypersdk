@@ -114,7 +114,7 @@ const jarvisLanding = {
   intents: [
     { id: 'jarvis-mission-control', label: 'Mission Control', review: 'Infrastructure Earth globe', action: 'navigate', navigate: '/platform?mission=1' },
     { id: 'jarvis-maintenance-mission', label: 'Maintenance Mission', review: 'Patch timeline', action: 'navigate', navigate: '/platform/maintenance?tab=mission' },
-    { id: 'jarvis-machine-finder', label: 'Machine Finder', review: 'Geography', action: 'navigate', navigate: '/platform/hosts/finder' },
+    { id: 'jarvis-machine-finder', label: 'Machine Finder', review: 'Geography', action: 'navigate', navigate: '/platform/vms?lens=topology' },
     { id: 'jarvis-enterprise', label: 'Enterprise Keychain', review: 'Vault and MFA inventory', action: 'navigate', navigate: '/platform/enterprise?tab=keychain' },
   ],
   search_hits: [],

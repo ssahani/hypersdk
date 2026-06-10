@@ -89,6 +89,22 @@ pub async fn list_vms(
                WHERE b.vm_id = v.id AND b.status = 'completed'
                  AND b.created_at > NOW() - INTERVAL '7 days'
              ))
+             OR ($5 = 'no_ip' AND (v.guest_ip IS NULL OR v.guest_ip = ''))
+             OR ($5 = 'guest_agent_missing' AND COALESCE(v.inventory_source, 'libvirt') != 'kubevirt'
+               AND (v.guest_tools_status IS NULL OR v.guest_tools_status NOT IN ('healthy', 'installed')))
+             OR ($5 = 'migration_ready' AND v.observed_state NOT IN ('running', 'missing')
+               AND COALESCE(v.managed, TRUE) = TRUE)
+             OR ($5 = 'needs_attention' AND (
+               NOT EXISTS (
+                 SELECT 1 FROM backup_records b
+                 WHERE b.vm_id = v.id AND b.status = 'completed'
+                   AND b.created_at > NOW() - INTERVAL '7 days'
+               )
+               OR (v.guest_ip IS NULL OR v.guest_ip = '')
+               OR (COALESCE(v.inventory_source, 'libvirt') != 'kubevirt'
+                 AND (v.guest_tools_status IS NULL OR v.guest_tools_status NOT IN ('healthy', 'installed')))
+               OR (m.cpu_percent > 85)
+             ))
              OR ($5 = 'ha_enabled' AND hp.enabled = TRUE)
              OR $5 = 'all'
            )

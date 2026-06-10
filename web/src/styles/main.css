@@ -11,6 +11,7 @@
 /* Layout width (matches HyperSDK dashboard inner wrappers: max-width 1400px, centered) */
 :root {
   --layout-max-width: 87.5rem;
+  --dock-height: 4.25rem;
 
   /* macOS Tahoe Liquid Glass design tokens */
   --radius-liquid: 22px;
@@ -678,6 +679,47 @@ a.tahoe-context-app-title:hover {
 
 .mac-dock-inner-scroll::-webkit-scrollbar {
   display: none;
+}
+
+.mac-dock-autohide {
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
+}
+
+.mac-dock-hidden {
+  transform: translateY(calc(100% + env(safe-area-inset-bottom, 0px)));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.machine-finder-page {
+  --machine-finder-dock-pad: calc(var(--dock-height) + 1rem);
+}
+
+.machine-finder-root {
+  min-height: 0;
+}
+
+.machine-finder-command-bar {
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.machine-finder-sidebar {
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  padding-right: 0.75rem;
+}
+
+.machine-finder-card {
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.machine-finder-migrate-zone {
+  margin-top: 0.5rem;
+}
+
+.machine-finder-command-center {
+  max-height: calc(100dvh - 12rem);
 }
 
 @media (max-width: 1023px) {
