@@ -51,12 +51,14 @@ host = "0.0.0.0"
 # Omit `port` to use default 5092 (see DEFAULT_DAEMON_PORT in core)
 port = 5092
 
-# Optional Guacamole encrypted JSON auth — GET /api/v1/vms/{name}/guacamole-auth (same secret as Docker JSON_SECRET_KEY).
+# Optional Guacamole encrypted JSON auth — enabled by scripts/install-guacamole.sh or manually below.
+# GET /api/v1/vms/{name}/guacamole-auth returns guac_data (+ optional token if fetch_token).
+# Secret must match JSON_SECRET_KEY in /etc/machina/guacamole.env (Docker) or Guacamole JSON auth config.
 # [guacamole]
 # enabled = true
-# json_secret_hex = ""
+# json_secret_hex = ""   # 32 hex chars — same as JSON_SECRET_KEY
 # base_url = "http://127.0.0.1:8080/guacamole"
-# public_vnc_host = ""
+# public_vnc_host = ""   # leave empty when guacd uses host network (default compose stack)
 # fetch_token = true
 # json_username = "machina"
 

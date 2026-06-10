@@ -37,6 +37,7 @@ OPEN_FIREWALL=false
 DISABLE_FIREWALL=false
 NO_TESTS=false
 BUNDLE_INSTALL=false
+WITH_GUACAMOLE=false
 MACHINA_PORT=5092
 
 info()  { echo "ℹ️  $*"; }
@@ -221,6 +222,7 @@ install_deps_fedora() {
         libvirt-devel libvirt-daemon-kvm qemu-kvm virt-install
         pam-devel clang-libs clang-devel
         protobuf-compiler
+        novnc spice-html5
         openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
@@ -248,6 +250,7 @@ install_deps_rhel() {
         libvirt-devel libvirt-daemon-kvm qemu-kvm virt-install
         pam-devel clang-libs clang-devel
         protobuf-compiler
+        novnc spice-html5
         openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
@@ -264,6 +267,7 @@ install_deps_debian() {
         libvirt-dev libvirt-daemon-system qemu-kvm virtinst
         libpam0g-dev libclang-dev clang llvm-dev
         protobuf-compiler
+        novnc spice-html5
         openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
@@ -279,6 +283,7 @@ install_deps_suse() {
     local packages=(gcc gcc-c++ make pkg-config
         libvirt-devel libvirt-daemon qemu-kvm
         pam-devel clang-devel protobuf
+        novnc spice-html5
         openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
@@ -294,6 +299,7 @@ install_deps_arch() {
     local packages=(gcc make pkg-config
         libvirt qemu-full virt-install dnsmasq
         linux-pam clang protobuf
+        novnc spice-html5
         openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
@@ -956,6 +962,7 @@ install_files_bundle() {
 
     if [ -d "$root/web/dist" ]; then
         mkdir -p /usr/local/share/machina/web
+        rm -rf /usr/local/share/machina/web/*
         cp -r "$root/web/dist/"* /usr/local/share/machina/web/
         ok "Web UI -> /usr/local/share/machina/web/"
     else
@@ -1044,6 +1051,7 @@ install_files() {
     # Web UI
     if [ -d web/dist ]; then
         mkdir -p /usr/local/share/machina/web
+        rm -rf /usr/local/share/machina/web/*
         cp -r web/dist/* /usr/local/share/machina/web/
         ok "Web UI -> /usr/local/share/machina/web/"
     fi
@@ -1197,6 +1205,43 @@ start_daemon() {
     fail "Daemon failed to become healthy at https://localhost:5092/api/v1/health — fix the error above then: sudo systemctl restart machina-daemon"
 }
 
+verify_novnc_serving() {
+    step "Verifying noVNC is served by machina-daemon"
+    local novnc_dir=""
+    for d in /usr/share/novnc /usr/local/share/novnc /usr/share/noVNC; do
+        if [ -f "$d/vnc.html" ]; then
+            novnc_dir="$d"
+            break
+        fi
+    done
+    if [ -z "$novnc_dir" ]; then
+        warn "noVNC package not found — install novnc (EPEL on RHEL) and restart machina-daemon"
+        warn "Built-in VNC still works via bundled novnc-core in the web UI"
+        return 0
+    fi
+    ok "noVNC files at $novnc_dir"
+    local ctype
+    ctype=$(curl -sfk -o /dev/null -w '%{content_type}' "https://127.0.0.1:${MACHINA_PORT}/novnc/core/rfb.js" 2>/dev/null) || ctype=""
+    if [ "$ctype" = "text/html" ] || [ -z "$ctype" ]; then
+        warn "/novnc/core/rfb.js returns HTML — restart machina-daemon after installing novnc:"
+        warn "  sudo systemctl restart machina-daemon"
+    else
+        ok "noVNC served at /novnc/ ($ctype)"
+    fi
+}
+
+install_guacamole_stack() {
+    step "Installing optional Apache Guacamole (Docker)"
+    local guac_script="${INSTALLER_ROOT}/scripts/install-guacamole.sh"
+    [ -f "$guac_script" ] || fail "Missing $guac_script"
+    local guac_args=()
+    if [ -n "$BIND_HOST" ] && [ "$BIND_HOST" != "127.0.0.1" ]; then
+        guac_args+=(--bind "$BIND_HOST")
+    fi
+    $OPEN_FIREWALL && guac_args+=(--open-firewall)
+    bash "$guac_script" "${guac_args[@]}" || fail "Guacamole install failed — see log from install-guacamole.sh"
+}
+
 # ── Verification tests ───────────────────────────────────────────────
 
 run_tests() {
@@ -1337,6 +1382,7 @@ remote_deploy() {
     [ -n "$BIND_HOST" ] && remote_args="--bind $BIND_HOST"
     $OPEN_FIREWALL && remote_args="$remote_args --open-firewall"
     $DISABLE_FIREWALL && remote_args="$remote_args --disable-firewalld"
+    $WITH_GUACAMOLE && remote_args="$remote_args --with-guacamole"
 
     # Skip curl/API verification on the hypervisor — run locally if needed.
     ssh "$remote" "cd ~/.deployment/machina && sudo bash install.sh --no-tests $remote_args" || fail "Remote install failed"
@@ -1351,6 +1397,9 @@ remote_deploy() {
     echo ""
     echo "  🌐 Web UI:  https://$remote_ip:5092"
     echo "  🔗 API:     https://$remote_ip:5092/api/v1/health"
+    if $WITH_GUACAMOLE; then
+        echo "  🖥️  Guacamole: http://$remote_ip:8080/guacamole/"
+    fi
     echo ""
 }
 
@@ -1434,6 +1483,14 @@ print_summary() {
         echo "    sudo /usr/local/share/machina/scripts/openstack-wire-cloud.sh /root/keystonerc_admin packstack"
         echo "    sudo systemctl restart machina-daemon"
     fi
+    if [ -f /etc/machina/config.toml ] && grep -qE '^\[guacamole\]' /etc/machina/config.toml \
+        && grep -qE '^\s*enabled\s*=\s*true' /etc/machina/config.toml; then
+        local guac_url
+        guac_url=$(grep -E '^\s*base_url\s*=' /etc/machina/config.toml 2>/dev/null | head -1 | sed 's/.*=\s*"\?\([^"]*\)"\?.*/\1/' | tr -d ' ')
+        echo ""
+        echo "  Guacamole:   ${guac_url:-http://127.0.0.1:8080/guacamole}  (optional HTML5 gateway)"
+        echo "    VM Details → Guacamole button, or GET /api/v1/vms/{name}/guacamole-auth"
+    fi
     echo ""
 }
 
@@ -1469,6 +1526,7 @@ MACHINA_BANNER
             --no-tests)      NO_TESTS=true ;;
             --open-firewall) OPEN_FIREWALL=true ;;
             --disable-firewalld) DISABLE_FIREWALL=true ;;
+            --with-guacamole) WITH_GUACAMOLE=true ;;
             --bind|--remote) prev_arg="$arg" ;;
             --help|-h)
                 cat <<'HELPEOF'
@@ -1497,6 +1555,8 @@ Install options:
                        Remote deploy (--remote) passes this automatically.
   --deps-only          Only install system dependencies (libvirt, Rust,
                        Node.js) without building or installing machina.
+  --with-guacamole     After install, deploy Apache Guacamole via Docker
+                       (guacd + PostgreSQL + JSON auth). See scripts/install-guacamole.sh.
 
 Remote deploy:
   --remote USER@HOST   Deploy to a remote machine over SSH.
@@ -1532,6 +1592,7 @@ What gets installed:
 
 Prerequisites (installed automatically):
   - libvirt + QEMU/KVM
+  - novnc + spice-html5 (in-browser graphical consoles at /novnc/ and /spice-html5/)
   - Rust toolchain (via rustup)
   - Node.js 18+ (via NodeSource if distro version is too old)
   - gcc, make, pkg-config, openssl, git, curl
@@ -1549,6 +1610,10 @@ Examples:
   Install dependencies first, build later:
     sudo ./install.sh --deps-only
     sudo ./install.sh
+
+  Install with optional Apache Guacamole gateway:
+    sudo ./install.sh --with-guacamole
+    sudo ./install.sh --bind 0.0.0.0 --open-firewall --with-guacamole
 
   Remove machina:
     sudo ./install.sh --uninstall
@@ -1629,6 +1694,10 @@ HELPEOF
     fi
 
     start_daemon
+    verify_novnc_serving
+    if $WITH_GUACAMOLE; then
+        install_guacamole_stack
+    fi
     if $NO_TESTS; then
         info "Skipping verification tests (--no-tests)"
     else

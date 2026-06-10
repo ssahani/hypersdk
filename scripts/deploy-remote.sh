@@ -62,7 +62,8 @@ usage() {
     cat <<'EOF'
 deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--e2e|--platform|--cleanup|--dry-run]
         [--skip-platform-e2e|--skip-daemon-e2e]
-        [--remote-build|--remote-check] [--bind ADDR] [--open-firewall|--disable-firewalld] [--no-start] [--deps-only] [extra install.sh args...]
+        [--remote-build|--remote-check] [--bind ADDR] [--open-firewall|--disable-firewalld]
+        [--with-guacamole] [--no-start] [--deps-only] [extra install.sh args...]
 
 Prefer: ./scripts/deploy remote USER@HOST [flags]  |  ./scripts/deploy status
 
@@ -88,6 +89,7 @@ Examples:
   VSPASS=max deploy-remote.sh sus 185.165.240.5 --quick --e2e --platform
   VSPASS=max deploy-remote.sh sus 212.8.252.194 --platform --e2e --bind 0.0.0.0
   deploy-remote.sh sus 212.8.252.194 --quick --platform --e2e --bind 0.0.0.0 --disable-firewalld
+  deploy-remote.sh sus@host --with-guacamole --bind 0.0.0.0 --open-firewall
   deploy-remote.sh sus@host --remote-check    # fast compile smoke after rsync
   deploy-remote.sh sus@host --remote-build   # full release build on server, then exit
   # Full install passes --no-tests to install.sh (no post-install curl suite on the server).
@@ -252,6 +254,7 @@ INSTALL_PLATFORM=false
 SKIP_PLATFORM_E2E=false
 SKIP_DAEMON_E2E=false
 SKIP_LIVE_UX=false
+WITH_GUACAMOLE=false
 
 parse_flags() {
     while [[ $# -gt 0 ]]; do
@@ -263,6 +266,7 @@ parse_flags() {
             --skip-platform-e2e) SKIP_PLATFORM_E2E=true; shift ;;
             --skip-daemon-e2e) SKIP_DAEMON_E2E=true; shift ;;
             --skip-live-ux) SKIP_LIVE_UX=true; shift ;;
+            --with-guacamole) WITH_GUACAMOLE=true; shift ;;
             --cleanup) CLEANUP=true; shift ;;
             --open-firewall) OPEN_FW=true; shift ;;
             --disable-firewalld) DISABLE_FW=true; shift ;;
@@ -372,6 +376,7 @@ if [[ "${SYNC_ONLY:-0}" == 1 ]] || ($SKIP_INSTALL && ! $REMOTE_BUILD && ! $REMOT
 fi
 if $QUICK; then MODE_LABEL="Quick — make release web + install + try-restart"; fi
 if $INSTALL_PLATFORM; then MODE_LABEL+=" + platform (PostgreSQL, controller :5093, agent)"; fi
+if $WITH_GUACAMOLE; then MODE_LABEL+=" + Guacamole (Docker :8080)"; fi
 
 TOTAL_STEPS=4
 PLATFORM_PHASE=0
@@ -395,6 +400,7 @@ OPTS_LINE=""
 [[ -n "$BIND" ]] && OPTS_LINE+="--bind $BIND  "
 $OPEN_FW && OPTS_LINE+="--open-firewall  "
 $DISABLE_FW && OPTS_LINE+="--disable-firewalld  "
+$WITH_GUACAMOLE && OPTS_LINE+="--with-guacamole  "
 $NO_START && OPTS_LINE+="--no-start  "
 $DEPS_ONLY && OPTS_LINE+="--deps-only  "
 $CLEANUP && OPTS_LINE+="cleanup deploy dir after  "
@@ -486,6 +492,7 @@ OPTS=" --no-tests"
 [[ -n "$BIND" ]] && OPTS+=" --bind $BIND"
 $OPEN_FW && OPTS+=" --open-firewall"
 $DISABLE_FW && OPTS+=" --disable-firewalld"
+$WITH_GUACAMOLE && OPTS+=" --with-guacamole"
 $NO_START && OPTS+=" --no-start"
 $DEPS_ONLY && OPTS+=" --deps-only"
 
@@ -500,6 +507,7 @@ if $QUICK; then
     [[ -n "$BIND" ]] && QUICK_OPTS+=" --bind $BIND"
     $OPEN_FW && QUICK_OPTS+=" --open-firewall"
     $DISABLE_FW && QUICK_OPTS+=" --disable-firewalld"
+    $WITH_GUACAMOLE && QUICK_OPTS+=" --with-guacamole"
     # Build as SSH user (rustup cargo on PATH); install.sh applies bind/firewall/systemd like full deploy.
     ssh_r_bash "$REMOTE" "
 set -euo pipefail
@@ -587,6 +595,9 @@ deploy_ui_celebrate "Ship it!"
 machina_print_success "$HOST" "$ELAPSED" "./scripts/deploy remote ${USER}@${HOST} --quick"
 deploy_ui_kv "🔗" "SSH" "ssh ${USER}@${HOST}"
 deploy_ui_kv "🌐" "UI" "https://${HOST}:5092/"
+if $WITH_GUACAMOLE; then
+    deploy_ui_kv "🖥️" "Guacamole" "http://${HOST}:8080/guacamole/"
+fi
 tip "Trust the browser once for the self-signed TLS cert, or terminate TLS upstream."
 tip "HOST USER also works: ./scripts/deploy-remote.sh ${HOST} ${USER} --quick"
 

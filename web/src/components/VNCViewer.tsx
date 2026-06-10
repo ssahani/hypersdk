@@ -128,30 +128,26 @@ export default function VNCViewer({
         rfbRef.current = rfb
       }
 
-      // Dynamically import RFB from server-hosted noVNC (ESM module)
-      // This is the same noVNC that's served at /novnc/core/rfb.js
+      // Prefer bundled novnc-core (always shipped with the web UI). Fall back to system
+      // noVNC at /novnc/ when the daemon serves it (install.sh installs the novnc package).
       try {
         setStatus('connecting')
-        // Load noVNC RFB from server-hosted ESM files (same approach as Cockpit)
-        // Use Function constructor to avoid bundler trying to resolve the path
-        const loadRfb = new Function('return import("/novnc/core/rfb.js")')
-        const module = await loadRfb() as { default: new (...args: unknown[]) => Record<string, unknown> }
-        const RFB = module.default
-
+        const { default: RFB } = await import(/* @vite-ignore */ 'novnc-core/lib/rfb')
         if (cancelled || !containerRef.current) return
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const rfb: any = new (RFB as any)(containerRef.current, wsUrl, { showDotCursor: showDotCursorRef.current })
+        const rfb = new RFB(containerRef.current, wsUrl, { showDotCursor: showDotCursorRef.current })
         wireCommon(rfb)
       } catch (e) {
-        console.error('Failed to load noVNC RFB:', e)
+        console.error('Failed to load bundled noVNC RFB:', e)
 
-        // Fallback: try novnc-core npm package
         try {
-          const { default: RFB } = await import(/* @vite-ignore */ 'novnc-core/lib/rfb')
+          const loadRfb = new Function('return import("/novnc/core/rfb.js")')
+          const module = await loadRfb() as { default: new (...args: unknown[]) => Record<string, unknown> }
+          const RFB = module.default
           if (cancelled || !containerRef.current) return
 
-          const rfb = new RFB(containerRef.current, wsUrl, { showDotCursor: showDotCursorRef.current })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const rfb: any = new (RFB as any)(containerRef.current, wsUrl, { showDotCursor: showDotCursorRef.current })
           wireCommon(rfb)
         } catch {
           setStatus('disconnected')

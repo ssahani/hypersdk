@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield, ExternalLink, Monitor, Pause, Power, Server, Loader2, Network, ToggleLeft, ToggleRight } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
+import GuacamoleConsoleLink from '../../components/GuacamoleConsoleLink'
 import GuestToolsStrip from '../../components/platform/GuestToolsStrip'
 import GuestAgentDiagnosticsPanel, {
   GuestAgentHeaderPill,
@@ -594,6 +595,7 @@ export default function PlatformVmDetail() {
           <Link to={`/platform/vms/${id}/console`} className="btn-primary text-sm inline-flex items-center gap-1">
             <Monitor className="w-4 h-4" /> VNC
           </Link>
+          {vm.name && <GuacamoleConsoleLink vmName={vm.name} className="btn-secondary text-sm inline-flex items-center gap-1 py-1.5 px-3" />}
           {powerActions}
           {!isPopout && (
             <SpotlightPageAction

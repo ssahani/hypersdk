@@ -9,6 +9,7 @@ import { loadVmSshPrefs } from '../../utils/vmSshPrefs'
 import { navigateVmSshSession } from '../../components/vm/VmSshConnectDialog'
 import { formatUserError } from '../../utils/apiError'
 import AiTerminalCompanion from '../../components/ai/AiTerminalCompanion'
+import GuacamoleConsoleLink from '../../components/GuacamoleConsoleLink'
 import VNCViewer from '../../components/VNCViewer'
 import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
 import { hubLinkClasses } from '../../utils/semanticColors'
@@ -95,6 +96,7 @@ export default function PlatformConsole() {
             >
               <ExternalLink className="w-4 h-4" /> Pop out
             </button>
+            {vmName && <GuacamoleConsoleLink vmName={vmName} className="btn-secondary text-sm inline-flex items-center gap-1 py-1.5 px-3" />}
           </div>
         ) : undefined
       }
