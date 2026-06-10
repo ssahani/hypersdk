@@ -18,7 +18,11 @@ import {
   type PlatformDesktopTier,
 } from '../../../utils/platformDesktopTier'
 import { dispatchOpenMissionControl } from './MissionControlContext'
-import { dispatchOpenSpotlight } from '../../../utils/platformJarvisShell'
+import {
+  CLOSE_PLATFORM_MENUS_EVENT,
+  dispatchOpenSpotlight,
+  OPEN_SPOTLIGHT_EVENT,
+} from '../../../utils/platformJarvisShell'
 import { ZEUS_SEARCH_PLACEHOLDER } from '../../../config/aiBrand'
 import { macMenuSectionsForTier } from '../../../utils/platformMacMenus'
 import { integrationNavItems } from '../../../utils/platformIntegrationsNav'
@@ -74,6 +78,16 @@ export default function PlatformMacAppMenus() {
   useEffect(() => {
     if (openMenu === 'window') setOpenWindows(loadPlatformDesktopTabs())
   }, [openMenu, location.pathname])
+
+  useEffect(() => {
+    const dismiss = () => closeMenu()
+    window.addEventListener(OPEN_SPOTLIGHT_EVENT, dismiss)
+    window.addEventListener(CLOSE_PLATFORM_MENUS_EVENT, dismiss)
+    return () => {
+      window.removeEventListener(OPEN_SPOTLIGHT_EVENT, dismiss)
+      window.removeEventListener(CLOSE_PLATFORM_MENUS_EVENT, dismiss)
+    }
+  }, [closeMenu])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

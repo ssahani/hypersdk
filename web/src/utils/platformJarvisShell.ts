@@ -6,6 +6,8 @@ import { loadPlatformDesktopTier, type PlatformDesktopTier } from './platformDes
 export const JARVIS_SHELL_KEY = 'machina-jarvis-shell'
 export const JARVIS_SHELL_EVENT = 'machina-jarvis-shell-changed'
 export const OPEN_SPOTLIGHT_EVENT = 'machina-open-spotlight'
+export const CLOSE_PLATFORM_MENUS_EVENT = 'machina-close-platform-menus'
+export const CLOSE_MISSION_CONTROL_EVENT = 'machina-close-mission-control'
 export const SCROLL_GEOGRAPHY_EVENT = 'machina-scroll-geography'
 
 export function defaultJarvisShellForTier(tier: PlatformDesktopTier): boolean {
@@ -29,6 +31,8 @@ export function saveJarvisShell(enabled: boolean) {
 }
 
 export function dispatchOpenSpotlight(prefill?: string) {
+  window.dispatchEvent(new CustomEvent(CLOSE_MISSION_CONTROL_EVENT))
+  window.dispatchEvent(new CustomEvent(CLOSE_PLATFORM_MENUS_EVENT))
   window.dispatchEvent(new CustomEvent(OPEN_SPOTLIGHT_EVENT, { detail: { prefill } }))
 }
 

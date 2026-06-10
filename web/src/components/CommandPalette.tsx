@@ -103,6 +103,15 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
 
   const appliedPrefillForOpenRef = useRef(false)
 
+  const close = useCallback(() => {
+    setOpen(false)
+    setQuery('')
+    setReviewCommand(null)
+    setReviewNlOps(null)
+    setNlOpsQuery('')
+    setSpotlightIntents([])
+  }, [])
+
   useEffect(() => {
     const onOpen = (e: Event) => {
       const detail = (e as CustomEvent<{ prefill?: string }>).detail
@@ -116,6 +125,31 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
     window.addEventListener('machina-open-spotlight', onOpen)
     return () => window.removeEventListener('machina-open-spotlight', onOpen)
   }, [])
+
+  useEffect(() => {
+    close()
+  }, [location.pathname, close])
+
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (reviewNlOps) {
+        setReviewNlOps(null)
+        e.preventDefault()
+        return
+      }
+      if (reviewCommand) {
+        setReviewCommand(null)
+        e.preventDefault()
+        return
+      }
+      close()
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [open, close, reviewCommand, reviewNlOps])
 
   // Seed empty query when spotlight opens without a page-context prefill.
   useEffect(() => {
@@ -162,8 +196,6 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 50)
   }, [open])
-
-  const close = useCallback(() => { setOpen(false); setQuery(''); setReviewCommand(null); setReviewNlOps(null); setNlOpsQuery(''); setSpotlightIntents([]) }, [])
 
   const platformConnected = Boolean(info?.control_plane?.proxy_url)
   const onPlatformDesktop = location.pathname.startsWith('/platform')
@@ -716,17 +748,28 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
 
   return (
     <AnimatePresence>
-      {open && (
-    <div className="fixed inset-0 z-[500] liquid-glass-modal-backdrop" onClick={close}>
-      <div className="fixed inset-x-0 top-[15%] mx-auto max-w-lg px-4" onClick={e => e.stopPropagation()}>
+      {open ? (
         <motion.div
-          initial={{ opacity: 0, scale: 0.96, y: -8 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.96, y: -8 }}
-          transition={{ type: 'spring', stiffness: 340, damping: 28 }}
-          className="liquid-glass-modal-panel overflow-hidden"
-          onKeyDown={handleKeyDown}
+          key="command-palette"
+          role="dialog"
+          aria-modal="true"
+          aria-label={spotlight ? 'Zeus Spotlight' : 'Command palette'}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-[500] liquid-glass-modal-backdrop"
+          onClick={close}
         >
+          <div className="fixed inset-x-0 top-[15%] mx-auto max-w-lg px-4" onClick={(e) => e.stopPropagation()}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: -8 }}
+              transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+              className="liquid-glass-modal-panel overflow-hidden"
+              onKeyDown={handleKeyDown}
+            >
           {/* Search input */}
           <div className="flex items-center gap-3 px-4 border-b border-white/[0.06]">
             <Search className="w-4 h-4 text-[var(--text-secondary)] shrink-0" strokeWidth={1.75} />
@@ -822,10 +865,10 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
             <span><kbd className="px-1 py-0.5 bg-white/5 border border-white/10 rounded font-mono">↵</kbd> select</span>
             <span><kbd className="px-1 py-0.5 bg-white/5 border border-white/10 rounded font-mono">esc</kbd> close</span>
           </div>
+            </motion.div>
+          </div>
         </motion.div>
-      </div>
-    </div>
-      )}
+      ) : null}
     </AnimatePresence>
   )
 }

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { CLOSE_MISSION_CONTROL_EVENT } from '../../../utils/platformJarvisShell'
 
 export const OPEN_MISSION_CONTROL_EVENT = 'machina-open-mission-control'
 
@@ -35,6 +36,12 @@ export function MissionControlProvider({ children }: { children: ReactNode }) {
     setOpen(false)
   }, [])
   const toggleMissionControl = useCallback(() => setOpen((v) => !v), [])
+
+  useEffect(() => {
+    const onClose = () => closeMissionControl()
+    window.addEventListener(CLOSE_MISSION_CONTROL_EVENT, onClose)
+    return () => window.removeEventListener(CLOSE_MISSION_CONTROL_EVENT, onClose)
+  }, [closeMissionControl])
 
   const value = useMemo(
     () => ({ open, openMissionControl, closeMissionControl, toggleMissionControl }),

@@ -544,7 +544,7 @@ a.tahoe-context-app-title:hover {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 60;
+  z-index: 110;
   display: flex;
   justify-content: center;
   padding: 0.5rem 1rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
