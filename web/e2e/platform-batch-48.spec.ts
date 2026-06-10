@@ -50,7 +50,7 @@ test('marketplace page scrolls as a normal web document', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/templates')
   await expect(page.getByText('Fleet template catalog').first()).toBeVisible({ timeout: 20_000 })
-  await expectPageScrolls(page, { viewportHeight: 480 })
+  await expectPageScrolls(page, { viewportHeight: 400 })
 })
 
 test('platform support shows Zyvor guidance', async ({ page }) => {

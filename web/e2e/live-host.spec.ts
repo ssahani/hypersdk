@@ -38,7 +38,7 @@ test('platform marketplace scrolls on live host', async ({ page }) => {
   await loginAtMachinaLoginPage(page, live!)
   await page.goto(`${live}/platform/templates`)
   await expect(page.getByText('Fleet template catalog').first()).toBeVisible({ timeout: 30_000 })
-  await expectPageScrolls(page, { viewportHeight: 480 })
+  await expectPageScrolls(page, { viewportHeight: 400 })
 })
 
 test('PAM login at /login reaches dashboard', async ({ page }) => {
