@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Keyboard, Maximize, Minimize, Monitor, RefreshCw } from 'lucide-react'
 import { getWsToken } from '../api/client'
 import { statusBgClass } from '../utils/semanticColors'
+import { useConsoleViewportOptional } from './consolehub/ConsoleViewportContext'
 
 function wsConnQs(libvirtConnection?: string | null): string {
   if (!libvirtConnection || libvirtConnection === 'system') return ''
@@ -29,6 +30,8 @@ interface Props {
   fillViewportOffset?: string
   /** Refresh console session (fetch new WS token) instead of full page reload. */
   onReconnect?: () => void
+  /** Machine Cockpit — hide toolbar; viewport controlled by floating HUD. */
+  cockpitMode?: boolean
 }
 
 /** Apply scale vs native resolution (scroll) — affects perceived sharpness and pointer mapping. */
@@ -56,13 +59,16 @@ export default function VNCViewer({
   fillViewport = false,
   fillViewportOffset = '13rem',
   onReconnect,
+  cockpitMode = false,
 }: Props) {
+  const vp = useConsoleViewportOptional()
+  const scrollRef = useRef<HTMLDivElement>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [status, setStatus] = useState<'loading' | 'connecting' | 'connected' | 'disconnected'>('loading')
   /** Soft cursor dot helps when the remote cursor shape is delayed (common on Windows before drivers). */
   const [showDotCursor, setShowDotCursor] = useState(true)
   /** Scaling to fit can blur and sometimes hurts pointer feel; native 1:1 + scroll is sharper/snappier. */
-  const [scaledFit, setScaledFit] = useState(defaultScaledFit)
+  const [scaledFit, setScaledFit] = useState(defaultScaledFit || cockpitMode)
   const containerRef = useRef<HTMLDivElement>(null)
   const rfbRef = useRef<{ disconnect: () => void; sendCtrlAltDel?: () => void; showDotCursor: boolean; clipViewport?: boolean; scaleViewport?: boolean } | null>(null)
 
@@ -78,11 +84,19 @@ export default function VNCViewer({
       !directWs
       && ((!kube && (port == null || port <= 0)) || (kube && !kubeVirtNamespace))
     ) return
-    if (!containerRef.current) return
 
     let cancelled = false
+    let raf = 0
 
     async function connect() {
+      // Wait until the canvas container is mounted (flex layout can attach ref after first paint).
+      for (let i = 0; i < 120; i++) {
+        if (cancelled) return
+        if (containerRef.current) break
+        await new Promise<void>((resolve) => {
+          raf = requestAnimationFrame(() => resolve())
+        })
+      }
       if (!containerRef.current || cancelled) return
 
       // Clear container
@@ -106,6 +120,12 @@ export default function VNCViewer({
           : `${protocol}//${window.location.host}/ws/v1/vnc/${encVm}?token=${encodeURIComponent(token)}${cq}`
       }
 
+      const syncGuestSize = (rfb: { _fbWidth?: number; _fbHeight?: number }) => {
+        const w = rfb._fbWidth ?? 0
+        const h = rfb._fbHeight ?? 0
+        if (w > 0 && h > 0) vp?.setGuestSize(w, h)
+      }
+
       const wireCommon = (
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         rfb: any,
@@ -116,10 +136,36 @@ export default function VNCViewer({
         rfb.showDotCursor = showDotCursorRef.current
 
         rfb.addEventListener('connect', () => {
-          if (!cancelled) setStatus('connected')
+          if (!cancelled) {
+            setStatus('connected')
+            vp?.setConnected(true)
+            syncGuestSize(rfb)
+            applyViewportMode(rfb, scaledFitRef.current)
+            window.dispatchEvent(new Event('resize'))
+            requestAnimationFrame(() => {
+              syncGuestSize(rfb)
+              applyViewportMode(rfb, scaledFitRef.current)
+              window.dispatchEvent(new Event('resize'))
+            })
+            setTimeout(() => {
+              if (!cancelled) {
+                syncGuestSize(rfb)
+                window.dispatchEvent(new Event('resize'))
+              }
+            }, 250)
+          }
         })
         rfb.addEventListener('disconnect', () => {
-          if (!cancelled) setStatus('disconnected')
+          if (!cancelled) {
+            setStatus('disconnected')
+            vp?.setConnected(false)
+            vp?.setGuestSize(0, 0)
+          }
+        })
+        rfb.addEventListener('desktopname', () => syncGuestSize(rfb))
+        rfb.addEventListener('resize', () => {
+          syncGuestSize(rfb)
+          window.dispatchEvent(new Event('resize'))
         })
         rfb.addEventListener('credentialsrequired', () => {
           rfb.sendCredentials({ password: '' })
@@ -159,6 +205,7 @@ export default function VNCViewer({
 
     return () => {
       cancelled = true
+      if (raf) cancelAnimationFrame(raf)
       if (rfbRef.current && typeof rfbRef.current.disconnect === 'function') {
         try { rfbRef.current.disconnect() } catch { /* ignore */ }
       }
@@ -186,6 +233,38 @@ export default function VNCViewer({
     rfb.showDotCursor = showDotCursor
   }, [showDotCursor, status])
 
+  useEffect(() => {
+    if (!cockpitMode || !vp) return
+    const fit = vp.mode === 'fit'
+    setScaledFit(fit)
+  }, [cockpitMode, vp?.mode, vp])
+
+  useEffect(() => {
+    const rfb = rfbRef.current
+    if (!rfb || status !== 'connected' || !cockpitMode || !vp) return
+    const fit = vp.mode === 'fit'
+    applyViewportMode(rfb as { scaleViewport: boolean; clipViewport: boolean }, fit)
+    window.dispatchEvent(new Event('resize'))
+  }, [cockpitMode, vp?.mode, status, vp])
+
+  useEffect(() => {
+    if (!cockpitMode || !vp || !scrollRef.current) return
+    const el = scrollRef.current
+    const ro = new ResizeObserver(() => {
+      vp.setViewportSize(el.clientWidth, el.clientHeight)
+    })
+    ro.observe(el)
+    vp.setViewportSize(el.clientWidth, el.clientHeight)
+    return () => ro.disconnect()
+  }, [cockpitMode, vp, status])
+
+  useEffect(() => {
+    if (!cockpitMode || !vp || !scrollRef.current) return
+    const el = scrollRef.current
+    el.scrollLeft = vp.scrollLeft
+    el.scrollTop = vp.scrollTop
+  }, [cockpitMode, vp?.scrollLeft, vp?.scrollTop, vp])
+
   function sendCtrlAltDel() {
     rfbRef.current?.sendCtrlAltDel?.()
   }
@@ -211,11 +290,12 @@ export default function VNCViewer({
       className={
         fullscreen
           ? 'fixed inset-0 z-50 bg-black flex flex-col h-screen'
-          : fillViewport
-            ? 'flex flex-col flex-1 min-h-0 rounded-lg overflow-hidden'
+          : fillViewport || cockpitMode
+            ? 'flex flex-col flex-1 min-h-0 h-full w-full rounded-lg overflow-hidden'
             : 'flex flex-col rounded-b-lg overflow-hidden'
       }
     >
+      {!cockpitMode ? (
       <div className="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700 rounded-t-lg shrink-0">
         <div className="flex items-center gap-3">
           <div className={`w-2.5 h-2.5 rounded-full ${statusColor}`} />
@@ -264,6 +344,8 @@ export default function VNCViewer({
           </button>
         </div>
       </div>
+      ) : null}
+      {!cockpitMode ? (
       <p className="text-xs text-slate-500 px-4 py-2 bg-slate-900/40 border-b border-slate-700/50 leading-relaxed shrink-0">
         {status === 'disconnected' && (
           <span className="block text-amber-300/90 mb-1">
@@ -286,18 +368,31 @@ export default function VNCViewer({
               </>
             )}
       </p>
+      ) : null}
       <div
-        ref={containerRef}
-        className={`w-full bg-black ${fullscreen || fillViewport ? 'flex-1 min-h-0' : ''}`}
+        ref={scrollRef}
+        className={`w-full h-full bg-black overflow-auto ${fullscreen || fillViewport || cockpitMode ? 'flex-1 min-h-[320px]' : ''}`}
+        onScroll={cockpitMode && vp ? (e) => vp.setScroll(e.currentTarget.scrollLeft, e.currentTarget.scrollTop) : undefined}
         style={{
-          height: fullscreen
+          height: cockpitMode
+            ? '100%'
+            : fullscreen
             ? undefined
             : fillViewport
               ? `max(480px, calc(100dvh - ${fillViewportOffset}))`
               : 'min-h-[480px]',
           backgroundColor: '#000',
         }}
-      />
+      >
+        <div
+          ref={containerRef}
+          className="inline-block min-w-full min-h-full"
+          style={{
+            transform: cockpitMode && vp?.mode === 'zoom' ? `scale(${vp.zoom / 100})` : undefined,
+            transformOrigin: 'top left',
+          }}
+        />
+      </div>
     </div>
   )
 }

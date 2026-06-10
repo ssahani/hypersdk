@@ -623,7 +623,7 @@ fn default_consolehub_session_ttl_secs() -> u64 {
 }
 
 fn default_guacamole_base_url() -> String {
-    "http://127.0.0.1:8080/guacamole".to_string()
+    "http://127.0.0.1:8081/guacamole".to_string()
 }
 
 fn default_guacamole_json_username() -> String {

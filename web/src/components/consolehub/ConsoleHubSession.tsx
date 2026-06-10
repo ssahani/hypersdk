@@ -1,5 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
+import type { ReactNode } from 'react'
 import { ExternalLink } from 'lucide-react'
 import VNCViewer from '../VNCViewer'
 import SPICEViewer from '../SPICEViewer'
@@ -23,7 +24,40 @@ type Props = {
   kubeVirtNamespace?: string
   libvirtConnection?: string | null
   fillViewport?: boolean
+  /** Hide built-in toolbar — Machine Cockpit provides floating HUD + dock. */
+  cockpitMode?: boolean
   onReconnect?: () => void
+}
+
+function VncShell({ cockpitMode, children }: { cockpitMode?: boolean; children: ReactNode }) {
+  if (!cockpitMode) return <>{children}</>
+  return <div className="flex flex-col flex-1 min-h-0 w-full h-full">{children}</div>
+}
+
+function CockpitVnc(props: {
+  vmName: string
+  wsUrl?: string
+  kubeVirtNamespace?: string
+  libvirtConnection?: string | null
+  fillViewport?: boolean
+  cockpitMode?: boolean
+  onReconnect?: () => void
+}) {
+  const scaled = props.cockpitMode ? true : false
+  return (
+    <VncShell cockpitMode={props.cockpitMode}>
+      <VNCViewer
+        vmName={props.vmName}
+        wsUrl={props.wsUrl}
+        kubeVirtNamespace={props.kubeVirtNamespace}
+        libvirtConnection={props.libvirtConnection}
+        defaultScaledFit={scaled}
+        fillViewport={props.fillViewport ?? props.cockpitMode}
+        cockpitMode={props.cockpitMode}
+        onReconnect={props.onReconnect}
+      />
+    </VncShell>
+  )
 }
 
 export default function ConsoleHubSession({
@@ -36,12 +70,13 @@ export default function ConsoleHubSession({
   kubeVirtNamespace,
   libvirtConnection,
   fillViewport,
+  cockpitMode,
   onReconnect,
 }: Props) {
   if (session?.backend === 'guacamole' && session.session_id) {
     const src = `${session.embed_path}#/`
     return (
-      <div className="flex flex-col flex-1 min-h-0 gap-2">
+      <div className="flex flex-col flex-1 min-h-0 gap-2 w-full h-full">
         <iframe
           title={`ConsoleHub ${protocol}`}
           src={src}
@@ -73,13 +108,7 @@ export default function ConsoleHubSession({
       <div className="rounded-lg border border-violet-500/30 bg-violet-950/20 p-4 text-sm text-violet-100 flex flex-col gap-3 flex-1 min-h-0">
         <p>WebRTC/SPICE high-performance mode — opt-in upgrade for SPICE-capable guests.</p>
         {wsUrl ? (
-          <VNCViewer
-            vmName={vmName}
-            wsUrl={wsUrl}
-            defaultScaledFit={false}
-            fillViewport={fillViewport}
-            onReconnect={onReconnect}
-          />
+          <CockpitVnc vmName={vmName} wsUrl={wsUrl} fillViewport={fillViewport} cockpitMode={cockpitMode} onReconnect={onReconnect} />
         ) : (
           <SPICEViewer vmName={vmName} />
         )}
@@ -88,20 +117,28 @@ export default function ConsoleHubSession({
   }
 
   if (protocol === 'native_ssh' && guestIp) {
-    return <SSHConsole host={guestIp} sshUser={sshUser} />
+    return (
+      <div className="flex flex-col flex-1 min-h-0 w-full">
+        <SSHConsole host={guestIp} sshUser={sshUser} />
+      </div>
+    )
   }
 
   if (protocol === 'serial') {
-    return <SerialConsole vmName={vmName} libvirtConnection={libvirtConnection} />
+    return (
+      <div className="flex flex-col flex-1 min-h-0 w-full">
+        <SerialConsole vmName={vmName} libvirtConnection={libvirtConnection} />
+      </div>
+    )
   }
 
   if (kubeVirtNamespace) {
     return (
-      <VNCViewer
+      <CockpitVnc
         vmName={vmName}
         kubeVirtNamespace={kubeVirtNamespace}
-        defaultScaledFit={false}
         fillViewport={fillViewport}
+        cockpitMode={cockpitMode}
         onReconnect={onReconnect}
       />
     )
@@ -109,12 +146,12 @@ export default function ConsoleHubSession({
 
   if (wsUrl) {
     return (
-      <VNCViewer
+      <CockpitVnc
         vmName={vmName}
         wsUrl={wsUrl}
         libvirtConnection={libvirtConnection}
-        defaultScaledFit={false}
         fillViewport={fillViewport}
+        cockpitMode={cockpitMode}
         onReconnect={onReconnect}
       />
     )

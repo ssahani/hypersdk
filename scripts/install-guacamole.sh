@@ -16,7 +16,7 @@ LOG_FILE="$(mktemp /tmp/machina-guacamole-install-XXXXXX.log)"
 chmod 600 "$LOG_FILE"
 
 GUAC_BIND="127.0.0.1"
-GUAC_PORT="8080"
+GUAC_PORT="8081"
 OPEN_FIREWALL=false
 INSTALL_DOCKER=false
 DO_UNINSTALL=false
@@ -152,7 +152,7 @@ Deploys guacd + PostgreSQL + Guacamole (Docker Compose) with JSON auth for machi
 Writes /etc/machina/guacamole.env and enables [guacamole] in /etc/machina/config.toml.
 
 install.sh --with-guacamole calls this with --install-docker automatically.
-Default: Guacamole on http://127.0.0.1:8080/guacamole (guacd uses host network for libvirt VNC).
+Default: Guacamole on http://127.0.0.1:8081/guacamole (8080 is reserved for GuestKit worker).
 EOF
     exit 0
 }
@@ -259,10 +259,7 @@ patch_machina_config() {
     step "Enabling [guacamole] in $CFG"
     # shellcheck source=/dev/null
     source "$ENV_FILE"
-    local base_url="http://${GUAC_BIND}:${GUAC_PORT}/guacamole"
-    if [[ "$GUAC_BIND" == "127.0.0.1" ]]; then
-        base_url="http://127.0.0.1:${GUAC_PORT}/guacamole"
-    fi
+    local base_url="http://127.0.0.1:${GUAC_PORT}/guacamole"
 
     mkdir -p /etc/machina
     [[ -f "$CFG" ]] || touch "$CFG"
@@ -290,6 +287,25 @@ else:
 Path(cfg_path).write_text(text, encoding="utf-8")
 PY
     ok "Updated $CFG — restart machina-daemon to pick up [guacamole]"
+}
+
+patch_platform_env() {
+    local platform_env="/etc/default/machina-platform"
+    [[ -f "$platform_env" ]] || return 0
+    step "Syncing Guacamole env into $platform_env"
+    # shellcheck source=/dev/null
+    source "$ENV_FILE"
+    local base_url="http://127.0.0.1:${GUAC_PORT}/guacamole"
+    for kv in "GUACAMOLE_BASE_URL=${base_url}" "GUACAMOLE_JSON_SECRET_HEX=${JSON_SECRET_KEY}"; do
+        local key="${kv%%=*}"
+        local val="${kv#*=}"
+        if grep -q "^${key}=" "$platform_env"; then
+            sed -i "s|^${key}=.*|${key}=${val}|" "$platform_env"
+        else
+            echo "${key}=${val}" >>"$platform_env"
+        fi
+    done
+    ok "Updated $platform_env — restart machina-controller to pick up Guacamole URL"
 }
 
 smoke_test() {
@@ -362,12 +378,17 @@ bash "${COMPOSE_DIR}/initdb.sh" >>"$LOG_FILE" 2>&1 || fail "Database init failed
 compose_cmd up -d guacamole >>"$LOG_FILE" 2>&1 || true
 
 patch_machina_config
+patch_platform_env
 $OPEN_FIREWALL && open_guac_firewall
 smoke_test
 
 if systemctl is-active machina-daemon &>/dev/null; then
     info "Restarting machina-daemon to load [guacamole] config"
     systemctl restart machina-daemon >>"$LOG_FILE" 2>&1 || warn "machina-daemon restart failed"
+fi
+if systemctl is-active machina-controller &>/dev/null; then
+    info "Restarting machina-controller to load Guacamole env"
+    systemctl restart machina-controller >>"$LOG_FILE" 2>&1 || warn "machina-controller restart failed"
 fi
 
 echo ""

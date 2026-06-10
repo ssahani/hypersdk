@@ -25,7 +25,9 @@ Usage:
   $(basename "$0") status
 
 Flags (passed to deploy-remote.sh):
-  --quick           make release web + install + try-restart
+  --quick           incremental make release web + install (--skip-build)
+  --install-only    copy existing target/release + web/dist to /usr/local (no cargo/npm, ~1–2 min)
+  --prune-sources   after install, delete deploy sources; keep target/ + web/dist/ on server
   --sync-only       rsync only (no install)
   --remote-build    compile on server (make release)
   --remote-check    compile check on server (make check)

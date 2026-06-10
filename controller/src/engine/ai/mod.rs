@@ -352,6 +352,7 @@ pub async fn explain_screen(
         "templates" => "Templates deploy golden images when disk readiness passes.".into(),
         "tasks" => "Tasks queue orchestration operations with progress and retry.".into(),
         "vm_doctor" => "Zeus SRE scores VM health 0–100 with actionable fixes.".into(),
+        "console_hub" => "Zeus ConsoleHub Machine Cockpit — display, serial, SSH, and AI recovery lenses.".into(),
         "failed_task" => "Failed tasks include remediation via runbooks and retry.".into(),
         "notification" => "Alerts surface operational issues with Explain and Runbook actions.".into(),
         _ => format!("Screen: {screen}"),

@@ -34,9 +34,39 @@ function normalizeSavedController(url: string | null): string | null {
   return u
 }
 
+/** Ensure platform API calls use the daemon→controller proxy, not raw daemon /api/v1 routes. */
+function normalizeControllerBase(raw: string | null): string {
+  const saved = normalizeSavedController(raw)
+  if (typeof window === 'undefined') {
+    return saved ?? ''
+  }
+  const origin = window.location.origin
+  const proxy = `${origin}${PLATFORM_CONTROLLER_PROXY}`
+
+  if (!saved) return proxy
+
+  try {
+    const u = new URL(saved, origin)
+    if (u.origin !== origin) return saved
+
+    const path = u.pathname.replace(/\/$/, '') || ''
+    const onDaemonUi = u.port === window.location.port || (!u.port && !window.location.port)
+
+    if (onDaemonUi && !path.includes('/platform/controller')) {
+      localStorage.setItem(LS_CONTROLLER, proxy)
+      return proxy
+    }
+  } catch {
+    localStorage.setItem(LS_CONTROLLER, proxy)
+    return proxy
+  }
+
+  return saved
+}
+
 export function getControllerBase(): string {
-  const saved = normalizeSavedController(localStorage.getItem(LS_CONTROLLER))
-  if (saved) return saved
+  const normalized = normalizeControllerBase(localStorage.getItem(LS_CONTROLLER))
+  if (normalized) return normalized
   const env = import.meta.env.VITE_MACHINA_CONTROLLER_URL?.replace(/\/$/, '')
   if (env) return env
   return sameOriginProxyBase() || directControllerBase()
@@ -99,6 +129,14 @@ export async function platformFetch<T>(path: string, init?: RequestInit): Promis
   }
   if (res!.status === 429) {
     throw new Error('Rate limit exceeded — wait a minute and retry')
+  }
+  // Stale platform JWT/basic can 401 against daemon routes when controller URL was misconfigured.
+  if (res!.status === 401 && (localStorage.getItem(LS_JWT) || localStorage.getItem(LS_BASIC))) {
+    localStorage.removeItem(LS_JWT)
+    localStorage.removeItem(LS_BASIC)
+    const retryHeaders = new Headers(init?.headers)
+    if (!retryHeaders.has('Content-Type')) retryHeaders.set('Content-Type', 'application/json')
+    res = await fetch(url, { credentials: 'same-origin', ...init, headers: retryHeaders })
   }
   if (!res!.ok) {
     const body = await res!.text().catch(() => '')
@@ -275,6 +313,15 @@ export const listConsoleHubSessions = (vmId: string) =>
   platformFetch<Array<{ session_id: string; actor: string; protocol: string; backend: string; started_at: string; ended_at?: string | null }>>(
     `/api/v1/vms/${vmId}/consolehub/sessions`,
   )
+
+export const explainConsoleHub = (
+  vmId: string,
+  body: { intent?: string; lens?: string; guest_ip?: string; vm_state?: string; screen_snapshot?: string },
+) =>
+  platformFetch<{ explanation: string }>(`/api/v1/vms/${vmId}/consolehub/explain`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 
 export interface EnrollmentToken {
   token: string

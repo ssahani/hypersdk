@@ -37,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
         params: BridgeParamsOwned {
             secret_hex,
             base_url: std::env::var("GUAC_BASE_URL")
-                .unwrap_or_else(|_| "http://127.0.0.1:8080/guacamole".to_string()),
+                .unwrap_or_else(|_| "http://127.0.0.1:8081/guacamole".to_string()),
             public_vnc_host: std::env::var("PUBLIC_VNC_HOST").ok(),
             fetch_token: std::env::var("GUAC_FETCH_TOKEN")
                 .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))

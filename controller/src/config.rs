@@ -96,7 +96,7 @@ impl Default for ControllerConfig {
             guacamole_json_secret_hex: std::env::var("GUACAMOLE_JSON_SECRET_HEX")
                 .unwrap_or_default(),
             guacamole_base_url: std::env::var("GUACAMOLE_BASE_URL")
-                .unwrap_or_else(|_| "http://127.0.0.1:8080/guacamole".into()),
+                .unwrap_or_else(|_| "http://127.0.0.1:8081/guacamole".into()),
             guacamole_fetch_token: std::env::var("GUACAMOLE_FETCH_TOKEN")
                 .map(|v| !matches!(v.to_lowercase().as_str(), "0" | "false" | "no"))
                 .unwrap_or(true),

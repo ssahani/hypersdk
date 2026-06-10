@@ -209,12 +209,30 @@ export async function apiDelete(url: string): Promise<void> {
   }
 }
 
+function wsAuthHeaders(): HeadersInit {
+  const h = new Headers()
+  try {
+    const jwt = localStorage.getItem('machina_platform_jwt')
+    if (jwt) {
+      h.set('Authorization', `Bearer ${jwt}`)
+      return h
+    }
+  } catch {
+    /* private browsing / blocked storage */
+  }
+  return h
+}
+
 export async function getWsToken(): Promise<string> {
   const res = await fetchApi('/api/v1/ws-token', {
     method: 'POST',
     credentials: 'same-origin',
     cache: 'no-store',
+    headers: wsAuthHeaders(),
   })
+  if (res.status === 401) {
+    throw new Error('Session expired — sign in again at /login to use Shell or Serial consoles.')
+  }
   if (!res.ok) throw new Error('Failed to get WebSocket token')
   let data: unknown
   try {

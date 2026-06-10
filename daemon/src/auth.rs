@@ -345,6 +345,126 @@ fn browser_actor(
     }
 }
 
+#[derive(Debug, Deserialize)]
+struct PlatformJwtClaims {
+    sub: String,
+    role: String,
+    exp: usize,
+    iat: usize,
+    #[serde(default)]
+    auth: Option<String>,
+}
+
+fn platform_jwt_secret() -> String {
+    std::env::var("MACHINA_JWT_SECRET")
+        .unwrap_or_else(|_| "machina-dev-jwt-secret-change-me".into())
+}
+
+fn skip_auth_enabled() -> bool {
+    std::env::var("MACHINA_SKIP_AUTH").ok().as_deref() == Some("1")
+}
+
+fn dev_bypass_actor() -> RequestActor {
+    browser_actor(
+        "dev".into(),
+        None,
+        Role::Admin,
+        AuthSource::Pam,
+    )
+}
+
+fn role_from_platform_jwt(role: &str) -> Role {
+    match role.to_lowercase().as_str() {
+        "admin" => Role::Admin,
+        "operator" => Role::Operator,
+        _ => Role::ReadOnly,
+    }
+}
+
+fn auth_source_from_platform_jwt(auth: Option<&str>) -> AuthSource {
+    match auth {
+        Some("oidc") | Some("saml") => AuthSource::Oidc,
+        _ => AuthSource::Pam,
+    }
+}
+
+fn actor_from_platform_jwt(token: &str) -> Option<RequestActor> {
+    let secret = platform_jwt_secret();
+    if secret.is_empty() {
+        return None;
+    }
+    let data = decode::<PlatformJwtClaims>(
+        token,
+        &DecodingKey::from_secret(secret.as_bytes()),
+        &Validation::default(),
+    )
+    .ok()?;
+    let claims = data.claims;
+    Some(browser_actor(
+        claims.sub,
+        None,
+        role_from_platform_jwt(&claims.role),
+        auth_source_from_platform_jwt(claims.auth.as_deref()),
+    ))
+}
+
+fn actor_from_bearer_token(token: &str) -> Option<RequestActor> {
+    if token.starts_with("mach_") || token.starts_with("vs_") {
+        let api = machina_core::libvirt::automation::validate_api_token(token)?;
+        let scopes = effective_token_scopes(&api);
+        return Some(RequestActor {
+            username: api.username,
+            effective_linux_user: None,
+            from_api_token: true,
+            role: api.role,
+            auth_source: AuthSource::ApiToken,
+            token_scopes: scopes,
+        });
+    }
+    actor_from_platform_jwt(token)
+}
+
+fn actor_from_cookie(sessions: &SessionStore, cookie_header: &str) -> Option<RequestActor> {
+    for part in cookie_header.split(';') {
+        let part = part.trim();
+        if let Some(value) = part.strip_prefix("machina_session=") {
+            let token = value.trim();
+            if !token.is_empty() {
+                return sessions.validate_session(token);
+            }
+        }
+    }
+    None
+}
+
+fn resolve_actor(sessions: &SessionStore, headers: &axum::http::HeaderMap) -> Option<RequestActor> {
+    if skip_auth_enabled() {
+        return Some(dev_bypass_actor());
+    }
+
+    if let Some(cookie_header) = headers.get(header::COOKIE).and_then(|v| v.to_str().ok()) {
+        if let Some(actor) = actor_from_cookie(sessions, cookie_header) {
+            return Some(actor);
+        }
+    }
+
+    if let Some(auth_header) = headers.get("authorization").and_then(|v| v.to_str().ok()) {
+        if let Some(token) = auth_header.strip_prefix("Bearer ") {
+            let token = token.trim();
+            if !token.is_empty() {
+                if let Some(actor) = actor_from_bearer_token(token) {
+                    return Some(actor);
+                }
+                if token.starts_with("mach_") || token.starts_with("vs_") {
+                    machina_core::obs_counters::inc_api_token_fail();
+                }
+            }
+        }
+    }
+
+    None
+}
+
 pub fn effective_linux_user(actor: &RequestActor) -> Option<&str> {
     actor.effective_linux_user.as_deref()
 }
@@ -578,7 +698,17 @@ pub async fn auth_middleware(
         return next.run(req).await;
     }
 
+    // Platform controller reverse proxy — machina-controller validates Authorization itself.
+    if path.starts_with("/platform/controller") {
+        return next.run(req).await;
+    }
+
     // Check session cookie
+    if skip_auth_enabled() {
+        req.extensions_mut().insert(dev_bypass_actor());
+        return next.run(req).await;
+    }
+
     if let Some(token) = extract_token(&req) {
         if let Some(actor) = store.validate_session(&token) {
             req.extensions_mut().insert(actor);
@@ -586,7 +716,7 @@ pub async fn auth_middleware(
         }
     }
 
-    // Check Authorization header for API tokens (Bearer mach_…; legacy vs_… still valid if stored)
+    // Check Authorization header for API tokens or platform JWT (Bearer …).
     if let Some(auth_header) = req
         .headers()
         .get("authorization")
@@ -594,19 +724,11 @@ pub async fn auth_middleware(
     {
         if let Some(token) = auth_header.strip_prefix("Bearer ") {
             let token = token.trim();
+            if let Some(actor) = actor_from_bearer_token(token) {
+                req.extensions_mut().insert(actor);
+                return next.run(req).await;
+            }
             if token.starts_with("mach_") || token.starts_with("vs_") {
-                if let Some(api) = machina_core::libvirt::automation::validate_api_token(token) {
-                    let scopes = effective_token_scopes(&api);
-                    req.extensions_mut().insert(RequestActor {
-                        username: api.username,
-                        effective_linux_user: None,
-                        from_api_token: true,
-                        role: api.role,
-                        auth_source: AuthSource::ApiToken,
-                        token_scopes: scopes,
-                    });
-                    return next.run(req).await;
-                }
                 machina_core::obs_counters::inc_api_token_fail();
             }
         }
@@ -628,47 +750,17 @@ pub async fn ws_token_handler(
     Extension(sessions): Extension<SessionStore>,
     headers: axum::http::HeaderMap,
 ) -> impl IntoResponse {
-    let actor = headers
-        .get(header::COOKIE)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|cookie_header| {
-            for part in cookie_header.split(';') {
-                let part = part.trim();
-                if let Some(value) = part.strip_prefix("machina_session=") {
-                    let token = value.trim();
-                    if !token.is_empty() {
-                        return sessions.validate_session(token);
-                    }
-                }
-            }
-            None
-        })
-        .or_else(|| {
-            headers
-                .get("authorization")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|auth| auth.strip_prefix("Bearer "))
-                .and_then(|token| {
-                    let api = machina_core::libvirt::automation::validate_api_token(token)?;
-                    let scopes = effective_token_scopes(&api);
-                    Some(RequestActor {
-                        username: api.username,
-                        effective_linux_user: None,
-                        from_api_token: true,
-                        role: api.role,
-                        auth_source: AuthSource::ApiToken,
-                        token_scopes: scopes,
-                    })
-                })
-        });
-
-    match actor {
+    match resolve_actor(&sessions, &headers) {
         Some(actor) => {
             let token = sessions.create_ws_token(&actor);
             (StatusCode::OK, Json(serde_json::json!({ "token": token }))).into_response()
         }
         None => {
-            (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "Authentication required", "error_code": "unauthorized" }))).into_response()
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "error": "Authentication required", "error_code": "unauthorized" })),
+            )
+                .into_response()
         }
     }
 }

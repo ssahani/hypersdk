@@ -54,6 +54,8 @@ pub async fn migrate(pool: &PgPool) -> anyhow::Result<()> {
         "039_soc_v2.sql",
         "040_templates_unify.sql",
         "041_fleet_snapshot_schedules.sql",
+        "042_marketplace_os_refresh.sql",
+        "043_consolehub.sql",
     ] {
         let sql = match name {
             "001_platform.sql" => include_str!("../../migrations/001_platform.sql"),
@@ -99,6 +101,10 @@ pub async fn migrate(pool: &PgPool) -> anyhow::Result<()> {
             "041_fleet_snapshot_schedules.sql" => {
                 include_str!("../../migrations/041_fleet_snapshot_schedules.sql")
             }
+            "042_marketplace_os_refresh.sql" => {
+                include_str!("../../migrations/042_marketplace_os_refresh.sql")
+            }
+            "043_consolehub.sql" => include_str!("../../migrations/043_consolehub.sql"),
             _ => continue,
         };
         for stmt in sql.split(';').map(str::trim).filter(|s| !s.is_empty()) {

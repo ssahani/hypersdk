@@ -9,20 +9,21 @@ import {
   getPlatformVm,
   issuePlatformVmWsToken,
   listConsoleHubSessions,
+  listVmTimeline,
   platformVmVncWsUrl,
+  platformVncWsUrl,
+  requestConsoleAccess,
+  runVmHealthCheck,
   type ConsoleHubPlan,
   type ConsoleHubSessionResponse,
-  requestConsoleAccess,
 } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
 import { useToastContext } from '../../contexts/ToastContext'
-import AiTerminalCompanion from '../../components/ai/AiTerminalCompanion'
-import ConsoleHubShell from '../../components/consolehub/ConsoleHubShell'
-import ConsoleHubProtocolPicker from '../../components/consolehub/ConsoleHubProtocolPicker'
-import ConsoleHubSession from '../../components/consolehub/ConsoleHubSession'
-import ConsoleHubSessionHistory, { type ConsoleHubSessionRow } from '../../components/consolehub/ConsoleHubSessionHistory'
+import MachineCockpit from '../../components/consolehub/MachineCockpit'
+import type { ConsoleHubSessionRow } from '../../components/consolehub/ConsoleHubSessionHistory'
 import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
 import { hubLinkClasses } from '../../utils/semanticColors'
+import PageLayout from '../../components/PageLayout'
 
 export default function PlatformConsoleHub() {
   const toast = useToastContext()
@@ -36,40 +37,78 @@ export default function PlatformConsoleHub() {
   const [vmName, setVmName] = useState<string | null>(null)
   const [vmState, setVmState] = useState<string | null>(null)
   const [nodeName, setNodeName] = useState<string | null>(null)
+  const [healthScore, setHealthScore] = useState<number | null>(null)
   const [kubeVirtNamespace, setKubeVirtNamespace] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [connectKey, setConnectKey] = useState(0)
   const [history, setHistory] = useState<ConsoleHubSessionRow[]>([])
-  const [historyLoading, setHistoryLoading] = useState(false)
+  const [machineTimeline, setMachineTimeline] = useState<Awaited<ReturnType<typeof listVmTimeline>>>([])
 
   const load = useCallback(async () => {
     if (!id) return
     setLoading(true)
     setError(null)
     try {
-      const [hubPlan, tokenRes, vm, sessions] = await Promise.all([
-        getConsoleHubPlan(id),
-        issuePlatformVmWsToken(id),
+      const [planRes, tokenRes, vm, sessions, timeline, health] = await Promise.all([
+        getConsoleHubPlan(id).then((v) => ({ ok: true as const, v })).catch((e: unknown) => ({ ok: false as const, e })),
+        issuePlatformVmWsToken(id).then((v) => ({ ok: true as const, v })).catch((e: unknown) => ({ ok: false as const, e })),
         getPlatformVm(id).catch(() => null),
         listConsoleHubSessions(id).catch(() => []),
+        listVmTimeline(id).catch(() => []),
+        runVmHealthCheck(id).catch(() => null),
       ])
-      setPlan(hubPlan)
-      setVmName(hubPlan.vm_name)
-      setActiveProtocol(hubPlan.recommended)
+
+      const hubPlan = planRes.ok ? planRes.v : null
+      const wsToken = tokenRes.ok ? tokenRes.v.token : null
+
+      if (!hubPlan && !wsToken) {
+        const err = !planRes.ok ? planRes.e : !tokenRes.ok ? tokenRes.e : null
+        setError(formatUserError(err))
+        return
+      }
+
+      if (hubPlan) {
+        setPlan(hubPlan)
+        setVmName(hubPlan.vm_name)
+        setActiveProtocol(hubPlan.recommended)
+      } else if (vm?.name) {
+        setVmName(vm.name)
+      }
+
+      if (!planRes.ok || !tokenRes.ok) {
+        const partialErr = formatUserError(
+          !planRes.ok ? planRes.e : !tokenRes.ok ? tokenRes.e : null,
+        )
+        const canDisplay = Boolean(
+          wsToken
+          || hubPlan?.native?.ws_path
+          || vm?.inventory_source === 'kubevirt',
+        )
+        if (!canDisplay) setError(partialErr)
+      }
+
       setHistory(sessions)
+      setMachineTimeline(timeline)
+      setHealthScore(health ? parseInt(health.score.split('/')[0], 10) || null : null)
       setVmState(vm?.observed_state ?? vm?.desired_state ?? null)
       setNodeName(vm?.host_id ? vm.host_id.slice(0, 8) : null)
       const isKubevirt = vm?.inventory_source === 'kubevirt'
       setKubeVirtNamespace(isKubevirt ? (vm?.k8s_namespace ?? 'default') : null)
       if (isKubevirt) {
         setWsUrl(null)
-      } else {
-        setWsUrl(platformVmVncWsUrl(id, tokenRes.token))
+      } else if (wsToken) {
+        setWsUrl(platformVmVncWsUrl(id, wsToken))
+      } else if (hubPlan?.native?.ws_path) {
+        setWsUrl(platformVncWsUrl(hubPlan.native.ws_path))
       }
 
-      const needsGuac = hubPlan.recommended.startsWith('guacamole_')
-      if (needsGuac && hubPlan.guacamole.available) {
+      if (wsToken || hubPlan?.native?.ws_path) {
+        setError(null)
+      }
+
+      const needsGuac = hubPlan?.recommended.startsWith('guacamole_') ?? false
+      if (needsGuac && hubPlan?.guacamole.available) {
         const sess = await createConsoleHubSession(id, { protocol: hubPlan.recommended })
         setSession(sess)
       } else {
@@ -86,18 +125,6 @@ export default function PlatformConsoleHub() {
     void load()
   }, [load, connectKey])
 
-  const refreshHistory = async () => {
-    if (!id) return
-    setHistoryLoading(true)
-    try {
-      setHistory(await listConsoleHubSessions(id))
-    } catch {
-      /* optional */
-    } finally {
-      setHistoryLoading(false)
-    }
-  }
-
   const switchProtocol = async (protocol: string) => {
     if (!id) return
     setActiveProtocol(protocol)
@@ -113,7 +140,7 @@ export default function PlatformConsoleHub() {
           setWsUrl(platformVmVncWsUrl(id, tokenRes.token))
         }
       }
-      void refreshHistory()
+      setHistory(await listConsoleHubSessions(id).catch(() => []))
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
@@ -129,99 +156,66 @@ export default function PlatformConsoleHub() {
     }
   }
 
-  const displayProtocols = plan
-    ? [...plan.protocols, ...(plan.guest_ip && !plan.protocols.includes('native_ssh') ? ['native_ssh'] : [])]
-    : []
+  const prepend = !isPopout ? (
+    <div className="flex flex-wrap items-center gap-3 text-sm mb-2">
+      <Link to="/platform/vms" className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>
+        <ArrowLeft className="w-4 h-4" /> VM list
+      </Link>
+      {id ? (
+        <Link to={`/platform/vms/${id}`} className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>
+          Back to VM
+        </Link>
+      ) : null}
+      {kubeVirtNamespace ? (
+        <span className="text-xs text-sky-300/90 font-mono">KubeVirt · {kubeVirtNamespace}/{vmName}</span>
+      ) : null}
+      {error?.toLowerCase().includes('approval') ? (
+        <button type="button" className="btn-secondary text-sm" onClick={() => void requestAccess()}>
+          Request console access
+        </button>
+      ) : null}
+      {id && !isPopout ? (
+        <button type="button" className="btn-secondary text-sm ml-auto" onClick={() => openCenterPopout(`/platform/vms/${id}/consolehub`)}>
+          Pop out
+        </button>
+      ) : null}
+    </div>
+  ) : undefined
 
   return (
-    <ConsoleHubShell
-      title={vmName ?? 'VM console'}
-      vmState={vmState ?? undefined}
-      guestIp={plan?.guest_ip ?? undefined}
-      nodeName={nodeName ?? undefined}
-      loading={loading}
-      error={error}
-      errorHints={
-        error?.toLowerCase().includes('approval')
-          ? [
-              'Production VMs may require JIT console approval (CONSOLEHUB_REQUIRE_APPROVAL=1).',
-              'Submit a request below or ask an operator to approve in Zeus → Approvals.',
-            ]
-          : error?.toLowerCase().includes('oidc') || error?.toLowerCase().includes('sso')
-            ? ['Production consoles may require OIDC/SAML login (CONSOLEHUB_REQUIRE_OIDC=1).']
-            : undefined
-      }
-      errorActions={
-        error?.toLowerCase().includes('approval') ? (
-          <button type="button" className="btn-secondary text-sm" onClick={() => void requestAccess()}>
-            Request console access
-          </button>
-        ) : undefined
-      }
-      onReconnect={() => setConnectKey((k) => k + 1)}
-      onPopout={id && !isPopout ? () => openCenterPopout(`/platform/vms/${id}/consolehub`) : undefined}
-      prepend={
-        !isPopout ? (
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <Link to="/platform/vms" className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>
-              <ArrowLeft className="w-4 h-4" /> VM list
-            </Link>
-            {id ? (
-              <Link to={`/platform/vms/${id}`} className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>
-                Back to VM
-              </Link>
-            ) : null}
-            {kubeVirtNamespace ? (
-              <span className="text-xs text-sky-300/90 font-mono">KubeVirt · {kubeVirtNamespace}/{vmName}</span>
-            ) : null}
-          </div>
-        ) : undefined
-      }
-      protocolPicker={
-        plan ? (
-          <ConsoleHubProtocolPicker
-            protocols={displayProtocols}
-            recommended={plan.recommended}
-            active={activeProtocol}
-            onChange={(p) => void switchProtocol(p)}
-          />
-        ) : undefined
-      }
-      sessionInfo={
-        session ? (
-          <span>
-            Session {session.session_id.slice(0, 8)}… · audit {session.audit_id.slice(0, 8)}… · expires {session.expires_at}
-          </span>
-        ) : (
-          <span>
-            {kubeVirtNamespace ? 'KubeVirt VNC via cluster subresource' : 'Native same-origin proxy · noVNC / SPICE / serial'}
-          </span>
-        )
-      }
+    <PageLayout
+      compact
+      hideHeader
+      loading={loading && !vmName}
+      contentClassName="flex flex-col flex-1 min-h-0 h-full min-h-[calc(100dvh-14rem)]"
+      title={vmName ?? 'Machine Cockpit'}
+      subtitle="Zeus ConsoleHub · Machine Canvas"
     >
-      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
-        <div className="flex-1 min-w-0 flex flex-col min-h-0">
-          {vmName && (
-            <ConsoleHubSession
-              protocol={activeProtocol}
-              vmName={vmName}
-              wsUrl={wsUrl}
-              session={session}
-              guestIp={plan?.guest_ip ?? undefined}
-              sshUser={plan?.ssh_user ?? undefined}
-              kubeVirtNamespace={kubeVirtNamespace ?? undefined}
-              fillViewport={isPopout}
-              onReconnect={() => setConnectKey((k) => k + 1)}
-            />
-          )}
+      {id && vmName ? (
+        <div className="flex flex-col flex-1 min-h-0 h-full">
+          <MachineCockpit
+          vmId={id}
+          vmName={vmName}
+          plan={plan}
+          session={session}
+          wsUrl={wsUrl}
+          activeProtocol={activeProtocol}
+          onProtocolChange={(p) => void switchProtocol(p)}
+          vmState={vmState}
+          nodeName={nodeName}
+          healthScore={healthScore}
+          kubeVirtNamespace={kubeVirtNamespace}
+          error={error}
+          loading={loading}
+          history={history}
+          machineTimeline={machineTimeline}
+          isPopout={isPopout}
+          onReconnect={() => setConnectKey((k) => k + 1)}
+          connectKey={connectKey}
+          prepend={prepend}
+        />
         </div>
-        {id && !isPopout && vmName ? (
-          <div className="lg:w-80 shrink-0 flex flex-col gap-3">
-            <ConsoleHubSessionHistory sessions={history} loading={historyLoading} />
-            <AiTerminalCompanion vmName={vmName} vmId={id} />
-          </div>
-        ) : null}
-      </div>
-    </ConsoleHubShell>
+      ) : null}
+    </PageLayout>
   )
 }

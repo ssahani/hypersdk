@@ -179,14 +179,14 @@ fn guacamole_reachable(base_url: &str) -> bool {
         .trim_start_matches("https://")
         .split('/')
         .next()
-        .unwrap_or("127.0.0.1:8080");
+        .unwrap_or("127.0.0.1:8081");
     let addr = if host_port.contains(':') {
         host_port.to_string()
     } else {
-        format!("{host_port}:8080")
+        format!("{host_port}:8081")
     };
     std::net::TcpStream::connect_timeout(
-        &addr.parse().unwrap_or_else(|_| "127.0.0.1:8080".parse().unwrap()),
+        &addr.parse().unwrap_or_else(|_| "127.0.0.1:8081".parse().unwrap()),
         Duration::from_millis(400),
     )
     .is_ok()

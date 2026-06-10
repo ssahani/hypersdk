@@ -22,7 +22,7 @@ pub struct GuacamoleProxyState {
 impl GuacamoleProxyState {
     pub fn from_env() -> Self {
         let upstream = std::env::var("GUACAMOLE_BASE_URL")
-            .unwrap_or_else(|_| "http://127.0.0.1:8080/guacamole".into());
+            .unwrap_or_else(|_| "http://127.0.0.1:8081/guacamole".into());
         Self {
             upstream_base: upstream.trim_end_matches('/').to_string(),
         }
@@ -36,9 +36,27 @@ pub fn router(state: GuacamoleProxyState) -> Router {
         .with_state(state)
 }
 
+fn guacamole_host_port(base_url: &str) -> String {
+    let trimmed = base_url.trim().trim_end_matches('/');
+    let host_port = trimmed
+        .trim_start_matches("http://")
+        .trim_start_matches("https://")
+        .split('/')
+        .next()
+        .unwrap_or("127.0.0.1:8081");
+    if host_port.contains(':') {
+        host_port.to_string()
+    } else {
+        format!("{host_port}:8081")
+    }
+}
+
 pub fn guacamole_reachable() -> bool {
+    let base = std::env::var("GUACAMOLE_BASE_URL")
+        .unwrap_or_else(|_| "http://127.0.0.1:8081/guacamole".into());
+    let addr = guacamole_host_port(&base);
     std::net::TcpStream::connect_timeout(
-        &"127.0.0.1:8080".parse().unwrap(),
+        &addr.parse().unwrap_or_else(|_| "127.0.0.1:8081".parse().unwrap()),
         Duration::from_millis(300),
     )
     .is_ok()

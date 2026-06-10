@@ -717,7 +717,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   return (
     <AnimatePresence>
       {open && (
-    <div className="fixed inset-0 z-[60] liquid-glass-modal-backdrop" onClick={close}>
+    <div className="fixed inset-0 z-[500] liquid-glass-modal-backdrop" onClick={close}>
       <div className="fixed inset-x-0 top-[15%] mx-auto max-w-lg px-4" onClick={e => e.stopPropagation()}>
         <motion.div
           initial={{ opacity: 0, scale: 0.96, y: -8 }}

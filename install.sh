@@ -36,8 +36,10 @@ REMOTE_HOST=""
 OPEN_FIREWALL=false
 DISABLE_FIREWALL=false
 NO_TESTS=false
+SKIP_BUILD=false
 BUNDLE_INSTALL=false
 WITH_GUACAMOLE=false
+GUACAMOLE_PORT=8081
 MACHINA_PORT=5092
 
 info()  { echo "ℹ️  $*"; }
@@ -1322,6 +1324,7 @@ install_guacamole_stack() {
         guac_args+=(--bind "$BIND_HOST")
     fi
     $OPEN_FIREWALL && guac_args+=(--open-firewall)
+    guac_args+=(--port "$GUACAMOLE_PORT")
     bash "$guac_script" "${guac_args[@]}" || fail "Guacamole install failed — see log from install-guacamole.sh"
 }
 
@@ -1474,7 +1477,7 @@ remote_deploy() {
     [ -n "$BIND_HOST" ] && remote_args="--bind $BIND_HOST"
     $OPEN_FIREWALL && remote_args="$remote_args --open-firewall"
     $DISABLE_FIREWALL && remote_args="$remote_args --disable-firewalld"
-    $WITH_GUACAMOLE && remote_args="$remote_args --with-guacamole"
+    $WITH_GUACAMOLE && remote_args="$remote_args --with-guacamole --guacamole-port $GUACAMOLE_PORT"
 
     # Skip curl/API verification on the hypervisor — run locally if needed.
     ssh "$remote" "cd ~/.deployment/machina && sudo bash install.sh --no-tests $remote_args" || fail "Remote install failed"
@@ -1490,7 +1493,7 @@ remote_deploy() {
     echo "  🌐 Web UI:  https://$remote_ip:5092"
     echo "  🔗 API:     https://$remote_ip:5092/api/v1/health"
     if $WITH_GUACAMOLE; then
-        echo "  🖥️  Guacamole: http://$remote_ip:8080/guacamole/"
+        echo "  🖥️  Guacamole: http://$remote_ip:${GUACAMOLE_PORT}/guacamole/"
     fi
     echo ""
 }
@@ -1580,7 +1583,7 @@ print_summary() {
         local guac_url
         guac_url=$(grep -E '^\s*base_url\s*=' /etc/machina/config.toml 2>/dev/null | head -1 | sed 's/.*=\s*"\?\([^"]*\)"\?.*/\1/' | tr -d ' ')
         echo ""
-        echo "  Guacamole:   ${guac_url:-http://127.0.0.1:8080/guacamole}  (optional HTML5 gateway)"
+        echo "  Guacamole:   ${guac_url:-http://127.0.0.1:${GUACAMOLE_PORT}/guacamole}  (optional HTML5 gateway)"
         echo "    VM Details → Guacamole button, or GET /api/v1/vms/{name}/guacamole-auth"
     fi
     echo ""
@@ -1610,15 +1613,18 @@ MACHINA_BANNER
         case "$prev_arg" in
             --bind)   BIND_HOST="$arg"; BIND_EXPLICIT=true; prev_arg=""; continue ;;
             --remote) REMOTE_HOST="$arg"; prev_arg=""; continue ;;
+            --guacamole-port) GUACAMOLE_PORT="$arg"; prev_arg=""; continue ;;
         esac
         case "$arg" in
             --uninstall)     do_uninstall=true ;;
             --deps-only)     deps_only=true ;;
             --no-start)      no_start=true ;;
             --no-tests)      NO_TESTS=true ;;
+            --skip-build)    SKIP_BUILD=true ;;
             --open-firewall) OPEN_FIREWALL=true ;;
             --disable-firewalld) DISABLE_FIREWALL=true ;;
             --with-guacamole) WITH_GUACAMOLE=true ;;
+            --guacamole-port) prev_arg="--guacamole-port" ;;
             --bind|--remote) prev_arg="$arg" ;;
             --help|-h)
                 cat <<'HELPEOF'
@@ -1645,6 +1651,8 @@ Install options:
                        Useful when you want to edit the config first.
   --no-tests           Skip post-install HTTPS/API verification (curl checks).
                        Remote deploy (--remote) passes this automatically.
+  --skip-build         Install from existing target/release + web/dist only
+                       (no cargo/npm). Used after make release web on the host.
   --deps-only          Only install system dependencies (libvirt, Rust,
                        Node.js) without building or installing machina.
   --with-guacamole     After install, deploy Apache Guacamole via Docker
@@ -1770,8 +1778,18 @@ HELPEOF
         enable_libvirt
         install_files
     else
-        build_rust
-        build_web
+        if $SKIP_BUILD; then
+            if [ ! -x "$INSTALL_DIR/target/release/machina-daemon" ]; then
+                fail "Missing target/release/machina-daemon — run make release (or install without --skip-build)"
+            fi
+            if [ ! -f "$INSTALL_DIR/web/dist/index.html" ]; then
+                fail "Missing web/dist — run make web (or install without --skip-build)"
+            fi
+            info "Skipping Rust/web build (--skip-build)"
+        else
+            build_rust
+            build_web
+        fi
         # After sources compile: bring up libvirt so virsh failures do not obscure Rust build errors in the log.
         enable_libvirt
         install_files

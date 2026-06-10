@@ -62,6 +62,18 @@ pub async fn list_vm_timeline(
                    'Snapshot: ' || s.name AS label,
                    s.status, s.created_at
             FROM snapshot_records s WHERE s.vm_id = $1
+            UNION ALL
+            SELECT 'console' AS kind, c.id,
+                   'Console ' || c.protocol || ' (' || c.backend || ')' AS label,
+                   CASE WHEN c.ended_at IS NULL THEN 'active' ELSE 'ended' END AS status,
+                   c.started_at AS created_at
+            FROM console_sessions c WHERE c.vm_id = $1
+            UNION ALL
+            SELECT 'lifecycle' AS kind, v.id,
+                   'VM ' || COALESCE(v.observed_state, v.desired_state, 'unknown') AS label,
+                   COALESCE(v.observed_state, v.desired_state, 'unknown') AS status,
+                   COALESCE(v.updated_at, v.created_at) AS created_at
+            FROM vms v WHERE v.id = $1
         ) t
         ORDER BY created_at DESC
         LIMIT 50

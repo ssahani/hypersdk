@@ -59,8 +59,9 @@ export default function SerialConsole({ vmName, libvirtConnection }: Props) {
     let token: string
     try {
       token = await getWsToken()
-    } catch {
-      term.write('\r\n❌ Failed to obtain WebSocket token\r\n')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to obtain WebSocket token'
+      term.write(`\r\n❌ ${msg}\r\n`)
       return
     }
 

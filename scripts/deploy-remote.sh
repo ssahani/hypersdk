@@ -60,10 +60,10 @@ DEPLOY_SSH_TTY_OPTS=()
 
 usage() {
     cat <<'EOF'
-deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--e2e|--platform|--cleanup|--dry-run]
+deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--install-only|--bins-only|--e2e|--platform|--cleanup|--prune-sources|--dry-run]
         [--skip-platform-e2e|--skip-daemon-e2e]
         [--remote-build|--remote-check] [--bind ADDR] [--open-firewall|--disable-firewalld]
-        [--with-guacamole] [--no-start] [--deps-only] [extra install.sh args...]
+        [--with-guacamole] [--guacamole-port PORT] [--no-start] [--deps-only] [extra install.sh args...]
 
 Prefer: ./scripts/deploy remote USER@HOST [flags]  |  ./scripts/deploy status
 
@@ -71,7 +71,9 @@ deploy-remote.sh check [USER@HOST | USER HOST]
 
 Flow: rsync → ~/.deployment/machina (REMOTE_DIR) → build on server → install → systemd.
 Full install: install.sh enables + restarts the daemon (--no-start skips). Post-install curl/API verification is skipped on the remote (--no-tests). install.sh also ensures mkosi (v16+): distro package if recent, else pipx from GitHub, else optional git clone (MACHINA_MKOSI_FROM_CLONE=1), else /opt/mkosi-venv; host build tools (bubblewrap, dosfstools, …) best-effort. Default disk workflow in the Create VM UI.
-Quick: make install then daemon-reload + try-restart (only restarts if machina-daemon was active).
+Quick: make release web (incremental cargo) then install.sh --skip-build + try-restart — one compile pass, not two.
+Install-only (--install-only): rsync + install.sh --skip-build + restart — no cargo/npm (~1–2 min). Requires prior build on the host (target/ is kept across rsyncs).
+Prune (--prune-sources): after install, remove deploy-tree sources; keep target/, web/dist/, web/node_modules/ for the next incremental build.
 Memory-tight hosts: swap + optional nginx disable via scripts/host-tune-memory.sh; remote cargo uses CARGO_BUILD_JOBS=${REMOTE_CARGO_BUILD_JOBS:-1} (override with REMOTE_CARGO_BUILD_JOBS=4).
 Open the UI at https://HOST:5092 (install.sh generates a self-signed cert; replace with your CA for browsers).
 
@@ -90,6 +92,7 @@ Examples:
   VSPASS=max deploy-remote.sh sus 212.8.252.194 --platform --e2e --bind 0.0.0.0
   deploy-remote.sh sus 212.8.252.194 --quick --platform --e2e --bind 0.0.0.0 --disable-firewalld
   deploy-remote.sh sus@host --with-guacamole --bind 0.0.0.0 --open-firewall
+  deploy-remote.sh sus 212.8.252.194 --install-only --platform --prune-sources
   deploy-remote.sh sus@host --remote-check    # fast compile smoke after rsync
   deploy-remote.sh sus@host --remote-build   # full release build on server, then exit
   # Full install passes --no-tests to install.sh (no post-install curl suite on the server).
@@ -250,23 +253,57 @@ REMOTE_BUILD=false
 REMOTE_CHECK=false
 DRY_RUN=false
 RUN_E2E=false
+prune_remote_deploy_tree() {
+    local remote="$1"
+    info "Pruning deploy sources on remote (keeping target/, web/dist/, web/node_modules/)"
+    ssh_r_bash "$remote" "
+set -euo pipefail
+cd ${REMOTE_DIR}
+for ent in * .[!.]* ..?*; do
+  [ -e \"\$ent\" ] || continue
+  case \"\$ent\" in
+    target|web) ;;
+    *) rm -rf \"\$ent\" ;;
+  esac
+done
+if [ -d web ]; then
+  cd web
+  for ent in * .[!.]* ..?*; do
+    [ -e \"\$ent\" ] || continue
+    case \"\$ent\" in
+      dist|node_modules) ;;
+      *) rm -rf \"\$ent\" ;;
+    esac
+  done
+fi
+du -sh ${REMOTE_DIR}/target ${REMOTE_DIR}/web/dist 2>/dev/null || true
+" || warn "prune deploy tree failed (non-fatal)"
+    ok "Deploy tree pruned — next --quick will rsync sources and incremental-build"
+}
+
+INSTALL_ONLY=false
+PRUNE_SOURCES=false
 INSTALL_PLATFORM=false
 SKIP_PLATFORM_E2E=false
 SKIP_DAEMON_E2E=false
 SKIP_LIVE_UX=false
 WITH_GUACAMOLE=false
+GUACAMOLE_PORT=8081
 
 parse_flags() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --sync-only) SKIP_INSTALL=true; shift ;;
             --quick) QUICK=true; shift ;;
+            --install-only|--bins-only) INSTALL_ONLY=true; shift ;;
+            --prune-sources) PRUNE_SOURCES=true; shift ;;
             --e2e) RUN_E2E=true; shift ;;
             --platform) INSTALL_PLATFORM=true; shift ;;
             --skip-platform-e2e) SKIP_PLATFORM_E2E=true; shift ;;
             --skip-daemon-e2e) SKIP_DAEMON_E2E=true; shift ;;
             --skip-live-ux) SKIP_LIVE_UX=true; shift ;;
             --with-guacamole) WITH_GUACAMOLE=true; shift ;;
+            --guacamole-port) GUACAMOLE_PORT="${2:?}"; shift 2 ;;
             --cleanup) CLEANUP=true; shift ;;
             --open-firewall) OPEN_FW=true; shift ;;
             --disable-firewalld) DISABLE_FW=true; shift ;;
@@ -374,15 +411,17 @@ if $REMOTE_BUILD; then MODE_LABEL="Compile — make release (no install)"; fi
 if [[ "${SYNC_ONLY:-0}" == 1 ]] || ($SKIP_INSTALL && ! $REMOTE_BUILD && ! $REMOTE_CHECK); then
     MODE_LABEL="Sync only — rsync sources + ownership fix"
 fi
-if $QUICK; then MODE_LABEL="Quick — make release web + install + try-restart"; fi
+if $QUICK; then MODE_LABEL="Quick — incremental make release web + install (--skip-build)"; fi
+if $INSTALL_ONLY; then MODE_LABEL="Install-only — copy existing binaries, no cargo/npm"; fi
 if $INSTALL_PLATFORM; then MODE_LABEL+=" + platform (PostgreSQL, controller :5093, agent)"; fi
-if $WITH_GUACAMOLE; then MODE_LABEL+=" + Guacamole (Docker :8080)"; fi
+if $WITH_GUACAMOLE; then MODE_LABEL+=" + Guacamole (Docker :${GUACAMOLE_PORT})"; fi
+if $PRUNE_SOURCES; then MODE_LABEL+=" + prune sources after install"; fi
 
 TOTAL_STEPS=4
 PLATFORM_PHASE=0
 SNAPSHOT_PHASE=4
 if $INSTALL_PLATFORM; then
-    if $QUICK; then
+    if $QUICK || $INSTALL_ONLY; then
         TOTAL_STEPS=6
         PLATFORM_PHASE=5
         SNAPSHOT_PHASE=6
@@ -400,7 +439,7 @@ OPTS_LINE=""
 [[ -n "$BIND" ]] && OPTS_LINE+="--bind $BIND  "
 $OPEN_FW && OPTS_LINE+="--open-firewall  "
 $DISABLE_FW && OPTS_LINE+="--disable-firewalld  "
-$WITH_GUACAMOLE && OPTS_LINE+="--with-guacamole  "
+$WITH_GUACAMOLE && OPTS_LINE+="--with-guacamole --guacamole-port ${GUACAMOLE_PORT}  "
 $NO_START && OPTS_LINE+="--no-start  "
 $DEPS_ONLY && OPTS_LINE+="--deps-only  "
 $CLEANUP && OPTS_LINE+="cleanup deploy dir after  "
@@ -417,7 +456,7 @@ if $DRY_RUN; then
     exit 0
 fi
 
-phase 1 "$TOTAL_STEPS" "Synchronize sources to remote" "rsync · excludes target/, node_modules/, .git/, web/dist/"
+phase 1 "$TOTAL_STEPS" "Synchronize sources to remote" "rsync · keeps remote target/, web/dist/, node_modules/ (not overwritten)"
 ssh_r_bash "$REMOTE" "mkdir -p $REMOTE_DIR"
 rsync_r \
     --exclude='target/' --exclude='node_modules/' --exclude='.git/' --exclude='web/dist/' \
@@ -492,7 +531,7 @@ OPTS=" --no-tests"
 [[ -n "$BIND" ]] && OPTS+=" --bind $BIND"
 $OPEN_FW && OPTS+=" --open-firewall"
 $DISABLE_FW && OPTS+=" --disable-firewalld"
-$WITH_GUACAMOLE && OPTS+=" --with-guacamole"
+$WITH_GUACAMOLE && OPTS+=" --with-guacamole --guacamole-port ${GUACAMOLE_PORT}"
 $NO_START && OPTS+=" --no-start"
 $DEPS_ONLY && OPTS+=" --deps-only"
 
@@ -501,15 +540,28 @@ if ((${#INSTALL_ARGS[@]} > 0)); then
     for a in "${INSTALL_ARGS[@]}"; do REMOTE_INST+=" $(printf '%q' "$a")"; done
 fi
 
-if $QUICK; then
-    phase 3 "$TOTAL_STEPS" "Build & install (quick path)" "make release web && sudo install.sh --no-tests · cargo stays on user PATH"
-    QUICK_OPTS=" --no-tests"
-    [[ -n "$BIND" ]] && QUICK_OPTS+=" --bind $BIND"
-    $OPEN_FW && QUICK_OPTS+=" --open-firewall"
-    $DISABLE_FW && QUICK_OPTS+=" --disable-firewalld"
-    $WITH_GUACAMOLE && QUICK_OPTS+=" --with-guacamole"
-    # Build as SSH user (rustup cargo on PATH); install.sh applies bind/firewall/systemd like full deploy.
-    ssh_r_bash "$REMOTE" "
+QUICK_OPTS=" --no-tests --skip-build"
+[[ -n "$BIND" ]] && QUICK_OPTS+=" --bind $BIND"
+$OPEN_FW && QUICK_OPTS+=" --open-firewall"
+$DISABLE_FW && QUICK_OPTS+=" --disable-firewalld"
+$WITH_GUACAMOLE && QUICK_OPTS+=" --with-guacamole --guacamole-port ${GUACAMOLE_PORT}"
+
+if $QUICK || $INSTALL_ONLY; then
+    if $INSTALL_ONLY; then
+        phase 3 "$TOTAL_STEPS" "Install binaries only (no rebuild)" "install.sh --skip-build · uses existing target/release + web/dist"
+        ssh_r_bash "$REMOTE" "
+set -euo pipefail
+cd $REMOTE_DIR
+if [ ! -x target/release/machina-daemon ] || [ ! -f web/dist/index.html ]; then
+  echo 'Missing target/release/machina-daemon or web/dist — run --quick once first' >&2
+  exit 1
+fi
+sudo bash install.sh${QUICK_OPTS}
+" || die "install-only failed"
+    else
+        phase 3 "$TOTAL_STEPS" "Build & install (quick path)" "make release web (incremental) + install.sh --skip-build"
+        # Build as SSH user (rustup cargo on PATH); install.sh copies artifacts only (--skip-build).
+        ssh_r_bash "$REMOTE" "
 set -euo pipefail
 export PATH=\"\${HOME}/.cargo/bin:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:\${PATH}\"
 export CARGO_BUILD_JOBS=${REMOTE_CARGO_BUILD_JOBS}
@@ -517,8 +569,9 @@ cd $REMOTE_DIR
 make release web
 sudo bash install.sh${QUICK_OPTS}
 " || die "quick build failed"
+    fi
     phase 4 "$TOTAL_STEPS" "Reload systemd & try-restart machina-daemon" "daemon-reload — restarts only if the unit was already active"
-    ssh_r_bash "$REMOTE" "sudo systemctl daemon-reload && sudo systemctl try-restart machina-daemon" || die "service reload failed"
+    ssh_r_bash "$REMOTE" "sudo systemctl daemon-reload && sudo systemctl try-restart machina-daemon machina-controller machina-agent 2>/dev/null || sudo systemctl try-restart machina-daemon" || die "service reload failed"
 else
     phase 3 "$TOTAL_STEPS" "Run installer on remote" "sudo install.sh — tooling, build, unit files, optional firewall"
     ssh_r_bash "$REMOTE" "
@@ -571,6 +624,10 @@ if $CLEANUP; then
     ssh_r "$REMOTE" "rm -rf $REMOTE_DIR" || warn "cleanup failed"
 fi
 
+if $PRUNE_SOURCES; then
+    prune_remote_deploy_tree "$REMOTE"
+fi
+
 hr
 info "Post-flight verification (health endpoint + systemd)"
 sleep 1
@@ -579,6 +636,7 @@ check_remote "$REMOTE" || true
 ELAPSED=$((SECONDS - DEPLOY_T0))
 MODE_SAVE=full
 $QUICK && MODE_SAVE=quick
+$INSTALL_ONLY && MODE_SAVE=install-only
 machina_save_deploy_last "$REPO" "$HOST" "$USER" "$MODE_SAVE"
 
 deploy_ui_highlight "📋 Post-deploy checklist"
@@ -596,10 +654,12 @@ machina_print_success "$HOST" "$ELAPSED" "./scripts/deploy remote ${USER}@${HOST
 deploy_ui_kv "🔗" "SSH" "ssh ${USER}@${HOST}"
 deploy_ui_kv "🌐" "UI" "https://${HOST}:5092/"
 if $WITH_GUACAMOLE; then
-    deploy_ui_kv "🖥️" "Guacamole" "http://${HOST}:8080/guacamole/"
+    deploy_ui_kv "🖥️" "Guacamole" "http://${HOST}:${GUACAMOLE_PORT}/guacamole/"
 fi
 tip "Trust the browser once for the self-signed TLS cert, or terminate TLS upstream."
-tip "HOST USER also works: ./scripts/deploy-remote.sh ${HOST} ${USER} --quick"
+tip "Fast redeploy (no rebuild): ./scripts/deploy remote ${USER}@${HOST} --install-only --platform"
+tip "After first --quick, prune sources: add --prune-sources (keeps target/ + web/dist/ on server)"
+tip "HOST USER also works: ./scripts/deploy-remote.sh ${HOST} ${USER} --install-only"
 
 if $RUN_E2E; then
     if [[ -n "${VSPASS:-}" || -n "${SSHPASS:-}" ]]; then

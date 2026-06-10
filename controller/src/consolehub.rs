@@ -16,6 +16,7 @@ use axum::{Json, Router};
 use futures_util::{SinkExt, StreamExt};
 use libvirt_guac_bridge::{bridge_from_plan, GuacBridgeTarget, GuacamoleBridgeParams};
 use serde::{Deserialize, Serialize};
+use sqlx::types::Json as SqlxJson;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
@@ -126,6 +127,7 @@ pub fn api_routes() -> Router<AppState> {
         .route("/api/v1/vms/{id}/consolehub/access-requests", post(create_access_request))
         .route("/api/v1/consolehub/access-requests/{request_id}/approve", post(approve_access_request))
         .route("/api/v1/vms/{id}/consolehub/break-glass", post(break_glass_session))
+        .route("/api/v1/vms/{id}/consolehub/explain", post(consolehub_explain))
 }
 
 pub fn proxy_routes() -> Router<AppState> {
@@ -199,6 +201,14 @@ fn check_federated_console_auth(
             .with_code("console_oidc_required")
             .with_remediation("Sign in via Platform → OIDC/SAML before opening a production console.")),
     }
+}
+
+async fn host_agent_grpc(pool: &sqlx::PgPool, host_id: Uuid) -> Result<String, ApiError> {
+    let addr: String = sqlx::query_scalar("SELECT agent_grpc_addr FROM hosts WHERE id = $1")
+        .bind(host_id)
+        .fetch_one(pool)
+        .await?;
+    Ok(addr)
 }
 
 async fn host_agent_console(pool: &sqlx::PgPool, host_id: Uuid) -> Result<String, ApiError> {
@@ -310,7 +320,7 @@ pub async fn consolehub_plan(
         return Ok(Json(kubevirt_plan(id, &vm_name, &ns, &ws_token)));
     }
     let (vm_name, host_id) = vm_row(&state, id).await?;
-    let agent_addr = host_agent_console(&state.pool, host_id).await?;
+    let agent_addr = host_agent_grpc(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await.map_err(|e| ApiError::internal(e.to_string()))?;
     let agent_plan = agent_client::get_console_access_plan(&mut client, &vm_name)
         .await
@@ -433,7 +443,7 @@ pub async fn create_session(
         }));
     }
     let (vm_name, host_id) = vm_row(&state, id).await?;
-    let agent_addr = host_agent_console(&state.pool, host_id).await?;
+    let agent_addr = host_agent_grpc(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await.map_err(|e| ApiError::internal(e.to_string()))?;
     let agent_plan = agent_client::get_console_access_plan(&mut client, &vm_name)
         .await
@@ -462,8 +472,8 @@ pub async fn create_session(
         .bind(&user.username)
         .bind("consolehub.break_glass")
         .bind("vm")
-        .bind(id.to_string())
-        .bind(serde_json::json!({ "protocol": protocol }).to_string())
+        .bind(id)
+        .bind(SqlxJson(serde_json::json!({ "protocol": protocol })))
         .execute(&state.pool)
         .await?;
     }
@@ -473,7 +483,8 @@ pub async fn create_session(
     let ttl = Duration::from_secs(state.config.consolehub_session_ttl_secs);
     let expires_at = chrono::Utc::now() + chrono::Duration::seconds(ttl.as_secs() as i64);
 
-    let agent_proxy = format!("http://{}", agent_client::normalize_agent_addr(&agent_addr));
+    let agent_console = host_agent_console(&state.pool, host_id).await?;
+    let agent_proxy = format!("http://{}", agent_client::normalize_agent_addr(&agent_console));
     let prefix = state.config.consolehub_proxy_prefix.trim_end_matches('/');
 
     let (backend, guac_token, emergency_url): (String, Option<String>, Option<String>) = if protocol.starts_with("guacamole_") {
@@ -557,8 +568,8 @@ pub async fn create_session(
     .bind(&user.username)
     .bind("consolehub.session.start")
     .bind("vm")
-    .bind(id.to_string())
-    .bind(serde_json::json!({ "protocol": protocol, "backend": backend, "session_id": session_id.to_string() }).to_string())
+    .bind(id)
+    .bind(SqlxJson(serde_json::json!({ "protocol": protocol, "backend": backend, "session_id": session_id.to_string() })))
     .execute(&state.pool)
     .await?;
 
@@ -918,6 +929,61 @@ async fn proxy_guac_ws(client: WebSocket, target: String) {
 }
 
 /// Extend legacy console info endpoint shape (backward compatible).
+#[derive(Debug, Deserialize)]
+pub struct ConsoleExplainBody {
+    #[serde(default)]
+    pub intent: String,
+    #[serde(default)]
+    pub lens: String,
+    #[serde(default)]
+    pub guest_ip: Option<String>,
+    #[serde(default)]
+    pub vm_state: Option<String>,
+    #[serde(default)]
+    pub screen_snapshot: Option<String>,
+}
+
+pub async fn consolehub_explain(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ConsoleExplainBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let (vm_name, _host_id) = vm_row(&state, id).await?;
+    let intent = if body.intent.is_empty() { "explain_screen" } else { body.intent.as_str() };
+    let mut lines = vec![format!("**{}** — ConsoleHub lens: {}", vm_name, body.lens)];
+    if let Some(ip) = &body.guest_ip {
+        if !ip.is_empty() {
+            lines.push(format!("Guest IP visible: `{ip}` — try SSH from the host when sshd is up."));
+        }
+    }
+    if let Some(st) = &body.vm_state {
+        lines.push(format!("VM state: {st}"));
+    }
+    match intent {
+        "diagnose_boot" => {
+            lines.push("If the display is black, open **Serial** for boot output.".into());
+            lines.push("Common causes: missing virtio drivers, wrong root device, cloud-init failure.".into());
+        }
+        "fix_network" => {
+            lines.push("Check guest NIC, cloud-init network config, and host/CNI routes.".into());
+            lines.push("Use **Network** lens or PacketWolf trace when fabric is enabled.".into());
+        }
+        _ => {
+            lines.push("Analyze the visible console for login prompts, installers, or error screens.".into());
+            if body.guest_ip.as_deref().unwrap_or("").is_empty() {
+                lines.push("No guest IP reported — network may still be initializing.".into());
+            } else {
+                lines.push("Guest appears to have network — console and SSH should be reachable.".into());
+            }
+        }
+    }
+    let object_ref = serde_json::json!({ "vm_id": id.to_string(), "intent": intent });
+    if let Ok(text) = crate::engine::ai::explain_screen(&state.pool, "console_hub", &object_ref).await {
+        lines.push(text);
+    }
+    Ok(Json(serde_json::json!({ "explanation": lines.join("\n\n") })))
+}
+
 pub fn console_info_from_plan(plan: &ConsoleHubPlan) -> serde_json::Value {
     serde_json::json!({
         "vm_id": plan.vm_id,
