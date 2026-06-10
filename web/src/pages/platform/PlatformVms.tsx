@@ -633,7 +633,7 @@ export default function PlatformVms() {
             </Link>
             {running && v.inventory_source !== 'kubevirt' && (
               <div className="flex justify-center gap-1 mt-1" onClick={(e) => e.stopPropagation()}>
-                <Link to={`/platform/vms/${v.id}/console`} className="p-1 rounded hover:bg-white/10" title="VNC"><Monitor className="w-3.5 h-3.5 text-slate-400" /></Link>
+                <Link to={`/platform/vms/${v.id}/consolehub`} className="p-1 rounded hover:bg-white/10" title="VNC"><Monitor className="w-3.5 h-3.5 text-slate-400" /></Link>
                 <button type="button" className="p-1 rounded hover:bg-white/10" title="SSH" onClick={() => setSshVm(v)}><Terminal className="w-3.5 h-3.5 text-slate-400" /></button>
               </div>
             )}
@@ -721,7 +721,7 @@ export default function PlatformVms() {
               <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
                 {running && libvirt && (
                   <div className="inline-flex gap-1 justify-end">
-                    <Link to={`/platform/vms/${v.id}/console`} className="btn-secondary text-xs py-1 px-2" title="VNC"><Monitor className="w-3.5 h-3.5" /></Link>
+                    <Link to={`/platform/vms/${v.id}/consolehub`} className="btn-secondary text-xs py-1 px-2" title="VNC"><Monitor className="w-3.5 h-3.5" /></Link>
                     <button type="button" className="btn-secondary text-xs py-1 px-2" title="SSH" onClick={() => setSshVm(v)}><Terminal className="w-3.5 h-3.5" /></button>
                     {v.guest_ip && (
                       <button
@@ -764,7 +764,7 @@ export default function PlatformVms() {
         )}
       </dl>
       <div className="flex flex-wrap gap-2">
-        <Link to={`/platform/vms/${selectedVm.id}/console`} className="btn-secondary text-sm flex-1 text-center inline-flex items-center justify-center gap-1">
+        <Link to={`/platform/vms/${selectedVm.id}/consolehub`} className="btn-secondary text-sm flex-1 text-center inline-flex items-center justify-center gap-1">
           <Monitor className="w-3.5 h-3.5" /> VNC
         </Link>
         {selectedVm.inventory_source !== 'kubevirt' && (

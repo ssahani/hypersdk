@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield, ExternalLink, Monitor, Pause, Power, Server, Loader2, Network, ToggleLeft, ToggleRight } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
-import GuacamoleConsoleLink from '../../components/GuacamoleConsoleLink'
 import GuestToolsStrip from '../../components/platform/GuestToolsStrip'
 import GuestAgentDiagnosticsPanel, {
   GuestAgentHeaderPill,
@@ -133,7 +132,7 @@ export default function PlatformVmDetail() {
   ).includes(rawTab as VmDetailTab) ? (rawTab as VmDetailTab) : 'overview'
   const setTab = (next: VmDetailTab, extra?: { guestAction?: string }) => {
     if (next === 'console' && id) {
-      navigate(`/platform/vms/${id}/console`)
+      navigate(`/platform/vms/${id}/consolehub`)
       return
     }
     setSearchParams((p) => {
@@ -592,10 +591,9 @@ export default function PlatformVmDetail() {
       icon={<Monitor className="w-6 h-6 text-slate-400" />}
       actions={vm ? (
         <div className="flex flex-wrap items-center gap-2">
-          <Link to={`/platform/vms/${id}/console`} className="btn-primary text-sm inline-flex items-center gap-1">
-            <Monitor className="w-4 h-4" /> VNC
+          <Link to={`/platform/vms/${id}/consolehub`} className="btn-primary text-sm inline-flex items-center gap-1">
+            <Monitor className="w-4 h-4" /> Console
           </Link>
-          {vm.name && <GuacamoleConsoleLink vmName={vm.name} className="btn-secondary text-sm inline-flex items-center gap-1 py-1.5 px-3" />}
           {powerActions}
           {!isPopout && (
             <SpotlightPageAction
@@ -700,7 +698,7 @@ export default function PlatformVmDetail() {
               vmState={vm.observed_state}
               sshUser={sshUser}
               guestIp={guestIp}
-              consoleHref={`/platform/vms/${id}/console`}
+              consoleHref={`/platform/vms/${id}/consolehub`}
               specJson={specJson}
               platformVmId={id}
               guestIpWaiting={vm.observed_state === 'running' && !guestIp}
@@ -875,7 +873,7 @@ export default function PlatformVmDetail() {
               <p className="text-sm text-slate-400 mb-4">
                 Opens a full-screen noVNC session in a dedicated view.
               </p>
-              <Link to={`/platform/vms/${id}/console`} className="btn-primary inline-flex items-center gap-2">
+              <Link to={`/platform/vms/${id}/consolehub`} className="btn-primary inline-flex items-center gap-2">
                 <Monitor className="w-4 h-4" /> Open VNC
               </Link>
             </MacGlassPanel>

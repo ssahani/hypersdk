@@ -9,15 +9,25 @@ pub struct Claims {
     pub role: String,
     pub exp: usize,
     pub iat: usize,
+    /// `oidc`, `saml`, or `local` when issued from federated login.
+    #[serde(default)]
+    pub auth: Option<String>,
 }
 
-pub fn issue_token(secret: &str, username: &str, role: &str, ttl_secs: i64) -> anyhow::Result<String> {
+pub fn issue_token(
+    secret: &str,
+    username: &str,
+    role: &str,
+    ttl_secs: i64,
+    auth: Option<&str>,
+) -> anyhow::Result<String> {
     let now = chrono::Utc::now().timestamp() as usize;
     let claims = Claims {
         sub: username.to_string(),
         role: role.to_string(),
         iat: now,
         exp: now + ttl_secs.max(60) as usize,
+        auth: auth.map(str::to_string),
     };
     Ok(encode(
         &Header::default(),

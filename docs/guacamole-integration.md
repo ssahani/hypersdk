@@ -1,5 +1,7 @@
 # Apache Guacamole and libvirt (optional integration)
 
+> **Zeus ConsoleHub:** Guacamole is a **protocol gateway backend** inside [ConsoleHub](consolehub-architecture.md), not the primary product surface. Use ConsoleHub for the unified VM console UX; install Guacamole when you need embedded RDP/SSH/VNC via the same-origin reverse proxy.
+
 Machina already ships **in-browser consoles**: noVNC and SPICE over WebSocket proxies, serial PTY, and SSH—see the main [README.md](../README.md) for install (`install.sh`), remote deploy (`scripts/deploy-remote.sh`), and the full feature list. **Guacamole does not replace libvirt** or machina lifecycle management; it is an optional HTML5 gateway if you want Apache Guacamole’s connection model (e.g. RDP to Windows guests, centralized Docker deployment, PostgreSQL-backed connections, or encrypted JSON auth).
 
 Separation of roles:

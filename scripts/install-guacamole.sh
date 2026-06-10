@@ -23,6 +23,7 @@ DO_UNINSTALL=false
 DO_STATUS=false
 OS_FAMILY=""
 PKG_MANAGER=""
+CONTAINER_CLI="docker"
 
 info()  { echo "ℹ️  $*"; }
 ok()    { echo "✅ $*"; }
@@ -61,46 +62,86 @@ detect_os() {
     fi
 }
 
-ensure_docker() {
+ensure_container_runtime() {
     if command -v docker &>/dev/null && docker info &>/dev/null 2>&1; then
+        CONTAINER_CLI=docker
         ok "Docker is running"
         return 0
     fi
-    $INSTALL_DOCKER || fail "Docker is not running — re-run with --install-docker (used automatically by install.sh --with-guacamole)"
+    if command -v podman &>/dev/null && podman info &>/dev/null 2>&1; then
+        if ! command -v podman-compose &>/dev/null; then
+            $INSTALL_DOCKER || fail "podman-compose missing — re-run with --install-docker"
+            detect_os
+            step "Installing podman-compose (Podman stack on RHEL-family hosts)"
+            log_cmd $PKG_MANAGER install -y podman-compose \
+                || fail "Could not install podman-compose — see $LOG_FILE"
+        fi
+        CONTAINER_CLI=podman
+        ok "Podman is running (using podman-compose)"
+        return 0
+    fi
+    $INSTALL_DOCKER || fail "No container runtime — re-run with --install-docker (used automatically by install.sh --with-guacamole)"
 
-    step "Installing Docker engine"
+    step "Installing container runtime"
     detect_os
     case "$OS_FAMILY" in
         fedora)
             log_cmd $PKG_MANAGER install -y docker docker-compose-plugin
+            systemctl enable docker >>"$LOG_FILE" 2>&1 || true
+            systemctl start docker >>"$LOG_FILE" 2>&1 || fail "Docker failed to start — see $LOG_FILE"
+            CONTAINER_CLI=docker
             ;;
         rhel)
             if ! rpm -q epel-release &>/dev/null; then
                 log_cmd $PKG_MANAGER install -y epel-release || true
             fi
-            log_cmd $PKG_MANAGER install -y docker docker-compose-plugin \
-                || log_cmd $PKG_MANAGER install -y moby-engine docker-compose-plugin \
-                || fail "Could not install docker — see $LOG_FILE"
+            if log_cmd $PKG_MANAGER install -y docker docker-compose-plugin; then
+                systemctl enable docker >>"$LOG_FILE" 2>&1 || true
+                systemctl start docker >>"$LOG_FILE" 2>&1 || true
+            fi
+            if command -v docker &>/dev/null && docker info &>/dev/null 2>&1; then
+                CONTAINER_CLI=docker
+            else
+                info "Docker CE not in repos — using Podman + podman-compose (standard on EL9)"
+                log_cmd $PKG_MANAGER install -y podman podman-compose \
+                    || fail "Could not install podman-compose — see $LOG_FILE"
+                systemctl enable podman.socket >>"$LOG_FILE" 2>&1 || true
+                systemctl start podman.socket >>"$LOG_FILE" 2>&1 || true
+                podman info &>/dev/null || fail "Podman failed to start — see $LOG_FILE"
+                CONTAINER_CLI=podman
+            fi
             ;;
         debian)
             DEBIAN_FRONTEND=noninteractive log_cmd $PKG_MANAGER update -qq
             DEBIAN_FRONTEND=noninteractive log_cmd $PKG_MANAGER install -y docker.io docker-compose-plugin \
                 || fail "Could not install docker.io — see $LOG_FILE"
+            systemctl enable docker >>"$LOG_FILE" 2>&1 || true
+            systemctl start docker >>"$LOG_FILE" 2>&1 || fail "Docker failed to start — see $LOG_FILE"
+            CONTAINER_CLI=docker
             ;;
         suse)
             log_cmd $PKG_MANAGER install -y docker docker-compose
+            systemctl enable docker >>"$LOG_FILE" 2>&1 || true
+            systemctl start docker >>"$LOG_FILE" 2>&1 || true
+            CONTAINER_CLI=docker
             ;;
         arch)
             log_cmd $PKG_MANAGER -S --noconfirm --needed docker docker-compose
+            systemctl enable docker >>"$LOG_FILE" 2>&1 || true
+            systemctl start docker >>"$LOG_FILE" 2>&1 || true
+            CONTAINER_CLI=docker
             ;;
         *)
-            fail "Cannot auto-install Docker on this OS — install Docker manually, then re-run"
+            fail "Cannot auto-install a container runtime on this OS"
             ;;
     esac
-    systemctl enable docker >>"$LOG_FILE" 2>&1 || true
-    systemctl start docker >>"$LOG_FILE" 2>&1 || fail "Docker failed to start — see $LOG_FILE"
-    docker info &>/dev/null || fail "Docker installed but not responding"
-    ok "Docker installed and running"
+    if [[ "$CONTAINER_CLI" == docker ]]; then
+        docker info &>/dev/null || fail "Docker installed but not responding"
+        ok "Docker installed and running"
+    else
+        podman info &>/dev/null || fail "Podman installed but not responding"
+        ok "Podman + podman-compose ready"
+    fi
 }
 
 usage() {
@@ -134,7 +175,9 @@ done
 resolve_compose_dir || fail "Missing docker-compose.yml — install machina first or run from repo root"
 
 compose_cmd() {
-    if docker compose version &>/dev/null; then
+    if [[ "$CONTAINER_CLI" == podman ]] || { ! command -v docker &>/dev/null && command -v podman-compose &>/dev/null; }; then
+        podman-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
+    elif docker compose version &>/dev/null 2>&1; then
         docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
     elif command -v docker-compose &>/dev/null; then
         docker-compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
@@ -256,7 +299,7 @@ smoke_test() {
     if [[ "$code" == "200" || "$code" == "302" ]]; then
         ok "Guacamole web responds (HTTP $code)"
     else
-        warn "Guacamole HTTP check returned $code — see: docker logs machina-guacamole"
+        warn "Guacamole HTTP check returned $code — see: ${CONTAINER_CLI} logs machina-guacamole"
     fi
 }
 
@@ -300,16 +343,17 @@ PY
 $DO_STATUS && status_guacamole
 $DO_UNINSTALL && uninstall_guacamole
 
-ensure_docker
+ensure_container_runtime
 
 ensure_env_file
 # shellcheck source=/dev/null
 source "$ENV_FILE"
 export GUACAMOLE_BIND="$GUAC_BIND"
 export GUACAMOLE_PORT="$GUAC_PORT"
+export GUAC_CONTAINER_CLI="$CONTAINER_CLI"
 
 step "Starting Guacamole stack (compose)"
-compose_cmd up -d >>"$LOG_FILE" 2>&1 || fail "docker compose up failed — see $LOG_FILE"
+compose_cmd up -d >>"$LOG_FILE" 2>&1 || fail "compose up failed — see $LOG_FILE"
 ok "Containers started"
 
 step "Initializing PostgreSQL schema (if needed)"

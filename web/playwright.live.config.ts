@@ -2,6 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
+import './playwright-node-env.js'
 import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({

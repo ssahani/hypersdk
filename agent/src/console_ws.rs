@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, State};
@@ -10,17 +10,17 @@ use axum::Router;
 use futures_util::{SinkExt, StreamExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use std::sync::{Arc, Mutex};
-
+use crate::guacamole_proxy::GuacamoleProxyState;
 use crate::libvirt_ops::LibvirtCtx;
 
 #[derive(Clone)]
 pub struct ConsoleProxyState {
     pub libvirt: Arc<Mutex<LibvirtCtx>>,
     pub secret: String,
+    pub guacamole: GuacamoleProxyState,
 }
 
-pub fn router(state: ConsoleProxyState) -> Router {
+pub fn vnc_router(state: ConsoleProxyState) -> Router {
     Router::new()
         .route("/ws/vnc/{name}", get(vnc_ws))
         .with_state(state)
@@ -110,10 +110,16 @@ async fn handle_vnc(socket: WebSocket, name: String, libvirt: Arc<Mutex<LibvirtC
     }
 }
 
-pub async fn serve(listen: SocketAddr, state: ConsoleProxyState) -> anyhow::Result<()> {
+pub fn router(state: ConsoleProxyState) -> Router {
+    let vnc = vnc_router(state.clone());
+    let guac = crate::guacamole_proxy::router(state.guacamole);
+    vnc.merge(guac)
+}
+
+pub async fn serve(listen: std::net::SocketAddr, state: ConsoleProxyState) -> anyhow::Result<()> {
     let app = router(state);
     let listener = tokio::net::TcpListener::bind(listen).await?;
-    tracing::info!("machina-agent console proxy on {listen}");
+    tracing::info!("machina-agent console + guacamole proxy on {listen}");
     axum::serve(listener, app).await?;
     Ok(())
 }

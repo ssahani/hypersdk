@@ -37,7 +37,8 @@ const Storage = lazy(() => import('./pages/Storage'))
 const Snapshots = lazy(() => import('./pages/Snapshots'))
 const NodeInfo = lazy(() => import('./pages/NodeInfo'))
 const Events = lazy(() => import('./pages/Events'))
-const Console = lazy(() => import('./pages/Console'))
+const ClassicConsoleHub = lazy(() => import('./pages/ClassicConsoleHub'))
+const ClassicConsoleRedirect = lazy(() => import('./pages/ClassicConsoleRedirect'))
 const Capabilities = lazy(() => import('./pages/Capabilities'))
 const Devices = lazy(() => import('./pages/Devices'))
 const NWFilters = lazy(() => import('./pages/NWFilters'))
@@ -104,7 +105,8 @@ const PlatformMachineFinder = lazy(() => import('./pages/platform/PlatformMachin
 const PlatformGpuCommandCenter = lazy(() => import('./pages/platform/PlatformGpuCommandCenter'))
 const PlatformVms = lazy(() => import('./pages/platform/PlatformVms'))
 const PlatformVmDetail = lazy(() => import('./pages/platform/PlatformVmDetail'))
-const PlatformConsole = lazy(() => import('./pages/platform/PlatformConsole'))
+const PlatformConsoleHub = lazy(() => import('./pages/platform/PlatformConsoleHub'))
+const PlatformConsoleRedirect = lazy(() => import('./pages/platform/PlatformConsoleRedirect'))
 const PlatformContent = lazy(() => import('./pages/platform/PlatformContent'))
 const PlatformIsoCreate = lazy(() => import('./pages/platform/PlatformIsoCreate'))
 const PlatformVmBuilder = lazy(() => import('./pages/platform/PlatformVmBuilder'))
@@ -348,7 +350,8 @@ function AuthenticatedShellRoutes() {
                 <Route path="/" element={<HomeRoute />} />
                 <Route path="/vms" element={<VMList />} />
                 <Route path="/vms/:name" element={<VMDetails />} />
-                <Route path="/vms/:name/console" element={<Console />} />
+                <Route path="/vms/:name/console" element={<ClassicConsoleRedirect />} />
+                <Route path="/vms/:name/consolehub" element={<ClassicConsoleHub />} />
                 <Route path="/vms/:name/rdp" element={<RdpConsole />} />
                 <Route path="/fleet" element={<Fleet />} />
                 <Route path="/platform" element={<PlatformLayout />}>
@@ -358,7 +361,8 @@ function AuthenticatedShellRoutes() {
                   <Route path="hosts/:id" element={<PlatformHostDetail />} />
                   <Route path="vms" element={<PlatformVms />} />
                   <Route path="vms/:id" element={<PlatformVmDetail />} />
-                  <Route path="vms/:id/console" element={<PlatformConsole />} />
+                  <Route path="vms/:id/consolehub" element={<PlatformConsoleHub />} />
+                  <Route path="vms/:id/console" element={<PlatformConsoleRedirect />} />
                   <Route path="applications" element={<PlatformApplications />} />
                   <Route path="content" element={<PlatformContent />} />
                   <Route path="create-iso" element={<PlatformIsoCreate />} />

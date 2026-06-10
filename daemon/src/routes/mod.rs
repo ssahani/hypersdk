@@ -6,6 +6,7 @@ mod advanced;
 mod automation;
 mod backup;
 mod console;
+pub mod consolehub;
 pub(crate) mod events;
 mod extras;
 mod fleet;
@@ -64,6 +65,7 @@ pub fn api_routes() -> Router<LibvirtManager> {
         .merge(templates::template_routes())
         .merge(prometheus::prometheus_routes())
         .merge(console::console_routes())
+        .merge(consolehub::api_routes())
         .merge(guacamole::guacamole_routes())
         .merge(advanced::advanced_routes())
         .merge(backup::backup_routes())
@@ -78,4 +80,8 @@ pub fn websocket_routes() -> Router<LibvirtManager> {
     Router::new()
         .merge(ws::ws_routes())
         .merge(platform_ws::platform_ws_routes())
+}
+
+pub fn consolehub_proxy_routes() -> axum::Router {
+    consolehub::proxy_routes()
 }

@@ -108,7 +108,7 @@ export function vmDetailRoute(name: string, connection?: string | null): string 
 }
 
 export function vmConsoleRoute(name: string, connection?: string | null): string {
-  return appendVmConnection(`/vms/${encodeURIComponent(name)}/console`, connection)
+  return appendVmConnection(`/vms/${encodeURIComponent(name)}/consolehub`, connection)
 }
 
 /** Row / selection key when system and session guests can share the same name. */
@@ -825,3 +825,53 @@ export const setNumaTune = (
 
 export const pinEmulator = (name: string, cpus: boolean[], connection?: string | null) =>
   apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/emulator/pin`, connection), { cpus })
+
+/** Classic-mode ConsoleHub (daemon API). */
+export interface ClassicConsoleHubPlan {
+  vm_name: string
+  recommended: string
+  native: { console_type: string; ws_path: string; available: boolean }
+  guacamole: { available: boolean; protocols: string[] }
+  guest_ip?: string | null
+  ssh_user?: string | null
+  os_hint: string
+  protocols: string[]
+  webrtc_spice_available: boolean
+}
+
+export interface ClassicConsoleHubSessionResponse {
+  session_id: string
+  vm_name: string
+  protocol: string
+  backend: string
+  embed_path: string
+  emergency_url?: string | null
+  audit_id: string
+  expires_at: string
+}
+
+export const getClassicConsoleHubPlan = (name: string, connection?: string | null) =>
+  readJsonObject<ClassicConsoleHubPlan>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/consolehub/plan`, connection),
+  )
+
+export const createClassicConsoleHubSession = (
+  name: string,
+  body: { protocol?: string; rdp_username?: string; rdp_domain?: string },
+  connection?: string | null,
+) =>
+  apiPost<ClassicConsoleHubSessionResponse>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/consolehub/sessions`, connection),
+    body,
+  )
+
+export const listClassicConsoleHubSessions = (name: string, connection?: string | null) =>
+  readJsonArray<{
+    session_id: string
+    vm_name: string
+    actor: string
+    protocol: string
+    backend: string
+    started_at: string
+    ended_at?: string | null
+  }>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/consolehub/sessions`, connection))

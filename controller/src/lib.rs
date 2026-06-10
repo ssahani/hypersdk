@@ -5,6 +5,7 @@ pub mod api;
 pub mod auth;
 pub mod config;
 pub mod console;
+pub mod consolehub;
 pub mod engine;
 pub mod db;
 pub mod state;

@@ -7,16 +7,19 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  parseControllerRoutes,
   parseDaemonRoutes,
   parseWsRoutes,
   parseControllerWsRoutes,
+  parseRoutesFromSource,
+  readFile,
+  mergeRoutes,
   daemonPathToFull,
   tagForPath,
 } from './lib/parse-routes.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const CTRL_MOD = path.join(ROOT, 'controller/src/api/mod.rs')
+const CTRL_CONSOLEHUB = path.join(ROOT, 'controller/src/consolehub.rs')
 const DAEMON_ROUTES = path.join(ROOT, 'daemon/src/routes')
 const DAEMON_WS = path.join(ROOT, 'daemon/src/routes/ws.rs')
 const CTRL_WS = path.join(ROOT, 'controller/src/console.rs')
@@ -139,7 +142,10 @@ function countOps(spec) {
 function main() {
   const check = process.argv.includes('--check')
 
-  const controllerRaw = parseControllerRoutes(CTRL_MOD)
+  const controllerRaw = mergeRoutes([
+    ...parseRoutesFromSource(readFile(CTRL_MOD)),
+    ...parseRoutesFromSource(readFile(CTRL_CONSOLEHUB)),
+  ])
   const controllerWs = parseControllerWsRoutes(CTRL_WS)
 
   const daemonRaw = parseDaemonRoutes(DAEMON_ROUTES)

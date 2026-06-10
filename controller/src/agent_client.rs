@@ -154,6 +154,18 @@ pub async fn get_console(
         .into_inner())
 }
 
+pub async fn get_console_access_plan(
+    client: &mut HostAgentClient<Channel>,
+    vm_name: &str,
+) -> anyhow::Result<GetConsoleAccessPlanResponse> {
+    Ok(client
+        .get_console_access_plan(GetConsoleAccessPlanRequest {
+            vm_name: vm_name.to_string(),
+        })
+        .await?
+        .into_inner())
+}
+
 pub async fn migrate_vm(
     client: &mut HostAgentClient<Channel>,
     vm_name: &str,

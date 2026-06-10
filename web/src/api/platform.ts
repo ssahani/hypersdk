@@ -228,6 +228,54 @@ export interface PlatformConsoleInfo {
   ws_path: string
 }
 
+export interface ConsoleHubPlan {
+  vm_id: string
+  vm_name: string
+  recommended: string
+  native: { console_type: string; ws_path: string; available: boolean }
+  guacamole: { available: boolean; protocols: string[] }
+  guest_ip?: string | null
+  ssh_user?: string | null
+  os_hint: string
+  protocols: string[]
+  webrtc_spice_available: boolean
+}
+
+export interface ConsoleHubSessionResponse {
+  session_id: string
+  vm_id: string
+  protocol: string
+  backend: string
+  embed_path: string
+  emergency_url?: string | null
+  audit_id: string
+  expires_at: string
+  spectator_token?: string | null
+}
+
+export const getConsoleHubPlan = (id: string) =>
+  platformFetch<ConsoleHubPlan>(`/api/v1/vms/${id}/consolehub/plan`)
+
+export const createConsoleHubSession = (id: string, body: { protocol?: string; rdp_username?: string; rdp_domain?: string }) =>
+  platformFetch<ConsoleHubSessionResponse>(`/api/v1/vms/${id}/consolehub/sessions`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const endConsoleHubSession = (sessionId: string) =>
+  platformFetch<{ ended: boolean }>(`/api/v1/consolehub/sessions/${sessionId}/end`, { method: 'POST' })
+
+export const requestConsoleAccess = (vmId: string, body: { protocol: string; reason?: string }) =>
+  platformFetch<{ request_id: string; status: string }>(`/api/v1/vms/${vmId}/consolehub/access-requests`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const listConsoleHubSessions = (vmId: string) =>
+  platformFetch<Array<{ session_id: string; actor: string; protocol: string; backend: string; started_at: string; ended_at?: string | null }>>(
+    `/api/v1/vms/${vmId}/consolehub/sessions`,
+  )
+
 export interface EnrollmentToken {
   token: string
   expires_at: string

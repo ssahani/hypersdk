@@ -1,5 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
+import './playwright-node-env.js'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, devices } from '@playwright/test'

@@ -10,7 +10,7 @@ test('vm detail shows daily access strip with connect copy ports export', async 
   await expect(page.getByRole('heading', { name: 'Daily access' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Spec', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'XML', exact: true })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'VNC' }).first()).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Console' }).first()).toBeVisible()
 })
 
 test('vm detail shows lifecycle power actions and SSH when guest IP present', async ({ page }) => {

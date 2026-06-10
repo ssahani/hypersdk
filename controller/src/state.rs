@@ -9,6 +9,7 @@ use crate::config::ControllerConfig;
 use crate::leader::LeaderHandle;
 use crate::tasks::TaskBus;
 use crate::ws_tokens::WsTokenStore;
+use crate::consolehub::ConsoleSessionStore;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -18,6 +19,7 @@ pub struct AppState {
     pub leader: LeaderHandle,
     pub events: broadcast::Sender<String>,
     pub ws_tokens: WsTokenStore,
+    pub console_sessions: ConsoleSessionStore,
 }
 
 impl AppState {
@@ -35,6 +37,7 @@ impl AppState {
             leader,
             events,
             ws_tokens: WsTokenStore::new(),
+            console_sessions: ConsoleSessionStore::new(),
         }
     }
 

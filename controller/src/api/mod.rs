@@ -69,6 +69,7 @@ use axum::Router;
 
 use crate::auth::auth_middleware;
 use crate::console;
+use crate::consolehub;
 use crate::rate_limit::{rate_limit_middleware, RateLimiter};
 use crate::state::AppState;
 
@@ -500,6 +501,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/v1/vms/{id}/console", get(console::vm_console))
         .route("/api/v1/vms/{id}/ws-token", post(console::issue_ws_token))
+        .merge(consolehub::api_routes())
         .route("/api/v1/vms/{id}/timeline", get(snapshots::list_vm_timeline))
         .route(
             "/api/v1/vms/{id}/snapshots",
@@ -835,6 +837,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/auth/oidc/callback", get(oidc::oidc_callback))
         .route("/api/v1/hosts/join", post(hosts::join_host))
         .route("/install.sh", get(enrollment::install_script))
+        .merge(consolehub::proxy_routes())
         .merge(console::ws_routes())
         .merge(protected)
         .with_state(state)

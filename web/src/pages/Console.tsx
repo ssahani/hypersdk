@@ -94,7 +94,7 @@ export default function ConsolePage() {
   return (
     <PageLayout
       compact
-      title={`Console: ${name}`}
+      title={`ConsoleHub: ${name}`}
       actions={
         <>
           <Link to={conn ? `/vms/${encodeURIComponent(name)}?connection=${encodeURIComponent(conn)}` : `/vms/${encodeURIComponent(name)}`} className="p-2 hover:bg-slate-700 rounded transition" aria-label="Back">

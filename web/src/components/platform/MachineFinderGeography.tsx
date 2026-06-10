@@ -125,7 +125,7 @@ function VmInspector({ vm }: { vm: PlatformVm }) {
       </dl>
       {running && libvirt && (
         <div className="flex flex-wrap gap-2">
-          <Link to={`/platform/vms/${vm.id}/console`} className="btn-secondary text-sm flex-1 text-center inline-flex items-center justify-center gap-1">
+          <Link to={`/platform/vms/${vm.id}/consolehub`} className="btn-secondary text-sm flex-1 text-center inline-flex items-center justify-center gap-1">
             <Monitor className="w-3.5 h-3.5" /> VNC
           </Link>
           <button

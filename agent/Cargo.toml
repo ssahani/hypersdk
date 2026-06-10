@@ -27,6 +27,8 @@ tokio-util = { workspace = true, features = ["io"] }
 anyhow = { workspace = true }
 virt = { workspace = true }
 uuid = { workspace = true }
+tokio-tungstenite = "0.28"
+http = { workspace = true }
 
 [build-dependencies]
 tonic-build = "0.12"

@@ -606,6 +606,20 @@ pub struct GuacamoleConfig {
     /// `username` field inside the cleartext JSON auth document sent to Guacamole.
     #[serde(default = "default_guacamole_json_username")]
     pub json_username: String,
+    /// Same-origin ConsoleHub reverse-proxy prefix (controller).
+    #[serde(default = "default_consolehub_proxy_prefix")]
+    pub consolehub_proxy_prefix: String,
+    /// Short-lived ConsoleHub session TTL (seconds).
+    #[serde(default = "default_consolehub_session_ttl_secs")]
+    pub consolehub_session_ttl_secs: u64,
+}
+
+fn default_consolehub_proxy_prefix() -> String {
+    "/consolehub/guacamole".to_string()
+}
+
+fn default_consolehub_session_ttl_secs() -> u64 {
+    600
 }
 
 fn default_guacamole_base_url() -> String {
@@ -625,6 +639,8 @@ impl Default for GuacamoleConfig {
             public_vnc_host: String::new(),
             fetch_token: true,
             json_username: default_guacamole_json_username(),
+            consolehub_proxy_prefix: default_consolehub_proxy_prefix(),
+            consolehub_session_ttl_secs: default_consolehub_session_ttl_secs(),
         }
     }
 }

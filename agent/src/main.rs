@@ -112,6 +112,7 @@ async fn run_serve(cli: &Cli) -> anyhow::Result<()> {
     let console_state = ConsoleProxyState {
         libvirt,
         secret: String::new(),
+        guacamole: machina_agent::guacamole_proxy::GuacamoleProxyState::from_env(),
     };
 
     info!("machina-agent gRPC on {grpc_addr}, console proxy on {console_addr}");

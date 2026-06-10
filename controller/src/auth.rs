@@ -13,6 +13,8 @@ use crate::state::AppState;
 pub struct AuthUser {
     pub username: String,
     pub role: String,
+    /// Federated auth source from JWT claim (`oidc`, `saml`, `local`).
+    pub auth_source: Option<String>,
 }
 
 pub fn require_admin(user: &AuthUser) -> Result<(), crate::api::ApiError> {
@@ -54,6 +56,7 @@ pub async fn authenticate(
         Ok(Some(AuthUser {
             username: username.to_string(),
             role,
+            auth_source: Some("local".into()),
         }))
     } else {
         Ok(None)
@@ -79,6 +82,7 @@ pub async fn auth_middleware(
         req.extensions_mut().insert(AuthUser {
             username: "dev".into(),
             role: "admin".into(),
+            auth_source: Some("local".into()),
         });
         return Ok(next.run(req).await);
     }
@@ -107,6 +111,7 @@ pub async fn auth_middleware(
                 req.extensions_mut().insert(AuthUser {
                     username: claims.sub,
                     role: claims.role,
+                    auth_source: claims.auth,
                 });
                 return Ok(next.run(req).await);
             }

@@ -315,6 +315,24 @@ impl HostAgent for AgentService {
         }))
     }
 
+    async fn get_console_access_plan(
+        &self,
+        request: Request<GetConsoleAccessPlanRequest>,
+    ) -> Result<Response<GetConsoleAccessPlanResponse>, Status> {
+        let req = request.into_inner();
+        let vm_name = req.vm_name.clone();
+        let libvirt = self.libvirt.clone();
+
+        let plan = tokio::task::spawn_blocking(move || {
+            build_console_access_plan(&libvirt, &vm_name)
+        })
+        .await
+        .map_err(|e| Status::internal(e.to_string()))?
+        .map_err(|e| Status::internal(e))?;
+
+        Ok(Response::new(plan))
+    }
+
     async fn clone_vm(
         &self,
         request: Request<CloneVmRequest>,
@@ -1626,4 +1644,85 @@ impl HostAgent for AgentService {
             nvidia_smi_summary,
         }))
     }
+}
+
+fn build_console_access_plan(
+    libvirt: &Arc<std::sync::Mutex<libvirt_ops::LibvirtCtx>>,
+    vm_name: &str,
+) -> Result<GetConsoleAccessPlanResponse, String> {
+    use crate::guacamole_proxy::guacamole_reachable;
+
+    let mut ctx = libvirt
+        .lock()
+        .map_err(|e| format!("libvirt lock: {e}"))?;
+
+    let (vnc_host, vnc_port) = ctx.resolve_vnc(vm_name).unwrap_or(("".into(), 0));
+    let console_type = if vnc_port > 0 {
+        "vnc".to_string()
+    } else {
+        "unknown".to_string()
+    };
+
+    let xml = ctx.get_domain_xml(vm_name).unwrap_or_default();
+    let mut guest_ip = String::new();
+    let ssh_user = std::env::var("MACHINA_DEFAULT_SSH_USER").unwrap_or_else(|_| "ubuntu".into());
+    let mut os_hint = "unknown".to_string();
+
+    if xml.to_lowercase().contains("microsoft windows") || xml.to_lowercase().contains("<os>windows") {
+        os_hint = "windows".into();
+    } else if !xml.is_empty() {
+        os_hint = "linux".into();
+    }
+
+    if let Ok(health) = ctx.guest_health(vm_name) {
+        if !health.guest_ip.is_empty() {
+            guest_ip = health.guest_ip;
+        }
+        if !health.os_pretty_name.is_empty() {
+            let lower = health.os_pretty_name.to_lowercase();
+            if lower.contains("windows") {
+                os_hint = "windows".into();
+            } else if os_hint == "unknown" {
+                os_hint = "linux".into();
+            }
+        }
+    }
+
+    let guac_up = guacamole_reachable();
+    let mut protocols = Vec::new();
+    if guac_up {
+        if vnc_port > 0 {
+            protocols.push("vnc".into());
+        }
+        if !guest_ip.is_empty() {
+            protocols.push("ssh".into());
+            if os_hint == "windows" {
+                protocols.push("rdp".into());
+            }
+        }
+    }
+
+    let recommended = if os_hint == "windows" && !guest_ip.is_empty() && guac_up {
+        "guacamole_rdp".into()
+    } else if console_type == "vnc" && vnc_port > 0 {
+        "novnc".into()
+    } else if !guest_ip.is_empty() && guac_up {
+        "guacamole_ssh".into()
+    } else {
+        "novnc".into()
+    };
+
+    Ok(GetConsoleAccessPlanResponse {
+        vm_name: vm_name.to_string(),
+        recommended,
+        console_type,
+        vnc_host,
+        vnc_port: i32::from(vnc_port),
+        guest_ip,
+        ssh_user,
+        rdp_port: 3389,
+        os_hint,
+        guacamole_available: guac_up,
+        guacamole_protocols: protocols,
+    })
 }

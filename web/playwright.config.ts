@@ -2,6 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
+import './playwright-node-env.js'
 import { defineConfig, devices } from '@playwright/test'
 
 const nodeOptions = [
@@ -30,7 +31,7 @@ export default defineConfig({
     : {
         command: 'npm run preview -- --host 127.0.0.1 --port 5192',
         url: 'http://127.0.0.1:5192',
-        reuseExistingServer: false,
+        reuseExistingServer: !process.env.CI,
         timeout: 120_000,
         env: (() => {
           const env = { ...process.env, NODE_OPTIONS: nodeOptions }

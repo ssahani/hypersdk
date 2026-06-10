@@ -47,6 +47,7 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
         &http_metrics,
     );
     let terminal_store = TerminalSessionStore::new();
+    let console_session_store = routes::consolehub::ConsoleSessionStore::new();
     let ssh_terminal_cfg = config.ssh_terminal.clone();
     let auth_cfg = config.auth.clone();
     let k8s_inventory_history_cfg = Arc::new(config.k8s_inventory_history.clone());
@@ -65,6 +66,7 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
     let api = routes::api_routes()
         .merge(terminal_api)
         .merge(auth::auth_routes(session_store.clone(), auth_cfg))
+        .layer(Extension(console_session_store.clone()))
         .layer(Extension(job_registry))
         .layer(Extension(event_bus))
         .layer(Extension(vib_build_slots))
@@ -90,7 +92,13 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
         .layer(Extension(ssh_terminal_cfg))
         .with_state(manager);
 
-    let mut router = Router::new().nest("/api/v1", api).nest("/ws/v1", ws);
+    let consolehub_proxy = routes::consolehub_proxy_routes()
+        .layer(Extension(console_session_store));
+
+    let mut router = Router::new()
+        .nest("/api/v1", api)
+        .nest("/ws/v1", ws)
+        .merge(consolehub_proxy);
 
     if let Some(novnc_dir) = find_novnc() {
         tracing::info!("Serving noVNC from {}", novnc_dir.display());

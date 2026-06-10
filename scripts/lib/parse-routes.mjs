@@ -84,6 +84,7 @@ export function parseControllerWsRoutes(consoleRsPath) {
 
 /** Daemon routes are nested under /api/v1 — normalize to full paths. */
 export function daemonPathToFull(routePath) {
+  if (routePath.startsWith('/consolehub/')) return routePath
   if (routePath.startsWith('/api/v1')) return routePath
   if (routePath.startsWith('/')) return `/api/v1${routePath}`
   return `/api/v1/${routePath}`

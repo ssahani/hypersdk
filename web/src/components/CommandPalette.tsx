@@ -350,7 +350,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
             id: `platform-vm-vnc-${pv.id}`,
             icon: <Monitor className="w-4 h-4" />,
             label: `${pv.name} — VNC console`,
-            action: () => go(`/platform/vms/${pv.id}/console`),
+            action: () => go(`/platform/vms/${pv.id}/consolehub`),
             category: 'Fleet',
           },
           {
@@ -516,7 +516,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
     })
     if (vm.state === 'running') {
       items.push(
-        { id: `vm-console-${vm.name}`, icon: <Monitor className="w-4 h-4" />, label: `${vm.name} — VNC console`, action: () => go(`/vms/${vm.name}/console`), category: 'Virtual Machines' },
+        { id: `vm-console-${vm.name}`, icon: <Monitor className="w-4 h-4" />, label: `${vm.name} — ConsoleHub`, action: () => go(`/vms/${vm.name}/consolehub`), category: 'Virtual Machines' },
         {
           id: `vm-ssh-${vm.name}`,
           icon: <Terminal className="w-4 h-4" />,

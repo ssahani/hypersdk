@@ -2735,9 +2735,42 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.match(/\/vms\/[^/]+\/ws-token/) && route.request().method() === 'POST') {
       return route.fulfill({ json: { token: 'mock-ws-token' } })
     }
+    if (url.match(/\/vms\/[^/]+\/consolehub\/plan/)) {
+      return route.fulfill({
+        json: {
+          vm_id: 'v1',
+          vm_name: 'vm-1',
+          recommended: 'novnc',
+          native: { console_type: 'vnc', ws_path: '/ws/v1/platform/vnc/v1?token=mock-ws-token', available: true },
+          guacamole: { available: true, protocols: ['vnc', 'ssh'] },
+          guest_ip: '192.168.122.10',
+          ssh_user: 'ubuntu',
+          os_hint: 'linux',
+          protocols: ['novnc', 'guacamole_ssh', 'guacamole_vnc', 'serial'],
+          webrtc_spice_available: false,
+        },
+      })
+    }
+    if (url.match(/\/vms\/[^/]+\/consolehub\/sessions/) && route.request().method() === 'GET') {
+      return route.fulfill({ json: [] })
+    }
+    if (url.match(/\/vms\/[^/]+\/consolehub\/sessions/) && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          session_id: '00000000-0000-4000-8000-000000000099',
+          vm_id: 'v1',
+          protocol: 'guacamole_ssh',
+          backend: 'guacamole',
+          embed_path: '/consolehub/guacamole/00000000-0000-4000-8000-000000000099/?token=mock-guac',
+          emergency_url: 'http://127.0.0.1:8080/guacamole/#/?token=mock-guac',
+          audit_id: '00000000-0000-4000-8000-000000000098',
+          expires_at: new Date(Date.now() + 600_000).toISOString(),
+        },
+      })
+    }
     if (url.match(/\/vms\/[^/]+\/console/)) {
       return route.fulfill({
-        json: { vm_name: 'vm-1', console_type: 'vnc', ws_path: '/api/v1/vms/v1/console/ws' },
+        json: { vm_id: 'v1', vm_name: 'vm-1', console_type: 'vnc', ws_path: '/ws/v1/platform/vnc/v1?token=mock-ws-token' },
       })
     }
     if (url.match(/\/vms\/guest-health-fail\/guest\/health/)) {

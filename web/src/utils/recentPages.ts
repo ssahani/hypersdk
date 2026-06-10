@@ -7,7 +7,7 @@ const MAX_RECENT = 8
 
 /** VM detail routes use recentVMs instead. */
 function isVmDetailPath(path: string): boolean {
-  return /^\/vms\/[^/]+(\/console)?$/.test(path)
+  return /^\/vms\/[^/]+(\/console(hub)?)?$/.test(path)
 }
 
 function loadRecent(): string[] {

@@ -160,7 +160,7 @@ pub async fn complete_login(
         }
     };
 
-    let token = crate::jwt::issue_token(jwt_secret, &username, &role, 86400)?;
+    let token = crate::jwt::issue_token(jwt_secret, &username, &role, 86400, Some("oidc"))?;
     Ok((username, role, token))
 }
 

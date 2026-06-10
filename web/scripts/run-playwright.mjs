@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
-// Playwright CLI wrapper for Node 26+: suppress DEP0205 (module.register) and NO_COLOR/FORCE_COLOR noise.
+// Playwright CLI wrapper for Node 26+: set NODE_OPTIONS before Playwright bootstraps (DEP0205).
 
+import '../playwright-node-env.mjs'
 import { spawn } from 'node:child_process'
 
 const PLAYWRIGHT_COMMANDS = new Set([
@@ -19,15 +20,7 @@ const playwrightArgs =
   rawArgs.length > 0 && PLAYWRIGHT_COMMANDS.has(rawArgs[0]) ? rawArgs : ['test', ...rawArgs]
 
 const env = { ...process.env }
-// Playwright sets FORCE_COLOR; NO_COLOR in the shell triggers noisy warnings in workers.
 delete env.NO_COLOR
-
-const disable = '--disable-warning=DEP0205'
-env.NODE_OPTIONS = env.NODE_OPTIONS?.includes(disable)
-  ? env.NODE_OPTIONS
-  : env.NODE_OPTIONS
-    ? `${env.NODE_OPTIONS} ${disable}`
-    : disable
 
 const child = spawn(
   process.platform === 'win32' ? 'npx.cmd' : 'npx',

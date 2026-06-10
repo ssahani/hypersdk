@@ -111,6 +111,7 @@ pub async fn authenticate_api_key(pool: &sqlx::PgPool, token: &str) -> anyhow::R
         Ok(Some(AuthUser {
             username: format!("apikey:{name}"),
             role,
+            auth_source: None,
         }))
     } else {
         Ok(None)

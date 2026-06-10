@@ -137,6 +137,138 @@ pub fn guac_connection_from_endpoint(
     }
 }
 
+/// Target protocol for Guacamole JSON auth (ConsoleHub protocol gateway).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum GuacBridgeTarget {
+    Vnc {
+        host: String,
+        port: u16,
+    },
+    Rdp {
+        host: String,
+        port: u16,
+        username: String,
+        #[serde(default)]
+        domain: String,
+    },
+    Ssh {
+        host: String,
+        port: u16,
+        username: String,
+    },
+}
+
+/// ConsoleHub routing hint returned by agent/controller (deterministic, no LLM).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsoleAccessPlan {
+    pub vm_name: String,
+    /// `novnc` | `guacamole_rdp` | `guacamole_ssh` | `guacamole_vnc` | `spice` | `serial` | `webrtc_spice`
+    pub recommended: String,
+    pub console_type: String,
+    pub vnc_host: Option<String>,
+    pub vnc_port: Option<u16>,
+    pub guest_ip: Option<String>,
+    pub ssh_user: Option<String>,
+    pub rdp_port: Option<u16>,
+    /// `linux` | `windows` | `unknown`
+    pub os_hint: String,
+    pub guacamole_available: bool,
+    #[serde(default)]
+    pub guacamole_protocols: Vec<String>,
+}
+
+impl ConsoleAccessPlan {
+    pub fn recommend(plan: &ConsoleAccessPlan) -> String {
+        if plan.os_hint == "windows" && plan.guest_ip.is_some() {
+            return "guacamole_rdp".into();
+        }
+        if plan.console_type == "spice" {
+            return "spice".into();
+        }
+        if plan.console_type == "vnc" && plan.vnc_port.unwrap_or(0) > 0 {
+            return "novnc".into();
+        }
+        if plan.guest_ip.is_some() && plan.ssh_user.is_some() {
+            return "guacamole_ssh".into();
+        }
+        plan.recommended.clone()
+    }
+}
+
+pub fn guac_connection_from_rdp(
+    vm: &str,
+    host: String,
+    port: u16,
+    username: &str,
+    domain: Option<&str>,
+) -> GuacConnection {
+    let mut parameters = BTreeMap::new();
+    parameters.insert("hostname".into(), host.clone());
+    parameters.insert("port".into(), port.to_string());
+    parameters.insert("username".into(), username.to_string());
+    parameters.insert("security".into(), "any".into());
+    parameters.insert("ignore-cert".into(), "true".into());
+    parameters.insert("enable-wallpaper".into(), "false".into());
+    parameters.insert("enable-font-smoothing".into(), "true".into());
+    if let Some(d) = domain.filter(|s| !s.is_empty()) {
+        parameters.insert("domain".into(), d.to_string());
+    }
+
+    GuacConnection {
+        name: format!("rdp:{vm}"),
+        protocol: "rdp".into(),
+        target_host: host,
+        target_port: port,
+        parameters,
+    }
+}
+
+pub fn guac_connection_from_ssh(
+    vm: &str,
+    host: String,
+    port: u16,
+    username: &str,
+) -> GuacConnection {
+    let mut parameters = BTreeMap::new();
+    parameters.insert("hostname".into(), host.clone());
+    parameters.insert("port".into(), port.to_string());
+    parameters.insert("username".into(), username.to_string());
+
+    GuacConnection {
+        name: format!("ssh:{vm}"),
+        protocol: "ssh".into(),
+        target_host: host,
+        target_port: port,
+        parameters,
+    }
+}
+
+pub fn guac_connection_from_target(vm: &str, target: GuacBridgeTarget, public_vnc_host: Option<&str>) -> GuacConnection {
+    match target {
+        GuacBridgeTarget::Vnc { host, port } => {
+            guac_connection_from_vnc_tcp(vm, host, port, public_vnc_host)
+        }
+        GuacBridgeTarget::Rdp { host, port, username, domain } => {
+            let domain_opt = if domain.is_empty() { None } else { Some(domain.as_str()) };
+            guac_connection_from_rdp(vm, host, port, &username, domain_opt)
+        }
+        GuacBridgeTarget::Ssh { host, port, username } => {
+            guac_connection_from_ssh(vm, host, port, &username)
+        }
+    }
+}
+
+/// Unified ConsoleHub entry: pick target → encrypted blob → optional token.
+pub async fn bridge_from_plan(
+    vm: String,
+    target: GuacBridgeTarget,
+    params: &GuacamoleBridgeParams<'_>,
+) -> Result<BridgeResponse> {
+    let conn = guac_connection_from_target(&vm, target, params.public_vnc_host);
+    bridge_from_connection(vm, conn, params).await
+}
+
 /// Build connection from resolved TCP `host:port` (e.g. from libvirt `vnc::resolve_vnc_tcp`).
 pub fn guac_connection_from_vnc_tcp(
     vm: &str,

@@ -1388,6 +1388,15 @@ run_tests() {
         failed=$((failed + 1))
     fi
 
+    local novnc_ctype
+    novnc_ctype=$(curl -sfk -o /dev/null -w '%{content_type}' "https://localhost:5092/novnc/core/rfb.js" 2>/dev/null) || novnc_ctype=""
+    if [ -n "$novnc_ctype" ] && [ "$novnc_ctype" != "text/html" ]; then
+        ok "  noVNC static files (/novnc/)"
+        passed=$((passed + 1))
+    else
+        info "  noVNC /novnc/ check skipped or HTML fallback (bundled client still works)"
+    fi
+
     # Binaries
     if /usr/local/bin/machina-daemon --help > /dev/null 2>&1; then
         ok "  machina-daemon binary"
@@ -1639,7 +1648,7 @@ Install options:
   --deps-only          Only install system dependencies (libvirt, Rust,
                        Node.js) without building or installing machina.
   --with-guacamole     After install, deploy Apache Guacamole via Docker
-                       (guacd + PostgreSQL + JSON auth). See scripts/install-guacamole.sh.
+                       (installs Docker if needed, guacd + PostgreSQL + JSON auth).
 
 Remote deploy:
   --remote USER@HOST   Deploy to a remote machine over SSH.

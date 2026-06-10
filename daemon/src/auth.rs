@@ -56,7 +56,7 @@ pub fn require_api_scope(actor: &RequestActor, scope: &str) -> Result<(), Libvir
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthSource {
     Pam,
