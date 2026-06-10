@@ -30,6 +30,7 @@ import PlatformDockEditor from '../components/platform/mac/PlatformDockEditor'
 import { usePlatformTierRouteGuard } from '../hooks/usePlatformTierRouteGuard'
 import { useKeyboardShortcut, isInputFocused } from '../hooks/useKeyboardShortcut'
 import { suppressContextBar } from '../utils/platformNavRegistry'
+import { contextNavForPath, shouldShowContextBar } from '../utils/platformContextNav'
 
 function PlatformDesktopShell() {
   const location = useLocation()
@@ -44,6 +45,9 @@ function PlatformDesktopShell() {
   usePlatformTierRouteGuard()
 
   const meshSubtle = location.pathname !== '/platform' && suppressContextBar(location.pathname)
+  const contextBarVisible =
+    contextNavForPath(location.pathname, tier) != null &&
+    shouldShowContextBar(location.pathname, tier)
 
   useEffect(() => {
     const onWallpaper = () => setWallpaper(loadPlatformWallpaper())
@@ -126,6 +130,7 @@ function PlatformDesktopShell() {
       className="mac-desktop-root platform-mac-desktop tahoe-page-root flex flex-col min-h-dvh w-full"
       data-wallpaper={wallpaper}
       data-desktop-tier={tier}
+      data-context-bar={contextBarVisible ? 'visible' : 'hidden'}
     >
       <header className="mac-menubar-inner glass shrink-0 sticky top-0 z-40 flex items-center gap-2 px-2 lg:px-3 h-11 overflow-visible">
         <div className="flex items-center min-w-0 shrink-0 overflow-visible z-[400]">

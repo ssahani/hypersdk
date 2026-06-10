@@ -278,7 +278,7 @@ code {
 
 .platform-detail-tabs-sticky {
   position: sticky;
-  top: 6.5rem;
+  top: var(--platform-chrome-top, 6.5rem);
   z-index: 25;
   margin: 0 -0.25rem 0.75rem;
   padding: 0.35rem 0.25rem 0.65rem;
@@ -292,15 +292,25 @@ code {
   top: 2.75rem;
 }
 
+.tahoe-mobile-jump {
+  top: calc(var(--platform-menubar-height, 2.75rem) + var(--platform-context-height, 0px));
+}
+
 .liquid-glass-app #main-content.app-shell {
   scroll-margin-top: 4rem;
 }
 
+.classic-detail-chrome-sticky {
+  position: sticky;
+  top: var(--classic-nav-height, 3.5rem);
+  z-index: 20;
+}
+
 .mac-finder-sidebar {
   position: sticky;
-  top: 6.5rem;
+  top: var(--platform-chrome-top, 6.5rem);
   align-self: flex-start;
-  max-height: calc(100dvh - 6.5rem - 1rem);
+  max-height: calc(100dvh - var(--platform-chrome-top, 6.5rem) - 1rem);
   overflow-y: auto;
   overscroll-behavior: contain;
   background: var(--glass-bg-elevated);
@@ -944,6 +954,27 @@ a.tahoe-context-app-title:hover {
 .mac-desktop-root.platform-mac-desktop {
   min-height: 100dvh;
   height: auto;
+  --platform-menubar-height: 2.75rem;
+  --platform-context-height: 0px;
+  --platform-mobile-jump-height: 0px;
+  --platform-chrome-top: var(--platform-menubar-height);
+  --classic-nav-height: 3.5rem;
+}
+
+.mac-desktop-root.platform-mac-desktop[data-context-bar='visible'] {
+  --platform-context-height: 3rem;
+}
+
+@media (max-width: 1023px) {
+  .mac-desktop-root.platform-mac-desktop {
+    --platform-mobile-jump-height: 3.25rem;
+  }
+}
+
+.mac-desktop-root.platform-mac-desktop {
+  --platform-chrome-top: calc(
+    var(--platform-menubar-height) + var(--platform-context-height) + var(--platform-mobile-jump-height)
+  );
 }
 
 .platform-mac-scroll-body {

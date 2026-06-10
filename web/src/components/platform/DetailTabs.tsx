@@ -29,6 +29,7 @@ export default function DetailTabs<T extends string>({
   onChange: (tab: T) => void
 }) {
   const [moreOpen, setMoreOpen] = useState(false)
+  const stickyRef = useRef<HTMLDivElement>(null)
   const moreRef = useRef<HTMLDivElement>(null)
   const moreIds = new Set(more.map((t) => t.id))
   const moreActive = moreIds.has(active)
@@ -45,8 +46,15 @@ export default function DetailTabs<T extends string>({
 
   let lastGroup = ''
 
+  const selectTab = (tab: T) => {
+    onChange(tab)
+    requestAnimationFrame(() => {
+      stickyRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' })
+    })
+  }
+
   return (
-    <div className="platform-detail-tabs-sticky">
+    <div ref={stickyRef} className="platform-detail-tabs-sticky" id="platform-detail-tabs">
       <div role="tablist" className="flex flex-wrap items-center gap-1 pb-1">
       {primary.map((tab) => (
         <button
@@ -54,7 +62,7 @@ export default function DetailTabs<T extends string>({
           type="button"
           role="tab"
           aria-selected={active === tab.id}
-          onClick={() => onChange(tab.id)}
+          onClick={() => selectTab(tab.id)}
           className={tabButtonClass(active === tab.id)}
         >
           {tab.label}
@@ -89,7 +97,7 @@ export default function DetailTabs<T extends string>({
                       type="button"
                       role="menuitem"
                       onClick={() => {
-                        onChange(tab.id)
+                        selectTab(tab.id)
                         setMoreOpen(false)
                       }}
                       className={`w-full text-left px-3 py-2 text-sm ${

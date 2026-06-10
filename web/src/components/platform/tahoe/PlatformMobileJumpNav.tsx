@@ -58,7 +58,7 @@ export default function PlatformMobileJumpNav() {
   return (
     <nav
       id="platform-mobile-jump"
-      className="tahoe-mobile-jump lg:hidden shrink-0 border-b border-white/[0.06] bg-slate-950/40 backdrop-blur-md"
+      className="tahoe-mobile-jump lg:hidden shrink-0 sticky z-[34] border-b border-white/[0.06] bg-slate-950/40 backdrop-blur-md"
       aria-label="Platform jump navigation"
     >
       <label htmlFor="platform-mobile-jump-select" className="sr-only">
