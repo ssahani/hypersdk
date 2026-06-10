@@ -222,7 +222,6 @@ install_deps_fedora() {
         libvirt-devel libvirt-daemon-kvm qemu-kvm virt-install
         pam-devel clang-libs clang-devel
         protobuf-compiler
-        novnc spice-html5
         openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
@@ -250,7 +249,6 @@ install_deps_rhel() {
         libvirt-devel libvirt-daemon-kvm qemu-kvm virt-install
         pam-devel clang-libs clang-devel
         protobuf-compiler
-        novnc spice-html5
         openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
@@ -267,7 +265,6 @@ install_deps_debian() {
         libvirt-dev libvirt-daemon-system qemu-kvm virtinst
         libpam0g-dev libclang-dev clang llvm-dev
         protobuf-compiler
-        novnc spice-html5
         openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
@@ -283,7 +280,6 @@ install_deps_suse() {
     local packages=(gcc gcc-c++ make pkg-config
         libvirt-devel libvirt-daemon qemu-kvm
         pam-devel clang-devel protobuf
-        novnc spice-html5
         openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
@@ -299,12 +295,61 @@ install_deps_arch() {
     local packages=(gcc make pkg-config
         libvirt qemu-full virt-install dnsmasq
         linux-pam clang protobuf
-        novnc spice-html5
         openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
     log_cmd pacman -S --noconfirm --needed "${packages[@]}" || fail "Package installation failed. Check $LOG_FILE"
     ok "System packages installed"
+}
+
+# noVNC + spice-html5 for in-browser consoles (/novnc/, /spice-html5/). Installed separately so a
+# missing SPICE package on one distro does not fail the whole build-deps step.
+install_console_packages() {
+    step "Installing graphical console packages (noVNC / SPICE)"
+
+    if [ "$OS_FAMILY" = "rhel" ] && ! rpm -q epel-release &>/dev/null; then
+        info "Enabling EPEL (required for novnc on RHEL clones)"
+        log_cmd $PKG_MANAGER install -y epel-release >> "$LOG_FILE" 2>&1 || warn "EPEL install failed — novnc may be unavailable"
+        log_cmd $PKG_MANAGER makecache -q >> "$LOG_FILE" 2>&1 || true
+    fi
+
+    case "$OS_FAMILY" in
+        fedora|rhel)
+            if log_cmd $PKG_MANAGER install -y novnc; then
+                ok "novnc installed"
+            else
+                warn "novnc install failed — VNC still works via bundled novnc-core in the web UI"
+            fi
+            log_cmd $PKG_MANAGER install -y spice-html5 >> "$LOG_FILE" 2>&1 \
+                && ok "spice-html5 installed" \
+                || info "spice-html5 not available (optional SPICE console)"
+            ;;
+        debian)
+            if DEBIAN_FRONTEND=noninteractive log_cmd $PKG_MANAGER install -y novnc; then
+                ok "novnc installed"
+            else
+                warn "novnc install failed — VNC still works via bundled novnc-core in the web UI"
+            fi
+            DEBIAN_FRONTEND=noninteractive log_cmd $PKG_MANAGER install -y spice-html5 >> "$LOG_FILE" 2>&1 \
+                && ok "spice-html5 installed" \
+                || info "spice-html5 not available (optional SPICE console)"
+            ;;
+        suse)
+            log_cmd $PKG_MANAGER install -y novnc >> "$LOG_FILE" 2>&1 \
+                && ok "novnc installed" || warn "novnc install failed (optional)"
+            log_cmd $PKG_MANAGER install -y spice-html5 >> "$LOG_FILE" 2>&1 \
+                || info "spice-html5 not available (optional)"
+            ;;
+        arch)
+            log_cmd pacman -S --noconfirm --needed novnc >> "$LOG_FILE" 2>&1 \
+                && ok "novnc installed" || warn "novnc install failed (optional)"
+            log_cmd pacman -S --noconfirm --needed spice-html5 >> "$LOG_FILE" 2>&1 \
+                || info "spice-html5 not available (optional)"
+            ;;
+        *)
+            info "Unknown OS family — skip console packages"
+            ;;
+    esac
 }
 
 install_deps() {
@@ -315,6 +360,8 @@ install_deps() {
         suse)   install_deps_suse ;;
         arch)   install_deps_arch ;;
     esac
+
+    install_console_packages
 
     ensure_node_18
     ensure_mkosi
@@ -1042,6 +1089,12 @@ install_files() {
         ok "Packer Windows+VirtIO example -> /usr/local/share/machina/packer/windows-qemu/"
     fi
 
+    if [ -d contrib/guacamole ]; then
+        rm -rf /usr/local/share/machina/guacamole
+        cp -a contrib/guacamole /usr/local/share/machina/
+        ok "Guacamole compose stack -> /usr/local/share/machina/guacamole/"
+    fi
+
     # Backup config
     if [ -f contrib/backup.conf ] && [ ! -f /etc/machina/backup.conf ]; then
         install -Dm644 contrib/backup.conf /etc/machina/backup.conf
@@ -1206,7 +1259,7 @@ start_daemon() {
 }
 
 verify_novnc_serving() {
-    step "Verifying noVNC is served by machina-daemon"
+    step "Ensuring noVNC is served by machina-daemon"
     local novnc_dir=""
     for d in /usr/share/novnc /usr/local/share/novnc /usr/share/noVNC; do
         if [ -f "$d/vnc.html" ]; then
@@ -1215,26 +1268,56 @@ verify_novnc_serving() {
         fi
     done
     if [ -z "$novnc_dir" ]; then
-        warn "noVNC package not found — install novnc (EPEL on RHEL) and restart machina-daemon"
-        warn "Built-in VNC still works via bundled novnc-core in the web UI"
+        warn "noVNC package missing — installing console packages"
+        install_console_packages
+        for d in /usr/share/novnc /usr/local/share/novnc /usr/share/noVNC; do
+            if [ -f "$d/vnc.html" ]; then
+                novnc_dir="$d"
+                break
+            fi
+        done
+    fi
+    if [ -z "$novnc_dir" ]; then
+        warn "noVNC still not on disk — bundled novnc-core in the web UI remains available"
         return 0
     fi
     ok "noVNC files at $novnc_dir"
+
+    _novnc_content_type() {
+        curl -sfk -o /dev/null -w '%{content_type}' \
+            "https://127.0.0.1:${MACHINA_PORT}/novnc/core/rfb.js" 2>/dev/null || echo ""
+    }
+
     local ctype
-    ctype=$(curl -sfk -o /dev/null -w '%{content_type}' "https://127.0.0.1:${MACHINA_PORT}/novnc/core/rfb.js" 2>/dev/null) || ctype=""
+    ctype=$(_novnc_content_type)
     if [ "$ctype" = "text/html" ] || [ -z "$ctype" ]; then
-        warn "/novnc/core/rfb.js returns HTML — restart machina-daemon after installing novnc:"
-        warn "  sudo systemctl restart machina-daemon"
+        info "Restarting machina-daemon so it picks up /usr/share/novnc"
+        systemctl restart machina-daemon >> "$LOG_FILE" 2>&1 || warn "machina-daemon restart failed"
+        sleep 2
+        wait_for_https_health 10 || true
+        ctype=$(_novnc_content_type)
+    fi
+    if [ "$ctype" = "text/html" ] || [ -z "$ctype" ]; then
+        warn "/novnc/core/rfb.js still not served as JavaScript (got: ${ctype:-none})"
+        warn "Bundled novnc-core in the web UI still provides in-browser VNC"
     else
         ok "noVNC served at /novnc/ ($ctype)"
     fi
 }
 
 install_guacamole_stack() {
-    step "Installing optional Apache Guacamole (Docker)"
-    local guac_script="${INSTALLER_ROOT}/scripts/install-guacamole.sh"
-    [ -f "$guac_script" ] || fail "Missing $guac_script"
-    local guac_args=()
+    step "Installing Apache Guacamole (Docker)"
+    local guac_script=""
+    for candidate in \
+        "${INSTALLER_ROOT}/scripts/install-guacamole.sh" \
+        "/usr/local/share/machina/scripts/install-guacamole.sh"; do
+        if [ -f "$candidate" ]; then
+            guac_script="$candidate"
+            break
+        fi
+    done
+    [ -n "$guac_script" ] || fail "Missing install-guacamole.sh"
+    local guac_args=(--install-docker)
     if [ -n "$BIND_HOST" ] && [ "$BIND_HOST" != "127.0.0.1" ]; then
         guac_args+=(--bind "$BIND_HOST")
     fi

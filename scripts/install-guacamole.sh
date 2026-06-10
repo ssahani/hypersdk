@@ -18,8 +18,11 @@ chmod 600 "$LOG_FILE"
 GUAC_BIND="127.0.0.1"
 GUAC_PORT="8080"
 OPEN_FIREWALL=false
+INSTALL_DOCKER=false
 DO_UNINSTALL=false
 DO_STATUS=false
+OS_FAMILY=""
+PKG_MANAGER=""
 
 info()  { echo "ℹ️  $*"; }
 ok()    { echo "✅ $*"; }
@@ -29,14 +32,85 @@ step()  { echo ""; echo "➡️  $*"; }
 
 log_cmd() { "$@" >>"$LOG_FILE" 2>&1; }
 
+resolve_compose_dir() {
+    local candidate
+    for candidate in \
+        "/usr/local/share/machina/guacamole" \
+        "${INSTALLER_ROOT}/contrib/guacamole"; do
+        if [[ -f "${candidate}/docker-compose.yml" ]]; then
+            COMPOSE_DIR="$candidate"
+            COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
+            return 0
+        fi
+    done
+    return 1
+}
+
+detect_os() {
+    if [[ -f /etc/os-release ]]; then
+        # shellcheck source=/dev/null
+        . /etc/os-release
+        case "${ID:-}" in
+            fedora) OS_FAMILY=fedora; PKG_MANAGER=dnf ;;
+            rhel|centos|almalinux|rocky|opencloudos|cloudlinux) OS_FAMILY=rhel; PKG_MANAGER=dnf ;;
+            ubuntu|debian|linuxmint|pop) OS_FAMILY=debian; PKG_MANAGER=apt-get ;;
+            opensuse*|sles) OS_FAMILY=suse; PKG_MANAGER=zypper ;;
+            arch|manjaro|endeavouros) OS_FAMILY=arch; PKG_MANAGER=pacman ;;
+            *) OS_FAMILY=unknown; PKG_MANAGER="" ;;
+        esac
+    fi
+}
+
+ensure_docker() {
+    if command -v docker &>/dev/null && docker info &>/dev/null 2>&1; then
+        ok "Docker is running"
+        return 0
+    fi
+    $INSTALL_DOCKER || fail "Docker is not running — re-run with --install-docker (used automatically by install.sh --with-guacamole)"
+
+    step "Installing Docker engine"
+    detect_os
+    case "$OS_FAMILY" in
+        fedora)
+            log_cmd $PKG_MANAGER install -y docker docker-compose-plugin
+            ;;
+        rhel)
+            if ! rpm -q epel-release &>/dev/null; then
+                log_cmd $PKG_MANAGER install -y epel-release || true
+            fi
+            log_cmd $PKG_MANAGER install -y docker docker-compose-plugin \
+                || log_cmd $PKG_MANAGER install -y moby-engine docker-compose-plugin \
+                || fail "Could not install docker — see $LOG_FILE"
+            ;;
+        debian)
+            DEBIAN_FRONTEND=noninteractive log_cmd $PKG_MANAGER update -qq
+            DEBIAN_FRONTEND=noninteractive log_cmd $PKG_MANAGER install -y docker.io docker-compose-plugin \
+                || fail "Could not install docker.io — see $LOG_FILE"
+            ;;
+        suse)
+            log_cmd $PKG_MANAGER install -y docker docker-compose
+            ;;
+        arch)
+            log_cmd $PKG_MANAGER -S --noconfirm --needed docker docker-compose
+            ;;
+        *)
+            fail "Cannot auto-install Docker on this OS — install Docker manually, then re-run"
+            ;;
+    esac
+    systemctl enable docker >>"$LOG_FILE" 2>&1 || true
+    systemctl start docker >>"$LOG_FILE" 2>&1 || fail "Docker failed to start — see $LOG_FILE"
+    docker info &>/dev/null || fail "Docker installed but not responding"
+    ok "Docker installed and running"
+}
+
 usage() {
     cat <<'EOF'
-install-guacamole.sh [--bind ADDR] [--port PORT] [--open-firewall] [--status] [--uninstall]
+install-guacamole.sh [--bind ADDR] [--port PORT] [--open-firewall] [--install-docker] [--status] [--uninstall]
 
 Deploys guacd + PostgreSQL + Guacamole (Docker Compose) with JSON auth for machina.
 Writes /etc/machina/guacamole.env and enables [guacamole] in /etc/machina/config.toml.
 
-Requires: docker compose (or podman-compose), root.
+install.sh --with-guacamole calls this with --install-docker automatically.
 Default: Guacamole on http://127.0.0.1:8080/guacamole (guacd uses host network for libvirt VNC).
 EOF
     exit 0
@@ -47,6 +121,7 @@ while [[ $# -gt 0 ]]; do
         --bind) GUAC_BIND="${2:?}"; shift 2 ;;
         --port) GUAC_PORT="${2:?}"; shift 2 ;;
         --open-firewall) OPEN_FIREWALL=true; shift ;;
+        --install-docker) INSTALL_DOCKER=true; shift ;;
         --uninstall) DO_UNINSTALL=true; shift ;;
         --status) DO_STATUS=true; shift ;;
         -h|--help) usage ;;
@@ -55,6 +130,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ "$(id -u)" -eq 0 ]] || fail "Run as root: sudo bash scripts/install-guacamole.sh"
+
+resolve_compose_dir || fail "Missing docker-compose.yml — install machina first or run from repo root"
 
 compose_cmd() {
     if docker compose version &>/dev/null; then
@@ -69,9 +146,6 @@ compose_cmd() {
 }
 
 install_primary_ipv4() {
-    if declare -F install_primary_ipv4 &>/dev/null 2>&1; then
-        return 0
-    fi
     local ip=""
     if command -v ip &>/dev/null; then
         ip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="src") { print $(i+1); exit }}')
@@ -106,15 +180,13 @@ ensure_env_file() {
         source "$ENV_FILE"
         set +a
         ok "Using existing $ENV_FILE"
-        return 0
-    fi
+    else
+        step "Generating $ENV_FILE"
+        local pg_pass json_secret
+        pg_pass=$(openssl rand -hex 16)
+        json_secret=$(openssl rand -hex 16)
 
-    step "Generating $ENV_FILE"
-    local pg_pass json_secret
-    pg_pass=$(openssl rand -hex 16)
-    json_secret=$(openssl rand -hex 16)
-
-    cat >"$ENV_FILE" <<EOF
+        cat >"$ENV_FILE" <<EOF
 POSTGRES_DB=guacamole_db
 POSTGRES_USER=guacamole_user
 POSTGRES_PASSWORD=${pg_pass}
@@ -122,8 +194,22 @@ JSON_SECRET_KEY=${json_secret}
 GUACAMOLE_BIND=${GUAC_BIND}
 GUACAMOLE_PORT=${GUAC_PORT}
 EOF
-    chmod 600 "$ENV_FILE"
-    ok "Created $ENV_FILE (JSON_SECRET_KEY + postgres password)"
+        chmod 600 "$ENV_FILE"
+        ok "Created $ENV_FILE (JSON_SECRET_KEY + postgres password)"
+        return 0
+    fi
+
+    # Keep bind/port in sync when re-run with new flags
+    if grep -q '^GUACAMOLE_BIND=' "$ENV_FILE"; then
+        sed -i "s/^GUACAMOLE_BIND=.*/GUACAMOLE_BIND=${GUAC_BIND}/" "$ENV_FILE"
+    else
+        echo "GUACAMOLE_BIND=${GUAC_BIND}" >>"$ENV_FILE"
+    fi
+    if grep -q '^GUACAMOLE_PORT=' "$ENV_FILE"; then
+        sed -i "s/^GUACAMOLE_PORT=.*/GUACAMOLE_PORT=${GUAC_PORT}/" "$ENV_FILE"
+    else
+        echo "GUACAMOLE_PORT=${GUAC_PORT}" >>"$ENV_FILE"
+    fi
 }
 
 patch_machina_config() {
@@ -214,10 +300,7 @@ PY
 $DO_STATUS && status_guacamole
 $DO_UNINSTALL && uninstall_guacamole
 
-[[ -f "$COMPOSE_FILE" ]] || fail "Missing $COMPOSE_FILE — run from machina repo root"
-
-command -v docker &>/dev/null || fail "Docker required for Guacamole install"
-docker info &>/dev/null || fail "Docker daemon not running"
+ensure_docker
 
 ensure_env_file
 # shellcheck source=/dev/null
