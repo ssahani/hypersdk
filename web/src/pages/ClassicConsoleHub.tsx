@@ -154,9 +154,10 @@ export default function ClassicConsoleHub() {
         )
       }
     >
-      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
+      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-[60vh]">
         <div className="flex-1 min-w-0 flex flex-col min-h-0">
           <ConsoleHubSession
+            key={`${activeProtocol}-${wsUrl ?? 'none'}-${connectKey}`}
             protocol={activeProtocol}
             vmName={name}
             wsUrl={wsUrl}
@@ -164,6 +165,8 @@ export default function ClassicConsoleHub() {
             guestIp={plan?.guest_ip ?? undefined}
             sshUser={plan?.ssh_user ?? undefined}
             libvirtConnection={conn}
+            fillViewport
+            connectKey={connectKey}
             onReconnect={() => setConnectKey((k) => k + 1)}
           />
         </div>

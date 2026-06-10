@@ -167,6 +167,7 @@ function CockpitInner({
         fillViewport
         cockpitMode
         onReconnect={onReconnect}
+        connectKey={connectKey}
       />
     )
   })()

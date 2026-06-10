@@ -269,15 +269,16 @@ impl SessionStore {
         sessions.remove(token);
     }
 
-    /// Create a single-use WebSocket token valid for 60 seconds.
+    /// Short-lived WebSocket token (reusable until expiry — supports React remount / reconnect).
     pub fn create_ws_token(&self, actor: &RequestActor) -> String {
+        const WS_TOKEN_TTL_SECS: u64 = 120;
+
         let mut rng = rand::thread_rng();
         let token_bytes: [u8; 32] = rng.gen();
         let token = hex::encode(token_bytes);
 
         let mut ws_tokens = self.ws_tokens.lock().unwrap_or_else(|e| e.into_inner());
-        // Purge expired ws tokens while we have the lock
-        ws_tokens.retain(|_, data| data.created_at.elapsed().as_secs() < 60);
+        ws_tokens.retain(|_, data| data.created_at.elapsed().as_secs() < WS_TOKEN_TTL_SECS);
         ws_tokens.insert(
             token.clone(),
             WsTokenData {
@@ -288,16 +289,18 @@ impl SessionStore {
         token
     }
 
-    /// Validate and consume a single-use WebSocket token.
-    /// Returns the authenticated actor if the token exists and is less than 60 seconds old.
+    /// Validate a WebSocket token without removing it (noVNC may open the socket more than once).
     pub fn validate_ws_token(&self, token: &str) -> Option<RequestActor> {
+        const WS_TOKEN_TTL_SECS: u64 = 120;
+
         let mut ws_tokens = self.ws_tokens.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(data) = ws_tokens.remove(token) {
-            if data.created_at.elapsed().as_secs() < 60 {
-                return Some(data.actor);
-            }
+        ws_tokens.retain(|_, data| data.created_at.elapsed().as_secs() < WS_TOKEN_TTL_SECS);
+        let data = ws_tokens.get(token)?;
+        if data.created_at.elapsed().as_secs() < WS_TOKEN_TTL_SECS {
+            Some(data.actor.clone())
+        } else {
+            None
         }
-        None
     }
 
     pub fn create_oidc_state(&self, nonce: String) -> String {

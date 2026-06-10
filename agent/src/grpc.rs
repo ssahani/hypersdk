@@ -1650,7 +1650,7 @@ fn build_console_access_plan(
     libvirt: &Arc<std::sync::Mutex<libvirt_ops::LibvirtCtx>>,
     vm_name: &str,
 ) -> Result<GetConsoleAccessPlanResponse, String> {
-    use crate::guacamole_proxy::guacamole_reachable;
+    use crate::guacamole_proxy::guacamole_configured;
 
     let mut ctx = libvirt
         .lock()
@@ -1688,7 +1688,7 @@ fn build_console_access_plan(
         }
     }
 
-    let guac_up = guacamole_reachable();
+    let guac_up = guacamole_configured();
     let mut protocols = Vec::new();
     if guac_up {
         if vnc_port > 0 {

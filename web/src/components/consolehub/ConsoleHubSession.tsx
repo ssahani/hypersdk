@@ -27,6 +27,7 @@ type Props = {
   /** Hide built-in toolbar — Machine Cockpit provides floating HUD + dock. */
   cockpitMode?: boolean
   onReconnect?: () => void
+  connectKey?: number
 }
 
 function VncShell({ cockpitMode, children }: { cockpitMode?: boolean; children: ReactNode }) {
@@ -42,8 +43,9 @@ function CockpitVnc(props: {
   fillViewport?: boolean
   cockpitMode?: boolean
   onReconnect?: () => void
+  connectKey?: number
 }) {
-  const scaled = props.cockpitMode ? true : false
+  const scaled = props.cockpitMode || Boolean(props.fillViewport)
   return (
     <VncShell cockpitMode={props.cockpitMode}>
       <VNCViewer
@@ -53,8 +55,10 @@ function CockpitVnc(props: {
         libvirtConnection={props.libvirtConnection}
         defaultScaledFit={scaled}
         fillViewport={props.fillViewport ?? props.cockpitMode}
+        fillViewportOffset="11rem"
         cockpitMode={props.cockpitMode}
         onReconnect={props.onReconnect}
+        connectKey={props.connectKey}
       />
     </VncShell>
   )
@@ -72,6 +76,7 @@ export default function ConsoleHubSession({
   fillViewport,
   cockpitMode,
   onReconnect,
+  connectKey,
 }: Props) {
   if (session?.backend === 'guacamole' && session.session_id) {
     const src = `${session.embed_path}#/`
@@ -108,7 +113,7 @@ export default function ConsoleHubSession({
       <div className="rounded-lg border border-violet-500/30 bg-violet-950/20 p-4 text-sm text-violet-100 flex flex-col gap-3 flex-1 min-h-0">
         <p>WebRTC/SPICE high-performance mode — opt-in upgrade for SPICE-capable guests.</p>
         {wsUrl ? (
-          <CockpitVnc vmName={vmName} wsUrl={wsUrl} fillViewport={fillViewport} cockpitMode={cockpitMode} onReconnect={onReconnect} />
+          <CockpitVnc vmName={vmName} wsUrl={wsUrl} fillViewport={fillViewport} cockpitMode={cockpitMode} onReconnect={onReconnect} connectKey={connectKey} />
         ) : (
           <SPICEViewer vmName={vmName} />
         )}
@@ -134,26 +139,32 @@ export default function ConsoleHubSession({
 
   if (kubeVirtNamespace) {
     return (
-      <CockpitVnc
-        vmName={vmName}
-        kubeVirtNamespace={kubeVirtNamespace}
-        fillViewport={fillViewport}
-        cockpitMode={cockpitMode}
-        onReconnect={onReconnect}
-      />
+      <div className="flex flex-col flex-1 min-h-0 w-full h-full">
+        <CockpitVnc
+          vmName={vmName}
+          kubeVirtNamespace={kubeVirtNamespace}
+          fillViewport={fillViewport}
+          cockpitMode={cockpitMode}
+          onReconnect={onReconnect}
+          connectKey={connectKey}
+        />
+      </div>
     )
   }
 
   if (wsUrl) {
     return (
-      <CockpitVnc
-        vmName={vmName}
-        wsUrl={wsUrl}
-        libvirtConnection={libvirtConnection}
-        fillViewport={fillViewport}
-        cockpitMode={cockpitMode}
-        onReconnect={onReconnect}
-      />
+      <div className="flex flex-col flex-1 min-h-0 w-full h-full">
+        <CockpitVnc
+          vmName={vmName}
+          wsUrl={wsUrl}
+          libvirtConnection={libvirtConnection}
+          fillViewport={fillViewport}
+          cockpitMode={cockpitMode}
+          onReconnect={onReconnect}
+          connectKey={connectKey}
+        />
+      </div>
     )
   }
 

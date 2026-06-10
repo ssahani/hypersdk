@@ -75,7 +75,7 @@ export default function ConsoleHubShell({
     >
       {error && errorActions ? <div className="mb-3">{errorActions}</div> : null}
       {protocolPicker}
-      <div className="flex flex-col flex-1 min-h-[50vh]">{children}</div>
+      <div className="flex flex-col flex-1 min-h-0">{children}</div>
       {sessionInfo ? (
         <div className="mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-500">{sessionInfo}</div>
       ) : null}

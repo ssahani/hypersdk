@@ -136,6 +136,8 @@ pub fn proxy_routes() -> Router<AppState> {
             "/consolehub/guacamole/{session_id}/websocket-tunnel",
             any(guac_ws_proxy),
         )
+        .route("/consolehub/guacamole/{session_id}", any(guac_http_proxy_root))
+        .route("/consolehub/guacamole/{session_id}/", any(guac_http_proxy_root))
         .route("/consolehub/guacamole/{session_id}/{*path}", any(guac_http_proxy))
 }
 
@@ -326,7 +328,21 @@ pub async fn consolehub_plan(
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     let ws_token = state.ws_tokens.issue(id).await;
-    Ok(Json(plan_from_agent(id, &vm_name, &agent_plan, &ws_token)))
+    let mut plan = plan_from_agent(id, &vm_name, &agent_plan, &ws_token);
+    let (_, _, guac_enabled) = host_guacamole_config(&state.pool, host_id, &state.config).await;
+    if !guac_enabled {
+        plan.guacamole.available = false;
+        plan.guacamole.protocols.clear();
+        plan.protocols.retain(|p| !p.starts_with("guacamole_"));
+        if plan.recommended.starts_with("guacamole_") {
+            plan.recommended = if plan.native.available {
+                "novnc".into()
+            } else {
+                "serial".into()
+            };
+        }
+    }
+    Ok(Json(plan))
 }
 
 async fn check_console_rbac(
@@ -587,7 +603,7 @@ pub async fn create_session(
             .as_deref()
             .map(|t| format!("?token={}", urlencoding::encode(t)))
             .unwrap_or_default();
-        format!("{prefix}/{session_id}/{token_q}")
+        format!("{prefix}/{session_id}/index.html{token_q}")
     } else {
         format!("/platform/vms/{id}/consolehub?session={session_id}&native=1&token={ws_token}")
     };
@@ -780,9 +796,26 @@ pub async fn approve_access_request(
     Ok(Json(serde_json::json!({ "approved": true, "request_id": request_id.to_string() })))
 }
 
+async fn guac_http_proxy_root(
+    State(state): State<AppState>,
+    Path(session_id): Path<Uuid>,
+    req: axum::http::Request<Body>,
+) -> Result<Response, StatusCode> {
+    guac_http_proxy_impl(state, session_id, String::new(), req).await
+}
+
 async fn guac_http_proxy(
     State(state): State<AppState>,
     Path((session_id, path)): Path<(Uuid, String)>,
+    req: axum::http::Request<Body>,
+) -> Result<Response, StatusCode> {
+    guac_http_proxy_impl(state, session_id, path, req).await
+}
+
+async fn guac_http_proxy_impl(
+    state: AppState,
+    session_id: Uuid,
+    path: String,
     req: axum::http::Request<Body>,
 ) -> Result<Response, StatusCode> {
     let session = state

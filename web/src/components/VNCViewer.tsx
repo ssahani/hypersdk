@@ -30,6 +30,8 @@ interface Props {
   fillViewportOffset?: string
   /** Refresh console session (fetch new WS token) instead of full page reload. */
   onReconnect?: () => void
+  /** Bump when parent re-issues WS URL (Classic ConsoleHub connectKey). */
+  connectKey?: number
   /** Machine Cockpit — hide toolbar; viewport controlled by floating HUD. */
   cockpitMode?: boolean
 }
@@ -60,6 +62,7 @@ export default function VNCViewer({
   fillViewportOffset = '13rem',
   onReconnect,
   cockpitMode = false,
+  connectKey = 0,
 }: Props) {
   const vp = useConsoleViewportOptional()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -211,8 +214,8 @@ export default function VNCViewer({
       }
       rfbRef.current = null
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reconnect only when VM/port changes; viewport toggled via effect below
-  }, [vmName, port, kubeVirtNamespace, libvirtConnection, wsUrlOverride])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reconnect when VM/port/ws URL/connectKey changes
+  }, [vmName, port, kubeVirtNamespace, libvirtConnection, wsUrlOverride, connectKey])
 
   useEffect(() => {
     if (!fillViewport || status !== 'connected') return

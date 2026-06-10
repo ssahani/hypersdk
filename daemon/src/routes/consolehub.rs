@@ -351,6 +351,8 @@ pub fn proxy_routes() -> Router {
             "/consolehub/guacamole/{session_id}/websocket-tunnel",
             any(guac_ws_proxy),
         )
+        .route("/consolehub/guacamole/{session_id}", any(guac_http_proxy_root))
+        .route("/consolehub/guacamole/{session_id}/", any(guac_http_proxy_root))
         .route("/consolehub/guacamole/{session_id}/{*path}", any(guac_http_proxy))
 }
 
@@ -485,7 +487,8 @@ async fn create_session(
         .map(|t| format!("?token={}", urlencoding_light(t)))
         .unwrap_or_default();
     let embed_path = if backend == "guacamole" {
-        format!("{PROXY_PREFIX}/{session_id}/{token_q}")
+        // Must include a path segment — `{*path}` does not match `/session/?token=…` (SPA fallback → 404).
+        format!("{PROXY_PREFIX}/{session_id}/index.html{token_q}")
     } else {
         format!("/vms/{}/consolehub?session={session_id}&native=1", urlencoding_light(&name))
     };
@@ -566,9 +569,26 @@ async fn end_session(
     })))
 }
 
+async fn guac_http_proxy_root(
+    Extension(store): Extension<ConsoleSessionStore>,
+    Path(session_id): Path<Uuid>,
+    req: Request<Body>,
+) -> Result<Response, StatusCode> {
+    guac_http_proxy_impl(store, session_id, String::new(), req).await
+}
+
 async fn guac_http_proxy(
     Extension(store): Extension<ConsoleSessionStore>,
     Path((session_id, path)): Path<(Uuid, String)>,
+    req: Request<Body>,
+) -> Result<Response, StatusCode> {
+    guac_http_proxy_impl(store, session_id, path, req).await
+}
+
+async fn guac_http_proxy_impl(
+    store: ConsoleSessionStore,
+    session_id: Uuid,
+    path: String,
     req: Request<Body>,
 ) -> Result<Response, StatusCode> {
     let session = store.get(session_id).await.ok_or(StatusCode::NOT_FOUND)?;

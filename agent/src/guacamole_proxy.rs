@@ -62,6 +62,17 @@ pub fn guacamole_reachable() -> bool {
     .is_ok()
 }
 
+/// Guacamole HTTP port up **and** JSON API secret configured (matches daemon/controller session gates).
+pub fn guacamole_configured() -> bool {
+    if !guacamole_reachable() {
+        return false;
+    }
+    std::env::var("GUACAMOLE_JSON_SECRET_HEX")
+        .or_else(|_| std::env::var("MACHINA_GUACAMOLE_JSON_SECRET_HEX"))
+        .map(|s| s.trim().len() >= 32)
+        .unwrap_or(false)
+}
+
 async fn guac_http_proxy(
     State(st): State<GuacamoleProxyState>,
     Path(path): Path<String>,
