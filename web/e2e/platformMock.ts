@@ -2732,6 +2732,9 @@ export async function mockPlatformApi(page: Page, opts?: {
         },
       })
     }
+    if (url.match(/\/vms\/[^/]+\/ws-token/) && route.request().method() === 'POST') {
+      return route.fulfill({ json: { token: 'mock-ws-token' } })
+    }
     if (url.match(/\/vms\/[^/]+\/console/)) {
       return route.fulfill({
         json: { vm_name: 'vm-1', console_type: 'vnc', ws_path: '/api/v1/vms/v1/console/ws' },

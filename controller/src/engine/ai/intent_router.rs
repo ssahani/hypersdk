@@ -1412,15 +1412,7 @@ fn parse_nl_create_vm(query: &str) -> Option<SpotlightIntent> {
 
     let cores = extract_number_before(&ql, &["vcpu", "vcpus", "cpu", "cpus", "core", "cores"]);
     let memory_gib = extract_memory_gib(&ql);
-    let os = if ql.contains("windows") {
-        "windows-server-2022"
-    } else if ql.contains("rocky") {
-        "rocky-10"
-    } else if ql.contains("debian") {
-        "debian-13"
-    } else {
-        "ubuntu-24.04"
-    };
+    let os = crate::engine::template_catalog::default_template_for_natural_language(&ql);
 
     let name = extract_quoted_name(query)
         .or_else(|| extract_after(&ql, "named ").map(|s| s.to_string()))

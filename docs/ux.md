@@ -223,7 +223,7 @@ Build: `cd web && npm run build`. Deploy: `./scripts/deploy remote user@host --q
 
 ```bash
 PLAYWRIGHT_LIVE_URL=https://HOST:5092 PLAYWRIGHT_LIVE_USER=sus PLAYWRIGHT_LIVE_PASS=… \
-  npx playwright test e2e/live-host.spec.ts
+  npm run test:e2e -- e2e/live-host.spec.ts
 ```
 
 Includes PAM login at `/login` → dashboard when credentials are set.

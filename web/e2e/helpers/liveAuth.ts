@@ -45,13 +45,26 @@ async function hasValidSession(page: Page, baseUrl: string): Promise<boolean> {
   }
 }
 
+export interface EnsureLoggedInOptions {
+  tier?: DesktopTier
+  /** When false, only establish session/tier — caller navigates to the route under test. */
+  navigate?: boolean
+  entryPath?: string
+}
+
 /** Sign in via the Machina login form when credentials are set. Reuses existing cookie session when valid. */
 export async function ensureLoggedIn(
   page: Page,
   baseUrl: string,
-  entryPath = '/platform',
-  tier: DesktopTier = 'power',
+  entryPathOrOptions: string | EnsureLoggedInOptions = '/platform',
+  legacyTier: DesktopTier = 'power',
 ) {
+  const opts: EnsureLoggedInOptions =
+    typeof entryPathOrOptions === 'string'
+      ? { entryPath: entryPathOrOptions, tier: legacyTier, navigate: true }
+      : { entryPath: '/platform', tier: 'power', navigate: false, ...entryPathOrOptions }
+  const { entryPath = '/platform', tier = 'power', navigate = true } = opts
+
   const creds = liveCredentials()
   await setDesktopTier(page, tier)
   if (creds) {
@@ -64,7 +77,10 @@ export async function ensureLoggedIn(
       }
     }
   }
-  await page.goto(`${baseUrl}${entryPath}`)
+  if (!navigate) return
+
+  const target = entryPath === '/' ? '/platform' : entryPath
+  await page.goto(`${baseUrl}${target}`, { waitUntil: 'domcontentloaded', timeout: 45_000 })
   await page.locator('#login-username').waitFor({ state: 'hidden', timeout: 20_000 }).catch(() => {})
 }
 

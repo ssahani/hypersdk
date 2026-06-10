@@ -319,7 +319,7 @@ function AuthenticatedShellRoutes() {
     <>
           <RouteRecorder />
           <ToastRenderer />
-          <div className={`${shellClass} flex flex-col min-h-screen`}>
+          <div className={`${shellClass} flex flex-col min-h-dvh`}>
             {!isPlatformRoute && <Navbar onOpenHelp={openHelp} />}
             {!isPlatformRoute && <ShellBridgeBar />}
             <ZeusSpotlight onOpenHelp={openHelp} />
@@ -336,7 +336,7 @@ function AuthenticatedShellRoutes() {
               id="main-content"
               className={
                 isPlatformRoute
-                  ? 'platform-route-main flex-1 min-w-0 min-h-0 flex flex-col'
+                  ? 'platform-route-main flex-1 min-w-0 flex flex-col w-full'
                   : `app-shell tahoe-page-root platform-readable flex-1 min-w-0 py-6 lg:py-8${theme === 'steel' ? ' steel-content' : ''}${theme === 'aurora' ? ' aurora-content' : ''}`
               }
               role="main"

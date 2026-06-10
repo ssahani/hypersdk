@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-05-31T02:01:15.912Z",
+  "generated_at": "2026-06-09T22:35:23.879Z",
   "entries": [
     {
       "id": "classic:/",
@@ -327,10 +327,37 @@
       "actions": []
     },
     {
+      "id": "platform:/platform//platform",
+      "shell": "platform",
+      "path": "/platform//platform",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
       "id": "platform:/platform/activity",
       "shell": "platform",
       "path": "/platform/activity",
       "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": [
+        {
+          "kind": "tab",
+          "label": "VMs"
+        },
+        {
+          "kind": "tab",
+          "label": "Hosts"
+        }
+      ]
+    },
+    {
+      "id": "platform:/platform/administration",
+      "shell": "platform",
+      "path": "/platform/administration",
+      "tier": "normal",
       "headingPattern": ".+",
       "requires": null,
       "actions": []
@@ -378,6 +405,24 @@
       "tier": "power",
       "headingPattern": ".+",
       "requires": null,
+      "actions": [
+        {
+          "kind": "tab",
+          "label": "Launchpad"
+        },
+        {
+          "kind": "tab",
+          "label": "Studio"
+        }
+      ]
+    },
+    {
+      "id": "platform:/platform/cloud-init",
+      "shell": "platform",
+      "path": "/platform/cloud-init",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
       "actions": []
     },
     {
@@ -385,6 +430,37 @@
       "shell": "platform",
       "path": "/platform/content",
       "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": [
+        {
+          "kind": "filterPill",
+          "label": "All"
+        },
+        {
+          "kind": "filterPill",
+          "label": "Pending"
+        },
+        {
+          "kind": "filterPill",
+          "label": "Approved"
+        }
+      ]
+    },
+    {
+      "id": "platform:/platform/create-iso",
+      "shell": "platform",
+      "path": "/platform/create-iso",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/datacenter",
+      "shell": "platform",
+      "path": "/platform/datacenter",
+      "tier": "normal",
       "headingPattern": ".+",
       "requires": null,
       "actions": []
@@ -429,13 +505,69 @@
       "tier": "advanced",
       "headingPattern": ".+",
       "requires": null,
-      "actions": []
+      "actions": [
+        {
+          "kind": "tab",
+          "label": "Keychain"
+        },
+        {
+          "kind": "tab",
+          "label": "Vault sync"
+        },
+        {
+          "kind": "tab",
+          "label": "MFA compliance"
+        },
+        {
+          "kind": "tab",
+          "label": "FIPS matrix"
+        },
+        {
+          "kind": "tab",
+          "label": "Tenant isolation"
+        }
+      ]
     },
     {
       "id": "platform:/platform/events",
       "shell": "platform",
       "path": "/platform/events",
       "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": [
+        {
+          "kind": "tab",
+          "label": "All"
+        },
+        {
+          "kind": "tab",
+          "label": "Audit"
+        },
+        {
+          "kind": "tab",
+          "label": "Events"
+        },
+        {
+          "kind": "tab",
+          "label": "Tasks"
+        }
+      ]
+    },
+    {
+      "id": "platform:/platform/fleet-snapshots",
+      "shell": "platform",
+      "path": "/platform/fleet-snapshots",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/gpu",
+      "shell": "platform",
+      "path": "/platform/gpu",
+      "tier": "normal",
       "headingPattern": ".+",
       "requires": null,
       "actions": []
@@ -446,6 +578,33 @@
       "path": "/platform/hosts",
       "tier": "normal",
       "headingPattern": "Hosts",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/hosts/:id",
+      "shell": "platform",
+      "path": "/platform/hosts/:id",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/hosts/finder",
+      "shell": "platform",
+      "path": "/platform/hosts/finder",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/infrastructure",
+      "shell": "platform",
+      "path": "/platform/infrastructure",
+      "tier": "normal",
+      "headingPattern": ".+",
       "requires": null,
       "actions": []
     },
@@ -465,13 +624,68 @@
       "tier": "power",
       "headingPattern": ".+",
       "requires": null,
-      "actions": []
+      "actions": [
+        {
+          "kind": "tab",
+          "label": "Mission"
+        },
+        {
+          "kind": "tab",
+          "label": "Updates"
+        },
+        {
+          "kind": "tab",
+          "label": "Schedules"
+        }
+      ]
     },
     {
       "id": "platform:/platform/migration",
       "shell": "platform",
       "path": "/platform/migration",
       "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": [
+        {
+          "kind": "tab",
+          "label": "VMware vCenter"
+        },
+        {
+          "kind": "tab",
+          "label": "ESXi Host"
+        },
+        {
+          "kind": "tab",
+          "label": "OVF / OVA File"
+        },
+        {
+          "kind": "tab",
+          "label": "VMDK File"
+        },
+        {
+          "kind": "tab",
+          "label": "OpenStack"
+        },
+        {
+          "kind": "tab",
+          "label": "Cloud Image"
+        },
+        {
+          "kind": "tab",
+          "label": "Scan & migrate"
+        },
+        {
+          "kind": "tab",
+          "label": "GuestKit jobs"
+        }
+      ]
+    },
+    {
+      "id": "platform:/platform/network-canvas",
+      "shell": "platform",
+      "path": "/platform/network-canvas",
+      "tier": "normal",
       "headingPattern": ".+",
       "requires": null,
       "actions": []
@@ -483,7 +697,24 @@
       "tier": "power",
       "headingPattern": "Networks",
       "requires": null,
-      "actions": []
+      "actions": [
+        {
+          "kind": "tab",
+          "label": "Networks"
+        },
+        {
+          "kind": "tab",
+          "label": "Segments"
+        },
+        {
+          "kind": "tab",
+          "label": "IPAM"
+        },
+        {
+          "kind": "tab",
+          "label": "Network Lens"
+        }
+      ]
     },
     {
       "id": "platform:/platform/notifications",
@@ -499,6 +730,15 @@
       "shell": "platform",
       "path": "/platform/observability",
       "tier": "advanced",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/operations",
+      "shell": "platform",
+      "path": "/platform/operations",
+      "tier": "normal",
       "headingPattern": ".+",
       "requires": null,
       "actions": []
@@ -546,6 +786,28 @@
       "tier": "power",
       "headingPattern": ".+",
       "requires": null,
+      "actions": [
+        {
+          "kind": "tab",
+          "label": "Reports"
+        },
+        {
+          "kind": "tab",
+          "label": "Runbooks"
+        },
+        {
+          "kind": "tab",
+          "label": "Showback"
+        }
+      ]
+    },
+    {
+      "id": "platform:/platform/resources",
+      "shell": "platform",
+      "path": "/platform/resources",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
       "actions": []
     },
     {
@@ -557,8 +819,88 @@
       "requires": null,
       "actions": [
         {
+          "kind": "tab",
+          "label": "General"
+        },
+        {
+          "kind": "tab",
+          "label": "Zeus"
+        },
+        {
+          "kind": "tab",
+          "label": "AI Providers"
+        },
+        {
+          "kind": "tab",
+          "label": "Security"
+        },
+        {
+          "kind": "tab",
+          "label": "Network"
+        },
+        {
+          "kind": "tab",
+          "label": "Users & Groups"
+        },
+        {
+          "kind": "tab",
+          "label": "Stage Manager"
+        },
+        {
+          "kind": "tab",
+          "label": "Keychain"
+        },
+        {
+          "kind": "tab",
+          "label": "Policy & Quotas"
+        },
+        {
+          "kind": "tab",
+          "label": "API Keys"
+        },
+        {
+          "kind": "tab",
+          "label": "Webhooks"
+        },
+        {
+          "kind": "tab",
+          "label": "Reports"
+        },
+        {
+          "kind": "tab",
+          "label": "Console"
+        },
+        {
+          "kind": "tab",
+          "label": "Infrastructure"
+        },
+        {
+          "kind": "tab",
+          "label": "Updates"
+        },
+        {
+          "kind": "tab",
+          "label": "Apps & Integrations"
+        },
+        {
+          "kind": "tab",
+          "label": "Support"
+        },
+        {
+          "kind": "tab",
+          "label": "About"
+        },
+        {
           "kind": "settingsSection",
           "label": "General"
+        },
+        {
+          "kind": "settingsSection",
+          "label": "Zeus"
+        },
+        {
+          "kind": "settingsSection",
+          "label": "AI Providers"
         },
         {
           "kind": "settingsSection",
@@ -567,8 +909,69 @@
         {
           "kind": "settingsSection",
           "label": "Network"
+        },
+        {
+          "kind": "settingsSection",
+          "label": "Users & Groups"
+        },
+        {
+          "kind": "settingsSection",
+          "label": "Stage Manager"
+        },
+        {
+          "kind": "settingsSection",
+          "label": "Keychain"
+        },
+        {
+          "kind": "settingsSection",
+          "label": "Policy & Quotas"
+        },
+        {
+          "kind": "settingsSection",
+          "label": "API Keys"
+        },
+        {
+          "kind": "settingsSection",
+          "label": "Webhooks"
+        },
+        {
+          "kind": "settingsSection",
+          "label": "Reports"
+        },
+        {
+          "kind": "settingsSection",
+          "label": "Console"
+        },
+        {
+          "kind": "settingsSection",
+          "label": "Infrastructure"
+        },
+        {
+          "kind": "settingsSection",
+          "label": "Updates"
+        },
+        {
+          "kind": "settingsSection",
+          "label": "Apps & Integrations"
+        },
+        {
+          "kind": "settingsSection",
+          "label": "Support"
+        },
+        {
+          "kind": "settingsSection",
+          "label": "About"
         }
       ]
+    },
+    {
+      "id": "platform:/platform/soc",
+      "shell": "platform",
+      "path": "/platform/soc",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
     },
     {
       "id": "platform:/platform/storage",
@@ -577,7 +980,24 @@
       "tier": "power",
       "headingPattern": "Storage|Disk",
       "requires": null,
-      "actions": []
+      "actions": [
+        {
+          "kind": "tab",
+          "label": "Disks"
+        },
+        {
+          "kind": "tab",
+          "label": "Pools"
+        },
+        {
+          "kind": "tab",
+          "label": "Tiers"
+        },
+        {
+          "kind": "tab",
+          "label": "Backup SLA"
+        }
+      ]
     },
     {
       "id": "platform:/platform/support",
@@ -593,9 +1013,30 @@
       "shell": "platform",
       "path": "/platform/tasks",
       "tier": "power",
-      "headingPattern": ".+",
+      "headingPattern": "Tasks|Orchestration",
       "requires": null,
-      "actions": []
+      "actions": [
+        {
+          "kind": "filterPill",
+          "label": "All"
+        },
+        {
+          "kind": "filterPill",
+          "label": "Pending"
+        },
+        {
+          "kind": "filterPill",
+          "label": "Running"
+        },
+        {
+          "kind": "filterPill",
+          "label": "Completed"
+        },
+        {
+          "kind": "filterPill",
+          "label": "Failed"
+        }
+      ]
     },
     {
       "id": "platform:/platform/templates",
@@ -604,7 +1045,16 @@
       "tier": "power",
       "headingPattern": ".+",
       "requires": null,
-      "actions": []
+      "actions": [
+        {
+          "kind": "tab",
+          "label": "Templates"
+        },
+        {
+          "kind": "tab",
+          "label": "Plugins"
+        }
+      ]
     },
     {
       "id": "platform:/platform/topology",
@@ -622,6 +1072,24 @@
       "tier": "advanced",
       "headingPattern": ".+",
       "requires": null,
+      "actions": [
+        {
+          "kind": "tab",
+          "label": "Users"
+        },
+        {
+          "kind": "tab",
+          "label": "Groups"
+        }
+      ]
+    },
+    {
+      "id": "platform:/platform/vm-builder",
+      "shell": "platform",
+      "path": "/platform/vm-builder",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
       "actions": []
     },
     {
@@ -630,6 +1098,24 @@
       "path": "/platform/vms",
       "tier": "normal",
       "headingPattern": "Finder|Virtual Machines",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/vms/:id",
+      "shell": "platform",
+      "path": "/platform/vms/:id",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/vms/:id/console",
+      "shell": "platform",
+      "path": "/platform/vms/:id/console",
+      "tier": "normal",
+      "headingPattern": ".+",
       "requires": null,
       "actions": []
     },
@@ -643,11 +1129,11 @@
       "actions": []
     },
     {
-      "id": "platform:/platform/soc",
+      "id": "platform:/platform/workloads",
       "shell": "platform",
-      "path": "/platform/soc",
-      "tier": "power",
-      "headingPattern": "Security Operations Center",
+      "path": "/platform/workloads",
+      "tier": "normal",
+      "headingPattern": ".+",
       "requires": null,
       "actions": []
     },
@@ -658,23 +1144,43 @@
       "tier": "power",
       "headingPattern": ".+",
       "requires": null,
-      "actions": []
+      "actions": [
+        {
+          "kind": "tab",
+          "label": "Fleet"
+        },
+        {
+          "kind": "tab",
+          "label": "Graph Brain"
+        },
+        {
+          "kind": "tab",
+          "label": "Memory"
+        },
+        {
+          "kind": "tab",
+          "label": "Security"
+        },
+        {
+          "kind": "tab",
+          "label": "Knowledge"
+        },
+        {
+          "kind": "tab",
+          "label": "Services"
+        },
+        {
+          "kind": "tab",
+          "label": "Bare Metal"
+        }
+      ]
     },
     {
-      "id": "platform:/platform/zeus?tab=brain",
+      "id": "platform:/platform/zeus/approvals",
       "shell": "platform",
-      "path": "/platform/zeus?tab=brain",
-      "tier": "power",
-      "headingPattern": "Graph Brain|Infrastructure Graph",
-      "requires": null,
-      "actions": []
-    },
-    {
-      "id": "platform:/platform/zeus/rightsizing",
-      "shell": "platform",
-      "path": "/platform/zeus/rightsizing",
-      "tier": "power",
-      "headingPattern": "Rightsizing|VM Rightsizing",
+      "path": "/platform/zeus/approvals",
+      "tier": "normal",
+      "headingPattern": ".+",
       "requires": null,
       "actions": []
     },
@@ -682,17 +1188,85 @@
       "id": "platform:/platform/zeus/incidents",
       "shell": "platform",
       "path": "/platform/zeus/incidents",
-      "tier": "power",
-      "headingPattern": "Incident Commander",
+      "tier": "normal",
+      "headingPattern": ".+",
       "requires": null,
       "actions": []
     },
     {
-      "id": "platform:/platform/zeus/approvals",
+      "id": "platform:/platform/zeus/machines/:hostId",
       "shell": "platform",
-      "path": "/platform/zeus/approvals",
-      "tier": "power",
-      "headingPattern": "Zeus approvals",
+      "path": "/platform/zeus/machines/:hostId",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": [
+        {
+          "kind": "tab",
+          "label": "Processes"
+        },
+        {
+          "kind": "tab",
+          "label": "Connections"
+        },
+        {
+          "kind": "tab",
+          "label": "Events"
+        },
+        {
+          "kind": "tab",
+          "label": "Graph"
+        },
+        {
+          "kind": "tab",
+          "label": "DNS"
+        },
+        {
+          "kind": "tab",
+          "label": "Open ports"
+        },
+        {
+          "kind": "tab",
+          "label": "Files"
+        },
+        {
+          "kind": "tab",
+          "label": "Containers"
+        },
+        {
+          "kind": "tab",
+          "label": "Users"
+        },
+        {
+          "kind": "tab",
+          "label": "Enforcement"
+        }
+      ]
+    },
+    {
+      "id": "platform:/platform/zeus/rightsizing",
+      "shell": "platform",
+      "path": "/platform/zeus/rightsizing",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/zeus/security",
+      "shell": "platform",
+      "path": "/platform/zeus/security",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/zeus/security/activity",
+      "shell": "platform",
+      "path": "/platform/zeus/security/activity",
+      "tier": "advanced",
+      "headingPattern": ".+",
       "requires": null,
       "actions": []
     },
@@ -700,6 +1274,15 @@
       "id": "platform:/platform/zeus/security/cloud",
       "shell": "platform",
       "path": "/platform/zeus/security/cloud",
+      "tier": "advanced",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/zeus/security/compliance",
+      "shell": "platform",
+      "path": "/platform/zeus/security/compliance",
       "tier": "advanced",
       "headingPattern": ".+",
       "requires": null,
@@ -715,10 +1298,104 @@
       "actions": []
     },
     {
+      "id": "platform:/platform/zeus/security/enforcement",
+      "shell": "platform",
+      "path": "/platform/zeus/security/enforcement",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": [
+        {
+          "kind": "tab",
+          "label": "Deny process"
+        },
+        {
+          "kind": "tab",
+          "label": "Deny DNS"
+        },
+        {
+          "kind": "tab",
+          "label": "Deny port"
+        },
+        {
+          "kind": "tab",
+          "label": "Deny IP/CIDR"
+        },
+        {
+          "kind": "tab",
+          "label": "Deny file"
+        },
+        {
+          "kind": "tab",
+          "label": "Deny capability"
+        },
+        {
+          "kind": "tab",
+          "label": "Deny K8s namespace"
+        }
+      ]
+    },
+    {
       "id": "platform:/platform/zeus/security/firewall",
       "shell": "platform",
       "path": "/platform/zeus/security/firewall",
       "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": [
+        {
+          "kind": "filterPill",
+          "label": "All"
+        },
+        {
+          "kind": "filterPill",
+          "label": "Hosts"
+        },
+        {
+          "kind": "filterPill",
+          "label": "Bare metal"
+        }
+      ]
+    },
+    {
+      "id": "platform:/platform/zeus/security/firewall/:id",
+      "shell": "platform",
+      "path": "/platform/zeus/security/firewall/:id",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": [
+        {
+          "kind": "tab",
+          "label": "Off"
+        },
+        {
+          "kind": "tab",
+          "label": "Standard"
+        },
+        {
+          "kind": "tab",
+          "label": "Strict"
+        },
+        {
+          "kind": "tab",
+          "label": "Firewall"
+        },
+        {
+          "kind": "tab",
+          "label": "Incoming"
+        },
+        {
+          "kind": "tab",
+          "label": "Advanced"
+        }
+      ]
+    },
+    {
+      "id": "platform:/platform/zeus/security/hunt",
+      "shell": "platform",
+      "path": "/platform/zeus/security/hunt",
+      "tier": "normal",
       "headingPattern": ".+",
       "requires": null,
       "actions": []
@@ -738,6 +1415,37 @@
       "path": "/platform/zeus/security/policies",
       "tier": "advanced",
       "headingPattern": "Policy Studio",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/zeus/security/ports",
+      "shell": "platform",
+      "path": "/platform/zeus/security/ports",
+      "tier": "advanced",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": [
+        {
+          "kind": "filterPill",
+          "label": "All"
+        },
+        {
+          "kind": "filterPill",
+          "label": "Critical"
+        },
+        {
+          "kind": "filterPill",
+          "label": "Warning"
+        }
+      ]
+    },
+    {
+      "id": "platform:/platform/zeus/security/services",
+      "shell": "platform",
+      "path": "/platform/zeus/security/services",
+      "tier": "advanced",
+      "headingPattern": ".+",
       "requires": null,
       "actions": []
     },

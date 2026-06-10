@@ -17,7 +17,7 @@ export default function SecurityTimelinePanel({
       {events.length === 0 ? (
         <p className="text-sm text-slate-500">No security events in this window.</p>
       ) : (
-        <div className="rounded-xl border border-white/[0.06] overflow-hidden max-h-[420px] overflow-y-auto">
+        <div className="rounded-xl border border-white/[0.06] overflow-clip">
           {events.slice(0, 40).map((e, i) => (
             <MacListRow
               key={e.id ?? i}

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router'
 import type { FleetMissionOverview } from '../../api/platform'
 import { statusChipClasses } from '../../utils/semanticColors'
+import { UNASSIGNED_RACK, UNASSIGNED_SITE } from '../../utils/machineFinderSelection'
 
 function healthTone(pct: number): 'ok' | 'warn' | 'error' {
   if (pct >= 90) return 'ok'
@@ -55,7 +56,7 @@ export function sitesFromMission(mission: FleetMissionOverview): GlobeSite[] {
 
 function finderHref(siteName: string): string {
   if (siteName === 'Unassigned') {
-    return '/platform/hosts/finder?site=__unassigned__'
+    return `/platform/hosts/finder?site=${UNASSIGNED_SITE}&rack=${encodeURIComponent(UNASSIGNED_RACK)}`
   }
   return `/platform/hosts/finder?site=${encodeURIComponent(siteName)}`
 }

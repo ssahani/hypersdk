@@ -34,6 +34,8 @@ marketplace_has() {
 }
 marketplace_has 'fedora-44' && ok "marketplace has fedora-44" || bad "missing fedora-44"
 marketplace_has 'ubuntu-25.10' && ok "marketplace has ubuntu-25.10" || bad "missing ubuntu-25.10"
+marketplace_has 'ubuntu-26.04' && ok "marketplace has ubuntu-26.04" || bad "missing ubuntu-26.04"
+marketplace_has 'windows-server-2025' && ok "marketplace has windows-server-2025" || bad "missing windows-server-2025"
 marketplace_has 'fedora-40' && bad "stale fedora-40 still listed" || ok "marketplace retired fedora-40"
 
 http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/templates/ubuntu-24.04/1.0.0/readiness")"

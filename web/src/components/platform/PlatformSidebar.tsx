@@ -107,7 +107,7 @@ function SidebarNav({
   onToggleSection: (label: string) => void
 }) {
   return (
-    <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-2 min-h-0">
+    <nav className="flex-1 py-3 px-3 space-y-2">
       {sections.map((section, sectionIdx) => {
         const isFavoritesZone = sectionIdx === 0 && section.label === 'Favorites'
         const isSectionClosed = section.collapsible && sectionCollapsed[section.label]

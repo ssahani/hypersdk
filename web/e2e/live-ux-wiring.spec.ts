@@ -15,7 +15,7 @@ const MANIFEST_PATH = path.join(ROOT, 'docs/ux-wiring-live-manifest.json')
 const REPORT_PATH = path.join(ROOT, 'docs/ux-wiring-live-report.json')
 
 interface ManifestAction {
-  kind: 'tab' | 'click' | 'settingsSection'
+  kind: 'tab' | 'click' | 'settingsSection' | 'filterPill'
   label?: string
   role?: string
   name?: string
@@ -60,37 +60,59 @@ const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8')) as { entries
 
 async function runAction(page: import('@playwright/test').Page, action: ManifestAction) {
   if (action.kind === 'tab' && action.label) {
-    await page.getByRole('button', { name: action.label, exact: true }).click({ timeout: 8_000 })
+    const tab = page.getByRole('button', { name: action.label, exact: true })
+    await tab.first().click({ timeout: 8_000 })
+    return
+  }
+  if (action.kind === 'filterPill' && action.label) {
+    const pill = page.getByRole('button', { name: action.label, exact: true })
+    await pill.first().click({ timeout: 8_000 })
     return
   }
   if (action.kind === 'settingsSection' && action.label) {
-    await page.getByRole('button', { name: action.label }).click({ timeout: 8_000 })
+    await page.getByRole('button', { name: action.label }).first().click({ timeout: 8_000 })
     return
   }
   if (action.kind === 'click' && action.role && action.name) {
-    await page.getByRole(action.role as 'button', { name: new RegExp(action.name, 'i') }).click({ timeout: 8_000 })
+    await page.getByRole(action.role as 'button', { name: new RegExp(action.name, 'i') }).first().click({ timeout: 8_000 })
   }
+}
+
+async function attachFailure(page: import('@playwright/test').Page, entry: ManifestEntry, reason: string) {
+  const info = test.info()
+  try {
+    const png = await page.screenshot({ fullPage: true })
+    await info.attach(`${entry.id}-screenshot`, { body: png, contentType: 'image/png' })
+  } catch {
+    /* page may be closed */
+  }
+  await info.attach(`${entry.id}-failure`, { body: reason, contentType: 'text/plain' })
 }
 
 test.describe.configure({ mode: 'serial' })
 
 for (const entry of manifest.entries) {
-  test(`live UX: ${entry.id}`, async ({ page }) => {
+  test(`live UX: ${entry.id}`, async ({ browser }) => {
     test.setTimeout(180_000)
     const tier = entry.tier ?? 'normal'
-    // Classic `/` redirects to `/platform` when the control plane is active — avoid login/navigation races.
-    const loginPath = entry.path === '/' ? '/platform' : entry.path
-    await ensureLoggedIn(page, live!, loginPath, tier)
+    const context = await browser.newContext({
+      ignoreHTTPSErrors: true,
+      storageState: test.info().project.use.storageState,
+    })
+    const page = await context.newPage()
+    await ensureLoggedIn(page, live!, { tier, navigate: false })
     const flags = await fetchPlatformFlags(page, live!)
 
     if (entry.requires === 'openstack' && !flags.openstackEnabled) {
       report.skipped += 1
       report.results.push({ id: entry.id, path: entry.path, status: 'skipped', reason: 'openstack disabled' })
+      await context.close()
       test.skip(true, 'openstack disabled on host')
     }
     if (entry.requires === 'k8s' && !flags.k8sEnabled) {
       report.skipped += 1
       report.results.push({ id: entry.id, path: entry.path, status: 'skipped', reason: 'k8s disabled' })
+      await context.close()
       test.skip(true, 'k8s disabled on host')
     }
 
@@ -103,6 +125,7 @@ for (const entry of manifest.entries) {
       report.skipped += 1
       report.results.push({ id: entry.id, path: entry.path, status: 'skipped', reason: 'not authenticated' })
       watch.dispose()
+      await context.close()
       test.skip(true, 'login required — set PLAYWRIGHT_LIVE_USER/PASS')
     }
 
@@ -110,6 +133,7 @@ for (const entry of manifest.entries) {
       report.skipped += 1
       report.results.push({ id: entry.id, path: entry.path, status: 'skipped', reason: 'tier guard redirected to settings' })
       watch.dispose()
+      await context.close()
       test.skip(true, 'tier guard')
     }
 
@@ -146,14 +170,17 @@ for (const entry of manifest.entries) {
 
     const hardJs = jsErrors.filter((e) => !e.includes('ResizeObserver'))
     if (apiFailures.length > 0 || hardJs.length > 0) {
+      const reason = hardJs[0] ?? apiFailures[0]?.reason ?? 'unknown failure'
       report.failed += 1
       report.results.push({
         id: entry.id,
         path: entry.path,
         status: 'failed',
-        reason: hardJs[0] ?? apiFailures[0]?.reason,
+        reason,
         apiFailures,
       })
+      await attachFailure(page, entry, reason)
+      await context.close()
       expect(apiFailures, `API failures on ${entry.path}`).toEqual([])
       expect(hardJs).toEqual([])
     } else {
@@ -164,6 +191,7 @@ for (const entry of manifest.entries) {
         status: 'passed',
         warnings: warnCount,
       })
+      await context.close()
     }
   })
 }

@@ -6,8 +6,7 @@ import { Copy, Monitor, Server, Terminal } from 'lucide-react'
 import { navigateVmSshSession } from '../vm/VmSshConnectDialog'
 import type { FleetMissionOverview, MissionHost, PlatformVm } from '../../api/platform'
 import { hostStateTone, hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
-
-const UNASSIGNED_SITE = '__unassigned__'
+import { UNASSIGNED_RACK, UNASSIGNED_SITE } from '../../utils/machineFinderSelection'
 
 type ColumnProps<T> = {
   items: T[]
@@ -29,7 +28,7 @@ function FinderColumn<T>({
   emptyLabel,
 }: ColumnProps<T>) {
   return (
-    <div className="w-48 sm:w-52 shrink-0 border-r border-white/[0.06] overflow-y-auto max-h-[min(70vh,560px)]">
+    <div className="w-48 sm:w-52 shrink-0 border-r border-white/[0.06]">
       {items.length === 0 ? (
         <p className="px-3 py-4 text-xs text-white/35">{emptyLabel}</p>
       ) : items.map((item) => {
@@ -58,7 +57,7 @@ function FinderColumn<T>({
 function HostInspector({ host, vms, onSelectVm }: { host: MissionHost; vms: PlatformVm[]; onSelectVm?: (vmId: string) => void }) {
   const tone = hostStateTone(host.state, false, host.maintenance_mode)
   return (
-    <div className="platform-finder-inspector p-4 space-y-4 h-full overflow-y-auto">
+    <div className="platform-finder-inspector p-4 space-y-4">
       <div>
         <h3 className="font-semibold text-white flex items-center gap-2">
           <Server className="w-4 h-4 shrink-0" />
@@ -110,7 +109,7 @@ function VmInspector({ vm }: { vm: PlatformVm }) {
   const libvirt = vm.inventory_source !== 'kubevirt'
   const ip = vm.guest_ip?.trim() ?? ''
   return (
-    <div className="platform-finder-inspector p-4 space-y-3 h-full overflow-y-auto">
+    <div className="platform-finder-inspector p-4 space-y-3">
       <h3 className="font-semibold text-white flex items-center gap-2">
         <Monitor className="w-4 h-4" />
         {vm.name}
@@ -200,7 +199,7 @@ export default function MachineFinderGeography({
       sites.push({
         key: UNASSIGNED_SITE,
         label: 'Unassigned',
-        racks: [{ name: 'All hosts', hosts: mission.unassigned_hosts }],
+        racks: [{ name: UNASSIGNED_RACK, hosts: mission.unassigned_hosts }],
       })
     }
     return sites
@@ -215,7 +214,7 @@ export default function MachineFinderGeography({
   const selectedVm = hostVms.find((v) => v.id === selection.vmId) ?? null
 
   return (
-    <div className="flex min-h-[420px] border border-white/[0.06] rounded-xl overflow-hidden bg-slate-950/30">
+    <div className="flex border border-white/[0.06] rounded-xl bg-slate-950/30">
       <FinderColumn
         items={siteOptions}
         selectedKey={selectedSite?.key ?? null}
@@ -255,7 +254,7 @@ export default function MachineFinderGeography({
         renderMeta={(v) => v.guest_ip ? `${v.observed_state} · ${v.guest_ip}` : v.observed_state}
         emptyLabel={selectedHost ? 'No VMs on this host' : 'Select a host'}
       />
-      <div className="flex-1 min-w-0 overflow-y-auto border-l border-white/[0.06]">
+      <div className="flex-1 min-w-0 border-l border-white/[0.06]">
         {selectedVm ? (
           <VmInspector vm={selectedVm} />
         ) : selectedHost ? (
@@ -268,4 +267,4 @@ export default function MachineFinderGeography({
   )
 }
 
-export { UNASSIGNED_SITE }
+export { UNASSIGNED_SITE, UNASSIGNED_RACK }

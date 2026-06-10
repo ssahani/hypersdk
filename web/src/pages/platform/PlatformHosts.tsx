@@ -190,7 +190,7 @@ export default function PlatformHosts() {
   )
 
   const inspector = selected ? (
-    <div className="platform-finder-inspector p-4 space-y-4 h-full overflow-y-auto">
+    <div className="platform-finder-inspector p-4 space-y-4">
       <div>
         <h3 className="font-semibold text-white">{selected.hostname}</h3>
         <p className="platform-finder-inspector-subtitle mt-1">{selected.address || '—'}</p>
@@ -219,8 +219,8 @@ export default function PlatformHosts() {
   ) : null
 
   const columnsContent = (
-    <div className="flex min-h-[360px] border border-white/[0.06] rounded-xl overflow-hidden">
-      <div className="w-56 shrink-0 border-r border-white/[0.06] overflow-y-auto">
+    <div className="flex border border-white/[0.06] rounded-xl">
+      <div className="w-56 shrink-0 border-r border-white/[0.06]">
         {visibleHosts.map((h) => (
           <button
             key={h.id}
@@ -232,7 +232,7 @@ export default function PlatformHosts() {
           </button>
         ))}
       </div>
-      <div className="flex-1 min-w-0 overflow-y-auto">
+      <div className="flex-1 min-w-0">
         {selected ? inspector : <p className="platform-finder-inspector platform-finder-inspector-empty p-4">Select a host</p>}
       </div>
     </div>

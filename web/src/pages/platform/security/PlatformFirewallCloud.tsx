@@ -64,7 +64,7 @@ export default function PlatformFirewallCloud() {
         {rules.length === 0 ? (
           <p className="text-sm text-slate-500">No cloud security groups detected. Install and configure aws/az/gcloud CLI.</p>
         ) : (
-          <div className="rounded-xl border border-white/[0.06] overflow-hidden max-h-96 overflow-y-auto">
+          <div className="rounded-xl border border-white/[0.06] overflow-hidden">
             {rules.slice(0, 50).map((r, i) => (
               <MacListRow
                 key={`${r.group_name}-${i}`}

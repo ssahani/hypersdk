@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import PageLayout from '../../components/PageLayout'
 import { Link, useLocation, useParams } from 'react-router'
 import { ArrowLeft, ExternalLink, RefreshCw, Terminal } from 'lucide-react'
-import { getPlatformVm, getPlatformVmSpec, getVmConsole, getVmGuestHealth, platformVncWsUrl } from '../../api/platform'
+import { getPlatformVm, getPlatformVmSpec, getVmConsole, getVmGuestHealth, issuePlatformVmWsToken, platformVmVncWsUrl } from '../../api/platform'
 import { loadVmSshPrefs } from '../../utils/vmSshPrefs'
 import { navigateVmSshSession } from '../../components/vm/VmSshConnectDialog'
 import { formatUserError } from '../../utils/apiError'
@@ -32,15 +32,16 @@ export default function PlatformConsole() {
     setError(null)
     void Promise.all([
       getVmConsole(id),
+      issuePlatformVmWsToken(id),
       getPlatformVm(id).catch(() => null),
       getVmGuestHealth(id).catch(() => null),
       getPlatformVmSpec(id).catch(() => null),
     ])
-      .then(([info, vm, gh, spec]) => {
+      .then(([info, tokenRes, vm, gh, spec]) => {
         if (cancelled) return
         const name = vm?.name ?? info.vm_name
         setVmName(name)
-        setWsUrl(platformVncWsUrl(info.ws_path))
+        setWsUrl(platformVmVncWsUrl(id, tokenRes.token))
         setGuestIp(gh?.guest_ip?.trim() ?? vm?.guest_ip?.trim() ?? '')
         const ci = (spec as { cloud_init?: { user?: string } } | null)?.cloud_init
         const user = ci?.user?.trim() || loadVmSshPrefs(name)?.user || 'ubuntu'
@@ -117,17 +118,16 @@ export default function PlatformConsole() {
               : undefined
       }
       onErrorRetry={() => setConnectKey((k) => k + 1)}
-      className={isPopout ? 'h-[calc(100dvh-3rem)] flex flex-col min-h-0' : 'flex flex-col min-h-0'}
-      contentClassName="flex flex-col flex-1 min-h-0"
     >
       {wsUrl && vmName && (
         <VNCViewer
           key={connectKey}
           vmName={vmName}
           wsUrl={wsUrl}
-          defaultScaledFit
-          fillViewport
+          defaultScaledFit={false}
+          fillViewport={isPopout}
           fillViewportOffset={isPopout ? '5.5rem' : '17rem'}
+          onReconnect={() => setConnectKey((k) => k + 1)}
         />
       )}
       {id && !isPopout && wsUrl && (

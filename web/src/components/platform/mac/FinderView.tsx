@@ -33,6 +33,7 @@ export default function FinderView({
   pathSegments,
   emptyState,
   isEmpty,
+  allowedViewModes,
 }: {
   title?: string
   search: string
@@ -50,6 +51,7 @@ export default function FinderView({
   pathSegments?: FinderPathSegment[]
   emptyState?: ReactNode
   isEmpty?: boolean
+  allowedViewModes?: FinderViewMode[]
 }) {
   const navigate = useNavigate()
   const { inspectorVisible } = usePlatformMacDesktop()
@@ -86,8 +88,11 @@ export default function FinderView({
     window.addEventListener('mouseup', onResizeEnd)
   }
 
+  const viewModes = allowedViewModes ?? (columnsContent ? (['icons', 'list', 'columns'] as FinderViewMode[]) : (['icons', 'list'] as FinderViewMode[]))
+  const showViewModes = viewModes.length > 1
+
   return (
-    <div className="mac-finder flex flex-col min-h-[min(70vh,720px)] -mx-1">
+    <div className="mac-finder flex flex-col -mx-1">
       <div className="mac-finder-toolbar tahoe-toolbar flex flex-wrap items-center gap-2 px-1 sm:px-2 py-2 mx-1 sm:mx-2 mt-2">
         <div className="flex items-center gap-1">
           <button type="button" className="mac-finder-nav-btn" onClick={handleBack} title="Back">
@@ -116,7 +121,9 @@ export default function FinderView({
           />
         </div>
 
+        {showViewModes ? (
         <div className="tahoe-segment flex p-0.5 rounded-lg shrink-0">
+          {viewModes.includes('icons') ? (
           <button
             type="button"
             onClick={() => onViewModeChange('icons')}
@@ -125,6 +132,8 @@ export default function FinderView({
           >
             <LayoutGrid className="h-4 w-4" />
           </button>
+          ) : null}
+          {viewModes.includes('list') ? (
           <button
             type="button"
             onClick={() => onViewModeChange('list')}
@@ -133,7 +142,8 @@ export default function FinderView({
           >
             <List className="h-4 w-4" />
           </button>
-          {columnsContent ? (
+          ) : null}
+          {viewModes.includes('columns') && columnsContent ? (
             <button
               type="button"
               onClick={() => onViewModeChange('columns')}
@@ -144,6 +154,7 @@ export default function FinderView({
             </button>
           ) : null}
         </div>
+        ) : null}
 
         {!isPopout ? (
           <button
@@ -160,11 +171,17 @@ export default function FinderView({
         {toolbarActions ? <div className="flex items-center gap-2 shrink-0">{toolbarActions}</div> : null}
       </div>
 
-      <div className="mac-finder-panes flex flex-1 min-h-0">
+      <div className="mac-finder-panes flex">
         {isColumns ? (
-          <div className="mac-finder-columns flex flex-1 min-w-0 overflow-hidden">{columnsContent}</div>
+          <div className="mac-finder-columns flex flex-1 min-w-0">
+            {isEmpty && emptyState ? (
+              <div className="flex flex-1 items-center justify-center p-6 sm:p-10">{emptyState}</div>
+            ) : (
+              columnsContent
+            )}
+          </div>
         ) : (
-          <div className="mac-finder-list flex-1 min-w-0 overflow-auto p-2 sm:p-3">
+          <div className="mac-finder-list flex-1 min-w-0 p-2 sm:p-3">
             {isEmpty && emptyState ? emptyState : listContent}
           </div>
         )}

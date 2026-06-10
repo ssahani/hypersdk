@@ -5,7 +5,13 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 import { MapPin, Server } from 'lucide-react'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import InfrastructureEarthGlobe from '../../components/platform/InfrastructureEarthGlobe'
-import MachineFinderGeography, { UNASSIGNED_SITE } from '../../components/platform/MachineFinderGeography'
+import MachineFinderGeography from '../../components/platform/MachineFinderGeography'
+import {
+  defaultRackForSite,
+  defaultSiteForMission,
+  findHostInMission,
+  hostsForSiteRack,
+} from '../../utils/machineFinderSelection'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton, platformStatSubtitle } from '../../components/platform/PlatformPageChrome'
 import FinderView from '../../components/platform/mac/FinderView'
 import {
@@ -50,30 +56,56 @@ export default function PlatformMachineFinder() {
 
   useEffect(() => { void load() }, [load])
 
-  const defaultSite = useMemo(() => {
-    if (!mission) return null
-    if (mission.sites.length > 0) return mission.sites[0].name
-    if (mission.unassigned_hosts.length > 0) return UNASSIGNED_SITE
-    return null
-  }, [mission])
+  const defaultSite = useMemo(() => (mission ? defaultSiteForMission(mission) : null), [mission])
 
   const effectiveSite = site ?? defaultSite
   const effectiveRack = useMemo(() => {
     if (!mission || !effectiveSite) return null
     if (rack) return rack
-    if (effectiveSite === UNASSIGNED_SITE) return 'All hosts'
-    const siteNode = mission.sites.find((s) => s.name === effectiveSite)
-    return siteNode?.racks[0]?.name ?? null
+    return defaultRackForSite(mission, effectiveSite)
   }, [mission, effectiveSite, rack])
 
-  const patchParams = (next: Record<string, string | null>) => {
+  const patchParams = useCallback((next: Record<string, string | null>) => {
     const p = new URLSearchParams(searchParams)
     for (const [key, val] of Object.entries(next)) {
       if (val == null || val === '') p.delete(key)
       else p.set(key, val)
     }
     setSearchParams(p, { replace: true })
-  }
+  }, [searchParams, setSearchParams])
+
+  // Keep site/rack in sync when deep-linking ?host= only.
+  useEffect(() => {
+    if (!mission || !hostId) return
+    const ctx = findHostInMission(mission, hostId)
+    if (!ctx) return
+    if (site === ctx.site && rack === ctx.rack) return
+    patchParams({ site: ctx.site, rack: ctx.rack, host: hostId, vm: vmId })
+  }, [mission, hostId, site, rack, vmId, patchParams])
+
+  // Seed URL defaults so column selection and inspector stay in sync.
+  useEffect(() => {
+    if (!mission || site || !defaultSite) return
+    patchParams({
+      site: defaultSite,
+      rack: defaultRackForSite(mission, defaultSite),
+      host: null,
+      vm: null,
+    })
+  }, [mission, site, defaultSite, patchParams])
+
+  // Auto-select sole host in the current rack when none is chosen.
+  useEffect(() => {
+    if (!mission || !effectiveSite || !effectiveRack || hostId) return
+    const hosts = hostsForSiteRack(mission, effectiveSite, effectiveRack)
+    if (hosts.length !== 1) return
+    patchParams({
+      site: effectiveSite,
+      rack: effectiveRack,
+      host: hosts[0].id,
+      vm: null,
+    })
+  }, [mission, effectiveSite, effectiveRack, hostId, patchParams])
 
   const filteredMission = useMemo((): FleetMissionOverview | null => {
     if (!mission) return null
@@ -157,6 +189,7 @@ export default function PlatformMachineFinder() {
             searchPlaceholder="Filter hosts or VMs…"
             viewMode="columns"
             onViewModeChange={() => {}}
+            allowedViewModes={['columns']}
             toolbarActions={null}
             pathSegments={[
               { label: 'Platform', onClick: () => navigate('/platform') },
@@ -175,9 +208,9 @@ export default function PlatformMachineFinder() {
                   vmId,
                 }}
                 onSelectSite={(s) => patchParams({ site: s, rack: null, host: null, vm: null })}
-                onSelectRack={(r) => patchParams({ rack: r, host: null, vm: null })}
-                onSelectHost={(id) => patchParams({ host: id, vm: null })}
-                onSelectVm={(id) => patchParams({ vm: id })}
+                onSelectRack={(r) => patchParams({ site: effectiveSite, rack: r, host: null, vm: null })}
+                onSelectHost={(id) => patchParams({ site: effectiveSite, rack: effectiveRack, host: id, vm: null })}
+                onSelectVm={(id) => patchParams({ site: effectiveSite, rack: effectiveRack, host: hostId, vm: id })}
               />
             }
             showInspector={false}

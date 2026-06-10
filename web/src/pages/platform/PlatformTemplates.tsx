@@ -29,6 +29,7 @@ import {
 } from '../../api/platform'
 import { approvePlatformTemplate, syncGitTemplates, syncGitTemplatesWebhook } from '../../api/platformTemplatesExtra'
 import TemplateMissingImagesPanel from '../../components/platform/TemplateMissingImagesPanel'
+import { cloudInitUserForOs } from '../../components/platform/vmWizardCatalog'
 import { useToastContext } from '../../contexts/ToastContext'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { formatUserError } from '../../utils/apiError'
@@ -116,6 +117,13 @@ export default function PlatformTemplates() {
     if (deploySheet) void loadReadiness(deploySheet)
     else setReadiness(null)
   }, [deploySheet, loadReadiness])
+
+  useEffect(() => {
+    if (!deploySheet) return
+    setCloudUser(cloudInitUserForOs(deploySheet.name))
+    setDeployName(`${deploySheet.name.split('-')[0] ?? 'app'}-01`)
+    setDeployHostname(`${deploySheet.name.split('-')[0] ?? 'app'}-01`)
+  }, [deploySheet])
 
   const load = useCallback(async (trySeed = false) => {
     setError(null)

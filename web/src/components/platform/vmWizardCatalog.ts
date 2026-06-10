@@ -12,8 +12,9 @@ export type OsFlavor = {
 }
 
 export const OS_FLAVORS: OsFlavor[] = [
-  { id: 'ubuntu-24.04', label: 'Ubuntu 24.04 LTS', subtitle: 'Default cloud-init image', category: 'Linux', icon: '🐧', featured: true },
+  { id: 'ubuntu-24.04', label: 'Ubuntu 24.04 LTS', subtitle: 'Stable cloud-init image', category: 'Linux', icon: '🐧', featured: true },
   { id: 'ubuntu-25.10', label: 'Ubuntu 25.10', subtitle: 'Current interim release', category: 'Linux', icon: '🐧', featured: true },
+  { id: 'ubuntu-26.04', label: 'Ubuntu 26.04 LTS', subtitle: 'Latest LTS (Resolute Raccoon)', category: 'Linux', icon: '🐧', featured: true },
   { id: 'debian-13', label: 'Debian 13', subtitle: 'Trixie stable cloud image', category: 'Linux', icon: '🐧', featured: true },
   { id: 'rocky-10', label: 'Rocky Linux 10', subtitle: 'Enterprise Linux (RHEL 10)', category: 'Linux', icon: '🐧', featured: true },
   { id: 'alma-10', label: 'AlmaLinux 10', subtitle: 'RHEL 10-compatible', category: 'Linux', icon: '🐧', featured: true },
@@ -31,6 +32,7 @@ export const OS_FLAVORS: OsFlavor[] = [
   { id: 'k8s-node', label: 'Kubernetes node', subtitle: 'containerd + kubeadm', category: 'Special', icon: '☸', featured: true },
   { id: 'ai-inference-node', label: 'AI inference', subtitle: 'Model serving stack', category: 'Special', icon: '🤖', featured: true },
   { id: 'windows-server-2022', label: 'Windows Server 2022', subtitle: 'UEFI + VirtIO', category: 'Windows', icon: '🪟', featured: true, windows: true },
+  { id: 'windows-server-2025', label: 'Windows Server 2025', subtitle: 'Latest server release', category: 'Windows', icon: '🪟', featured: true, windows: true },
   { id: 'windows-11', label: 'Windows 11', subtitle: 'Desktop / TPM', category: 'Windows', icon: '🪟', featured: true, windows: true },
   { id: 'custom-iso', label: 'Custom ISO', subtitle: 'Install from your image', category: 'Special', icon: '💿' },
 ]

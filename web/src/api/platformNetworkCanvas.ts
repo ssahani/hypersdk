@@ -3,6 +3,12 @@
 
 import { platformFetch, type TopologyGraph } from './platform'
 
+export type PacketWolfFlowEndpoint = {
+  ip?: string
+  namespace?: string
+  pod?: string
+}
+
 export type PacketWolfFlow = {
   host_id?: string
   verdict?: string
@@ -11,6 +17,11 @@ export type PacketWolfFlow = {
   destination_port?: number
   summary?: string
   timestamp?: string
+  /** Hubble / K8s flow shape from PacketWolf Network Brain */
+  source?: PacketWolfFlowEndpoint
+  destination?: PacketWolfFlowEndpoint
+  port?: number
+  protocol?: string
 }
 
 export type ServiceMapNode = {

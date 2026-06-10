@@ -197,6 +197,18 @@ test('spotlight opens via keyboard shortcut', async ({ page }) => {
   await expect(page.getByPlaceholder('Zeus — search or ask…')).toBeVisible({ timeout: 5000 })
 })
 
+test('spotlight keeps page context prefill from Ask Zeus', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/vms/v1')
+  await expect(page.getByRole('heading', { name: 'vm-1' })).toBeVisible({ timeout: 15_000 })
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('machina-open-spotlight', { detail: { prefill: 'vm-1 guest health' } }))
+  })
+  const input = page.getByPlaceholder('Zeus — search or ask…')
+  await expect(input).toBeVisible({ timeout: 5000 })
+  await expect(input).toHaveValue('vm-1 guest health')
+})
+
 test('context overflow closes after navigation', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'advanced' })
   await page.goto('/platform/tasks')

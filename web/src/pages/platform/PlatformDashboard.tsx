@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
   Boxes,
@@ -58,6 +58,7 @@ import { showPlatformHubsForTier, DOCK_PREVIEW_HUB_PATHS, hubTilesForTier } from
 import PlatformDashboardZones from '../../components/platform/PlatformDashboardZones'
 import { operationsHubHref } from '../../utils/platformHubLinks'
 import { unlockDockPreviewPath } from '../../utils/platformDockPins'
+import { formatFleetDisplayTitle } from '../../utils/fleetDisplayName'
 
 export default function PlatformDashboard() {
   const toast = useToastContext()
@@ -119,6 +120,10 @@ export default function PlatformDashboard() {
   const insightBadgeCount = securityFindings + (failedTasks > 0 ? 1 : 0) + (missingImages.length > 0 ? 1 : 0)
   const hubTiles = hubTilesForTier(tier)
   const previewHubTiles = hubTilesForTier('power').filter((hub) => DOCK_PREVIEW_HUB_PATHS.includes(hub.href))
+  const fleetTitle = useMemo(
+    () => formatFleetDisplayTitle(cluster, hosts),
+    [cluster, hosts],
+  )
 
   const hubActionIcon = (id: string) => {
     switch (id) {
@@ -210,7 +215,7 @@ export default function PlatformDashboard() {
     <PlatformPageChrome
       error={error}
       onErrorRetry={() => void load()}
-      title={!jarvisLanding ? (cluster?.name || 'Production Cluster') : 'Zyvor Platform'}
+      title={!jarvisLanding ? fleetTitle : 'Zyvor Platform'}
       subtitle={
         !jarvisLanding ? (
           <span className="flex flex-col gap-1">
@@ -227,7 +232,9 @@ export default function PlatformDashboard() {
             ])}
           </span>
         ) : (
-          <span className="text-slate-400">Fleet overview and launchpad</span>
+          <span className="text-slate-400">
+            {hosts.length > 0 ? `${fleetTitle} · fleet overview` : 'Fleet overview and launchpad'}
+          </span>
         )
       }
       icon={<LayoutGrid className="w-6 h-6 text-slate-400" />}

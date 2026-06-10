@@ -107,13 +107,13 @@ function PlatformDesktopShell() {
   if (isPopout) {
     return (
       <div
-        className="mac-desktop-root mac-popout-root platform-mac-desktop tahoe-page-root flex flex-col flex-1 min-h-0 h-full overflow-hidden"
+        className="mac-desktop-root mac-popout-root platform-mac-desktop tahoe-page-root flex flex-col min-h-dvh"
         data-wallpaper={wallpaper}
       >
         <PopoutTitleBar title={platformPageLabel(location.pathname)} />
-        <div className="tahoe-canvas flex-1 min-h-0 overflow-auto relative">
+        <div className="tahoe-canvas relative flex-1">
           <div className="tahoe-mesh pointer-events-none" aria-hidden />
-          <div className="relative z-[1] p-3 lg:p-4 platform-readable tahoe-readable-stack py-4">
+          <div className="relative z-[1] p-3 lg:p-4 platform-readable tahoe-readable-stack py-4 pb-8">
             <Outlet />
           </div>
         </div>
@@ -123,11 +123,11 @@ function PlatformDesktopShell() {
 
   return (
     <div
-      className="mac-desktop-root platform-mac-desktop tahoe-page-root flex flex-col flex-1 min-h-0 h-full overflow-x-hidden"
+      className="mac-desktop-root platform-mac-desktop tahoe-page-root flex flex-col min-h-dvh w-full"
       data-wallpaper={wallpaper}
       data-desktop-tier={tier}
     >
-      <header className="mac-menubar-inner glass shrink-0 relative z-40 flex items-center gap-2 px-2 lg:px-3 h-11 overflow-visible">
+      <header className="mac-menubar-inner glass shrink-0 sticky top-0 z-40 flex items-center gap-2 px-2 lg:px-3 h-11 overflow-visible">
         <div className="flex items-center min-w-0 shrink-0 overflow-visible z-[400]">
           <PlatformMacAppMenus />
         </div>
@@ -142,12 +142,12 @@ function PlatformDesktopShell() {
       <PlatformContextBar />
       <PlatformMobileJumpNav />
 
-      <div className="flex flex-1 min-h-0">
+      <div className="flex w-full flex-1 items-stretch">
         {sidebarVisible ? <PlatformSidebar /> : null}
-        <div className="tahoe-canvas mac-desktop-main flex-1 min-w-0 flex flex-col relative">
+        <div className="tahoe-canvas mac-desktop-main flex-1 min-w-0 relative">
           <div className={`tahoe-mesh pointer-events-none${meshSubtle ? ' tahoe-mesh-subtle' : ''}`} aria-hidden />
-          <div className="relative z-[1] flex flex-col flex-1 min-h-0 px-4 lg:px-6 pt-1 pb-16 lg:pb-20 max-w-[160rem] mx-auto w-full">
-            <div className="flex-1 min-h-0 overflow-y-auto platform-readable tahoe-readable-stack py-3 pb-6">
+          <div className="relative z-[1] px-4 lg:px-6 pt-1 pb-16 lg:pb-24 max-w-[160rem] mx-auto w-full platform-mac-scroll-body">
+            <div className="platform-readable tahoe-readable-stack py-3 pb-8">
               <Outlet />
             </div>
           </div>

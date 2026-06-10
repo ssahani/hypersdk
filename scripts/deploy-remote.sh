@@ -596,16 +596,22 @@ if $RUN_E2E; then
             deploy_ui_highlight "🧪 Post-deploy full E2E (daemon + platform proxy + controller)"
             FULL_E2E_FLAGS=()
             if $SKIP_DAEMON_E2E; then FULL_E2E_FLAGS+=(--skip-daemon-e2e); fi
+            FULL_E2E_OK=true
+            API_E2E_SUMMARY="not run"
             if "${SCRIPT_DIR}/e2e-full-test-remote.sh" "$USER" "$HOST" "${FULL_E2E_FLAGS[@]}"; then
                 deploy_ui_celebrate "Full E2E passed"
+                API_E2E_SUMMARY="passed"
             else
                 warn "Full E2E failed (deploy itself succeeded)"
+                FULL_E2E_OK=false
+                API_E2E_SUMMARY="failed"
             fi
+            LIVE_E2E_OK=true
+            VM_E2E_SUMMARY="not run"
             if ! $SKIP_LIVE_UX; then
                 deploy_ui_highlight "🧪 Post-deploy live UX wiring (Playwright)"
                 LIVE_PW="${VSPASS:-${SSHPASS:-}}"
                 LIVE_BASE="https://${HOST}:5092"
-                LIVE_E2E_OK=true
                 if PLAYWRIGHT_LIVE_URL="${LIVE_BASE}" PLAYWRIGHT_LIVE_USER="${USER}" PLAYWRIGHT_LIVE_PASS="${LIVE_PW}" \
                     npm --prefix "${SCRIPT_DIR}/../web" run test:e2e:live-ux; then
                     deploy_ui_celebrate "Live UX wiring passed"
@@ -619,11 +625,24 @@ if $RUN_E2E; then
                     e2e/platform-live-vm-create.spec.ts \
                     e2e/platform-live-vm-delete.spec.ts; then
                     deploy_ui_celebrate "Live VM lifecycle passed"
+                    VM_E2E_SUMMARY="passed"
                 else
                     warn "Live VM lifecycle failed (deploy itself succeeded)"
                     LIVE_E2E_OK=false
+                    VM_E2E_SUMMARY="failed"
                 fi
                 $LIVE_E2E_OK || warn "One or more live Playwright phases failed"
+            fi
+            SERVICES_SUMMARY="$(ssh_r_bash "$REMOTE" 'for u in machina-daemon libvirtd machina-controller machina-agent postgresql; do printf "%s=%s\n" "$u" "$(systemctl is-active "$u" 2>/dev/null || echo unknown)"; done' | tr -d '\r')"
+            OVERALL="PASS"
+            if ! $FULL_E2E_OK || ! $LIVE_E2E_OK; then OVERALL="FAIL"; fi
+            "${SCRIPT_DIR}/lib/send-deploy-report.sh" "$HOST" \
+                --api-e2e-summary "$API_E2E_SUMMARY" \
+                --vm-e2e-summary "$VM_E2E_SUMMARY" \
+                --services-summary "$SERVICES_SUMMARY" \
+                --overall "$OVERALL" || true
+            if [[ "$STRICT" == "1" ]] && { ! $FULL_E2E_OK || ! $LIVE_E2E_OK; }; then
+                die "STRICT=1: post-deploy E2E failed (API=${API_E2E_SUMMARY}, live=${LIVE_E2E_OK}, vm=${VM_E2E_SUMMARY})"
             fi
         elif ! $SKIP_DAEMON_E2E; then
             deploy_ui_highlight "🧪 Post-deploy E2E (daemon :5092)"

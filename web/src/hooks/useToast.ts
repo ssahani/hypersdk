@@ -95,13 +95,26 @@ export function useToast() {
     [addToast],
   )
 
+  const success = useCallback(
+    (msg: string, d?: number, action?: ToastAction) => addToast(msg, 'success', d, action),
+    [addToast],
+  )
+  const warning = useCallback(
+    (msg: string, d?: number, action?: ToastAction) => addToast(msg, 'warning', d, action),
+    [addToast],
+  )
+  const info = useCallback(
+    (msg: string, d?: number, action?: ToastAction) => addToast(msg, 'info', d, action),
+    [addToast],
+  )
+
   return {
     toasts,
     removeToast,
     clearAll,
-    success: (msg: string, d?: number, action?: ToastAction) => addToast(msg, 'success', d, action),
+    success,
     error,
-    warning: (msg: string, d?: number, action?: ToastAction) => addToast(msg, 'warning', d, action),
-    info: (msg: string, d?: number, action?: ToastAction) => addToast(msg, 'info', d, action),
+    warning,
+    info,
   }
 }

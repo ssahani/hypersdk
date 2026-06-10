@@ -182,7 +182,7 @@ export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}
         ) : entries.length === 0 ? (
           <p className="text-sm text-slate-400 py-8 text-center">No log entries match the current filter.</p>
         ) : (
-          <div className="rounded-xl border border-white/[0.06] bg-slate-950/60 overflow-hidden -mx-1 max-h-[32rem] overflow-y-auto">
+          <div className="rounded-xl border border-white/[0.06] bg-slate-950/60 overflow-hidden -mx-1">
             {entries.map((e) => (
               <LogLine key={`${e.source}-${e.id}`} entry={e} />
             ))}
@@ -192,7 +192,7 @@ export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}
 
       {controllerAudit.length > 0 && (
         <MacGlassPanel title="Controller audit log" subtitle={`GET /api/v1/audit — ${controllerAudit.length} entries`}>
-          <div className="rounded-xl border border-white/[0.06] bg-slate-950/60 overflow-hidden -mx-1 max-h-64 overflow-y-auto">
+          <div className="rounded-xl border border-white/[0.06] bg-slate-950/60 overflow-hidden -mx-1">
             {controllerAudit.map((a) => (
               <div key={a.id} className="flex gap-3 px-3 py-2 font-mono text-xs border-b border-white/[0.04] last:border-0">
                 <time className="text-slate-500 shrink-0">{formatTime(a.created_at)}</time>

@@ -11,3 +11,20 @@ export async function expandFleetInsights(page: Page) {
     await expect(toggle).toHaveAttribute('aria-expanded', 'true')
   }
 }
+
+/** Assert the page scrolls like a normal document (not trapped in an inner pane). */
+export async function expectPageScrolls(page: Page, opts?: { viewportHeight?: number }) {
+  if (opts?.viewportHeight) {
+    const size = page.viewportSize() ?? { width: 1280, height: 720 }
+    await page.setViewportSize({ width: size.width, height: opts.viewportHeight })
+  }
+  const scrollable = await page.evaluate(
+    () => document.documentElement.scrollHeight > document.documentElement.clientHeight + 40,
+  )
+  expect(scrollable).toBe(true)
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+  const atBottom = await page.evaluate(
+    () => window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 80,
+  )
+  expect(atBottom).toBe(true)
+}

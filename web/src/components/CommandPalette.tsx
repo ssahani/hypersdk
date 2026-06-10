@@ -101,21 +101,37 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
     enabled: spotlight,
   })
 
+  const appliedPrefillForOpenRef = useRef(false)
+
   useEffect(() => {
     const onOpen = (e: Event) => {
       const detail = (e as CustomEvent<{ prefill?: string }>).detail
+      const prefill = detail?.prefill?.trim()
+      if (prefill) {
+        appliedPrefillForOpenRef.current = true
+        setQuery(prefill)
+      }
       setOpen(true)
-      if (detail?.prefill) setQuery(detail.prefill)
     }
     window.addEventListener('machina-open-spotlight', onOpen)
     return () => window.removeEventListener('machina-open-spotlight', onOpen)
   }, [])
 
+  // Seed empty query when spotlight opens without a page-context prefill.
+  useEffect(() => {
+    if (!open) {
+      appliedPrefillForOpenRef.current = false
+      return
+    }
+    if (appliedPrefillForOpenRef.current) return
+    appliedPrefillForOpenRef.current = true
+    setQuery('')
+    setSelectedIndex(0)
+  }, [open])
+
   // Fetch VMs when palette opens
   useEffect(() => {
     if (!open) return
-    setQuery('')
-    setSelectedIndex(0)
     setPinnedPages(getPinnedPages())
     setLoading(true)
     Promise.allSettled([

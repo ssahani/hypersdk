@@ -162,7 +162,7 @@ export default function PlatformIsoCreate() {
           onFinish={finish}
         >
           {step === 0 && (
-            <div className="grid gap-2 sm:grid-cols-2 max-h-[50vh] overflow-y-auto">
+            <div className="grid gap-2 sm:grid-cols-2">
               {approved.map((img) => (
                 <button
                   key={img.id}

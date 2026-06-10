@@ -2,6 +2,7 @@
 
 import { test, expect } from '@playwright/test'
 import { mockPlatformApi } from './platformMock'
+import { expectPageScrolls } from './helpers/platformTestHelpers'
 
 test('hosts list shows stale heartbeat host as offline', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal', staleHost: true })
@@ -43,6 +44,13 @@ test.describe.serial('template readiness', () => {
     await expect(page.getByText(/Upload the golden image/i)).toBeVisible()
     await expect(page.getByRole('link', { name: /Content Library/i })).toBeVisible()
   })
+})
+
+test('marketplace page scrolls as a normal web document', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/templates')
+  await expect(page.getByText('Fleet template catalog').first()).toBeVisible({ timeout: 20_000 })
+  await expectPageScrolls(page, { viewportHeight: 480 })
 })
 
 test('platform support shows Zyvor guidance', async ({ page }) => {

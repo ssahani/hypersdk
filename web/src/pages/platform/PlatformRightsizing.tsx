@@ -109,7 +109,7 @@ export default function PlatformRightsizing() {
         )}
       </MacGlassPanel>
       <MacGlassPanel title="Recommendations" className="mt-4">
-        <ul className="text-sm space-y-3 max-h-[32rem] overflow-y-auto">
+        <ul className="text-sm space-y-3">
           {recs.map((r) => {
             const k = recKey(r)
             const checked = selected.has(k)

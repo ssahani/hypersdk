@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { AlertTriangle, ArrowRightLeft, Boxes, Server, X } from 'lucide-react'
 import {
@@ -32,6 +32,7 @@ import { useMissionControl } from './mac/MissionControlContext'
 import { loadPlatformDesktopTabs } from '../../utils/platformDesktopTabs'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { operationsHubHref, tasksHubHref } from '../../utils/platformHubLinks'
+import { formatFleetDisplayTitle } from '../../utils/fleetDisplayName'
 
 export default function MissionControlOverlay() {
   const { open, closeMissionControl } = useMissionControl()
@@ -49,6 +50,10 @@ export default function MissionControlOverlay() {
   const [error, setError] = useState<string | null>(null)
   const { desktop, linuxHealth } = useFleetDesktop(open, 120_000)
   const [tier] = usePlatformDesktopTier()
+  const fleetTitle = useMemo(
+    () => formatFleetDisplayTitle(cluster, hosts),
+    [cluster, hosts],
+  )
 
   const load = useCallback(async () => {
     setError(null)
@@ -117,7 +122,7 @@ export default function MissionControlOverlay() {
           <div>
             <h1 className="text-xl font-bold text-slate-100">Mission Control</h1>
             <p className="text-sm text-slate-500">
-              Infrastructure Earth · {cluster?.name || 'Cluster'} · {hosts.length} hosts · {vms.length} VMs
+              Infrastructure Earth · {fleetTitle} · {hosts.length} hosts · {vms.length} VMs
             </p>
           </div>
           <button type="button" className="btn-secondary flex items-center gap-2" onClick={closeMissionControl}>

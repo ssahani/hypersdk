@@ -93,6 +93,11 @@ import { getVmGuestFirewallPorts, type GuestPortReport } from '../../api/zeusFir
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError, isPlatformNotFoundError } from '../../utils/apiError'
+import {
+  formatPlatformHostLabel,
+  isPlaceholderHostname,
+  isUsableHostAddress,
+} from '../../utils/fleetDisplayName'
 import { GUEST_TOAST_CHANNEL_ATTACH, qgaHealthy } from '../../utils/guestAgentUx'
 import { toastQueuedOperation } from '../../utils/platformTaskToast'
 import { purgeVmShortcuts } from '../../utils/vmShortcuts'
@@ -112,6 +117,7 @@ import { tasksHubHref } from '../../utils/platformHubLinks'
 import { downloadVmIacBundle, downloadVmIacZip, exportVmDisk, exportVmIac, pruneStaleVmRecord, retirePlatformVm, type VmIacExportBundle } from '../../api/platformVmLifecycle'
 import { publishVmAsTemplate } from '../../api/platformTemplatesExtra'
 import PlatformVmAdvanced from '../../components/platform/PlatformVmAdvanced'
+import SpotlightPageAction from '../../components/platform/SpotlightPageAction'
 
 export default function PlatformVmDetail() {
   const location = useLocation()
@@ -450,13 +456,11 @@ export default function PlatformVmDetail() {
   }
 
   const hostRow = hosts.find((h) => h.id === vm?.host_id)
-  const hostName = hostRow?.hostname
-  const hostLabel =
-    hostRow && (hostRow.hostname === 'localhost' || hostRow.hostname === '127.0.0.1')
-      ? hostRow.address && hostRow.address !== '127.0.0.1'
-        ? hostRow.address
-        : `${hostRow.hostname} — update host enrollment`
-      : hostName || 'No host'
+  const hostLabel = hostRow
+    ? (isPlaceholderHostname(hostRow.hostname) && !isUsableHostAddress(hostRow.address)
+      ? `${hostRow.hostname} — update host enrollment`
+      : formatPlatformHostLabel(hostRow))
+    : 'No host'
 
   const resolvedGuestIp =
     guestHealth?.guest_ip?.trim() || health?.guest_ip?.trim() || vm?.guest_ip?.trim() || ''
@@ -592,6 +596,12 @@ export default function PlatformVmDetail() {
           </Link>
           {powerActions}
           {!isPopout && (
+            <SpotlightPageAction
+              prefill={`${vm.name} guest health doctor`}
+              label="Ask Zeus"
+            />
+          )}
+          {!isPopout && (
             <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" onClick={() => openCenterPopout(`/platform/vms/${id}`)}>
               <ExternalLink className="w-4 h-4" /> Pop out
             </button>
@@ -713,7 +723,7 @@ export default function PlatformVmDetail() {
 
           {tab === 'overview' && (
             <div className="space-y-4">
-              <MachinaExplainObjectPanel kind="vm" id={id!} name={vm.name} />
+              <MachinaExplainObjectPanel kind="vm" id={id!} name={vm.name} showOpenLink={false} />
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
                 <InfoCard label="Desired state" value={vm.desired_state} />
                 <InfoCard label="Lifecycle" value={vm.lifecycle_phase || 'idle'} />
@@ -776,9 +786,15 @@ export default function PlatformVmDetail() {
               {vm.observed_state !== 'running' && (
                 <VmOverviewTroubleshootPanel vmId={id!} vmName={vm.name} onOpenDoctor={() => setTab('doctor')} />
               )}
-              <MacGlassPanel title="AI terminal tips" subtitle="Zeus-suggested commands for this VM">
-                <AiTerminalSuggestStrip vmId={id} vmName={vm.name} compact />
-              </MacGlassPanel>
+              <details className="rounded-xl border border-white/[0.06] bg-slate-900/40 group">
+                <summary className="cursor-pointer list-none px-4 py-3 flex items-center justify-between gap-2 text-sm font-medium text-white">
+                  <span>AI terminal tips</span>
+                  <span className="text-xs text-slate-500 font-normal group-open:hidden">Zeus-suggested commands · expand</span>
+                </summary>
+                <div className="px-4 pb-4 border-t border-white/[0.04]">
+                  <AiTerminalSuggestStrip vmId={id} vmName={vm.name} compact />
+                </div>
+              </details>
               <MacGlassPanel title="Organization">
                 <div className="flex flex-wrap gap-3 items-end">
                   <div>

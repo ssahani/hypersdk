@@ -47,4 +47,14 @@ impl WsTokenStore {
         }
         Some(entry.vm_id)
     }
+
+    /// Validate a token without removing it (supports React Strict Mode and reconnect retries).
+    pub async fn validate(&self, token: &str) -> Option<Uuid> {
+        let map = self.inner.read().await;
+        let entry = map.get(token)?;
+        if entry.expires < Instant::now() {
+            return None;
+        }
+        Some(entry.vm_id)
+    }
 }

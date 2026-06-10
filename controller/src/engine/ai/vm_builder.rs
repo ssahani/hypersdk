@@ -33,15 +33,7 @@ pub async fn build(pool: &PgPool, body: &VmBuilderBody) -> anyhow::Result<VmBuil
     .await?;
     let plan = environment_intent::plan_environment(body.prompt.trim(), rates.0, rates.1);
     let ql = body.prompt.to_lowercase();
-    let os_hint = if ql.contains("windows") {
-        "windows-server-2022"
-    } else if ql.contains("debian") {
-        "debian-13"
-    } else if ql.contains("rocky") || ql.contains("rhel") {
-        "rocky-10"
-    } else {
-        "ubuntu-24.04"
-    };
+    let os_hint = crate::engine::template_catalog::default_template_for_natural_language(&ql);
     let vm_name = body
         .name
         .clone()

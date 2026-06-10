@@ -1,0 +1,26 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import { Sparkles } from 'lucide-react'
+import { dispatchOpenSpotlight } from '../../utils/platformJarvisShell'
+
+export default function SpotlightPageAction({
+  prefill,
+  label = 'Ask Zeus',
+  className = '',
+}: {
+  prefill: string
+  label?: string
+  className?: string
+}) {
+  return (
+    <button
+      type="button"
+      className={`btn-secondary text-sm inline-flex items-center gap-1.5 ${className}`}
+      onClick={() => dispatchOpenSpotlight(prefill)}
+      title="Open Zeus Spotlight with context for this page (⌘K)"
+    >
+      <Sparkles className="w-4 h-4 text-orange-400" />
+      {label}
+    </button>
+  )
+}

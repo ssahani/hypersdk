@@ -679,7 +679,7 @@ export default function PlatformNetworks() {
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <p className={`text-xs font-semibold uppercase mb-2 ${statusToneClass('ok')}`}>Allowed</p>
-                <div className="rounded-xl border border-white/[0.06] overflow-hidden max-h-64 overflow-y-auto">
+                <div className="rounded-xl border border-white/[0.06] overflow-hidden">
                   {connectivity.matrix.allows.map((c, i) => (
                     <MacListRow key={`a-${i}`} title={`${c.source} → ${c.destination}:${c.port}`} subtitle={c.reason} />
                   ))}
@@ -690,7 +690,7 @@ export default function PlatformNetworks() {
               </div>
               <div>
                 <p className={`text-xs font-semibold uppercase mb-2 ${statusToneClass('error')}`}>Blocked</p>
-                <div className="rounded-xl border border-white/[0.06] overflow-hidden max-h-64 overflow-y-auto">
+                <div className="rounded-xl border border-white/[0.06] overflow-hidden">
                   {connectivity.matrix.blocks.map((c, i) => (
                     <MacListRow key={`b-${i}`} title={`${c.source} → ${c.destination}:${c.port}`} subtitle={c.reason} />
                   ))}

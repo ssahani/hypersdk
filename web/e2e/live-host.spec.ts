@@ -4,6 +4,7 @@
 
 import { test, expect } from '@playwright/test'
 import { liveCredentials, loginAtMachinaLoginPage } from './helpers/liveAuth'
+import { expectPageScrolls } from './helpers/platformTestHelpers'
 
 /** Smoke against a running daemon (set PLAYWRIGHT_LIVE_URL, e.g. https://212.8.252.194:5092). */
 const live = process.env.PLAYWRIGHT_LIVE_URL?.replace(/\/$/, '')
@@ -30,6 +31,14 @@ test('language switcher on login', async ({ page }) => {
   await page.goto(`${live}/login`)
   await page.getByLabel('Language').selectOption('es')
   await expect(page.getByLabel('Usuario')).toBeVisible()
+})
+
+test('platform marketplace scrolls on live host', async ({ page }) => {
+  test.skip(!liveCredentials(), 'Set PLAYWRIGHT_LIVE_USER/PASS')
+  await loginAtMachinaLoginPage(page, live!)
+  await page.goto(`${live}/platform/templates`)
+  await expect(page.getByText('Fleet template catalog').first()).toBeVisible({ timeout: 30_000 })
+  await expectPageScrolls(page, { viewportHeight: 480 })
 })
 
 test('PAM login at /login reaches dashboard', async ({ page }) => {

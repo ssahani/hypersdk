@@ -1,7 +1,7 @@
 {
   "host": "212.8.252.194",
-  "generated_at": "2026-06-08T10:35:16.580Z",
-  "passed": 66,
+  "generated_at": "2026-06-09T23:56:43.070Z",
+  "passed": 91,
   "failed": 0,
   "skipped": 19,
   "results": [
@@ -9,73 +9,73 @@
       "id": "classic:/",
       "path": "/",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/api-docs",
       "path": "/api-docs",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/audit",
       "path": "/audit",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/backups",
       "path": "/backups",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/capabilities",
       "path": "/capabilities",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/devices",
       "path": "/devices",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/disk-images",
       "path": "/disk-images",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/events",
       "path": "/events",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/fleet",
       "path": "/fleet",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/host-networking",
       "path": "/host-networking",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/import",
       "path": "/import",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/jobs",
       "path": "/jobs",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "k8s:/k8s",
@@ -99,25 +99,25 @@
       "id": "classic:/logs",
       "path": "/logs",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/networks",
       "path": "/networks",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/node",
       "path": "/node",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/nwfilters",
       "path": "/nwfilters",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "openstack:/openstack",
@@ -219,25 +219,37 @@
       "id": "platform:/platform",
       "path": "/platform",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform//platform",
+      "path": "/platform//platform",
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "platform:/platform/activity",
       "path": "/platform/activity",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/administration",
+      "path": "/platform/administration",
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "platform:/platform/api-keys",
       "path": "/platform/api-keys",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/applications",
       "path": "/platform/applications",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/backups",
@@ -249,13 +261,31 @@
       "id": "platform:/platform/blueprints",
       "path": "/platform/blueprints",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/cloud-init",
+      "path": "/platform/cloud-init",
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "platform:/platform/content",
       "path": "/platform/content",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/create-iso",
+      "path": "/platform/create-iso",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/datacenter",
+      "path": "/platform/datacenter",
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "platform:/platform/developer",
@@ -267,91 +297,139 @@
       "id": "platform:/platform/enroll",
       "path": "/platform/enroll",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/enterprise",
       "path": "/platform/enterprise",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/events",
       "path": "/platform/events",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/fleet-snapshots",
+      "path": "/platform/fleet-snapshots",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/gpu",
+      "path": "/platform/gpu",
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "platform:/platform/hosts",
       "path": "/platform/hosts",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/hosts/:id",
+      "path": "/platform/hosts/:id",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/hosts/finder",
+      "path": "/platform/hosts/finder",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/infrastructure",
+      "path": "/platform/infrastructure",
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "platform:/platform/integrations",
       "path": "/platform/integrations",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/maintenance",
       "path": "/platform/maintenance",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/migration",
       "path": "/platform/migration",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/network-canvas",
+      "path": "/platform/network-canvas",
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "platform:/platform/networks",
       "path": "/platform/networks",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/notifications",
       "path": "/platform/notifications",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/observability",
       "path": "/platform/observability",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/operations",
+      "path": "/platform/operations",
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "platform:/platform/placement",
       "path": "/platform/placement",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/policy",
       "path": "/platform/policy",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/projects",
       "path": "/platform/projects",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/recommendations",
       "path": "/platform/recommendations",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/reports",
       "path": "/platform/reports",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/resources",
+      "path": "/platform/resources",
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "platform:/platform/settings",
@@ -360,160 +438,232 @@
       "warnings": 0
     },
     {
+      "id": "platform:/platform/soc",
+      "path": "/platform/soc",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
       "id": "platform:/platform/storage",
       "path": "/platform/storage",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/support",
       "path": "/platform/support",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/tasks",
       "path": "/platform/tasks",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/templates",
       "path": "/platform/templates",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/topology",
       "path": "/platform/topology",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/users",
       "path": "/platform/users",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/vm-builder",
+      "path": "/platform/vm-builder",
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "platform:/platform/vms",
       "path": "/platform/vms",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/vms/:id",
+      "path": "/platform/vms/:id",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/vms/:id/console",
+      "path": "/platform/vms/:id/console",
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "platform:/platform/webhooks",
       "path": "/platform/webhooks",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
-      "id": "platform:/platform/soc",
-      "path": "/platform/soc",
+      "id": "platform:/platform/workloads",
+      "path": "/platform/workloads",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/zeus",
       "path": "/platform/zeus",
       "status": "passed",
-      "warnings": 1
-    },
-    {
-      "id": "platform:/platform/zeus?tab=brain",
-      "path": "/platform/zeus?tab=brain",
-      "status": "passed",
-      "warnings": 1
-    },
-    {
-      "id": "platform:/platform/zeus/rightsizing",
-      "path": "/platform/zeus/rightsizing",
-      "status": "passed",
-      "warnings": 1
-    },
-    {
-      "id": "platform:/platform/zeus/incidents",
-      "path": "/platform/zeus/incidents",
-      "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/zeus/approvals",
       "path": "/platform/zeus/approvals",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/zeus/incidents",
+      "path": "/platform/zeus/incidents",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/zeus/machines/:hostId",
+      "path": "/platform/zeus/machines/:hostId",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/zeus/rightsizing",
+      "path": "/platform/zeus/rightsizing",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/zeus/security",
+      "path": "/platform/zeus/security",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/zeus/security/activity",
+      "path": "/platform/zeus/security/activity",
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "platform:/platform/zeus/security/cloud",
       "path": "/platform/zeus/security/cloud",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/zeus/security/compliance",
+      "path": "/platform/zeus/security/compliance",
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "platform:/platform/zeus/security/connectivity",
       "path": "/platform/zeus/security/connectivity",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/zeus/security/enforcement",
+      "path": "/platform/zeus/security/enforcement",
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "platform:/platform/zeus/security/firewall",
       "path": "/platform/zeus/security/firewall",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/zeus/security/firewall/:id",
+      "path": "/platform/zeus/security/firewall/:id",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/zeus/security/hunt",
+      "path": "/platform/zeus/security/hunt",
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "platform:/platform/zeus/security/k8s",
       "path": "/platform/zeus/security/k8s",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "platform:/platform/zeus/security/policies",
       "path": "/platform/zeus/security/policies",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/zeus/security/ports",
+      "path": "/platform/zeus/security/ports",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/zeus/security/services",
+      "path": "/platform/zeus/security/services",
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "classic:/secrets",
       "path": "/secrets",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/services",
       "path": "/services",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/settings",
       "path": "/settings",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/snapshots",
       "path": "/snapshots",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/storage",
       "path": "/storage",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/system-check",
       "path": "/system-check",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     },
     {
       "id": "classic:/vms",
       "path": "/vms",
       "status": "passed",
-      "warnings": 1
+      "warnings": 0
     }
   ]
 }

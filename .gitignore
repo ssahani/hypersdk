@@ -19,3 +19,9 @@
 
 # Local presentation exports
 presentations/
+
+# Playwright live auth state
+web/e2e/.auth/
+
+# Local deploy mailer secrets
+scripts/deploy-mailer.env

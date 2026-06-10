@@ -1770,6 +1770,14 @@ export const createTemplate = (body: {
 export const getVmConsole = (id: string) =>
   platformFetch<PlatformConsoleInfo>(`/api/v1/vms/${id}/console`)
 
+export const issuePlatformVmWsToken = (id: string) =>
+  platformFetch<{ token: string }>(`/api/v1/vms/${id}/ws-token`, { method: 'POST' })
+
+/** Build platform VNC WebSocket URL for a VM id and short-lived token. */
+export function platformVmVncWsUrl(vmId: string, token: string): string {
+  return platformVncWsUrl(`/ws/v1/platform/vnc/${encodeURIComponent(vmId)}?token=${encodeURIComponent(token)}`)
+}
+
 export const getHaStatus = () => platformFetch<HaStatusResponse>('/api/v1/ha/status')
 
 export const setVmHa = (id: string, body: Partial<HaPolicy> & { enabled: boolean }) =>

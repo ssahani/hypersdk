@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Camera,
   Copy,
@@ -137,6 +137,7 @@ export default function PlatformVms() {
   const [batchPowerBusy, setBatchPowerBusy] = useState(false)
   const [sshVm, setSshVm] = useState<PlatformVm | null>(null)
   const [pruneBusy, setPruneBusy] = useState(false)
+  const deleteTaskToastRef = useRef<string | null>(null)
 
   const hostMap = useMemo(() => new Map(hosts.map((h) => [h.id, h.hostname])), [hosts])
   const vmById = useMemo(() => new Map(vms.map((v) => [v.id, v])), [vms])
@@ -223,12 +224,18 @@ export default function PlatformVms() {
 
   useEffect(() => { void load() }, [load])
 
+  const deleteTaskId = (location.state as { vmDeleteTaskId?: string; vmDeleteLabel?: string } | null)?.vmDeleteTaskId
+  const deleteTaskLabel = (location.state as { vmDeleteLabel?: string } | null)?.vmDeleteLabel
+
   useEffect(() => {
-    const st = location.state as { vmDeleteTaskId?: string; vmDeleteLabel?: string } | null
-    if (!st?.vmDeleteTaskId) return
-    toastQueuedOperation(toast, st.vmDeleteLabel ?? 'Delete queued', st.vmDeleteTaskId, tier)
-    navigate(location.pathname + location.search, { replace: true, state: null })
-  }, [location, navigate, toast, tier])
+    if (!deleteTaskId) return
+    if (deleteTaskToastRef.current !== deleteTaskId) {
+      deleteTaskToastRef.current = deleteTaskId
+      toastQueuedOperation(toast, deleteTaskLabel ?? 'Delete queued', deleteTaskId, tier)
+      void load()
+    }
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
+  }, [deleteTaskId, deleteTaskLabel, load, location.pathname, location.search, navigate, toast, tier])
 
   useEffect(() => {
     try { localStorage.setItem(VM_VIEW_STORAGE_KEY, view) } catch { /* ignore */ }
@@ -741,7 +748,7 @@ export default function PlatformVms() {
   )
 
   const inspector = selectedVm ? (
-    <div className="platform-finder-inspector p-4 space-y-3 h-full overflow-y-auto">
+    <div className="platform-finder-inspector p-4 space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
         <h3 className="font-semibold text-white">{selectedVm.name}</h3>
         <VmStatusBadge state={selectedVm.observed_state} />
@@ -878,8 +885,8 @@ export default function PlatformVms() {
           { label: activeLabel },
         ]}
         columnsContent={
-          <div className="flex min-h-[420px] border border-white/[0.06] rounded-xl overflow-hidden">
-            <aside className="w-44 shrink-0 border-r border-white/[0.06] p-2 space-y-0.5 overflow-y-auto">
+          <div className="flex border border-white/[0.06] rounded-xl">
+            <aside className="w-44 shrink-0 border-r border-white/[0.06] p-2 space-y-0.5">
               {(finder?.smart_folders ?? []).map((f) => (
                 <SidebarRow key={f.id} active={!tag && !project && !source && folder === f.id} label={f.label} count={f.count} onClick={() => setFilter({ folder: f.id })} />
               ))}
@@ -890,7 +897,7 @@ export default function PlatformVms() {
                 onClick={() => setFilter({ folder: 'guest-gaps' })}
               />
             </aside>
-            <div className="w-56 shrink-0 border-r border-white/[0.06] overflow-y-auto">
+            <div className="w-56 shrink-0 border-r border-white/[0.06]">
               <div className="platform-finder-inspector-col-header flex items-center gap-2 px-3 py-2 border-b border-white/[0.06]">
                 <input
                   type="checkbox"
@@ -922,7 +929,7 @@ export default function PlatformVms() {
                 </div>
               ))}
             </div>
-            <div className="flex-1 min-w-0 overflow-y-auto">
+            <div className="flex-1 min-w-0">
               {selectedVm ? inspector : <p className="platform-finder-inspector platform-finder-inspector-empty p-4">Select a VM</p>}
             </div>
           </div>
@@ -954,7 +961,7 @@ export default function PlatformVms() {
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40 flex items-center gap-1 mb-2">
                     <Tag className="w-3 h-3" /> Tags
                   </p>
-                  <div className="space-y-0.5 max-h-48 overflow-y-auto">
+                  <div className="space-y-0.5">
                     {finder!.tags.map((t) => (
                       <SidebarRow key={t.tag} active={tag === t.tag} label={`#${t.tag}`} count={t.count} onClick={() => setFilter({ tag: t.tag })} />
                     ))}

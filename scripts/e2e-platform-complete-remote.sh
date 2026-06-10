@@ -87,8 +87,8 @@ if [[ "${E2E_SKIP_LIVE_SPECS:-0}" != "1" ]]; then
   run_phase "live-playwright-specs" bash -c "
     set -euo pipefail
     cd '${ROOT}/web'
-    if ! npx playwright install chromium >/dev/null 2>&1; then
-      npx playwright install --with-deps chromium
+    if ! npm run playwright -- install chromium >/dev/null 2>&1; then
+      npm run test:e2e:install
     fi
     export PLAYWRIGHT_LIVE_URL='${BASE}'
     export PLAYWRIGHT_LIVE_USER='${USER}'

@@ -11,11 +11,13 @@ export default function MachinaExplainObjectPanel({
   id,
   name,
   onClose,
+  showOpenLink = true,
 }: {
   kind: string
   id: string
   name?: string
   onClose?: () => void
+  showOpenLink?: boolean
 }) {
   const [data, setData] = useState<Awaited<ReturnType<typeof explainInfraObject>> | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -60,10 +62,10 @@ export default function MachinaExplainObjectPanel({
               {data.risks.map((r) => <li key={r}>⚠ {r}</li>)}
             </ul>
           )}
-          {kind === 'vm' && (
+          {showOpenLink && kind === 'vm' && (
             <Link to={`/platform/vms/${id}`} className={`text-xs ${hubLinkClasses()}`}>Open VM →</Link>
           )}
-          {kind === 'host' && (
+          {showOpenLink && kind === 'host' && (
             <Link to={`/platform/hosts/${id}`} className={`text-xs ${hubLinkClasses()}`}>Open host →</Link>
           )}
         </>

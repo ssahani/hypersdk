@@ -27,6 +27,8 @@ interface Props {
   fillViewport?: boolean
   /** CSS length subtracted from 100dvh when fillViewport is set. */
   fillViewportOffset?: string
+  /** Refresh console session (fetch new WS token) instead of full page reload. */
+  onReconnect?: () => void
 }
 
 /** Apply scale vs native resolution (scroll) — affects perceived sharpness and pointer mapping. */
@@ -53,6 +55,7 @@ export default function VNCViewer({
   defaultScaledFit = false,
   fillViewport = false,
   fillViewportOffset = '13rem',
+  onReconnect,
 }: Props) {
   const [fullscreen, setFullscreen] = useState(false)
   const [status, setStatus] = useState<'loading' | 'connecting' | 'connected' | 'disconnected'>('loading')
@@ -252,7 +255,13 @@ export default function VNCViewer({
             Scale to fit
           </label>
           {status === 'disconnected' && (
-            <button type="button" onClick={() => window.location.reload()} className="px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs transition flex items-center gap-1"><RefreshCw className="w-3 h-3" /> Reconnect</button>
+            <button
+              type="button"
+              onClick={() => (onReconnect ? onReconnect() : window.location.reload())}
+              className="px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs transition flex items-center gap-1"
+            >
+              <RefreshCw className="w-3 h-3" /> Reconnect
+            </button>
           )}
           <button type="button" onClick={() => setFullscreen(!fullscreen)} className="p-1.5 hover:bg-slate-700 rounded transition" title="Fullscreen">
             {fullscreen ? <Minimize className="w-4 h-4 text-slate-400" /> : <Maximize className="w-4 h-4 text-slate-400" />}
@@ -260,6 +269,11 @@ export default function VNCViewer({
         </div>
       </div>
       <p className="text-xs text-slate-500 px-4 py-2 bg-slate-900/40 border-b border-slate-700/50 leading-relaxed shrink-0">
+        {status === 'disconnected' && (
+          <span className="block text-amber-300/90 mb-1">
+            Console disconnected — ensure the VM is running, wait for cloud-init on first boot, then Reconnect.
+          </span>
+        )}
         {kubeVirtNamespace
           ? (
               <>
@@ -284,7 +298,7 @@ export default function VNCViewer({
             ? undefined
             : fillViewport
               ? `max(480px, calc(100dvh - ${fillViewportOffset}))`
-              : 'min(900px, calc(100vh - 13rem))',
+              : 'min-h-[480px]',
           backgroundColor: '#000',
         }}
       />

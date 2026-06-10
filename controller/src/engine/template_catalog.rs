@@ -66,6 +66,21 @@ const CATALOG: &[CatalogTemplate] = &[
         icon: "🐧",
     },
     CatalogTemplate {
+        name: "ubuntu-26.04",
+        version: "1.0.0",
+        source_disk: "/var/lib/libvirt/images/ubuntu-26.04.qcow2",
+        download_url: Some(
+            "https://cloud-images.ubuntu.com/releases/26.04/release/ubuntu-26.04-server-cloudimg-amd64.img",
+        ),
+        cloud_init: true,
+        os_family: "linux",
+        category: "Linux",
+        workload: "general",
+        description: "Ubuntu 26.04 LTS — Resolute Raccoon, latest LTS cloud-init image.",
+        featured: true,
+        icon: "🐧",
+    },
+    CatalogTemplate {
         name: "debian-13",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/debian-13.qcow2",
@@ -150,6 +165,19 @@ const CATALOG: &[CatalogTemplate] = &[
         category: "Windows",
         workload: "general",
         description: "Windows Server 2022 — UEFI + VirtIO drivers (upload ISO to Images first).",
+        featured: true,
+        icon: "🪟",
+    },
+    CatalogTemplate {
+        name: "windows-server-2025",
+        version: "1.0.0",
+        source_disk: "/var/lib/libvirt/images/windows-server-2025.qcow2",
+        download_url: None,
+        cloud_init: false,
+        os_family: "windows",
+        category: "Windows",
+        workload: "general",
+        description: "Windows Server 2025 — latest server release, UEFI + VirtIO (upload ISO first).",
         featured: true,
         icon: "🪟",
     },
@@ -319,7 +347,42 @@ const CATALOG: &[CatalogTemplate] = &[
     },
 ];
 
-/// Superseded bundled template names (migration 042); removed on every seed/prune.
+/// Best-effort template name from natural-language VM create prompts (Spotlight / Zeus).
+pub fn default_template_for_natural_language(query: &str) -> &'static str {
+    let ql = query.to_lowercase();
+    if ql.contains("windows") {
+        if ql.contains("2022") {
+            return "windows-server-2022";
+        }
+        if ql.contains("2025") {
+            return "windows-server-2025";
+        }
+        if ql.contains("windows 11") || ql.contains("windows-11") || ql.contains("win 11") {
+            return "windows-11";
+        }
+        return "windows-server-2025";
+    }
+    if ql.contains("26.04") || ql.contains("26-04") {
+        return "ubuntu-26.04";
+    }
+    if ql.contains("25.10") || ql.contains("25-10") {
+        return "ubuntu-25.10";
+    }
+    if ql.contains("rocky") || ql.contains("rhel") {
+        return "rocky-10";
+    }
+    if ql.contains("debian") {
+        return "debian-13";
+    }
+    if ql.contains("fedora") {
+        return "fedora-44";
+    }
+    if ql.contains("latest") || (ql.contains("ubuntu") && ql.contains("lts")) {
+        return "ubuntu-26.04";
+    }
+    "ubuntu-24.04"
+}
+
 const RETIRED_TEMPLATE_NAMES: &[&str] = &[
     "ubuntu-22.04",
     "debian-12",
@@ -416,4 +479,25 @@ pub fn download_url_for_ref(template_ref: &str) -> Option<&'static str> {
 pub async fn ensure_default_templates(pool: &PgPool) -> anyhow::Result<()> {
     seed_default_templates(pool).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::default_template_for_natural_language;
+
+    #[test]
+    fn nl_os_windows_server_2025() {
+        assert_eq!(
+            default_template_for_natural_language("create windows server 2025 vm"),
+            "windows-server-2025"
+        );
+    }
+
+    #[test]
+    fn nl_os_ubuntu_latest_lts() {
+        assert_eq!(
+            default_template_for_natural_language("create latest ubuntu lts vm"),
+            "ubuntu-26.04"
+        );
+    }
 }

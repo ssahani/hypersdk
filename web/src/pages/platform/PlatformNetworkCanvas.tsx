@@ -19,9 +19,23 @@ import { hubLinkClasses, statusBadgeClasses, statusToneClass } from '../../utils
 type CanvasNode = { id: string; label: string; kind: string; detail?: string }
 
 function flowLabel(f: PacketWolfFlow): string {
-  const dst = f.destination_ip
-    ? `${f.destination_ip}${f.destination_port ? `:${f.destination_port}` : ''}`
-    : 'unknown'
+  const srcPod = f.source?.pod
+  const dstPod = f.destination?.pod
+  const dstIp = f.destination?.ip ?? f.destination_ip
+  const port = f.destination_port ?? f.port
+  const proto = f.protocol ? `/${f.protocol}` : ''
+
+  if (srcPod || dstPod || dstIp) {
+    const srcNs = f.source?.namespace
+    const src = srcPod ?? f.source?.ip ?? f.process ?? 'source'
+    const srcLabel = srcNs && srcPod ? `${src} (${srcNs})` : src
+    const dstNs = f.destination?.namespace
+    const dstBase = dstPod ?? (dstIp ? `${dstIp}${port ? `:${port}` : ''}${proto}` : 'unknown')
+    const dstLabel = dstNs && dstPod ? `${dstBase} (${dstNs})` : dstBase
+    return `${srcLabel} → ${dstLabel}`
+  }
+
+  const dst = dstIp ? `${dstIp}${port ? `:${port}` : ''}` : 'unknown'
   const proc = f.process ?? 'process'
   return `${proc} → ${dst}`
 }
@@ -79,8 +93,12 @@ export default function PlatformNetworkCanvas() {
       id: `flow-${i}`,
       label: flowLabel(f),
       verdict: f.verdict ?? 'FORWARDED',
-      host: f.host_id,
-      summary: f.summary,
+      host: f.host_id ?? f.source?.namespace,
+      summary:
+        f.summary ??
+        (f.source?.pod && f.destination?.pod
+          ? `${f.source.pod} → ${f.destination.pod}${f.port ? `:${f.port}` : ''}`
+          : undefined),
     }))
   }, [data])
 
@@ -219,7 +237,7 @@ export default function PlatformNetworkCanvas() {
             {svcEdges.length > 0 && (
               <>
                 <h3 className="text-xs font-semibold text-slate-500 mb-2">Connections</h3>
-                <ul className="text-xs space-y-1 max-h-48 overflow-y-auto">
+                <ul className="text-xs space-y-1">
                   {svcEdges.map((e: ServiceMapEdge) => (
                     <li key={e.id} className={`truncate ${edgeTone(e.health)}`}>
                       {e.source} → {e.target}

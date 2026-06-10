@@ -84,7 +84,7 @@ pub async fn vnc_ws_proxy(
     Path(vm_id): Path<Uuid>,
     Query(q): Query<WsTokenQuery>,
 ) -> impl IntoResponse {
-    let validated = state.ws_tokens.consume(&q.token).await;
+    let validated = state.ws_tokens.validate(&q.token).await;
     if validated != Some(vm_id) {
         return (axum::http::StatusCode::UNAUTHORIZED, "invalid token").into_response();
     }
