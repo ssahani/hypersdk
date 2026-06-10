@@ -3,25 +3,25 @@
 import { test, expect } from '@playwright/test'
 import { mockPlatformApi } from './platformMock'
 
-test.describe.configure({ mode: 'serial' })
-
-test('platform mission control overlay opens from Jarvis', async ({ page }) => {
-  const errors: string[] = []
-  page.on('pageerror', (err) => errors.push(err.message))
-
+test('mission control landing shows hero and launchpad', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
   await page.goto('/platform')
-  await expect(page.getByTestId('platform-jarvis-shell')).toBeVisible({ timeout: 15_000 })
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('machina-open-mission-control')))
-  await expect(page.getByRole('dialog', { name: 'Mission Control' })).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByRole('heading', { name: 'Mission Control', level: 1 })).toBeVisible()
-  expect(errors).toEqual([])
+  await expect(page.getByTestId('mission-control-page')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('mission-control-hero')).toBeVisible()
+  await expect(page.getByTestId('mission-control-launchpad')).toBeVisible()
+  await expect(page.getByRole('heading', { name: /e2e-cluster|host-1|Mission Control|Machina fleet/i }).first()).toBeVisible()
 })
 
-test('platform jarvis briefing strip', async ({ page }) => {
+test('mission control card opens command center', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
   await page.goto('/platform')
-  await expect(page.getByTestId('platform-jarvis-shell')).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByPlaceholder(/Ask Zeus or search fleet/i)).toBeVisible()
-  await expect(page.getByText('Good morning').or(page.getByText('Good afternoon')).or(page.getByText('Good evening'))).toBeVisible()
+  await page.getByText('vm-1').first().click({ timeout: 15_000 })
+  await expect(page.getByTestId('fleet-command-center')).toBeVisible()
+})
+
+test('F3 expands fleet geography on mission control', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'normal' })
+  await page.goto('/platform')
+  await page.keyboard.press('F3')
+  await expect(page.getByTestId('mission-control-geography')).toBeVisible({ timeout: 10_000 })
 })

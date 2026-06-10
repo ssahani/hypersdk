@@ -8,15 +8,12 @@ import { useAi } from '../../contexts/AiContext'
 import { unlockDockPreviewPath, usePlatformDockItems } from '../../utils/platformDockPins'
 import { useToastContext } from '../../contexts/ToastContext'
 import { platformDesktopTabActive, platformDesktopTabGroup } from '../../utils/platformDesktopTabs'
+import { dispatchOpenSpotlight } from '../../utils/platformJarvisShell'
+import { useFleetDesktop } from '../../hooks/useFleetDesktop'
+import { getFleetFinder } from '../../api/platform'
 
-function openSpotlight() {
-  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
-}
-
-function isMachineFinderRoot(pathname: string): boolean {
-  if (!pathname.startsWith('/platform/vms')) return false
-  const rest = pathname.slice('/platform/vms'.length)
-  return rest === '' || rest === '/'
+function isPlatformShell(pathname: string): boolean {
+  return pathname.startsWith('/platform')
 }
 
 export default function PlatformMacDock() {
@@ -25,14 +22,28 @@ export default function PlatformMacDock() {
   const toast = useToastContext()
   const { openCopilot } = useAi()
   const dockItems = usePlatformDockItems()
+  const { desktop } = useFleetDesktop(isPlatformShell(location.pathname), 90_000)
   const [mounted, setMounted] = useState(false)
   const [dockVisible, setDockVisible] = useState(true)
+  const [attentionByPath, setAttentionByPath] = useState<Record<string, number>>({})
   const hideTimerRef = useRef<number | null>(null)
-  const autoHide = isMachineFinderRoot(location.pathname)
+  const autoHide = isPlatformShell(location.pathname)
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    void getFleetFinder()
+      .then((f) => {
+        const unprotected = f?.smart_folders.find((x) => x.id === 'unprotected')?.count ?? 0
+        const needs = f?.smart_folders.find((x) => x.id === 'needs_attention')?.count ?? 0
+        setAttentionByPath({
+          '/platform/vms': needs || unprotected,
+        })
+      })
+      .catch(() => setAttentionByPath({}))
+  }, [location.pathname])
 
   useEffect(() => {
     if (!autoHide) {
@@ -66,16 +77,27 @@ export default function PlatformMacDock() {
     navigate(hub)
   }
 
+  const cpuPct = desktop?.pressure_hosts != null ? Math.min(99, desktop.pressure_hosts * 12 + 8) : null
+  const memPct = desktop?.hosts_total ? Math.round((desktop.hosts_online / Math.max(1, desktop.hosts_total)) * 67) : null
+
   const dock = (
     <footer
       className={`mac-dock flex ${autoHide ? 'mac-dock-autohide' : ''} ${autoHide && !dockVisible ? 'mac-dock-hidden' : ''}`}
       role="navigation"
       aria-label="Platform dock"
     >
+      {(cpuPct != null || memPct != null) && (
+        <div className="mac-dock-stats hidden lg:flex items-center gap-2 text-[10px] text-slate-400 mr-2 pointer-events-none">
+          <span>CPU {cpuPct ?? '—'}%</span>
+          <span>·</span>
+          <span>MEM {memPct ?? '—'}%</span>
+        </div>
+      )}
       <div className="mac-dock-inner mac-dock-inner-scroll">
         {dockItems.map((item) => {
           const Icon = item.icon
           const active = !item.preview && platformDesktopTabActive(location.pathname, item.path)
+          const attention = attentionByPath[item.path] ?? 0
           const cls = `mac-dock-item ${active ? 'mac-dock-item-active' : ''} ${item.preview ? 'mac-dock-item-preview' : ''}`
           if (item.preview) {
             return (
@@ -115,6 +137,7 @@ export default function PlatformMacDock() {
               <Icon className="h-6 w-6" strokeWidth={1.75} />
               <span className="mac-dock-tooltip">{item.label}</span>
               {active ? <span className="mac-dock-dot" aria-hidden /> : null}
+              {attention > 0 ? <span className="mac-dock-attention-dot" aria-label={`${attention} need attention`} /> : null}
             </Link>
           )
         })}
@@ -134,9 +157,9 @@ export default function PlatformMacDock() {
 
         <button
           type="button"
-          onClick={openSpotlight}
+          onClick={() => dispatchOpenSpotlight()}
           className="mac-dock-spotlight"
-          title="Spotlight (⌘K)"
+          title="Spotlight (⌘Space)"
           aria-label="Open Spotlight"
         >
           <Search className="h-4 w-4" />

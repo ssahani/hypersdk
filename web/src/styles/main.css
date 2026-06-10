@@ -722,6 +722,95 @@ a.tahoe-context-app-title:hover {
   max-height: calc(100dvh - 12rem);
 }
 
+.mission-control-page,
+.mission-control-root {
+  --mc-carbon: #0a0a0c;
+  --mc-horizon: rgba(56, 189, 248, 0.12);
+  --mc-glass: rgba(15, 23, 42, 0.55);
+}
+
+.mc-hero {
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.mc-host-panel,
+.mc-host-fleet-card {
+  background: var(--mc-glass);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.mc-launchpad-card:hover {
+  filter: drop-shadow(0 8px 24px rgba(56, 189, 248, 0.12));
+}
+
+.platform-rail-active {
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.35), 0 0 12px rgba(56, 189, 248, 0.15);
+}
+
+.platform-rail-live {
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.25);
+  animation: mc-rail-pulse 2.4s ease-in-out infinite;
+}
+
+.platform-rail-attention {
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.35);
+}
+
+.platform-rail-attention::after {
+  content: '';
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 9999px;
+  background: rgb(251, 191, 36);
+}
+
+.platform-rail-critical {
+  box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.45);
+}
+
+.platform-rail-critical::after {
+  content: '';
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 9999px;
+  background: rgb(248, 113, 113);
+}
+
+.platform-rail-link {
+  position: relative;
+}
+
+@keyframes mc-rail-pulse {
+  0%, 100% { box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.2); }
+  50% { box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.45), 0 0 10px rgba(52, 211, 153, 0.12); }
+}
+
+.mac-dock-stats {
+  pointer-events: none;
+  padding: 0.35rem 0.65rem;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mac-dock-attention-dot {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.15rem;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 9999px;
+  background: rgb(251, 191, 36);
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.8);
+}
+
 @media (max-width: 1023px) {
   .mac-menubar-inner {
     overflow-x: auto;

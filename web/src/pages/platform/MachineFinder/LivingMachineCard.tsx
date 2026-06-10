@@ -1,9 +1,10 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { Link } from 'react-router'
 import { Monitor, Terminal } from 'lucide-react'
 import { getPlatformVmMetrics, listVmBackups, runVmHealthCheck, type PlatformVm } from '../../../api/platform'
+import { getAiSecurity } from '../../../api/ai'
 import { machineAuraClass, machineAuraTone } from '../../../components/consolehub/MachineCanvas'
 import VmStatusBadge from '../../../components/VmStatusBadge'
 import { guestToolsStatusLabel } from '../../../utils/guestAgentUx'
@@ -37,11 +38,17 @@ export default function LivingMachineCard({
   const [memPct, setMemPct] = useState<number | null>(null)
   const [healthScore, setHealthScore] = useState<number | null>(null)
   const [lastBackup, setLastBackup] = useState<string | null>(null)
+  const [securityRisk, setSecurityRisk] = useState<string | null>(null)
+  const [securityFindings, setSecurityFindings] = useState<number | null>(null)
 
   const running = vmSemanticKind(vm.observed_state) === 'running'
   const libvirt = vm.inventory_source !== 'kubevirt'
   const tone = machineAuraTone(vm.observed_state, healthScore)
   const auraRing = machineAuraClass(tone)
+  const hasGpu = useMemo(() => {
+    const tags = (vm.tags ?? []).join(' ').toLowerCase()
+    return tags.includes('gpu') || tags.includes('nvidia') || tags.includes('cuda') || tags.includes('vgpu')
+  }, [vm.tags])
 
   useEffect(() => {
     const el = rootRef.current
@@ -80,6 +87,17 @@ export default function LivingMachineCard({
           if (!cancelled && backups.length > 0) {
             const latest = backups[0]
             setLastBackup(latest.created_at ?? latest.status ?? 'completed')
+          }
+        }
+        if (overlay === 'security') {
+          const sec = await getAiSecurity().catch(() => null)
+          if (!cancelled && sec) {
+            setSecurityRisk(sec.risk_level)
+            const needle = vm.name.toLowerCase()
+            const related = sec.findings.filter(
+              (f) => f.title.toLowerCase().includes(needle) || f.detail.toLowerCase().includes(needle),
+            )
+            setSecurityFindings(related.length > 0 ? related.length : sec.findings.length)
           }
         }
       } catch {
@@ -149,6 +167,26 @@ export default function LivingMachineCard({
           <div className="flex justify-between gap-2">
             <dt>Backup</dt>
             <dd className={lastBackup ? 'text-emerald-300/80' : 'text-amber-300'}>{lastBackup ? 'Recent' : 'At risk'}</dd>
+          </div>
+        )}
+        {overlay === 'security' && (
+          <>
+            <div className="flex justify-between gap-2">
+              <dt>Risk</dt>
+              <dd className="text-amber-300 capitalize">{securityRisk ?? '—'}</dd>
+            </div>
+            <div className="flex justify-between gap-2">
+              <dt>Findings</dt>
+              <dd className={securityFindings && securityFindings > 0 ? 'text-amber-300' : 'text-emerald-300/80'}>
+                {securityFindings ?? '—'}
+              </dd>
+            </div>
+          </>
+        )}
+        {(overlay === 'gpu' || (overlay === 'default' && hasGpu)) && (
+          <div className="flex justify-between gap-2">
+            <dt>GPU</dt>
+            <dd className={hasGpu ? 'text-violet-300' : 'text-slate-500'}>{hasGpu ? 'Assigned' : 'None'}</dd>
           </div>
         )}
         {overlay === 'default' && libvirt && (

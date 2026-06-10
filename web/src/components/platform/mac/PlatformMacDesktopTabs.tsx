@@ -14,10 +14,7 @@ import {
 } from '../../../utils/platformDesktopTabs'
 import { statusToneClass } from '../../../utils/semanticColors'
 import { openCenterPopout, useCenterPopout } from '../../../utils/platformCenterPopout'
-
-function openSpotlight() {
-  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
-}
+import { dispatchOpenSpotlight } from '../../../utils/platformJarvisShell'
 
 export default function PlatformMacDesktopTabs() {
   const location = useLocation()
@@ -94,7 +91,7 @@ export default function PlatformMacDesktopTabs() {
       })}
       <button
         type="button"
-        onClick={openSpotlight}
+        onClick={() => dispatchOpenSpotlight()}
         className="mac-desktop-tab-add flex items-center justify-center rounded-lg p-1 text-white/50 hover:text-white/90 hover:bg-white/[0.06]"
         title="Open center (⌘K)"
         aria-label="Open center"

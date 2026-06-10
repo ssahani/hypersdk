@@ -57,7 +57,7 @@ export function loadPlatformDesktopTabs(): PlatformDesktopTab[] {
   } catch {
     /* ignore */
   }
-  return [{ path: '/platform', label: 'Dashboard' }]
+  return [{ path: '/platform', label: 'Mission Control' }]
 }
 
 function save(tabs: PlatformDesktopTab[]) {
@@ -79,7 +79,7 @@ export function upsertPlatformDesktopTab(tab: PlatformDesktopTab): PlatformDeskt
 export function removePlatformDesktopTab(path: string): PlatformDesktopTab[] {
   const group = platformDesktopTabGroup(path)
   const next = loadPlatformDesktopTabs().filter((t) => platformDesktopTabGroup(t.path) !== group)
-  if (!next.length) next.push({ path: '/platform', label: 'Dashboard' })
+  if (!next.length) next.push({ path: '/platform', label: 'Mission Control' })
   save(next)
   return next
 }
@@ -89,7 +89,7 @@ export function platformPageLabel(pathname: string): string {
   const parts = path.split('/').filter(Boolean)
 
   if (parts[0] === 'platform' && parts[1] === 'vms') {
-    if (parts.length === 2) return 'Finder'
+    if (parts.length === 2) return 'Machine Finder'
     if (parts[2] === 'create') return 'New VM'
     if (parts.length >= 4 && parts[3] === 'console') return 'VM Console'
     if (parts.length >= 3 && VM_UUID_RE.test(parts[2] ?? '')) return 'Virtual Machine'

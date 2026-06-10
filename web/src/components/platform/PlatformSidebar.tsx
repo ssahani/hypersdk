@@ -1,13 +1,14 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useState } from 'react'
-import { NavLink } from 'react-router'
+import { useCallback, useEffect, useState } from 'react'
+import { NavLink, useLocation } from 'react-router'
 import { ChevronDown, ChevronLeft, ChevronRight, Boxes, FolderOpen, Plug } from 'lucide-react'
 import { sidebarForTier } from '../../utils/platformNavFilter'
 import { integrationNavItems } from '../../utils/platformIntegrationsNav'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { usePlatformMacDesktop } from './mac/PlatformMacDesktopContext'
+import { getFleetFinder } from '../../api/platform'
 import type { PlatformNavSection } from '../../utils/platformNav'
 
 const SECTION_COLLAPSE_PREFIX = 'machina-sidebar-section-'
@@ -42,6 +43,20 @@ export default function PlatformSidebar() {
   const [sectionCollapsed, setSectionCollapsed] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(sections.map((s) => [s.label, loadSectionCollapsed(s)])),
   )
+  const [railAttention, setRailAttention] = useState<Record<string, 'attention' | 'critical'>>({})
+
+  useEffect(() => {
+    void getFleetFinder()
+      .then((f) => {
+        const needs = f?.smart_folders.find((x) => x.id === 'needs_attention')?.count ?? 0
+        const unprotected = f?.smart_folders.find((x) => x.id === 'unprotected')?.count ?? 0
+        const next: Record<string, 'attention' | 'critical'> = {}
+        if (needs > 0) next['/platform/vms'] = 'attention'
+        if (unprotected > 0) next['/platform/backups'] = 'attention'
+        setRailAttention(next)
+      })
+      .catch(() => setRailAttention({}))
+  }, [])
 
   const toggleSection = useCallback((label: string) => {
     setSectionCollapsed((prev) => {
@@ -74,6 +89,7 @@ export default function PlatformSidebar() {
           sections={sections}
           sectionCollapsed={sectionCollapsed}
           onToggleSection={toggleSection}
+          railAttention={railAttention}
         />
         <div className="border-t border-white/[0.06] p-3">
           <button
@@ -100,12 +116,23 @@ function SidebarNav({
   sections,
   sectionCollapsed,
   onToggleSection,
+  railAttention,
 }: {
   collapsed: boolean
   sections: ReturnType<typeof sidebarForTier>
   sectionCollapsed: Record<string, boolean>
   onToggleSection: (label: string) => void
+  railAttention: Record<string, 'attention' | 'critical'>
 }) {
+  const location = useLocation()
+
+  const railClassFor = (to: string, isActive: boolean) => {
+    if (isActive) return 'platform-rail-active'
+    if (railAttention[to] === 'critical') return 'platform-rail-critical'
+    if (railAttention[to] === 'attention') return 'platform-rail-attention'
+    if (to === '/platform' && location.pathname === '/platform') return 'platform-rail-live'
+    return ''
+  }
   return (
     <nav className="flex-1 py-3 px-3 space-y-2">
       {sections.map((section, sectionIdx) => {
@@ -144,13 +171,13 @@ function SidebarNav({
                       end={item.to === '/platform'}
                       title={collapsed ? item.label : undefined}
                       className={({ isActive }) =>
-                        `tahoe-sidebar-link flex items-center gap-3 px-3 py-2.5 text-sm transition-all duration-200 ${
+                        `tahoe-sidebar-link platform-rail-link flex items-center gap-3 px-3 py-2.5 text-sm transition-all duration-200 ${
                           collapsed ? 'justify-center rounded-xl' : 'rounded-full'
                         } ${
                           isActive
                             ? 'tahoe-sidebar-link-active text-white'
                             : 'text-white/55 hover:text-white/90 hover:bg-white/[0.04]'
-                        }`
+                        } ${railClassFor(item.to, isActive)}`
                       }
                     >
                       <span className="shrink-0 opacity-80">{item.icon}</span>

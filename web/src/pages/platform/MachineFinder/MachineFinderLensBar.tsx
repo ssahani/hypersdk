@@ -27,7 +27,11 @@ type Props = {
 }
 
 export default function MachineFinderLensBar({ state }: Props) {
-  const { lens, overlay, setLens, setOverlay } = state
+  const { lens, overlay, setLens, setOverlay, hasGpuVms } = state
+
+  const overlays: { id: MachineFinderOverlay; label: string }[] = hasGpuVms
+    ? [...OVERLAYS, { id: 'gpu', label: 'GPU' }]
+    : OVERLAYS
 
   return (
     <div className="machine-finder-lens-bar flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" data-testid="machine-finder-lens-bar">
@@ -47,7 +51,7 @@ export default function MachineFinderLensBar({ state }: Props) {
       </div>
       {(lens === 'grid' || lens === 'migration') && (
         <div className="flex flex-wrap gap-1">
-          {OVERLAYS.map((o) => (
+          {overlays.map((o) => (
             <button
               key={o.id}
               type="button"

@@ -18,6 +18,8 @@ import {
   type PlatformDesktopTier,
 } from '../../../utils/platformDesktopTier'
 import { dispatchOpenMissionControl } from './MissionControlContext'
+import { dispatchOpenSpotlight } from '../../../utils/platformJarvisShell'
+import { ZEUS_SEARCH_PLACEHOLDER } from '../../../config/aiBrand'
 import { macMenuSectionsForTier } from '../../../utils/platformMacMenus'
 import { integrationNavItems } from '../../../utils/platformIntegrationsNav'
 import { usePlatformInfo } from '../../../contexts/PlatformInfoContext'
@@ -28,8 +30,8 @@ import {
   PLATFORM_DESKTOP_TABS_EVENT,
 } from '../../../utils/platformDesktopTabs'
 
-function openSpotlight() {
-  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
+function openSpotlight(prefill?: string) {
+  dispatchOpenSpotlight(prefill)
 }
 
 export default function PlatformMacAppMenus() {
@@ -41,6 +43,7 @@ export default function PlatformMacAppMenus() {
   const [tier, setTier] = usePlatformDesktopTier()
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [openWindows, setOpenWindows] = useState(() => loadPlatformDesktopTabs())
+  const [zeusQuery, setZeusQuery] = useState('')
 
   const { info } = usePlatformInfo()
   const navSections = useMemo(() => macMenuSectionsForTier(tier, integrationNavItems(info)), [tier, info])
@@ -181,6 +184,24 @@ export default function PlatformMacAppMenus() {
         ))}
         <PlatformMacMenuItem label="OpenAPI Reference" onClick={() => { window.open('/api/v1/openapi.json', '_blank'); closeMenu() }} />
       </PlatformMacMenuDropdown>
+
+      <form
+        className="hidden md:flex items-center ml-2 min-w-[12rem] max-w-md flex-1"
+        onSubmit={(e) => {
+          e.preventDefault()
+          openSpotlight(zeusQuery.trim() || undefined)
+          setZeusQuery('')
+        }}
+      >
+        <input
+          type="search"
+          value={zeusQuery}
+          onChange={(e) => setZeusQuery(e.target.value)}
+          placeholder={ZEUS_SEARCH_PLACEHOLDER}
+          className="w-full rounded-lg bg-white/[0.06] border border-white/[0.08] px-3 py-1 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500/40"
+          data-testid="menubar-zeus-search"
+        />
+      </form>
 
       <div className="hidden xl:flex items-center gap-2 ml-2 pl-2 border-l border-white/[0.08] text-xs text-white/50">
         <ConnectionStatus />

@@ -68,7 +68,8 @@ const ICON_BY_PATH: Record<string, LucideIcon> = {
 }
 
 const LABEL_BY_PATH: Record<string, string> = {
-  '/platform/hosts': 'Machines',
+  '/platform': 'Mission Control',
+  '/platform/hosts': 'Hosts',
   '/platform/vms': 'Machines',
   '/platform/storage': 'Storage',
   '/platform/networks': 'Network',

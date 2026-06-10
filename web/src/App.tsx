@@ -135,6 +135,7 @@ const PlatformWorkloadsHub = lazy(() => import('./pages/platform/PlatformWorkloa
 const PlatformAdministrationHub = lazy(() => import('./pages/platform/PlatformAdministrationHub'))
 const PlatformOperationsHub = lazy(() => import('./pages/platform/PlatformOperationsHub'))
 const PlatformSettingsHub = lazy(() => import('./pages/platform/PlatformSettingsHub'))
+const PlatformNotFound = lazy(() => import('./pages/platform/PlatformNotFound'))
 const PlatformMigration = lazy(() => import('./pages/platform/PlatformMigration'))
 const PlatformActivityMonitor = lazy(() => import('./pages/platform/PlatformActivityMonitor'))
 const PlatformRecommendations = lazy(() => import('./pages/platform/PlatformRecommendations'))
@@ -423,6 +424,7 @@ function AuthenticatedShellRoutes() {
                   <Route path="projects" element={<PlatformProjects />} />
                   <Route path="notifications" element={<PlatformNotifications />} />
                   <Route path="settings" element={<PlatformSettingsHub />} />
+                  <Route path="*" element={<PlatformNotFound />} />
                 </Route>
                 <Route path="/create" element={<CreateVM />} />
                 <Route path="/jobs/:jobId" element={<Jobs />} />

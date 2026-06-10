@@ -159,7 +159,7 @@ export const navGroups: NavGroup[] = [
       {
         label: 'Overview',
         items: [
-          { to: '/platform', icon: React.createElement(Cloud, { className: 'w-4 h-4' }), label: 'Dashboard' },
+          { to: '/platform', icon: React.createElement(Cloud, { className: 'w-4 h-4' }), label: 'Mission Control' },
           { to: '/platform/vms', icon: React.createElement(MonitorCog, { className: 'w-4 h-4' }), label: 'Virtual Machines' },
           { to: '/platform/applications', icon: React.createElement(Boxes, { className: 'w-4 h-4' }), label: 'Applications' },
           { to: '/platform/hosts', icon: React.createElement(Server, { className: 'w-4 h-4' }), label: 'Hosts' },

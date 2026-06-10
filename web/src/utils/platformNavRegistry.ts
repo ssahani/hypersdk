@@ -450,7 +450,7 @@ export function contextNavForPath(pathname: string, tier: PlatformDesktopTier): 
     const label = platformPageLabel(pathname)
     if (pathname === '/platform') {
       return {
-        appLabel: 'Dashboard',
+        appLabel: 'Mission Control',
         appIcon: LayoutGrid,
         items: [],
       }

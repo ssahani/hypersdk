@@ -21,6 +21,7 @@ import {
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { hostStateTone, statusPillClasses, statusToneClass, hubLinkClasses } from '../../utils/semanticColors'
+import HostFleetCard, { HostCommandCenter } from '../../components/platform/fleet/HostFleetCard'
 
 function hostTone(h: PlatformHost): 'ok' | 'warn' | 'default' {
   const tone = hostStateTone(h.state, h.fenced, h.maintenance_mode)
@@ -269,6 +270,22 @@ export default function PlatformHosts() {
       }
       contentClassName="space-y-4"
     >
+      {viewMode === 'icons' && visibleHosts.length > 0 && (
+        <div className="flex flex-col xl:flex-row gap-4" data-testid="host-fleet-panels">
+          <div className="grid gap-3 sm:grid-cols-2 flex-1 min-w-0">
+            {visibleHosts.map((h) => (
+              <HostFleetCard
+                key={h.id}
+                host={h}
+                linux={linuxByHost[h.id]}
+                selected={selectedId === h.id}
+                onSelect={() => setSelectedId(h.id)}
+              />
+            ))}
+          </div>
+          <HostCommandCenter host={selected} linux={selected ? linuxByHost[selected.id] : undefined} />
+        </div>
+      )}
       <FinderView
         title="Fleet"
         search={search}

@@ -14,6 +14,7 @@ export type MachineFinderOverlay =
   | 'backup'
   | 'network'
   | 'security'
+  | 'gpu'
   | 'cost'
   | 'migration'
 

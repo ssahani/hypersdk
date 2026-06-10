@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import { AlertTriangle, ArrowRightLeft, Boxes, Server, X } from 'lucide-react'
 import {
   getClusterSummary,
@@ -35,6 +35,7 @@ import { operationsHubHref, tasksHubHref } from '../../utils/platformHubLinks'
 import { formatFleetDisplayTitle } from '../../utils/fleetDisplayName'
 
 export default function MissionControlOverlay() {
+  const location = useLocation()
   const { open, closeMissionControl } = useMissionControl()
   const [hosts, setHosts] = useState<PlatformHost[]>([])
   const [vms, setVms] = useState<PlatformVm[]>([])
@@ -98,7 +99,7 @@ export default function MissionControlOverlay() {
     enabled: open,
   })
 
-  if (!open) return null
+  if (!open || location.pathname.replace(/\/$/, '') === '/platform') return null
 
   const failedTasks = tasks.filter((t) => t.status === 'failed')
   const migrations = tasks.filter((t) => t.operation.includes('migrate'))

@@ -31,7 +31,7 @@ function defaultSidebarCollapsedForTier(tier: PlatformDesktopTier): boolean {
   } catch {
     /* ignore */
   }
-  return tier === 'power'
+  return tier === 'normal' || tier === 'power'
 }
 
 export function PlatformMacDesktopProvider({ children }: { children: ReactNode }) {

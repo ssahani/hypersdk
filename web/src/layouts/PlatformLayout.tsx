@@ -31,6 +31,7 @@ import { usePlatformTierRouteGuard } from '../hooks/usePlatformTierRouteGuard'
 import { useKeyboardShortcut, isInputFocused } from '../hooks/useKeyboardShortcut'
 import { suppressContextBar } from '../utils/platformNavRegistry'
 import { contextNavForPath, shouldShowContextBar } from '../utils/platformContextNav'
+import { dispatchScrollGeography } from '../utils/platformJarvisShell'
 
 function PlatformDesktopShell() {
   const location = useLocation()
@@ -62,19 +63,25 @@ function PlatformDesktopShell() {
   }, [])
 
   useEffect(() => {
-    const open = () => openMissionControl()
+    const open = () => {
+      const path = location.pathname.replace(/\/$/, '') || '/platform'
+      if (path === '/platform') dispatchScrollGeography()
+      else openMissionControl()
+    }
     window.addEventListener(OPEN_MISSION_CONTROL_EVENT, open)
     return () => window.removeEventListener(OPEN_MISSION_CONTROL_EVENT, open)
-  }, [openMissionControl])
+  }, [openMissionControl, location.pathname])
 
   useEffect(() => {
     if (searchParams.get('mission') === '1') {
-      openMissionControl()
       const next = new URLSearchParams(searchParams)
       next.delete('mission')
       setSearchParams(next, { replace: true })
+      const path = location.pathname.replace(/\/$/, '') || '/platform'
+      if (path === '/platform') dispatchScrollGeography()
+      else navigate('/platform#geography')
     }
-  }, [searchParams, setSearchParams, openMissionControl])
+  }, [searchParams, setSearchParams, location.pathname, navigate])
 
   useEffect(() => {
     try {
@@ -89,6 +96,11 @@ function PlatformDesktopShell() {
     handler: (e) => {
       if (isInputFocused()) return
       e.preventDefault()
+      const path = location.pathname.replace(/\/$/, '') || '/platform'
+      if (path === '/platform') {
+        dispatchScrollGeography()
+        return
+      }
       openMissionControl()
     },
   })
@@ -99,6 +111,11 @@ function PlatformDesktopShell() {
     handler: (e) => {
       if (isInputFocused()) return
       e.preventDefault()
+      const path = location.pathname.replace(/\/$/, '') || '/platform'
+      if (path === '/platform') {
+        dispatchScrollGeography()
+        return
+      }
       openMissionControl()
     },
   })

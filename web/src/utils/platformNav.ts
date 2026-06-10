@@ -39,8 +39,8 @@ export const PLATFORM_SIDEBAR: PlatformNavSection[] = [
   {
     label: 'Favorites',
     items: [
-      { to: '/platform', label: 'Dashboard', icon: ic(LayoutDashboard) },
-      { to: '/platform/vms', label: 'Finder', icon: ic(Monitor) },
+      { to: '/platform', label: 'Mission Control', icon: ic(LayoutDashboard) },
+      { to: '/platform/vms', label: 'Machine Finder', icon: ic(Monitor) },
       { to: '/platform/hosts', label: 'Hosts', icon: ic(Server) },
       { to: '/platform/settings', label: 'Settings', icon: ic(Settings) },
     ],
@@ -78,7 +78,7 @@ export const NORMAL_FAVORITE_PATHS = [
 ] as const
 
 export const PLATFORM_PAGE_LABELS: Record<string, string> = {
-  '/platform': 'Dashboard',
+  '/platform': 'Mission Control',
   '/platform/vms': 'Finder',
   '/platform/applications': 'Applications',
   '/platform/hosts': 'Hosts',

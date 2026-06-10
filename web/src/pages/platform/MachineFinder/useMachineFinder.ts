@@ -38,8 +38,13 @@ import { CLIENT_ONLY_FOLDERS, type MachineFinderLens, type MachineFinderOverlay 
 
 const VALID_LENSES = new Set<MachineFinderLens>(['grid', 'table', 'topology', 'timeline', 'heatmap', 'migration'])
 const VALID_OVERLAYS = new Set<MachineFinderOverlay>([
-  'default', 'health', 'backup', 'network', 'security', 'cost', 'migration',
+  'default', 'health', 'backup', 'network', 'security', 'gpu', 'cost', 'migration',
 ])
+
+function vmHasGpu(vm: PlatformVm): boolean {
+  const tags = (vm.tags ?? []).join(' ').toLowerCase()
+  return tags.includes('gpu') || tags.includes('nvidia') || tags.includes('cuda') || tags.includes('vgpu')
+}
 
 function parseLens(raw: string | null): MachineFinderLens {
   if (raw && VALID_LENSES.has(raw as MachineFinderLens)) return raw as MachineFinderLens
@@ -90,6 +95,7 @@ export function useMachineFinder() {
 
   const hostMap = useMemo(() => new Map(hosts.map((h) => [h.id, h.hostname])), [hosts])
   const vmById = useMemo(() => new Map(vms.map((v) => [v.id, v])), [vms])
+  const hasGpuVms = useMemo(() => vms.some(vmHasGpu), [vms])
 
   const filteredVms = useMemo(() => {
     let list = vms
@@ -577,6 +583,7 @@ export function useMachineFinder() {
     finder,
     hosts,
     hostMap,
+    hasGpuVms,
     vmById,
     error,
     search,

@@ -13,7 +13,7 @@ async function expectRouteVisible(
 }
 
 const NORMAL_ROUTES: Array<{ path: string; heading: string | RegExp }> = [
-  { path: '/platform', heading: /e2e-cluster|Production Cluster|Zyvor Platform/i },
+  { path: '/platform', heading: /e2e-cluster|host-1|Mission Control|Machina fleet/i },
   { path: '/platform/vms', heading: 'Machine Finder' },
   { path: '/platform/hosts', heading: 'Hosts' },
   { path: '/platform/integrations', heading: 'Apps & Integrations' },

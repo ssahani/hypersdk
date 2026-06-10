@@ -86,23 +86,25 @@ const POWER_PATHS = [
 ]
 
 export const DOCK_PATHS_BY_TIER: Record<PlatformDesktopTier, string[]> = {
-  normal: ['/platform', '/platform/hosts', '/platform/vms', '/platform/integrations', '/platform/settings'],
+  normal: ['/platform', '/platform/vms', '/platform/hosts', '/platform/storage', '/platform/networks', '/platform/zeus', '/platform/settings'],
   power: [
     '/platform',
-    '/platform/hosts',
     '/platform/vms',
+    '/platform/hosts',
+    '/platform/storage',
+    '/platform/networks',
+    '/platform/zeus',
     '/platform/infrastructure',
-    '/platform/operations',
     '/platform/settings',
   ],
   advanced: [
     '/platform',
-    '/platform/hosts',
     '/platform/vms',
+    '/platform/hosts',
+    '/platform/storage',
+    '/platform/networks',
     '/platform/zeus',
     '/platform/infrastructure',
-    '/platform/workloads',
-    '/platform/administration',
     '/platform/operations',
     '/platform/settings',
   ],
