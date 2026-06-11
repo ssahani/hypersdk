@@ -136,13 +136,21 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/vms/{id}/vcpus", post(vms::set_vm_vcpus))
         .route("/api/v1/vms/{id}/memory", post(vms::set_vm_memory))
         .route("/api/v1/vms/{id}/libvirt-details", get(vms::get_vm_libvirt_details))
+        .route("/api/v1/vms/{id}/pending-config", get(vms::get_vm_pending_config))
+        .route("/api/v1/vms/pending-config/batch", post(vms::batch_vm_parity_summary))
+        .route("/api/v1/vms/guest-ips/batch", post(vms::batch_vm_guest_ips))
+        .route("/api/v1/vms/{id}/viewer.vv", get(vms::get_vm_viewer_vv))
+        .route("/api/v1/vms/{id}/qemu-logs", get(vms::get_vm_qemu_logs))
+        .route("/api/v1/vms/{id}/rename", post(vms::rename_platform_vm))
+        .route("/api/v1/vms/{id}/nmi", post(vms::inject_vm_nmi))
+        .route("/api/v1/vms/{id}/graphics/spice-to-vnc", post(vms::convert_vm_spice_to_vnc))
         .route("/api/v1/vms/batch/power", post(vms::batch_vm_power))
         .route("/api/v1/vms/batch/snapshots", post(vms::batch_vm_snapshot))
         .route("/api/v1/vms/batch/delete", post(vms::batch_vm_delete))
         .route("/api/v1/vms/{id}/libvirt", get(vm_libvirt::query_vm_libvirt).post(vm_libvirt::invoke_vm_libvirt))
         .route(
             "/api/v1/hosts/{id}/libvirt",
-            get(vm_libvirt::query_host_libvirt),
+            get(vm_libvirt::query_host_libvirt).post(vm_libvirt::invoke_host_libvirt),
         )
         .route("/api/v1/vms/{id}/metrics", get(vms::get_vm_metrics))
         .route("/api/v1/vms/{id}/adopt", post(vms::adopt_vm))
@@ -474,6 +482,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/vms/{id}/pause", post(vms::pause_vm))
         .route("/api/v1/vms/{id}/resume", post(vms::resume_vm))
         .route("/api/v1/vms/{id}/reboot", post(vms::reboot_vm))
+        .route("/api/v1/vms/{id}/reset", post(vms::reset_vm))
+        .route("/api/v1/vms/{id}/install", post(vms::install_vm))
         .route("/api/v1/vms/{id}/delete", post(vms::delete_vm))
         .route(
             "/api/v1/vms/{id}/guest-tools/install",
@@ -487,6 +497,10 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/v1/vms/from-template", post(vms::create_from_template))
         .route("/api/v1/vms/from-iso", post(vms::create_from_iso))
+        .route(
+            "/api/v1/vms/from-virt-install",
+            post(vms::create_from_virt_install),
+        )
         .route("/api/v1/vms/{id}/clone", post(vms::clone_vm))
         .route("/api/v1/vms/{id}/publish-template", post(vms::publish_vm_template))
         .route("/api/v1/vms/{id}/retire", post(vms::retire_vm))
@@ -589,6 +603,12 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/storage/pools/{id}",
             patch(storage::patch_storage_pool).delete(storage::delete_storage_pool),
         )
+        .route("/api/v1/storage/pools/{id}/activate", post(storage::activate_storage_pool))
+        .route("/api/v1/storage/pools/{id}/deactivate", post(storage::deactivate_storage_pool))
+        .route("/api/v1/storage/pools/{id}/refresh", post(storage::refresh_storage_pool))
+        .route("/api/v1/storage/pools/live", get(storage::live_storage_pools))
+        .route("/api/v1/storage/pools/{id}/volumes", get(storage::list_storage_pool_volumes).post(storage::create_storage_pool_volume))
+        .route("/api/v1/storage/pools/{id}/volumes/{vol_name}", delete(storage::delete_storage_pool_volume))
         .route("/api/v1/storage/tiers/overview", get(storage_tiers::tiers_overview))
         .route(
             "/api/v1/storage/pools/{pool_id}/tier/{tier_id}",
@@ -612,6 +632,9 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/networks/{id}",
             patch(networks::patch_network).delete(networks::delete_network),
         )
+        .route("/api/v1/networks/{id}/activate", post(networks::activate_network))
+        .route("/api/v1/networks/{id}/deactivate", post(networks::deactivate_network))
+        .route("/api/v1/networks/live", get(networks::live_networks))
         .route(
             "/api/v1/network/segments/overview",
             get(network_segments::segments_overview),

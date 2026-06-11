@@ -110,7 +110,7 @@ HyperSDK: [`HypersdkStatusBanner`](../web/src/components/HypersdkStatusBanner.ts
 Proves buttons and page loads hit working backends on a real host (not mocked Playwright).
 
 ```bash
-# Regenerate page matrix
+# Regenerate page matrix (~200+ routes, tabs, and dynamic detail sweeps)
 node scripts/generate-ux-live-manifest.mjs
 
 # Against remote host (requires PAM credentials)
@@ -216,6 +216,26 @@ New UI should work in **dark**, **steel**, and **aurora** themes (all dark; auro
 | Sign in at `/login` | Lands on dashboard (`/`), not 404 |
 | `prefers-reduced-motion` | Login: no orb animation |
 | Light / dark / steel | Dashboard, Login, one OpenStack page |
+
+## UX Wave 9 (2026-06)
+
+Compound operating surfaces across admin, security, and observability — briefing stats, `DetailTabs`, `GlassDataTable`, and `PlatformEmptyState` on zero-row panels.
+
+| Route / area | Pattern |
+|------------|---------|
+| `/platform/users` | `OperatingSurfaceLayout` + user/workspace tabs + `GlassDataTable` |
+| `/platform/projects` | Spaces briefing + project table empty state |
+| `/platform/api-keys`, `/platform/webhooks` | Command bar + glass table empty states |
+| `/platform/observability` | SLO / traces / metrics lens tabs + briefing stats |
+| `/platform/events` | Audit log stream + source tabs |
+| `/platform/zeus/security/ports`, `/services`, `/activity` | `SecurityLensLayout` + exposure briefing |
+| `/platform/applications`, `/enroll`, `/placement`, `/recommendations`, `/fleet-snapshots` | Operations compound surfaces (Wave 3) |
+| Hub roots (`/platform/infrastructure`, `/workloads`, `/operations`) | `PageSkeleton` while async stats load |
+| Classic (`/vms`, `/networks`, `/events`, `/jobs`) | `PageSkeleton` + `EmptyState` CTAs |
+| OpenStack detail routes | `PageSkeleton` replaces full-page `Loader2` |
+| K8s overview / workloads | Full-page `PageSkeleton` on initial fetch |
+
+E2E: `cd web && npm run test:e2e -- e2e/platform-admin-ux.spec.ts e2e/platform-observability-ux.spec.ts e2e/platform-security-ux.spec.ts e2e/classic-operator-ux.spec.ts`
 
 Build: `cd web && npm run build`. Deploy: `./scripts/deploy remote user@host --quick` then re-run `openstack-wire-cloud.sh` if install reset config.
 

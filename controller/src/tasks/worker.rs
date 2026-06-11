@@ -63,6 +63,7 @@ async fn process_one(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> 
         "vm.autostart" => vm_autostart(state, msg).await?,
         "vm.resize" => vm_resize(state, msg).await?,
         "vm.guest_tools.install" => vm_guest_tools_install(state, msg).await?,
+        "vm.install" => vm_install(state, msg).await?,
         "templates.prefetch_missing" => templates_prefetch_missing(state, msg).await?,
         other => anyhow::bail!("unknown operation: {other}"),
     }
@@ -208,7 +209,7 @@ async fn vm_power(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     let resp = agent_client::vm_power(&mut client, &row.0, &action, power_mode).await?;
 
     let desired = match action.as_str() {
-        "start" | "resume" | "reboot" => "running",
+        "start" | "resume" | "reboot" | "reset" => "running",
         "stop" | "shutdown" => "stopped",
         "pause" => "paused",
         _ => "running",
@@ -224,6 +225,42 @@ async fn vm_power(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
 
     state.emit_event("vm.power", format!("VM {} -> {}", row.0, resp.state));
     update_task_progress(&state.pool, msg.task_id, 100, &resp.state).await?;
+    Ok(())
+}
+
+async fn vm_install(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
+    let vm_id: Uuid = msg.payload["vm_id"]
+        .as_str()
+        .and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
+    vm_lifecycle::set_vm_phase_clear_error(&state.pool, vm_id, vm_lifecycle::PHASE_STARTING).await?;
+
+    let row: (String, String, Option<Uuid>) =
+        sqlx::query_as("SELECT name, spec_json, host_id FROM vms WHERE id = $1")
+            .bind(vm_id)
+            .fetch_one(&state.pool)
+            .await?;
+    let host_id = row.2.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
+    let vm: machina_spec::VirtualMachine = serde_json::from_str(&row.1)?;
+    let agent_addr = host_agent_addr(&state.pool, host_id).await?;
+    let mut client = agent_client::connect(&agent_addr).await?;
+    agent_client::vm_libvirt_invoke(
+        &mut client,
+        &row.0,
+        "domain.install",
+        &serde_json::json!({ "spec": vm }),
+    )
+    .await?;
+
+    sqlx::query(
+        "UPDATE vms SET desired_state = 'running', observed_state = 'running', updated_at = NOW() WHERE id = $1",
+    )
+    .bind(vm_id)
+    .execute(&state.pool)
+    .await?;
+
+    state.emit_event("vm.install", format!("VM {} install started", row.0));
+    update_task_progress(&state.pool, msg.task_id, 100, "install started").await?;
     Ok(())
 }
 
@@ -321,13 +358,15 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
         if let Some((id, _managed)) = existing {
             sqlx::query(
                 "UPDATE vms SET host_id = $1, observed_state = $2, uuid = COALESCE(NULLIF($3, ''), uuid),
-                 vcpus = $4, memory_mib = $5, last_seen_at = NOW(), updated_at = NOW() WHERE id = $6",
+                 vcpus = $4, memory_mib = $5, guest_ip = CASE WHEN $6 != '' THEN $6 ELSE guest_ip END,
+                 last_seen_at = NOW(), updated_at = NOW() WHERE id = $7",
             )
             .bind(host_id)
             .bind(&vm.state)
             .bind(&vm.uuid)
             .bind(vm.vcpus as i32)
             .bind(vm.memory_mb as i64)
+            .bind(&vm.guest_ip)
             .bind(id)
             .execute(&state.pool)
             .await?;
@@ -420,6 +459,8 @@ async fn vm_migrate(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     let live = msg.payload["live"].as_bool().unwrap_or(true);
     let bandwidth_mib = msg.payload["bandwidth_mib"].as_u64().unwrap_or(0);
     let postcopy = msg.payload["postcopy"].as_bool().unwrap_or(false);
+    let undefine_source = msg.payload["undefine_source"].as_bool().unwrap_or(false);
+    let tunnelled = msg.payload["tunnelled"].as_bool().unwrap_or(false);
 
     vm_lifecycle::set_vm_phase(&state.pool, vm_id, vm_lifecycle::PHASE_MIGRATING).await?;
 
@@ -458,7 +499,7 @@ async fn vm_migrate(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
 
     let agent_addr = host_agent_addr(&state.pool, source_host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
-    agent_client::migrate_vm(&mut client, &row.0, &dest_uri, live, bandwidth_mib, postcopy)
+    agent_client::migrate_vm(&mut client, &row.0, &dest_uri, live, bandwidth_mib, postcopy, undefine_source, tunnelled)
         .await?;
 
     sqlx::query("UPDATE vms SET host_id = $1, updated_at = NOW() WHERE id = $2")

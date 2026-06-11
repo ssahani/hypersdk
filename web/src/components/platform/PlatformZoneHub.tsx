@@ -99,6 +99,7 @@ type PlatformZoneHubProps = {
   extraGroup?: { label: string; subtitle?: string; tiles: ZoneTileDef[] }
   subtitleStats?: React.ReactNode
   headerIcon?: React.ReactNode
+  loading?: boolean
 }
 
 export default function PlatformZoneHub({
@@ -108,6 +109,7 @@ export default function PlatformZoneHub({
   extraGroup,
   subtitleStats,
   headerIcon,
+  loading,
 }: PlatformZoneHubProps) {
   const [tier] = usePlatformDesktopTier()
   const zone = dashboardZoneById(zoneId)
@@ -142,6 +144,7 @@ export default function PlatformZoneHub({
     <PlatformPageChrome
       compact={embedded}
       hideHeader={embedded}
+      loading={loading}
       prepend={embedded ? undefined : <PlatformBackLink to="/platform" label="Platform" />}
       title={embedded ? undefined : zone.label}
       subtitle={

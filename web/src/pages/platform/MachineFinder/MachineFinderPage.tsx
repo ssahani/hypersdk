@@ -22,6 +22,7 @@ import { useToastContext } from '../../../contexts/ToastContext'
 import { toastQueuedOperation } from '../../../utils/platformTaskToast'
 import VmSshConnectDialog, { navigateVmSshSession } from '../../../components/vm/VmSshConnectDialog'
 import MachineFinderBriefing from './MachineFinderBriefing'
+import MachineFinderResourceStrip from '../../../components/platform/MachineFinderResourceStrip'
 import MachineFinderCanvas from './MachineFinderCanvas'
 import MachineFinderCommandBar from './MachineFinderCommandBar'
 import MachineFinderCommandCenter from './MachineFinderCommandCenter'
@@ -66,7 +67,15 @@ export default function MachineFinderPage() {
       <section className="machine-finder-root flex flex-col gap-4 min-h-0" data-testid="machine-finder-page">
         <MachineFinderCommandBar state={state} />
 
-        {error && <StructuredErrorBanner error={error} />}
+        {error && (
+          <div className="space-y-2">
+            <StructuredErrorBanner error={error} />
+            <div className="flex flex-wrap gap-2 pl-1">
+              <button type="button" className="btn-secondary text-xs" onClick={() => void load()}>Retry</button>
+              <Link to="/platform/settings?section=general" className="btn-secondary text-xs">Controller settings</Link>
+            </div>
+          </div>
+        )}
 
         {fleetGuestReport && (
           <div className="rounded-xl border border-white/[0.08] bg-slate-900/60 p-4 text-sm relative">
@@ -94,6 +103,7 @@ export default function MachineFinderPage() {
 
           <main className="flex-1 min-w-0 flex flex-col gap-3">
             {showSidebar && <MachineFinderBriefing state={state} />}
+            <MachineFinderResourceStrip />
             <MachineFinderLensBar state={state} />
             <MachineFinderCanvas state={state} />
           </main>
@@ -120,9 +130,9 @@ export default function MachineFinderPage() {
         <VmSshConnectDialog
           open
           vmName={sshVm.name}
-          defaultIp={sshVm.guest_ip ?? ''}
+          defaultIp={sshVm ? state.displayGuestIp(sshVm) : ''}
           defaultUser="ubuntu"
-          detectedIps={sshVm.guest_ip ? [sshVm.guest_ip] : []}
+          detectedIps={sshVm ? [state.displayGuestIp(sshVm)].filter(Boolean) : []}
           onClose={() => setSshVm(null)}
           onConnect={(h, u) => navigateVmSshSession(sshVm.name, h, u)}
         />

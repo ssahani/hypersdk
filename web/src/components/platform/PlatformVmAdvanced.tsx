@@ -126,7 +126,7 @@ export default function PlatformVmAdvanced({
   }
 
   return (
-    <div className="space-y-4 pt-2">
+    <div className="space-y-4 pt-2" data-testid="vm-advanced-panel">
       <MacGlassPanel title="Block jobs" subtitle="Commit, pull, or abort backing-chain operations">
         <div className="flex flex-wrap gap-3 items-end text-sm">
           <label className="text-xs text-slate-500">Disk target
@@ -231,7 +231,7 @@ export default function PlatformVmAdvanced({
         </div>
       </MacGlassPanel>
 
-      <MacGlassPanel title="USB & PCI passthrough">
+      <MacGlassPanel title="USB & PCI passthrough" data-testid="vm-hostdev-panel">
         <div className="grid gap-4 md:grid-cols-2 text-sm">
           <div>
             <p className="text-xs text-slate-500 mb-2">USB devices on host</p>

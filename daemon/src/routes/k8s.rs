@@ -3156,6 +3156,107 @@ async fn k8s_kubevirt_delete_vm(
     })))
 }
 
+#[derive(Debug, Deserialize)]
+struct KubeVirtLifecycleBody {
+    action: String,
+    #[serde(default)]
+    context: Option<String>,
+}
+
+async fn k8s_kubevirt_vm_lifecycle(
+    Extension(actor): Extension<RequestActor>,
+    axum::extract::Path((namespace, name)): axum::extract::Path<(String, String)>,
+    Json(body): Json<KubeVirtLifecycleBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+    let ctx = body.context.as_deref();
+    if let Some(c) = ctx {
+        ensure_k8s_context_name(c)?;
+    }
+    ensure_safe_name(&namespace, "namespace")?;
+    ensure_safe_name(&name, "name")?;
+    let action = body.action.trim().to_ascii_lowercase();
+    let patch = match action.as_str() {
+        "start" => Some(r#"{"spec":{"running":true}}"#),
+        "stop" => Some(r#"{"spec":{"running":false}}"#),
+        "restart" => None,
+        other => {
+            return Err(AppError::from(LibvirtError::Invalid(format!(
+                "action must be start, stop, or restart (got \"{other}\")"
+            ))));
+        }
+    };
+    if action == "restart" {
+        let stop_args = vec![
+            "patch".into(),
+            "virtualmachine.kubevirt.io".into(),
+            name.clone(),
+            "-n".into(),
+            namespace.clone(),
+            "--type".into(),
+            "merge".into(),
+            "-p".into(),
+            r#"{"spec":{"running":false}}"#.into(),
+        ];
+        let stop_res = run_kubectl_timeout(&stop_args, KUBECTL_TIMEOUT_SECS, ctx).await?;
+        if !stop_res.ok {
+            return Err(AppError::from(LibvirtError::Operation(format!(
+                "kubevirt restart (stop phase) failed (exit {}): {}{}",
+                stop_res.exit_code, stop_res.stderr, stop_res.stdout
+            ))));
+        }
+        let start_args = vec![
+            "patch".into(),
+            "virtualmachine.kubevirt.io".into(),
+            name.clone(),
+            "-n".into(),
+            namespace.clone(),
+            "--type".into(),
+            "merge".into(),
+            "-p".into(),
+            r#"{"spec":{"running":true}}"#.into(),
+        ];
+        let start_res = run_kubectl_timeout(&start_args, KUBECTL_TIMEOUT_SECS, ctx).await?;
+        if !start_res.ok {
+            return Err(AppError::from(LibvirtError::Operation(format!(
+                "kubevirt restart (start phase) failed (exit {}): {}{}",
+                start_res.exit_code, start_res.stderr, start_res.stdout
+            ))));
+        }
+        return Ok(Json(serde_json::json!({
+            "action": action,
+            "namespace": namespace,
+            "name": name,
+            "ok": true,
+        })));
+    }
+    let patch = patch.expect("start/stop always have patch");
+    let mut args = vec![
+        "patch".into(),
+        "virtualmachine.kubevirt.io".into(),
+        name.clone(),
+        "-n".into(),
+        namespace.clone(),
+        "--type".into(),
+        "merge".into(),
+        "-p".into(),
+        patch.into(),
+    ];
+    let res = run_kubectl_timeout(&args, KUBECTL_TIMEOUT_SECS, ctx).await?;
+    if !res.ok {
+        return Err(AppError::from(LibvirtError::Operation(format!(
+            "kubevirt {action} failed (exit {}): {}{}",
+            res.exit_code, res.stderr, res.stdout
+        ))));
+    }
+    Ok(Json(serde_json::json!({
+        "action": action,
+        "namespace": namespace,
+        "name": name,
+        "ok": true,
+    })))
+}
+
 async fn k8s_overview(
     Extension(actor): Extension<RequestActor>,
     Query(q): Query<K8sOverviewQuery>,
@@ -3891,6 +3992,10 @@ pub fn k8s_routes() -> Router<LibvirtManager> {
         .route(
             "/k8s/kubevirt/virtualmachines/{namespace}/{name}",
             axum::routing::delete(k8s_kubevirt_delete_vm),
+        )
+        .route(
+            "/k8s/kubevirt/virtualmachines/{namespace}/{name}/lifecycle",
+            post(k8s_kubevirt_vm_lifecycle),
         )
         .route("/k8s/action", post(k8s_action))
         .route("/k8s/kata-deploy", post(k8s_kata_deploy))

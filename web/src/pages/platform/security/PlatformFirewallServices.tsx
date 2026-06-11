@@ -1,24 +1,24 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router'
-import { ArrowLeft, RefreshCw, Server } from 'lucide-react'
-import { MacGlassPanel } from '../../../components/platform/mac/PlatformMacUi'
-import PageLayout from '../../../components/PageLayout'
+import { Server } from 'lucide-react'
+import SecurityLensLayout from '../../../components/platform/SecurityLensLayout'
 import { getFirewallOverview, getFirewallServices, type AllowedService } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
 import { firewallRiskClass, formatAllowedFrom } from '../../../utils/firewallDisplay'
-import { statusToneClass, hubLinkClasses } from '../../../utils/semanticColors'
+import { statusToneClass } from '../../../utils/semanticColors'
 
 type ServiceRow = AllowedService & { target: string; targetId: string; key: string }
 
 export default function PlatformFirewallServices() {
   const [services, setServices] = useState<ServiceRow[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
 
   const load = useCallback(async () => {
     setError(null)
+    setLoading(true)
     try {
       const ov = await getFirewallOverview()
       const all: ServiceRow[] = []
@@ -41,6 +41,8 @@ export default function PlatformFirewallServices() {
       setServices(all)
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -58,65 +60,62 @@ export default function PlatformFirewallServices() {
     )
   }, [services, filter])
 
+  const criticalCount = services.filter((s) => String(s.status).toLowerCase() === 'critical').length
+
   return (
-    <PageLayout
-      compact
-      error={error}
-      prepend={
-        <Link to="/platform/zeus/security/firewall" className={`text-sm inline-flex items-center gap-1 ${hubLinkClasses()}`}>
-          <ArrowLeft className="w-4 h-4" /> Firewall
-        </Link>
-      }
+    <SecurityLensLayout
+      testId="platform-firewall-services-page"
       title="Allowed Apps & Services"
       subtitle={`${visible.length} service${visible.length === 1 ? '' : 's'} · deduplicated rules per host`}
       icon={<Server className="w-6 h-6 text-slate-400" />}
-      actions={
-        <button type="button" className="btn-secondary" onClick={() => void load()} aria-label="Refresh">
-          <RefreshCw className="w-4 h-4" />
-        </button>
-      }
-      contentClassName="space-y-4"
+      loading={loading && services.length === 0}
+      error={error}
+      onRefresh={() => void load()}
+      stats={[
+        { label: 'Services', value: String(services.length), icon: <Server className="w-4 h-4" /> },
+        { label: 'Critical', value: String(criticalCount), tone: criticalCount > 0 ? 'warn' : 'default' },
+        { label: 'Visible', value: String(visible.length) },
+      ]}
+      panelTitle="Allowed services"
+      isEmpty={visible.length === 0}
+      emptyTitle={services.length === 0 ? 'No allowed services yet' : 'No services match this filter'}
+      emptySubtitle={services.length === 0 ? 'Firewall profiles will populate when Zeus agents sync rules.' : 'Clear the search filter to see all services.'}
     >
-      <MacGlassPanel title="Allowed services">
-        <div className="flex flex-wrap gap-2 mb-4">
-          <input
-            className="input text-sm max-w-xs"
-            placeholder="Filter by name, port, or host…"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
-          <span className="text-sm text-slate-500 self-center">{visible.length} service(s)</span>
-        </div>
-        <div className="space-y-2">
-          {visible.map((s) => (
-            <article
-              key={s.key}
-              className="rounded-xl border border-white/[0.08] bg-slate-950/40 px-4 py-3 flex flex-wrap items-start justify-between gap-3"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="font-medium text-slate-100 text-[15px] leading-snug">{s.name}</p>
-                <p className="text-[13px] text-slate-400 mt-1 leading-relaxed">
-                  <span className="text-slate-300">{s.target}</span>
-                  {' · '}
-                  <span className="font-mono text-slate-300">{s.protocol}/{s.port}</span>
-                </p>
-                <p className="text-[13px] text-slate-500 mt-1">
-                  Allowed from: <span className="text-slate-300">{formatAllowedFrom(s.allowed_from)}</span>
-                </p>
-                {s.recommendation && (
-                  <p className={`text-[13px] mt-2 leading-relaxed ${statusToneClass('warn')}`}>{s.recommendation}</p>
-                )}
-              </div>
-              <span className={`text-xs px-2.5 py-1 rounded-full border shrink-0 ${firewallRiskClass(String(s.status))}`}>
-                {String(s.status)}
-              </span>
-            </article>
-          ))}
-          {visible.length === 0 && (
-            <p className="text-sm text-slate-500 py-6 text-center">No services match this filter.</p>
-          )}
-        </div>
-      </MacGlassPanel>
-    </PageLayout>
+      <div className="flex flex-wrap gap-2 mb-4">
+        <input
+          className="input text-sm max-w-xs"
+          placeholder="Filter by name, port, or host…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+        <span className="text-sm text-slate-500 self-center">{visible.length} service(s)</span>
+      </div>
+      <div className="space-y-2">
+        {visible.map((s) => (
+          <article
+            key={s.key}
+            className="rounded-xl border border-white/[0.08] bg-slate-950/40 px-4 py-3 flex flex-wrap items-start justify-between gap-3"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-slate-100 text-[15px] leading-snug">{s.name}</p>
+              <p className="text-[13px] text-slate-400 mt-1 leading-relaxed">
+                <span className="text-slate-300">{s.target}</span>
+                {' · '}
+                <span className="font-mono text-slate-300">{s.protocol}/{s.port}</span>
+              </p>
+              <p className="text-[13px] text-slate-500 mt-1">
+                Allowed from: <span className="text-slate-300">{formatAllowedFrom(s.allowed_from)}</span>
+              </p>
+              {s.recommendation && (
+                <p className={`text-[13px] mt-2 leading-relaxed ${statusToneClass('warn')}`}>{s.recommendation}</p>
+              )}
+            </div>
+            <span className={`text-xs px-2.5 py-1 rounded-full border shrink-0 ${firewallRiskClass(String(s.status))}`}>
+              {String(s.status)}
+            </span>
+          </article>
+        ))}
+      </div>
+    </SecurityLensLayout>
   )
 }

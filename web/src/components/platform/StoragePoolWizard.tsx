@@ -60,6 +60,7 @@ export default function StoragePoolWizard({ open, onClose, onCreated }: Props) {
     setBusy(true)
     try {
       await createStoragePool({ name, path, storage_class: 'silver', backend: poolBackend })
+      toast.success('Pool registered — libvirt define/build/start queued on online host')
       await onCreated()
       onClose()
       setStep(0)

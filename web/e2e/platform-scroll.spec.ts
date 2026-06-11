@@ -9,17 +9,21 @@ const SHORT_VIEWPORT = 400
 
 test.describe('platform pages document scroll', () => {
   for (const [path, heading] of [
-    ['/platform/vms', /virtual machines/i],
+    ['/platform/vms', /machine finder/i],
     ['/platform/hosts', /hosts/i],
     ['/platform/settings', /settings/i],
     ['/platform/network-canvas', /network canvas/i],
-    ['/platform/templates', /fleet template catalog/i],
+    ['/platform/templates', /marketplace/i],
     ['/platform/networks', /networks/i],
     ['/platform/zeus/security', /security center/i],
     ['/platform/vms?lens=topology', /machine finder|topology/i],
     ['/platform/zeus/rightsizing', /vm rightsizing/i],
     ['/platform/create-iso', /create vm from iso/i],
+    ['/platform/create-advanced', /advanced vm install/i],
     ['/platform/events', /logs & audit/i],
+    ['/platform/users', /Access & Workspaces/i],
+    ['/platform/observability', /Observability/i],
+    ['/platform/zeus/security/ports', /Open Ports/i],
   ] as const) {
     test(`${path} scrolls with short viewport`, async ({ page }) => {
       await mockPlatformApi(page, { tier: 'power' })
@@ -39,7 +43,7 @@ test.describe('platform pages document scroll', () => {
         })
       }
       await page.goto(path)
-      await expect(page.getByRole('heading', { name: heading }).first()).toBeVisible({ timeout: 20_000 })
+      await expect(page.getByRole('heading', { level: 1, name: heading }).first()).toBeVisible({ timeout: 20_000 })
       await expectPageScrolls(page, { viewportHeight: SHORT_VIEWPORT })
     })
   }

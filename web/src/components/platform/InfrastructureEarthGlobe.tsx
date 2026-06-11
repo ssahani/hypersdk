@@ -1,9 +1,10 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
-// Phase 58 — canvas Infrastructure Earth globe (WebGL deferred).
+// Infrastructure Earth globe — WebGL (three.js) with canvas 2D fallback.
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import type { FleetMissionOverview } from '../../api/platform'
+import { useWebGlGlobe } from '../../hooks/useWebGlGlobe'
 import { statusChipClasses } from '../../utils/semanticColors'
 import { UNASSIGNED_RACK, UNASSIGNED_SITE } from '../../utils/machineFinderSelection'
 
@@ -74,9 +75,12 @@ type Props = {
 
 export default function InfrastructureEarthGlobe({ mission, className = '' }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [webGlPreferred] = useState(() => typeof window !== 'undefined' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   const globeSites = useMemo(() => sitesFromMission(mission), [mission])
+  const webGlActive = useWebGlGlobe(canvasRef, globeSites, webGlPreferred)
 
   useEffect(() => {
+    if (webGlActive) return undefined
     const canvas = canvasRef.current
     if (!canvas) return undefined
     const ctx = canvas.getContext('2d')
@@ -163,7 +167,7 @@ export default function InfrastructureEarthGlobe({ mission, className = '' }: Pr
 
     raf = requestAnimationFrame(draw)
     return () => cancelAnimationFrame(raf)
-  }, [globeSites])
+  }, [globeSites, webGlActive])
 
   return (
     <div
@@ -173,7 +177,7 @@ export default function InfrastructureEarthGlobe({ mission, className = '' }: Pr
       <div className="relative">
         <canvas ref={canvasRef} className="w-full h-[220px] sm:h-[260px]" aria-label="Infrastructure Earth globe" />
         <p className="absolute bottom-2 left-3 text-[10px] text-slate-500">
-          Canvas globe v2 · {globeSites.length} site marker{globeSites.length === 1 ? '' : 's'}
+          {webGlActive ? 'WebGL globe' : 'Canvas globe'} · {globeSites.length} site marker{globeSites.length === 1 ? '' : 's'}
         </p>
       </div>
       {globeSites.length > 0 && (

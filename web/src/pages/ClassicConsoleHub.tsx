@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { ArrowLeft } from 'lucide-react'
 import {
@@ -12,21 +12,37 @@ import {
   type ClassicConsoleHubPlan,
   type ClassicConsoleHubSessionResponse,
 } from '../api/vm'
+import type { ConsoleHubPlan, ConsoleHubSessionResponse } from '../api/platform'
 import { getWsToken } from '../api/client'
 import { formatUserError } from '../utils/apiError'
-import AiTerminalCompanion from '../components/ai/AiTerminalCompanion'
-import ConsoleHubShell from '../components/consolehub/ConsoleHubShell'
-import ConsoleHubProtocolPicker from '../components/consolehub/ConsoleHubProtocolPicker'
-import ConsoleHubSession from '../components/consolehub/ConsoleHubSession'
-import ConsoleHubSessionHistory, { type ConsoleHubSessionRow } from '../components/consolehub/ConsoleHubSessionHistory'
+import MachineCockpit from '../components/consolehub/MachineCockpit'
+import type { ConsoleHubSessionRow } from '../components/consolehub/ConsoleHubSessionHistory'
+import PageLayout from '../components/PageLayout'
 import { hubLinkClasses } from '../utils/semanticColors'
 
-function classicVncWsUrl(plan: ClassicConsoleHubPlan, token: string): string | null {
-  if (!plan.native.available) return null
-  const path = plan.native.ws_path.replace('__WS_TOKEN__', encodeURIComponent(token))
+function classicWsUrl(pathTemplate: string, token: string): string | null {
+  const path = pathTemplate.replace('__WS_TOKEN__', encodeURIComponent(token))
   const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const host = typeof window !== 'undefined' ? window.location.host : ''
   return `${protocol}//${host}${path}`
+}
+
+function classicVncWsUrl(plan: ClassicConsoleHubPlan, token: string): string | null {
+  if (!plan.native.available) return null
+  return classicWsUrl(plan.native.ws_path, token)
+}
+
+function classicSerialWsUrl(plan: ClassicConsoleHubPlan, token: string): string | null {
+  const path = plan.native.serial_ws_path ?? plan.native.ws_path.replace('/vnc/', '/console/')
+  return classicWsUrl(path, token)
+}
+
+function toPlatformPlan(plan: ClassicConsoleHubPlan): ConsoleHubPlan {
+  return { ...plan, vm_id: plan.vm_name }
+}
+
+function toPlatformSession(sess: ClassicConsoleHubSessionResponse): ConsoleHubSessionResponse {
+  return { ...sess, vm_id: sess.vm_name }
 }
 
 export default function ClassicConsoleHub() {
@@ -41,8 +57,11 @@ export default function ClassicConsoleHub() {
   const [loading, setLoading] = useState(true)
   const [connectKey, setConnectKey] = useState(0)
   const [history, setHistory] = useState<ConsoleHubSessionRow[]>([])
-  const [historyLoading, setHistoryLoading] = useState(false)
   const [wsUrl, setWsUrl] = useState<string | null>(null)
+  const [serialWsUrl, setSerialWsUrl] = useState<string | null>(null)
+
+  const platformPlan = useMemo(() => (plan ? toPlatformPlan(plan) : null), [plan])
+  const platformSession = useMemo(() => (session ? toPlatformSession(session) : null), [session])
 
   const load = useCallback(async () => {
     if (!name) return
@@ -67,6 +86,7 @@ export default function ClassicConsoleHub() {
         setSession(null)
         const token = await getWsToken()
         setWsUrl(classicVncWsUrl(hubPlan, token))
+        setSerialWsUrl(classicSerialWsUrl(hubPlan, token))
       }
     } catch (e: unknown) {
       setError(formatUserError(e))
@@ -78,18 +98,6 @@ export default function ClassicConsoleHub() {
   useEffect(() => {
     void load()
   }, [load, connectKey])
-
-  const refreshHistory = async () => {
-    if (!name) return
-    setHistoryLoading(true)
-    try {
-      setHistory(await listClassicConsoleHubSessions(name, conn))
-    } catch {
-      /* optional panel */
-    } finally {
-      setHistoryLoading(false)
-    }
-  }
 
   const switchProtocol = async (protocol: string) => {
     if (!name) return
@@ -105,76 +113,62 @@ export default function ClassicConsoleHub() {
         if (protocol === 'novnc' && plan) {
           const token = await getWsToken()
           setWsUrl(classicVncWsUrl(plan, token))
+        } else if (protocol === 'serial' && plan) {
+          const token = await getWsToken()
+          setSerialWsUrl(classicSerialWsUrl(plan, token))
         }
       }
-      void refreshHistory()
+      setHistory(await listClassicConsoleHubSessions(name, conn).catch(() => []))
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
   }
 
-  const displayProtocols = plan
-    ? [...plan.protocols, ...(plan.guest_ip && !plan.protocols.includes('native_ssh') ? ['native_ssh'] : [])]
-    : []
+  const prepend = (
+    <div className="flex flex-wrap items-center gap-3 text-sm">
+      <Link to={vmDetailRoute(name ?? '', conn)} className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>
+        <ArrowLeft className="w-4 h-4" /> Back to VM
+      </Link>
+    </div>
+  )
 
   if (!name) return null
 
   return (
-    <ConsoleHubShell
+    <PageLayout
+      compact
+      hideHeader
+      loading={loading && !plan}
+      contentClassName="flex flex-col flex-1 min-h-0 h-full min-h-[calc(100dvh-14rem)]"
       title={name}
-      vmState={vmState ?? undefined}
-      guestIp={plan?.guest_ip ?? undefined}
-      loading={loading}
-      error={error}
-      onReconnect={() => setConnectKey((k) => k + 1)}
-      prepend={
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <Link to={vmDetailRoute(name, conn)} className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>
-            <ArrowLeft className="w-4 h-4" /> Back to VM
-          </Link>
-        </div>
-      }
-      protocolPicker={
-        plan ? (
-          <ConsoleHubProtocolPicker
-            protocols={displayProtocols}
-            recommended={plan.recommended}
-            active={activeProtocol}
-            onChange={(p) => void switchProtocol(p)}
-          />
-        ) : undefined
-      }
-      sessionInfo={
-        session ? (
-          <span>
-            Session {session.session_id.slice(0, 8)}… · audit {session.audit_id.slice(0, 8)}… · expires {session.expires_at}
-          </span>
-        ) : (
-          <span>Classic ConsoleHub · same-origin noVNC / SPICE / serial / Guacamole</span>
-        )
-      }
+      subtitle="Classic ConsoleHub · Machine Canvas"
     >
-      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-[60vh]">
-        <div className="flex-1 min-w-0 flex flex-col min-h-0">
-          <ConsoleHubSession
-            key={`${activeProtocol}-${wsUrl ?? 'none'}-${connectKey}`}
-            protocol={activeProtocol}
+      {plan ? (
+        <div className="flex flex-col flex-1 min-h-0 h-full">
+          <MachineCockpit
+            vmId={name}
             vmName={name}
+            plan={platformPlan}
+            session={platformSession}
             wsUrl={wsUrl}
-            session={session}
-            guestIp={plan?.guest_ip ?? undefined}
-            sshUser={plan?.ssh_user ?? undefined}
-            libvirtConnection={conn}
-            fillViewport
-            connectKey={connectKey}
+            serialWsUrl={serialWsUrl}
+            activeProtocol={activeProtocol}
+            onProtocolChange={(p) => void switchProtocol(p)}
+            vmState={vmState}
+            error={error}
+            loading={loading}
+            history={history}
             onReconnect={() => setConnectKey((k) => k + 1)}
+            connectKey={connectKey}
+            prepend={prepend}
           />
         </div>
-        <div className="lg:w-80 shrink-0 flex flex-col gap-3">
-          <ConsoleHubSessionHistory sessions={history} loading={historyLoading} />
-          <AiTerminalCompanion vmName={name} libvirtConnection={conn} />
-        </div>
-      </div>
-    </ConsoleHubShell>
+      ) : !loading ? (
+        <section className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-8 max-w-lg mx-auto text-center space-y-4">
+          <h2 className="text-lg font-semibold text-amber-100">Console unavailable</h2>
+          <p className="text-sm text-amber-200/80">{error ?? 'Could not load console plan for this VM.'}</p>
+        </section>
+      ) : null}
+    </PageLayout>
   )
 }

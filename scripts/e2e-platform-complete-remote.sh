@@ -11,6 +11,7 @@
 #   E2E_SKIP_UX_FLOW=1     — skip e2e-platform-ux-flow-remote
 #   E2E_SKIP_LIVE_UX=1     — skip live-ux-wiring manifest
 #   E2E_SKIP_LIVE_SPECS=1  — skip live create/delete/platform-live specs
+#   E2E_LIBVIRT_DESKTOP=1  — run libvirt ubuntu-desktop full E2E (GuestKit + VNC)
 #
 set -euo pipefail
 
@@ -93,15 +94,25 @@ if [[ "${E2E_SKIP_LIVE_SPECS:-0}" != "1" ]]; then
     export PLAYWRIGHT_LIVE_URL='${BASE}'
     export PLAYWRIGHT_LIVE_USER='${USER}'
     export PLAYWRIGHT_LIVE_PASS='${PASS}'
-    npm run test:e2e -- --workers=1 --timeout=180000 \
+    npm run test:e2e -- --workers=1 --timeout=300000 \
       e2e/platform-live.spec.ts \
       e2e/platform-live-vm-create.spec.ts \
+      e2e/platform-live-machine-finder-delete.spec.ts \
       e2e/platform-live-vm-delete.spec.ts \
       e2e/live-host.spec.ts
   " || FAILED=$((FAILED + 1))
 fi
 
-# E: optional mocked CI suite (local preview)
+# E: libvirt desktop full E2E (GuestKit, lifecycle, SSH, VNC screenshots)
+if [[ "${E2E_LIBVIRT_DESKTOP:-0}" == "1" ]]; then
+  SSH_KEY="${E2E_SSH_KEY:-${HOME}/.ssh/id_ed25519}"
+  run_phase "libvirt-desktop-e2e" \
+    env VSPASS="$PASS" E2E_SSH_KEY="$SSH_KEY" \
+    "${SCRIPT_DIR}/e2e-libvirt-desktop-full-remote.sh" "$USER" "$HOST" --ssh-key "$SSH_KEY" \
+    || FAILED=$((FAILED + 1))
+fi
+
+# F: optional mocked CI suite (local preview)
 if [[ "${E2E_INCLUDE_MOCK:-0}" == "1" ]]; then
   run_phase "mock-playwright-ci" bash -c "
     set -euo pipefail

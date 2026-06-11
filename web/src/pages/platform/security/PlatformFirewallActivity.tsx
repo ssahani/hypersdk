@@ -1,13 +1,12 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router'
-import { ArrowLeft, RefreshCw, Shield } from 'lucide-react'
-import { MacGlassPanel, MacListRow } from '../../../components/platform/mac/PlatformMacUi'
-import PageLayout from '../../../components/PageLayout'
+import { Shield } from 'lucide-react'
+import { MacListRow } from '../../../components/platform/mac/PlatformMacUi'
+import SecurityLensLayout from '../../../components/platform/SecurityLensLayout'
 import { getFirewallActivity, getFirewallOverview } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
-import { hubLinkClasses, statusToneClass } from '../../../utils/semanticColors'
+import { statusToneClass } from '../../../utils/semanticColors'
 
 type ActivityEvent = Record<string, unknown> & { target?: string; group?: string }
 
@@ -38,9 +37,11 @@ export default function PlatformFirewallActivity() {
   const [allowed, setAllowed] = useState<ActivityEvent[]>([])
   const [note, setNote] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     setError(null)
+    setLoading(true)
     try {
       const ov = await getFirewallOverview()
       const blockedEv: ActivityEvent[] = []
@@ -65,58 +66,59 @@ export default function PlatformFirewallActivity() {
       setAllowed(allowedEv)
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
   useEffect(() => { void load() }, [load])
 
+  const totalEvents = blocked.length + allowed.length
+
   return (
-    <PageLayout
-      compact
-      error={error}
-      prepend={
-        <Link to="/platform/zeus/security" className={`text-sm inline-flex items-center gap-1 ${hubLinkClasses()}`}>
-          <ArrowLeft className="w-4 h-4" /> Security Center
-        </Link>
-      }
+    <SecurityLensLayout
+      testId="platform-firewall-activity-page"
+      backHref="/platform/zeus/security"
+      backLabel="Security Center"
       title="Firewall Activity"
       subtitle={`${blocked.length} blocked · ${allowed.length} allowed connection events`}
       icon={<Shield className="w-6 h-6 text-slate-400" />}
-      actions={
-        <button type="button" className="btn-secondary" onClick={() => void load()} aria-label="Refresh">
-          <RefreshCw className="w-4 h-4" />
-        </button>
-      }
-      contentClassName="space-y-4"
+      loading={loading && totalEvents === 0}
+      error={error}
+      onRefresh={() => void load()}
+      stats={[
+        { label: 'Blocked', value: String(blocked.length), tone: blocked.length > 0 ? 'warn' : 'default', icon: <Shield className="w-4 h-4" /> },
+        { label: 'Allowed', value: String(allowed.length), tone: allowed.length > 0 ? 'ok' : 'default' },
+        { label: 'Total events', value: String(totalEvents) },
+      ]}
+      panelTitle="Today"
+      isEmpty={totalEvents === 0}
+      emptyTitle="No connection events yet"
+      emptySubtitle="Enable PacketWolf for live blocked flows and connection telemetry."
     >
-      <MacGlassPanel title="Today" subtitle={note || 'PacketWolf provides live flows when connected'}>
-        {blocked.length === 0 && allowed.length === 0 ? (
-          <p className="text-sm text-slate-500">No connection events yet. Enable PacketWolf for live blocked flows.</p>
-        ) : (
-          <div className="space-y-4">
-            {blocked.length > 0 && (
-              <div>
-                <p className={`text-xs font-semibold uppercase tracking-wide mb-2 px-1 ${statusToneClass('error')}`}>Blocked</p>
-                <div className="rounded-xl border border-white/[0.06] overflow-hidden">
-                  {blocked.slice(0, 25).map((e, i) => (
-                    <MacListRow key={`b-${i}`} title={eventTitle(e)} subtitle={eventSubtitle(e)} />
-                  ))}
-                </div>
-              </div>
-            )}
-            {allowed.length > 0 && (
-              <div>
-                <p className={`text-xs font-semibold uppercase tracking-wide mb-2 px-1 ${statusToneClass('ok')}`}>Allowed</p>
-                <div className="rounded-xl border border-white/[0.06] overflow-hidden">
-                  {allowed.slice(0, 15).map((e, i) => (
-                    <MacListRow key={`a-${i}`} title={eventTitle(e)} subtitle={eventSubtitle(e)} />
-                  ))}
-                </div>
-              </div>
-            )}
+      <p className="text-xs text-slate-500 mb-4">{note || 'PacketWolf provides live flows when connected'}</p>
+      <div className="space-y-4">
+        {blocked.length > 0 && (
+          <div>
+            <p className={`text-xs font-semibold uppercase tracking-wide mb-2 px-1 ${statusToneClass('error')}`}>Blocked</p>
+            <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+              {blocked.slice(0, 25).map((e, i) => (
+                <MacListRow key={`b-${i}`} title={eventTitle(e)} subtitle={eventSubtitle(e)} />
+              ))}
+            </div>
           </div>
         )}
-      </MacGlassPanel>
-    </PageLayout>
+        {allowed.length > 0 && (
+          <div>
+            <p className={`text-xs font-semibold uppercase tracking-wide mb-2 px-1 ${statusToneClass('ok')}`}>Allowed</p>
+            <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+              {allowed.slice(0, 15).map((e, i) => (
+                <MacListRow key={`a-${i}`} title={eventTitle(e)} subtitle={eventSubtitle(e)} />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </SecurityLensLayout>
   )
 }

@@ -184,6 +184,7 @@ export default function VMList() {
 
   return (
     <PageLayout
+      loading={loading}
       title="Virtual machines"
       subtitle={
         <>
@@ -258,11 +259,7 @@ export default function VMList() {
         )}
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-32" aria-busy="true" aria-label="Loading virtual machines">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-        </div>
-      ) : filtered.length === 0 ? (
+      {filtered.length === 0 ? (
         <EmptyState
           icon={<Server className="w-6 h-6" />}
           title={search || tagFilter ? 'No VMs match your filters' : 'No guests on this host'}

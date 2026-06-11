@@ -14,6 +14,7 @@ import {
   type ServiceMapNode,
 } from '../../api/platformNetworkCanvas'
 import EbpfActionMenu from '../../components/platform/EbpfActionMenu'
+import NetworkServiceMapGraph from '../../components/platform/NetworkServiceMapGraph'
 import { hubLinkClasses, statusBadgeClasses, statusToneClass } from '../../utils/semanticColors'
 
 type CanvasNode = { id: string; label: string; kind: string; detail?: string }
@@ -114,6 +115,8 @@ export default function PlatformNetworkCanvas() {
   const k8sNodes = data?.network_pulse?.k8s_nodes?.nodes ?? []
   const threats = data?.network_pulse?.threats?.threats ?? []
   const topTalkers = data?.network_pulse?.top_talkers?.talkers ?? svcMap?.overlays?.top_talker_nodes ?? []
+  const workloads = data?.network_pulse?.workloads?.workloads ?? []
+  const timelineEvents = data?.network_pulse?.timeline?.events ?? []
 
   const localAnomalies = useMemo(() => {
     const found: string[] = []
@@ -178,7 +181,7 @@ export default function PlatformNetworkCanvas() {
             {(dropped > 0 || forwarded > 0) && (
               <>
                 <MacStatWidget label="Forwarded" value={String(forwarded)} icon={<Activity className="w-4 h-4" />} tone="ok" />
-                <MacStatWidget label="Dropped" value={String(dropped)} icon={<ShieldAlert className="w-4 h-4" />} tone={dropped > 0 ? 'warn' : 'default'} />
+                <MacStatWidget label="Dropped" value={String(dropped)} icon={<ShieldAlert className="w-4 h-4" />} tone={dropped > 0 ? 'warn' : 'ok'} />
               </>
             )}
           </div>
@@ -222,6 +225,7 @@ export default function PlatformNetworkCanvas() {
 
         {svcNodes.length > 0 && (
           <MacGlassPanel title="Service map" subtitle="PacketWolf Hubble-derived workload graph">
+            <NetworkServiceMapGraph nodes={svcNodes} edges={svcEdges} className="mb-4" />
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 -mt-1 mb-4">
               {svcNodes.slice(0, 18).map((n: ServiceMapNode) => (
                 <div key={`${n.namespace}/${n.name}`} className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-2 text-xs">
@@ -268,6 +272,40 @@ export default function PlatformNetworkCanvas() {
                   .join(', ')}
               </p>
             )}
+          </MacGlassPanel>
+        )}
+
+        {workloads.length > 0 && (
+          <MacGlassPanel title="Workloads" subtitle="PacketWolf /api/v1/network/workloads">
+            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 text-xs">
+              {workloads.slice(0, 18).map((w) => (
+                <li key={`${w.namespace}/${w.name}`} className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-2">
+                  <p className="font-medium text-slate-100">{w.name}</p>
+                  <p className="text-slate-500">{w.namespace}</p>
+                  {'connections_out' in w && (
+                    <p className="text-slate-400 mt-1">out {(w as { connections_out?: number }).connections_out ?? 0}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </MacGlassPanel>
+        )}
+
+        {timelineEvents.length > 0 && (
+          <MacGlassPanel title="Fleet timeline" subtitle="PacketWolf network + correlation events">
+            <ul className="text-xs space-y-2 max-h-48 overflow-y-auto">
+              {timelineEvents.slice(0, 20).map((ev, i) => {
+                const row = ev as { summary?: string; severity?: string; timestamp?: string; kind?: string }
+                return (
+                  <li key={`${row.timestamp ?? i}-${row.summary ?? i}`} className="border-b border-white/[0.04] pb-2">
+                    <span className={statusToneClass(row.severity === 'critical' || row.severity === 'high' ? 'error' : 'neutral')}>
+                      {row.summary ?? row.kind ?? 'Event'}
+                    </span>
+                    {row.timestamp && <p className="text-slate-500 mt-0.5">{row.timestamp}</p>}
+                  </li>
+                )
+              })}
+            </ul>
           </MacGlassPanel>
         )}
 

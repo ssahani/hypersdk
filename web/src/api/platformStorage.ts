@@ -95,3 +95,62 @@ export const patchStoragePool = (id: string, body: { path?: string; capacity_gib
     method: 'PATCH',
     body: JSON.stringify(body),
   })
+
+export interface LiveStoragePoolInfo {
+  name: string
+  uuid: string
+  state: string
+  capacity_gb: number
+  allocation_gb: number
+  available_gb: number
+  autostart: boolean
+}
+
+export const listLiveStoragePools = (hostId?: string) => {
+  const q = hostId ? `?host_id=${encodeURIComponent(hostId)}` : ''
+  return platformFetch<{ host_id: string; pools: LiveStoragePoolInfo[] }>(`/api/v1/storage/pools/live${q}`)
+}
+
+export const activateStoragePool = (id: string, hostId?: string) =>
+  platformFetch<{ status: string; name: string }>(
+    `/api/v1/storage/pools/${id}/activate${hostId ? `?host_id=${encodeURIComponent(hostId)}` : ''}`,
+    { method: 'POST', body: '{}' },
+  )
+
+export const deactivateStoragePool = (id: string, hostId?: string) =>
+  platformFetch<{ status: string; name: string }>(
+    `/api/v1/storage/pools/${id}/deactivate${hostId ? `?host_id=${encodeURIComponent(hostId)}` : ''}`,
+    { method: 'POST', body: '{}' },
+  )
+
+export const refreshStoragePool = (id: string, hostId?: string) =>
+  platformFetch<{ status: string; name: string }>(
+    `/api/v1/storage/pools/${id}/refresh${hostId ? `?host_id=${encodeURIComponent(hostId)}` : ''}`,
+    { method: 'POST', body: '{}' },
+  )
+
+export interface StoragePoolVolume {
+  name: string
+  pool: string
+  capacity_gb: number
+  allocation_gb: number
+  path: string
+  vol_type: string
+}
+
+export const listStoragePoolVolumes = (poolId: string, hostId?: string) => {
+  const q = hostId ? `?host_id=${encodeURIComponent(hostId)}` : ''
+  return platformFetch<{ pool: string; volumes: StoragePoolVolume[] }>(`/api/v1/storage/pools/${poolId}/volumes${q}`)
+}
+
+export const createStoragePoolVolume = (poolId: string, body: { name: string; capacity_gb: number; format?: string }, hostId?: string) =>
+  platformFetch<{ status: string; name: string }>(
+    `/api/v1/storage/pools/${poolId}/volumes${hostId ? `?host_id=${encodeURIComponent(hostId)}` : ''}`,
+    { method: 'POST', body: JSON.stringify(body) },
+  )
+
+export const deleteStoragePoolVolume = (poolId: string, volName: string, hostId?: string) =>
+  platformFetch<{ status: string; name: string }>(
+    `/api/v1/storage/pools/${poolId}/volumes/${encodeURIComponent(volName)}${hostId ? `?host_id=${encodeURIComponent(hostId)}` : ''}`,
+    { method: 'DELETE' },
+  )

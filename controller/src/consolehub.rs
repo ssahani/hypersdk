@@ -61,6 +61,7 @@ pub struct ConsoleHubPlan {
 pub struct NativeConsoleInfo {
     pub console_type: String,
     pub ws_path: String,
+    pub serial_ws_path: String,
     pub available: bool,
 }
 
@@ -176,6 +177,9 @@ fn kubevirt_plan(vm_id: Uuid, vm_name: &str, namespace: &str, ws_token: &str) ->
             ws_path: format!(
                 "/ws/v1/k8s-kubevirt/{enc_ns}/{enc_name}/vnc?token={ws_token}"
             ),
+            serial_ws_path: format!(
+                "/ws/v1/k8s-kubevirt/{enc_ns}/{enc_name}/console?token={ws_token}"
+            ),
             available: true,
         },
         guacamole: GuacamoleConsoleInfo {
@@ -270,6 +274,7 @@ fn plan_from_agent(
         native: NativeConsoleInfo {
             console_type: agent.console_type.clone(),
             ws_path: format!("/ws/v1/platform/vnc/{vm_id}?token={ws_token}"),
+            serial_ws_path: format!("/ws/v1/platform/serial/{vm_id}?token={ws_token}"),
             available: agent.vnc_port > 0,
         },
         guacamole: GuacamoleConsoleInfo {
@@ -297,11 +302,12 @@ fn plan_from_agent(
 }
 
 fn build_protocol_list(agent: &machina_agent::pb::GetConsoleAccessPlanResponse) -> Vec<String> {
-    let mut out = vec!["novnc".into()];
+    let mut out = Vec::new();
     if agent.console_type == "spice" {
         out.push("spice".into());
         out.push("webrtc_spice".into());
     }
+    out.push("novnc".into());
     if agent.guacamole_available {
         for p in &agent.guacamole_protocols {
             out.push(format!("guacamole_{p}"));

@@ -536,6 +536,12 @@ pub fn generate_cloud_init_iso(
     if guest_default {
         super::guest_agent_provision::append_guestkit_cloud_config(&mut user_data, true);
     }
+    if super::guest_agent_provision::vm_wants_graphical_desktop(hostname) {
+        super::guest_agent_provision::append_desktop_graphical_cloud_config(
+            &mut user_data,
+            &effective_user,
+        );
+    }
 
     std::fs::write(tmp_dir.join("user-data"), &user_data)
         .map_err(|e| LibvirtError::Operation(format!("Failed to write user-data: {e}")))?;

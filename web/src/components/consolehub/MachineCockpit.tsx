@@ -27,6 +27,7 @@ export type MachineCockpitProps = {
   plan: ConsoleHubPlan | null
   session: ConsoleHubSessionResponse | null
   wsUrl: string | null
+  serialWsUrl?: string | null
   activeProtocol: string
   onProtocolChange: (protocol: string) => void
   vmState?: string | null
@@ -50,6 +51,7 @@ function CockpitInner({
   plan,
   session,
   wsUrl,
+  serialWsUrl,
   activeProtocol,
   onProtocolChange,
   vmState,
@@ -90,6 +92,16 @@ function CockpitInner({
   useEffect(() => {
     vp.setScaledFit(vp.mode === 'fit')
   }, [vp.mode, vp])
+
+  useEffect(() => {
+    if (plan?.recommended === 'serial') {
+      setLens('serial')
+    } else if (plan?.recommended === 'spice' || plan?.recommended === 'webrtc_spice') {
+      setLens('display')
+    } else if (plan?.recommended === 'novnc') {
+      setLens('display')
+    }
+  }, [plan?.recommended])
 
   const switchLens = useCallback(
     (next: ConsoleLens) => {
@@ -160,6 +172,7 @@ function CockpitInner({
         protocol={activeProtocol}
         vmName={vmName}
         wsUrl={wsUrl}
+        serialWsUrl={serialWsUrl}
         session={session}
         guestIp={plan?.guest_ip ?? undefined}
         sshUser={plan?.ssh_user ?? undefined}
@@ -206,6 +219,7 @@ function CockpitInner({
         displayProtocols={displayProtocols}
         activeProtocol={activeProtocol}
         onProtocolChange={onProtocolChange}
+        recommended={plan?.recommended}
       />
       <MachineCanvas vmState={vmState} healthScore={healthScore} theatre={theatre} className="flex-1">
         {loading ? (

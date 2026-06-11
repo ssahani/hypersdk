@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { apiPost, readJsonArray, readJsonObject, readJsonItemsList } from './client'
+import { apiDelete, apiPost, readJsonArray, readJsonObject, readJsonItemsList } from './client'
 
 const API = '/api/v1'
 
@@ -527,6 +527,25 @@ export const getK8sKubevirtVmSummary = (namespace?: string, context?: string) =>
       context,
     ),
   )
+
+export type KubeVirtLifecycleAction = 'start' | 'stop' | 'restart'
+
+export const postK8sKubevirtVmLifecycle = (
+  namespace: string,
+  name: string,
+  action: KubeVirtLifecycleAction,
+  context?: string,
+) =>
+  apiPost<{ ok: boolean; action: string; namespace: string; name: string }>(
+    `${API}/k8s/kubevirt/virtualmachines/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/lifecycle`,
+    { action, context },
+  )
+
+export const deleteK8sKubevirtVm = (namespace: string, name: string, context?: string) => {
+  let url = `${API}/k8s/kubevirt/virtualmachines/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`
+  url = withK8sContext(url, context)
+  return apiDelete(url)
+}
 
 export const runK8sAction = (body: K8sActionRequest) => apiPost<K8sActionResult>(`${API}/k8s/action`, body)
 

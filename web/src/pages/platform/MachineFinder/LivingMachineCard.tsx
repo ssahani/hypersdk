@@ -21,6 +21,7 @@ type Props = {
   onDragStart: () => void
   onSsh: () => void
   onDoubleClickTheatre: () => void
+  guestIp?: string
 }
 
 export default function LivingMachineCard({
@@ -31,6 +32,7 @@ export default function LivingMachineCard({
   onDragStart,
   onSsh,
   onDoubleClickTheatre,
+  guestIp,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [hydrated, setHydrated] = useState(false)
@@ -142,7 +144,7 @@ export default function LivingMachineCard({
         {(overlay === 'default' || overlay === 'network') && (
           <div className="flex justify-between gap-2">
             <dt>IP</dt>
-            <dd className="font-mono text-emerald-300/80 truncate">{vm.guest_ip || '—'}</dd>
+            <dd className="font-mono text-emerald-300/80 truncate">{guestIp || vm.guest_ip || '—'}</dd>
           </div>
         )}
         {(overlay === 'default' || overlay === 'cost') && (
@@ -206,13 +208,19 @@ export default function LivingMachineCard({
           </div>
         )}
         {overlay === 'default' && cpuPct != null && (
-          <div className="h-1 rounded-full bg-slate-800 overflow-hidden mt-1">
-            <div className="h-full bg-sky-500/70" style={{ width: `${Math.min(100, cpuPct)}%` }} />
+          <div className="mt-1">
+            <div className="flex justify-between text-[10px] text-slate-500 mb-0.5"><span>CPU</span><span>{cpuPct}%</span></div>
+            <div className="h-1 rounded-full bg-slate-800 overflow-hidden">
+              <div className="h-full bg-sky-500/70" style={{ width: `${Math.min(100, cpuPct)}%` }} />
+            </div>
           </div>
         )}
         {overlay === 'default' && memPct != null && (
-          <div className="h-1 rounded-full bg-slate-800 overflow-hidden">
-            <div className="h-full bg-violet-500/70" style={{ width: `${Math.min(100, memPct)}%` }} />
+          <div>
+            <div className="flex justify-between text-[10px] text-slate-500 mb-0.5"><span>Mem</span><span>{memPct}%</span></div>
+            <div className="h-1 rounded-full bg-slate-800 overflow-hidden">
+              <div className="h-full bg-violet-500/70" style={{ width: `${Math.min(100, memPct)}%` }} />
+            </div>
           </div>
         )}
       </dl>

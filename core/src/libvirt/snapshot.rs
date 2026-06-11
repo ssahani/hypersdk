@@ -3,6 +3,7 @@
 // https://zyvor.dev · info@zyvor.dev
 
 use tracing::warn;
+use serde::{Deserialize, Serialize};
 use virt::connect::Connect;
 use virt::domain::Domain;
 use virt::domain_snapshot::DomainSnapshot;
@@ -158,6 +159,10 @@ pub fn create_snapshot(
 ) -> Result<(), LibvirtError> {
     if req.name.trim().is_empty() {
         return Err(LibvirtError::Invalid("snapshot name is required".into()));
+    }
+    let pre = super::cpu_memory::snapshot_precheck(conn, vm_name, req)?;
+    if pre.blocked {
+        return Err(LibvirtError::Operation(pre.message));
     }
     let domain = lookup_domain(conn, vm_name)?;
     let is_active = domain.is_active().unwrap_or(false);
@@ -425,6 +430,100 @@ pub fn revert_snapshot(conn: &Connect, vm_name: &str, snap_name: &str) -> Result
         .map_err(LibvirtError::map_op("Failed to revert snapshot"))?;
 
     Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SnapshotActionPrecheck {
+    pub ok: bool,
+    pub blocked: bool,
+    pub message: String,
+    pub vm_running: bool,
+    pub external_snapshot: bool,
+    pub has_vfio_hostdev: bool,
+}
+
+pub fn snapshot_action_precheck(
+    conn: &Connect,
+    vm_name: &str,
+    snap_name: &str,
+    action: &str,
+) -> Result<SnapshotActionPrecheck, LibvirtError> {
+    let domain = lookup_domain(conn, vm_name)?;
+    let running = domain.is_active().unwrap_or(false);
+    let active_xml = domain.get_xml_desc(0).unwrap_or_default();
+    let vfio = super::cpu_memory::has_vfio_hostdev(&active_xml);
+
+    let snap = DomainSnapshot::lookup_by_name(&domain, snap_name, 0)
+        .map_err(|e| LibvirtError::NotFound(format!("Snapshot '{snap_name}' not found: {e}")))?;
+    let snap_xml = snap.get_xml_desc(0).unwrap_or_default();
+    let external = snap_xml.contains("snapshot='external'") || snap_xml.contains("snapshot=\"external\"");
+
+    let action = action.trim().to_ascii_lowercase();
+    let (ok, blocked, message) = match action.as_str() {
+        "delete" => {
+            if running && external {
+                (
+                    true,
+                    false,
+                    "Running guest with external snapshot — libvirt will delete metadata only; disk chains may remain until merged offline."
+                        .into(),
+                )
+            } else if running && vfio {
+                (
+                    false,
+                    true,
+                    "Deleting snapshots of running VMs with VFIO devices is not supported.".into(),
+                )
+            } else {
+                (true, false, String::new())
+            }
+        }
+        "revert" => {
+            if running && vfio {
+                (
+                    false,
+                    true,
+                    "Reverting snapshots while VFIO passthrough devices are attached is not supported on a running guest."
+                        .into(),
+                )
+            } else if running {
+                (
+                    true,
+                    false,
+                    "Reverting a running guest may briefly pause I/O — ensure the guest is quiesced or shut off for safest results."
+                        .into(),
+                )
+            } else {
+                (true, false, String::new())
+            }
+        }
+        "clone" => {
+            if running {
+                (
+                    true,
+                    false,
+                    "Cloning from a snapshot of a running guest copies disk state at snapshot time; the new VM starts from that point-in-time image."
+                        .into(),
+                )
+            } else {
+                (true, false, String::new())
+            }
+        }
+        other => {
+            return Err(LibvirtError::Invalid(format!(
+                "unknown snapshot action precheck: {other}"
+            )));
+        }
+    };
+
+    Ok(SnapshotActionPrecheck {
+        ok,
+        blocked,
+        message,
+        vm_running: running,
+        external_snapshot: external,
+        has_vfio_hostdev: vfio,
+    })
 }
 
 fn extract_parent_name(xml_str: &str) -> Option<String> {

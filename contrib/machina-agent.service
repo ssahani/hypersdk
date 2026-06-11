@@ -3,6 +3,8 @@ Description=Machina host agent (libvirt executor)
 Documentation=https://github.com/ssahani/machina
 After=network-online.target machina-controller.service
 Wants=network-online.target libvirtd.service
+StartLimitIntervalSec=300
+StartLimitBurst=10
 # Do not Requires=libvirtd: on RHEL/CentOS 9 the monolithic unit may start
 # minutes after boot (socket-activated daemons); a hard Requires leaves agent dead.
 ExecStartPre=-/usr/bin/systemctl start libvirtd.service
@@ -17,7 +19,7 @@ Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=MACHINA_LIBVIRT_URI=qemu:///system
 
 ExecStart=/usr/local/bin/machina-agent --listen 127.0.0.1:50051 --console-listen 127.0.0.1:50052
-Restart=on-failure
+Restart=always
 RestartSec=5
 TimeoutStopSec=30
 

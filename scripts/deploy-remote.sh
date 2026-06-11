@@ -60,7 +60,7 @@ DEPLOY_SSH_TTY_OPTS=()
 
 usage() {
     cat <<'EOF'
-deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--install-only|--bins-only|--e2e|--platform|--cleanup|--prune-sources|--dry-run]
+deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--install-only|--bins-only|--e2e|--e2e-libvirt-desktop|--platform|--cleanup|--prune-sources|--dry-run]
         [--skip-platform-e2e|--skip-daemon-e2e]
         [--remote-build|--remote-check] [--bind ADDR] [--open-firewall|--disable-firewalld]
         [--with-guacamole] [--guacamole-port PORT] [--no-start] [--deps-only] [extra install.sh args...]
@@ -287,6 +287,7 @@ INSTALL_PLATFORM=false
 SKIP_PLATFORM_E2E=false
 SKIP_DAEMON_E2E=false
 SKIP_LIVE_UX=false
+RUN_LIBVIRT_DESKTOP_E2E=false
 WITH_GUACAMOLE=false
 GUACAMOLE_PORT=8081
 
@@ -298,6 +299,7 @@ parse_flags() {
             --install-only|--bins-only) INSTALL_ONLY=true; shift ;;
             --prune-sources) PRUNE_SOURCES=true; shift ;;
             --e2e) RUN_E2E=true; shift ;;
+            --e2e-libvirt-desktop) RUN_E2E=true; RUN_LIBVIRT_DESKTOP_E2E=true; shift ;;
             --platform) INSTALL_PLATFORM=true; shift ;;
             --skip-platform-e2e) SKIP_PLATFORM_E2E=true; shift ;;
             --skip-daemon-e2e) SKIP_DAEMON_E2E=true; shift ;;
@@ -557,6 +559,11 @@ if [ ! -x target/release/machina-daemon ] || [ ! -f web/dist/index.html ]; then
   exit 1
 fi
 sudo bash install.sh${QUICK_OPTS}
+for bin in machina-controller machina-agent; do
+  if [ -x target/release/\$bin ]; then
+    sudo install -m755 target/release/\$bin /usr/local/bin/\$bin
+  fi
+done
 " || die "install-only failed"
     else
         phase 3 "$TOTAL_STEPS" "Build & install (quick path)" "make release web (incremental) + install.sh --skip-build"
@@ -568,10 +575,15 @@ export CARGO_BUILD_JOBS=${REMOTE_CARGO_BUILD_JOBS}
 cd $REMOTE_DIR
 make release web
 sudo bash install.sh${QUICK_OPTS}
+for bin in machina-controller machina-agent; do
+  if [ -x target/release/\$bin ]; then
+    sudo install -m755 target/release/\$bin /usr/local/bin/\$bin
+  fi
+done
 " || die "quick build failed"
     fi
-    phase 4 "$TOTAL_STEPS" "Reload systemd & try-restart machina-daemon" "daemon-reload — restarts only if the unit was already active"
-    ssh_r_bash "$REMOTE" "sudo systemctl daemon-reload && sudo systemctl try-restart machina-daemon machina-controller machina-agent 2>/dev/null || sudo systemctl try-restart machina-daemon" || die "service reload failed"
+    phase 4 "$TOTAL_STEPS" "Reload systemd & restart Machina services" "daemon-reload — always restart daemon, controller, agent"
+    ssh_r_bash "$REMOTE" "sudo cp ${REMOTE_DIR}/contrib/machina-daemon.service ${REMOTE_DIR}/contrib/machina-controller.service ${REMOTE_DIR}/contrib/machina-agent.service /usr/lib/systemd/system/ 2>/dev/null || true; sudo systemctl daemon-reload && sudo systemctl restart machina-daemon machina-controller machina-agent" || die "service restart failed"
 else
     phase 3 "$TOTAL_STEPS" "Run installer on remote" "sudo install.sh — tooling, build, unit files, optional firewall"
     ssh_r_bash "$REMOTE" "
@@ -692,8 +704,9 @@ if $RUN_E2E; then
                 fi
                 deploy_ui_highlight "🧪 Post-deploy live VM create/delete (Playwright)"
                 if PLAYWRIGHT_LIVE_URL="${LIVE_BASE}" PLAYWRIGHT_LIVE_USER="${USER}" PLAYWRIGHT_LIVE_PASS="${LIVE_PW}" \
-                    npm --prefix "${SCRIPT_DIR}/../web" run test:e2e -- --workers=1 --timeout=180000 \
+                    npm --prefix "${SCRIPT_DIR}/../web" run test:e2e -- --workers=1 --timeout=300000 \
                     e2e/platform-live-vm-create.spec.ts \
+                    e2e/platform-live-machine-finder-delete.spec.ts \
                     e2e/platform-live-vm-delete.spec.ts; then
                     deploy_ui_celebrate "Live VM lifecycle passed"
                     VM_E2E_SUMMARY="passed"
@@ -703,6 +716,17 @@ if $RUN_E2E; then
                     VM_E2E_SUMMARY="failed"
                 fi
                 $LIVE_E2E_OK || warn "One or more live Playwright phases failed"
+            fi
+            if $RUN_LIBVIRT_DESKTOP_E2E; then
+                deploy_ui_highlight "🧪 Libvirt desktop E2E (GuestKit + lifecycle + VNC)"
+                E2E_KEY="${SSH_KEY:-${HOME}/.ssh/id_ed25519}"
+                if VSPASS="${VSPASS:-${SSHPASS:-}}" E2E_SSH_KEY="${E2E_KEY}" \
+                    "${SCRIPT_DIR}/e2e-libvirt-desktop-full-remote.sh" "$USER" "$HOST" --ssh-key "${E2E_KEY}"; then
+                    deploy_ui_celebrate "Libvirt desktop E2E passed"
+                else
+                    warn "Libvirt desktop E2E failed (deploy itself succeeded)"
+                    LIVE_E2E_OK=false
+                fi
             fi
             SERVICES_SUMMARY="$(ssh_r_bash "$REMOTE" 'for u in machina-daemon libvirtd machina-controller machina-agent postgresql; do printf "%s=%s\n" "$u" "$(systemctl is-active "$u" 2>/dev/null || echo unknown)"; done' | tr -d '\r')"
             OVERALL="PASS"

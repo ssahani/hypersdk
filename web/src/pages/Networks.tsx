@@ -11,6 +11,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import { Play, Square, Trash2, ToggleLeft, ToggleRight, RefreshCw, Plus, Network, Wifi, X, Pencil } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
 import { statusBadgeClasses, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
+import EmptyState from '../components/EmptyState'
 import PageLayout from '../components/PageLayout'
 import { libvirtErrorHints } from '../utils/libvirtHints'
 
@@ -129,6 +130,7 @@ export default function NetworksPage() {
 
   return (
     <PageLayout
+      loading={loading}
       title="Networks"
       icon={<Network className={`w-6 h-6 ${statusToneClass('info')}`} />}
       actions={
@@ -141,7 +143,6 @@ export default function NetworksPage() {
       errorTitle="Could not load networks"
       errorHints={loadError ? libvirtErrorHints(loadError) : undefined}
       onErrorRetry={load}
-      contentLoading={loading}
       contentClassName="space-y-6"
     >
       {libvirtBoot?.needs_attention && libvirtBoot.detail && (
@@ -166,6 +167,18 @@ export default function NetworksPage() {
         </div>
       )}
 
+      {networks.length === 0 ? (
+        <EmptyState
+          icon={<Network className="w-6 h-6" />}
+          title="No libvirt networks"
+          description="Create a NAT network for guest connectivity, or define an isolated bridge for lab topologies."
+          primaryAction={
+            <button type="button" onClick={() => setShowCreate(true)} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium">
+              Create network
+            </button>
+          }
+        />
+      ) : (
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
         <table className="w-full">
           <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Name</th><th className="px-6 py-3">Active</th><th className="px-6 py-3 hidden md:table-cell">Bridge</th><th className="px-6 py-3 hidden md:table-cell">Autostart</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
@@ -190,10 +203,10 @@ export default function NetworksPage() {
                 </td>
               </tr>
             ))}
-            {networks.length === 0 && <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-500">No networks</td></tr>}
           </tbody>
         </table>
       </div>
+      )}
 
       {/* DHCP Leases */}
       {leases.length > 0 && (

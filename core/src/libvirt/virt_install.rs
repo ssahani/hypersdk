@@ -15,6 +15,39 @@ use crate::LibvirtError;
 
 use super::subprocess::{self, VmCreateLogSink};
 
+fn append_virt_install_unattended(args: &mut Vec<String>, req: &CreateVmRequest) {
+    let wants = req.virt_install_unattended
+        || !req.virt_install_admin_password.is_empty()
+        || !req.virt_install_user_login.is_empty()
+        || !req.virt_install_user_password.is_empty();
+    if !wants {
+        return;
+    }
+    if !req.virt_install_admin_password.is_empty() {
+        args.push("--unattended".into());
+        args.push(format!(
+            "admin-password={}",
+            req.virt_install_admin_password
+        ));
+    }
+    if !req.virt_install_user_login.is_empty() {
+        args.push("--unattended".into());
+        args.push(format!("user-login={}", req.virt_install_user_login));
+    }
+    if !req.virt_install_user_password.is_empty() {
+        args.push("--unattended".into());
+        args.push(format!("user-password={}", req.virt_install_user_password));
+    }
+    if req.virt_install_unattended
+        && req.virt_install_admin_password.is_empty()
+        && req.virt_install_user_login.is_empty()
+        && req.virt_install_user_password.is_empty()
+    {
+        args.push("--unattended".into());
+        args.push("profile=desktop".into());
+    }
+}
+
 fn is_windows_profile(req: &CreateVmRequest) -> bool {
     let gp = req.guest_profile.trim().to_ascii_lowercase();
     if gp == "windows" {
@@ -377,6 +410,8 @@ pub fn create_vm_virt_install(
         args.push(extra.to_string());
     }
 
+    append_virt_install_unattended(&mut args, req);
+
     tracing::info!("virt-install {}", args.join(" "));
 
     if define_only {
@@ -419,4 +454,61 @@ pub fn create_vm_virt_install(
     }
 
     Ok(())
+}
+
+/// Start installation on a define-only VM: undefine domain XML (keep disks) and run `virt-install`.
+pub fn install_defined_vm(
+    conn: &Connect,
+    libvirt_uri: &str,
+    req: &CreateVmRequest,
+    log: Option<&VmCreateLogSink>,
+) -> Result<(), LibvirtError> {
+    use super::domain::{delete_vm_with_options, lookup_domain, UndefineOptions};
+
+    let name = &req.name;
+    let domain = lookup_domain(conn, name)?;
+    let info = domain
+        .get_info()
+        .map_err(LibvirtError::map_op("get domain info"))?;
+    // VIR_DOMAIN_SHUTOFF
+    if info.state != 5 {
+        return Err(LibvirtError::Invalid(
+            "VM must be shut off to start installation".into(),
+        ));
+    }
+
+    let has_install = !req.virt_install_location.trim().is_empty()
+        || req.virt_install_pxe
+        || !req.virt_install_install_os.trim().is_empty()
+        || !req.iso.trim().is_empty();
+    if !has_install {
+        return Err(LibvirtError::Invalid(
+            "Configure an install source (location, PXE, install_os, or ISO) before installing".into(),
+        ));
+    }
+
+    let xml = domain
+        .get_xml_desc(0)
+        .map_err(LibvirtError::map_op("get_xml"))?;
+    let mut install_req = req.clone();
+    install_req.virt_install_define_only = false;
+    install_req.virt_install_path_in_use_check_off = true;
+
+    if install_req.existing_disk.is_empty() {
+        if let Some(p) = super::template_apply::primary_disk_path_from_xml(&xml) {
+            install_req.existing_disk = p.to_string_lossy().into();
+        }
+    }
+
+    let keep_nvram = install_req.firmware.eq_ignore_ascii_case("uefi");
+    delete_vm_with_options(
+        conn,
+        name,
+        &UndefineOptions {
+            keep_nvram,
+            ..Default::default()
+        },
+    )?;
+
+    create_vm_virt_install(conn, &install_req, libvirt_uri, log)
 }

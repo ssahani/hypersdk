@@ -2741,7 +2741,7 @@ export async function mockPlatformApi(page: Page, opts?: {
           vm_id: 'v1',
           vm_name: 'vm-1',
           recommended: 'novnc',
-          native: { console_type: 'vnc', ws_path: '/ws/v1/platform/vnc/v1?token=mock-ws-token', available: true },
+          native: { console_type: 'vnc', ws_path: '/ws/v1/platform/vnc/v1?token=mock-ws-token', serial_ws_path: '/ws/v1/platform/serial/v1?token=mock-ws-token', available: true },
           guacamole: { available: true, protocols: ['vnc', 'ssh'] },
           guest_ip: '192.168.122.10',
           ssh_user: 'ubuntu',
@@ -3036,8 +3036,55 @@ export async function mockPlatformApi(page: Page, opts?: {
       paths['/api/v1/health'] = { get: { summary: 'Health check', tags: ['health'] } }
       return route.fulfill({ json: { openapi: '3.0.3', paths } })
     }
+    if (url.includes('/users/prune-invalid') && route.request().method() === 'POST') {
+      return route.fulfill({ json: { deleted: 0 } })
+    }
     if (url.includes('/users/me')) {
       return route.fulfill({ json: { id: 'u1', username: 'admin', role: 'admin' } })
+    }
+    if (url.match(/\/api\/v1\/users(\?|$)/) && route.request().method() === 'GET') {
+      return route.fulfill({ json: [{ id: 'u1', username: 'admin', role: 'admin' }] })
+    }
+    if (url.match(/\/api\/v1\/api-keys(\?|$)/)) {
+      return route.fulfill({ json: [{ id: 'k1', name: 'automation', role: 'operator', created_at: new Date().toISOString() }] })
+    }
+    if (url.includes('/webhooks/deliveries')) {
+      return route.fulfill({ json: [] })
+    }
+    if (url.match(/\/api\/v1\/webhooks(\?|$)/)) {
+      return route.fulfill({ json: [] })
+    }
+    if (url.includes('/fleet/users')) {
+      return route.fulfill({
+        json: {
+          summary: '1 user · 1 admin · 0 workspaces',
+          user_count: 1,
+          admin_count: 1,
+          workspace_count: 0,
+          workspaces_enforced: 0,
+          workspaces: [],
+        },
+      })
+    }
+    if (url.includes('/fleet/spaces')) {
+      return route.fulfill({
+        json: {
+          summary: '1 space · 2 VMs',
+          space_count: 1,
+          total_vms: 2,
+          running_vms: 1,
+          spaces: [{
+            name: 'default',
+            vm_count: 2,
+            running_count: 1,
+            stopped_count: 1,
+            host_count: 1,
+            network_isolation: 'shared',
+            enforce_quotas: false,
+            quota_status: 'none',
+          }],
+        },
+      })
     }
     if (url.includes('/backups/timeline')) {
       return route.fulfill({ json: [] })

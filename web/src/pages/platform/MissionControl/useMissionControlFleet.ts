@@ -11,7 +11,6 @@ import {
   listPlatformHosts,
   listPlatformTasks,
   listPlatformVms,
-  vmDelete,
   vmPower,
   type CapacityReport,
   type ClusterSummary,
@@ -22,8 +21,8 @@ import {
 import { useToastContext } from '../../../contexts/ToastContext'
 import { usePlatformDesktopTier } from '../../../hooks/usePlatformDesktopTier'
 import { formatUserError } from '../../../utils/apiError'
-import { purgeVmShortcuts } from '../../../utils/vmShortcuts'
 import { toastQueuedOperation } from '../../../utils/platformTaskToast'
+import { queuePlatformVmDelete } from '../../../utils/platformVmDelete'
 import type { VmPowerAction } from '../../../components/platform/fleet/fleetCommandCenterTypes'
 
 export function useMissionControlFleet() {
@@ -104,7 +103,7 @@ export function useMissionControlFleet() {
     return map
   }, [displayVms])
 
-  const selectedVm = vms.find((v) => v.id === selectedVmId) ?? displayVms[0] ?? null
+  const selectedVm = selectedVmId ? vms.find((v) => v.id === selectedVmId) ?? null : null
 
   const vmPowerAction = async (vm: PlatformVm, action: VmPowerAction) => {
     if (vm.inventory_source === 'kubevirt') {
@@ -143,12 +142,10 @@ export function useMissionControlFleet() {
     }
     if (!window.confirm(`Delete ${vm.name}?`)) return
     try {
-      const r = await vmDelete(vm.id, true)
-      purgeVmShortcuts([vm.name])
-      if (r.task_id) toastQueuedOperation(toast, `Deleting ${vm.name}`, r.task_id, tier)
-      else toast.success(`Removed ${vm.name}`)
-      setSelectedVmId(null)
-      await load()
+      await queuePlatformVmDelete(vm, toast, tier)
+      if (selectedVmId === vm.id) setSelectedVmId(null)
+      setVms((prev) => prev.filter((v) => v.id !== vm.id))
+      void load()
     } catch (e: unknown) {
       toast.error(formatUserError(e))
     }

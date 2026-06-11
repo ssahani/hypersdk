@@ -2,3 +2,10 @@
 # Installed as /etc/default/machina-daemon when not present.
 #
 # RUST_LOG=info
+#
+# Co-located platform controller proxy (daemon → :5093 for /api/v1/platform/controller/*)
+# MACHINA_PLATFORM_CONTROLLER_URL=http://127.0.0.1:5093
+# MACHINA_PLATFORM_AUTH=admin:admin
+#
+# Dev-only: bypass PAM on daemon API routes (do not set in production)
+# MACHINA_DAEMON_SKIP_AUTH=1

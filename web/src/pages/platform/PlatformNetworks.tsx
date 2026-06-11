@@ -36,11 +36,15 @@ import {
   simulateSegmentConnectivity,
   syncAllHosts,
   exportNetworkSegmentsGitops,
+  listLivePlatformNetworks,
+  activatePlatformNetwork,
+  deactivatePlatformNetwork,
   type FleetNetworkOverview,
   type IpamPoolRow,
   type NetworkSegmentOverview,
   type PlatformNetwork,
   type SegmentConnectivityResult,
+  type LiveNetworkInfo,
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
@@ -85,6 +89,8 @@ export default function PlatformNetworks() {
   const [lensVmNames, setLensVmNames] = useState<string[]>([])
   const [editDraft, setEditDraft] = useState<Record<string, { bridge: string; vlan: string }>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [liveNetworks, setLiveNetworks] = useState<Record<string, LiveNetworkInfo>>({})
+  const [networkActionId, setNetworkActionId] = useState<string | null>(null)
 
   const segmentName = (id?: string | null) =>
     segments.find((s) => s.id === id)?.name ?? null
@@ -102,6 +108,15 @@ export default function PlatformNetworks() {
       setSegments(overview.segments)
       setIpamPools(pools)
       setHostCount(hosts.filter((h) => h.state === 'online').length)
+      if (hosts.some((h) => h.state === 'online')) {
+        listLivePlatformNetworks()
+          .then((live) => {
+            const map: Record<string, LiveNetworkInfo> = {}
+            for (const n of live.networks ?? []) map[n.name] = n
+            setLiveNetworks(map)
+          })
+          .catch(() => setLiveNetworks({}))
+      }
       if (nets.length === 0 && autoDiscover && hosts.some((h) => h.state === 'online')) {
         setDiscovering(true)
         try {
@@ -314,10 +329,14 @@ export default function PlatformNetworks() {
 
           {rows.length > 0 && (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {rows.map((n) => (
+              {rows.map((n) => {
+                const live = liveNetworks[n.name]
+                const active = live?.active ?? false
+                return (
                 <article
                   key={n.id}
                   className="platform-mac-stat rounded-2xl border border-white/[0.06] bg-slate-900/50 backdrop-blur-md p-5 flex flex-col gap-4 hover:border-white/10 transition"
+                  data-testid={`platform-network-${n.name}`}
                 >
                   <div className="flex items-start gap-3">
                     <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${gradientForName(n.name)} flex items-center justify-center text-white shadow-md shrink-0`}>
@@ -326,6 +345,11 @@ export default function PlatformNetworks() {
                     <div className="min-w-0 flex-1">
                       <h3 className="font-semibold text-slate-100 truncate">{n.name}</h3>
                       <p className="text-xs text-slate-500 mt-0.5 capitalize">{n.backend.replace('-', ' ')}</p>
+                      {live && (
+                        <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${statusBadgeClasses(active ? 'ok' : 'warn')}`}>
+                          {active ? 'active' : 'inactive'}
+                        </span>
+                      )}
                       <PlatformOpenStackNetworkLink networkName={n.name} />
                     </div>
                   </div>
@@ -375,6 +399,51 @@ export default function PlatformNetworks() {
                   >
                     {savingId === n.id ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Save bridge/VLAN'}
                   </button>
+                  <div className="flex flex-wrap gap-2">
+                    {!active ? (
+                      <button
+                        type="button"
+                        className="btn-primary text-xs"
+                        disabled={networkActionId === n.id || hostCount === 0}
+                        data-testid={`network-activate-${n.name}`}
+                        onClick={async () => {
+                          setNetworkActionId(n.id)
+                          try {
+                            await activatePlatformNetwork(n.id)
+                            toast.success(`Activated ${n.name}`)
+                            await load(false)
+                          } catch (e: unknown) {
+                            toast.error(formatUserError(e))
+                          } finally {
+                            setNetworkActionId(null)
+                          }
+                        }}
+                      >
+                        Activate
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn-secondary text-xs"
+                        disabled={networkActionId === n.id}
+                        data-testid={`network-deactivate-${n.name}`}
+                        onClick={async () => {
+                          setNetworkActionId(n.id)
+                          try {
+                            await deactivatePlatformNetwork(n.id)
+                            toast.success(`Deactivated ${n.name}`)
+                            await load(false)
+                          } catch (e: unknown) {
+                            toast.error(formatUserError(e))
+                          } finally {
+                            setNetworkActionId(null)
+                          }
+                        }}
+                      >
+                        Deactivate
+                      </button>
+                    )}
+                  </div>
                   {segments.length > 0 && (
                     <div className="flex flex-wrap gap-2 items-center">
                       <select
@@ -405,6 +474,7 @@ export default function PlatformNetworks() {
                     className="btn-danger text-xs w-fit mt-auto"
                     onClick={async () => {
                       try {
+                        if (!window.confirm(`Undefine network ${n.name} on the hypervisor and remove from inventory?`)) return
                         await deletePlatformNetwork(n.id)
                         toast.success('Network removed')
                         await load(false)
@@ -413,10 +483,10 @@ export default function PlatformNetworks() {
                       }
                     }}
                   >
-                    Remove
+                    Remove from host & inventory
                   </button>
                 </article>
-              ))}
+              )})}
               <button
                 type="button"
                 onClick={() => setNetworkWizardOpen(true)}

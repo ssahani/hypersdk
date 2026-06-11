@@ -12,15 +12,17 @@ export function MacGlassPanel({
   action,
   children,
   className = '',
+  'data-testid': dataTestId,
 }: {
   title?: string
   subtitle?: string
   action?: React.ReactNode
   children: React.ReactNode
   className?: string
+  'data-testid'?: string
 }) {
   return (
-    <GlassCard hover={false} className={`platform-mac-panel tahoe-glass-card p-0 ${className}`}>
+    <GlassCard hover={false} className={`platform-mac-panel tahoe-glass-card p-0 ${className}`} data-testid={dataTestId}>
       {(title || action) && (
         <header className="flex items-start justify-between gap-3 px-4 pt-3.5 pb-2 border-b border-white/[0.04]">
           <div>

@@ -9,6 +9,8 @@ import { hubLinkClasses, statusPillClasses } from '../../../utils/semanticColors
 import { formatVmMemoryGiB } from '../../../utils/vmVisual'
 import { useToastContext } from '../../../contexts/ToastContext'
 import type { MachineFinderState } from './useMachineFinder'
+import MachineFinderTableUsageCell from '../../../components/platform/MachineFinderTableUsageCell'
+import MachineFinderParityBadges from '../../../components/platform/MachineFinderParityBadges'
 
 type Props = {
   state: MachineFinderState
@@ -25,7 +27,12 @@ export default function MachineFinderTableLens({ state }: Props) {
     toggleVmSelect,
     toggleAllVisible,
     setSshVm,
+    displayGuestIp,
   } = state
+
+  const runningLibvirtIds = filteredVms
+    .filter((v) => v.observed_state === 'running' && v.inventory_source !== 'kubevirt')
+    .map((v) => v.id)
 
   if (filteredVms.length === 0) {
     return (
@@ -56,6 +63,7 @@ export default function MachineFinderTableLens({ state }: Props) {
             <th className="p-3">Guest agent</th>
             <th className="p-3">vCPU</th>
             <th className="p-3">Memory</th>
+            <th className="p-3">Usage</th>
             <th className="p-3 text-right">Access</th>
           </tr>
         </thead>
@@ -74,6 +82,7 @@ export default function MachineFinderTableLens({ state }: Props) {
                 </td>
                 <td className="p-3">
                   <Link to={`/platform/vms/${v.id}`} className={`hover:underline ${hubLinkClasses()}`} onClick={(e) => e.stopPropagation()}>{v.name}</Link>
+                  <MachineFinderParityBadges vm={v} batchVmIds={runningLibvirtIds} />
                 </td>
                 <td className="p-3 text-xs text-slate-500 capitalize">{v.inventory_source ?? 'libvirt'}</td>
                 <td className="p-3"><VmStatusBadge state={v.observed_state} /></td>
@@ -82,7 +91,7 @@ export default function MachineFinderTableLens({ state }: Props) {
                     ? (v.k8s_namespace ? `${v.k8s_namespace}/` : 'k8s/')
                     : v.host_id ? hostMap.get(v.host_id) : '—'}
                 </td>
-                <td className="p-3 font-mono text-xs text-emerald-300/80">{v.guest_ip || '—'}</td>
+                <td className="p-3 font-mono text-xs text-emerald-300/80">{displayGuestIp(v) || '—'}</td>
                 <td className="p-3">
                   {libvirt ? (
                     <span className={statusPillClasses(v.guest_tools_status === 'healthy' || v.guest_tools_status === 'installed' ? 'ok' : 'warn')}>
@@ -92,18 +101,21 @@ export default function MachineFinderTableLens({ state }: Props) {
                 </td>
                 <td className="p-3">{v.vcpus}</td>
                 <td className="p-3">{formatVmMemoryGiB(v.memory_mib)}</td>
+                <td className="p-3">
+                  <MachineFinderTableUsageCell vmId={v.id} running={running} memoryMib={v.memory_mib} />
+                </td>
                 <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
                   {running && libvirt && (
                     <div className="inline-flex gap-1 justify-end">
                       <Link to={`/platform/vms/${v.id}/consolehub`} className="btn-secondary text-xs py-1 px-2" title="Console"><Monitor className="w-3.5 h-3.5" /></Link>
                       <button type="button" className="btn-secondary text-xs py-1 px-2" title="SSH" onClick={() => setSshVm(v)}><Terminal className="w-3.5 h-3.5" /></button>
-                      {v.guest_ip && (
+                      {(displayGuestIp(v)) && (
                         <button
                           type="button"
                           className="btn-secondary text-xs py-1 px-2"
                           title="Copy guest IP"
                           onClick={() => {
-                            void navigator.clipboard.writeText(v.guest_ip!)
+                            void navigator.clipboard.writeText(displayGuestIp(v))
                             toast.success('Guest IP copied')
                           }}
                         >

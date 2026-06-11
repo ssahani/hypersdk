@@ -260,6 +260,7 @@ export default function PlatformTemplates() {
     <PlatformPageChrome
       error={error}
       onErrorRetry={() => void load(false)}
+      loading={loading && rows.length === 0}
       prepend={<PlatformBackLink to="/platform/infrastructure" label="Infrastructure" />}
       title="Marketplace"
       subtitle="Golden image templates and platform integration plugins."
@@ -339,12 +340,6 @@ export default function PlatformTemplates() {
             ))}
           </ul>
         </MacGlassPanel>
-      )}
-
-      {loading && rows.length === 0 && (
-        <div className="flex items-center justify-center h-32" aria-busy="true" aria-label="Loading">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-        </div>
       )}
 
       {!loading && rows.length === 0 && (

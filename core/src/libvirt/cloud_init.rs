@@ -119,6 +119,9 @@ pub fn materialize_cloud_init_seed_if_requested(
     if guest_default {
         super::guest_agent_provision::append_guestkit_cloud_config(&mut ud, true);
     }
+    if super::guest_agent_provision::vm_wants_graphical_desktop(&req.name) {
+        super::guest_agent_provision::append_desktop_graphical_cloud_config(&mut ud, &user);
+    }
 
     let md = format!("instance-id: {}\nlocal-hostname: {}\n", req.name, req.name);
 

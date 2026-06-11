@@ -40,6 +40,7 @@ import { getSession, type SessionRole } from '../api/auth'
 import { snapshotForest, type SnapshotTreeNode } from '../utils/snapshotTree'
 import { deleteVmWithNvramRetry } from '../utils/deleteVmWithNvramRetry'
 import PageLayout from '../components/PageLayout'
+import PageSkeleton from '../components/PageSkeleton'
 import ConfirmDialog from '../components/ConfirmDialog'
 import LibvirtOpenStackPushModal from '../components/LibvirtOpenStackPushModal'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
@@ -1067,7 +1068,7 @@ export default function VMDetailsPage() {
     setBootDevices(newDevices)
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
+  if (loading) return <PageSkeleton />
   if (!vm) {
     return (
       <PageLayout

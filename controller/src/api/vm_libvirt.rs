@@ -23,6 +23,18 @@ pub struct LibvirtQueryParams {
     pub disk: Option<String>,
     #[serde(default)]
     pub bandwidth_bytes: Option<bool>,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub disk_only: Option<bool>,
+    #[serde(default)]
+    pub quiesce: Option<bool>,
+    #[serde(default)]
+    pub storage_mode: Option<String>,
+    #[serde(default)]
+    pub snapshot: Option<String>,
+    #[serde(default)]
+    pub snapshot_action: Option<String>,
 }
 
 async fn vm_agent_row(
@@ -64,6 +76,24 @@ pub async fn query_vm_libvirt(
     }
     if let Some(bb) = q.bandwidth_bytes {
         payload["bandwidth_bytes"] = serde_json::Value::Bool(bb);
+    }
+    if let Some(name) = q.name.filter(|s| !s.trim().is_empty()) {
+        payload["name"] = serde_json::Value::String(name);
+    }
+    if let Some(disk_only) = q.disk_only {
+        payload["disk_only"] = serde_json::Value::Bool(disk_only);
+    }
+    if let Some(quiesce) = q.quiesce {
+        payload["quiesce"] = serde_json::Value::Bool(quiesce);
+    }
+    if let Some(mode) = q.storage_mode.filter(|s| !s.trim().is_empty()) {
+        payload["storage_mode"] = serde_json::Value::String(mode);
+    }
+    if let Some(snap) = q.snapshot.filter(|s| !s.trim().is_empty()) {
+        payload["snapshot"] = serde_json::Value::String(snap);
+    }
+    if let Some(action) = q.snapshot_action.filter(|s| !s.trim().is_empty()) {
+        payload["action"] = serde_json::Value::String(action);
     }
     let result = crate::agent_client::vm_libvirt_query(&mut client, &name, &q.action, &payload)
         .await
@@ -126,6 +156,40 @@ pub async fn put_vm_domain_xml(
 #[derive(Debug, Deserialize)]
 pub struct HostLibvirtQueryParams {
     pub action: String,
+    #[serde(default)]
+    pub url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HostLibvirtActionBody {
+    pub action: String,
+    #[serde(default)]
+    pub payload: Value,
+}
+
+pub async fn invoke_host_libvirt(
+    State(state): State<AppState>,
+    Path(host_id): Path<Uuid>,
+    Json(body): Json<HostLibvirtActionBody>,
+) -> Result<Json<Value>, ApiError> {
+    let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut client = crate::agent_client::connect(&agent_addr)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let result = crate::agent_client::host_libvirt_invoke(
+        &mut client,
+        &body.action,
+        &body.payload,
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    state.emit_event(
+        "host.libvirt",
+        format!("Host {host_id} libvirt action {}", body.action),
+    );
+    Ok(Json(result))
 }
 
 pub async fn query_host_libvirt(
@@ -139,10 +203,14 @@ pub async fn query_host_libvirt(
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut payload = serde_json::json!({});
+    if let Some(url) = q.url.filter(|s| !s.trim().is_empty()) {
+        payload["url"] = serde_json::Value::String(url);
+    }
     let result = crate::agent_client::host_libvirt_query(
         &mut client,
         &q.action,
-        &serde_json::json!({}),
+        &payload,
     )
     .await
     .map_err(|e| ApiError::internal(e.to_string()))?;

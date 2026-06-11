@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { Boxes, Copy, ExternalLink, Monitor, Network, RefreshCw, Terminal } from 'lucide-react'
+import { Boxes, Copy, ExternalLink, Monitor, Network, Play, RefreshCw, RotateCw, Square, Terminal, Trash2 } from 'lucide-react'
 import VNCViewer from '../components/VNCViewer'
 import KubeVirtSerialConsole from '../components/KubeVirtSerialConsole'
 import KubeVirtExposeServiceModal from '../components/KubeVirtExposeServiceModal'
@@ -19,6 +19,8 @@ import {
   getK8sJobs,
   getK8sKubevirtVirtualMachines,
   getK8sKubevirtVmSummary,
+  deleteK8sKubevirtVm,
+  postK8sKubevirtVmLifecycle,
   type K8sKubeVirtVM,
   getK8sNamespaces,
   getK8sPersistentVolumeClaims,
@@ -64,6 +66,52 @@ export default function K8sWorkloadsPage() {
   const [kubevirtListError, setKubevirtListError] = useState<string | null>(null)
   const [kubevirtVmCrs, setKubevirtVmCrs] = useState<K8sKubeVirtVM[]>([])
   const [kubevirtCrBusy, setKubevirtCrBusy] = useState(false)
+  const [kubevirtVmBusy, setKubevirtVmBusy] = useState<string | null>(null)
+  const [showKubevirtCreate, setShowKubevirtCreate] = useState(false)
+  const [kubevirtCreateYaml, setKubevirtCreateYaml] = useState(`apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: example-vm
+  namespace: default
+spec:
+  running: false
+  template:
+    metadata:
+      labels:
+        kubevirt.io/vm: example-vm
+    spec:
+      domain:
+        devices:
+          disks:
+            - name: containerdisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+          interfaces:
+            - name: default
+              masquerade: {}
+              ports:
+                - port: 22
+                  protocol: TCP
+        resources:
+          requests:
+            memory: 1Gi
+      networks:
+        - name: default
+          pod: {}
+      volumes:
+        - name: containerdisk
+          containerDisk:
+            image: quay.io/kubevirt/cirros-container-disk-demo
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #cloud-config
+              password: cirros
+              chpasswd: { expire: False }
+`)
   const [liveKubeVirt, setLiveKubeVirt] = useState<null | { kind: 'vnc' | 'console'; namespace: string; name: string }>(null)
   const [exposeVm, setExposeVm] = useState<null | { name: string; namespace: string; nodeInternalIp?: string | null }>(null)
   const [acting, setActing] = useState<string | null>(null)
@@ -159,6 +207,49 @@ export default function K8sWorkloadsPage() {
       setKubevirtCrBusy(false)
     }
   }, [ctxTrim, nsValue, toast])
+
+  const runKubevirtLifecycle = useCallback(async (namespace: string, name: string, action: 'start' | 'stop' | 'restart') => {
+    const key = `${action}:${namespace}/${name}`
+    setKubevirtVmBusy(key)
+    try {
+      await postK8sKubevirtVmLifecycle(namespace, name, action, ctxTrim || undefined)
+      toast.success(`KubeVirt VM ${action} requested for ${namespace}/${name}`)
+      await load(true)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setKubevirtVmBusy(null)
+    }
+  }, [ctxTrim, load, toast])
+
+  const deleteKubevirtVm = useCallback(async (namespace: string, name: string) => {
+    if (!window.confirm(`Delete KubeVirt VirtualMachine ${namespace}/${name}?`)) return
+    const key = `delete:${namespace}/${name}`
+    setKubevirtVmBusy(key)
+    try {
+      await deleteK8sKubevirtVm(namespace, name, ctxTrim || undefined)
+      toast.success(`Deleted ${namespace}/${name}`)
+      await load(true)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setKubevirtVmBusy(null)
+    }
+  }, [ctxTrim, load, toast])
+
+  const applyKubevirtYaml = useCallback(async () => {
+    setKubevirtVmBusy('create')
+    try {
+      const res = await postK8sApply(kubevirtCreateYaml, false, ctxTrim || undefined)
+      toast.success(res.stdout?.trim() || 'VirtualMachine manifest applied')
+      setShowKubevirtCreate(false)
+      await load(true)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setKubevirtVmBusy(null)
+    }
+  }, [ctxTrim, kubevirtCreateYaml, load, toast])
 
   const copyText = useCallback((label: string, text: string) => {
     void navigator.clipboard.writeText(text).then(() => {
@@ -612,6 +703,15 @@ export default function K8sWorkloadsPage() {
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
+              data-testid="kubevirt-create-yaml"
+              disabled={kubevirtVmBusy === 'create'}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-teal-500/40 px-3 py-1.5 text-xs text-teal-200 hover:bg-teal-500/10 disabled:opacity-50"
+              onClick={() => setShowKubevirtCreate((v) => !v)}
+            >
+              {showKubevirtCreate ? 'Hide create YAML' : 'Create VM (YAML)'}
+            </button>
+            <button
+              type="button"
               data-testid="kubevirt-load-crs"
               disabled={kubevirtCrBusy}
               className="inline-flex items-center gap-1.5 rounded-lg border border-violet-500/40 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-500/10 disabled:opacity-50"
@@ -623,6 +723,25 @@ export default function K8sWorkloadsPage() {
               <span className="text-xs text-slate-500" data-testid="kubevirt-cr-count">{kubevirtVmCrs.length} CR(s) from /k8s/kubevirt/virtualmachines</span>
             )}
           </div>
+          {showKubevirtCreate && (
+            <div className="mt-3 space-y-2">
+              <textarea
+                value={kubevirtCreateYaml}
+                onChange={(e) => setKubevirtCreateYaml(e.target.value)}
+                rows={12}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950/80 p-3 font-mono text-xs text-slate-200"
+                spellCheck={false}
+              />
+              <button
+                type="button"
+                className="btn-primary text-xs"
+                disabled={kubevirtVmBusy === 'create'}
+                onClick={() => void applyKubevirtYaml()}
+              >
+                {kubevirtVmBusy === 'create' ? 'Applying…' : 'kubectl apply manifest'}
+              </button>
+            </div>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[72rem]">
@@ -638,6 +757,7 @@ export default function K8sWorkloadsPage() {
                 <th className="text-left px-4 py-3">Node</th>
                 <th className="text-left px-4 py-3">Node IP</th>
                 <th className="text-center px-4 py-3">Console / VNC / live</th>
+                <th className="text-center px-4 py-3">Lifecycle</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/30">
@@ -717,6 +837,46 @@ export default function K8sWorkloadsPage() {
                             })}
                         >
                           <Network className="w-3.5 h-3.5" /> Expose / SSH
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          title="Start VM"
+                          disabled={kubevirtVmBusy != null}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-emerald-500/15 text-emerald-200 border border-emerald-500/35 hover:bg-emerald-500/25 disabled:opacity-50"
+                          onClick={() => void runKubevirtLifecycle(v.namespace, v.name, 'start')}
+                        >
+                          <Play className="w-3.5 h-3.5" /> Start
+                        </button>
+                        <button
+                          type="button"
+                          title="Stop VM"
+                          disabled={kubevirtVmBusy != null}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-slate-700/80 text-slate-200 border border-slate-600 hover:bg-slate-600 disabled:opacity-50"
+                          onClick={() => void runKubevirtLifecycle(v.namespace, v.name, 'stop')}
+                        >
+                          <Square className="w-3.5 h-3.5" /> Stop
+                        </button>
+                        <button
+                          type="button"
+                          title="Restart VM"
+                          disabled={kubevirtVmBusy != null}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-amber-500/15 text-amber-200 border border-amber-500/35 hover:bg-amber-500/25 disabled:opacity-50"
+                          onClick={() => void runKubevirtLifecycle(v.namespace, v.name, 'restart')}
+                        >
+                          <RotateCw className="w-3.5 h-3.5" /> Restart
+                        </button>
+                        <button
+                          type="button"
+                          title="Delete VirtualMachine CR"
+                          disabled={kubevirtVmBusy != null}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-red-500/15 text-red-200 border border-red-500/35 hover:bg-red-500/25 disabled:opacity-50"
+                          onClick={() => void deleteKubevirtVm(v.namespace, v.name)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Delete
                         </button>
                       </div>
                     </td>

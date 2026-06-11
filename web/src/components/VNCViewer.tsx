@@ -145,6 +145,7 @@ export default function VNCViewer({
             syncGuestSize(rfb)
             applyViewportMode(rfb, scaledFitRef.current)
             window.dispatchEvent(new Event('resize'))
+            scrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
             requestAnimationFrame(() => {
               syncGuestSize(rfb)
               applyViewportMode(rfb, scaledFitRef.current)
@@ -184,7 +185,10 @@ export default function VNCViewer({
         const { default: RFB } = await import(/* @vite-ignore */ 'novnc-core/lib/rfb')
         if (cancelled || !containerRef.current) return
 
-        const rfb = new RFB(containerRef.current, wsUrl, { showDotCursor: showDotCursorRef.current })
+        const rfb = new RFB(containerRef.current, wsUrl, {
+          showDotCursor: showDotCursorRef.current,
+          shared: true,
+        })
         wireCommon(rfb)
       } catch (e) {
         console.error('Failed to load bundled noVNC RFB:', e)
@@ -196,7 +200,10 @@ export default function VNCViewer({
           if (cancelled || !containerRef.current) return
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const rfb: any = new (RFB as any)(containerRef.current, wsUrl, { showDotCursor: showDotCursorRef.current })
+          const rfb: any = new (RFB as any)(containerRef.current, wsUrl, {
+            showDotCursor: showDotCursorRef.current,
+            shared: true,
+          })
           wireCommon(rfb)
         } catch {
           setStatus('disconnected')
@@ -255,6 +262,11 @@ export default function VNCViewer({
     const el = scrollRef.current
     const ro = new ResizeObserver(() => {
       vp.setViewportSize(el.clientWidth, el.clientHeight)
+      const rfb = rfbRef.current
+      if (rfb && status === 'connected' && el.clientWidth > 0 && el.clientHeight > 0) {
+        applyViewportMode(rfb as { scaleViewport: boolean; clipViewport: boolean }, scaledFitRef.current)
+        window.dispatchEvent(new Event('resize'))
+      }
     })
     ro.observe(el)
     vp.setViewportSize(el.clientWidth, el.clientHeight)
@@ -374,7 +386,7 @@ export default function VNCViewer({
       ) : null}
       <div
         ref={scrollRef}
-        className={`w-full h-full bg-black overflow-auto ${fullscreen || fillViewport || cockpitMode ? 'flex-1 min-h-[320px]' : ''}`}
+        className={`relative w-full h-full bg-black overflow-auto ${fullscreen || fillViewport || cockpitMode ? 'flex-1 min-h-[320px]' : ''}`}
         onScroll={cockpitMode && vp ? (e) => vp.setScroll(e.currentTarget.scrollLeft, e.currentTarget.scrollTop) : undefined}
         style={{
           height: cockpitMode
@@ -395,6 +407,11 @@ export default function VNCViewer({
             transformOrigin: 'top left',
           }}
         />
+        {cockpitMode && status === 'connected' ? (
+          <p className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 max-w-md text-center text-xs text-slate-400 bg-black/70 border border-white/10 rounded-lg px-3 py-2 pointer-events-none">
+            Blank display? Linux cloud images often log to <strong className="text-slate-200">Serial</strong> only — use Serial or SSH in the dock. Click the canvas, then try <strong className="text-slate-200">Native</strong> or <strong className="text-slate-200">Ctrl+Alt+Del</strong>.
+          </p>
+        ) : null}
       </div>
     </div>
   )

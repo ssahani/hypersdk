@@ -10,6 +10,7 @@ import JsonInspector, { asArray, asRecord } from '../components/platform/JsonIns
 import { AlertTriangle, CheckCircle2, Download, LayoutGrid, Loader2, Puzzle, RefreshCw, ShieldAlert, Server, Package,
 } from 'lucide-react'
 import PageLayout from '../components/PageLayout'
+import PageSkeleton from '../components/PageSkeleton'
 import K8sConnectionErrorBanner from '../components/K8sConnectionErrorBanner'
 import EmptyState from '../components/EmptyState'
 import { summarizeK8sClientError } from '../utils/k8sErrors'
@@ -543,6 +544,10 @@ export default function K8sOverviewPage() {
     return [...base, ...tail]
   }, [overview, liveNodesCount])
 
+  if (loading) {
+    return <PageSkeleton />
+  }
+
   return (
     <PageLayout
       title="Kubernetes Cluster"
@@ -585,7 +590,6 @@ export default function K8sOverviewPage() {
           </button>
         </>
       }
-      contentLoading={loading}
     >
       {loadError && (
         <div className="sticky top-2 z-30">

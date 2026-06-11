@@ -105,6 +105,52 @@ pub fn attach_sound(conn: &Connect, vm_name: &str, model: &str) -> Result<(), Li
     Ok(())
 }
 
+fn vsock_present(xml: &str) -> bool {
+    xml.contains("<vsock") || xml.contains("<vsock ")
+}
+
+/// Attach a virtio vsock device (guest↔host AF_VSOCK). `cid` is optional; libvirt auto-assigns when omitted.
+pub fn attach_vsock(conn: &Connect, vm_name: &str, cid: Option<u32>) -> Result<(), LibvirtError> {
+    let domain = lookup_domain(conn, vm_name)?;
+    let desc = domain
+        .get_xml_desc(0)
+        .map_err(LibvirtError::map_op("get_xml"))?;
+    if vsock_present(&desc) {
+        return Err(LibvirtError::Invalid("VM already has a vsock device".into()));
+    }
+    let cid_xml = match cid {
+        Some(id) => format!(r#"  <cid address="{}"/>"#, id),
+        None => r#"  <cid auto="yes"/>"#.into(),
+    };
+    let xml = format!(
+        r#"<vsock model="virtio">
+{cid_xml}
+</vsock>"#
+    );
+    let flags = get_domain_flags(&domain);
+    domain
+        .attach_device_flags(&xml, flags)
+        .map_err(|e| LibvirtError::Operation(format!("attach vsock: {e}")))?;
+    Ok(())
+}
+
+/// Remove the first vsock device from the domain XML.
+pub fn detach_vsock(conn: &Connect, vm_name: &str) -> Result<(), LibvirtError> {
+    let domain = lookup_domain(conn, vm_name)?;
+    let desc = domain
+        .get_xml_desc(0)
+        .map_err(LibvirtError::map_op("get_xml"))?;
+    let blocks = split_blocks(&desc, "vsock");
+    let Some(first) = blocks.first() else {
+        return Err(LibvirtError::NotFound(format!("No vsock on VM '{vm_name}'")));
+    };
+    let flags = get_domain_flags(&domain);
+    domain
+        .detach_device_flags(first, flags)
+        .map_err(|e| LibvirtError::Operation(format!("detach vsock: {e}")))?;
+    Ok(())
+}
+
 /// Add another serial+console pair on a PTY (`port` is the guest index, e.g. 1 for ttyS1).
 pub fn attach_serial_pty(conn: &Connect, vm_name: &str, port: u32) -> Result<(), LibvirtError> {
     if port > 32 {

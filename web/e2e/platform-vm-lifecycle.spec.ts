@@ -56,6 +56,50 @@ test('create vm wizard shows readiness when template selected', async ({ page })
   await expect(page.getByText('Ready to deploy')).toBeVisible({ timeout: 10_000 })
 })
 
+test('machine finder delete from command center does not crash', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', (err) => errors.push(err.message))
+
+  let vmGone = false
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.route('**/platform/controller/api/v1/vms/v1', async (route) => {
+    if (vmGone && route.request().method() === 'GET') {
+      return route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'not found', error_code: 'not_found' }),
+      })
+    }
+    await route.fallback()
+  })
+  await page.route('**/platform/controller/api/v1/vms/v1/delete', async (route) => {
+    vmGone = true
+    return route.fulfill({
+      json: { task_id: 'task-delete-mock', status: 'pending', operation: 'vm.delete' },
+    })
+  })
+
+  await page.goto('/platform/vms')
+  await expect(page.getByRole('heading', { name: 'Machine Finder', exact: true })).toBeVisible({
+    timeout: 15_000,
+  })
+
+  await page.getByTestId('machine-card-v1').click()
+  await expect(page.getByTestId('machine-finder-command-center')).toBeVisible()
+
+  page.once('dialog', (d) => d.accept())
+  const deleteReq = page.waitForResponse(
+    (r) => r.url().includes('/vms/v1/delete') && r.request().method() === 'POST',
+  )
+  await page.getByTestId('machine-finder-command-center').getByRole('button', { name: 'Delete' }).click()
+  expect((await deleteReq).ok()).toBeTruthy()
+
+  await expect(page.getByTestId('machine-card-v1')).toHaveCount(0, { timeout: 10_000 })
+  await expect(page.getByTestId('machine-finder-migrate-zone')).toContainText('0 VMs')
+  await expect(page.getByText('Application error|Something went wrong')).toHaveCount(0)
+  expect(errors.filter((e) => !e.includes('ResizeObserver'))).toEqual([])
+})
+
 test('delete vm returns to list without page crash', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', (err) => errors.push(err.message))

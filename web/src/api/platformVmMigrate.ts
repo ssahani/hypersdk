@@ -8,6 +8,8 @@ export type VmMigrateOptions = {
   live?: boolean
   bandwidth_mib?: number
   postcopy?: boolean
+  undefine_source?: boolean
+  tunnelled?: boolean
 }
 
 export const vmMigrate = (id: string, opts: VmMigrateOptions) =>
@@ -18,5 +20,7 @@ export const vmMigrate = (id: string, opts: VmMigrateOptions) =>
       live: opts.live ?? true,
       bandwidth_mib: opts.bandwidth_mib,
       postcopy: opts.postcopy ?? false,
+      undefine_source: opts.undefine_source ?? false,
+      tunnelled: opts.tunnelled ?? false,
     }),
   })

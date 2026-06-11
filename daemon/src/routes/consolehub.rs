@@ -73,6 +73,7 @@ pub struct ConsoleHubPlan {
 pub struct NativeConsoleInfo {
     pub console_type: String,
     pub ws_path: String,
+    pub serial_ws_path: String,
     pub available: bool,
 }
 
@@ -309,6 +310,10 @@ async fn build_plan(
             console_type: console_type.clone(),
             ws_path: format!(
                 "/ws/v1/vnc/{}?token=__WS_TOKEN__{ws_suffix}",
+                urlencoding_light(vm_name)
+            ),
+            serial_ws_path: format!(
+                "/ws/v1/console/{}?token=__WS_TOKEN__{ws_suffix}",
                 urlencoding_light(vm_name)
             ),
             available: vnc_port > 0,

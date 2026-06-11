@@ -8,6 +8,7 @@ export type VmDetailTab =
   | 'console'
   | 'performance'
   | 'disks'
+  | 'devices'
   | 'network'
   | 'guestHealth'
   | 'guestServices'
@@ -16,6 +17,7 @@ export type VmDetailTab =
   | 'backup'
   | 'topology'
   | 'events'
+  | 'logs'
   | 'settings'
   | 'advanced'
 
@@ -25,6 +27,7 @@ const PRIMARY = [
   { id: 'performance' as const, label: 'Performance' },
   { id: 'doctor' as const, label: 'Doctor' },
   { id: 'disks' as const, label: 'Disks' },
+  { id: 'devices' as const, label: 'Devices' },
 ]
 
 const MORE = [
@@ -36,6 +39,7 @@ const MORE = [
   { id: 'backup' as const, label: 'Backup', group: 'Data' },
   { id: 'topology' as const, label: 'Topology', group: 'Fleet' },
   { id: 'events' as const, label: 'Events', group: 'Fleet' },
+  { id: 'logs' as const, label: 'Logs', group: 'Fleet' },
   { id: 'settings' as const, label: 'Settings', group: 'Admin' },
   { id: 'advanced' as const, label: 'Advanced', group: 'Admin' },
 ]

@@ -45,8 +45,29 @@ function normalizeControllerBase(raw: string | null): string {
 
   if (!saved) return proxy
 
+  const sameLogicalHost = (hostname: string) =>
+    hostname === window.location.hostname
+    || (hostname === '127.0.0.1' && ['127.0.0.1', 'localhost', window.location.hostname].includes(window.location.hostname))
+    || (hostname === 'localhost' && ['127.0.0.1', 'localhost', window.location.hostname].includes(window.location.hostname))
+
   try {
     const u = new URL(saved, origin)
+
+    // Proxy URL saved under another origin (IP vs hostname in the bar) breaks fetch — rewrite.
+    if (saved.includes(PLATFORM_CONTROLLER_PROXY)) {
+      if (u.origin !== origin) {
+        localStorage.setItem(LS_CONTROLLER, proxy)
+        return proxy
+      }
+      return saved
+    }
+
+    // Direct :5093 (or loopback) on the same machine while browsing daemon UI — use proxy.
+    if (sameLogicalHost(u.hostname) && u.origin !== origin) {
+      localStorage.setItem(LS_CONTROLLER, proxy)
+      return proxy
+    }
+
     if (u.origin !== origin) return saved
 
     const path = u.pathname.replace(/\/$/, '') || ''
@@ -62,6 +83,37 @@ function normalizeControllerBase(raw: string | null): string {
   }
 
   return saved
+}
+
+/** Canonical same-origin proxy URL for settings display and localStorage. */
+export function defaultControllerProxyUrl(): string {
+  return sameOriginProxyBase()
+}
+
+/** True when API calls should go through the daemon→controller proxy on this page. */
+export function usesCoLocatedControllerProxy(base: string): boolean {
+  return base.includes(PLATFORM_CONTROLLER_PROXY)
+}
+
+/**
+ * Build fetch URL for controller API paths. Uses a relative proxy path when co-located
+ * so IP vs hostname in localStorage cannot break same-origin fetch.
+ */
+export function resolvePlatformApiUrl(apiPath: string, base = getControllerBase()): string {
+  const path = apiPath.startsWith('/') ? apiPath : `/${apiPath}`
+  if (typeof window !== 'undefined' && usesCoLocatedControllerProxy(base)) {
+    return `${PLATFORM_CONTROLLER_PROXY}${path}`
+  }
+  return `${base}${path}`
+}
+
+/** Align stored controller URL with daemon platform-info (fixes IP/hostname drift). */
+export function syncControllerProxyFromPlatformInfo(info: { control_plane?: { proxy_url?: string } }) {
+  if (typeof window === 'undefined') return
+  const proxyPath = info.control_plane?.proxy_url?.trim()
+  if (!proxyPath) return
+  const normalizedPath = proxyPath.startsWith('/') ? proxyPath : `/${proxyPath}`
+  localStorage.setItem(LS_CONTROLLER, `${window.location.origin}${normalizedPath}`)
 }
 
 export function getControllerBase(): string {
@@ -111,18 +163,46 @@ function sleepMs(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function platformFetchError(base: string, cause?: unknown): Error {
+  const viaProxy = usesCoLocatedControllerProxy(base)
+  const hint = cause instanceof Error && cause.message ? ` (${cause.message})` : ''
+  const loadFailed = hint.toLowerCase().includes('load failed') || hint.toLowerCase().includes('failed to fetch')
+  return new Error(
+    viaProxy
+      ? loadFailed
+        ? `Machina daemon is not responding (${defaultControllerProxyUrl()}). `
+          + 'The web UI cannot reach machina-daemon on this host — platform VM delete may have succeeded but refresh failed. '
+          + 'On the host run: sudo systemctl restart machina-daemon && systemctl status machina-daemon machina-controller'
+          + hint
+        : `Cannot reach the Machina platform API (${defaultControllerProxyUrl()}). `
+          + 'Confirm machina-daemon and machina-controller are running on this host '
+          + '(systemctl status machina-daemon machina-controller). '
+          + 'The UI uses the daemon proxy; a direct check is: curl -fsS http://127.0.0.1:5093/api/v1/health'
+          + hint
+      : `Cannot reach the Machina platform controller (${base}). `
+        + 'Ensure machina-controller is running (systemctl status machina-controller) '
+        + 'or set the controller URL in Platform Settings.',
+  )
+}
+
+function controllerUnreachableMessage(body: string, status: number): string | null {
+  const lower = body.toLowerCase()
+  if (lower.includes('platform controller unreachable') || lower.includes('connection refused')) {
+    return `Platform controller unreachable (HTTP ${status}). On the host run: systemctl status machina-controller && curl -fsS http://127.0.0.1:5093/api/v1/health`
+  }
+  return null
+}
+
 export async function platformFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const url = `${getControllerBase()}${path.startsWith('/') ? path : `/${path}`}`
+  const base = getControllerBase()
+  const url = resolvePlatformApiUrl(path, base)
   let res: Response
   const max429Retries = 3
   for (let attempt = 0; attempt <= max429Retries; attempt++) {
     try {
       res = await fetch(url, { credentials: 'same-origin', ...init, headers: platformHeaders(init?.headers) })
-    } catch {
-      throw new Error(
-        `Cannot reach the Machina platform controller (${getControllerBase()}). ` +
-        'Ensure machina-controller is running (systemctl status machina-controller) or set the controller URL on Platform Dashboard.',
-      )
+    } catch (e: unknown) {
+      throw platformFetchError(base, e)
     }
     if (res.status !== 429 || attempt === max429Retries) break
     await sleepMs(Math.min(60_000, 1000 * 2 ** attempt))
@@ -140,6 +220,10 @@ export async function platformFetch<T>(path: string, init?: RequestInit): Promis
   }
   if (!res!.ok) {
     const body = await res!.text().catch(() => '')
+    const unreachable = controllerUnreachableMessage(body, res!.status)
+    if (unreachable) {
+      throw Object.assign(new Error(unreachable), { error_code: 'controller_unreachable' })
+    }
     let parsed: PlatformApiError | null = null
     try {
       const j = JSON.parse(body) as { error?: string; error_code?: string; remediation?: string; object_ref?: unknown }
@@ -161,7 +245,7 @@ export async function platformFetch<T>(path: string, init?: RequestInit): Promis
 
 /** Authenticated download for controller export endpoints (CSV, PDF, etc.). */
 export async function downloadControllerExport(path: string, filename: string) {
-  const url = `${getControllerBase()}${path.startsWith('/') ? path : `/${path}`}`
+  const url = resolvePlatformApiUrl(path)
   const res = await fetch(url, { credentials: 'same-origin', headers: platformHeaders() })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
@@ -270,7 +354,7 @@ export interface ConsoleHubPlan {
   vm_id: string
   vm_name: string
   recommended: string
-  native: { console_type: string; ws_path: string; available: boolean }
+  native: { console_type: string; ws_path: string; serial_ws_path?: string; available: boolean }
   guacamole: { available: boolean; protocols: string[] }
   guest_ip?: string | null
   ssh_user?: string | null
@@ -1404,6 +1488,32 @@ export const bindNetworkToSegment = (segmentId: string, networkId: string) =>
 export const patchPlatformNetwork = (id: string, body: { segment_id?: string; vlan_id?: number; bridge?: string }) =>
   platformFetch<PlatformNetwork>(`/api/v1/networks/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 
+export interface LiveNetworkInfo {
+  name: string
+  uuid: string
+  active: boolean
+  persistent: boolean
+  autostart: boolean
+  bridge: string
+}
+
+export const listLivePlatformNetworks = (hostId?: string) => {
+  const q = hostId ? `?host_id=${encodeURIComponent(hostId)}` : ''
+  return platformFetch<{ host_id: string; networks: LiveNetworkInfo[] }>(`/api/v1/networks/live${q}`)
+}
+
+export const activatePlatformNetwork = (id: string, hostId?: string) =>
+  platformFetch<{ status: string; name: string }>(
+    `/api/v1/networks/${id}/activate${hostId ? `?host_id=${encodeURIComponent(hostId)}` : ''}`,
+    { method: 'POST', body: '{}' },
+  )
+
+export const deactivatePlatformNetwork = (id: string, hostId?: string) =>
+  platformFetch<{ status: string; name: string }>(
+    `/api/v1/networks/${id}/deactivate${hostId ? `?host_id=${encodeURIComponent(hostId)}` : ''}`,
+    { method: 'POST', body: '{}' },
+  )
+
 export const simulateSegmentConnectivity = (segmentId: string) =>
   platformFetch<SegmentConnectivityResult>(`/api/v1/network/segments/${segmentId}/connectivity`, {
     method: 'POST',
@@ -1519,12 +1629,79 @@ export interface VmLibvirtDisk {
   cache?: string
   readonly?: boolean
   shareable?: boolean
+  capacity_bytes?: number | null
+  allocation_bytes?: number | null
+  physical_bytes?: number | null
 }
+
+export interface VmLibvirtFilesystem {
+  source: string
+  mount_tag: string
+  driver?: string
+  accessmode?: string
+  xattr?: boolean
+}
+
+export interface VmPendingChange {
+  category: string
+  summary: string
+}
+
+export interface VmPendingConfig {
+  needs_shutdown: boolean
+  state: string
+  persistent: boolean
+  pending_changes: VmPendingChange[]
+}
+
+export const getVmPendingConfig = (id: string) =>
+  platformFetch<VmPendingConfig>(`/api/v1/vms/${id}/pending-config`)
+
+export interface VmParitySummary {
+  needs_shutdown: boolean
+  spice: boolean
+  state?: string
+  error?: string
+}
+
+export const batchVmParitySummary = (vm_ids: string[]) =>
+  platformFetch<{ items: Record<string, VmParitySummary> }>('/api/v1/vms/pending-config/batch', {
+    method: 'POST',
+    body: JSON.stringify({ vm_ids }),
+  })
+
+export type BatchGuestIpItem = { guest_ip?: string | null; nic_ip?: string | null }
+
+export const batchVmGuestIps = (vm_ids: string[]) =>
+  platformFetch<{ items: Record<string, BatchGuestIpItem> }>('/api/v1/vms/guest-ips/batch', {
+    method: 'POST',
+    body: JSON.stringify({ vm_ids }),
+  })
+
+export const getVmQemuLogs = (id: string, lines = 500) =>
+  platformFetch<{ vm_name: string; log_path: string; content: string }>(
+    `/api/v1/vms/${id}/qemu-logs?lines=${lines}`,
+  )
+
+export const renamePlatformVm = (id: string, new_name: string) =>
+  platformFetch<{ status: string; new_name: string }>(`/api/v1/vms/${id}/rename`, {
+    method: 'POST',
+    body: JSON.stringify({ new_name }),
+  })
+
+export const injectVmNmi = (id: string) =>
+  platformFetch<{ status: string }>(`/api/v1/vms/${id}/nmi`, { method: 'POST' })
+
+export const convertVmSpiceToVnc = (id: string) =>
+  platformFetch<{ status: string; message?: string }>(`/api/v1/vms/${id}/graphics/spice-to-vnc`, {
+    method: 'POST',
+  })
 
 export interface VmLibvirtInterface {
   mac_address: string
   source: string
   model: string
+  ip?: string | null
 }
 
 export interface VmLibvirtDetails {
@@ -1539,6 +1716,7 @@ export interface VmLibvirtDetails {
   persistent: boolean
   interfaces: VmLibvirtInterface[]
   disks: VmLibvirtDisk[]
+  filesystems?: VmLibvirtFilesystem[]
 }
 
 export const getVmLibvirtDetails = (id: string) =>
@@ -1650,13 +1828,16 @@ export const prefetchMissingTemplateImages = (body: { host_id?: string } = {}) =
 
 export const getPlatformHealth = () => platformFetch<{ status: string; leader?: boolean; controller_id?: string }>('/api/v1/health')
 
-export type VmPowerAction = 'start' | 'stop' | 'reboot' | 'shutdown' | 'pause' | 'resume'
+export type VmPowerAction = 'start' | 'stop' | 'reboot' | 'reset' | 'shutdown' | 'pause' | 'resume'
 
 export const vmPower = (id: string, action: VmPowerAction, opts?: { mode?: 'agent' }) =>
   platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/${action}`, {
     method: 'POST',
     ...(opts?.mode ? { body: JSON.stringify({ mode: opts.mode }) } : {}),
   })
+
+export const installPlatformVm = (id: string) =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/install`, { method: 'POST' })
 
 export const getVmDomainXml = (vmId: string) =>
   platformFetch<{ xml: string }>(`/api/v1/vms/${vmId}/domain-xml`)
@@ -1871,6 +2052,17 @@ export const issuePlatformVmWsToken = (id: string) =>
 /** Build platform VNC WebSocket URL for a VM id and short-lived token. */
 export function platformVmVncWsUrl(vmId: string, token: string): string {
   return platformVncWsUrl(`/ws/v1/platform/vnc/${encodeURIComponent(vmId)}?token=${encodeURIComponent(token)}`)
+}
+
+/** Authenticated virt-viewer `.vv` download URL for a platform VM. */
+export function platformVmViewerVvUrl(vmId: string): string {
+  const base = getControllerBase()
+  return resolvePlatformApiUrl(`/api/v1/vms/${encodeURIComponent(vmId)}/viewer.vv`, base)
+}
+
+/** Build platform serial WebSocket URL for a VM id and short-lived token. */
+export function platformVmSerialWsUrl(vmId: string, token: string): string {
+  return platformVncWsUrl(`/ws/v1/platform/serial/${encodeURIComponent(vmId)}?token=${encodeURIComponent(token)}`)
 }
 
 export const getHaStatus = () => platformFetch<HaStatusResponse>('/api/v1/ha/status')
@@ -2093,7 +2285,7 @@ export interface BackupRecord {
 export const retryTask = (id: string) =>
   platformFetch<{ task_id: string }>(`/api/v1/tasks/${id}/retry`, { method: 'POST' })
 
-export const patchVm = (id: string, body: { desired_state?: string; project?: string; tags?: string[] }) =>
+export const patchVm = (id: string, body: { desired_state?: string; project?: string; tags?: string[]; description?: string }) =>
   platformFetch<PlatformVm>(`/api/v1/vms/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 
 export const getVmDisks = (id: string) => platformFetch<VmDiskRow[]>(`/api/v1/vms/${id}/disks`)
@@ -2485,8 +2677,8 @@ export {
   rejectContentImage,
 } from './platformContent'
 export type { ContentImage } from './platformContent'
-export { createPlatformVm, createVmFromIso } from './platformVmCreate'
-export type { CreatePlatformVmBody, CreateFromIsoBody } from './platformVmCreate'
+export { createPlatformVm, createVmFromIso, createVmFromVirtInstall } from './platformVmCreate'
+export type { CreatePlatformVmBody, CreateFromIsoBody, CreateFromVirtInstallBody } from './platformVmCreate'
 export { buildVmFromPrompt } from './platformAiVmBuilder'
 export type { VmBuilderResult } from './platformAiVmBuilder'
 export { syncProxmoxInventory } from './platformProxmoxSync'
@@ -2502,6 +2694,10 @@ export {
   upsertStorageBackupSla,
   getStorageSnapshotPolicy,
   patchStoragePool,
+  activateStoragePool,
+  deactivateStoragePool,
+  refreshStoragePool,
+  listLiveStoragePools,
 } from './platformStorage'
 export type {
   StoragePool,
@@ -2510,6 +2706,7 @@ export type {
   StorageBackupSla,
   StorageBackupSlaOverview,
   StoragePoolBackend,
+  LiveStoragePoolInfo,
 } from './platformStorage'
 export { validateCloudInit } from './platformCloudInit'
 export type { CloudInitValidation } from './platformCloudInit'

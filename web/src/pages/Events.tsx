@@ -16,6 +16,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { downloadJSON, downloadCSV } from '../utils/export'
+import EmptyState from '../components/EmptyState'
 import PageLayout from '../components/PageLayout'
 import { formatUserError } from '../utils/apiError'
 import { statusActionLinkClasses, statusBgClass, statusToneClass, utilizationTone } from '../utils/semanticColors'
@@ -225,6 +226,7 @@ export default function EventsPage() {
   return (
     <PageLayout
       className="min-w-0"
+      loading={loading}
       title="Live Metrics"
       icon={<Activity className={`w-6 h-6 ${statusToneClass('info')}`} />}
       subtitle={
@@ -260,13 +262,19 @@ export default function EventsPage() {
       errorTitle="Could not load metrics"
       errorHints={loadError ? libvirtErrorHints(loadError) : undefined}
       onErrorRetry={load}
-      contentLoading={loading}
       contentClassName="space-y-6"
     >
-      {!loading && metrics.length === 0 ? (
-        <div className="bg-slate-800/50 rounded-lg border border-slate-700/50 p-12 text-center text-slate-500">
-          No running VMs with metrics.
-        </div>
+      {metrics.length === 0 ? (
+        <EmptyState
+          icon={<Activity className="w-6 h-6" />}
+          title="No running VMs with metrics"
+          description="Start a guest or open VM details to see per-domain CPU, memory, and throughput charts."
+          primaryAction={
+            <Link to="/vms" className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium">
+              Virtual machines
+            </Link>
+          }
+        />
       ) : (
         <>
           {/* Summary */}

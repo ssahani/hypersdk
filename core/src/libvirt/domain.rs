@@ -101,8 +101,10 @@ pub fn get_vm_details(conn: &Connect, name: &str) -> Result<VmDetails, LibvirtEr
     let persistent = domain.is_persistent().unwrap_or(false);
 
     let (os_type, arch) = parse_os_info(&xml_str);
-    let interfaces = parse_interfaces(&xml_str);
-    let disks = parse_disks(&xml_str);
+    let mut interfaces = parse_interfaces(&xml_str);
+    enrich_interface_ips(conn, name, &mut interfaces);
+    let mut disks = parse_disks(&xml_str);
+    enrich_disk_block_info(&domain, &mut disks);
     let filesystems = parse_filesystems(&xml_str);
     let guest_ip = first_guest_ipv4(conn, name);
 
@@ -260,6 +262,11 @@ pub fn reboot_vm_mode(conn: &Connect, name: &str, mode: PowerMode) -> Result<(),
         };
         d.reboot(flags).map(|_| ())
     })
+}
+
+/// Force reboot (libvirt `Reset`) — immediate reset without guest cooperation.
+pub fn reset_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
+    domain_action(conn, name, "reset", |d| d.reset().map(|_| ()))
 }
 
 pub fn pause_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
@@ -512,12 +519,72 @@ pub fn rename_vm(conn: &Connect, name: &str, new_name: &str) -> Result<(), Libvi
     Ok(())
 }
 
+/// Inject Non-Maskable Interrupt (debug hung guests). Requires running or paused domain.
+pub fn inject_nmi(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
+    let domain = lookup_domain(conn, name)?;
+    let info = domain
+        .get_info()
+        .map_err(LibvirtError::map_op("Failed to get VM info"))?;
+    if info.state != VIR_DOMAIN_RUNNING && info.state != VIR_DOMAIN_PAUSED {
+        return Err(LibvirtError::Operation(
+            "VM must be running or paused to inject NMI".into(),
+        ));
+    }
+    let uri = conn
+        .get_uri()
+        .map_err(LibvirtError::map_op("Failed to get libvirt URI"))?;
+    let out = std::process::Command::new("virsh")
+        .args(["-c", &uri, "inject-nmi", name])
+        .output()
+        .map_err(|e| LibvirtError::Operation(format!("virsh inject-nmi: {e}")))?;
+    if !out.status.success() {
+        return Err(LibvirtError::Operation(format!(
+            "virsh inject-nmi failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        )));
+    }
+    Ok(())
+}
+
+/// Tail the hypervisor QEMU log for a domain (libvirt default path).
+pub fn read_qemu_log(name: &str, lines: usize) -> Result<(String, String), LibvirtError> {
+    if name.contains('/') || name.contains('\\') || name.contains("..") {
+        return Err(LibvirtError::Invalid("Invalid VM name".into()));
+    }
+    let log_path = format!("/var/log/libvirt/qemu/{name}.log");
+    let content = match std::fs::read_to_string(&log_path) {
+        Ok(c) => {
+            let all: Vec<&str> = c.lines().collect();
+            let start = all.len().saturating_sub(lines);
+            all[start..].join("\n")
+        }
+        Err(e) => {
+            return Err(LibvirtError::NotFound(format!(
+                "QEMU log not readable at {log_path}: {e}"
+            )));
+        }
+    };
+    Ok((log_path, content))
+}
+
 // ── XML parsing helpers ─────────────────────────────────────────────────
 
 fn parse_os_info(xml_str: &str) -> (String, String) {
     let os_type = xml::extract_text(xml_str, "type").unwrap_or_else(crate::unknown_string);
     let arch = xml::extract_attr(xml_str, "type", "arch").unwrap_or_else(crate::unknown_string);
     (os_type, arch)
+}
+
+pub(crate) fn parse_interfaces_for_diff(xml_str: &str) -> Vec<InterfaceInfo> {
+    parse_interfaces(xml_str)
+}
+
+pub(crate) fn parse_disks_for_diff(xml_str: &str) -> Vec<DiskInfo> {
+    parse_disks(xml_str)
+}
+
+pub(crate) fn parse_filesystems_for_diff(xml_str: &str) -> Vec<FilesystemInfo> {
+    parse_filesystems(xml_str)
 }
 
 fn parse_interfaces(xml_str: &str) -> Vec<InterfaceInfo> {
@@ -534,9 +601,53 @@ fn parse_interfaces(xml_str: &str) -> Vec<InterfaceInfo> {
             mac_address: mac,
             source,
             model,
+            ip: None,
         });
     }
     interfaces
+}
+
+fn enrich_interface_ips(conn: &Connect, name: &str, interfaces: &mut [InterfaceInfo]) {
+    let Ok(rows) = super::guest_agent::get_guest_interfaces(conn, name) else {
+        return;
+    };
+    let mut by_mac: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    for row in rows {
+        if row.ip_type != "ipv4" {
+            continue;
+        }
+        let addr = row.address.split('/').next().unwrap_or("").trim();
+        if addr.is_empty() || addr.starts_with("127.") {
+            continue;
+        }
+        let mac = row.mac.to_ascii_lowercase().replace('-', ":");
+        by_mac.entry(mac).or_insert_with(|| addr.to_string());
+    }
+    for iface in interfaces.iter_mut() {
+        let mac = iface.mac_address.to_ascii_lowercase().replace('-', ":");
+        if let Some(ip) = by_mac.get(&mac) {
+            iface.ip = Some(ip.clone());
+        }
+    }
+}
+
+fn enrich_disk_block_info(domain: &virt::domain::Domain, disks: &mut [DiskInfo]) {
+    for disk in disks.iter_mut() {
+        if disk.target.is_empty() || disk.target == crate::unknown_string() {
+            continue;
+        }
+        if let Ok(info) = domain.get_block_info(&disk.target, 0) {
+            disk.capacity_bytes = Some(info.capacity.max(0) as u64);
+            disk.allocation_bytes = Some(info.allocation.max(0) as u64);
+            disk.physical_bytes = Some(info.physical.max(0) as u64);
+            continue;
+        }
+        if disk.device == "disk" && !disk.source.is_empty() && disk.source != crate::unknown_string() {
+            if let Ok(meta) = std::fs::metadata(&disk.source) {
+                disk.physical_bytes = Some(meta.len());
+            }
+        }
+    }
 }
 
 fn parse_disks(xml_str: &str) -> Vec<DiskInfo> {
@@ -567,6 +678,9 @@ fn parse_disks(xml_str: &str) -> Vec<DiskInfo> {
             cache,
             readonly,
             shareable,
+            capacity_bytes: None,
+            allocation_bytes: None,
+            physical_bytes: None,
         });
     }
     disks

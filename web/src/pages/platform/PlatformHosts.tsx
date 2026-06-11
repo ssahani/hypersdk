@@ -40,6 +40,7 @@ export default function PlatformHosts() {
   const [hosts, setHosts] = useState<PlatformHost[]>([])
   const [linuxByHost, setLinuxByHost] = useState<Record<string, FleetLinuxHostItem>>({})
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -54,6 +55,7 @@ export default function PlatformHosts() {
 
   const load = useCallback(async () => {
     setError(null)
+    setLoading(true)
     try {
       const [rows, linux] = await Promise.all([
         listPlatformHosts(),
@@ -65,6 +67,8 @@ export default function PlatformHosts() {
       setLinuxByHost(map)
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -246,6 +250,7 @@ export default function PlatformHosts() {
     <PageLayout
       compact
       error={error}
+      loading={loading && hosts.length === 0}
       title={filterOffline ? 'Offline hosts' : 'Hosts'}
       subtitle={
         <span className="flex flex-wrap items-center gap-2 text-sm">

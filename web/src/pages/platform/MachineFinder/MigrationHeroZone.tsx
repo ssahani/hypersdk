@@ -4,13 +4,17 @@ import { Server } from 'lucide-react'
 import type { PlatformHost } from '../../../api/platform'
 import type { MachineFinderState } from './useMachineFinder'
 
+function liveVmCountOnHost(hostId: string, vms: MachineFinderState['vms']): number {
+  return vms.filter((v) => v.host_id === hostId && v.observed_state !== 'missing').length
+}
+
 type Props = {
   state: MachineFinderState
   compact?: boolean
 }
 
 export default function MigrationHeroZone({ state, compact }: Props) {
-  const { hosts, dropHost, setDropHost, onHostDrop, dragVmId } = state
+  const { hosts, vms, dropHost, setDropHost, onHostDrop, dragVmId } = state
 
   if (state.lens !== 'grid' && state.lens !== 'migration') return null
 
@@ -32,6 +36,7 @@ export default function MigrationHeroZone({ state, compact }: Props) {
           <HostDropTarget
             key={h.id}
             host={h}
+            vmCount={liveVmCountOnHost(h.id, vms)}
             active={dropHost === h.id}
             onDragOver={() => setDropHost(h.id)}
             onDragLeave={() => setDropHost(null)}
@@ -45,12 +50,14 @@ export default function MigrationHeroZone({ state, compact }: Props) {
 
 function HostDropTarget({
   host,
+  vmCount,
   active,
   onDragOver,
   onDragLeave,
   onDrop,
 }: {
   host: PlatformHost
+  vmCount: number
   active: boolean
   onDragOver: () => void
   onDragLeave: () => void
@@ -66,7 +73,7 @@ function HostDropTarget({
       }`}
     >
       <p className="font-medium truncate">{host.hostname}</p>
-      <p className="text-xs text-slate-500">{host.state} · {host.vm_count} VMs</p>
+      <p className="text-xs text-slate-500">{host.state} · {vmCount} VMs</p>
     </div>
   )
 }

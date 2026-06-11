@@ -4,6 +4,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { getPlatformInfo, type PlatformInfo } from '../api/system'
+import { syncControllerProxyFromPlatformInfo } from '../api/platform'
 import { getAuthProviders, type AuthProviders } from '../api/auth'
 import { useEventStream, type MachinaEvent } from '../hooks/useEventStream'
 
@@ -44,7 +45,9 @@ export function PlatformInfoProvider({ children }: { children: ReactNode }) {
     setLoading(true)
     Promise.allSettled([getPlatformInfo(), getAuthProviders()]).then(([pi, ap]) => {
       if (cancelled) return
-      setInfo(pi.status === 'fulfilled' ? pi.value : null)
+      const platformInfo = pi.status === 'fulfilled' ? pi.value : null
+      if (platformInfo) syncControllerProxyFromPlatformInfo(platformInfo)
+      setInfo(platformInfo)
       setProviders(ap.status === 'fulfilled' ? ap.value : null)
       setLoading(false)
     })

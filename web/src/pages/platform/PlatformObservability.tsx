@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Activity, Gauge, Timer } from 'lucide-react'
 import { MacGlassPanel, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
+import DetailTabs from '../../components/platform/DetailTabs'
+import OperatingSurfaceLayout from '../../components/platform/OperatingSurfaceLayout'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
+import { usePlatformTabState } from '../../hooks/usePlatformTabState'
 import {
   getObservabilityOverview,
   listApiTraces,
@@ -52,6 +56,12 @@ function SloRow({ slo }: { slo: SloStatusItem }) {
 }
 
 export default function PlatformObservability() {
+  const OBS_TABS = [
+    { id: 'slos' as const, label: 'SLOs' },
+    { id: 'traces' as const, label: 'Traces' },
+    { id: 'metrics' as const, label: 'Metrics' },
+  ]
+  const [lens, setLens] = usePlatformTabState(OBS_TABS.map((t) => t.id), { defaultTab: 'slos', paramKey: 'lens' })
   const [loading, setLoading] = useState(true)
   const [overview, setOverview] = useState<ObservabilityOverview | null>(null)
   const [traces, setTraces] = useState<ApiTraceSpan[]>([])
@@ -77,75 +87,97 @@ export default function PlatformObservability() {
     <PlatformPageChrome
       error={error}
       onErrorRetry={() => void load()}
+      loading={loading && !overview && !error}
       prepend={<PlatformBackLink to="/platform/operations" label="Operations" />}
       title="Observability"
       subtitle="SLO dashboards and API trace inventory."
       icon={<Gauge className="w-6 h-6 text-slate-400" />}
       actions={<PlatformRefreshButton onClick={() => void load()} />}
-      contentLoading={loading && !overview && !error}
       contentClassName="space-y-4"
     >
       {overview && (
-        <>
+        <OperatingSurfaceLayout testId="platform-observability-page">
           <p className="text-sm text-slate-400">{overview.summary}</p>
           <div className="grid gap-4 sm:grid-cols-3">
             <MacStatWidget label="SLO policies" value={String((overview.slos ?? []).length)} icon={<Gauge className="w-4 h-4" />} />
             <MacStatWidget label="Traces (1h)" value={String(overview.trace_count_1h)} icon={<Activity className="w-4 h-4" />} />
             <MacStatWidget label="p95 latency" value={`${overview.p95_latency_ms} ms`} icon={<Timer className="w-4 h-4" />} />
           </div>
-          <MacGlassPanel title="SLO dashboard" action={
-            <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => void load()}>Refresh</button>
-          }>
-            <ul className="space-y-3">
-              {(overview.slos ?? []).map((slo) => (
-                <SloRow key={slo.name} slo={slo} />
-              ))}
-            </ul>
-          </MacGlassPanel>
-          <MacGlassPanel title="Recent API traces">
-            {traces.length === 0 ? (
-              <p className="text-sm text-slate-400">No traces recorded yet — browse the platform to populate spans.</p>
+          <DetailTabs primary={OBS_TABS} active={lens} onChange={setLens} />
+
+          {lens === 'slos' && (
+            (overview.slos ?? []).length === 0 ? (
+              <PlatformEmptyState
+                icon={Gauge}
+                title="No SLO policies configured"
+                subtitle="Define service level objectives in controller settings to track burn rate."
+              />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="text-xs text-slate-500 border-b border-slate-700">
-                    <tr>
-                      <th className="py-2 pr-4">Time</th>
-                      <th className="py-2 pr-4">Method</th>
-                      <th className="py-2 pr-4">Path</th>
-                      <th className="py-2 pr-4">Status</th>
-                      <th className="py-2">Duration</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {traces.map((t) => (
-                      <tr key={t.id} className="border-b border-slate-800/60">
-                        <td className="py-2 pr-4 text-slate-500 text-xs whitespace-nowrap">{t.recorded_at}</td>
-                        <td className="py-2 pr-4 text-slate-300 font-mono text-xs">{t.method}</td>
-                        <td className="py-2 pr-4 text-slate-400 font-mono text-xs max-w-md truncate">{t.path}</td>
-                        <td className={`py-2 pr-4 text-xs ${statusToneClass(httpStatusTone(t.status_code))}`}>
-                          {t.status_code}
-                        </td>
-                        <td className="py-2 text-slate-400 text-xs">{t.duration_ms} ms</td>
+              <MacGlassPanel title="SLO dashboard" action={
+                <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => void load()}>Refresh</button>
+              }>
+                <ul className="space-y-3">
+                  {(overview.slos ?? []).map((slo) => (
+                    <SloRow key={slo.name} slo={slo} />
+                  ))}
+                </ul>
+              </MacGlassPanel>
+            )
+          )}
+
+          {lens === 'traces' && (
+            traces.length === 0 ? (
+              <PlatformEmptyState
+                icon={Activity}
+                title="No API traces recorded"
+                subtitle="Browse the platform to populate trace spans in the last hour."
+              />
+            ) : (
+              <MacGlassPanel title="Recent API traces">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs text-slate-500 border-b border-slate-700">
+                      <tr>
+                        <th className="py-2 pr-4">Time</th>
+                        <th className="py-2 pr-4">Method</th>
+                        <th className="py-2 pr-4">Path</th>
+                        <th className="py-2 pr-4">Status</th>
+                        <th className="py-2">Duration</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {traces.map((t) => (
+                        <tr key={t.id} className="border-b border-slate-800/60">
+                          <td className="py-2 pr-4 text-slate-500 text-xs whitespace-nowrap">{t.recorded_at}</td>
+                          <td className="py-2 pr-4 text-slate-300 font-mono text-xs">{t.method}</td>
+                          <td className="py-2 pr-4 text-slate-400 font-mono text-xs max-w-md truncate">{t.path}</td>
+                          <td className={`py-2 pr-4 text-xs ${statusToneClass(httpStatusTone(t.status_code))}`}>
+                            {t.status_code}
+                          </td>
+                          <td className="py-2 text-slate-400 text-xs">{t.duration_ms} ms</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </MacGlassPanel>
+            )
+          )}
+
+          {lens === 'metrics' && (
+            <MacGlassPanel title="Fleet Prometheus" subtitle="Scrape aggregate metrics from the controller">
+              <p className="text-sm text-slate-400 mb-2">Text exposition format — suitable for Prometheus or Grafana data source.</p>
+              <div className="flex flex-wrap gap-3">
+                <a href={fleetPrometheusAggregateUrl()} className={`text-sm ${hubLinkClasses()}`} target="_blank" rel="noreferrer">
+                  Fleet aggregate →
+                </a>
+                <a href={`${getControllerBase()}/api/v1/metrics/prometheus`} className={`text-sm ${hubLinkClasses()}`} target="_blank" rel="noreferrer">
+                  Controller /metrics/prometheus →
+                </a>
               </div>
-            )}
-          </MacGlassPanel>
-          <MacGlassPanel title="Fleet Prometheus" subtitle="Scrape aggregate metrics from the controller">
-            <p className="text-sm text-slate-400 mb-2">Text exposition format — suitable for Prometheus or Grafana data source.</p>
-            <div className="flex flex-wrap gap-3">
-              <a href={fleetPrometheusAggregateUrl()} className={`text-sm ${hubLinkClasses()}`} target="_blank" rel="noreferrer">
-                Fleet aggregate →
-              </a>
-              <a href={`${getControllerBase()}/api/v1/metrics/prometheus`} className={`text-sm ${hubLinkClasses()}`} target="_blank" rel="noreferrer">
-                Controller /metrics/prometheus →
-              </a>
-            </div>
-          </MacGlassPanel>
-        </>
+            </MacGlassPanel>
+          )}
+        </OperatingSurfaceLayout>
       )}
     </PlatformPageChrome>
   )

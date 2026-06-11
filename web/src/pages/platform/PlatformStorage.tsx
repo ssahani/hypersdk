@@ -31,12 +31,23 @@ import {
   patchStoragePool,
   syncAllHosts,
   upsertStorageBackupSla,
+  activateStoragePool,
+  deactivateStoragePool,
+  refreshStoragePool,
+  listLiveStoragePools,
   type FleetStorageOverview,
   type StorageBackupSla,
   type StoragePool,
   type StorageTierOverview,
+  type LiveStoragePoolInfo,
 } from '../../api/platform'
-import { getStorageSnapshotPolicy as getPoolSnapshotPolicy } from '../../api/platformStorage'
+import {
+  createStoragePoolVolume,
+  deleteStoragePoolVolume,
+  getStorageSnapshotPolicy as getPoolSnapshotPolicy,
+  listStoragePoolVolumes,
+  type StoragePoolVolume,
+} from '../../api/platformStorage'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import {statusBadgeClasses, statusToneClass, hubLinkClasses} from '../../utils/semanticColors'
@@ -76,6 +87,16 @@ export default function PlatformStorage() {
   const [slaSaving, setSlaSaving] = useState(false)
   const [snapshotPolicies, setSnapshotPolicies] = useState<Record<string, { pool_name: string; snapshot_retention_days: number; summary: string }>>({})
   const [snapshotPolicyLoading, setSnapshotPolicyLoading] = useState<string | null>(null)
+  const [livePools, setLivePools] = useState<Record<string, LiveStoragePoolInfo>>({})
+  const [poolActionId, setPoolActionId] = useState<string | null>(null)
+  const [expandedPoolId, setExpandedPoolId] = useState<string | null>(null)
+  const [poolVolumes, setPoolVolumes] = useState<Record<string, StoragePoolVolume[]>>({})
+  const [volumesLoading, setVolumesLoading] = useState<string | null>(null)
+  const [volumeCreatePool, setVolumeCreatePool] = useState<StoragePool | null>(null)
+  const [volumeName, setVolumeName] = useState('')
+  const [volumeCapacityGb, setVolumeCapacityGb] = useState(10)
+  const [volumeFormat, setVolumeFormat] = useState('qcow2')
+  const [volumeSaving, setVolumeSaving] = useState(false)
 
   const tierName = (id?: string | null) => tiers.find((t) => t.id === id)?.name ?? null
 
@@ -103,6 +124,15 @@ export default function PlatformStorage() {
       setTiers(tierOverview.tiers)
       setSlaPolicies(sla.policies ?? [])
       setHostCount(hosts.filter((h) => h.state === 'online').length)
+      if (hosts.some((h) => h.state === 'online')) {
+        listLiveStoragePools()
+          .then((live) => {
+            const map: Record<string, LiveStoragePoolInfo> = {}
+            for (const p of live.pools ?? []) map[p.name] = p
+            setLivePools(map)
+          })
+          .catch(() => setLivePools({}))
+      }
       if (pools.length === 0 && autoDiscover && hosts.some((h) => h.state === 'online')) {
         setDiscovering(true)
         try {
@@ -186,6 +216,62 @@ export default function PlatformStorage() {
       toast.error(formatUserError(e))
     } finally {
       setSlaSaving(false)
+    }
+  }
+
+  const loadPoolVolumes = async (poolId: string) => {
+    setVolumesLoading(poolId)
+    try {
+      const r = await listStoragePoolVolumes(poolId)
+      setPoolVolumes((prev) => ({ ...prev, [poolId]: r.volumes ?? [] }))
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setVolumesLoading(null)
+    }
+  }
+
+  const togglePoolVolumes = (poolId: string) => {
+    if (expandedPoolId === poolId) {
+      setExpandedPoolId(null)
+      return
+    }
+    setExpandedPoolId(poolId)
+    if (!poolVolumes[poolId]) void loadPoolVolumes(poolId)
+  }
+
+  const saveVolume = async () => {
+    if (!volumeCreatePool || !volumeName.trim()) return
+    setVolumeSaving(true)
+    try {
+      await createStoragePoolVolume(volumeCreatePool.id, {
+        name: volumeName.trim(),
+        capacity_gb: Math.max(1, volumeCapacityGb),
+        format: volumeFormat,
+      })
+      toast.success(`Created volume ${volumeName.trim()}`)
+      setVolumeCreatePool(null)
+      setVolumeName('')
+      setVolumeCapacityGb(10)
+      await loadPoolVolumes(volumeCreatePool.id)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setVolumeSaving(false)
+    }
+  }
+
+  const removeVolume = async (poolId: string, volName: string) => {
+    if (!window.confirm(`Delete volume ${volName}?`)) return
+    setVolumesLoading(poolId)
+    try {
+      await deleteStoragePoolVolume(poolId, volName)
+      toast.success(`Deleted ${volName}`)
+      await loadPoolVolumes(poolId)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setVolumesLoading(null)
     }
   }
 
@@ -358,8 +444,10 @@ export default function PlatformStorage() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {rows.map((p) => {
                 const pct = capacityRing(p.used_gib, p.capacity_gib)
+                const live = livePools[p.name]
+                const active = live?.state === 'running'
                 return (
-                  <article key={p.id} className="platform-mac-stat rounded-2xl border border-white/[0.06] bg-slate-900/50 p-5 space-y-4">
+                  <article key={p.id} className="platform-mac-stat rounded-2xl border border-white/[0.06] bg-slate-900/50 p-5 space-y-4" data-testid={`storage-pool-${p.name}`}>
                     <div className="flex items-start gap-3">
                       <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${gradientForName(p.name)} flex items-center justify-center text-white`}>
                         <HardDrive className="w-6 h-6" />
@@ -368,6 +456,11 @@ export default function PlatformStorage() {
                         <p className="font-semibold truncate">{p.name}</p>
                         <p className="text-xs text-slate-500 capitalize">{p.storage_class} · {p.backend}</p>
                         <p className="text-xs text-violet-300/80 mt-0.5">{tierName(p.tier_id) ?? 'No tier'}</p>
+                        {live && (
+                          <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${statusBadgeClasses(active ? 'ok' : 'warn')}`}>
+                            {live.state}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
@@ -409,6 +502,141 @@ export default function PlatformStorage() {
                         </button>
                       </div>
                     )}
+                    <div className="flex flex-wrap gap-2">
+                      {!active ? (
+                        <button
+                          type="button"
+                          className="btn-primary text-xs"
+                          disabled={poolActionId === p.id || hostCount === 0}
+                          data-testid={`pool-activate-${p.name}`}
+                          onClick={async () => {
+                            setPoolActionId(p.id)
+                            try {
+                              await activateStoragePool(p.id)
+                              toast.success(`Activated ${p.name}`)
+                              await load(false)
+                            } catch (e: unknown) {
+                              toast.error(formatUserError(e))
+                            } finally {
+                              setPoolActionId(null)
+                            }
+                          }}
+                        >
+                          {poolActionId === p.id ? 'Activating…' : 'Activate'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn-secondary text-xs"
+                          disabled={poolActionId === p.id}
+                          data-testid={`pool-deactivate-${p.name}`}
+                          onClick={async () => {
+                            setPoolActionId(p.id)
+                            try {
+                              await deactivateStoragePool(p.id)
+                              toast.success(`Deactivated ${p.name}`)
+                              await load(false)
+                            } catch (e: unknown) {
+                              toast.error(formatUserError(e))
+                            } finally {
+                              setPoolActionId(null)
+                            }
+                          }}
+                        >
+                          Deactivate
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="btn-secondary text-xs"
+                        disabled={poolActionId === p.id || !active}
+                        onClick={async () => {
+                          setPoolActionId(p.id)
+                          try {
+                            await refreshStoragePool(p.id)
+                            toast.success(`Refreshed ${p.name}`)
+                            await load(false)
+                          } catch (e: unknown) {
+                            toast.error(formatUserError(e))
+                          } finally {
+                            setPoolActionId(null)
+                          }
+                        }}
+                      >
+                        Refresh
+                      </button>
+                    </div>
+                    <div className="space-y-2 border-t border-white/[0.04] pt-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          className="btn-secondary text-xs"
+                          data-testid={`pool-volumes-toggle-${p.name}`}
+                          onClick={() => togglePoolVolumes(p.id)}
+                        >
+                          {expandedPoolId === p.id ? 'Hide volumes' : 'Volumes'}
+                          {poolVolumes[p.id]?.length ? ` (${poolVolumes[p.id].length})` : ''}
+                        </button>
+                        {expandedPoolId === p.id && active && (
+                          <button
+                            type="button"
+                            className="btn-primary text-xs"
+                            data-testid={`pool-volume-create-${p.name}`}
+                            onClick={() => {
+                              setVolumeCreatePool(p)
+                              setVolumeName('')
+                              setVolumeCapacityGb(10)
+                              setVolumeFormat('qcow2')
+                            }}
+                          >
+                            <Plus className="w-3 h-3 inline mr-1" />
+                            New volume
+                          </button>
+                        )}
+                      </div>
+                      {expandedPoolId === p.id && (
+                        <div className="rounded-lg border border-white/[0.06] bg-slate-950/40 p-2">
+                          {volumesLoading === p.id && !poolVolumes[p.id] ? (
+                            <p className="text-xs text-slate-500 flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Loading volumes…</p>
+                          ) : (poolVolumes[p.id]?.length ?? 0) === 0 ? (
+                            <p className="text-xs text-slate-500">{active ? 'No volumes in this pool.' : 'Activate the pool to manage volumes.'}</p>
+                          ) : (
+                            <ul className="text-xs space-y-2">
+                              {poolVolumes[p.id]?.map((v) => (
+                                <li key={v.name} className="flex flex-wrap items-center justify-between gap-2 text-slate-300">
+                                  <span>
+                                    <span className="font-medium text-slate-200">{v.name}</span>
+                                    {' · '}
+                                    {v.capacity_gb} GiB
+                                    {v.allocation_gb > 0 && ` (${v.allocation_gb} GiB allocated)`}
+                                    {v.vol_type && ` · ${v.vol_type}`}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="btn-danger text-[10px]"
+                                    disabled={volumesLoading === p.id}
+                                    data-testid={`pool-volume-delete-${p.name}-${v.name}`}
+                                    onClick={() => void removeVolume(p.id, v.name)}
+                                  >
+                                    Delete
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {expandedPoolId === p.id && (
+                            <button
+                              type="button"
+                              className="btn-secondary text-[10px] mt-2"
+                              disabled={volumesLoading === p.id || !active}
+                              onClick={() => void loadPoolVolumes(p.id)}
+                            >
+                              Refresh volumes
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     <button
                       type="button"
                       className="btn-secondary text-xs w-full"
@@ -442,8 +670,9 @@ export default function PlatformStorage() {
                       Edit capacity
                     </button>
                     <button type="button" className="btn-danger text-xs w-full" onClick={async () => {
-                      try { await deleteStoragePool(p.id); toast.success('Deleted'); await load(false) } catch (e: unknown) { toast.error(formatUserError(e)) }
-                    }}>Remove from inventory</button>
+                      if (!window.confirm(`Remove pool ${p.name} from the hypervisor and inventory?`)) return
+                      try { await deleteStoragePool(p.id); toast.success('Pool removed'); await load(false) } catch (e: unknown) { toast.error(formatUserError(e)) }
+                    }}>Remove from host & inventory</button>
                   </article>
                 )
               })}
@@ -542,6 +771,29 @@ export default function PlatformStorage() {
           await load(false)
         }}
       />
+
+      <MacSheet open={!!volumeCreatePool} onClose={() => setVolumeCreatePool(null)} title={`New volume — ${volumeCreatePool?.name ?? ''}`}>
+        <div className="space-y-4">
+          <label className="block text-sm">
+            <span className="text-slate-400">Name</span>
+            <input className="input mt-1 w-full" value={volumeName} onChange={(e) => setVolumeName(e.target.value)} placeholder="data-01.qcow2" />
+          </label>
+          <label className="block text-sm">
+            <span className="text-slate-400">Capacity (GiB)</span>
+            <input type="number" min={1} className="input mt-1 w-full" value={volumeCapacityGb} onChange={(e) => setVolumeCapacityGb(Number(e.target.value))} />
+          </label>
+          <label className="block text-sm">
+            <span className="text-slate-400">Format</span>
+            <select className="input mt-1 w-full" value={volumeFormat} onChange={(e) => setVolumeFormat(e.target.value)}>
+              <option value="qcow2">qcow2</option>
+              <option value="raw">raw</option>
+            </select>
+          </label>
+          <button type="button" className="btn-primary w-full" disabled={volumeSaving || !volumeName.trim()} onClick={() => void saveVolume()}>
+            {volumeSaving ? 'Creating…' : 'Create volume'}
+          </button>
+        </div>
+      </MacSheet>
 
       <MacSheet open={!!slaEdit} onClose={() => setSlaEdit(null)} title={`Edit backup SLA — ${slaEdit?.pool_name ?? ''}`}>
         <div className="space-y-4">

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Camera, Plus, Trash2 } from 'lucide-react'
+import OperatingSurfaceLayout from '../../components/platform/OperatingSurfaceLayout'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformPageChrome, { PlatformBackLink } from '../../components/platform/PlatformPageChrome'
 import { MacGlassPanel, MacListRow } from '../../components/platform/mac/PlatformMacUi'
 import {
@@ -81,6 +83,7 @@ export default function PlatformFleetSnapshots() {
       loading={loading && rows.length === 0}
       contentClassName="space-y-4"
     >
+      <OperatingSurfaceLayout testId="platform-fleet-snapshots-page">
       <MacGlassPanel title="New schedule">
         <div className="grid gap-3 md:grid-cols-2 max-w-2xl">
           <input className="input text-sm" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -101,7 +104,11 @@ export default function PlatformFleetSnapshots() {
 
       <MacGlassPanel title="Active schedules" subtitle={loading ? 'Loading…' : `${rows.length} schedule(s)`}>
         {rows.length === 0 && !loading ? (
-          <p className="text-sm text-slate-500">No fleet schedules yet.</p>
+          <PlatformEmptyState
+            icon={Camera}
+            title="No fleet schedules yet"
+            subtitle="Add a nightly schedule to snapshot managed libvirt VMs by project or tag."
+          />
         ) : (
           <ul className="divide-y divide-white/[0.04] -mx-1">
             {rows.map((s) => (
@@ -119,6 +126,7 @@ export default function PlatformFleetSnapshots() {
           </ul>
         )}
       </MacGlassPanel>
+      </OperatingSurfaceLayout>
     </PlatformPageChrome>
   )
 }

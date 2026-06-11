@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Build ubuntu-24.04-desktop golden qcow2 on a remote Machina hypervisor.
+#
+# Usage:
+#   ./scripts/build-ubuntu-desktop-golden-remote.sh sus 212.8.252.194
+#   FORCE=1 ./scripts/build-ubuntu-desktop-golden-remote.sh sus 212.8.252.194
+#
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+USER="${1:?usage: $0 USER HOST}"
+HOST="${2:?usage: $0 USER HOST}"
+SSH="ssh -o BatchMode=yes -o StrictHostKeyChecking=no ${USER}@${HOST}"
+
+echo "== Upload build script and run on ${USER}@${HOST}"
+$SSH "mkdir -p ~/machina/scripts"
+scp -o StrictHostKeyChecking=no "${SCRIPT_DIR}/build-ubuntu-desktop-golden.sh" \
+  "${USER}@${HOST}:~/machina/scripts/build-ubuntu-desktop-golden.sh"
+
+$SSH "printf '%s\n' '${VSPASS:-max}' | sudo -S env FORCE='${FORCE:-0}' FORCE_BASE='${FORCE_BASE:-0}' \
+  bash ~/machina/scripts/build-ubuntu-desktop-golden.sh"
+
+echo "== Golden image ready on host"

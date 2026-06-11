@@ -35,6 +35,7 @@ export const OS_FLAVORS: OsFlavor[] = [
   { id: 'windows-server-2025', label: 'Windows Server 2025', subtitle: 'Latest server release', category: 'Windows', icon: '🪟', featured: true, windows: true },
   { id: 'windows-11', label: 'Windows 11', subtitle: 'Desktop / TPM', category: 'Windows', icon: '🪟', featured: true, windows: true },
   { id: 'custom-iso', label: 'Custom ISO', subtitle: 'Install from your image', category: 'Special', icon: '💿' },
+  { id: 'custom-virt-install', label: 'PXE / URL install', subtitle: 'Network boot, kickstart, or libosinfo download', category: 'Special', icon: '🌐' },
 ]
 
 export const OS_CATEGORIES = ['All', 'Linux', 'Windows', 'Database', 'Appliance', 'Special'] as const

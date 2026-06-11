@@ -2,6 +2,20 @@
 
 import { FolderOpen, Server, Tag } from 'lucide-react'
 import type { MachineFinderState } from './useMachineFinder'
+import type { PlatformVm } from '../../../api/platform'
+
+function liveSmartFolderCount(folder: { id: string; count: number }, vms: PlatformVm[]): number {
+  switch (folder.id) {
+    case 'all':
+      return vms.length
+    case 'running':
+      return vms.filter((v) => v.observed_state === 'running').length
+    case 'stopped':
+      return vms.filter((v) => v.observed_state !== 'running' && v.observed_state !== 'missing').length
+    default:
+      return folder.count
+  }
+}
 
 function SidebarRow({
   active,
@@ -40,6 +54,7 @@ export default function MachineFinderSmartFolders({ state }: Props) {
     source,
     finder,
     sourceCounts,
+    vms,
     setFilter,
     searchParams,
     setSearchParams,
@@ -70,7 +85,7 @@ export default function MachineFinderSmartFolders({ state }: Props) {
               key={f.id}
               active={!tag && !project && !source && folder === f.id}
               label={f.label}
-              count={f.count}
+              count={liveSmartFolderCount(f, vms)}
               onClick={() => setFilter({ folder: f.id })}
             />
           ))}

@@ -1,23 +1,23 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router'
-import { ArrowLeft, Network, RefreshCw } from 'lucide-react'
+import { Network } from 'lucide-react'
 import { MacGlassPanel, MacListRow } from '../../../components/platform/mac/PlatformMacUi'
-import PlatformFilterPills from '../../../components/platform/PlatformFilterPills'
-import PageLayout from '../../../components/PageLayout'
+import SecurityLensLayout from '../../../components/platform/SecurityLensLayout'
 import { explainFirewall, getFirewallOverview, getFirewallPorts, type OpenPort } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
-import { hubLinkClasses, riskTone, statusBadgeClasses } from '../../../utils/semanticColors'
+import { riskTone, statusBadgeClasses } from '../../../utils/semanticColors'
 
 export default function PlatformFirewallPorts() {
   const [ports, setPorts] = useState<Array<OpenPort & { target: string; targetId: string }>>([])
   const [filter, setFilter] = useState('all')
   const [explain, setExplain] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     setError(null)
+    setLoading(true)
     try {
       const ov = await getFirewallOverview()
       const all: Array<OpenPort & { target: string; targetId: string }> = []
@@ -34,6 +34,8 @@ export default function PlatformFirewallPorts() {
       }
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -45,60 +47,56 @@ export default function PlatformFirewallPorts() {
     return true
   })
 
+  const criticalCount = ports.filter((p) => String(p.risk).toLowerCase() === 'critical').length
+  const warningCount = ports.filter((p) => String(p.risk).toLowerCase() === 'warning').length
+
   return (
-    <PageLayout
-      compact
-      error={error}
-      prepend={
-        <Link to="/platform/zeus/security/firewall" className={`text-sm inline-flex items-center gap-1 ${hubLinkClasses()}`}>
-          <ArrowLeft className="w-4 h-4" /> Firewall
-        </Link>
-      }
+    <SecurityLensLayout
+      testId="platform-firewall-ports-page"
       title="Open Ports"
       subtitle={`${filtered.length} listening port${filtered.length === 1 ? '' : 's'} across the fleet`}
       icon={<Network className="w-6 h-6 text-slate-400" />}
-      actions={
-        <button type="button" className="btn-secondary" onClick={() => void load()} aria-label="Refresh">
-          <RefreshCw className="w-4 h-4" />
-        </button>
-      }
-      contentClassName="space-y-4"
-    >
-      {explain && (
+      loading={loading && ports.length === 0}
+      error={error}
+      onRefresh={() => void load()}
+      stats={[
+        { label: 'Total ports', value: String(ports.length), icon: <Network className="w-4 h-4" /> },
+        { label: 'Critical', value: String(criticalCount), tone: criticalCount > 0 ? 'warn' : 'default' },
+        { label: 'Warning', value: String(warningCount), tone: warningCount > 0 ? 'warn' : 'default' },
+        { label: 'Filtered', value: String(filtered.length) },
+      ]}
+      insight={explain ? (
         <MacGlassPanel title="Zeus insight" subtitle="Exposure recommendation">
           <p className="text-sm text-slate-300">{explain}</p>
         </MacGlassPanel>
-      )}
-      <PlatformFilterPills
-        options={[
-          { id: 'all', label: 'All' },
-          { id: 'critical', label: 'Critical' },
-          { id: 'warning', label: 'Warning' },
-        ]}
-        value={filter}
-        onChange={setFilter}
-      />
-      <MacGlassPanel title={`${filtered.length} open ports`}>
-        {filtered.length === 0 ? (
-          <p className="text-sm text-slate-500">No ports match this filter.</p>
-        ) : (
-          <div className="rounded-xl border border-white/[0.06] overflow-hidden">
-            {filtered.map((p) => (
-              <MacListRow
-                key={`${p.targetId}-${p.port}-${p.protocol}`}
-                href={`/platform/zeus/security/firewall/${p.targetId}`}
-                title={`${p.port}/${p.protocol} · ${p.service_name}`}
-                subtitle={`${p.target} · ${p.bind_address}${p.process ? ` · ${p.process}` : ''}`}
-                badge={
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${statusBadgeClasses(riskTone(String(p.risk)))}`}>
-                    {String(p.risk)}
-                  </span>
-                }
-              />
-            ))}
-          </div>
-        )}
-      </MacGlassPanel>
-    </PageLayout>
+      ) : undefined}
+      filters={[
+        { id: 'all', label: 'All' },
+        { id: 'critical', label: 'Critical' },
+        { id: 'warning', label: 'Warning' },
+      ]}
+      filterValue={filter}
+      onFilterChange={setFilter}
+      panelTitle={`${filtered.length} open ports`}
+      isEmpty={filtered.length === 0}
+      emptyTitle={ports.length === 0 ? 'No open ports detected' : 'No ports match this filter'}
+      emptySubtitle={ports.length === 0 ? 'Zeus Firewall will list listening ports when agents report inventory.' : 'Try a different risk filter.'}
+    >
+      <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+        {filtered.map((p) => (
+          <MacListRow
+            key={`${p.targetId}-${p.port}-${p.protocol}`}
+            href={`/platform/zeus/security/firewall/${p.targetId}`}
+            title={`${p.port}/${p.protocol} · ${p.service_name}`}
+            subtitle={`${p.target} · ${p.bind_address}${p.process ? ` · ${p.process}` : ''}`}
+            badge={
+              <span className={`text-xs px-2 py-0.5 rounded-full ${statusBadgeClasses(riskTone(String(p.risk)))}`}>
+                {String(p.risk)}
+              </span>
+            }
+          />
+        ))}
+      </div>
+    </SecurityLensLayout>
   )
 }

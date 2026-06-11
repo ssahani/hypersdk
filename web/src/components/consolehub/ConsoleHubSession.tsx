@@ -18,6 +18,8 @@ type Props = {
   protocol: string
   vmName: string
   wsUrl: string | null
+  /** Platform serial WebSocket URL (same-origin proxy). */
+  serialWsUrl?: string | null
   session: SessionLike | null
   guestIp?: string
   sshUser?: string
@@ -68,6 +70,7 @@ export default function ConsoleHubSession({
   protocol,
   vmName,
   wsUrl,
+  serialWsUrl,
   session,
   guestIp,
   sshUser = 'ubuntu',
@@ -132,7 +135,7 @@ export default function ConsoleHubSession({
   if (protocol === 'serial') {
     return (
       <div className="flex flex-col flex-1 min-h-0 w-full">
-        <SerialConsole vmName={vmName} libvirtConnection={libvirtConnection} />
+        <SerialConsole vmName={vmName} libvirtConnection={libvirtConnection} wsUrl={serialWsUrl ?? undefined} />
       </div>
     )
   }

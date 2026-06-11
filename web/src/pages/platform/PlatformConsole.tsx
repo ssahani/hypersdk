@@ -3,28 +3,42 @@
 import { useEffect, useState } from 'react'
 import PageLayout from '../../components/PageLayout'
 import { Link, useLocation, useParams } from 'react-router'
-import { ArrowLeft, ExternalLink, RefreshCw, Terminal } from 'lucide-react'
-import { getPlatformVm, getPlatformVmSpec, getVmConsole, getVmGuestHealth, issuePlatformVmWsToken, platformVmVncWsUrl } from '../../api/platform'
+import { ArrowLeft, ExternalLink, Monitor, RefreshCw, Terminal } from 'lucide-react'
+import {
+  getConsoleHubPlan,
+  getPlatformVm,
+  getPlatformVmSpec,
+  getVmGuestHealth,
+  issuePlatformVmWsToken,
+  platformVmSerialWsUrl,
+  platformVmVncWsUrl,
+} from '../../api/platform'
 import { loadVmSshPrefs } from '../../utils/vmSshPrefs'
 import { navigateVmSshSession } from '../../components/vm/VmSshConnectDialog'
 import { formatUserError } from '../../utils/apiError'
 import AiTerminalCompanion from '../../components/ai/AiTerminalCompanion'
 import GuacamoleConsoleLink from '../../components/GuacamoleConsoleLink'
+import SerialConsole from '../../components/SerialConsole'
 import VNCViewer from '../../components/VNCViewer'
 import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
 import { hubLinkClasses } from '../../utils/semanticColors'
+
+type ConsoleTab = 'serial' | 'vnc'
 
 export default function PlatformConsole() {
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
   const isPopout = isCenterPopoutMode(location.search)
   const [vmName, setVmName] = useState<string | null>(null)
-  const [wsUrl, setWsUrl] = useState<string | null>(null)
+  const [vncWsUrl, setVncWsUrl] = useState<string | null>(null)
+  const [serialWsUrl, setSerialWsUrl] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<ConsoleTab>('serial')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [connectKey, setConnectKey] = useState(0)
   const [guestIp, setGuestIp] = useState('')
   const [sshUser, setSshUser] = useState('ubuntu')
+  const [recommended, setRecommended] = useState<string>('serial')
 
   useEffect(() => {
     if (!id) return
@@ -32,20 +46,24 @@ export default function PlatformConsole() {
     setLoading(true)
     setError(null)
     void Promise.all([
-      getVmConsole(id),
+      getConsoleHubPlan(id).catch(() => null),
       issuePlatformVmWsToken(id),
       getPlatformVm(id).catch(() => null),
       getVmGuestHealth(id).catch(() => null),
       getPlatformVmSpec(id).catch(() => null),
     ])
-      .then(([info, tokenRes, vm, gh, spec]) => {
+      .then(([plan, tokenRes, vm, gh, spec]) => {
         if (cancelled) return
-        const name = vm?.name ?? info.vm_name
+        const name = vm?.name ?? plan?.vm_name ?? null
         setVmName(name)
-        setWsUrl(platformVmVncWsUrl(id, tokenRes.token))
+        setVncWsUrl(platformVmVncWsUrl(id, tokenRes.token))
+        setSerialWsUrl(platformVmSerialWsUrl(id, tokenRes.token))
+        const rec = plan?.recommended ?? 'serial'
+        setRecommended(rec)
+        setActiveTab(rec === 'novnc' ? 'vnc' : 'serial')
         setGuestIp(gh?.guest_ip?.trim() ?? vm?.guest_ip?.trim() ?? '')
         const ci = (spec as { cloud_init?: { user?: string } } | null)?.cloud_init
-        const user = ci?.user?.trim() || loadVmSshPrefs(name)?.user || 'ubuntu'
+        const user = ci?.user?.trim() || loadVmSshPrefs(name ?? '')?.user || 'ubuntu'
         setSshUser(user)
       })
       .catch((e: unknown) => {
@@ -57,13 +75,27 @@ export default function PlatformConsole() {
     return () => { cancelled = true }
   }, [id, connectKey])
 
+  const tabBtn = (tab: ConsoleTab, label: string, Icon: typeof Terminal) => (
+    <button
+      type="button"
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition ${
+        activeTab === tab
+          ? 'bg-slate-700 text-slate-100'
+          : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+      }`}
+      onClick={() => setActiveTab(tab)}
+    >
+      <Icon className="w-4 h-4" /> {label}
+    </button>
+  )
+
   return (
     <PageLayout
       compact
       hideHeader={isPopout}
       loading={loading}
       title={vmName ?? 'VM console'}
-      subtitle={<span className="text-slate-500">noVNC · same-origin proxy</span>}
+      subtitle={<span className="text-slate-500">Serial + VNC · Cockpit-style same-origin proxy</span>}
       icon={<Terminal className="w-6 h-6 text-slate-400" />}
       prepend={
         !isPopout ? (
@@ -121,20 +153,40 @@ export default function PlatformConsole() {
       }
       onErrorRetry={() => setConnectKey((k) => k + 1)}
     >
-      {wsUrl && vmName && (
-        <VNCViewer
-          key={connectKey}
-          vmName={vmName}
-          wsUrl={wsUrl}
-          defaultScaledFit={false}
-          fillViewport={isPopout}
-          fillViewportOffset={isPopout ? '5.5rem' : '17rem'}
-          onReconnect={() => setConnectKey((k) => k + 1)}
-        />
+      {vmName && (vncWsUrl || serialWsUrl) && (
+        <>
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            {tabBtn('serial', 'Serial', Terminal)}
+            {tabBtn('vnc', 'Graphics (VNC)', Monitor)}
+            {recommended === 'serial' && activeTab === 'vnc' ? (
+              <span className="text-xs text-amber-300/90 ml-1">
+                Linux cloud images often boot on Serial — switch to Serial for login output.
+              </span>
+            ) : null}
+          </div>
+          {activeTab === 'serial' && serialWsUrl ? (
+            <SerialConsole
+              key={`serial-${connectKey}`}
+              vmName={vmName}
+              wsUrl={serialWsUrl}
+            />
+          ) : null}
+          {activeTab === 'vnc' && vncWsUrl ? (
+            <VNCViewer
+              key={`vnc-${connectKey}`}
+              vmName={vmName}
+              wsUrl={vncWsUrl}
+              defaultScaledFit={false}
+              fillViewport={isPopout}
+              fillViewportOffset={isPopout ? '5.5rem' : '17rem'}
+              onReconnect={() => setConnectKey((k) => k + 1)}
+            />
+          ) : null}
+        </>
       )}
-      {id && !isPopout && wsUrl && (
+      {id && !isPopout && (vncWsUrl || serialWsUrl) && (
         <div className="flex flex-wrap items-center gap-3 py-2 text-xs text-slate-400 border-t border-slate-800/80 mt-2">
-          <span>Ctrl+Alt+Del available in the VNC toolbar</span>
+          <span>Serial for cloud boot/login · VNC toolbar includes Ctrl+Alt+Del</span>
           {guestIp && vmName && (
             <>
               <button
@@ -155,7 +207,9 @@ export default function PlatformConsole() {
           )}
         </div>
       )}
-      {id && !isPopout && wsUrl && <AiTerminalCompanion vmName={vmName ?? id} vmId={id} />}
+      {id && !isPopout && (vncWsUrl || serialWsUrl) && (
+        <AiTerminalCompanion vmName={vmName ?? id} vmId={id} />
+      )}
     </PageLayout>
   )
 }

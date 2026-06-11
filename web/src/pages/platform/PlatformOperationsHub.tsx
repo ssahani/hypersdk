@@ -10,6 +10,7 @@ import { OPERATIONS_HUB_EXTRA_TILES } from '../../utils/platformDashboardZones'
 export default function PlatformOperationsHub() {
   const [activeTasks, setActiveTasks] = useState<number | null>(null)
   const [unreadAlerts, setUnreadAlerts] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     void Promise.all([
@@ -18,12 +19,13 @@ export default function PlatformOperationsHub() {
     ]).then(([tasks, alerts]) => {
       setActiveTasks(tasks.filter((t) => t.status === 'running' || t.status === 'pending').length)
       setUnreadAlerts(alerts.length)
-    })
+    }).finally(() => setLoading(false))
   }, [])
 
   return (
     <PlatformZoneHub
       zoneId="operations"
+      loading={loading && activeTasks == null}
       extraTiles={OPERATIONS_HUB_EXTRA_TILES}
       headerIcon={<Wrench className="w-6 h-6 text-slate-400" />}
       subtitleStats={platformStatSubtitle([

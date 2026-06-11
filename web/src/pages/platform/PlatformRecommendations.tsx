@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Lightbulb, Workflow } from 'lucide-react'
+import OperatingSurfaceLayout from '../../components/platform/OperatingSurfaceLayout'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import RemediateChips from '../../components/platform/RemediateChips'
@@ -15,13 +16,17 @@ export default function PlatformRecommendations() {
   const navigate = useNavigate()
   const [rows, setRows] = useState<PlatformRecommendation[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     setError(null)
+    setLoading(true)
     try {
       setRows(await listPlatformRecommendations())
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -51,6 +56,7 @@ export default function PlatformRecommendations() {
     <PlatformPageChrome
       error={error}
       onErrorRetry={() => void load()}
+      loading={loading && rows.length === 0 && !error}
       prepend={<PlatformBackLink to="/platform/operations" label="Operations" />}
       title="Recommendations"
       subtitle="Live analysis from your cluster — not static placeholders."
@@ -59,6 +65,7 @@ export default function PlatformRecommendations() {
       className="max-w-3xl"
       contentClassName="space-y-4"
     >
+      <OperatingSurfaceLayout testId="platform-recommendations-page">
       <RemediateChips />
       <ul className="space-y-4">
         {rows.map((r) => (
@@ -76,6 +83,7 @@ export default function PlatformRecommendations() {
           <PlatformEmptyState title="No recommendations" subtitle="Your estate looks good — check back after changes to hosts or VMs." />
         )}
       </ul>
+      </OperatingSurfaceLayout>
     </PlatformPageChrome>
   )
 }

@@ -109,6 +109,7 @@ const PlatformConsoleHub = lazy(() => import('./pages/platform/PlatformConsoleHu
 const PlatformConsoleRedirect = lazy(() => import('./pages/platform/PlatformConsoleRedirect'))
 const PlatformContent = lazy(() => import('./pages/platform/PlatformContent'))
 const PlatformIsoCreate = lazy(() => import('./pages/platform/PlatformIsoCreate'))
+const PlatformVirtInstallCreate = lazy(() => import('./pages/platform/PlatformVirtInstallCreate'))
 const PlatformVmBuilder = lazy(() => import('./pages/platform/PlatformVmBuilder'))
 const PlatformTemplates = lazy(() => import('./pages/platform/PlatformTemplates'))
 const CloudInitStudio = lazy(() => import('./pages/platform/CloudInitStudio'))
@@ -367,6 +368,7 @@ function AuthenticatedShellRoutes() {
                   <Route path="applications" element={<PlatformApplications />} />
                   <Route path="content" element={<PlatformContent />} />
                   <Route path="create-iso" element={<PlatformIsoCreate />} />
+                  <Route path="create-advanced" element={<PlatformVirtInstallCreate />} />
                   <Route path="vm-builder" element={<PlatformVmBuilder />} />
                   <Route path="templates" element={<PlatformTemplates />} />
                   <Route path="cloud-init" element={<CloudInitStudio />} />

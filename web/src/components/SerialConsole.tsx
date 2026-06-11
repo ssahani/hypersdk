@@ -18,9 +18,11 @@ function wsConnQs(libvirtConnection?: string | null): string {
 interface Props {
   vmName: string
   libvirtConnection?: string | null
+  /** Pre-built WebSocket URL (platform controller proxy). Skips daemon token + /console path. */
+  wsUrl?: string
 }
 
-export default function SerialConsole({ vmName, libvirtConnection }: Props) {
+export default function SerialConsole({ vmName, libvirtConnection, wsUrl: wsUrlOverride }: Props) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<XTerm | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -31,7 +33,6 @@ export default function SerialConsole({ vmName, libvirtConnection }: Props) {
   const connect = useCallback(async () => {
     if (!terminalRef.current) return
 
-    // Dispose previous
     xtermRef.current?.dispose()
     wsRef.current?.close()
 
@@ -56,19 +57,21 @@ export default function SerialConsole({ vmName, libvirtConnection }: Props) {
     xtermRef.current = term
     fitRef.current = fit
 
-    let token: string
-    try {
-      token = await getWsToken()
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to obtain WebSocket token'
-      term.write(`\r\n❌ ${msg}\r\n`)
-      return
+    let wsTarget = wsUrlOverride
+    if (!wsTarget) {
+      let token: string
+      try {
+        token = await getWsToken()
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Failed to obtain WebSocket token'
+        term.write(`\r\n❌ ${msg}\r\n`)
+        return
+      }
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      wsTarget = `${protocol}//${window.location.host}/ws/v1/console/${encodeURIComponent(vmName)}?token=${encodeURIComponent(token)}${wsConnQs(libvirtConnection)}`
     }
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const ws = new WebSocket(
-      `${protocol}//${window.location.host}/ws/v1/console/${encodeURIComponent(vmName)}?token=${encodeURIComponent(token)}${wsConnQs(libvirtConnection)}`,
-    )
+    const ws = new WebSocket(wsTarget)
     wsRef.current = ws
 
     ws.onopen = () => {
@@ -76,7 +79,7 @@ export default function SerialConsole({ vmName, libvirtConnection }: Props) {
       term.write('✅ Connected to serial console\r\n\r\n')
     }
 
-    ws.onmessage = (event) => term.write(event.data)
+    ws.onmessage = (event) => term.write(typeof event.data === 'string' ? event.data : new TextDecoder().decode(event.data))
     ws.onerror = () => term.write('\r\n❌ Connection error\r\n')
     ws.onclose = () => {
       setConnected(false)
@@ -86,7 +89,7 @@ export default function SerialConsole({ vmName, libvirtConnection }: Props) {
     term.onData((data) => {
       if (ws.readyState === WebSocket.OPEN) ws.send(data)
     })
-  }, [vmName, libvirtConnection])
+  }, [vmName, libvirtConnection, wsUrlOverride])
 
   useEffect(() => {
     connect()

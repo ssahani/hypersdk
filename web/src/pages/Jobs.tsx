@@ -17,6 +17,7 @@ import {
 } from '../utils/buildProgress'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import EmptyState from '../components/EmptyState'
 import PageLayout from '../components/PageLayout'
 import { jobStatusTone, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
@@ -103,6 +104,7 @@ export default function JobsPage() {
   return (
     <PageLayout
       className="mx-auto max-w-6xl px-4"
+      loading={loading && jobs.length === 0}
       title="Jobs"
       icon={<Activity className={`w-7 h-7 ${statusToneClass('warn')}`} />}
       subtitle={
@@ -138,12 +140,22 @@ export default function JobsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card p-4">
           <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-3">Recent jobs</h2>
-          {loading && jobs.length === 0 ? (
-            <p className="text-slate-500 text-sm">Loading…</p>
-          ) : jobs.length === 0 ? (
-            <p className="text-slate-500 text-sm">
-              No jobs yet. Start a disk build from <Link to="/disk-images" className={`${statusToneClass('warn')} hover:underline`}>Disk Images</Link>, Golden Forge from Create VM, or create a VM with streaming logs.
-            </p>
+          {jobs.length === 0 ? (
+            <EmptyState
+              icon={<Activity className="w-6 h-6" />}
+              title="No jobs yet"
+              description="Start a disk build, Golden Forge qcow2 build, or create a VM with streaming logs — progress appears here after you navigate away."
+              primaryAction={
+                <Link to="/disk-images" className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium">
+                  Disk images
+                </Link>
+              }
+              secondaryAction={
+                <Link to="/create" className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-200 border border-slate-600">
+                  Create VM
+                </Link>
+              }
+            />
           ) : (
             <ul className="space-y-2 max-h-[32rem] overflow-y-auto divide-y divide-slate-800/80">
               {jobs.map((j) => (

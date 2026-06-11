@@ -7,11 +7,12 @@
 use axum::{
     body::Body,
     extract::{Path, Request},
-    http::{header, HeaderMap, StatusCode},
+    http::{header, HeaderMap, HeaderValue, StatusCode},
     response::Response,
     routing::any,
     Router,
 };
+use base64::Engine;
 use machina_core::{LibvirtError, LibvirtManager};
 
 use crate::error::AppError;
@@ -23,11 +24,25 @@ pub(crate) fn controller_base() -> String {
         .to_string()
 }
 
+fn platform_service_basic_auth() -> Option<HeaderValue> {
+    let creds = std::env::var("MACHINA_PLATFORM_AUTH")
+        .ok()
+        .filter(|s| !s.is_empty())?;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(creds.as_bytes());
+    HeaderValue::from_str(&format!("Basic {encoded}")).ok()
+}
+
 fn forward_headers(src: &HeaderMap) -> HeaderMap {
     let mut h = HeaderMap::new();
     for name in ["authorization", "content-type", "accept"] {
         if let Some(v) = src.get(name) {
             h.insert(name, v.clone());
+        }
+    }
+    // Browser uses daemon session cookie; inject controller credentials when the UI has none stored.
+    if !h.contains_key(header::AUTHORIZATION) {
+        if let Some(v) = platform_service_basic_auth() {
+            h.insert(header::AUTHORIZATION, v);
         }
     }
     h

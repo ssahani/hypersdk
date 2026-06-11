@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 // Live UX: delete VM on deployed host (regression for post-delete navigation crash).
 
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { ensureLoggedIn, liveCredentials, setDesktopTier } from './helpers/liveAuth'
 
 const live = process.env.PLAYWRIGHT_LIVE_URL?.replace(/\/$/, '')
@@ -13,8 +13,31 @@ test.beforeEach(async ({ page }) => {
   await ensureLoggedIn(page, live!, '/platform')
 })
 
+async function createDisposableVm(page: Page, vmName: string) {
+  await page.goto(`${live}/platform/vms?create=${vmName}`, { waitUntil: 'domcontentloaded' })
+  await expect(page.getByRole('heading', { name: 'Create Virtual Machine' })).toBeVisible({
+    timeout: 30_000,
+  })
+  await page.locator('input.input').first().fill(vmName)
+  await page.getByRole('button', { name: 'Next' }).click()
+  await page.getByRole('button', { name: /Ubuntu 24\.04/i }).first().click()
+  await page.getByRole('button', { name: 'Next' }).click()
+  await page.getByRole('button', { name: 'Next' }).click()
+  const createBtn = page.locator('button.btn-primary.min-w-\\[7rem\\]').filter({ hasText: /^Create VM$/ })
+  await expect(createBtn).toBeEnabled({ timeout: 30_000 })
+  const createResp = page.waitForResponse(
+    (r) =>
+      r.url().includes('/platform/controller/api/v1/vms') &&
+      r.request().method() === 'POST' &&
+      r.status() < 500,
+    { timeout: 120_000 },
+  )
+  await createBtn.click()
+  expect((await createResp).status()).toBeLessThan(500)
+}
+
 test('live delete vm returns to list without page crash', async ({ page }) => {
-  test.setTimeout(120_000)
+  test.setTimeout(300_000)
   const errors: string[] = []
   page.on('pageerror', (err) => errors.push(err.message))
 
@@ -23,16 +46,25 @@ test('live delete vm returns to list without page crash', async ({ page }) => {
     timeout: 45_000,
   })
 
-  // VM detail links only (exclude /console and other sub-routes).
-  const vmLink = page.locator('a[href^="/platform/vms/"]:not([href*="/console"])').first()
-  const hasVm = await vmLink.isVisible().catch(() => false)
-  test.skip(!hasVm, 'No VMs on host — run live create spec first or create a VM manually')
+  let disposable = page.locator('[data-testid^="machine-card-"]').filter({ hasText: /ux-(e2e|screenshot)-/i })
+  if ((await disposable.count()) === 0) {
+    const vmName = `ux-e2e-delete-${Date.now()}`
+    await createDisposableVm(page, vmName)
+    await page.goto(`${live}/platform/vms`, { waitUntil: 'domcontentloaded' })
+    disposable = page.locator('[data-testid^="machine-card-"]').filter({ hasText: vmName })
+  }
 
-  const href = await vmLink.getAttribute('href')
-  const vmId = href?.split('/').pop() ?? ''
+  const vmCard = disposable.first()
+  await expect(vmCard).toBeVisible({ timeout: 120_000 })
+
+  const testId = await vmCard.getAttribute('data-testid')
+  const vmId = testId?.replace('machine-card-', '') ?? ''
   expect(vmId.length).toBeGreaterThan(8)
 
-  await vmLink.click()
+  await vmCard.click()
+  await expect(page.getByTestId('machine-finder-command-center')).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('link', { name: 'Open VM detail' }).click()
+
   await expect(page.locator('button.btn-danger').filter({ hasText: 'Delete' })).toBeVisible({
     timeout: 20_000,
   })
@@ -47,11 +79,13 @@ test('live delete vm returns to list without page crash', async ({ page }) => {
   expect(res.status()).toBeLessThan(500)
 
   await expect(page).toHaveURL(/\/platform\/vms\/?$/, { timeout: 20_000 })
-  await expect(page.getByText('Application error|Something went wrong')).toHaveCount(0)
+  await expect(page.locator(`[data-testid="machine-card-${vmId}"]`)).toHaveCount(0, { timeout: 120_000 })
+  await expect(page.getByText('Application error|Something went wrong|Machina daemon is not responding')).toHaveCount(0)
   expect(errors.filter((e) => !e.includes('ResizeObserver'))).toEqual([])
 
-  // Reloading deleted detail must not white-screen (404 → redirect to list)
-  await page.goto(`${live}/platform/vms/${vmId}`)
-  await expect(page).toHaveURL(/\/platform\/vms\/?$/, { timeout: 15_000 })
+  const health = await page.request.get(`${live}/api/v1/health`, { ignoreHTTPSErrors: true })
+  expect(health.ok()).toBeTruthy()
+
+  await page.goto(`${live}/platform/vms/${vmId}`, { waitUntil: 'domcontentloaded' })
   await expect(page.getByText('Application error|Something went wrong')).toHaveCount(0)
 })

@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-//! Same-origin WebSocket proxy to machina-controller platform VNC (controller validates ?token=).
+//! Same-origin WebSocket proxy to machina-controller platform VNC/serial (controller validates ?token=).
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, Query};
@@ -17,7 +17,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message as TsMessage};
 use super::platform_controller::controller_base;
 
 #[derive(Debug, Deserialize)]
-struct PlatformVncQuery {
+struct PlatformWsQuery {
     token: String,
 }
 
@@ -30,19 +30,12 @@ fn controller_ws_base() -> String {
     }
 }
 
-async fn platform_vnc_ws_proxy(
-    ws: WebSocketUpgrade,
-    Path(vm_id): Path<String>,
-    Query(q): Query<PlatformVncQuery>,
-) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| proxy_platform_vnc(socket, vm_id, q.token))
-}
-
-async fn proxy_platform_vnc(socket: WebSocket, vm_id: String, token: String) {
-    let url = format!(
-        "{}/ws/v1/platform/vnc/{vm_id}?token={token}",
-        controller_ws_base()
-    );
+async fn relay_platform_ws(
+    socket: WebSocket,
+    upstream_path: String,
+    token: String,
+) {
+    let url = format!("{upstream_path}?token={token}");
 
     let upstream = match connect_async(&url).await {
         Ok((stream, _)) => stream,
@@ -58,34 +51,34 @@ async fn proxy_platform_vnc(socket: WebSocket, vm_id: String, token: String) {
 
     let c2u = tokio::spawn(async move {
         while let Some(Ok(msg)) = client_stream.next().await {
-            match msg {
-                Message::Binary(b) => {
-                    if upstream_sink.send(TsMessage::Binary(b.to_vec())).await.is_err() {
-                        break;
-                    }
-                }
+            let up = match msg {
+                Message::Binary(b) => TsMessage::Binary(b.to_vec()),
+                Message::Text(t) => TsMessage::Text(t.to_string().into()),
                 Message::Close(_) => {
                     let _ = upstream_sink.send(TsMessage::Close(None)).await;
                     break;
                 }
-                _ => {}
+                _ => continue,
+            };
+            if upstream_sink.send(up).await.is_err() {
+                break;
             }
         }
     });
 
     let u2c = tokio::spawn(async move {
         while let Some(Ok(msg)) = upstream_stream.next().await {
-            match msg {
-                TsMessage::Binary(b) => {
-                    if client_sink.send(Message::Binary(b.into())).await.is_err() {
-                        break;
-                    }
-                }
+            let down = match msg {
+                TsMessage::Binary(b) => Message::Binary(b.into()),
+                TsMessage::Text(t) => Message::Text(t.to_string().into()),
                 TsMessage::Close(_) => {
                     let _ = client_sink.send(Message::Close(None)).await;
                     break;
                 }
-                _ => {}
+                _ => continue,
+            };
+            if client_sink.send(down).await.is_err() {
+                break;
             }
         }
     });
@@ -96,6 +89,26 @@ async fn proxy_platform_vnc(socket: WebSocket, vm_id: String, token: String) {
     }
 }
 
+async fn platform_vnc_ws_proxy(
+    ws: WebSocketUpgrade,
+    Path(vm_id): Path<String>,
+    Query(q): Query<PlatformWsQuery>,
+) -> impl IntoResponse {
+    let path = format!("{}/ws/v1/platform/vnc/{vm_id}", controller_ws_base());
+    ws.on_upgrade(move |socket| relay_platform_ws(socket, path, q.token))
+}
+
+async fn platform_serial_ws_proxy(
+    ws: WebSocketUpgrade,
+    Path(vm_id): Path<String>,
+    Query(q): Query<PlatformWsQuery>,
+) -> impl IntoResponse {
+    let path = format!("{}/ws/v1/platform/serial/{vm_id}", controller_ws_base());
+    ws.on_upgrade(move |socket| relay_platform_ws(socket, path, q.token))
+}
+
 pub fn platform_ws_routes() -> Router<LibvirtManager> {
-    Router::new().route("/platform/vnc/{vm_id}", get(platform_vnc_ws_proxy))
+    Router::new()
+        .route("/platform/vnc/{vm_id}", get(platform_vnc_ws_proxy))
+        .route("/platform/serial/{vm_id}", get(platform_serial_ws_proxy))
 }

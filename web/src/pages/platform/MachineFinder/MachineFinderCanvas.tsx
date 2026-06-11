@@ -88,6 +88,7 @@ function GridLens({ state, compact }: { state: MachineFinderState; compact?: boo
                 onSelect={() => state.setSelectedVmId(vm.id)}
                 onDragStart={() => state.setDragVmId(vm.id)}
                 onSsh={() => state.setSshVm(vm)}
+                guestIp={state.displayGuestIp(vm)}
                 onDoubleClickTheatre={() => openCenterPopout(`/platform/vms/${vm.id}/consolehub?popout=1`)}
               />
             ))}

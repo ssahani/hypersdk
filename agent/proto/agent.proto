@@ -40,6 +40,7 @@ service HostAgent {
   rpc VmLibvirtQuery(VmLibvirtQueryRequest) returns (VmLibvirtQueryResponse);
   rpc VmLibvirtInvoke(VmLibvirtInvokeRequest) returns (VmLibvirtInvokeResponse);
   rpc HostLibvirtQuery(HostLibvirtQueryRequest) returns (HostLibvirtQueryResponse);
+  rpc HostLibvirtInvoke(HostLibvirtInvokeRequest) returns (HostLibvirtInvokeResponse);
   rpc GetGuestHealth(GetGuestHealthRequest) returns (GetGuestHealthResponse);
   rpc GetGuestObservability(GetGuestObservabilityRequest) returns (GetGuestObservabilityResponse);
   rpc GuestAgentAction(GuestAgentActionRequest) returns (GuestAgentActionResponse);
@@ -99,6 +100,7 @@ message VmSummary {
   uint64 memory_used_mib = 7;
   uint64 disk_read_iops = 8;
   uint64 disk_write_iops = 9;
+  string guest_ip = 10;
 }
 
 message ListVmsRequest {}
@@ -190,6 +192,10 @@ message MigrateVmRequest {
   /// Max migration bandwidth (MiB/s); 0 = libvirt default.
   uint64 bandwidth_mib = 4;
   bool postcopy = 5;
+  /// Remove source domain after successful migration (Cockpit permanent migrate).
+  bool undefine_source = 6;
+  /// Use tunnelled migration instead of peer-to-peer.
+  bool tunnelled = 7;
 }
 
 message MigrateVmResponse {
@@ -521,6 +527,17 @@ message HostLibvirtQueryRequest {
 }
 
 message HostLibvirtQueryResponse {
+  bool ok = 1;
+  string result_json = 2;
+  string message = 3;
+}
+
+message HostLibvirtInvokeRequest {
+  string action = 1;
+  string payload_json = 2;
+}
+
+message HostLibvirtInvokeResponse {
   bool ok = 1;
   string result_json = 2;
   string message = 3;

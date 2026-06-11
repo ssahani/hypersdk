@@ -173,6 +173,8 @@ pub async fn migrate_vm(
     live: bool,
     bandwidth_mib: u64,
     postcopy: bool,
+    undefine_source: bool,
+    tunnelled: bool,
 ) -> anyhow::Result<MigrateVmResponse> {
     Ok(client
         .migrate_vm(MigrateVmRequest {
@@ -181,6 +183,8 @@ pub async fn migrate_vm(
             live,
             bandwidth_mib,
             postcopy,
+            undefine_source,
+            tunnelled,
         })
         .await?
         .into_inner())
@@ -609,6 +613,25 @@ pub async fn host_libvirt_query(
         .into_inner();
     if resp.ok {
         serde_json::from_str(&resp.result_json).map_err(|e| anyhow::anyhow!("decode host query: {e}"))
+    } else {
+        anyhow::bail!("{}", resp.message)
+    }
+}
+
+pub async fn host_libvirt_invoke(
+    client: &mut HostAgentClient<Channel>,
+    action: &str,
+    payload: &serde_json::Value,
+) -> anyhow::Result<serde_json::Value> {
+    let resp = client
+        .host_libvirt_invoke(HostLibvirtInvokeRequest {
+            action: action.to_string(),
+            payload_json: serde_json::to_string(payload)?,
+        })
+        .await?
+        .into_inner();
+    if resp.ok {
+        serde_json::from_str(&resp.result_json).map_err(|e| anyhow::anyhow!("decode host invoke: {e}"))
     } else {
         anyhow::bail!("{}", resp.message)
     }

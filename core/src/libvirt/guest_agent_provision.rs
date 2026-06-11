@@ -47,6 +47,43 @@ pub fn resolve_guestkit_binary(cfg: Option<&LibvirtConfig>) -> PathBuf {
     path
 }
 
+pub fn vm_wants_graphical_desktop(name: &str) -> bool {
+    name.to_ascii_lowercase().contains("desktop")
+}
+
+/// Ensure GNOME/GDM autologin on first boot (cloud images default to serial/tty).
+pub fn append_desktop_graphical_cloud_config(user_data: &mut String, login_user: &str) {
+    if !user_data.ends_with('\n') {
+        user_data.push('\n');
+    }
+    let user = if login_user.trim().is_empty() {
+        "ubuntu"
+    } else {
+        login_user.trim()
+    };
+    let cmds = [
+        format!("  - mkdir -p /etc/gdm3"),
+        format!(
+            "  - printf '%s\\n' '[daemon]' 'AutomaticLogin={user}' 'AutomaticLoginEnable=true' > /etc/gdm3/custom.conf"
+        ),
+        "  - [ systemctl, set-default, graphical.target ]".into(),
+        "  - bash -lc 'systemctl enable gdm 2>/dev/null || systemctl enable gdm3 2>/dev/null || true'".into(),
+        "  - bash -lc 'systemctl restart gdm 2>/dev/null || systemctl restart gdm3 2>/dev/null || true'".into(),
+    ];
+    if user_data.contains("runcmd:\n") {
+        for c in cmds {
+            user_data.push_str(&c);
+            user_data.push('\n');
+        }
+    } else {
+        user_data.push_str("runcmd:\n");
+        for c in cmds {
+            user_data.push_str(&c);
+            user_data.push('\n');
+        }
+    }
+}
+
 /// Append cloud-config stanzas that install guestkit-agent from the NoCloud seed ISO.
 pub fn append_guestkit_cloud_config(user_data: &mut String, binary_on_seed: bool) {
     if !user_data.ends_with('\n') {

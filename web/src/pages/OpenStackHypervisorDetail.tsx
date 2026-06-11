@@ -12,6 +12,7 @@ import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
 import PageLayout from '../components/PageLayout'
+import PageSkeleton from '../components/PageSkeleton'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
@@ -57,7 +58,7 @@ function OpenStackHypervisorDetailContent() {
     }
   }
 
-  if (loading) return <Loader2 className="w-8 h-8 animate-spin text-sky-400 mx-auto py-12" />
+  if (loading) return <PageSkeleton />
   if (!hv) {
     return (
       <div className="space-y-4">

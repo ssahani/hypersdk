@@ -119,6 +119,7 @@ impl HostAgent for AgentService {
                     memory_used_mib: v.memory_used_mib,
                     disk_read_iops: v.disk_read_iops,
                     disk_write_iops: v.disk_write_iops,
+                    guest_ip: v.guest_ip,
                 })
                 .collect(),
         }))
@@ -279,9 +280,19 @@ impl HostAgent for AgentService {
         let live = req.live;
         let bandwidth_mib = req.bandwidth_mib;
         let postcopy = req.postcopy;
+        let undefine_source = req.undefine_source;
+        let tunnelled = req.tunnelled;
         tokio::task::spawn_blocking(move || {
             let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
-            ctx.migrate(&vm_name, &dest_uri, live, bandwidth_mib, postcopy)
+            ctx.migrate(
+                &vm_name,
+                &dest_uri,
+                live,
+                bandwidth_mib,
+                postcopy,
+                undefine_source,
+                tunnelled,
+            )
         })
         .await
         .map_err(|e| Status::internal(e.to_string()))?
@@ -953,7 +964,19 @@ impl HostAgent for AgentService {
             serde_json::from_str(&req.payload_json).unwrap_or(serde_json::json!({}));
         match tokio::task::spawn_blocking(move || {
             let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
-            crate::libvirt_invoke::vm_invoke(&ctx.conn, &vm_name, &action, &payload)
+            if action == "domain.install" {
+                let vm: machina_spec::VirtualMachine = payload
+                    .get("spec")
+                    .ok_or_else(|| machina_core::LibvirtError::Invalid("domain.install requires spec".into()))
+                    .and_then(|v| {
+                        serde_json::from_value(v.clone())
+                            .map_err(|e| machina_core::LibvirtError::Invalid(format!("spec: {e}")))
+                    })?;
+                ctx.install_defined_from_spec(&vm)?;
+                Ok(serde_json::json!({ "status": "install_started" }))
+            } else {
+                crate::libvirt_invoke::vm_invoke(&ctx.conn, &vm_name, &action, &payload)
+            }
         })
         .await
         {
@@ -992,6 +1015,35 @@ impl HostAgent for AgentService {
                 message: String::new(),
             })),
             Ok(Err(e)) => Ok(Response::new(HostLibvirtQueryResponse {
+                ok: false,
+                result_json: String::new(),
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn host_libvirt_invoke(
+        &self,
+        request: Request<HostLibvirtInvokeRequest>,
+    ) -> Result<Response<HostLibvirtInvokeResponse>, Status> {
+        let req = request.into_inner();
+        let libvirt = self.libvirt.clone();
+        let action = req.action.clone();
+        let payload: serde_json::Value =
+            serde_json::from_str(&req.payload_json).unwrap_or(serde_json::json!({}));
+        match tokio::task::spawn_blocking(move || {
+            let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
+            crate::libvirt_invoke::host_invoke(&ctx.conn, &action, &payload)
+        })
+        .await
+        {
+            Ok(Ok(result)) => Ok(Response::new(HostLibvirtInvokeResponse {
+                ok: true,
+                result_json: serde_json::to_string(&result).unwrap_or_else(|_| "{}".into()),
+                message: String::new(),
+            })),
+            Ok(Err(e)) => Ok(Response::new(HostLibvirtInvokeResponse {
                 ok: false,
                 result_json: String::new(),
                 message: e.to_string(),
@@ -1646,6 +1698,21 @@ impl HostAgent for AgentService {
     }
 }
 
+fn resolve_console_pty(xml: &str) -> Option<String> {
+    machina_core::xml::extract_attr(xml, "console", "tty")
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            for block in machina_core::xml::split_blocks(xml, "console") {
+                if let Some(p) = machina_core::xml::extract_attr(&block, "source", "path") {
+                    if !p.is_empty() {
+                        return Some(p);
+                    }
+                }
+            }
+            None
+        })
+}
+
 fn build_console_access_plan(
     libvirt: &Arc<std::sync::Mutex<libvirt_ops::LibvirtCtx>>,
     vm_name: &str,
@@ -1702,12 +1769,29 @@ fn build_console_access_plan(
         }
     }
 
+    let xml_lower = xml.to_lowercase();
+    let desktop_golden = xml_lower.contains("ubuntu-24.04-desktop")
+        || xml_lower.contains("-desktop.qcow2")
+        || xml_lower.contains("ubuntu-desktop");
+    let server_cloud_linux = os_hint == "linux"
+        && !desktop_golden
+        && (xml_lower.contains("cloudimg")
+            || xml_lower.contains("server-cloudimg")
+            || xml_lower.contains("-server-")
+            || xml_lower.contains("genericcloud"));
+
     let recommended = if os_hint == "windows" && !guest_ip.is_empty() && guac_up {
         "guacamole_rdp".into()
+    } else if desktop_golden || (os_hint == "linux" && console_type == "vnc" && vnc_port > 0 && !server_cloud_linux) {
+        "novnc".into()
+    } else if server_cloud_linux {
+        "serial".into()
     } else if console_type == "vnc" && vnc_port > 0 {
         "novnc".into()
     } else if !guest_ip.is_empty() && guac_up {
         "guacamole_ssh".into()
+    } else if resolve_console_pty(&xml).is_some() {
+        "serial".into()
     } else {
         "novnc".into()
     };

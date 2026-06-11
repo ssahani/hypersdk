@@ -9,6 +9,7 @@ import { listPlatformVms } from '../../api/platform'
 export default function PlatformWorkloadsHub() {
   const [vmCount, setVmCount] = useState<number | null>(null)
   const [running, setRunning] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     void listPlatformVms()
@@ -17,11 +18,13 @@ export default function PlatformWorkloadsHub() {
         setVmCount(vms.length)
         setRunning(vms.filter((vm) => vm.observed_state === 'running').length)
       })
+      .finally(() => setLoading(false))
   }, [])
 
   return (
     <PlatformZoneHub
       zoneId="workloads"
+      loading={loading && vmCount == null}
       headerIcon={<Package className="w-6 h-6 text-slate-400" />}
       subtitleStats={platformStatSubtitle([
         { label: 'Virtual machines', value: vmCount != null ? String(vmCount) : '—' },

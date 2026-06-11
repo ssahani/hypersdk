@@ -11,6 +11,7 @@ import {
   listConsoleHubSessions,
   listVmTimeline,
   platformVmVncWsUrl,
+  platformVmSerialWsUrl,
   platformVncWsUrl,
   requestConsoleAccess,
   runVmHealthCheck,
@@ -34,6 +35,7 @@ export default function PlatformConsoleHub() {
   const [session, setSession] = useState<ConsoleHubSessionResponse | null>(null)
   const [activeProtocol, setActiveProtocol] = useState('novnc')
   const [wsUrl, setWsUrl] = useState<string | null>(null)
+  const [serialWsUrl, setSerialWsUrl] = useState<string | null>(null)
   const [vmName, setVmName] = useState<string | null>(null)
   const [vmState, setVmState] = useState<string | null>(null)
   const [nodeName, setNodeName] = useState<string | null>(null)
@@ -97,8 +99,10 @@ export default function PlatformConsoleHub() {
       setKubeVirtNamespace(isKubevirt ? (vm?.k8s_namespace ?? 'default') : null)
       if (isKubevirt) {
         setWsUrl(null)
+        setSerialWsUrl(null)
       } else if (wsToken) {
         setWsUrl(platformVmVncWsUrl(id, wsToken))
+        setSerialWsUrl(platformVmSerialWsUrl(id, wsToken))
       } else if (hubPlan?.native?.ws_path) {
         setWsUrl(platformVncWsUrl(hubPlan.native.ws_path))
       }
@@ -138,6 +142,9 @@ export default function PlatformConsoleHub() {
         if (protocol === 'novnc' && !kubeVirtNamespace) {
           const tokenRes = await issuePlatformVmWsToken(id)
           setWsUrl(platformVmVncWsUrl(id, tokenRes.token))
+        } else if (protocol === 'serial' && !kubeVirtNamespace) {
+          const tokenRes = await issuePlatformVmWsToken(id)
+          setSerialWsUrl(platformVmSerialWsUrl(id, tokenRes.token))
         }
       }
       setHistory(await listConsoleHubSessions(id).catch(() => []))
@@ -199,6 +206,7 @@ export default function PlatformConsoleHub() {
           plan={plan}
           session={session}
           wsUrl={wsUrl}
+          serialWsUrl={serialWsUrl}
           activeProtocol={activeProtocol}
           onProtocolChange={(p) => void switchProtocol(p)}
           vmState={vmState}

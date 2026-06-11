@@ -364,7 +364,10 @@ fn platform_jwt_secret() -> String {
 }
 
 fn skip_auth_enabled() -> bool {
-    std::env::var("MACHINA_SKIP_AUTH").ok().as_deref() == Some("1")
+    std::env::var("MACHINA_DAEMON_SKIP_AUTH")
+        .ok()
+        .as_deref()
+        == Some("1")
 }
 
 fn dev_bypass_actor() -> RequestActor {
@@ -701,11 +704,6 @@ pub async fn auth_middleware(
         return next.run(req).await;
     }
 
-    // Platform controller reverse proxy — machina-controller validates Authorization itself.
-    if path.starts_with("/platform/controller") {
-        return next.run(req).await;
-    }
-
     // Check session cookie
     if skip_auth_enabled() {
         req.extensions_mut().insert(dev_bypass_actor());
@@ -775,8 +773,8 @@ pub async fn ws_auth_middleware(
     next: Next,
 ) -> Response {
     let path = req.uri().path();
-    // Platform VNC uses controller-issued tokens; machina-controller validates them.
-    if path.starts_with("/platform/vnc/") {
+    // Platform VNC/serial use controller-issued tokens; machina-controller validates them.
+    if path.starts_with("/platform/vnc/") || path.starts_with("/platform/serial/") {
         return next.run(req).await;
     }
 

@@ -98,6 +98,18 @@ function extractFilterPillLabels(src) {
   return [...labels]
 }
 
+function extractTabDefs(src) {
+  const tabs = []
+  const seen = new Set()
+  for (const m of src.matchAll(/\{\s*id:\s*'([^']+)',\s*label:\s*'([^']+)'/g)) {
+    const id = m[1]
+    if (seen.has(id)) continue
+    seen.add(id)
+    tabs.push({ id, label: m[2] })
+  }
+  return tabs
+}
+
 function scrapePageActions() {
   const routeComponents = parseRouteComponents()
   const componentToFile = new Map()
@@ -111,13 +123,11 @@ function scrapePageActions() {
     const file = componentToFile.get(component)
     if (!file) continue
     const src = fs.readFileSync(file, 'utf8')
-    const tabs = extractTabLabels(src)
-    const pills = extractFilterPillLabels(src)
-    if (tabs.length === 0 && pills.length === 0) continue
-    byPath.set(routePath, {
-      tabs: tabs.map((label) => ({ kind: 'tab', label })),
-      pills: pills.map((label) => ({ kind: 'filterPill', label })),
-    })
+    const tabDefs = extractTabDefs(src)
+    const tabs = tabDefs.map(({ label }) => ({ kind: 'tab', label }))
+    const pills = extractFilterPillLabels(src).map((label) => ({ kind: 'filterPill', label }))
+    if (tabs.length === 0 && pills.length === 0 && tabDefs.length === 0) continue
+    byPath.set(routePath, { tabs, pills, tabDefs })
   }
   return byPath
 }
@@ -168,8 +178,15 @@ const ACTION_OVERRIDES = {
 const CLASSIC_ROUTES = [
   '/', '/vms', '/fleet', '/storage', '/networks', '/disk-images', '/snapshots',
   '/node', '/events', '/capabilities', '/devices', '/nwfilters', '/secrets',
-  '/backups', '/host-networking', '/audit', '/import', '/api-docs', '/services',
-  '/system-check', '/logs', '/settings', '/jobs',
+  '/backups', '/host-networking', '/host-ssh', '/audit', '/import', '/api-docs', '/services',
+  '/system-check', '/logs', '/settings', '/jobs', '/create', '/ssh', '/mission-control',
+  '/admin/sessions',
+]
+
+const CLASSIC_DYNAMIC_ROUTES = [
+  { path: '/vms/:name', headingPattern: 'VM|Virtual Machine|Daily access', resolve: 'classicVm' },
+  { path: '/vms/:name/consolehub', headingPattern: 'Console|ConsoleHub', resolve: 'classicVm' },
+  { path: '/storage/:pool', headingPattern: 'Storage|Pool', resolve: 'storagePool' },
 ]
 
 const OPENSTACK_ROUTES = [
@@ -178,9 +195,66 @@ const OPENSTACK_ROUTES = [
   '/openstack/networking', '/openstack/topology', '/openstack/floating-ips',
   '/openstack/heat', '/openstack/load-balancers', '/openstack/identity',
   '/openstack/keypairs', '/openstack/security-groups', '/openstack/migrations',
+  '/openstack/create',
+]
+
+const OPENSTACK_DETAIL_ROUTES = [
+  '/openstack/instances/:id',
+  '/openstack/instances/:id/interfaces',
+  '/openstack/instances/:id/console',
+  '/openstack/images/:id',
+  '/openstack/volumes/:id',
+  '/openstack/floating-ips/:id',
+  '/openstack/flavors/:id',
+  '/openstack/hypervisors/:id',
+  '/openstack/server-groups/:id',
+  '/openstack/networks/:id',
+  '/openstack/subnets/:id',
+  '/openstack/routers/:id',
+  '/openstack/ports/:id',
+  '/openstack/volume-transfers/:id',
+  '/openstack/volume-snapshots/:id',
+  '/openstack/heat/:name/:id',
+  '/openstack/load-balancers/:id',
+  '/openstack/identity/projects/:id',
+  '/openstack/identity/users/:id',
+  '/openstack/security-groups/:id',
 ]
 
 const K8S_ROUTES = ['/k8s', '/k8s/workloads', '/k8s/kata']
+
+/** Query param name for tab state on specific platform routes. */
+const TAB_PARAM_KEY = {
+  '/platform/observability': 'lens',
+  '/platform/vms': 'lens',
+}
+
+const MACHINE_FINDER_LENSES = ['table', 'topology', 'timeline', 'heatmap', 'migration']
+
+const SETTINGS_SECTIONS = [
+  'general', 'zeus', 'ai-providers', 'security', 'network', 'users', 'stage-manager',
+  'keychain', 'policy', 'api-keys', 'webhooks', 'reports', 'console', 'resources',
+  'updates', 'integrations', 'support', 'about',
+]
+
+const PLATFORM_QUERY_SWEEPS = [
+  { path: '/platform/backups?tab=destinations', headingPattern: 'Backup|Destination|Time Machine' },
+  { path: '/platform/maintenance?tab=mission', headingPattern: 'Maintenance|Mission' },
+  { path: '/platform/developer?tab=console', headingPattern: 'Developer|API Console' },
+  { path: '/platform/zeus?tab=security', headingPattern: 'Zeus|Security' },
+  { path: '/platform/notifications?tab=rules', headingPattern: 'Notification|Alert' },
+  { path: '/platform/gpu?tab=placement', headingPattern: 'GPU|CUDA' },
+  { path: '/platform/datacenter?tab=racks', headingPattern: 'Datacenter|Rack' },
+  { path: '/platform/cloud-init?tab=profiles', headingPattern: 'Cloud|Init' },
+  { path: '/platform/vm-builder?tab=compose', headingPattern: 'VM Builder|Compose' },
+  { path: '/platform/create-iso?tab=wizard', headingPattern: 'ISO|Create' },
+  { path: '/platform/soc?tab=siem', headingPattern: 'SOC|SIEM' },
+  { path: '/platform/zeus/incidents?tab=active', headingPattern: 'Incident' },
+  { path: '/platform/zeus/approvals?tab=pending', headingPattern: 'Approval' },
+  { path: '/platform/zeus/rightsizing?tab=candidates', headingPattern: 'Rightsiz|Recommend' },
+  { path: '/platform/zeus/security/hunt?tab=queries', headingPattern: 'Threat|Hunt' },
+  { path: '/platform/zeus/security/enforcement?tab=rules', headingPattern: 'Enforcement|Runtime' },
+]
 
 const HEADING_DEFAULTS = {
   '/platform': 'Dashboard|Production Cluster|Platform',
@@ -193,17 +267,41 @@ const HEADING_DEFAULTS = {
 }
 
 function entry(shell, p, extra = {}) {
+  const basePath = p.split('?')[0]
   const base = {
     id: `${shell}:${p}`,
     shell,
     path: p,
-    tier: tierForPath(p),
-    headingPattern: HEADING_DEFAULTS[p] ?? '.+',
+    tier: tierForPath(basePath),
+    headingPattern: HEADING_DEFAULTS[basePath] ?? '.+',
     requires: null,
     actions: [],
+    resolve: extra.resolve ?? null,
   }
-  const ov = ACTION_OVERRIDES[p] ?? {}
+  const ov = ACTION_OVERRIDES[basePath] ?? {}
   return { ...base, ...extra, ...ov, path: p, shell }
+}
+
+function addEntry(entries, seen, e) {
+  if (seen.has(e.id)) return
+  seen.add(e.id)
+  entries.push(e)
+}
+
+function tabSweepEntries(routePath, tabDefs, scraped) {
+  if (!tabDefs?.length) return []
+  const paramKey = TAB_PARAM_KEY[routePath] ?? 'tab'
+  const defaultTab = tabDefs[0]?.id
+  const out = []
+  for (const { id } of tabDefs) {
+    if (id === defaultTab) continue
+    const sweepPath = `${routePath}?${paramKey}=${encodeURIComponent(id)}`
+    out.push(entry('platform', sweepPath, {
+      headingPattern: HEADING_DEFAULTS[routePath] ?? '.+',
+      actions: [],
+    }))
+  }
+  return out
 }
 
 function mergeActions(pathKey, scraped, settingsSections) {
@@ -227,28 +325,79 @@ function main() {
   const scraped = scrapePageActions()
   const settingsSections = scrapeSettingsSections()
   const entries = []
+  const seen = new Set()
 
   for (const p of parsePlatformPaths()) {
-    entries.push(entry('platform', p, { actions: mergeActions(p, scraped, settingsSections) }))
+    addEntry(entries, seen, entry('platform', p, { actions: mergeActions(p, scraped, settingsSections) }))
+    const s = scraped.get(p)
+    if (s?.tabDefs?.length) {
+      for (const e of tabSweepEntries(p, s.tabDefs, scraped)) addEntry(entries, seen, e)
+    }
+  }
+
+  for (const lens of MACHINE_FINDER_LENSES) {
+    addEntry(entries, seen, entry('platform', `/platform/vms?lens=${lens}`, {
+      headingPattern: 'Machine Finder|Finder',
+    }))
+  }
+
+  for (const section of SETTINGS_SECTIONS) {
+    if (section === 'general') continue
+    addEntry(entries, seen, entry('platform', `/platform/settings?section=${section}`, {
+      headingPattern: 'Settings|General|Security|Zeus',
+      tier: 'normal',
+    }))
+  }
+
+  for (const q of PLATFORM_QUERY_SWEEPS) {
+    addEntry(entries, seen, entry('platform', q.path, { headingPattern: q.headingPattern }))
   }
 
   for (const p of CLASSIC_ROUTES) {
-    if (p === '/') entries.push(entry('classic', p, { headingPattern: 'Machina|Dashboard|VMs' }))
-    else entries.push(entry('classic', p))
+    if (p === '/') addEntry(entries, seen, entry('classic', p, { headingPattern: 'Machina|Dashboard|VMs' }))
+    else addEntry(entries, seen, entry('classic', p))
+  }
+
+  for (const d of CLASSIC_DYNAMIC_ROUTES) {
+    addEntry(entries, seen, entry('classic', d.path, {
+      headingPattern: d.headingPattern,
+      resolve: d.resolve,
+    }))
   }
 
   for (const p of OPENSTACK_ROUTES) {
-    entries.push(entry('openstack', p, { requires: 'openstack', tier: 'power' }))
+    addEntry(entries, seen, entry('openstack', p, { requires: 'openstack', tier: 'power' }))
+  }
+
+  for (const p of OPENSTACK_DETAIL_ROUTES) {
+    addEntry(entries, seen, entry('openstack', p, {
+      requires: 'openstack',
+      tier: 'power',
+      resolve: 'openstackResource',
+    }))
   }
 
   for (const p of K8S_ROUTES) {
-    entries.push(entry('k8s', p, { requires: 'k8s', tier: 'power' }))
+    addEntry(entries, seen, entry('k8s', p, { requires: 'k8s', tier: 'power' }))
   }
 
+  // Dynamic platform detail sweeps (resolved at runtime in live-ux-wiring.spec.ts).
+  for (const p of [
+    '/platform/hosts/:id',
+    '/platform/vms/:id',
+    '/platform/vms/:id/consolehub',
+    '/platform/zeus/machines/:hostId',
+    '/platform/zeus/security/firewall/:id',
+  ]) {
+    addEntry(entries, seen, entry('platform', p, { resolve: 'platformResource' }))
+  }
+
+  entries.sort((a, b) => a.path.localeCompare(b.path))
+
   const manifest = {
-    version: 1,
+    version: 2,
     generated_at: new Date().toISOString(),
-    entries: entries.sort((a, b) => a.path.localeCompare(b.path)),
+    entries,
   }
 
   fs.writeFileSync(OUT, JSON.stringify(manifest, null, 2) + '\n')

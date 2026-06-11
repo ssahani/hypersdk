@@ -7,12 +7,15 @@ import {
   MacGlassPanel,
   MacStatWidget,
 } from '../../components/platform/mac/PlatformMacUi'
+import GlassDataTable from '../../components/platform/GlassDataTable'
+import OperatingSurfaceLayout from '../../components/platform/OperatingSurfaceLayout'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import { getFleetSpaces, type FleetSpacesOverview } from '../../api/platform'
 import { useActiveWorkspace } from '../../hooks/useActiveWorkspace'
 import { formatUserError } from '../../utils/apiError'
-import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
+import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
 
 function SpaceCard({
   name,
@@ -58,6 +61,7 @@ export default function PlatformProjects({ embedded }: { embedded?: boolean } = 
   const { workspace, setWorkspace } = useActiveWorkspace()
   const [fleet, setFleet] = useState<FleetSpacesOverview | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     setError(null)
@@ -65,6 +69,8 @@ export default function PlatformProjects({ embedded }: { embedded?: boolean } = 
       setFleet(await getFleetSpaces())
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -86,6 +92,7 @@ export default function PlatformProjects({ embedded }: { embedded?: boolean } = 
     <PlatformPageChrome
       hideHeader={embedded}
       compact={embedded}
+      loading={loading && !fleet}
       error={error}
       onErrorRetry={() => void load()}
       title={embedded ? undefined : 'Workspace Spaces'}
@@ -94,74 +101,85 @@ export default function PlatformProjects({ embedded }: { embedded?: boolean } = 
       actions={embedded ? undefined : <PlatformRefreshButton onClick={() => void load()} />}
       contentClassName="space-y-4"
     >
-      {fleet && <p className="text-sm text-slate-400">{fleet.summary}</p>}
+      <OperatingSurfaceLayout testId="platform-projects-page">
+        {fleet && <p className="text-sm text-slate-400">{fleet.summary}</p>}
 
-      {fleet && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <MacStatWidget label="Spaces" value={String(fleet.space_count)} icon={<LayoutGrid className="w-4 h-4" />} />
-          <MacStatWidget label="Total VMs" value={String(fleet.total_vms)} icon={<Monitor className="w-4 h-4" />} />
-          <MacStatWidget
-            label="Running"
-            value={String(fleet.running_vms)}
-            icon={<Monitor className="w-4 h-4" />}
-            tone={fleet.running_vms > 0 ? 'ok' : 'default'}
-          />
-          <MacStatWidget label="Active space" value={workspace || 'All'} icon={<Boxes className="w-4 h-4" />} />
-        </div>
-      )}
-
-      {fleet && fleet.spaces.length > 0 && (
-        <MacGlassPanel title="Spaces strip">
-          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
-            <button
-              type="button"
-              onClick={() => selectSpace('')}
-              className={`shrink-0 w-44 rounded-2xl border p-4 text-left transition ${
-                !workspace
-                  ? 'border-violet-400/50 bg-violet-500/15 ring-1 ring-violet-400/30'
-                  : 'border-white/[0.08] bg-slate-900/50 hover:border-white/[0.14]'
-              }`}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <Boxes className="w-4 h-4 text-slate-400" />
-                <span className="font-medium text-sm">All spaces</span>
-              </div>
-              <p className="text-xs text-slate-400">{fleet.total_vms} VM(s) fleet-wide</p>
-            </button>
-            {fleet.spaces.map((s) => (
-              <SpaceCard
-                key={s.name}
-                name={s.name}
-                vmCount={s.vm_count}
-                runningCount={s.running_count}
-                hostCount={s.host_count}
-                isolation={s.network_isolation}
-                active={isActive(s.name)}
-                onSelect={() => selectSpace(s.name)}
-              />
-            ))}
+        {fleet && (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <MacStatWidget label="Spaces" value={String(fleet.space_count)} icon={<LayoutGrid className="w-4 h-4" />} />
+            <MacStatWidget label="Total VMs" value={String(fleet.total_vms)} icon={<Monitor className="w-4 h-4" />} />
+            <MacStatWidget
+              label="Running"
+              value={String(fleet.running_vms)}
+              icon={<Monitor className="w-4 h-4" />}
+              tone={fleet.running_vms > 0 ? 'ok' : 'default'}
+            />
+            <MacStatWidget label="Active space" value={workspace || 'All'} icon={<Boxes className="w-4 h-4" />} />
           </div>
-        </MacGlassPanel>
-      )}
+        )}
 
-      {fleet && (
-        <div className="card overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-slate-400 border-b border-slate-800">
-                <th className="p-3 text-left">Space</th>
-                <th className="p-3">VMs</th>
-                <th className="p-3">Running</th>
-                <th className="p-3">Hosts</th>
-                <th className="p-3">Isolation</th>
-                <th className="p-3">Quota</th>
-                <th className="p-3" />
-              </tr>
-            </thead>
-            <tbody>
+        {fleet && fleet.spaces.length === 0 ? (
+          <PlatformEmptyState
+            icon={LayoutGrid}
+            title="No workspace spaces yet"
+            subtitle="Assign VMs to a project label in Machine Finder to create tenant spaces."
+            action={
+              <Link to="/platform/vms" className="btn-primary text-sm">
+                Open Machine Finder
+              </Link>
+            }
+          />
+        ) : fleet && fleet.spaces.length > 0 ? (
+          <>
+            <MacGlassPanel title="Spaces strip">
+              <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+                <button
+                  type="button"
+                  onClick={() => selectSpace('')}
+                  className={`shrink-0 w-44 rounded-2xl border p-4 text-left transition ${
+                    !workspace
+                      ? 'border-violet-400/50 bg-violet-500/15 ring-1 ring-violet-400/30'
+                      : 'border-white/[0.08] bg-slate-900/50 hover:border-white/[0.14]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <Boxes className="w-4 h-4 text-slate-400" />
+                    <span className="font-medium text-sm">All spaces</span>
+                  </div>
+                  <p className="text-xs text-slate-400">{fleet.total_vms} VM(s) fleet-wide</p>
+                </button>
+                {fleet.spaces.map((s) => (
+                  <SpaceCard
+                    key={s.name}
+                    name={s.name}
+                    vmCount={s.vm_count}
+                    runningCount={s.running_count}
+                    hostCount={s.host_count}
+                    isolation={s.network_isolation}
+                    active={isActive(s.name)}
+                    onSelect={() => selectSpace(s.name)}
+                  />
+                ))}
+              </div>
+            </MacGlassPanel>
+
+            <GlassDataTable
+              title="Space inventory"
+              columns={
+                <>
+                  <th className="p-3 text-left">Space</th>
+                  <th className="p-3 text-center">VMs</th>
+                  <th className="p-3 text-center">Running</th>
+                  <th className="p-3 text-center">Hosts</th>
+                  <th className="p-3 text-center">Isolation</th>
+                  <th className="p-3 text-center">Quota</th>
+                  <th className="p-3 text-right" />
+                </>
+              }
+            >
               {fleet.spaces.map((s) => (
-                <tr key={s.name} className="border-b border-slate-900">
-                  <td className="p-3 font-medium">{s.name}</td>
+                <tr key={s.name} className="border-b border-white/[0.04]">
+                  <td className="p-3 font-medium text-slate-200">{s.name}</td>
                   <td className="p-3 text-center">{s.vm_count}</td>
                   <td className={`p-3 text-center ${statusToneClass('ok')}`}>{s.running_count}</td>
                   <td className="p-3 text-center">
@@ -183,10 +201,10 @@ export default function PlatformProjects({ embedded }: { embedded?: boolean } = 
                   </td>
                 </tr>
               ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            </GlassDataTable>
+          </>
+        ) : null}
+      </OperatingSurfaceLayout>
       <FleetSettingsPane kind="spaces" />
     </PlatformPageChrome>
   )

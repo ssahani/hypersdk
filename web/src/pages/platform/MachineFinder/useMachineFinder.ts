@@ -2,21 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
-import { batchVmDelete, batchVmSnapshot } from '../../../api/platformVmLibvirt'
+import { batchVmDelete, batchVmSnapshot, precheckVmSnapshot } from '../../../api/platformVmLibvirt'
 import {
   adoptPlatformVm,
+  batchVmGuestIps,
   batchVmPower,
   createFromTemplate,
   createPlatformVm,
   getFleetFinder,
   listPlatformHosts,
   listPlatformVms,
-  vmDelete,
   vmPower,
   createVmSnapshot,
   type CreatePlatformVmBody,
   type FleetFinderOverview,
-  type PlatformApiError,
   type PlatformHost,
   type PlatformVm,
 } from '../../../api/platform'
@@ -28,6 +27,7 @@ import { formatUserError } from '../../../utils/apiError'
 import { pruneMissingPlatformVms } from '../../../api/platformVmLifecycle'
 import { purgeVmShortcuts } from '../../../utils/vmShortcuts'
 import { toastQueuedOperation } from '../../../utils/platformTaskToast'
+import { queuePlatformVmDelete } from '../../../utils/platformVmDelete'
 import {
   cloudInitUserForOs,
   sizeToSpec,
@@ -85,6 +85,7 @@ export function useMachineFinder() {
   const [selectedVmId, setSelectedVmId] = useState<string | null>(null)
   const [selectedVmIds, setSelectedVmIds] = useState<Set<string>>(new Set())
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
+  const [guestIpHints, setGuestIpHints] = useState<Record<string, string>>({})
   const [batchDeleteBusy, setBatchDeleteBusy] = useState(false)
   const [batchPowerBusy, setBatchPowerBusy] = useState(false)
   const [sshVm, setSshVm] = useState<PlatformVm | null>(null)
@@ -112,7 +113,9 @@ export function useMachineFinder() {
     )
   }, [vms, search, folder])
 
-  const selectedVm = filteredVms.find((v) => v.id === selectedVmId) ?? filteredVms[0] ?? null
+  const selectedVm = selectedVmId
+    ? filteredVms.find((v) => v.id === selectedVmId) ?? null
+    : null
 
   const statsSubtitle = useMemo(() => {
     const total = vms.length
@@ -185,29 +188,62 @@ export function useMachineFinder() {
   )
 
   const load = useCallback(async () => {
-    setError(null)
-    try {
-      const listParams: Parameters<typeof listPlatformVms>[0] = {}
-      if (source) listParams.source = source
-      if (tag) listParams.tag = tag
-      else if (project) listParams.project = project
-      else if (folder && folder !== 'all' && !CLIENT_ONLY_FOLDERS.has(folder)) listParams.folder = folder
+    const listParams: Parameters<typeof listPlatformVms>[0] = {}
+    if (source) listParams.source = source
+    if (tag) listParams.tag = tag
+    else if (project) listParams.project = project
+    else if (folder && folder !== 'all' && !CLIENT_ONLY_FOLDERS.has(folder)) listParams.folder = folder
 
-      const [v, h, f] = await Promise.all([
-        listPlatformVms(listParams),
-        listPlatformHosts(),
-        getFleetFinder().catch(() => null),
-      ])
-      setVms(Array.isArray(v) ? v : [])
-      setHosts(Array.isArray(h) ? h : [])
-      setFinder(f)
-    } catch (e: unknown) {
-      const err = e as PlatformApiError
+    const [vResult, hResult, fResult] = await Promise.allSettled([
+      listPlatformVms(listParams),
+      listPlatformHosts(),
+      getFleetFinder(),
+    ])
+
+    const failures: string[] = []
+    if (vResult.status === 'fulfilled') {
+      const vmList = Array.isArray(vResult.value) ? vResult.value : []
+      setVms(vmList)
+      const needIps = vmList
+        .filter((v) => v.observed_state === 'running' && !v.guest_ip?.trim() && v.inventory_source !== 'kubevirt')
+        .map((v) => v.id)
+      if (needIps.length > 0) {
+        void batchVmGuestIps(needIps.slice(0, 64))
+          .then((r) => {
+            const hints: Record<string, string> = {}
+            for (const [vmId, row] of Object.entries(r.items ?? {})) {
+              const ip = row.guest_ip?.trim() || row.nic_ip?.trim()
+              if (ip) hints[vmId] = ip
+            }
+            setGuestIpHints(hints)
+          })
+          .catch(() => setGuestIpHints({}))
+      } else {
+        setGuestIpHints({})
+      }
+    } else {
+      failures.push(formatUserError(vResult.reason))
+    }
+    if (hResult.status === 'fulfilled') {
+      setHosts(Array.isArray(hResult.value) ? hResult.value : [])
+    } else {
+      failures.push(formatUserError(hResult.reason))
+    }
+    if (fResult.status === 'fulfilled') {
+      setFinder(fResult.value)
+    } else {
+      setFinder(null)
+    }
+
+    if (failures.length > 0) {
       setError({
-        message: err.message || formatUserError(e),
-        error_code: err.error_code,
-        remediation: err.remediation,
+        message: failures[0],
+        remediation: failures.length > 1
+          ? `${failures.length} platform API calls failed. Confirm machina-daemon and machina-controller are running (systemctl status machina-daemon machina-controller).`
+          : 'Confirm machina-daemon and machina-controller are running and refresh. VM list may be stale until services respond.',
       })
+    } else {
+      setError(null)
     }
   }, [folder, tag, project, source])
 
@@ -278,6 +314,12 @@ export function useMachineFinder() {
     try {
       if (payload.os === 'custom-iso') {
         navigate(`/platform/create-iso?name=${encodeURIComponent(payload.name)}`)
+        return
+      }
+      if (payload.os === 'custom-virt-install') {
+        const q = new URLSearchParams({ name: payload.name })
+        if (payload.network) q.set('network', payload.network)
+        navigate(`/platform/create-advanced?${q}`)
         return
       }
       if (payload.windows) {
@@ -394,6 +436,11 @@ export function useMachineFinder() {
     else setSelectedVmIds(new Set(filteredVms.map((v) => v.id)))
   }
 
+  const displayGuestIp = useCallback(
+    (vm: PlatformVm) => vm.guest_ip?.trim() || guestIpHints[vm.id] || '',
+    [guestIpHints],
+  )
+
   const handleBatchSnapshot = async () => {
     const ids = Array.from(selectedVmIds).filter((id) => vmById.get(id)?.inventory_source !== 'kubevirt')
     if (ids.length === 0) {
@@ -404,6 +451,21 @@ export function useMachineFinder() {
     if (!name) return
     setBatchPowerBusy(true)
     try {
+      const blocked: string[] = []
+      for (const vmId of ids.slice(0, 32)) {
+        const vm = vmById.get(vmId)
+        if (vm?.observed_state !== 'running') continue
+        try {
+          const pre = await precheckVmSnapshot(vmId, { name, disk_only: true })
+          if (pre.blocked) blocked.push(vm?.name ?? vmId)
+        } catch {
+          /* allow queue if precheck unavailable */
+        }
+      }
+      if (blocked.length > 0) {
+        toast.error(`Snapshot blocked for: ${blocked.join(', ')} (VFIO or free-space)`)
+        return
+      }
       const r = await batchVmSnapshot({ vm_ids: ids, name, disk_only: true })
       const ok = r.results.filter((x) => x.task_id).length
       const fail = r.results.filter((x) => x.error).length
@@ -458,6 +520,9 @@ export function useMachineFinder() {
         purgeVmShortcuts(
           okItems.map((x) => vmById.get(x.vm_id)?.name).filter((n): n is string => Boolean(n)),
         )
+        const removedIds = new Set(okItems.map((x) => x.vm_id))
+        setVms((prev) => prev.filter((v) => !removedIds.has(v.id)))
+        if (selectedVmId && removedIds.has(selectedVmId)) setSelectedVmId(null)
         const pruned = okItems.filter((x) => !x.task_id).length
         const queued = okItems.length - pruned
         if (pruned > 0 && queued > 0) {
@@ -471,7 +536,7 @@ export function useMachineFinder() {
       if (failItems.length > 0) toast.error(`${failItems.length} VM(s) could not be deleted`)
       if (kubevirtCount > 0) toast.error(`${kubevirtCount} KubeVirt guest(s) skipped — delete from the cluster`)
       setSelectedVmIds(new Set())
-      await load()
+      void load()
     } catch (e: unknown) {
       toast.error(formatUserError(e))
     } finally {
@@ -543,12 +608,25 @@ export function useMachineFinder() {
     }
     if (!window.confirm(`Delete ${vm.name}? This cannot be undone.`)) return
     try {
-      const r = await vmDelete(vm.id, true)
-      purgeVmShortcuts([vm.name])
-      if (r.task_id) toastQueuedOperation(toast, `Deleting ${vm.name}`, r.task_id, tier)
-      else toast.success(`Removed ${vm.name}`)
-      setSelectedVmId(null)
-      await load()
+      await queuePlatformVmDelete(vm, toast, tier)
+      if (selectedVmId === vm.id) setSelectedVmId(null)
+      setSelectedVmIds((prev) => {
+        if (!prev.has(vm.id)) return prev
+        const next = new Set(prev)
+        next.delete(vm.id)
+        return next
+      })
+      setVms((prev) => prev.filter((v) => v.id !== vm.id))
+      if (vm.host_id) {
+        setHosts((prev) =>
+          prev.map((h) =>
+            h.id === vm.host_id
+              ? { ...h, vm_count: Math.max(0, (h.vm_count ?? 1) - 1) }
+              : h,
+          ),
+        )
+      }
+      void load()
     } catch (e: unknown) {
       toast.error(formatUserError(e))
     }
@@ -633,6 +711,7 @@ export function useMachineFinder() {
     handleBatchPower,
     handleBatchDelete,
     runFleetGuestQuery,
+    displayGuestIp,
     vmPowerAction,
     vmSnapshotAction,
     vmDeleteAction,

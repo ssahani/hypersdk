@@ -15,9 +15,9 @@ import {
   Workflow,
 } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
+import PlatformEmptyState from './PlatformEmptyState'
 import {
   LaunchpadAppIcon,
-  MacSectionTitle,
   MacSheet,
   NewLaunchpadCard,
   PresetTemplateCard,
@@ -56,6 +56,7 @@ export default function ApplicationLaunchpad() {
   const [details, setDetails] = useState<Record<string, string[]>>({})
   const [vms, setVms] = useState<PlatformVm[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [activeApp, setActiveApp] = useState<ApplicationGroup | null>(null)
@@ -65,6 +66,7 @@ export default function ApplicationLaunchpad() {
 
   const load = useCallback(async () => {
     setError(null)
+    setLoading(true)
     try {
       const [apps, vmList] = await Promise.all([listApplications(), listPlatformVms()])
       setVms(vmList)
@@ -79,6 +81,8 @@ export default function ApplicationLaunchpad() {
       setDetails(det)
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -144,14 +148,14 @@ export default function ApplicationLaunchpad() {
     [activeApp, details],
   )
 
+  if (loading && rows.length === 0 && !error) {
+    return <p className="text-sm text-slate-500 py-8 text-center" aria-busy="true">Loading applications…</p>
+  }
+
   return (
     <div className="space-y-8 animate-fade-in">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80">Launchpad</p>
-          <MacSectionTitle title="Applications" subtitle="Operate entire stacks like macOS app groups — start, stop, and backup together." />
-        </div>
-        <div className="flex gap-2 text-xs">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex gap-2 text-xs ml-auto">
           <Link to="/platform/blueprints" className="btn-secondary flex items-center gap-1.5">
             <Workflow className="w-3.5 h-3.5" /> Blueprints
           </Link>
@@ -159,7 +163,7 @@ export default function ApplicationLaunchpad() {
             <Boxes className="w-3.5 h-3.5" /> Topology
           </Link>
         </div>
-      </header>
+      </div>
 
       {error && <ErrorBanner message={error} />}
 
@@ -188,9 +192,16 @@ export default function ApplicationLaunchpad() {
           ))}
         </div>
         {rows.length === 0 && !error && (
-          <p className="text-center text-sm text-slate-500 mt-8">
-            Tap <strong className="text-slate-300">New Application</strong> or a template above to bundle VMs into a Launchpad group.
-          </p>
+          <PlatformEmptyState
+            icon={Boxes}
+            title="No application groups yet"
+            subtitle="Bundle VMs into a Launchpad group to start, stop, and backup entire stacks together."
+            action={
+              <button type="button" className="btn-primary text-sm" onClick={() => openCreate()}>
+                New application
+              </button>
+            }
+          />
         )}
       </section>
 

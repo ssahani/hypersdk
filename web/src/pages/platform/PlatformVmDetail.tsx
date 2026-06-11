@@ -16,6 +16,7 @@ import GuestObservabilityStrip from '../../components/platform/GuestObservabilit
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import GuestAiInsightsPanel from '../../components/platform/GuestAiInsightsPanel'
 import { getVmGuestAiInsights } from '../../api/platform'
+import { deleteK8sKubevirtVm, postK8sKubevirtVmLifecycle } from '../../api/k8s'
 import MachinaVmOutageRca from '../../components/ai/MachinaVmOutageRca'
 import MachinaExplainObjectPanel from '../../components/ai/MachinaExplainObjectPanel'
 import MachinaVmTroubleshootPanel from '../../components/ai/MachinaVmTroubleshootPanel'
@@ -44,11 +45,14 @@ import {
   detachVmDisk,
   detachVmNic,
   getVmLibvirtDetails,
+  getVmPendingConfig,
+  renamePlatformVm,
+  injectVmNmi,
+  convertVmSpiceToVnc,
+  type VmPendingConfig,
   listPlatformNetworks,
   resizeVmDisk,
   setVmAutostart,
-  setVmMemory,
-  setVmVcpus,
   type VmLibvirtDetails,
   adoptPlatformVm,
   getVmHaPolicy,
@@ -68,6 +72,7 @@ import {
   vmDelete,
   vmMigrate,
   vmPower,
+  installPlatformVm,
   type PlatformHost,
   type PlatformVm,
   type MigratePrecheckResult,
@@ -87,6 +92,7 @@ import {
   type GuestAiInsightsReport,
   type VmGuestServicesReport,
   type VmOsDiagnoseReport,
+  platformVmViewerVvUrl,
 } from '../../api/platform'
 import { getVmDoctor, type VmDoctorReport } from '../../api/ai'
 import { getVmGuestFirewallPorts, type GuestPortReport } from '../../api/zeusFirewall'
@@ -117,7 +123,17 @@ import { tasksHubHref } from '../../utils/platformHubLinks'
 import { downloadVmIacBundle, downloadVmIacZip, exportVmDisk, exportVmIac, pruneStaleVmRecord, retirePlatformVm, type VmIacExportBundle } from '../../api/platformVmLifecycle'
 import { publishVmAsTemplate } from '../../api/platformTemplatesExtra'
 import PlatformVmAdvanced from '../../components/platform/PlatformVmAdvanced'
+import VmPendingConfigBanner from '../../components/platform/VmPendingConfigBanner'
+import VmDevicesPanel from '../../components/platform/VmDevicesPanel'
+import VmQemuLogsPanel from '../../components/platform/VmQemuLogsPanel'
+import VmPendingBadge from '../../components/platform/VmPendingBadge'
 import SpotlightPageAction from '../../components/platform/SpotlightPageAction'
+import { invokeVmLibvirt, queryVmLibvirt, precheckVmSnapshot, precheckVmSnapshotAction, type CpuMemoryTopology, type SnapshotPrecheck } from '../../api/platformVmLibvirt'
+import VmCpuTopologyModal from '../../components/platform/VmCpuTopologyModal'
+import VmMemorySizingModal from '../../components/platform/VmMemorySizingModal'
+import HostResourcesOverviewPanel from '../../components/platform/HostResourcesOverviewPanel'
+import { putVmDomainXml } from '../../api/platformVmLibvirt'
+import { formatBytes } from '../../utils/vm'
 
 export default function PlatformVmDetail() {
   const location = useLocation()
@@ -128,7 +144,7 @@ export default function PlatformVmDetail() {
   const tabParam = searchParams.get('tab')
   const rawTab = tabParam === 'guestPorts' ? 'security' : tabParam
   const tab: VmDetailTab = (
-    ['overview', 'doctor', 'console', 'performance', 'disks', 'network', 'guestHealth', 'guestServices', 'security', 'snapshots', 'backup', 'topology', 'events', 'settings', 'advanced'] as VmDetailTab[]
+    ['overview', 'doctor', 'console', 'performance', 'disks', 'devices', 'network', 'guestHealth', 'guestServices', 'security', 'snapshots', 'backup', 'topology', 'events', 'logs', 'settings', 'advanced'] as VmDetailTab[]
   ).includes(rawTab as VmDetailTab) ? (rawTab as VmDetailTab) : 'overview'
   const setTab = (next: VmDetailTab, extra?: { guestAction?: string }) => {
     if (next === 'console' && id) {
@@ -156,6 +172,8 @@ export default function PlatformVmDetail() {
   const [migrateLive, setMigrateLive] = useState(true)
   const [migrateBandwidth, setMigrateBandwidth] = useState('')
   const [migratePostcopy, setMigratePostcopy] = useState(false)
+  const [migrateUndefineSource, setMigrateUndefineSource] = useState(false)
+  const [migrateTunnelled, setMigrateTunnelled] = useState(false)
   const [timeline, setTimeline] = useState<VmTimelineEntry[]>([])
   const [cloneName, setCloneName] = useState('')
   const [cloneMode, setCloneMode] = useState<'linked' | 'full'>('linked')
@@ -167,6 +185,15 @@ export default function PlatformVmDetail() {
   const [snapDiskOnly, setSnapDiskOnly] = useState(true)
   const [snapQuiesce, setSnapQuiesce] = useState(false)
   const [snapStorageMode, setSnapStorageMode] = useState('')
+  const [snapPrecheck, setSnapPrecheck] = useState<SnapshotPrecheck | null>(null)
+  const [snapPrecheckLoading, setSnapPrecheckLoading] = useState(false)
+  const [cpuModalOpen, setCpuModalOpen] = useState(false)
+  const [memoryModalOpen, setMemoryModalOpen] = useState(false)
+  const [computeTopology, setComputeTopology] = useState<CpuMemoryTopology | null>(null)
+  const [computeTopologyLoading, setComputeTopologyLoading] = useState(false)
+  const [overviewDomainXml, setOverviewDomainXml] = useState('')
+  const [overviewXmlOpen, setOverviewXmlOpen] = useState(false)
+  const [overviewXmlSaving, setOverviewXmlSaving] = useState(false)
   const [snapAiHint, setSnapAiHint] = useState<GuestAiInsightsReport | null>(null)
   const [snapAiLoading, setSnapAiLoading] = useState(false)
   const [publishTplName, setPublishTplName] = useState('')
@@ -182,13 +209,24 @@ export default function PlatformVmDetail() {
   const [attachDev, setAttachDev] = useState('vdb')
   const [libvirtDetails, setLibvirtDetails] = useState<VmLibvirtDetails | null>(null)
   const [libvirtDetailsLoading, setLibvirtDetailsLoading] = useState(false)
+  const [pendingConfig, setPendingConfig] = useState<VmPendingConfig | null>(null)
+  const [pendingConfigLoading, setPendingConfigLoading] = useState(false)
+  const [domainXml, setDomainXml] = useState('')
+  const [renameDraft, setRenameDraft] = useState('')
+  const [descriptionDraft, setDescriptionDraft] = useState('')
+  const hasSpiceGraphics = domainXml.includes("type='spice'") || domainXml.includes('type="spice"')
   const [resizeTarget, setResizeTarget] = useState('')
   const [resizeGb, setResizeGb] = useState('10')
   const [nicNetwork, setNicNetwork] = useState('default')
   const [nicModel, setNicModel] = useState('virtio')
+  const [diskEditTarget, setDiskEditTarget] = useState<string | null>(null)
+  const [diskEditCache, setDiskEditCache] = useState('none')
+  const [diskEditBus, setDiskEditBus] = useState('virtio')
+  const [diskEditReadonly, setDiskEditReadonly] = useState(false)
+  const [nicEditMac, setNicEditMac] = useState<string | null>(null)
+  const [nicEditModel, setNicEditModel] = useState('virtio')
+  const [nicEditNetwork, setNicEditNetwork] = useState('default')
   const [platformNetworks, setPlatformNetworks] = useState<Array<{ name: string }>>([])
-  const [resizeVcpus, setResizeVcpus] = useState('')
-  const [resizeMemoryGiB, setResizeMemoryGiB] = useState('')
   const [health, setHealth] = useState<VmHealthReport | null>(null)
   const [doctor, setDoctor] = useState<VmDoctorReport | null>(null)
   const [healthLoading, setHealthLoading] = useState(false)
@@ -229,6 +267,8 @@ export default function PlatformVmDetail() {
       setHa(policy)
       setSpecJson(JSON.stringify(spec, null, 2))
       setSpecData(spec as Record<string, unknown>)
+      const labels = (spec as { metadata?: { labels?: Record<string, string> } })?.metadata?.labels
+      setDescriptionDraft(labels?.description?.trim() ?? '')
       setProject(v.project || '')
       setTags((v.tags || []).join(', '))
       setSnapshots(snaps)
@@ -384,25 +424,67 @@ export default function PlatformVmDetail() {
     void loadGuestPorts()
   }, [id, vm?.observed_state, vm?.inventory_source, loadGuestPorts])
 
+  const loadComputeTopology = useCallback(async () => {
+    if (!id || vm?.inventory_source === 'kubevirt') return
+    setComputeTopologyLoading(true)
+    try {
+      setComputeTopology(await queryVmLibvirt<CpuMemoryTopology>(id, 'cpu.memory.topology'))
+    } catch {
+      setComputeTopology(null)
+    } finally {
+      setComputeTopologyLoading(false)
+    }
+  }, [id, vm?.inventory_source])
+
   const loadLibvirtDetails = useCallback(async () => {
     if (!id || vm?.inventory_source === 'kubevirt') return
     setLibvirtDetailsLoading(true)
     try {
       const details = await getVmLibvirtDetails(id)
       setLibvirtDetails(details)
-      if (!resizeVcpus) setResizeVcpus(String(details.vcpus))
-      if (!resizeMemoryGiB) setResizeMemoryGiB(String(Math.round(details.memory_mb / 1024)))
     } catch {
       setLibvirtDetails(null)
     } finally {
       setLibvirtDetailsLoading(false)
     }
-  }, [id, resizeMemoryGiB, resizeVcpus, vm?.inventory_source])
+  }, [id, vm?.inventory_source])
+
+  const loadPendingConfig = useCallback(async () => {
+    if (!id || vm?.inventory_source === 'kubevirt') return
+    if (vm?.observed_state !== 'running' && vm?.observed_state !== 'paused') {
+      setPendingConfig(null)
+      return
+    }
+    setPendingConfigLoading(true)
+    try {
+      setPendingConfig(await getVmPendingConfig(id))
+    } catch {
+      setPendingConfig(null)
+    } finally {
+      setPendingConfigLoading(false)
+    }
+  }, [id, vm?.inventory_source, vm?.observed_state])
+
+  const loadDomainXml = useCallback(async () => {
+    if (!id || vm?.inventory_source === 'kubevirt') return
+    try {
+      const { xml } = await getVmDomainXml(id)
+      setDomainXml(xml)
+    } catch {
+      setDomainXml('')
+    }
+  }, [id, vm?.inventory_source])
+
+  useEffect(() => {
+    if (id && vm?.inventory_source !== 'kubevirt') void loadPendingConfig()
+  }, [id, vm?.inventory_source, vm?.observed_state, loadPendingConfig])
 
   useEffect(() => {
     if (tab === 'security' && id) void loadGuestPorts()
     if (tab === 'guestServices' && id) void loadGuestServices()
-    if ((tab === 'disks' || tab === 'network' || tab === 'settings' || tab === 'advanced') && id && vm?.inventory_source !== 'kubevirt') {
+    if ((tab === 'overview' || tab === 'disks' || tab === 'devices' || tab === 'network' || tab === 'settings' || tab === 'advanced') && id && vm?.inventory_source !== 'kubevirt') {
+      if (tab === 'overview') void loadComputeTopology()
+      if (tab === 'overview' || tab === 'settings' || tab === 'advanced' || tab === 'devices') void loadDomainXml()
       void loadLibvirtDetails()
       if (tab === 'network') {
         void listPlatformNetworks()
@@ -410,7 +492,28 @@ export default function PlatformVmDetail() {
           .catch(() => setPlatformNetworks([]))
       }
     }
-  }, [tab, id, loadGuestPorts, loadGuestServices, loadLibvirtDetails, vm?.inventory_source])
+  }, [tab, id, loadComputeTopology, loadGuestPorts, loadGuestServices, loadLibvirtDetails, loadDomainXml, vm?.inventory_source])
+
+  useEffect(() => {
+    if (tab === 'overview' && domainXml) setOverviewDomainXml(domainXml)
+  }, [tab, domainXml])
+
+  useEffect(() => {
+    if (tab !== 'snapshots' || !id || vm?.inventory_source === 'kubevirt') {
+      setSnapPrecheck(null)
+      return
+    }
+    setSnapPrecheckLoading(true)
+    void precheckVmSnapshot(id, {
+      name: snapName.trim() || 'snap-01',
+      disk_only: snapDiskOnly,
+      quiesce: snapQuiesce,
+      storage_mode: snapStorageMode || undefined,
+    })
+      .then(setSnapPrecheck)
+      .catch(() => setSnapPrecheck(null))
+      .finally(() => setSnapPrecheckLoading(false))
+  }, [tab, id, vm?.inventory_source, snapName, snapDiskOnly, snapQuiesce, snapStorageMode])
 
   useEffect(() => {
     setContextVmId(id ?? null)
@@ -426,7 +529,29 @@ export default function PlatformVmDetail() {
         toast.success(label)
       }
       await load()
-      if (tab === 'disks' || tab === 'network' || tab === 'settings' || tab === 'advanced') await loadLibvirtDetails()
+      if (tab === 'overview') await loadComputeTopology()
+      if (tab === 'disks' || tab === 'devices' || tab === 'network' || tab === 'settings' || tab === 'advanced' || tab === 'overview') await loadLibvirtDetails()
+      if (vm?.observed_state === 'running' || vm?.observed_state === 'paused') await loadPendingConfig()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    }
+  }
+
+  const runSnapshotAction = async (
+    snapName: string,
+    action: 'delete' | 'revert' | 'clone',
+    run: () => Promise<unknown>,
+    label: string,
+  ) => {
+    if (!id) return
+    try {
+      const pre = await precheckVmSnapshotAction(id, snapName, action)
+      if (pre.blocked) {
+        toast.error(pre.message || `${action} blocked`)
+        return
+      }
+      if (pre.message && !window.confirm(`${pre.message}\n\nContinue with ${action}?`)) return
+      await act(label, run)
     } catch (e: unknown) {
       toast.error(formatUserError(e))
     }
@@ -500,9 +625,24 @@ export default function PlatformVmDetail() {
     ? `/host-networking?tab=portforward&vm_ip=${encodeURIComponent(guestIp)}&vm_port=22`
     : undefined
 
+  const canInstall = Boolean(
+    vm?.tags?.includes('define-only')
+    && ['stopped', 'shut off', 'shutoff'].includes(vm.observed_state),
+  )
+
   const powerActions = vm && vm.inventory_source !== 'kubevirt' && vm.observed_state !== 'missing' ? (
     <>
-      {(vm.observed_state === 'stopped' || vm.observed_state === 'shut off') && (
+      {canInstall && (
+        <button
+          type="button"
+          className="btn-primary text-sm"
+          data-testid="vm-install-button"
+          onClick={() => void act('Install queued', () => installPlatformVm(id))}
+        >
+          <HardDrive className="w-4 h-4" /> Install
+        </button>
+      )}
+      {(vm.observed_state === 'stopped' || vm.observed_state === 'shut off') && !canInstall && (
         <button type="button" className="btn-primary text-sm" onClick={() => void act('Start queued', () => vmPower(id, 'start'))}><Play className="w-4 h-4" /> Start</button>
       )}
       {vm.observed_state === 'paused' && (
@@ -539,6 +679,24 @@ export default function PlatformVmDetail() {
               <RotateCcw className="w-4 h-4" /> Reboot
             </button>
           )}
+          <button
+            type="button"
+            className="btn-secondary text-sm"
+            title="Force reboot (libvirt Reset)"
+            data-testid="vm-force-reboot-button"
+            onClick={() => void act('Force reboot queued', () => vmPower(id, 'reset'))}
+          >
+            <RotateCcw className="w-4 h-4" /> Force reboot
+          </button>
+          <button
+            type="button"
+            className="btn-secondary text-sm"
+            title="Inject NMI (debug hung guest)"
+            onClick={() => void act('NMI injected', () => injectVmNmi(id))}
+            data-testid="vm-nmi-button"
+          >
+            NMI
+          </button>
         </>
       )}
       {(vm.observed_state === 'running' || vm.observed_state === 'paused') && (
@@ -594,6 +752,16 @@ export default function PlatformVmDetail() {
           <Link to={`/platform/vms/${id}/consolehub`} className="btn-primary text-sm inline-flex items-center gap-1">
             <Monitor className="w-4 h-4" /> Console
           </Link>
+          {vm.inventory_source !== 'kubevirt' && vm.observed_state === 'running' && id && (
+            <a
+              href={platformVmViewerVvUrl(id)}
+              className="btn-secondary text-sm inline-flex items-center gap-1"
+              download={`${vm.name}.vv`}
+              data-testid="vm-virt-viewer-download"
+            >
+              <ExternalLink className="w-4 h-4" /> Virt-Viewer
+            </a>
+          )}
           {powerActions}
           {!isPopout && (
             <SpotlightPageAction
@@ -631,6 +799,49 @@ export default function PlatformVmDetail() {
                 Namespace: <span className="font-mono text-sky-200">{vm.k8s_namespace ?? 'default'}</span>
               </p>
               <div className="flex flex-wrap gap-2 mt-2">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-emerald-500/15 text-emerald-200 border border-emerald-500/35 hover:bg-emerald-500/25"
+                  onClick={() =>
+                    void act('Start requested', () =>
+                      postK8sKubevirtVmLifecycle(vm.k8s_namespace ?? 'default', vm.name, 'start'),
+                    )
+                  }
+                >
+                  <Play className="w-3.5 h-3.5" /> Start
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-slate-700/80 text-slate-200 border border-slate-600 hover:bg-slate-600"
+                  onClick={() =>
+                    void act('Stop requested', () =>
+                      postK8sKubevirtVmLifecycle(vm.k8s_namespace ?? 'default', vm.name, 'stop'),
+                    )
+                  }
+                >
+                  <Square className="w-3.5 h-3.5" /> Stop
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-amber-500/15 text-amber-200 border border-amber-500/35 hover:bg-amber-500/25"
+                  onClick={() =>
+                    void act('Restart requested', () =>
+                      postK8sKubevirtVmLifecycle(vm.k8s_namespace ?? 'default', vm.name, 'restart'),
+                    )
+                  }
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> Restart
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-red-500/15 text-red-200 border border-red-500/35 hover:bg-red-500/25"
+                  onClick={() => {
+                    if (!window.confirm(`Delete KubeVirt VM ${vm.k8s_namespace ?? 'default'}/${vm.name}?`)) return
+                    void act('Delete requested', () => deleteK8sKubevirtVm(vm.k8s_namespace ?? 'default', vm.name))
+                  }}
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Delete CR
+                </button>
                 <Link to="/platform/integrations?tab=k8s" className={`text-sm ${hubLinkClasses()}`}>K8s Workloads →</Link>
               </div>
             </MacGlassPanel>
@@ -657,6 +868,13 @@ export default function PlatformVmDetail() {
           )}
           {vm.last_error && (
             <StructuredErrorBanner error={vmErrorPresentation(vm.last_error)} />
+          )}
+          {vm.inventory_source !== 'kubevirt' && (
+            <VmPendingConfigBanner
+              pending={pendingConfig}
+              loading={pendingConfigLoading}
+              onShutdown={() => void act('Shutdown queued', () => vmPower(id, 'shutdown'))}
+            />
           )}
           {(vm.observed_state === 'missing' || (vm.last_error && /nodomain|domain not found|no domain with matching name|domain_not_found|kubevirt_not_found/i.test(vm.last_error))) && (
             <div className="flex flex-wrap gap-2">
@@ -737,6 +955,97 @@ export default function PlatformVmDetail() {
                     <span>Memory {metrics.memory_used_mib} MiB</span>
                     <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => setTab('performance')}>Performance details →</button>
                   </div>
+                </MacGlassPanel>
+              )}
+              {vm.inventory_source !== 'kubevirt' && (
+                <MacGlassPanel
+                  title="Compute"
+                  subtitle="CPU topology and memory sizing (current vs maximum)"
+                  action={
+                    vm.managed !== false ? (
+                      <div className="flex gap-2">
+                        <button type="button" className="btn-secondary text-xs" onClick={() => setCpuModalOpen(true)}>Edit CPU</button>
+                        <button type="button" className="btn-secondary text-xs" onClick={() => setMemoryModalOpen(true)}>Edit memory</button>
+                      </div>
+                    ) : null
+                  }
+                >
+                  {computeTopologyLoading && !computeTopology ? (
+                    <p className="text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading compute…</p>
+                  ) : computeTopology ? (
+                    <dl className="grid gap-3 sm:grid-cols-2 text-sm">
+                      <div>
+                        <dt className="text-xs text-slate-500">vCPUs (active)</dt>
+                        <dd className="text-slate-200">{computeTopology.vcpus}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-slate-500">Topology</dt>
+                        <dd className="text-slate-200">{computeTopology.sockets}×{computeTopology.cores}×{computeTopology.threads}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-slate-500">Current memory</dt>
+                        <dd className="text-slate-200">{Math.round(computeTopology.current_memory_kib / 1024 / 1024)} GiB</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-slate-500">Maximum memory</dt>
+                        <dd className="text-slate-200">{Math.round(computeTopology.max_memory_kib / 1024 / 1024)} GiB</dd>
+                      </div>
+                      {computeTopology.has_vfio_hostdev && (
+                        <div className="sm:col-span-2 text-xs text-amber-300/90">
+                          VFIO passthrough device attached — live snapshots are blocked while running.
+                        </div>
+                      )}
+                    </dl>
+                  ) : (
+                    <p className="text-sm text-slate-500">Compute details unavailable.</p>
+                  )}
+                </MacGlassPanel>
+              )}
+              {vm.inventory_source !== 'kubevirt' && vm.host_id && (
+                <HostResourcesOverviewPanel
+                  hostId={vm.host_id}
+                  hostname={hosts.find((h) => h.id === vm.host_id)?.hostname}
+                />
+              )}
+              {vm.inventory_source !== 'kubevirt' && (
+                <MacGlassPanel title="Domain XML" subtitle="Inline domain definition (Cockpit-style overview edit)">
+                  <button
+                    type="button"
+                    className={`text-xs ${hubLinkClasses()}`}
+                    onClick={() => setOverviewXmlOpen((o) => !o)}
+                  >
+                    {overviewXmlOpen ? 'Hide XML editor' : 'Show XML editor'}
+                  </button>
+                  {overviewXmlOpen && (
+                    <div className="mt-3 space-y-3">
+                      <textarea
+                        className="input w-full font-mono text-xs min-h-[12rem]"
+                        value={overviewDomainXml}
+                        onChange={(e) => setOverviewDomainXml(e.target.value)}
+                        spellCheck={false}
+                      />
+                      <button
+                        type="button"
+                        className="btn-secondary text-sm"
+                        disabled={vm.managed === false || overviewXmlSaving || !overviewDomainXml.trim()}
+                        onClick={async () => {
+                          setOverviewXmlSaving(true)
+                          try {
+                            await putVmDomainXml(id!, overviewDomainXml)
+                            toast.success('Domain XML updated')
+                            await loadDomainXml()
+                            await loadLibvirtDetails()
+                          } catch (e: unknown) {
+                            toast.error(formatUserError(e))
+                          } finally {
+                            setOverviewXmlSaving(false)
+                          }
+                        }}
+                      >
+                        {overviewXmlSaving ? 'Saving…' : 'Save XML (define)'}
+                      </button>
+                    </div>
+                  )}
                 </MacGlassPanel>
               )}
               <MacGlassPanel
@@ -896,8 +1205,20 @@ export default function PlatformVmDetail() {
             </MacGlassPanel>
           )}
 
+          {tab === 'devices' && vm.inventory_source !== 'kubevirt' && (
+            <VmDevicesPanel
+              vmId={id}
+              hostId={vm.host_id}
+              details={libvirtDetails}
+              domainXml={domainXml}
+              loading={libvirtDetailsLoading}
+              vmState={vm.observed_state}
+              onChanged={() => void loadDomainXml()}
+            />
+          )}
+
           {tab === 'disks' && (
-            <div className="space-y-4 pt-2">
+            <div className="space-y-4 pt-2" data-testid="vm-disks-panel">
               <MacGlassPanel title="Libvirt disks" subtitle="Live hypervisor inventory">
                 {libvirtDetailsLoading ? (
                   <p className="text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</p>
@@ -905,23 +1226,54 @@ export default function PlatformVmDetail() {
                   <ul className="text-sm text-slate-400 space-y-3">
                     {libvirtDetails.disks.map((d) => (
                       <li key={d.target} className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.04] pb-2">
-                        <span>
+                        <span className="flex items-center gap-2 flex-wrap">
                           <span className="font-mono text-slate-200">{d.target}</span>
+                          <VmPendingBadge pending={pendingConfig} category="disk" />
                           {' · '}{d.device}
+                          {d.bus ? ` · ${d.bus}` : ''}
+                          {d.cache ? ` · cache ${d.cache}` : ''}
                           {d.source ? ` · ${d.source}` : ''}
+                          {d.capacity_bytes ? ` · ${formatBytes(d.capacity_bytes)} cap` : ''}
+                          {d.physical_bytes ? ` · ${formatBytes(d.physical_bytes)} on host` : ''}
                         </span>
-                        {d.device === 'disk' && (
-                          <div className="flex gap-2">
+                        <div className="flex gap-2">
+                          {d.device === 'disk' && (
+                            <>
+                              <button
+                                type="button"
+                                className="btn-secondary text-xs"
+                                disabled={vm.managed === false}
+                                onClick={() => {
+                                  setDiskEditTarget(d.target)
+                                  setDiskEditCache(d.cache || 'none')
+                                  setDiskEditBus(d.bus || 'virtio')
+                                  setDiskEditReadonly(Boolean(d.readonly))
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-secondary text-xs"
+                                disabled={vm.managed === false}
+                                onClick={() => void act(`Detach ${d.target} queued`, () => detachVmDisk(id, d.target))}
+                              >
+                                Detach
+                              </button>
+                            </>
+                          )}
+                          {d.device === 'cdrom' && d.source && (
                             <button
                               type="button"
                               className="btn-secondary text-xs"
                               disabled={vm.managed === false}
-                              onClick={() => void act(`Detach ${d.target} queued`, () => detachVmDisk(id, d.target))}
+                              data-testid={`cdrom-eject-${d.target}`}
+                              onClick={() => void act('CD-ROM ejected', () => invokeVmLibvirt(id, 'cdrom.eject', { target: d.target }))}
                             >
-                              Detach
+                              Eject
                             </button>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -929,6 +1281,53 @@ export default function PlatformVmDetail() {
                   <p className="text-sm text-slate-500">No disks reported from libvirt.</p>
                 )}
               </MacGlassPanel>
+              {diskEditTarget && (
+                <MacGlassPanel title={`Edit disk ${diskEditTarget}`}>
+                  <div className="flex flex-wrap gap-3 items-end">
+                    <label className="text-xs text-slate-500">
+                      Bus
+                      <select className="input mt-1 block" value={diskEditBus} onChange={(e) => setDiskEditBus(e.target.value)}>
+                        <option value="virtio">virtio</option>
+                        <option value="sata">sata</option>
+                        <option value="scsi">scsi</option>
+                        <option value="ide">ide</option>
+                      </select>
+                    </label>
+                    <label className="text-xs text-slate-500">
+                      Cache
+                      <select className="input mt-1 block" value={diskEditCache} onChange={(e) => setDiskEditCache(e.target.value)}>
+                        <option value="none">none</option>
+                        <option value="writethrough">writethrough</option>
+                        <option value="writeback">writeback</option>
+                        <option value="directsync">directsync</option>
+                        <option value="unsafe">unsafe</option>
+                      </select>
+                    </label>
+                    <label className="text-xs text-slate-500 flex items-center gap-2 mt-5">
+                      <input type="checkbox" checked={diskEditReadonly} onChange={(e) => setDiskEditReadonly(e.target.checked)} />
+                      Read-only
+                    </label>
+                    <button
+                      type="button"
+                      className="btn-secondary text-sm"
+                      onClick={() => void act('Disk updated', async () => {
+                        await invokeVmLibvirt(id, 'disk.tune', {
+                          target: diskEditTarget,
+                          bus: diskEditBus,
+                          cache: diskEditCache,
+                          readonly: diskEditReadonly,
+                        })
+                        setDiskEditTarget(null)
+                        await loadLibvirtDetails()
+                        await loadPendingConfig()
+                      })}
+                    >
+                      Apply
+                    </button>
+                    <button type="button" className="btn-secondary text-sm" onClick={() => setDiskEditTarget(null)}>Cancel</button>
+                  </div>
+                </MacGlassPanel>
+              )}
               {disks.length > 0 && (
                 <MacGlassPanel title="Platform disk records">
                   <ul className="text-sm text-slate-400 space-y-2">{disks.map((d) => (
@@ -969,7 +1368,7 @@ export default function PlatformVmDetail() {
           )}
 
           {tab === 'network' && vm.inventory_source !== 'kubevirt' && (
-            <div className="space-y-4 pt-2">
+            <div className="space-y-4 pt-2" data-testid="vm-network-panel">
               <MacGlassPanel title="Network interfaces" subtitle="Hot-plug NICs via libvirt">
                 {libvirtDetailsLoading ? (
                   <p className="text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</p>
@@ -977,7 +1376,26 @@ export default function PlatformVmDetail() {
                   <ul className="text-sm text-slate-400 space-y-3">
                     {libvirtDetails.interfaces.map((iface) => (
                       <li key={iface.mac_address} className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.04] pb-2">
-                        <span className="flex items-center gap-2"><Network className="w-4 h-4 text-slate-500" />{iface.mac_address} · {iface.source} · {iface.model}</span>
+                        <span className="flex items-center gap-2 flex-wrap">
+                          <Network className="w-4 h-4 text-slate-500" />
+                          {iface.mac_address} · {iface.source} · {iface.model}
+                          {iface.ip && (
+                            <span className="font-mono text-emerald-300/80"> · {iface.ip}</span>
+                          )}
+                          <VmPendingBadge pending={pendingConfig} category="network" />
+                        </span>
+                        <button
+                          type="button"
+                          className="btn-secondary text-xs"
+                          disabled={vm.managed === false}
+                          onClick={() => {
+                            setNicEditMac(iface.mac_address)
+                            setNicEditModel(iface.model || 'virtio')
+                            setNicEditNetwork(iface.source || 'default')
+                          }}
+                        >
+                          Edit
+                        </button>
                         <button
                           type="button"
                           className="btn-secondary text-xs"
@@ -991,6 +1409,43 @@ export default function PlatformVmDetail() {
                   </ul>
                 ) : (
                   <p className="text-sm text-slate-500">No interfaces attached.</p>
+                )}
+                {nicEditMac && (
+                  <div className="mt-4 p-3 rounded-lg border border-white/[0.06] space-y-3">
+                    <p className="text-sm text-slate-300">Edit NIC <span className="font-mono">{nicEditMac}</span></p>
+                    <div className="flex flex-wrap gap-3 items-end">
+                      <label className="text-xs text-slate-500">
+                        Network
+                        <input className="input mt-1 block min-w-[12rem]" value={nicEditNetwork} onChange={(e) => setNicEditNetwork(e.target.value)} />
+                      </label>
+                      <label className="text-xs text-slate-500">
+                        Model
+                        <select className="input mt-1 block w-28" value={nicEditModel} onChange={(e) => setNicEditModel(e.target.value)}>
+                          <option value="virtio">virtio</option>
+                          <option value="e1000">e1000</option>
+                          <option value="e1000e">e1000e</option>
+                          <option value="rtl8139">rtl8139</option>
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        className="btn-secondary text-sm"
+                        onClick={() => void act('NIC updated', async () => {
+                          await invokeVmLibvirt(id, 'nic.tune', {
+                            mac_address: nicEditMac,
+                            model: nicEditModel,
+                            network: nicEditNetwork,
+                          })
+                          setNicEditMac(null)
+                          await loadLibvirtDetails()
+                          await loadPendingConfig()
+                        })}
+                      >
+                        Apply
+                      </button>
+                      <button type="button" className="btn-secondary text-sm" onClick={() => setNicEditMac(null)}>Cancel</button>
+                    </div>
+                  </div>
                 )}
                 <div className="flex flex-wrap gap-3 items-end mt-4 pt-3 border-t border-white/[0.04]">
                   <label className="text-xs text-slate-500">
@@ -1203,7 +1658,7 @@ export default function PlatformVmDetail() {
           )}
 
           {tab === 'snapshots' && (
-            <MacGlassPanel title="Snapshots & Time Machine" className="pt-2">
+            <MacGlassPanel title="Snapshots & Time Machine" className="pt-2" data-testid="vm-snapshots-panel">
               {timeline.length > 0 && (
                 <div className="mb-4 pb-4 border-b border-white/5">
                   <h3 className="text-sm font-semibold mb-2">Time Machine</h3>
@@ -1276,10 +1731,29 @@ export default function PlatformVmDetail() {
               {snapQuiesce && vm.observed_state === 'running' && (
                 <GuestFsFreezeBanner vmId={id!} poll className="mt-3" />
               )}
+              {(snapPrecheckLoading || snapPrecheck) && (
+                <div className="mt-3 rounded-lg border border-white/[0.06] bg-slate-900/50 p-3 text-xs">
+                  {snapPrecheckLoading ? (
+                    <p className="text-slate-500 flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Checking snapshot readiness…</p>
+                  ) : snapPrecheck?.blocked ? (
+                    <p className="text-amber-300/90">{snapPrecheck.message}</p>
+                  ) : snapPrecheck?.has_vfio_hostdev && vm.observed_state === 'running' ? (
+                    <p className="text-amber-300/90">VFIO device present — stop the VM before creating a snapshot.</p>
+                  ) : snapPrecheck?.estimated_bytes ? (
+                    <p className="text-slate-400">
+                      External snapshot may need ~{Math.ceil(snapPrecheck.estimated_bytes / (1024 * 1024))} MiB
+                      {snapPrecheck.available_bytes != null && ` (${Math.floor(snapPrecheck.available_bytes / (1024 * 1024))} MiB free on host)`}.
+                    </p>
+                  ) : (
+                    <p className="text-slate-500">Snapshot precheck passed.</p>
+                  )}
+                </div>
+              )}
               <div className="flex flex-wrap gap-2 mt-2">
                 <button
                   type="button"
                   className="btn-secondary text-xs"
+                  disabled={!!snapPrecheck?.blocked}
                   onClick={() => {
                     const body: CreateVmSnapshotBody = {
                       name: snapName,
@@ -1298,13 +1772,13 @@ export default function PlatformVmDetail() {
                   <li key={s.id} className="flex flex-col gap-2 text-slate-400 border-b border-white/5 pb-2">
                     <span>{s.name} ({s.status})</span>
                     <span className="flex flex-wrap gap-1">
-                      <button type="button" className="btn-secondary text-xs" onClick={() => void act('Revert queued', () => revertVmSnapshot(id, s.name))}>Revert</button>
-                      <button type="button" className="btn-secondary text-xs" onClick={() => void act('Delete queued', () => deleteVmSnapshot(id, s.name))}>Delete</button>
+                      <button type="button" className="btn-secondary text-xs" onClick={() => void runSnapshotAction(s.name, 'revert', () => revertVmSnapshot(id, s.name), 'Revert queued')}>Revert</button>
+                      <button type="button" className="btn-secondary text-xs" onClick={() => void runSnapshotAction(s.name, 'delete', () => deleteVmSnapshot(id, s.name), 'Delete queued')}>Delete</button>
                     </span>
                     <button
                       type="button"
                       className="btn-secondary text-xs w-fit"
-                      onClick={() => void act('Clone queued', () => cloneVmSnapshot(id, s.name, `${vm.name}-from-${s.name}`))}
+                      onClick={() => void runSnapshotAction(s.name, 'clone', () => cloneVmSnapshot(id, s.name, `${vm.name}-from-${s.name}`), 'Clone queued')}
                     >
                       Clone to {vm.name}-from-{s.name}
                     </button>
@@ -1375,10 +1849,70 @@ export default function PlatformVmDetail() {
             </div>
           )}
 
+          {tab === 'logs' && vm.inventory_source !== 'kubevirt' && (
+            <VmQemuLogsPanel vmId={id} vmName={vm.name} />
+          )}
+
           {tab === 'settings' && (
             <div className="space-y-4">
+              <MacGlassPanel title="Description">
+                <p className="text-xs text-slate-500 mb-2">Operator notes stored in the VM spec (Cockpit Machines parity).</p>
+                <textarea
+                  className="input w-full min-h-[4.5rem] text-sm"
+                  value={descriptionDraft}
+                  onChange={(e) => setDescriptionDraft(e.target.value)}
+                  placeholder="Optional description for this VM"
+                  data-testid="vm-description-input"
+                />
+                <button
+                  type="button"
+                  className="btn-secondary text-sm mt-2"
+                  onClick={() => void act('Description saved', () => patchVm(id, { description: descriptionDraft }))}
+                >
+                  Save description
+                </button>
+              </MacGlassPanel>
+              {vm.inventory_source !== 'kubevirt' && (vm.observed_state === 'shutoff' || vm.observed_state === 'stopped') && (
+                <MacGlassPanel title="Rename VM">
+                  <p className="text-xs text-slate-500 mb-2">Libvirt domain rename (guest must be shut off).</p>
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      className="input flex-1 min-w-[12rem]"
+                      value={renameDraft || vm.name}
+                      onChange={(e) => setRenameDraft(e.target.value)}
+                      placeholder={vm.name}
+                    />
+                    <button
+                      type="button"
+                      className="btn-secondary text-sm"
+                      disabled={!renameDraft.trim() || renameDraft.trim() === vm.name}
+                      onClick={() => void act('VM renamed', async () => {
+                        await renamePlatformVm(id, renameDraft.trim())
+                        navigate(`/platform/vms/${id}`, { replace: true })
+                      })}
+                    >
+                      Rename
+                    </button>
+                  </div>
+                </MacGlassPanel>
+              )}
+              {vm.inventory_source !== 'kubevirt' && hasSpiceGraphics && (
+                <MacGlassPanel title="Graphics">
+                  <p className="text-xs text-slate-500 mb-2">Convert SPICE display to VNC (Cockpit Machines parity).</p>
+                  <button
+                    type="button"
+                    className="btn-secondary text-sm"
+                    onClick={() => {
+                      if (!window.confirm('Convert SPICE to VNC? Guest may briefly lose display.')) return
+                      void act('SPICE converted to VNC', () => convertVmSpiceToVnc(id))
+                    }}
+                  >
+                    SPICE → VNC
+                  </button>
+                </MacGlassPanel>
+              )}
               {vm.inventory_source !== 'kubevirt' && (
-                <MacGlassPanel title="Boot & sizing">
+                <MacGlassPanel title="Boot & autostart">
                   <div className="flex flex-wrap items-center gap-4 mb-4">
                     <span className="text-sm text-slate-400">Autostart on host boot</span>
                     <button
@@ -1397,35 +1931,11 @@ export default function PlatformVmDetail() {
                       )}
                     </button>
                   </div>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <label className="text-xs text-slate-500">
-                      vCPUs
-                      <input type="number" min={1} className="input mt-1 block w-full" value={resizeVcpus} onChange={(e) => setResizeVcpus(e.target.value)} />
-                    </label>
-                    <label className="text-xs text-slate-500">
-                      Memory (GiB)
-                      <input type="number" min={1} className="input mt-1 block w-full" value={resizeMemoryGiB} onChange={(e) => setResizeMemoryGiB(e.target.value)} />
-                    </label>
-                  </div>
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    <button
-                      type="button"
-                      className="btn-secondary text-sm"
-                      disabled={vm.managed === false || !resizeVcpus}
-                      onClick={() => void act('vCPU resize queued', () => setVmVcpus(id, Number(resizeVcpus)))}
-                    >
-                      Apply vCPUs
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-secondary text-sm"
-                      disabled={vm.managed === false || !resizeMemoryGiB}
-                      onClick={() => void act('Memory resize queued', () => setVmMemory(id, Number(resizeMemoryGiB) * 1024))}
-                    >
-                      Apply memory
-                    </button>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-2">Config changes apply to the libvirt domain definition (offline resize). Running guests may need a reboot for some changes.</p>
+                  <p className="text-xs text-slate-500">
+                    CPU topology and memory sizing live on the{' '}
+                    <button type="button" className={hubLinkClasses()} onClick={() => setTab('overview')}>Overview</button>
+                    {' '}Compute panel — use Edit CPU / Edit memory there.
+                  </p>
                 </MacGlassPanel>
               )}
               <MacGlassPanel title="High availability">
@@ -1433,7 +1943,7 @@ export default function PlatformVmDetail() {
                 <label className="flex items-center gap-2 text-sm mt-2"><input type="checkbox" checked={ha.fence_on_failure} onChange={(e) => setHa({ ...ha, fence_on_failure: e.target.checked })} /> Fence host on failure</label>
                 <button type="button" className="btn-secondary mt-2" onClick={() => void act('HA policy updated', () => setVmHa(id, ha))}>Save HA policy</button>
               </MacGlassPanel>
-              <MacGlassPanel title="Live migrate & clone">
+              <MacGlassPanel title="Live migrate & clone" data-testid="vm-migrate-panel">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <h3 className="font-semibold mb-2 flex items-center gap-2 text-sm"><MoveRight className="w-4 h-4" /> Live migrate</h3>
@@ -1446,6 +1956,12 @@ export default function PlatformVmDetail() {
                       </label>
                       <label className="flex items-center gap-2">
                         <input type="checkbox" checked={migratePostcopy} onChange={(e) => setMigratePostcopy(e.target.checked)} /> Post-copy
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input type="checkbox" checked={migrateUndefineSource} onChange={(e) => setMigrateUndefineSource(e.target.checked)} /> Undefine source (permanent)
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input type="checkbox" checked={migrateTunnelled} onChange={(e) => setMigrateTunnelled(e.target.checked)} /> Tunnelled
                       </label>
                       <label className="flex items-center gap-2">
                         Bandwidth (MiB/s)
@@ -1474,6 +1990,8 @@ export default function PlatformVmDetail() {
                           live: migrateLive,
                           bandwidth_mib: migrateBandwidth ? Number(migrateBandwidth) : undefined,
                           postcopy: migratePostcopy,
+                          undefine_source: migrateUndefineSource,
+                          tunnelled: migrateTunnelled,
                         }))}
                       >
                         Migrate
@@ -1605,6 +2123,38 @@ export default function PlatformVmDetail() {
               libvirtDetails={libvirtDetails}
               onChanged={() => void loadLibvirtDetails()}
             />
+          )}
+
+          {vm.inventory_source !== 'kubevirt' && id && (
+            <>
+              <VmCpuTopologyModal
+                open={cpuModalOpen}
+                vmId={id}
+                vmName={vm.name}
+                onClose={() => setCpuModalOpen(false)}
+                onSaved={() => {
+                  void loadComputeTopology()
+                  void loadLibvirtDetails()
+                  void load()
+                }}
+                onNotify={(m) => toast.success(m)}
+                onError={(m) => toast.error(m)}
+              />
+              <VmMemorySizingModal
+                open={memoryModalOpen}
+                vmId={id}
+                vmName={vm.name}
+                running={vm.observed_state === 'running'}
+                onClose={() => setMemoryModalOpen(false)}
+                onSaved={() => {
+                  void loadComputeTopology()
+                  void loadLibvirtDetails()
+                  void load()
+                }}
+                onNotify={(m) => toast.success(m)}
+                onError={(m) => toast.error(m)}
+              />
+            </>
           )}
         </>
       )}

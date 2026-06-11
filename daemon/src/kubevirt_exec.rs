@@ -132,3 +132,67 @@ pub async fn virtctl_start_vm(
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
     Ok((code, stdout, stderr))
 }
+
+/// Run `virtctl stop` for the KubeVirt VM.
+pub async fn virtctl_stop_vm(
+    k: &KubeVirtConfig,
+    vm_name: &str,
+    namespace: &str,
+) -> Result<(i32, String, String), LibvirtError> {
+    if !k.exec_enabled {
+        return Err(LibvirtError::Forbidden(
+            "kubevirt.exec_enabled is false; set it true in machina config to allow cluster commands.".into(),
+        ));
+    }
+    let bin = k.virtctl_binary.trim();
+    if bin.is_empty() {
+        return Err(LibvirtError::Invalid(
+            "kubevirt.virtctl_binary is empty".into(),
+        ));
+    }
+    let mut cmd = Command::new(bin);
+    cmd.args(["stop", vm_name, "-n", namespace]);
+    cmd.stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    apply_kubeconfig(&mut cmd, k).await;
+    let out = cmd
+        .output()
+        .await
+        .map_err(|e| LibvirtError::Operation(format!("virtctl stop: failed to spawn: {e}")))?;
+    let code = out.status.code().unwrap_or(-1);
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+    Ok((code, stdout, stderr))
+}
+
+/// Run `virtctl restart` for the KubeVirt VM.
+pub async fn virtctl_restart_vm(
+    k: &KubeVirtConfig,
+    vm_name: &str,
+    namespace: &str,
+) -> Result<(i32, String, String), LibvirtError> {
+    if !k.exec_enabled {
+        return Err(LibvirtError::Forbidden(
+            "kubevirt.exec_enabled is false; set it true in machina config to allow cluster commands.".into(),
+        ));
+    }
+    let bin = k.virtctl_binary.trim();
+    if bin.is_empty() {
+        return Err(LibvirtError::Invalid(
+            "kubevirt.virtctl_binary is empty".into(),
+        ));
+    }
+    let mut cmd = Command::new(bin);
+    cmd.args(["restart", vm_name, "-n", namespace]);
+    cmd.stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    apply_kubeconfig(&mut cmd, k).await;
+    let out = cmd
+        .output()
+        .await
+        .map_err(|e| LibvirtError::Operation(format!("virtctl restart: failed to spawn: {e}")))?;
+    let code = out.status.code().unwrap_or(-1);
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+    Ok((code, stdout, stderr))
+}

@@ -99,7 +99,16 @@ export async function mockAuthenticatedApi(page: Page) {
     if (url.endsWith('/vms') || url.match(/\/vms(\?|$)/)) {
       return route.fulfill({ json: [] })
     }
-    if (url.includes('/networks')) {
+    if (url.match(/\/networks(\?|$)/)) {
+      return route.fulfill({ json: [] })
+    }
+    if (url.match(/\/jobs(\?|$)/)) {
+      return route.fulfill({ json: [] })
+    }
+    if (url.includes('/host/libvirt-boot')) {
+      return route.fulfill({ json: { needs_attention: false, detail: null, systemd_unit: null } })
+    }
+    if (url.includes('/dhcp-leases')) {
       return route.fulfill({ json: [] })
     }
     if (url.includes('/storage/pools')) {

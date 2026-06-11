@@ -29,6 +29,7 @@ interface ManifestEntry {
   headingPattern: string
   requires: 'openstack' | 'k8s' | null
   actions: ManifestAction[]
+  resolve?: 'platformResource' | 'classicVm' | 'storagePool' | 'openstackResource' | null
 }
 
 interface RunResult {
@@ -57,6 +58,88 @@ const report: {
 }
 
 const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8')) as { entries: ManifestEntry[] }
+
+async function controllerGet<T>(page: import('@playwright/test').Page, apiPath: string): Promise<T | null> {
+  try {
+    const res = await page.request.get(`${live}/api/v1/platform/controller${apiPath}`, {
+      ignoreHTTPSErrors: true,
+    })
+    if (!res.ok()) return null
+    return (await res.json()) as T
+  } catch {
+    return null
+  }
+}
+
+async function daemonGet<T>(page: import('@playwright/test').Page, apiPath: string): Promise<T | null> {
+  try {
+    const res = await page.request.get(`${live}${apiPath}`, { ignoreHTTPSErrors: true })
+    if (!res.ok()) return null
+    return (await res.json()) as T
+  } catch {
+    return null
+  }
+}
+
+async function resolveLivePath(
+  page: import('@playwright/test').Page,
+  entry: ManifestEntry,
+): Promise<{ path: string; skipReason?: string }> {
+  const [base, query = ''] = entry.path.split('?')
+  const suffix = query ? `?${query}` : ''
+
+  if (!entry.resolve && !base.includes(':')) {
+    return { path: entry.path }
+  }
+
+  if (entry.resolve === 'platformResource' || base.includes('/platform/')) {
+    if (base.includes('/platform/vms/:id')) {
+      const vms = await controllerGet<Array<{ id: string }>>(page, '/api/v1/vms')
+      const id = vms?.[0]?.id
+      if (!id) return { path: entry.path, skipReason: 'no platform VMs' }
+      return { path: `${base.replace(':id', id)}${suffix}` }
+    }
+    if (base.includes('/platform/hosts/:id') || base.includes(':hostId')) {
+      const hosts = await controllerGet<Array<{ id: string }>>(page, '/api/v1/hosts')
+      const id = hosts?.[0]?.id
+      if (!id) return { path: entry.path, skipReason: 'no platform hosts' }
+      return { path: `${base.replace(':id', id).replace(':hostId', id)}${suffix}` }
+    }
+    if (base.includes('/platform/zeus/security/firewall/:id')) {
+      const overview = await controllerGet<{ targets?: Array<{ id: string }> }>(
+        page,
+        '/api/v1/zeus-firewall/overview',
+      )
+      const id = overview?.targets?.[0]?.id
+      if (!id) return { path: entry.path, skipReason: 'no firewall targets' }
+      return { path: `${base.replace(':id', id)}${suffix}` }
+    }
+  }
+
+  if (entry.resolve === 'classicVm' || base.includes('/vms/:name')) {
+    const vms = await daemonGet<Array<{ name: string }>>(page, '/api/v1/vms')
+    const name = vms?.[0]?.name
+    if (!name) return { path: entry.path, skipReason: 'no classic VMs' }
+    return { path: `${base.replace(':name', encodeURIComponent(name))}${suffix}` }
+  }
+
+  if (entry.resolve === 'storagePool') {
+    const pools = await daemonGet<Array<{ name: string }> | { pools?: Array<{ name: string }> }>(
+      page,
+      '/api/v1/storage/pools',
+    )
+    const list = Array.isArray(pools) ? pools : pools?.pools ?? []
+    const pool = list[0]?.name
+    if (!pool) return { path: entry.path, skipReason: 'no storage pools' }
+    return { path: `${base.replace(':pool', encodeURIComponent(pool))}${suffix}` }
+  }
+
+  if (entry.resolve === 'openstackResource') {
+    return { path: entry.path, skipReason: 'openstack detail template — skipped until resource id wiring' }
+  }
+
+  return { path: entry.path }
+}
 
 async function runAction(page: import('@playwright/test').Page, action: ManifestAction) {
   if (action.kind === 'tab' && action.label) {
@@ -119,7 +202,16 @@ for (const entry of manifest.entries) {
     const watch = createApiWatch(page)
     const heading = new RegExp(entry.headingPattern, 'i')
 
-    await page.goto(`${live}${entry.path}`, { waitUntil: 'domcontentloaded', timeout: 45_000 })
+    const resolved = await resolveLivePath(page, entry)
+    if (resolved.skipReason) {
+      report.skipped += 1
+      report.results.push({ id: entry.id, path: entry.path, status: 'skipped', reason: resolved.skipReason })
+      watch.dispose()
+      await context.close()
+      test.skip(true, resolved.skipReason)
+    }
+
+    await page.goto(`${live}${resolved.path}`, { waitUntil: 'domcontentloaded', timeout: 45_000 })
 
     if (page.url().includes('/login')) {
       report.skipped += 1

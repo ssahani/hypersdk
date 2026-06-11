@@ -175,6 +175,7 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
       compact={embedded}
       error={error}
       onErrorRetry={() => void load()}
+      loading={loading}
       title={embedded ? undefined : 'Reports'}
       subtitle={embedded ? undefined : 'Cost Guardian, FinOps, operations runbooks, and compliance showback.'}
       icon={embedded ? undefined : <PieChart className="w-6 h-6 text-slate-400" />}
@@ -182,11 +183,6 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
       contentClassName="space-y-4"
     >
       <DetailTabs primary={REPORT_TABS} active={tab} onChange={setTab} />
-      {loading && (
-        <div className="flex items-center justify-center h-32" aria-busy="true" aria-label="Loading">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-        </div>
-      )}
 
       {!loading && tab === 'runbooks' && (
         <>

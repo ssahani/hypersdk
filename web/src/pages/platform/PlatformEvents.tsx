@@ -6,6 +6,9 @@ import {
   MacGlassPanel,
   MacStatWidget,
 } from '../../components/platform/mac/PlatformMacUi'
+import DetailTabs from '../../components/platform/DetailTabs'
+import OperatingSurfaceLayout from '../../components/platform/OperatingSurfaceLayout'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import { getFleetConsole, listAuditLogs, listPlatformEvents, type AuditLog, type FleetConsoleEntry, type FleetConsoleOverview, type PlatformEvent } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
@@ -62,6 +65,7 @@ export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}
   const [source, setSource] = useState<SourceFilter>('all')
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     setError(null)
@@ -77,6 +81,8 @@ export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}
     } catch (e: unknown) {
       setError(formatUserError(e))
       setFleet(null)
+    } finally {
+      setLoading(false)
     }
   }, [eventKind])
 
@@ -100,6 +106,7 @@ export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}
     <PlatformPageChrome
       hideHeader={embedded}
       compact={embedded}
+      loading={loading && !fleet && !error}
       error={error}
       onErrorRetry={() => void load()}
       title={embedded ? undefined : 'Logs & Audit'}
@@ -108,7 +115,7 @@ export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}
       actions={embedded ? undefined : <PlatformRefreshButton onClick={() => void load()} />}
       contentClassName="space-y-4"
     >
-
+      <OperatingSurfaceLayout testId="platform-events-page">
       {fleet && (
         <>
           <p className="text-sm text-slate-400">{fleet.summary}</p>
@@ -126,23 +133,15 @@ export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}
         </>
       )}
 
+      <DetailTabs
+        primary={SOURCE_FILTERS.map((f) => ({ id: f.id, label: f.label }))}
+        active={source}
+        onChange={setSource}
+      />
+
       <div className="flex flex-wrap items-center gap-2">
-        {SOURCE_FILTERS.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            onClick={() => setSource(f.id)}
-            className={`px-3 py-1.5 rounded-full text-xs border capitalize ${
-              source === f.id
-                ? 'border-orange-400/50 bg-orange-500/10 text-orange-200'
-                : 'border-white/[0.08] text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
         <input
-          className="input text-sm max-w-xs ml-auto font-mono"
+          className="input text-sm max-w-xs font-mono"
           placeholder="Filter messages…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -162,7 +161,7 @@ export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}
           </button>
         </div>
         {platformEvents.length === 0 ? (
-          <p className="text-sm text-slate-500 py-4 text-center">No platform events for this filter.</p>
+          <PlatformEmptyState title="No platform events" subtitle="Events appear when controller operations occur — try clearing the kind filter." />
         ) : (
           <ul className="text-sm text-slate-300 space-y-2">
             {platformEvents.slice(0, 20).map((e) => (
@@ -180,7 +179,11 @@ export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}
         {!fleet ? (
           <p className="text-sm text-slate-400 py-8 text-center">Loading fleet console…</p>
         ) : entries.length === 0 ? (
-          <p className="text-sm text-slate-400 py-8 text-center">No log entries match the current filter.</p>
+          <PlatformEmptyState
+            icon={ScrollText}
+            title="No log entries match"
+            subtitle="Adjust the source tab or message filter to broaden the stream."
+          />
         ) : (
           <div className="rounded-xl border border-white/[0.06] bg-slate-950/60 overflow-hidden -mx-1">
             {entries.map((e) => (
@@ -204,6 +207,7 @@ export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}
           </div>
         </MacGlassPanel>
       )}
+      </OperatingSurfaceLayout>
     </PlatformPageChrome>
   )
 }

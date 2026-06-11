@@ -1,9 +1,12 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use machina_core::config::VmCreateBackend;
+use machina_core::libvirt::create;
 use machina_core::libvirt::domain;
+use machina_core::state::CreateVmRequest;
 use machina_core::LibvirtError;
 use machina_spec::VirtualMachine;
 use machina_translate::domain_xml_from_spec;
@@ -22,6 +25,7 @@ pub struct VmListEntry {
     pub memory_used_mib: u64,
     pub disk_read_iops: u64,
     pub disk_write_iops: u64,
+    pub guest_ip: String,
 }
 
 pub struct LibvirtCtx {
@@ -79,6 +83,7 @@ impl LibvirtCtx {
                     memory_used_mib: 0,
                     disk_read_iops: 0,
                     disk_write_iops: 0,
+                    guest_ip: v.guest_ip.clone().unwrap_or_default(),
                 };
                 if let Ok(dom) = Domain::lookup_by_name(&self.conn, &v.name) {
                     if let Ok(uuid) = dom.get_uuid_string() {
@@ -189,9 +194,40 @@ impl LibvirtCtx {
                 let size_gib = vm.root_disk_gib().map_err(|e| LibvirtError::Invalid(e.to_string()))?;
                 create_qcow2(disk_path, size_gib)?;
             }
+        } else if let Some(src) = template_source.filter(|s| !s.is_empty()) {
+            if disk_backing_mismatch(disk_path, src)? {
+                std::fs::remove_file(disk_path).map_err(|e| {
+                    LibvirtError::Operation(format!("remove stale disk {disk_path}: {e}"))
+                })?;
+                create_linked_clone(src, disk_path)?;
+            }
         }
 
         let cloud_iso = maybe_cloud_init_iso(vm, cloud, images_dir)?;
+
+        if vm_uses_virt_install(vm) {
+            let req = create_request_from_vm(vm, disk_path, cloud_iso.as_deref())?;
+            let cfg = machina_core::config::MachinaConfig::load();
+            let uri = self
+                .conn
+                .get_uri()
+                .map_err(|e| LibvirtError::Operation(format!("libvirt URI: {e}")))?;
+            create::create_vm(
+                &self.conn,
+                &req,
+                VmCreateBackend::VirtInstall,
+                &uri,
+                &cfg.libvirt,
+                None,
+            )?;
+            let dom = Domain::lookup_by_name(&self.conn, &vm.metadata.name)
+                .map_err(|e| LibvirtError::Operation(format!("lookup VM: {e}")))?;
+            let uuid = dom
+                .get_uuid_string()
+                .map_err(|e| LibvirtError::Operation(e.to_string()))?;
+            return Ok((vm.metadata.name.clone(), uuid));
+        }
+
         machina_core::libvirt::guest_agent_provision::inject_guestkit_into_disk(
             disk_path,
             None,
@@ -343,6 +379,14 @@ impl LibvirtCtx {
                     dom.create().map_err(|e| LibvirtError::Operation(e.to_string()))?;
                 }
             }
+            "reset" => {
+                if !active {
+                    return Err(LibvirtError::Invalid(
+                        "force reboot (reset) requires a running guest".into(),
+                    ));
+                }
+                domain::reset_vm(&self.conn, name)?;
+            }
             "shutdown" => {
                 if active {
                     domain::shutdown_vm_mode(&self.conn, name, power_mode)?;
@@ -377,6 +421,22 @@ impl LibvirtCtx {
 
     pub fn get_vm_details(&self, name: &str) -> Result<machina_core::state::VmDetails, LibvirtError> {
         machina_core::libvirt::domain::get_vm_details(&self.conn, name)
+    }
+
+    /// Start virt-install on a define-only guest using install metadata from the Machina spec.
+    pub fn install_defined_from_spec(&self, vm: &machina_spec::VirtualMachine) -> Result<(), LibvirtError> {
+        let name = &vm.metadata.name;
+        let xml = self.get_domain_xml(name)?;
+        let disk_path = machina_core::libvirt::template_apply::primary_disk_path_from_xml(&xml)
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let mut req = create_request_from_vm(vm, &disk_path, None)?;
+        req.virt_install_define_only = false;
+        let uri = self
+            .conn
+            .get_uri()
+            .map_err(|e| LibvirtError::Operation(format!("libvirt URI: {e}")))?;
+        machina_core::libvirt::virt_install::install_defined_vm(&self.conn, &uri, &req, None)
     }
 
     pub fn detach_disk(&self, vm_name: &str, target_dev: &str) -> Result<(), LibvirtError> {
@@ -419,6 +479,8 @@ impl LibvirtCtx {
         live: bool,
         bandwidth_mib: u64,
         postcopy: bool,
+        undefine_source: bool,
+        tunnelled: bool,
     ) -> Result<(), LibvirtError> {
         if bandwidth_mib > 0 {
             machina_core::libvirt::migrate::migrate_set_max_speed(&self.conn, name, bandwidth_mib)?;
@@ -426,6 +488,12 @@ impl LibvirtCtx {
         let mut extra_flags = 0u32;
         if postcopy {
             extra_flags |= sys::VIR_MIGRATE_POSTCOPY;
+        }
+        if undefine_source {
+            extra_flags |= sys::VIR_MIGRATE_UNDEFINE_SOURCE;
+        }
+        if tunnelled {
+            extra_flags |= sys::VIR_MIGRATE_TUNNELLED;
         }
         machina_core::libvirt::migrate::migrate_vm_uri(
             &self.conn,
@@ -888,6 +956,33 @@ fn maybe_cloud_init_iso(
     )?))
 }
 
+fn disk_backing_mismatch(disk_path: &str, expected_backing: &str) -> Result<bool, LibvirtError> {
+    let out = Command::new("qemu-img")
+        .args(["info", "--output=json", disk_path])
+        .output()
+        .map_err(|e| LibvirtError::Operation(format!("qemu-img info: {e}")))?;
+    if !out.status.success() {
+        return Ok(true);
+    }
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).map_err(|e| {
+        LibvirtError::Operation(format!("parse qemu-img info for {disk_path}: {e}"))
+    })?;
+    let actual = json
+        .get("backing-filename")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if actual.is_empty() {
+        return Ok(true);
+    }
+    let expected = Path::new(expected_backing)
+        .canonicalize()
+        .unwrap_or_else(|_| PathBuf::from(expected_backing));
+    let actual_path = Path::new(actual)
+        .canonicalize()
+        .unwrap_or_else(|_| PathBuf::from(actual));
+    Ok(expected != actual_path)
+}
+
 fn create_linked_clone(backing: &str, path: &str) -> Result<(), LibvirtError> {
     if !Path::new(backing).exists() {
         return Err(LibvirtError::NotFound(format!("template disk: {backing}")));
@@ -970,4 +1065,116 @@ fn qemu_version_from_path() -> String {
         }
     }
     String::new()
+}
+
+fn label_bool(labels: &std::collections::HashMap<String, String>, key: &str) -> bool {
+    labels
+        .get(key)
+        .is_some_and(|v| v == "true" || v == "1" || v.eq_ignore_ascii_case("yes"))
+}
+
+fn label_str<'a>(labels: &'a std::collections::HashMap<String, String>, key: &str) -> &'a str {
+    labels.get(key).map(|s| s.as_str()).unwrap_or("")
+}
+
+fn vm_uses_virt_install(vm: &VirtualMachine) -> bool {
+    let Some(labels) = vm.metadata.labels.as_ref() else {
+        return false;
+    };
+    !label_str(labels, "virt_install_location").trim().is_empty()
+        || label_bool(labels, "virt_install_pxe")
+        || !label_str(labels, "virt_install_install_os").trim().is_empty()
+        || label_bool(labels, "virt_install_define_only")
+}
+
+fn create_request_from_vm(
+    vm: &VirtualMachine,
+    disk_path: &str,
+    cloud_init_iso: Option<&str>,
+) -> Result<CreateVmRequest, LibvirtError> {
+    vm.validate()
+        .map_err(|e| LibvirtError::Invalid(e.to_string()))?;
+    let labels = vm.metadata.labels.clone().unwrap_or_default();
+    let network = vm
+        .spec
+        .network
+        .first()
+        .map(|n| n.network.clone())
+        .unwrap_or_else(|| "default".into());
+    let memory_mb = vm.memory_mib().map_err(|e| LibvirtError::Invalid(e.to_string()))?;
+    let disk_gb = vm.root_disk_gib().map_err(|e| LibvirtError::Invalid(e.to_string()))?;
+    let iso = label_str(&labels, "install_iso").trim().to_string();
+    let os_variant = label_str(&labels, "os_variant").trim().to_string();
+    let mut req = CreateVmRequest {
+        name: vm.metadata.name.clone(),
+        vcpus: vm.total_vcpus(),
+        memory_mb,
+        disk_gb,
+        iso,
+        network,
+        os_variant: if os_variant.is_empty() {
+            "generic".into()
+        } else {
+            os_variant
+        },
+        firmware: vm.spec.firmware.clone(),
+        graphics_listen: vm.spec.graphics.listen.clone(),
+        graphics_type: vm.spec.graphics.r#type.clone(),
+        create_backend: "virt_install".into(),
+        virt_install_location: label_str(&labels, "virt_install_location")
+            .trim()
+            .to_string(),
+        virt_install_pxe: label_bool(&labels, "virt_install_pxe"),
+        virt_install_pxe_network: label_str(&labels, "virt_install_pxe_network")
+            .trim()
+            .to_string(),
+        virt_install_install_os: label_str(&labels, "virt_install_install_os")
+            .trim()
+            .to_string(),
+        virt_install_extra_args: label_str(&labels, "virt_install_extra_args")
+            .trim()
+            .to_string(),
+        virt_install_define_only: label_bool(&labels, "virt_install_define_only"),
+        virt_install_path_in_use_check_off: label_bool(&labels, "virt_install_path_in_use_check_off")
+            || !disk_path.trim().is_empty(),
+        root_disk_storage_pool: label_str(&labels, "root_disk_storage_pool")
+            .trim()
+            .to_string(),
+        root_disk_storage_volume: label_str(&labels, "root_disk_storage_volume")
+            .trim()
+            .to_string(),
+        virt_install_disk_backing_store: label_str(&labels, "virt_install_disk_backing_store")
+            .trim()
+            .to_string(),
+        virt_install_unattended: label_bool(&labels, "virt_install_unattended"),
+        virt_install_admin_password: label_str(&labels, "virt_install_admin_password")
+            .trim()
+            .to_string(),
+        virt_install_user_login: label_str(&labels, "virt_install_user_login")
+            .trim()
+            .to_string(),
+        virt_install_user_password: label_str(&labels, "virt_install_user_password")
+            .trim()
+            .to_string(),
+        ..Default::default()
+    };
+    if let Some(ci) = vm.spec.cloud_init.as_ref() {
+        req.cloud_init_user = ci.user.clone();
+        if let Some(p) = ci.password.as_deref() {
+            req.cloud_init_password = p.to_string();
+        }
+        if let Some(k) = ci.ssh_pubkey.as_deref() {
+            req.cloud_init_ssh_pubkey = k.to_string();
+        }
+    }
+    if let Some(path) = cloud_init_iso.filter(|p| !p.is_empty()) {
+        req.cloud_init_iso = path.to_string();
+    }
+    if !label_str(&labels, "existing_disk").trim().is_empty() {
+        req.existing_disk = label_str(&labels, "existing_disk").trim().to_string();
+    }
+    if !disk_path.trim().is_empty() && Path::new(disk_path).exists() {
+        req.existing_disk = disk_path.trim().to_string();
+    }
+    Ok(req)
 }

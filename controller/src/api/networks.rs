@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::Extension;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -176,10 +176,108 @@ pub async fn patch_network(
 pub async fn delete_network(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
+    Query(q): Query<NetworkHostQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let name = network_name(&state.pool, id).await?;
+    if resolve_online_host(&state.pool, q.host_id).await.is_ok() {
+        let host_id = resolve_online_host(&state.pool, q.host_id).await?;
+        let _ = invoke_network_on_host(&state, host_id, "network.delete", &name).await;
+    }
     sqlx::query("DELETE FROM networks WHERE id = $1")
         .bind(id)
         .execute(&state.pool)
         .await?;
-    Ok(Json(serde_json::json!({ "deleted": true })))
+    Ok(Json(serde_json::json!({ "deleted": true, "name": name })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct NetworkHostQuery {
+    pub host_id: Option<Uuid>,
+}
+
+async fn network_name(pool: &sqlx::PgPool, id: Uuid) -> Result<String, ApiError> {
+    sqlx::query_scalar("SELECT name FROM networks WHERE id = $1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| ApiError::bad_request("network not found"))
+}
+
+async fn resolve_online_host(
+    pool: &sqlx::PgPool,
+    host_id: Option<Uuid>,
+) -> Result<Uuid, ApiError> {
+    if let Some(h) = host_id {
+        return Ok(h);
+    }
+    sqlx::query_scalar("SELECT id FROM hosts WHERE state = 'online' ORDER BY hostname LIMIT 1")
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| ApiError::bad_request("no online host for libvirt network operation"))
+}
+
+async fn invoke_network_on_host(
+    state: &AppState,
+    host_id: Uuid,
+    action: &str,
+    network_name: &str,
+) -> Result<serde_json::Value, ApiError> {
+    let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut client = crate::agent_client::connect(&agent_addr)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    crate::agent_client::host_libvirt_invoke(
+        &mut client,
+        action,
+        &serde_json::json!({ "name": network_name }),
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn activate_network(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Query(q): Query<NetworkHostQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let name = network_name(&state.pool, id).await?;
+    let host_id = resolve_online_host(&state.pool, q.host_id).await?;
+    let result = invoke_network_on_host(&state, host_id, "network.start", &name).await?;
+    state.emit_event("network", format!("Activated libvirt network {name}"));
+    Ok(Json(result))
+}
+
+pub async fn deactivate_network(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Query(q): Query<NetworkHostQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let name = network_name(&state.pool, id).await?;
+    let host_id = resolve_online_host(&state.pool, q.host_id).await?;
+    let result = invoke_network_on_host(&state, host_id, "network.stop", &name).await?;
+    state.emit_event("network", format!("Deactivated libvirt network {name}"));
+    Ok(Json(result))
+}
+
+pub async fn live_networks(
+    State(state): State<AppState>,
+    Query(q): Query<NetworkHostQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let host_id = resolve_online_host(&state.pool, q.host_id).await?;
+    let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut client = crate::agent_client::connect(&agent_addr)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let nets = crate::agent_client::host_libvirt_query(
+        &mut client,
+        "networks.list",
+        &serde_json::json!({}),
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(serde_json::json!({ "host_id": host_id, "networks": nets })))
 }

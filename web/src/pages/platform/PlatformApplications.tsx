@@ -1,7 +1,21 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
+import { Package } from 'lucide-react'
 import ApplicationLaunchpad from '../../components/platform/ApplicationLaunchpad'
+import OperatingSurfaceLayout from '../../components/platform/OperatingSurfaceLayout'
+import PlatformPageChrome from '../../components/platform/PlatformPageChrome'
 
 export default function PlatformApplications() {
-  return <ApplicationLaunchpad />
+  return (
+    <PlatformPageChrome
+      title="Applications"
+      subtitle="Operate entire VM stacks like macOS app groups — start, stop, and backup together."
+      icon={<Package className="w-6 h-6 text-slate-400" />}
+      contentClassName="space-y-4"
+    >
+      <OperatingSurfaceLayout testId="platform-applications-page">
+        <ApplicationLaunchpad />
+      </OperatingSurfaceLayout>
+    </PlatformPageChrome>
+  )
 }

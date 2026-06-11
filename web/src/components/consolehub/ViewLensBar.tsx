@@ -37,6 +37,8 @@ type Props = {
   displayProtocols?: string[]
   activeProtocol?: string
   onProtocolChange?: (protocol: string) => void
+  /** Agent recommendation (novnc | serial) — Cockpit-style guidance. */
+  recommended?: string
 }
 
 export default function ViewLensBar({
@@ -45,7 +47,15 @@ export default function ViewLensBar({
   displayProtocols = [],
   activeProtocol,
   onProtocolChange,
+  recommended,
 }: Props) {
+  const cockpitHint =
+    recommended === 'serial' && active !== 'serial'
+      ? 'Linux cloud images boot on Serial — switch to Serial for login output.'
+      : recommended === 'novnc' && active === 'serial'
+        ? 'Graphical desktop guest — use Display (VNC) for the GUI.'
+        : null
+
   return (
     <div className="flex flex-col gap-2 shrink-0">
       <div className="flex flex-wrap gap-1.5">
@@ -85,6 +95,9 @@ export default function ViewLensBar({
             </button>
           ))}
         </div>
+      ) : null}
+      {cockpitHint ? (
+        <p className="text-xs text-amber-300/90 pl-1">{cockpitHint}</p>
       ) : null}
     </div>
   )

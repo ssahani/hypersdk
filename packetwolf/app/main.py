@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .models import CaptureRequest, IngestBatch, SearchRequest, SecurityEvent
 from . import enforcer
 from . import hunt
+from . import network_brain
 from . import store
 
 app = FastAPI(title="PacketWolf Security Fabric", version="0.1.0")
@@ -203,6 +204,41 @@ def capture_start(body: CaptureRequest) -> dict:
 @app.get("/api/v1/fleet/timeline")
 def fleet_timeline(hours: int = Query(24), limit: int = Query(200)) -> dict:
     return {"events": store.fleet_timeline(hours, limit)}
+
+
+@app.get("/api/v1/network/overview")
+def network_overview() -> dict:
+    return network_brain.network_overview()
+
+
+@app.get("/api/v1/network/service-map")
+def network_service_map() -> dict:
+    return network_brain.network_service_map()
+
+
+@app.get("/api/v1/network/workloads")
+def network_workloads() -> dict:
+    return network_brain.network_workloads()
+
+
+@app.get("/api/v1/network/timeline")
+def network_timeline(limit: int = Query(40)) -> dict:
+    return network_brain.network_timeline(limit=limit)
+
+
+@app.get("/api/v1/network/threats")
+def network_threats() -> dict:
+    return network_brain.network_threats()
+
+
+@app.get("/api/v1/network/top-talkers")
+def network_top_talkers(limit: int = Query(10)) -> dict:
+    return network_brain.network_top_talkers(limit=limit)
+
+
+@app.get("/api/v1/nodes")
+def k8s_nodes() -> dict:
+    return network_brain.k8s_nodes()
 
 
 @app.get("/api/v1/correlations")

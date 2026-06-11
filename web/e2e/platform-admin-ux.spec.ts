@@ -1,0 +1,46 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import { test, expect } from '@playwright/test'
+import { mockPlatformApi } from './platformMock'
+
+test.describe('platform admin UX', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockPlatformApi(page, { tier: 'power' })
+  })
+
+  test('/platform/users shows briefing and user table', async ({ page }) => {
+    await page.goto('/platform/users')
+    await expect(page.getByTestId('platform-users-page')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole('heading', { name: /Access & Workspaces/i })).toBeVisible()
+    await expect(page.getByTestId('platform-users-page').getByText(/1 user · 1 admin/i)).toBeVisible()
+    await expect(page.getByRole('row', { name: /admin/i })).toBeVisible()
+  })
+
+  test('/platform/api-keys shows empty state when no keys', async ({ page }) => {
+    await page.route('**/api/v1/api-keys**', async (route) => {
+      await route.fulfill({ json: [] })
+    })
+    await page.goto('/platform/api-keys')
+    await expect(page.getByTestId('platform-api-keys-page')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('No API keys yet')).toBeVisible()
+  })
+
+  test('/platform/api-keys lists keys when present', async ({ page }) => {
+    await page.goto('/platform/api-keys')
+    await expect(page.getByTestId('platform-api-keys-page')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole('table').getByText('automation')).toBeVisible()
+  })
+
+  test('settings webhooks section shows empty endpoints', async ({ page }) => {
+    await page.goto('/platform/settings?section=webhooks')
+    await expect(page.getByTestId('platform-webhooks-page')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('No webhook endpoints')).toBeVisible()
+  })
+
+  test('/platform/projects shows spaces briefing', async ({ page }) => {
+    await page.goto('/platform/projects')
+    await expect(page.getByTestId('platform-projects-page')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('Spaces strip')).toBeVisible()
+    await expect(page.getByRole('table').getByText('default')).toBeVisible()
+  })
+})

@@ -25,12 +25,12 @@ curl_api -X POST "$CONTROLLER/api/v1/hosts/sync-all" -d '{}' >/dev/null || warn 
 # Remove libvirt e2e-* domains first (E2E leftovers).
 while read -r dom; do
   [ -n "$dom" ] || continue
-  [[ "$dom" == e2e-* ]] || [[ "$dom" == e2e_* ]] || continue
+  [[ "$dom" == e2e-* ]] || [[ "$dom" == e2e_* ]] || [[ "$dom" == ux-e2e-* ]] || [[ "$dom" == ux-screenshot-* ]] || continue
   warn "Undefining libvirt domain: $dom"
   sudo virsh destroy "$dom" 2>/dev/null || true
   sudo virsh undefine "$dom" --nvram --managed-save --snapshots-metadata --remove-all-storage 2>/dev/null \
     || sudo virsh undefine "$dom" 2>/dev/null || true
-done < <(sudo virsh list --all --name 2>/dev/null | grep -E '^e2e[-_]' || true)
+done < <(sudo virsh list --all --name 2>/dev/null | grep -E '^(e2e[-_]|ux-e2e-|ux-screenshot-)' || true)
 
 # Delete managed e2e-* platform VM records.
 while read -r id name; do
@@ -42,7 +42,7 @@ import sys, json
 d = json.load(sys.stdin)
 for v in d:
     n = v.get('name') or ''
-    if n.startswith('e2e-') or n.startswith('e2e_'):
+    if n.startswith('e2e-') or n.startswith('e2e_') or n.startswith('ux-e2e-') or n.startswith('ux-screenshot-'):
         print(v['id'], n)
 " 2>/dev/null || true)
 
@@ -55,7 +55,7 @@ curl_api -X POST "$CONTROLLER/api/v1/hosts/sync-all" -d '{}' >/dev/null || true
 
 while read -r dom; do
   [ -n "$dom" ] || continue
-  [[ "$dom" == e2e-* ]] && continue
+  [[ "$dom" == e2e-* ]] || [[ "$dom" == ux-e2e-* ]] || [[ "$dom" == ux-screenshot-* ]] && continue
   st=$(sudo virsh domstate "$dom" 2>/dev/null || echo unknown)
   if [ "$st" = 'shut off' ]; then
     sudo virsh autostart "$dom" 2>/dev/null || true

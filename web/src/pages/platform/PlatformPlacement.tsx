@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { Activity } from 'lucide-react'
+import { MacGlassPanel, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
+import OperatingSurfaceLayout from '../../components/platform/OperatingSurfaceLayout'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import MigratePrecheckModal from '../../components/platform/MigratePrecheckModal'
 import {
@@ -36,11 +39,13 @@ export default function PlatformPlacement() {
   const [migrations, setMigrations] = useState<MigrationJob[]>([])
   const [fences, setFences] = useState<FenceEvent[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [migrateModal, setMigrateModal] = useState<{ vm: PlatformVm; destId: string; destName: string } | null>(null)
   const [migrateLoading, setMigrateLoading] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
+    setLoading(true)
     try {
       const [recs, haSt, cluster, mig, fence] = await Promise.all([
         getPlacementRecommendations(),
@@ -56,6 +61,8 @@ export default function PlatformPlacement() {
       setFences(fence)
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -107,6 +114,7 @@ export default function PlatformPlacement() {
     <PlatformPageChrome
       error={error}
       onErrorRetry={() => void load()}
+      loading={loading && !settings && !ha}
       prepend={<PlatformBackLink to="/platform/operations" label="Operations" />}
       title="Placement & HA"
       subtitle="DRS-style recommendations and high-availability status"
@@ -121,14 +129,10 @@ export default function PlatformPlacement() {
       }
       contentClassName="space-y-4"
     >
+      <OperatingSurfaceLayout testId="platform-placement-page">
       {settings && (
-        <section className="card p-4 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h2 className="font-semibold">DRS auto-migrate</h2>
-            <p className="text-slate-400 text-sm mt-1">
-              When enabled, the controller queues live migrations for overloaded hosts (CPU/memory &gt; {settings.drs_cpu_threshold}%).
-            </p>
-          </div>
+        <MacGlassPanel title="DRS auto-migrate" subtitle={`When enabled, the controller queues live migrations for overloaded hosts (CPU/memory > ${settings.drs_cpu_threshold}%).`}>
+        <section className="flex flex-wrap items-center justify-between gap-4">
           <button type="button" className={settings.drs_auto_migrate ? 'btn-primary' : 'btn-secondary'} onClick={() => void toggleAutoMigrate()}>
             {settings.drs_auto_migrate ? 'Enabled' : 'Disabled'}
           </button>
@@ -146,18 +150,22 @@ export default function PlatformPlacement() {
             </select>
           </label>
         </section>
+        </MacGlassPanel>
       )}
       {ha && (
         <div className="grid gap-4 md:grid-cols-3">
-          <div className="card p-4"><div className="text-slate-400 text-sm">HA-enabled VMs</div><div className="text-2xl font-semibold">{ha.status.enabled_vms}</div></div>
-          <div className="card p-4"><div className="text-slate-400 text-sm">Offline hosts</div><div className={`text-2xl font-semibold ${statusToneClass('warn')}`}>{ha.status.offline_hosts}</div></div>
-          <div className="card p-4"><div className="text-slate-400 text-sm">HA events (24h)</div><div className="text-2xl font-semibold">{ha.status.recent_events}</div></div>
+          <MacStatWidget label="HA-enabled VMs" value={String(ha.status.enabled_vms)} icon={<Activity className="w-4 h-4" />} />
+          <MacStatWidget label="Offline hosts" value={String(ha.status.offline_hosts)} icon={<Activity className="w-4 h-4" />} tone="warn" />
+          <MacStatWidget label="HA events (24h)" value={String(ha.status.recent_events)} icon={<Activity className="w-4 h-4" />} />
         </div>
       )}
-      <section className="card p-4">
-        <h2 className="font-semibold mb-3">Placement recommendations</h2>
+      <MacGlassPanel title="Placement recommendations">
         {rows.length === 0 ? (
-          <p className="text-slate-400 text-sm">No recommendations — cluster load is balanced.</p>
+          <PlatformEmptyState
+            icon={Activity}
+            title="Cluster load is balanced"
+            subtitle="No DRS migration recommendations — hosts are within threshold."
+          />
         ) : (
           <ul className="space-y-3 text-sm">
             {rows.map((r) => (
@@ -182,35 +190,33 @@ export default function PlatformPlacement() {
             ))}
           </ul>
         )}
-      </section>
+      </MacGlassPanel>
       {migrations.length > 0 && (
-        <section className="card p-4">
-          <h2 className="font-semibold mb-3">Recent migrations</h2>
+        <MacGlassPanel title="Recent migrations">
           <ul className="space-y-2 text-sm text-slate-400">{migrations.slice(0, 10).map((m) => (
             <li key={m.id}>{m.status} · VM {m.vm_id.slice(0, 8)} · {m.progress}%</li>
           ))}</ul>
-        </section>
+        </MacGlassPanel>
       )}
       {fences.length > 0 && (
-        <section className="card p-4">
-          <h2 className="font-semibold mb-3">Fence events</h2>
+        <MacGlassPanel title="Fence events">
           <ul className="space-y-2 text-sm text-slate-400">{fences.slice(0, 10).map((f) => (
             <li key={f.id} className={statusToneClass(f.success ? 'ok' : 'error')}>
               host {f.host_id.slice(0, 8)} — {f.message || f.action}
             </li>
           ))}</ul>
-        </section>
+        </MacGlassPanel>
       )}
       {ha && ha.events.length > 0 && (
-        <section className="card p-4">
-          <h2 className="font-semibold mb-3">Recent HA events</h2>
+        <MacGlassPanel title="Recent HA events">
           <ul className="space-y-2 text-sm text-slate-400">
             {ha.events.slice(0, 15).map((e) => (
               <li key={e.id}><span className="text-slate-300">{e.action}</span> — {e.message}</li>
             ))}
           </ul>
-        </section>
+        </MacGlassPanel>
       )}
+      </OperatingSurfaceLayout>
       {migrateModal && (
         <MigratePrecheckModal
           vm={migrateModal.vm}

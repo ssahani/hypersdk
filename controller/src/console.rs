@@ -1,7 +1,5 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-use std::net::SocketAddr;
-
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, Query, State};
 use axum::response::IntoResponse;
@@ -88,32 +86,48 @@ pub async fn vnc_ws_proxy(
     if validated != Some(vm_id) {
         return (axum::http::StatusCode::UNAUTHORIZED, "invalid token").into_response();
     }
-    ws.on_upgrade(move |socket| proxy_to_agent(socket, state, vm_id))
+    ws.on_upgrade(move |socket| proxy_to_agent_vnc(socket, state, vm_id))
 }
 
-async fn proxy_to_agent(socket: WebSocket, state: AppState, vm_id: Uuid) {
-    let row: Option<(String, Option<Uuid>)> = sqlx::query_as(
+pub async fn serial_ws_proxy(
+    ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+    Path(vm_id): Path<Uuid>,
+    Query(q): Query<WsTokenQuery>,
+) -> impl IntoResponse {
+    let validated = state.ws_tokens.validate(&q.token).await;
+    if validated != Some(vm_id) {
+        return (axum::http::StatusCode::UNAUTHORIZED, "invalid token").into_response();
+    }
+    ws.on_upgrade(move |socket| proxy_to_agent_serial(socket, state, vm_id))
+}
+
+async fn vm_agent_target(
+    state: &AppState,
+    vm_id: Uuid,
+) -> Option<(String, String)> {
+    let row = sqlx::query_as::<_, (String, Option<Uuid>)>(
         "SELECT name, host_id FROM vms WHERE id = $1",
     )
     .bind(vm_id)
     .fetch_optional(&state.pool)
     .await
     .ok()
-    .flatten();
+    .flatten()?;
 
-    let Some((name, Some(host_id))) = row else {
+    let (name, Some(host_id)) = row else {
+        return None;
+    };
+
+    let agent_console = host_console_addr(&state.pool, host_id).await.ok()?;
+    Some((name, agent_console))
+}
+
+async fn proxy_to_agent_vnc(socket: WebSocket, state: AppState, vm_id: Uuid) {
+    let Some((name, agent_console)) = vm_agent_target(&state, vm_id).await else {
         let (mut sink, _) = socket.split();
         let _ = sink.close().await;
         return;
-    };
-
-    let agent_console = match host_console_addr(&state.pool, host_id).await {
-        Ok(a) => a,
-        Err(_) => {
-            let (mut sink, _) = socket.split();
-            let _ = sink.close().await;
-            return;
-        }
     };
 
     let ws_url = format!(
@@ -136,38 +150,99 @@ async fn proxy_to_agent(socket: WebSocket, state: AppState, vm_id: Uuid) {
 
     let c2a = tokio::spawn(async move {
         while let Some(Ok(msg)) = client_stream.next().await {
-            match msg {
-                Message::Binary(b) => {
-                    if agent_sink
-                        .send(TsMessage::Binary(bytes::Bytes::from(b.to_vec())))
-                        .await
-                        .is_err()
-                    {
-                        break;
-                    }
-                }
+            let up = match msg {
+                Message::Binary(b) => TsMessage::Binary(bytes::Bytes::from(b.to_vec())),
+                Message::Text(t) => TsMessage::Text(t.to_string().into()),
                 Message::Close(_) => {
                     let _ = agent_sink.send(TsMessage::Close(None)).await;
                     break;
                 }
-                _ => {}
+                _ => continue,
+            };
+            if agent_sink.send(up).await.is_err() {
+                break;
             }
         }
     });
 
     let a2c = tokio::spawn(async move {
         while let Some(Ok(msg)) = agent_stream.next().await {
-            match msg {
-                TsMessage::Binary(b) => {
-                    if client_sink.send(Message::Binary(b.into())).await.is_err() {
-                        break;
-                    }
-                }
+            let down = match msg {
+                TsMessage::Binary(b) => Message::Binary(b.into()),
+                TsMessage::Text(t) => Message::Text(t.to_string().into()),
                 TsMessage::Close(_) => {
                     let _ = client_sink.send(Message::Close(None)).await;
                     break;
                 }
-                _ => {}
+                _ => continue,
+            };
+            if client_sink.send(down).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    tokio::select! {
+        _ = c2a => {},
+        _ = a2c => {},
+    }
+}
+
+async fn proxy_to_agent_serial(socket: WebSocket, state: AppState, vm_id: Uuid) {
+    let Some((name, agent_console)) = vm_agent_target(&state, vm_id).await else {
+        let (mut sink, _) = socket.split();
+        let _ = sink.close().await;
+        return;
+    };
+
+    let ws_url = format!(
+        "ws://{}/ws/serial/{}",
+        agent_client::normalize_agent_addr(&agent_console),
+        name
+    );
+
+    let agent_ws = match connect_async(&ws_url).await {
+        Ok((stream, _)) => stream,
+        Err(_) => {
+            let (mut sink, _) = socket.split();
+            let _ = sink.close().await;
+            return;
+        }
+    };
+
+    let (mut client_sink, mut client_stream) = socket.split();
+    let (mut agent_sink, mut agent_stream) = agent_ws.split();
+
+    let c2a = tokio::spawn(async move {
+        while let Some(Ok(msg)) = client_stream.next().await {
+            let up = match msg {
+                Message::Binary(b) => TsMessage::Binary(bytes::Bytes::from(b.to_vec())),
+                Message::Text(t) => TsMessage::Text(t.to_string().into()),
+                Message::Close(_) => {
+                    let _ = agent_sink.send(TsMessage::Close(None)).await;
+                    break;
+                }
+                _ => continue,
+            };
+            if agent_sink.send(up).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    let a2c = tokio::spawn(async move {
+        while let Some(Ok(msg)) = agent_stream.next().await {
+            let down = match msg {
+                TsMessage::Binary(b) => Message::Binary(b.into()),
+                TsMessage::Text(t) => Message::Text(t.to_string().into()),
+                TsMessage::Close(_) => {
+                    let _ = client_sink.send(Message::Close(None)).await;
+                    break;
+                }
+                _ => continue,
+            };
+            if client_sink.send(down).await.is_err() {
+                break;
             }
         }
     });
@@ -198,5 +273,7 @@ async fn host_console_addr(pool: &sqlx::PgPool, host_id: Uuid) -> Result<String,
 
 pub fn ws_routes() -> axum::Router<AppState> {
     use axum::routing::get;
-    axum::Router::new().route("/ws/v1/platform/vnc/{vm_id}", get(vnc_ws_proxy))
+    axum::Router::new()
+        .route("/ws/v1/platform/vnc/{vm_id}", get(vnc_ws_proxy))
+        .route("/ws/v1/platform/serial/{vm_id}", get(serial_ws_proxy))
 }

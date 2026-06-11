@@ -237,8 +237,18 @@ write_platform_env() {
       || echo 'MACHINA_SKIP_AUTH=1' >>/etc/default/machina-platform
   fi
   merge_packetwolf_bridge_env || true
+  ensure_daemon_platform_proxy_env
   chmod 600 /etc/default/machina-platform
   ok "Config -> /etc/default/machina-platform (public URL: $pub)"
+}
+
+ensure_daemon_platform_proxy_env() {
+  local daemon_env="/etc/default/machina-daemon"
+  touch "$daemon_env"
+  grep -q '^MACHINA_PLATFORM_CONTROLLER_URL=' "$daemon_env" 2>/dev/null \
+    || echo 'MACHINA_PLATFORM_CONTROLLER_URL=http://127.0.0.1:5093' >>"$daemon_env"
+  grep -q '^MACHINA_PLATFORM_AUTH=' "$daemon_env" 2>/dev/null \
+    || echo 'MACHINA_PLATFORM_AUTH=admin:admin' >>"$daemon_env"
 }
 
 install_systemd_units() {

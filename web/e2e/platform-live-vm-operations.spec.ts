@@ -1,0 +1,183 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Live E2E: Platform VM operations — Cockpit-mapped disks, NICs, snapshots, migrate, hostdev, filesystems.
+
+import { test, expect } from '@playwright/test'
+import {
+  liveBaseUrl,
+  liveVmId,
+  openLiveVmDetail,
+  openVmDetailTab,
+  platformApiGet,
+  platformApiPost,
+  skipUnlessLiveVm,
+} from './helpers/liveVm'
+
+test.describe.configure({ mode: 'serial' })
+
+test.beforeEach(({ page: _page }, testInfo) => {
+  skipUnlessLiveVm(testInfo)
+})
+
+test.describe('Platform VM operations APIs (live)', () => {
+  test('libvirt-details returns disks and interfaces', async ({ page }) => {
+    const vmId = liveVmId()
+    await openLiveVmDetail(page)
+    const res = await platformApiGet(page, `/api/v1/vms/${vmId}/libvirt-details`)
+    expect(res.status()).toBe(200)
+    const body = (await res.json()) as {
+      disks?: Array<{ target: string; device: string }>
+      interfaces?: Array<{ mac_address: string; source: string }>
+      filesystems?: unknown[]
+    }
+    expect(Array.isArray(body.disks)).toBe(true)
+    expect(body.disks!.length).toBeGreaterThan(0)
+    expect(Array.isArray(body.interfaces)).toBe(true)
+    expect(body.interfaces!.length).toBeGreaterThan(0)
+    expect(Array.isArray(body.filesystems)).toBe(true)
+  })
+
+  test('platform disk records and snapshot list endpoints', async ({ page }) => {
+    const vmId = liveVmId()
+    await openLiveVmDetail(page)
+    const [disks, snaps] = await Promise.all([
+      platformApiGet(page, `/api/v1/vms/${vmId}/disks`),
+      platformApiGet(page, `/api/v1/vms/${vmId}/snapshots`),
+    ])
+    expect(disks.status()).toBe(200)
+    expect(snaps.status()).toBe(200)
+    expect(Array.isArray(await disks.json())).toBe(true)
+    expect(Array.isArray(await snaps.json())).toBe(true)
+  })
+
+  test('migrate precheck accepts request on libvirt VM', async ({ page }) => {
+    const vmId = liveVmId()
+    await openLiveVmDetail(page)
+    const vmRes = await platformApiGet(page, `/api/v1/vms/${vmId}`)
+    expect(vmRes.status()).toBe(200)
+    const vm = (await vmRes.json()) as { host_id?: string | null }
+    if (!vm.host_id) {
+      test.skip(true, 'VM has no host_id for migrate precheck')
+    }
+    const pre = await platformApiPost(page, `/api/v1/vms/${vmId}/migrate/precheck`, {
+      dest_host_id: vm.host_id,
+      live: true,
+    })
+    expect(pre.status()).toBeLessThan(500)
+    if (pre.status() === 200) {
+      const body = (await pre.json()) as { checks?: unknown[] }
+      expect(Array.isArray(body.checks)).toBe(true)
+    }
+  })
+
+  test('host USB/PCI inventory query via libvirt proxy', async ({ page }) => {
+    const vmId = liveVmId()
+    await openLiveVmDetail(page)
+    const vmRes = await platformApiGet(page, `/api/v1/vms/${vmId}`)
+    const vm = (await vmRes.json()) as { host_id?: string | null }
+    if (!vm.host_id) {
+      test.skip(true, 'VM has no host_id')
+    }
+    for (const action of ['host.usb', 'host.pci'] as const) {
+      const res = await platformApiGet(
+        page,
+        `/api/v1/hosts/${vm.host_id}/libvirt?action=${encodeURIComponent(action)}`,
+      )
+      expect(res.status()).toBeLessThan(500)
+      if (res.status() === 200) {
+        expect(await res.json()).toBeTruthy()
+      }
+    }
+  })
+})
+
+test.describe('Platform VM operations UI (live)', () => {
+  test.beforeEach(async ({ page }) => {
+    await openLiveVmDetail(page)
+  })
+
+  test('disks tab shows libvirt inventory and attach form', async ({ page }) => {
+    await openVmDetailTab(page, 'Disks')
+    await expect(page.getByTestId('vm-disks-panel')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByRole('heading', { name: 'Libvirt disks' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Attach disk' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Resize block device' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Attach' })).toBeVisible()
+  })
+
+  test('network tab shows NIC list and attach controls', async ({ page }) => {
+    await openVmDetailTab(page, 'Network')
+    await expect(page.getByTestId('vm-network-panel')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByRole('heading', { name: 'Network interfaces' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Attach NIC' })).toBeVisible()
+  })
+
+  test('snapshots tab exposes create snapshot workflow', async ({ page }) => {
+    await openVmDetailTab(page, 'Snapshots')
+    await expect(page.getByTestId('vm-snapshots-panel')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByPlaceholder('snap-01')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Create snapshot' })).toBeVisible()
+  })
+
+  test('settings tab shows migrate and clone panels', async ({ page }) => {
+    await openVmDetailTab(page, 'Settings')
+    await expect(page.getByTestId('vm-migrate-panel')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByRole('heading', { name: 'Live migrate' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Pre-check' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Migrate' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Clone' })).toBeVisible()
+  })
+
+  test('advanced tab loads hostdev passthrough controls', async ({ page }) => {
+    await openVmDetailTab(page, 'Advanced')
+    await expect(page.getByTestId('vm-advanced-panel')).toBeVisible({ timeout: 45_000 })
+    await expect(page.getByTestId('vm-hostdev-panel')).toBeVisible()
+    await expect(page.getByText('USB devices on host')).toBeVisible()
+    await expect(page.getByText('PCI devices')).toBeVisible()
+  })
+
+  test('devices tab lists virtiofs shares section', async ({ page }) => {
+    await openVmDetailTab(page, 'Devices')
+    await expect(page.getByTestId('vm-devices-panel')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByRole('heading', { name: 'Shared directories (virtiofs)' })).toBeVisible()
+  })
+})
+
+test.describe('Platform advanced create route (live)', () => {
+  test('create-advanced wizard shows storage and unattended options', async ({ page }) => {
+    const live = liveBaseUrl()
+    await openLiveVmDetail(page)
+    await page.goto(`${live}/platform/create-advanced`, { waitUntil: 'domcontentloaded' })
+    await expect(page.getByRole('heading', { name: 'Advanced VM install' })).toBeVisible({ timeout: 30_000 })
+    await page.getByRole('button', { name: 'Next' }).click()
+    await expect(page.getByText('Create new qcow2')).toBeVisible()
+    await expect(page.getByText('Existing disk path')).toBeVisible()
+    await expect(page.getByText(/virt-install --unattended/i)).toBeVisible()
+  })
+
+  test('install API validates VM state', async ({ page }) => {
+    const vmId = liveVmId()
+    await openLiveVmDetail(page)
+    const install = await platformApiPost(page, `/api/v1/vms/${vmId}/install`)
+    // Running guests or non-define-only VMs should reject without side effects.
+    expect([400, 409]).toContain(install.status())
+  })
+
+  test('devices tab hostdev attach panel when host inventory available', async ({ page }) => {
+    await openVmDetailTab(page, 'Devices')
+    await expect(page.getByTestId('vm-devices-panel')).toBeVisible({ timeout: 30_000 })
+    const hostdev = page.getByTestId('vm-hostdev-attach-panel')
+    if (await hostdev.isVisible().catch(() => false)) {
+      await expect(hostdev.getByText(/USB|PCI/i).first()).toBeVisible()
+    }
+  })
+
+  test('create-advanced wizard renders install sources', async ({ page }) => {
+    const live = liveBaseUrl()
+    await openLiveVmDetail(page)
+    await page.goto(`${live}/platform/create-advanced`, { waitUntil: 'domcontentloaded' })
+    await expect(page.getByRole('heading', { name: 'Advanced VM install' })).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText('Automatic OS install')).toBeVisible()
+    await expect(page.getByText('Network boot (PXE)')).toBeVisible()
+    await expect(page.getByText('Define only')).toBeVisible()
+  })
+})

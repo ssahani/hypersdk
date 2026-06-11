@@ -830,7 +830,7 @@ export const pinEmulator = (name: string, cpus: boolean[], connection?: string |
 export interface ClassicConsoleHubPlan {
   vm_name: string
   recommended: string
-  native: { console_type: string; ws_path: string; available: boolean }
+  native: { console_type: string; ws_path: string; serial_ws_path?: string; available: boolean }
   guacamole: { available: boolean; protocols: string[] }
   guest_ip?: string | null
   ssh_user?: string | null

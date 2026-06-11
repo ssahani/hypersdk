@@ -55,6 +55,8 @@ pub struct InterfaceInfo {
     pub mac_address: String,
     pub source: String,
     pub model: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ip: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,6 +73,15 @@ pub struct DiskInfo {
     pub readonly: bool,
     #[serde(default)]
     pub shareable: bool,
+    /// Guest-visible capacity when libvirt exposes block info (bytes).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capacity_bytes: Option<u64>,
+    /// Host allocation for the backing store (bytes).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allocation_bytes: Option<u64>,
+    /// Physical size on host (bytes).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub physical_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -445,6 +456,18 @@ pub struct CreateVmRequest {
     /// New overlay disk with `backing_store=` (cloud / golden image on host); implies `--import`.
     #[serde(default)]
     pub virt_install_disk_backing_store: String,
+    /// Pass `virt-install --unattended` (Cockpit-style automated install).
+    #[serde(default)]
+    pub virt_install_unattended: bool,
+    /// `virt-install --unattended admin-password=…`
+    #[serde(default)]
+    pub virt_install_admin_password: String,
+    /// `virt-install --unattended user-login=…`
+    #[serde(default)]
+    pub virt_install_user_login: String,
+    /// `virt-install --unattended user-password=…`
+    #[serde(default)]
+    pub virt_install_user_password: String,
     /// When `[libvirt] dual_connection`: `system` or `session` — which libvirt URI defines this guest.
     #[serde(default)]
     pub libvirt_connection: String,
@@ -527,6 +550,10 @@ impl Default for CreateVmRequest {
             root_disk_storage_volume: String::new(),
             virt_install_path_in_use_check_off: false,
             virt_install_disk_backing_store: String::new(),
+            virt_install_unattended: false,
+            virt_install_admin_password: String::new(),
+            virt_install_user_login: String::new(),
+            virt_install_user_password: String::new(),
             libvirt_connection: String::new(),
         }
     }

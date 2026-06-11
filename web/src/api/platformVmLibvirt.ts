@@ -2,7 +2,7 @@
 
 import { platformFetch } from './platform'
 
-export type VmLibvirtAction =
+export type VmLibvirtInvokeAction =
   | 'block.commit'
   | 'block.pull'
   | 'block.job.abort'
@@ -20,12 +20,80 @@ export type VmLibvirtAction =
   | 'firmware.set'
   | 'tpm.attach'
   | 'tpm.detach'
+  | 'vsock.attach'
+  | 'vsock.detach'
+  | 'virtiofs.add'
+  | 'virtiofs.remove'
+  | 'watchdog.attach'
+  | 'cdrom.insert'
+  | 'cdrom.eject'
   | 'boot.set'
   | 'domain.xml.update'
+  | 'cpu.topology.set'
 
-export type VmLibvirtQueryAction = 'block.job' | 'cputune.get' | 'memtune.get' | 'boot.get'
+export type VmLibvirtAction = VmLibvirtInvokeAction
 
-export type HostLibvirtQueryAction = 'browse.isos' | 'host.usb' | 'host.pci'
+export type HostLibvirtQueryAction =
+  | 'browse.isos'
+  | 'host.usb'
+  | 'host.pci'
+  | 'osinfo.list'
+  | 'osinfo.detect'
+  | 'storage.pools.list'
+  | 'storage.volumes.list'
+  | 'networks.list'
+
+export type HostLibvirtInvokeAction =
+  | 'storage.pool.start'
+  | 'storage.pool.stop'
+  | 'storage.pool.refresh'
+  | 'storage.pool.autostart'
+  | 'storage.pool.delete'
+  | 'storage.volume.create'
+  | 'storage.volume.delete'
+  | 'network.start'
+  | 'network.stop'
+  | 'network.autostart'
+  | 'network.delete'
+
+export type VmLibvirtQueryAction =
+  | 'block.job'
+  | 'cputune.get'
+  | 'memtune.get'
+  | 'boot.get'
+  | 'parity.summary'
+  | 'cpu.memory.topology'
+  | 'snapshot.precheck'
+  | 'snapshot.action.precheck'
+
+export type SnapshotPrecheck = {
+  ok: boolean
+  blocked: boolean
+  message: string
+  has_vfio_hostdev: boolean
+  estimated_bytes: number
+  available_bytes?: number | null
+}
+
+export type SnapshotActionPrecheck = {
+  ok: boolean
+  blocked: boolean
+  message: string
+  vm_running: boolean
+  external_snapshot: boolean
+  has_vfio_hostdev: boolean
+}
+
+export type CpuMemoryTopology = {
+  vcpus: number
+  sockets: number
+  cores: number
+  threads: number
+  current_memory_kib: number
+  max_memory_kib: number
+  state: string
+  has_vfio_hostdev: boolean
+}
 
 export const queryVmLibvirt = <T = unknown>(
   vmId: string,
@@ -40,6 +108,27 @@ export const queryVmLibvirt = <T = unknown>(
   }
   return platformFetch<T>(`/api/v1/vms/${vmId}/libvirt?${sp}`)
 }
+
+export const precheckVmSnapshot = (
+  vmId: string,
+  body: { name: string; disk_only?: boolean; quiesce?: boolean; storage_mode?: string },
+) =>
+  queryVmLibvirt<SnapshotPrecheck>(vmId, 'snapshot.precheck', {
+    name: body.name,
+    disk_only: body.disk_only,
+    quiesce: body.quiesce,
+    storage_mode: body.storage_mode,
+  })
+
+export const precheckVmSnapshotAction = (
+  vmId: string,
+  snapshot: string,
+  action: 'delete' | 'revert' | 'clone',
+) =>
+  queryVmLibvirt<SnapshotActionPrecheck>(vmId, 'snapshot.action.precheck', {
+    snapshot,
+    snapshot_action: action,
+  })
 
 export const invokeVmLibvirt = <T = unknown>(
   vmId: string,
@@ -57,8 +146,29 @@ export const putVmDomainXml = (vmId: string, xml: string) =>
     body: JSON.stringify({ xml }),
   })
 
-export const queryHostLibvirt = <T = unknown>(hostId: string, action: HostLibvirtQueryAction) =>
-  platformFetch<T>(`/api/v1/hosts/${hostId}/libvirt?action=${encodeURIComponent(action)}`)
+export const queryHostLibvirt = <T = unknown>(
+  hostId: string,
+  action: HostLibvirtQueryAction,
+  params?: Record<string, string>,
+) => {
+  const sp = new URLSearchParams({ action })
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      if (v) sp.set(k, v)
+    }
+  }
+  return platformFetch<T>(`/api/v1/hosts/${hostId}/libvirt?${sp}`)
+}
+
+export const invokeHostLibvirt = <T = unknown>(
+  hostId: string,
+  action: HostLibvirtInvokeAction,
+  payload: Record<string, unknown> = {},
+) =>
+  platformFetch<T>(`/api/v1/hosts/${hostId}/libvirt`, {
+    method: 'POST',
+    body: JSON.stringify({ action, payload }),
+  })
 
 export interface BatchTaskItem {
   vm_id: string
