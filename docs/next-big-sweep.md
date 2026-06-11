@@ -58,7 +58,7 @@ Cross-shell Tracks A–E remain **shipped** (Batch 62). Next in-repo themes:
 | **Phase 55 Maintenance Mission** | Shipped Batch 65 — `/platform/maintenance?tab=mission` 7-step guided timeline |
 | **Phase 56 Infrastructure DNA** | Shipped Batch 65 — `InfrastructureDnaStrip` on dashboard + Mission Control |
 | **Phase 57 Full Jarvis** | Shipped Batch 66 — Jarvis landing intents, Spotlight-first dashboard, minimal sidebar (Normal) |
-| **Phase 58 Infrastructure Earth** | Shipped Batch 67 v1 — canvas globe in Mission Control (full WebGL deferred) |
+| **Phase 58 Infrastructure Earth** | Shipped Batch 69 — WebGL globe (`three.js`) + canvas fallback; site legend on Mission Control + Machine Finder |
 | **Enterprise backlog slice** | Shipped Batch 67 — dashboard security strip, vault sync ErrorBanner, enterprise e2e |
 | **Out of repo** | `v9s/ui/` Tahoe breadcrumb guard (shipped); `packetwolf/web-ui/` tokens (shipped v1) |
 

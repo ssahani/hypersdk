@@ -83,7 +83,7 @@ Mission Control is an **in-shell overlay** (Exposé-style), not a separate full-
 | Horizon | Feature | Notes |
 |---------|---------|-------|
 | **Now** | Layer 0 phases 49–57 complete (Jarvis shell through Infrastructure DNA) | See macOS roadmap |
-| **Next** | Full WebGL Earth (Phase 58 v2) or ROADMAP follow-ups | Per [`enterprise-backlog.md`](enterprise-backlog.md) — Vault/MFA live enrollment still deferred |
+| **Next** | ROADMAP follow-ups (OVS SDN, Proxmox adapter, federated marketplace) | Per [`enterprise-backlog.md`](enterprise-backlog.md) — Vault/MFA live enrollment still deferred |
 
 ---
 

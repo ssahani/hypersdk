@@ -23,5 +23,9 @@ presentations/
 # Playwright live auth state
 web/e2e/.auth/
 
+# Python
+**/__pycache__/
+*.py[cod]
+
 # Local deploy mailer secrets
 scripts/deploy-mailer.env

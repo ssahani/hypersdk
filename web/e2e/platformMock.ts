@@ -878,7 +878,16 @@ export async function mockPlatformApi(page: Page, opts?: {
         json: { metrics_available: false, nodes_top: [], pods_top: [] },
       })
     }
-    if (url.includes('/k8s/kubevirt/virtualmachines')) {
+    if (url.match(/\/k8s\/kubevirt\/virtualmachines\/[^/]+\/[^/]+\/lifecycle/) && route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as { action?: string } | null
+      return route.fulfill({
+        json: { ok: true, action: body?.action ?? 'start', namespace: 'default', name: 'kv-vm-1' },
+      })
+    }
+    if (url.match(/\/k8s\/kubevirt\/virtualmachines\/[^/]+\/[^/]+$/) && route.request().method() === 'DELETE') {
+      return route.fulfill({ json: { deleted: true, namespace: 'default', name: 'kv-vm-1' } })
+    }
+    if (url.includes('/k8s/kubevirt/virtualmachines') && route.request().method() === 'GET') {
       return route.fulfill({
         json: {
           items: [
@@ -1158,12 +1167,40 @@ export async function mockPlatformApi(page: Page, opts?: {
             edges: [],
           },
           flows: { flows: [] },
-          flow_stats: { dropped: 0, forwarded: 12 },
-          anomalies: { anomalies: [] },
-          packetwolf: { enabled: true, reachable: false, summary: 'PacketWolf not configured on this host' },
+          flow_stats: { dropped: 2, forwarded: 48 },
+          anomalies: { anomalies: [{ summary: 'Unusual east-west traffic', severity: 'medium', host_id: 'host-1' }] },
+          packetwolf: { enabled: true, reachable: true, summary: 'PacketWolf Network Brain connected', discovery_source: 'localhost:8787' },
           network_pulse: {
-            enabled: false,
-            service_map: { nodes: [], edges: [], meta: { stats: { services: 0, connections: 0, blocked: 0, warnings: 0 } } },
+            enabled: true,
+            overview: { live_connections: 12, drop_rate: 0.04, services: 3, blocked_edges: 1 },
+            service_map: {
+              nodes: [
+                { name: 'web', namespace: 'default', status: 'ok', connections_in: 2, connections_out: 5, blocked_flows: 0, risk: 'low' },
+                { name: 'db', namespace: 'default', status: 'warning', connections_in: 4, connections_out: 1, blocked_flows: 1, risk: 'medium' },
+              ],
+              edges: [
+                { id: 'e1', source: 'default/web', target: 'default/db', health: 'ok', dropped_count: 0 },
+              ],
+              meta: { stats: { services: 2, connections: 1, blocked: 1, warnings: 1 } },
+              overlays: { top_talker_nodes: ['web'], attack_path_workloads: ['db'] },
+            },
+            workloads: {
+              workloads: [
+                { namespace: 'default', name: 'web', connections_out: 5 },
+                { namespace: 'default', name: 'db', connections_out: 1 },
+              ],
+            },
+            timeline: {
+              events: [
+                { summary: 'New connection to db:5432', severity: 'info', timestamp: new Date().toISOString(), kind: 'network_connect' },
+                { summary: 'Correlation: lateral movement pattern', severity: 'high', timestamp: new Date().toISOString(), kind: 'correlation' },
+              ],
+            },
+            threats: {
+              threats: [{ title: 'Suspicious shell', severity: 'high', summary: 'Reverse shell pattern on host-1', host_id: 'host-1' }],
+            },
+            top_talkers: { talkers: [{ name: 'default/web', flows: 12 }] },
+            k8s_nodes: { nodes: [{ name: 'node-a', status: 'Ready', pods_count: 8 }] },
           },
         },
       })

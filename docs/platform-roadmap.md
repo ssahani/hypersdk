@@ -86,10 +86,10 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 
 ### Batch 74–75 deliverables (Phases C & E)
 
-- **Network canvas:** [`/platform/network-canvas`](/platform/network-canvas) — topology + anomaly hints (PacketWolf depth deferred)
+- **Network canvas:** [`/platform/network-canvas`](/platform/network-canvas) — topology + PacketWolf Network Brain (service map graph, workloads, timeline, threats, top talkers, K8s nodes)
 - **GPU:** `ListHostGpus` agent RPC, `GET /hosts/{id}/gpus`
 - **Datacenter:** [`/platform/datacenter`](/platform/datacenter) — VMs grouped by `inventory_source`
-- **KubeVirt:** `POST /api/v1/kubevirt/sync` — inventory reconcile (full K8s CRUD deferred)
+- **KubeVirt:** `POST /api/v1/kubevirt/sync` inventory reconcile + **K8s Workloads CRUD** (start/stop/restart/delete, YAML create via `/k8s/apply`); platform VM detail lifecycle for `inventory_source=kubevirt`
 
 **Deferred (honest):** OVS SDN, Ceph pool wizards, AI VM builder GA, browser RDP, federated marketplace, Proxmox adapter, full `platform.ts` folder split.
 

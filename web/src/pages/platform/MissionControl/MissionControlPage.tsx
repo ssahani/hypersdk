@@ -30,6 +30,7 @@ import MissionControlGeography from './MissionControlGeography'
 import MissionControlHero from './MissionControlHero'
 import MissionControlLaunchpad from './MissionControlLaunchpad'
 import { useMissionControlFleet } from './useMissionControlFleet'
+import EnterpriseSecurityStrip from '../../../components/platform/EnterpriseSecurityStrip'
 
 export default function MissionControlPage() {
   const toast = useToastContext()
@@ -120,6 +121,7 @@ export default function MissionControlPage() {
             missingImagesCount={missingImagesCount}
             onAnalyze={() => dispatchOpenSpotlight('analyze fleet health and guest agents')}
           />
+          {tier === 'advanced' && <EnterpriseSecurityStrip />}
           {state.attentionMode && (
             <section className="flex flex-wrap gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3" data-testid="attention-remediation">
               <p className="w-full text-xs font-medium text-amber-200">Attention mode — filtered to machines that need care</p>
