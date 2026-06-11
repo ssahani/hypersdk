@@ -2805,6 +2805,9 @@ export async function mockPlatformApi(page: Page, opts?: {
             guest_ip_private: true,
             ssh_nat_host_port: null,
           },
+          hypervisor_address: 'lab.test',
+          ssh_connect_host: null,
+          ssh_connect_port: null,
         },
       })
     }
@@ -2977,6 +2980,13 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({ json: [] })
     }
     if (url.match(/\/vms\/[^/]+\/timeline/)) {
+      return route.fulfill({ json: [] })
+    }
+    if (url.match(/\/vms\/[^/]+\/port-forward-templates/)) {
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON() as { id: string; name: string; vm_port: number; host_port: number; access: string }
+        return route.fulfill({ json: [body] })
+      }
       return route.fulfill({ json: [] })
     }
     if (url.match(/\/vms\/[^/]+\/port-forwards\/delete/) && route.request().method() === 'POST') {

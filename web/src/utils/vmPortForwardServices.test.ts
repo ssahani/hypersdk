@@ -3,8 +3,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   inferAccessFromPorts,
+  isPrivateGuestIp,
+  laptopHttpHref,
+  laptopSshCommand,
   ruleMatchesService,
   serviceAccessLabel,
+  sshNatHostPort,
   suggestHostPort,
 } from './vmPortForwardServices'
 
@@ -13,6 +17,32 @@ describe('vmPortForwardServices', () => {
     expect(suggestHostPort(22)).toBe(2222)
     expect(suggestHostPort(80)).toBe(9080)
     expect(suggestHostPort(8080)).toBe(18080)
+    expect(suggestHostPort(27017)).toBe(37017)
+  })
+
+  it('detects RFC1918 guest IPs', () => {
+    expect(isPrivateGuestIp('192.168.122.50')).toBe(true)
+    expect(isPrivateGuestIp('10.0.0.5')).toBe(true)
+    expect(isPrivateGuestIp('8.8.8.8')).toBe(false)
+  })
+
+  it('builds NAT-aware laptop SSH command', () => {
+    const rules = [{ protocol: 'tcp', host_port: 2222, vm_port: 22 }]
+    expect(laptopSshCommand('ubuntu', '192.168.122.10', 'lab.test', rules)).toBe(
+      'ssh -p 2222 ubuntu@lab.test',
+    )
+    expect(laptopSshCommand('ubuntu', '203.0.113.5', 'lab.test', rules)).toBe(
+      'ssh ubuntu@203.0.113.5',
+    )
+  })
+
+  it('builds NAT-aware HTTP href', () => {
+    const rules = [{ protocol: 'tcp', host_port: 9080, vm_port: 80 }]
+    expect(laptopHttpHref(80, 'lab.test', rules, '192.168.122.10')).toBe('http://lab.test:9080/')
+  })
+
+  it('finds ssh nat host port', () => {
+    expect(sshNatHostPort([{ protocol: 'tcp', host_port: 2222, vm_port: 22 }])).toBe(2222)
   })
 
   it('builds service access labels', () => {

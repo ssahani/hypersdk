@@ -16,7 +16,7 @@ import { useWebSocketContext } from '../contexts/WebSocketContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { getAllTags, getVmTags } from '../api/extras'
 import { Play, Square, Power, Pause, RotateCcw, Trash2, Search, RefreshCw, Terminal, Tag, LayoutGrid, LayoutList, X, Download, Star, Server, Copy, Monitor } from 'lucide-react'
-import VmSshConnectDialog, { navigateVmSshSession } from '../components/vm/VmSshConnectDialog'
+import VmResolvedSshConnectDialog from '../components/vm/VmResolvedSshConnectDialog'
 import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import { downloadJSON, downloadCSV } from '../utils/export'
 import { isPinned, togglePin } from '../utils/pinnedVMs'
@@ -467,14 +467,13 @@ export default function VMList() {
       />
 
       {sshVm && (
-        <VmSshConnectDialog
+        <VmResolvedSshConnectDialog
           open
           vmName={sshVm.name}
-          defaultIp={sshVm.guest_ip ?? ''}
+          guestIp={sshVm.guest_ip ?? ''}
           defaultUser="root"
-          detectedIps={sshVm.guest_ip ? [sshVm.guest_ip] : []}
           onClose={() => setSshVm(null)}
-          onConnect={(h, u) => navigateVmSshSession(sshVm.name, h, u)}
+          onNotify={(m) => toast.success(m)}
         />
       )}
     </PageLayout>

@@ -2314,6 +2314,75 @@ pub async fn delete_vm_port_forward(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PortForwardTemplateDto {
+    pub id: String,
+    pub name: String,
+    pub vm_port: i32,
+    pub host_port: i32,
+    pub access: String,
+}
+
+fn read_port_forward_templates(spec: &serde_json::Value) -> Vec<PortForwardTemplateDto> {
+    spec.get("machina")
+        .and_then(|m| m.get("port_forward_templates"))
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default()
+}
+
+pub async fn list_vm_port_forward_templates(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<PortForwardTemplateDto>>, ApiError> {
+    let spec: serde_json::Value = sqlx::query_scalar("SELECT spec_json FROM vms WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|_| ApiError::not_found("VM not found"))?;
+    Ok(Json(read_port_forward_templates(&spec)))
+}
+
+pub async fn upsert_vm_port_forward_template(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<PortForwardTemplateDto>,
+) -> Result<Json<Vec<PortForwardTemplateDto>>, ApiError> {
+    if body.name.trim().is_empty() || body.id.trim().is_empty() {
+        return Err(ApiError::bad_request("Template id and name are required"));
+    }
+    if body.vm_port <= 0 || body.host_port <= 0 {
+        return Err(ApiError::bad_request("Ports must be positive"));
+    }
+    let mut spec: serde_json::Value = sqlx::query_scalar("SELECT spec_json FROM vms WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|_| ApiError::not_found("VM not found"))?;
+    let mut templates = read_port_forward_templates(&spec);
+    templates.retain(|t| t.id != body.id);
+    templates.push(body);
+    let machina = spec
+        .as_object_mut()
+        .and_then(|o| {
+            if !o.contains_key("machina") {
+                o.insert("machina".into(), serde_json::json!({}));
+            }
+            o.get_mut("machina").and_then(|v| v.as_object_mut())
+        })
+        .ok_or_else(|| ApiError::internal("Invalid VM spec"))?;
+    machina.insert(
+        "port_forward_templates".into(),
+        serde_json::to_value(&templates).map_err(|e| ApiError::internal(e.to_string()))?,
+    );
+    sqlx::query("UPDATE vms SET spec_json = $1, updated_at = NOW() WHERE id = $2")
+        .bind(&spec)
+        .bind(id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(templates))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct PublishTemplateFromVmBody {
     pub template_name: String,

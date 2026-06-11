@@ -21,7 +21,7 @@ export const KNOWN_PORT_FORWARD_SERVICES: PortForwardServiceTemplate[] = [
   { id: 'mysql', name: 'MySQL', vmPort: 3306, hostPort: 13306, access: 'tcp', builtin: true },
   { id: 'postgres', name: 'PostgreSQL', vmPort: 5432, hostPort: 15432, access: 'tcp', builtin: true },
   { id: 'redis', name: 'Redis', vmPort: 6379, hostPort: 16379, access: 'tcp', builtin: true },
-  { id: 'mongodb', name: 'MongoDB', vmPort: 27017, hostPort: 27017, access: 'tcp', builtin: true },
+  { id: 'mongodb', name: 'MongoDB', vmPort: 27017, hostPort: 37017, access: 'tcp', builtin: true },
   { id: 'rdp', name: 'RDP', vmPort: 3389, hostPort: 13389, access: 'tcp', builtin: true },
   { id: 'vnc', name: 'VNC', vmPort: 5900, hostPort: 15900, access: 'tcp', builtin: true },
   { id: 'grafana', name: 'Grafana', vmPort: 3000, hostPort: 13000, access: 'http', builtin: true },
@@ -85,6 +85,89 @@ export function suggestHostPort(guestPort: number, taken: number[] = []): number
 export function publicHostname(explicit?: string): string {
   return explicit?.trim() || (typeof window !== 'undefined' ? window.location.hostname : '')
 }
+
+export function isPrivateGuestIp(ip: string): boolean {
+  const parts = ip.trim().split('.').map((p) => parseInt(p, 10))
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n) || n < 0 || n > 255)) return false
+  const [a, b] = parts
+  if (a === 10) return true
+  if (a === 172 && b >= 16 && b <= 31) return true
+  if (a === 192 && b === 168) return true
+  if (a === 169 && b === 254) return true
+  return false
+}
+
+export type NatRuleLike = { protocol: string; host_port: number; vm_port: number }
+
+export function natRuleForGuestPort(rules: NatRuleLike[], guestPort: number): NatRuleLike | undefined {
+  return rules.find((r) => r.protocol === 'tcp' && r.vm_port === guestPort)
+}
+
+export function sshNatHostPort(rules: NatRuleLike[]): number | undefined {
+  return natRuleForGuestPort(rules, 22)?.host_port
+}
+
+export function templateForGuestPort(guestPort: number): PortForwardServiceTemplate | undefined {
+  return KNOWN_PORT_FORWARD_SERVICES.find((s) => s.vmPort === guestPort)
+}
+
+export function buildExposePayload(
+  vmName: string,
+  guestPort: number,
+  takenHostPorts: number[] = [],
+  customName?: string,
+): { host_port: number; vm_port: number; protocol: 'tcp'; description: string } {
+  const known = templateForGuestPort(guestPort)
+  const hostPort = known && !takenHostPorts.includes(known.hostPort)
+    ? known.hostPort
+    : suggestHostPort(guestPort, takenHostPorts)
+  const label = customName || known?.name || `TCP ${guestPort}`
+  return {
+    protocol: 'tcp',
+    host_port: hostPort,
+    vm_port: guestPort,
+    description: `${vmName}:${label}`,
+  }
+}
+
+export function laptopSshCommand(
+  sshUser: string,
+  guestIp: string,
+  hypervisorHost: string | undefined,
+  rules: NatRuleLike[],
+  fallbackNatPort = 2222,
+): string {
+  const user = sshUser.trim() || 'ubuntu'
+  const host = publicHostname(hypervisorHost)
+  if (guestIp && isPrivateGuestIp(guestIp)) {
+    const natPort = sshNatHostPort(rules) ?? fallbackNatPort
+    return `ssh -p ${natPort} ${user}@${host || 'HYPERVISOR_IP'}`
+  }
+  if (!guestIp.trim()) return ''
+  return `ssh ${user}@${guestIp.trim()}`
+}
+
+export function laptopHttpHref(
+  guestPort: number,
+  hypervisorHost: string | undefined,
+  rules: NatRuleLike[],
+  guestIp: string,
+): string | undefined {
+  if (!HTTP_ACCESS_PORTS.has(guestPort)) return undefined
+  const host = publicHostname(hypervisorHost)
+  if (!host) return undefined
+  if (guestIp && isPrivateGuestIp(guestIp)) {
+    const rule = natRuleForGuestPort(rules, guestPort)
+    const hostPort = rule?.host_port ?? suggestHostPort(guestPort)
+    const scheme = guestPort === 443 || guestPort === 8443 ? 'https' : 'http'
+    return `${scheme}://${host}:${hostPort}/`
+  }
+  if (!guestIp.trim()) return undefined
+  const scheme = guestPort === 443 || guestPort === 8443 ? 'https' : 'http'
+  return `${scheme}://${guestIp.trim()}:${guestPort}/`
+}
+
+const HTTP_ACCESS_PORTS = new Set([80, 443, 8080, 8443, 8000, 3000, 9090, 9200])
 
 export function serviceAccessLabel(
   service: Pick<PortForwardServiceTemplate, 'access' | 'hostPort'>,

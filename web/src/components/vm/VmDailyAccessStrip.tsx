@@ -4,12 +4,21 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { Copy, Download, ExternalLink, HelpCircle, Loader2, Monitor, Terminal, ArrowRight } from 'lucide-react'
 import type { GuestPortReport } from '../../api/zeusFirewall'
+import { createVmPortForward, type VmPortForwardRule } from '../../api/platform'
+import { formatUserError } from '../../utils/apiError'
 import VmPortForwardPanel from './VmPortForwardPanel'
+import VmLaptopAccessChecklist from './VmLaptopAccessChecklist'
 import { hubLinkClasses } from '../../utils/semanticColors'
 import { VM_DAILY_ACCESS_GUIDE_URL } from '../../utils/vmDailyAccessGuide'
 import VmSshConnectDialog, { navigateVmSshSession } from './VmSshConnectDialog'
-
-const HTTP_PORTS = new Set([80, 443, 8080, 8443, 8000, 3000])
+import type { GuestAccessHints } from '../../utils/guestAccessHints'
+import {
+  buildExposePayload,
+  isPrivateGuestIp,
+  laptopHttpHref,
+  laptopSshCommand,
+  natRuleForGuestPort,
+} from '../../utils/vmPortForwardServices'
 
 function downloadText(filename: string, content: string, mime: string) {
   const blob = new Blob([content], { type: mime })
@@ -37,6 +46,10 @@ export interface VmDailyAccessStripProps {
   natForwardHref?: string
   /** Platform VM id — enables in-strip NAT expose (host iptables via agent). */
   platformVmId?: string
+  hypervisorAddress?: string
+  guestAccess?: GuestAccessHints | null
+  portForwardRules?: VmPortForwardRule[]
+  onRefreshPortForwards?: () => void
   guestIpWaiting?: boolean
   onRefreshGuestIp?: () => void
   onInstallGuestTools?: () => void
@@ -62,6 +75,10 @@ export default function VmDailyAccessStrip({
   onAllPorts,
   natForwardHref,
   platformVmId,
+  hypervisorAddress,
+  guestAccess,
+  portForwardRules = [],
+  onRefreshPortForwards,
   guestIpWaiting = false,
   onRefreshGuestIp,
   onInstallGuestTools,
@@ -72,9 +89,11 @@ export default function VmDailyAccessStrip({
   onNotify,
 }: VmDailyAccessStripProps) {
   const [sshOpen, setSshOpen] = useState(false)
+  const [exposeBusy, setExposeBusy] = useState<number | null>(null)
   const running = vmState === 'running'
   const ip = guestIp.trim()
   const topPorts = (guestPorts?.ports ?? []).slice(0, 5)
+  const privateIp = ip ? isPrivateGuestIp(ip) : Boolean(guestAccess?.guest_ip_private)
 
   const notify = (msg: string) => onNotify?.(msg)
 
@@ -87,9 +106,33 @@ export default function VmDailyAccessStrip({
     }
   }
 
-  const sshCommand = ip ? `ssh ${sshUser}@${ip}` : ''
+  const sshCommand = ip ? laptopSshCommand(sshUser, ip, hypervisorAddress, portForwardRules) : ''
 
-  const openSsh = (host: string, user: string) => navigateVmSshSession(vmName, host, user)
+  const openSsh = (host: string, user: string, port?: number) => {
+    if (port && port !== 22) {
+      const qs = new URLSearchParams({ host, user, port: String(port) })
+      if (platformVmId) qs.set('vmId', platformVmId)
+      if (vmName) qs.set('vmName', vmName)
+      window.location.href = `/ssh?${qs.toString()}`
+      return
+    }
+    navigateVmSshSession(vmName, host, user, platformVmId)
+  }
+
+  const exposeGuestPort = async (guestPort: number) => {
+    if (!platformVmId) return
+    setExposeBusy(guestPort)
+    try {
+      const taken = portForwardRules.map((r) => r.host_port)
+      await createVmPortForward(platformVmId, buildExposePayload(vmName, guestPort, taken))
+      notify(`Exposed guest port ${guestPort} on hypervisor`)
+      onRefreshPortForwards?.()
+    } catch (e: unknown) {
+      notify(formatUserError(e))
+    } finally {
+      setExposeBusy(null)
+    }
+  }
 
   const exportBundle = async () => {
     if (specJson) downloadText(`${vmName}-spec.json`, specJson, 'application/json')
@@ -109,11 +152,30 @@ export default function VmDailyAccessStrip({
   return (
     <>
       <div className="rounded-2xl border border-slate-700/50 bg-slate-900/60 p-4 space-y-4" data-testid="vm-daily-access">
+        {platformVmId && guestAccess?.guest_ip_private ? (
+          <VmLaptopAccessChecklist
+            vmId={platformVmId}
+            vmName={vmName}
+            vmState={vmState}
+            guestIp={ip}
+            sshUser={sshUser}
+            hypervisorAddress={hypervisorAddress}
+            guestAccess={guestAccess}
+            portForwardRules={portForwardRules}
+            guestToolsInstalling={guestToolsInstalling}
+            onInstallGuestTools={onInstallGuestTools}
+            onRefreshRules={onRefreshPortForwards}
+            onNotify={notify}
+            networkTabHref={`/platform/vms/${platformVmId}?tab=network`}
+          />
+        ) : null}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-slate-200">Daily access</h3>
           <div className="flex flex-wrap items-center gap-2">
             {ip && (
-              <span className="text-xs font-mono text-emerald-300/90">{sshUser}@{ip}</span>
+              <span className="text-xs font-mono text-emerald-300/90">
+                {privateIp ? `${sshUser}@${ip} (NAT)` : `${sshUser}@${ip}`}
+              </span>
             )}
             {running && !ip && guestIpWaiting && (
               <span className="text-xs text-amber-300/90 inline-flex items-center gap-1">
@@ -179,8 +241,11 @@ export default function VmDailyAccessStrip({
                 disabled={disabled}
                 title="SSH terminal in browser"
                 onClick={() => {
-                  if (ip && running) openSsh(ip, sshUser)
-                  else setSshOpen(true)
+                  if (ip && running) {
+                    const nat = natRuleForGuestPort(portForwardRules, 22)
+                    if (privateIp && nat && hypervisorAddress) openSsh(hypervisorAddress, sshUser, nat.host_port)
+                    else openSsh(ip, sshUser)
+                  } else setSshOpen(true)
                 }}
               >
                 <Terminal className="w-3.5 h-3.5" /> SSH
@@ -232,29 +297,50 @@ export default function VmDailyAccessStrip({
             )}
             {!guestPortsLoading && topPorts.length > 0 && (
               <ul className="space-y-1 text-xs font-mono">
-                {topPorts.map((p) => (
+                {topPorts.map((p) => {
+                  const exposed = natRuleForGuestPort(portForwardRules, p.port)
+                  const href = laptopHttpHref(p.port, hypervisorAddress, portForwardRules, ip)
+                  return (
                   <li key={`${p.protocol}-${p.port}`} className="flex flex-wrap items-center gap-1">
                     <span className="text-slate-300">{p.port}/{p.protocol}</span>
                     {p.service_name && <span className="text-slate-500 truncate">{p.service_name}</span>}
+                    {exposed ? (
+                      <span className="text-emerald-400/80">{exposed.host_port}→{p.port}</span>
+                    ) : platformVmId ? (
+                      <button
+                        type="button"
+                        className="text-emerald-400 hover:underline"
+                        disabled={exposeBusy === p.port}
+                        data-testid={`expose-guest-port-${p.port}`}
+                        onClick={() => void exposeGuestPort(p.port)}
+                      >
+                        {exposeBusy === p.port ? '…' : 'Expose'}
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       className="text-sky-400 hover:underline"
-                      onClick={() => void copy(ip ? `${ip}:${p.port}` : String(p.port), 'Copied')}
+                      onClick={() => void copy(
+                        exposed && hypervisorAddress
+                          ? `${hypervisorAddress}:${exposed.host_port}`
+                          : ip ? `${ip}:${p.port}` : String(p.port),
+                        'Copied',
+                      )}
                     >
                       copy
                     </button>
-                    {ip && HTTP_PORTS.has(p.port) && (
+                    {href ? (
                       <a
-                        href={`http://${ip}:${p.port}`}
+                        href={href}
                         target="_blank"
                         rel="noreferrer"
                         className="text-sky-400 hover:underline inline-flex items-center gap-0.5"
                       >
                         open <ExternalLink className="w-2.5 h-2.5" />
                       </a>
-                    )}
+                    ) : null}
                   </li>
-                ))}
+                )})}
               </ul>
             )}
             <div className="flex flex-wrap gap-2">
@@ -282,6 +368,7 @@ export default function VmDailyAccessStrip({
                   vmName={vmName}
                   guestIp={ip}
                   sshUser={sshUser}
+                  hypervisorAddress={hypervisorAddress}
                   disabled={disabled}
                   onNotify={notify}
                 />
@@ -346,11 +433,17 @@ export default function VmDailyAccessStrip({
       <VmSshConnectDialog
         open={sshOpen}
         vmName={vmName}
+        platformVmId={platformVmId}
         defaultIp={ip}
         defaultUser={sshUser}
         detectedIps={detectedIps.length > 0 ? detectedIps : ip ? [ip] : []}
+        hypervisorAddress={hypervisorAddress}
+        guestIpPrivate={privateIp}
+        portForwardRules={portForwardRules}
+        onRefreshPortForwards={onRefreshPortForwards}
         onClose={() => setSshOpen(false)}
         onConnect={openSsh}
+        onNotify={notify}
       />
     </>
   )

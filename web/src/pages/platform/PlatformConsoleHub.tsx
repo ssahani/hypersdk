@@ -9,6 +9,7 @@ import {
   getPlatformVm,
   issuePlatformVmWsToken,
   listConsoleHubSessions,
+  listVmPortForwards,
   listVmTimeline,
   platformVmVncWsUrl,
   platformVmSerialWsUrl,
@@ -17,10 +18,12 @@ import {
   runVmHealthCheck,
   type ConsoleHubPlan,
   type ConsoleHubSessionResponse,
+  type VmPortForwardRule,
 } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
 import { useToastContext } from '../../contexts/ToastContext'
 import MachineCockpit from '../../components/consolehub/MachineCockpit'
+import VmLaptopAccessChecklist from '../../components/vm/VmLaptopAccessChecklist'
 import type { ConsoleHubSessionRow } from '../../components/consolehub/ConsoleHubSessionHistory'
 import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
 import { hubLinkClasses } from '../../utils/semanticColors'
@@ -46,6 +49,7 @@ export default function PlatformConsoleHub() {
   const [connectKey, setConnectKey] = useState(0)
   const [history, setHistory] = useState<ConsoleHubSessionRow[]>([])
   const [machineTimeline, setMachineTimeline] = useState<Awaited<ReturnType<typeof listVmTimeline>>>([])
+  const [portForwardRules, setPortForwardRules] = useState<VmPortForwardRule[]>([])
 
   const load = useCallback(async () => {
     if (!id) return
@@ -74,6 +78,11 @@ export default function PlatformConsoleHub() {
         setPlan(hubPlan)
         setVmName(hubPlan.vm_name)
         setActiveProtocol(hubPlan.recommended)
+        if (hubPlan.guest_ip?.trim()) {
+          listVmPortForwards(id).then(setPortForwardRules).catch(() => setPortForwardRules([]))
+        } else {
+          setPortForwardRules([])
+        }
       } else if (vm?.name) {
         setVmName(vm.name)
       }
@@ -163,8 +172,27 @@ export default function PlatformConsoleHub() {
     }
   }
 
+  const checklistPrepend =
+    plan?.guest_access?.guest_ip_private && id && vmName && plan.guest_ip ? (
+      <VmLaptopAccessChecklist
+        vmId={id}
+        vmName={vmName}
+        vmState={vmState ?? 'unknown'}
+        guestIp={plan.guest_ip}
+        sshUser={plan.ssh_user ?? 'ubuntu'}
+        hypervisorAddress={plan.hypervisor_address ?? undefined}
+        guestAccess={plan.guest_access}
+        portForwardRules={portForwardRules}
+        onRefreshRules={() => void load()}
+        onNotify={(m) => toast.success(m)}
+        networkTabHref={`/platform/vms/${id}?tab=network`}
+      />
+    ) : null
+
   const prepend = !isPopout ? (
-    <div className="flex flex-wrap items-center gap-3 text-sm mb-2">
+    <div className="space-y-2 mb-2">
+      {checklistPrepend}
+      <div className="flex flex-wrap items-center gap-3 text-sm">
       <Link to="/platform/vms" className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>
         <ArrowLeft className="w-4 h-4" /> VM list
       </Link>
@@ -186,8 +214,9 @@ export default function PlatformConsoleHub() {
           Pop out
         </button>
       ) : null}
+      </div>
     </div>
-  ) : undefined
+  ) : checklistPrepend ?? undefined
 
   return (
     <PageLayout
@@ -221,6 +250,9 @@ export default function PlatformConsoleHub() {
           onReconnect={() => setConnectKey((k) => k + 1)}
           connectKey={connectKey}
           prepend={prepend}
+          hypervisorAddress={plan?.hypervisor_address ?? undefined}
+          portForwardRules={portForwardRules}
+          onPlanRefresh={() => void load()}
         />
         </div>
       ) : !loading && id ? (

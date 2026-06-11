@@ -61,5 +61,6 @@ pub mod fleet_dna;
 pub mod fleet_gpu;
 pub mod vm_inventory;
 pub mod kubevirt_inventory;
+pub mod kubevirt_ssh;
 pub mod webhooks;
 pub mod webhook_worker;

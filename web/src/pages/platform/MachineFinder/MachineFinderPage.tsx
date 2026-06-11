@@ -20,7 +20,7 @@ import { installStateTone } from '../../../components/platform/GuestAgentDiagnos
 import { statusPillClasses } from '../../../utils/semanticColors'
 import { useToastContext } from '../../../contexts/ToastContext'
 import { toastQueuedOperation } from '../../../utils/platformTaskToast'
-import VmSshConnectDialog, { navigateVmSshSession } from '../../../components/vm/VmSshConnectDialog'
+import VmPlatformSshConnectDialog from '../../../components/vm/VmPlatformSshConnectDialog'
 import MachineFinderBriefing from './MachineFinderBriefing'
 import MachineFinderResourceStrip from '../../../components/platform/MachineFinderResourceStrip'
 import MachineFinderCanvas from './MachineFinderCanvas'
@@ -127,14 +127,13 @@ export default function MachineFinderPage() {
         />
       )}
       {sshVm && (
-        <VmSshConnectDialog
+        <VmPlatformSshConnectDialog
           open
-          vmName={sshVm.name}
-          defaultIp={sshVm ? state.displayGuestIp(sshVm) : ''}
-          defaultUser="ubuntu"
-          detectedIps={sshVm ? [state.displayGuestIp(sshVm)].filter(Boolean) : []}
+          vm={sshVm}
+          hosts={state.hosts}
+          guestIp={state.displayGuestIp(sshVm)}
           onClose={() => setSshVm(null)}
-          onConnect={(h, u) => navigateVmSshSession(sshVm.name, h, u)}
+          onNotify={(m) => toast.success(m)}
         />
       )}
 

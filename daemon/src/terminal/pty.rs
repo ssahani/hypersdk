@@ -38,7 +38,11 @@ async fn send_json_err(ws_tx: &mut WsTx, msg: String) {
 
 /// Run PTY-backed OpenSSH until the WebSocket closes or the child exits.
 pub async fn run_ssh_terminal(ws: WebSocket, session: PendingSession) {
-    let peer = format!("{}@{}", session.ssh_user, session.host);
+    let peer = if session.ssh_port != 0 && session.ssh_port != 22 {
+        format!("{}@{}:{}", session.ssh_user, session.host, session.ssh_port)
+    } else {
+        format!("{}@{}", session.ssh_user, session.host)
+    };
     info!(
         "SSH terminal WebSocket starting for {} (created by {})",
         peer, session.created_by
@@ -67,7 +71,11 @@ pub async fn run_ssh_terminal(ws: WebSocket, session: PendingSession) {
     cmd.arg("ServerAliveInterval=30");
     cmd.arg("-o");
     cmd.arg("LogLevel=ERROR");
-    cmd.arg(&peer);
+    if session.ssh_port != 0 && session.ssh_port != 22 {
+        cmd.arg("-p");
+        cmd.arg(session.ssh_port.to_string());
+    }
+    cmd.arg(&format!("{}@{}", session.ssh_user, session.host));
 
     let mut child = match pair.slave.spawn_command(cmd) {
         Ok(c) => c,

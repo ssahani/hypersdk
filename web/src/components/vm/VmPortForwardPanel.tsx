@@ -6,6 +6,8 @@ import {
   createVmPortForward,
   deleteVmPortForward,
   listVmPortForwards,
+  listVmPortForwardTemplates,
+  upsertVmPortForwardTemplate,
   type VmPortForwardRule,
 } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
@@ -21,6 +23,7 @@ import {
   serviceAccessHref,
   serviceAccessLabel,
   suggestHostPort,
+  publicHostname,
   type PortForwardAccessKind,
   type PortForwardServiceTemplate,
 } from '../../utils/vmPortForwardServices'
@@ -30,9 +33,11 @@ export interface VmPortForwardPanelProps {
   vmName: string
   guestIp: string
   sshUser?: string
+  hypervisorAddress?: string
   disabled?: boolean
   onNotify?: (message: string) => void
   className?: string
+  compact?: boolean
 }
 
 export default function VmPortForwardPanel({
@@ -40,9 +45,11 @@ export default function VmPortForwardPanel({
   vmName,
   guestIp,
   sshUser = 'ubuntu',
+  hypervisorAddress,
   disabled = false,
   onNotify,
   className = '',
+  compact = false,
 }: VmPortForwardPanelProps) {
   const [rules, setRules] = useState<VmPortForwardRule[]>([])
   const [customServices, setCustomServices] = useState<PortForwardServiceTemplate[]>([])
@@ -80,10 +87,31 @@ export default function VmPortForwardPanel({
     }
   }, [platformVmId, ip])
 
-  useEffect(() => {
+  const loadCustomTemplates = useCallback(async () => {
+    try {
+      const server = await listVmPortForwardTemplates(platformVmId)
+      if (server.length > 0) {
+        setCustomServices(
+          server.map((t) => ({
+            id: t.id,
+            name: t.name,
+            vmPort: t.vm_port,
+            hostPort: t.host_port,
+            access: t.access as PortForwardAccessKind,
+          })),
+        )
+        return
+      }
+    } catch {
+      /* fall back to browser storage */
+    }
     setCustomServices(loadCustomPortForwardServices(platformVmId))
+  }, [platformVmId])
+
+  useEffect(() => {
+    void loadCustomTemplates()
     void load()
-  }, [platformVmId, load])
+  }, [platformVmId, load, loadCustomTemplates])
 
   const createRule = async (
     host: number,
@@ -100,7 +128,26 @@ export default function VmPortForwardPanel({
         description,
       })
       if (saveTemplate) {
-        setCustomServices(saveCustomPortForwardService(platformVmId, saveTemplate))
+        try {
+          const saved = await upsertVmPortForwardTemplate(platformVmId, {
+            id: saveTemplate.id,
+            name: saveTemplate.name,
+            vm_port: saveTemplate.vmPort,
+            host_port: saveTemplate.hostPort,
+            access: saveTemplate.access,
+          })
+          setCustomServices(
+            saved.map((t) => ({
+              id: t.id,
+              name: t.name,
+              vmPort: t.vm_port,
+              hostPort: t.host_port,
+              access: t.access as PortForwardAccessKind,
+            })),
+          )
+        } catch {
+          setCustomServices(saveCustomPortForwardService(platformVmId, saveTemplate))
+        }
       }
       notify('NAT rule created on hypervisor')
       await load()
@@ -201,10 +248,12 @@ export default function VmPortForwardPanel({
     <div className={`space-y-4 ${className}`} data-testid="vm-port-forward-panel">
       <p className="text-xs text-slate-500">
         Expose any guest TCP service on the hypervisor. From your laptop use{' '}
-        <span className="font-mono text-slate-400">hypervisor-ip:host-port</span> →{' '}
+        <span className="font-mono text-slate-400">{publicHostname(hypervisorAddress) || 'hypervisor-ip'}:host-port</span> →{' '}
         <span className="font-mono text-slate-400">{ip}:guest-port</span>.
       </p>
 
+      {!compact ? (
+        <>
       <section className="space-y-2">
         <p className="text-[10px] uppercase tracking-wider text-slate-500">Known services</p>
         <div className="flex flex-wrap gap-2">
@@ -321,6 +370,59 @@ export default function VmPortForwardPanel({
         </div>
       </section>
 
+      <details className="text-xs text-slate-500">
+        <summary className="cursor-pointer text-slate-400 hover:text-slate-300">Manual port mapping</summary>
+        <div className="flex flex-wrap gap-2 items-end text-sm mt-2">
+          <label className="space-y-1">
+            <span className="text-[10px] uppercase tracking-wider text-slate-500">Host port</span>
+            <input
+              className="input w-20 py-1 text-xs font-mono"
+              value={manualHostPort}
+              onChange={(e) => setManualHostPort(e.target.value)}
+              aria-label="Manual host port"
+            />
+          </label>
+          <span className="text-slate-500 pb-1">→ guest</span>
+          <label className="space-y-1">
+            <span className="text-[10px] uppercase tracking-wider text-slate-500">Guest port</span>
+            <input
+              className="input w-16 py-1 text-xs font-mono"
+              value={manualGuestPort}
+              onChange={(e) => setManualGuestPort(e.target.value)}
+              aria-label="Manual guest port"
+            />
+          </label>
+          <button
+            type="button"
+            className="btn-secondary text-xs"
+            disabled={busy || disabled}
+            onClick={() => void exposeManual()}
+          >
+            Expose
+          </button>
+        </div>
+      </details>
+        </>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {KNOWN_PORT_FORWARD_SERVICES.filter((s) => s.id === 'ssh' || s.id === 'http').map((service) => {
+            const active = rules.some((rule) => ruleMatchesService(rule, service))
+            return (
+              <button
+                key={service.id}
+                type="button"
+                className={active ? 'btn-secondary text-xs opacity-80' : 'btn-primary text-xs'}
+                disabled={busy || disabled || active}
+                data-testid={`expose-service-${service.id}`}
+                onClick={() => void exposeService(service)}
+              >
+                {active ? `${service.name} ✓` : `Expose ${service.name}`}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {rules.length > 0 && (
         <section className="space-y-2">
           <p className="text-[10px] uppercase tracking-wider text-slate-500">Active exposure</p>
@@ -328,8 +430,8 @@ export default function VmPortForwardPanel({
             {rules.map((rule) => {
               const service = resolveServiceForRule(rule, catalog)
               if (!service) return null
-              const access = serviceAccessLabel(service, sshUser)
-              const href = serviceAccessHref(service)
+              const access = serviceAccessLabel(service, sshUser, hypervisorAddress)
+              const href = serviceAccessHref(service, hypervisorAddress)
               return (
                 <li key={rule.id} className="flex flex-wrap items-center gap-2">
                   <span className="text-emerald-200/90 font-medium">{service.name}</span>
@@ -370,41 +472,8 @@ export default function VmPortForwardPanel({
         </section>
       )}
 
-      <details className="text-xs text-slate-500">
-        <summary className="cursor-pointer text-slate-400 hover:text-slate-300">Manual port mapping</summary>
-        <div className="flex flex-wrap gap-2 items-end text-sm mt-2">
-          <label className="space-y-1">
-            <span className="text-[10px] uppercase tracking-wider text-slate-500">Host port</span>
-            <input
-              className="input w-20 py-1 text-xs font-mono"
-              value={manualHostPort}
-              onChange={(e) => setManualHostPort(e.target.value)}
-              aria-label="Manual host port"
-            />
-          </label>
-          <span className="text-slate-500 pb-1">→ guest</span>
-          <label className="space-y-1">
-            <span className="text-[10px] uppercase tracking-wider text-slate-500">Guest port</span>
-            <input
-              className="input w-16 py-1 text-xs font-mono"
-              value={manualGuestPort}
-              onChange={(e) => setManualGuestPort(e.target.value)}
-              aria-label="Manual guest port"
-            />
-          </label>
-          <button
-            type="button"
-            className="btn-secondary text-xs"
-            disabled={busy || disabled}
-            onClick={() => void exposeManual()}
-          >
-            Expose
-          </button>
-        </div>
-      </details>
-
       {loading && <p className="text-xs text-slate-500">Loading rules…</p>}
-      {!loading && rules.length === 0 && (
+      {!loading && rules.length === 0 && !compact && (
         <p className="text-xs text-slate-500">No NAT rules on this hypervisor yet.</p>
       )}
     </div>

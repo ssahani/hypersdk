@@ -369,6 +369,9 @@ export interface ConsoleHubPlan {
   protocols: string[]
   webrtc_spice_available: boolean
   guest_access?: GuestAccessHints
+  hypervisor_address?: string | null
+  ssh_connect_host?: string | null
+  ssh_connect_port?: number | null
 }
 
 export interface ConsoleHubSessionResponse {
@@ -1876,6 +1879,23 @@ export const deleteVmPortForward = (
   body: { protocol: string; host_port: number; vm_port: number },
 ) =>
   platformFetch<{ ok: boolean }>(`/api/v1/vms/${vmId}/port-forwards/delete`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export interface PortForwardTemplateRecord {
+  id: string
+  name: string
+  vm_port: number
+  host_port: number
+  access: string
+}
+
+export const listVmPortForwardTemplates = (vmId: string) =>
+  platformFetch<PortForwardTemplateRecord[]>(`/api/v1/vms/${vmId}/port-forward-templates`)
+
+export const upsertVmPortForwardTemplate = (vmId: string, body: PortForwardTemplateRecord) =>
+  platformFetch<PortForwardTemplateRecord[]>(`/api/v1/vms/${vmId}/port-forward-templates`, {
     method: 'POST',
     body: JSON.stringify(body),
   })

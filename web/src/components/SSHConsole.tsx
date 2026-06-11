@@ -16,9 +16,10 @@ interface Props {
   host: string
   /** SSH login (default root). */
   sshUser?: string
+  sshPort?: number
 }
 
-export default function SSHConsole({ host, sshUser = 'root' }: Props) {
+export default function SSHConsole({ host, sshUser = 'root', sshPort }: Props) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<XTerm | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -66,7 +67,11 @@ export default function SSHConsole({ host, sshUser = 'root' }: Props) {
     try {
       const body = await apiPost<{ session_id: string; expires_in_secs: number }>(
         `${API}/terminal/sessions`,
-        { host: host.trim(), ssh_user: sshUser.trim() || 'root' },
+        {
+          host: host.trim(),
+          ssh_user: sshUser.trim() || 'root',
+          ...(sshPort && sshPort !== 22 ? { ssh_port: sshPort } : {}),
+        },
       )
       sessionId = body.session_id
     } catch (e) {
@@ -122,7 +127,7 @@ export default function SSHConsole({ host, sshUser = 'root' }: Props) {
         ws.send(JSON.stringify({ type: 'input', data }))
       }
     })
-  }, [host, sshUser])
+  }, [host, sshUser, sshPort])
 
   useEffect(() => {
     connect()
@@ -151,7 +156,7 @@ export default function SSHConsole({ host, sshUser = 'root' }: Props) {
         <div className="flex items-center gap-3">
           <div className={`w-2.5 h-2.5 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
           <span className="text-sm text-slate-300">
-            SSH — {sshUser}@{host}
+            SSH — {sshUser}@{host}{sshPort && sshPort !== 22 ? `:${sshPort}` : ''}
           </span>
         </div>
         <div className="flex items-center gap-1">

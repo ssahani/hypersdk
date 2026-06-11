@@ -23,6 +23,8 @@ type Props = {
   session: SessionLike | null
   guestIp?: string
   sshUser?: string
+  sshConnectHost?: string
+  sshConnectPort?: number
   kubeVirtNamespace?: string
   libvirtConnection?: string | null
   fillViewport?: boolean
@@ -74,6 +76,8 @@ export default function ConsoleHubSession({
   session,
   guestIp,
   sshUser = 'ubuntu',
+  sshConnectHost,
+  sshConnectPort,
   kubeVirtNamespace,
   libvirtConnection,
   fillViewport,
@@ -124,10 +128,11 @@ export default function ConsoleHubSession({
     )
   }
 
-  if (protocol === 'native_ssh' && guestIp) {
+  if (protocol === 'native_ssh' && (sshConnectHost || guestIp)) {
+    const host = sshConnectHost?.trim() || guestIp!
     return (
       <div className="flex flex-col flex-1 min-h-0 w-full">
-        <SSHConsole host={guestIp} sshUser={sshUser} />
+        <SSHConsole host={host} sshUser={sshUser} sshPort={sshConnectPort} />
       </div>
     )
   }

@@ -476,6 +476,10 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/vms/{id}/port-forwards/delete",
             post(vms::delete_vm_port_forward),
         )
+        .route(
+            "/api/v1/vms/{id}/port-forward-templates",
+            get(vms::list_vm_port_forward_templates).post(vms::upsert_vm_port_forward_template),
+        )
         .route("/api/v1/vms/{id}/start", post(vms::start_vm))
         .route("/api/v1/vms/{id}/stop", post(vms::stop_vm))
         .route("/api/v1/vms/{id}/shutdown", post(vms::shutdown_vm))

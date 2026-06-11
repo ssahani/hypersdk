@@ -22,6 +22,12 @@ pub struct CreateSessionBody {
     pub host: Option<String>,
     #[serde(default = "default_ssh_user")]
     pub ssh_user: String,
+    #[serde(default = "default_ssh_port")]
+    pub ssh_port: u16,
+}
+
+fn default_ssh_port() -> u16 {
+    22
 }
 
 fn default_ssh_user() -> String {
@@ -132,9 +138,12 @@ async fn create_session_handler(
         .into());
     };
 
+    let ssh_port = if body.ssh_port == 0 { 22 } else { body.ssh_port };
+
     let session_id = store.insert_session(
         resolved_host.clone(),
         resolved_user.clone(),
+        ssh_port,
         actor.username.clone(),
         ttl,
     );

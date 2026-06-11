@@ -11,7 +11,7 @@ import SimpleCreateVmWizard, {
   type VmWizardPayload,
 } from '../../../components/platform/SimpleCreateVmWizard'
 import MigratePrecheckModal from '../../../components/platform/MigratePrecheckModal'
-import VmSshConnectDialog, { navigateVmSshSession } from '../../../components/vm/VmSshConnectDialog'
+import VmPlatformSshConnectDialog from '../../../components/vm/VmPlatformSshConnectDialog'
 import { toastQueuedOperation } from '../../../utils/platformTaskToast'
 import { useToastContext } from '../../../contexts/ToastContext'
 import { formatUserError } from '../../../utils/apiError'
@@ -164,14 +164,12 @@ export default function MissionControlPage() {
         />
       )}
       {state.sshVm && (
-        <VmSshConnectDialog
+        <VmPlatformSshConnectDialog
           open
-          vmName={state.sshVm.name}
-          defaultIp={state.sshVm.guest_ip ?? ''}
-          defaultUser="ubuntu"
-          detectedIps={state.sshVm.guest_ip ? [state.sshVm.guest_ip] : []}
+          vm={state.sshVm}
+          hosts={state.hosts}
           onClose={() => state.setSshVm(null)}
-          onConnect={(h, u) => navigateVmSshSession(state.sshVm!.name, h, u)}
+          onNotify={(m) => toast.success(m)}
         />
       )}
     </PageLayout>

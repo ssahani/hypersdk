@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router'
 import { ConsoleViewportProvider, useConsoleViewport } from './ConsoleViewportContext'
 import MachineCommandStrip from './MachineCommandStrip'
 import ViewLensBar, { lensToProtocol, type ConsoleLens } from './ViewLensBar'
@@ -11,14 +12,22 @@ import CommandDock from './CommandDock'
 import ConsoleMinimap from './ConsoleMinimap'
 import ZeroPanicRecoveryBar from './ZeroPanicRecoveryBar'
 import ConsoleCopilotLens from './ConsoleCopilotLens'
-import CommandCenterPanel from './CommandCenterPanel'
+import CommandCenterPanel, { type CommandCenterTab } from './CommandCenterPanel'
 import MachineTimeline from './MachineTimeline'
 import type { ConsoleHubPlan, ConsoleHubSessionResponse } from '../../api/platform'
+import { createVmSnapshot, vmPower } from '../../api/platform'
 import type { ConsoleHubSessionRow } from './ConsoleHubSessionHistory'
 import type { VmTimelineEntry } from '../../api/platformVmTimeline'
 import { recipeForError, type ConsoleRecipe } from '../../data/consoleRecipes'
 import ConsoleHubSession from './ConsoleHubSession'
 import GuestAccessBanner from './GuestAccessBanner'
+import ShellAccessBanner from './ShellAccessBanner'
+import ConsoleLoginRecoveryCard from './ConsoleLoginRecoveryCard'
+import VmLaptopAccessChecklist from '../vm/VmLaptopAccessChecklist'
+import VmPortForwardPanel from '../vm/VmPortForwardPanel'
+import type { VmPortForwardRule } from '../../api/platform'
+import { createVmPortForward } from '../../api/platform'
+import { buildExposePayload } from '../../utils/vmPortForwardServices'
 import { sendGuestKey } from '../../api/vm'
 import { useToastContext } from '../../contexts/ToastContext'
 
@@ -44,6 +53,9 @@ export type MachineCockpitProps = {
   onPopout?: () => void
   connectKey?: number
   prepend?: ReactNode
+  hypervisorAddress?: string
+  portForwardRules?: VmPortForwardRule[]
+  onPlanRefresh?: () => void
 }
 
 function CockpitInner({
@@ -67,14 +79,19 @@ function CockpitInner({
   onReconnect,
   connectKey = 0,
   prepend,
+  hypervisorAddress,
+  portForwardRules = [],
+  onPlanRefresh,
 }: MachineCockpitProps) {
   const toast = useToastContext()
+  const navigate = useNavigate()
   const vp = useConsoleViewport()
   const [lens, setLens] = useState<ConsoleLens>('display')
   const [theatre, setTheatre] = useState(isPopout ?? false)
   const [commandCenter, setCommandCenter] = useState(false)
-  const [ccTab, setCcTab] = useState('Overview')
+  const [ccTab, setCcTab] = useState<CommandCenterTab>('Overview')
   const [activeRecipe, setActiveRecipe] = useState<ConsoleRecipe | null>(null)
+  const [exposeBusy, setExposeBusy] = useState(false)
 
   const displayProtocols = plan
     ? [...plan.protocols, ...(plan.guest_ip && !plan.protocols.includes('native_ssh') ? ['native_ssh'] : [])]
@@ -105,15 +122,16 @@ function CockpitInner({
   }, [plan?.recommended])
 
   const switchLens = useCallback(
-    (next: ConsoleLens) => {
-      setLens(next)
-      if (next === 'ai' || next === 'events' || next === 'recovery') return
-      if (next === 'network' || next === 'perf') {
+    (next: ConsoleLens | 'native_ssh') => {
+      const resolved = next === 'native_ssh' ? 'shell' : next
+      setLens(resolved)
+      if (resolved === 'ai' || resolved === 'events' || resolved === 'recovery') return
+      if (resolved === 'network' || resolved === 'perf') {
         setCommandCenter(true)
-        setCcTab(next === 'network' ? 'Overview' : 'Health')
+        setCcTab(resolved === 'network' ? 'Overview' : 'Health')
         return
       }
-      const proto = lensToProtocol(next, displayProtocols, plan?.recommended ?? 'novnc')
+      const proto = lensToProtocol(resolved, displayProtocols, plan?.recommended ?? 'novnc')
       onProtocolChange(proto)
     },
     [displayProtocols, onProtocolChange, plan?.recommended],
@@ -127,6 +145,47 @@ function CockpitInner({
       toast.error('Could not send key')
     }
   }
+
+  const handleCommandCenterAction = useCallback(
+    async (action: string) => {
+      switch (action) {
+        case 'Snapshot':
+          try {
+            await createVmSnapshot(vmId, {
+              name: `snap-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}`,
+              disk_only: true,
+            })
+            toast.success('Snapshot queued')
+          } catch (e: unknown) {
+            toast.error(String(e))
+          }
+          break
+        case 'Restart':
+          try {
+            await vmPower(vmId, 'reboot')
+            toast.success('Reboot queued')
+          } catch (e: unknown) {
+            toast.error(String(e))
+          }
+          break
+        case 'Inspect Disk':
+          navigate(`/platform/vms/${vmId}?tab=disks`)
+          setCommandCenter(false)
+          break
+        case 'PacketWolf Trace':
+          navigate(`/platform/vms/${vmId}?tab=security`)
+          setCommandCenter(false)
+          break
+        case 'Migrate':
+          navigate(`/platform/vms/${vmId}?tab=settings`)
+          setCommandCenter(false)
+          break
+        default:
+          toast.info('Open VM detail for full workflow')
+      }
+    },
+    [navigate, toast, vmId],
+  )
 
   const recipe = activeRecipe ?? recipeForError(error ?? null)
 
@@ -167,16 +226,82 @@ function CockpitInner({
         </div>
       )
     }
+    if (lens === 'network') {
+      return (
+        <div className="p-4 overflow-y-auto flex-1 space-y-4">
+          <p className="text-sm text-slate-300">
+            Guest IP: <span className="font-mono text-emerald-300">{plan?.guest_ip ?? '—'}</span>
+          </p>
+          {plan?.guest_access?.guest_ip_private && vmId && vmName && plan?.guest_ip ? (
+            <VmPortForwardPanel
+              platformVmId={vmId}
+              vmName={vmName}
+              guestIp={plan.guest_ip}
+              sshUser={plan.ssh_user ?? undefined}
+              hypervisorAddress={hypervisorAddress ?? plan.hypervisor_address ?? undefined}
+              compact
+              onNotify={(m) => toast.success(m)}
+            />
+          ) : (
+            <p className="text-xs text-slate-500">NAT port forwarding is available when the guest has a private libvirt IP.</p>
+          )}
+        </div>
+      )
+    }
     return (
       <div className="flex flex-col flex-1 min-h-0 w-full gap-2">
         {(activeProtocol === 'serial' || activeProtocol === 'native_ssh') && (
-          <GuestAccessBanner
-            hints={plan?.guest_access}
-            lens={activeProtocol === 'serial' ? 'serial' : 'shell'}
-            sshUser={plan?.ssh_user ?? undefined}
-            guestIp={plan?.guest_ip ?? undefined}
-            vmId={vmId}
-          />
+          <>
+            <GuestAccessBanner
+              hints={plan?.guest_access}
+              lens={activeProtocol === 'serial' ? 'serial' : 'shell'}
+              sshUser={plan?.ssh_user ?? undefined}
+              guestIp={plan?.guest_ip ?? undefined}
+              vmId={vmId}
+              vmName={vmName}
+              hypervisorHost={hypervisorAddress ?? plan?.hypervisor_address ?? undefined}
+              portForwardRules={portForwardRules}
+              onPlanRefresh={onPlanRefresh}
+              onNotify={(m) => toast.success(m)}
+            />
+            {activeProtocol === 'serial' && plan?.guest_access ? (
+              <ConsoleLoginRecoveryCard
+                hints={plan.guest_access}
+                vmId={vmId}
+                exposing={exposeBusy}
+                onSwitchToShell={() => switchLens('shell')}
+                onExposeSsh={
+                  plan.guest_access.guest_ip_private && !plan.guest_access.ssh_nat_host_port
+                    ? () => {
+                        setExposeBusy(true)
+                        void (async () => {
+                          try {
+                            const taken = portForwardRules.map((r) => r.host_port)
+                            await createVmPortForward(vmId, buildExposePayload(vmName, 22, taken))
+                            toast.success('SSH exposed on hypervisor')
+                            onPlanRefresh?.()
+                          } catch (e: unknown) {
+                            toast.error(String(e))
+                          } finally {
+                            setExposeBusy(false)
+                          }
+                        })()
+                      }
+                    : undefined
+                }
+              />
+            ) : null}
+            {activeProtocol === 'native_ssh' ? (
+              <ShellAccessBanner
+                hints={plan?.guest_access}
+                sshUser={plan?.ssh_user ?? undefined}
+                guestIp={plan?.guest_ip ?? undefined}
+                hypervisorHost={hypervisorAddress ?? plan?.hypervisor_address ?? undefined}
+                portForwardRules={portForwardRules}
+                onNotify={(m) => toast.success(m)}
+              />
+            ) : null}
+          </>
         )}
         <ConsoleHubSession
         key={`${activeProtocol}-${wsUrl ?? 'none'}-${connectKey}`}
@@ -187,6 +312,8 @@ function CockpitInner({
         session={session}
         guestIp={plan?.guest_ip ?? undefined}
         sshUser={plan?.ssh_user ?? undefined}
+        sshConnectHost={plan?.ssh_connect_host ?? undefined}
+        sshConnectPort={plan?.ssh_connect_port ?? undefined}
         kubeVirtNamespace={kubeVirtNamespace ?? undefined}
         fillViewport
         cockpitMode
@@ -208,7 +335,7 @@ function CockpitInner({
           onReconnect={onReconnect}
           onOpenSerial={() => switchLens('serial')}
           onOpenSsh={() => switchLens('shell')}
-          onOpenEvents={() => { setLens('events'); setCommandCenter(true) }}
+          onOpenEvents={() => { setLens('events'); setCommandCenter(true); setCcTab('Events') }}
           onAiDiagnose={() => switchLens('ai')}
           onRunRecipe={setActiveRecipe}
         />
@@ -222,8 +349,8 @@ function CockpitInner({
         healthScore={healthScore}
         theatre={theatre}
         onEnterTheatre={() => setTheatre(true)}
-        onCommandCenter={() => setCommandCenter(true)}
-        onAi={() => switchLens('ai')}
+        onCommandCenter={() => { setCommandCenter(true); setCcTab('Overview') }}
+        onAi={() => { setCommandCenter(true); setCcTab('AI') }}
       />
       <ViewLensBar
         active={lens}
@@ -233,9 +360,6 @@ function CockpitInner({
         onProtocolChange={onProtocolChange}
         recommended={plan?.recommended}
         osHint={plan?.os_hint}
-        guestAccess={plan?.guest_access}
-        sshUser={plan?.ssh_user ?? undefined}
-        guestIp={plan?.guest_ip ?? undefined}
       />
       <MachineCanvas vmState={vmState} healthScore={healthScore} theatre={theatre} className="flex-1">
         {loading ? (
@@ -273,10 +397,19 @@ function CockpitInner({
         healthScore={healthScore}
         vmState={vmState}
         guestIp={plan?.guest_ip}
+        guestAccess={plan?.guest_access}
+        hypervisorAddress={hypervisorAddress ?? plan?.hypervisor_address ?? undefined}
+        sshUser={plan?.ssh_user ?? undefined}
         sessions={history}
         timeline={machineTimeline}
-        initialTab={ccTab}
-        onAction={() => toast.info('Action queued — open VM detail for full workflow')}
+        activeTab={ccTab}
+        onTabChange={setCcTab}
+        onAction={(action) => void handleCommandCenterAction(action)}
+        onPlanRefresh={onPlanRefresh}
+        onOpenVmDetail={(tab) => {
+          setCommandCenter(false)
+          navigate(tab ? `/platform/vms/${vmId}?tab=${tab}` : `/platform/vms/${vmId}`)
+        }}
       />
     </div>
   )

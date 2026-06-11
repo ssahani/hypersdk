@@ -2,20 +2,34 @@
 
 import { useEffect, useState } from 'react'
 import { Terminal, X } from 'lucide-react'
+import { createVmPortForward } from '../../api/platform'
+import { formatUserError } from '../../utils/apiError'
 import { loadVmSshPrefs, saveVmSshPrefs } from '../../utils/vmSshPrefs'
 import { statusToneClass } from '../../utils/semanticColors'
+import {
+  buildExposePayload,
+  laptopSshCommand,
+  type NatRuleLike,
+  sshNatHostPort,
+} from '../../utils/vmPortForwardServices'
 
 export interface VmSshConnectDialogProps {
   open: boolean
   vmName: string
+  platformVmId?: string
   defaultIp?: string
   defaultUser?: string
   detectedIps?: string[]
+  hypervisorAddress?: string
+  guestIpPrivate?: boolean
+  portForwardRules?: NatRuleLike[]
+  onRefreshPortForwards?: () => void
   onClose: () => void
-  onConnect?: (host: string, user: string) => void
+  onConnect?: (host: string, user: string, port?: number) => void
+  onNotify?: (message: string) => void
 }
 
-export function navigateVmSshSession(vmName: string, host: string, user: string, vmId?: string) {
+export function navigateVmSshSession(vmName: string, host: string, user: string, vmId?: string, port?: number) {
   const h = host.trim()
   const u = user.trim() || 'root'
   if (!h) return
@@ -23,20 +37,33 @@ export function navigateVmSshSession(vmName: string, host: string, user: string,
   const qs = new URLSearchParams({ host: h, user: u })
   if (vmId) qs.set('vmId', vmId)
   if (vmName) qs.set('vmName', vmName)
+  if (port && port !== 22) qs.set('port', String(port))
   window.location.href = `/ssh?${qs.toString()}`
 }
 
 export default function VmSshConnectDialog({
   open,
   vmName,
+  platformVmId,
   defaultIp = '',
   defaultUser = 'root',
   detectedIps = [],
+  hypervisorAddress,
+  guestIpPrivate = false,
+  portForwardRules = [],
+  onRefreshPortForwards,
   onClose,
   onConnect,
+  onNotify,
 }: VmSshConnectDialogProps) {
   const [ip, setIp] = useState(defaultIp)
   const [user, setUser] = useState(defaultUser)
+  const [busy, setBusy] = useState(false)
+
+  const natPort = sshNatHostPort(portForwardRules)
+  const useNat = guestIpPrivate && Boolean(hypervisorAddress?.trim())
+  const connectHost = useNat ? (hypervisorAddress?.trim() || '') : ip.trim()
+  const connectPort = useNat ? natPort : undefined
 
   useEffect(() => {
     if (!open) return
@@ -48,13 +75,39 @@ export default function VmSshConnectDialog({
 
   if (!open) return null
 
+  const notify = (msg: string) => onNotify?.(msg)
+
   const connect = () => {
-    const h = ip.trim()
+    const h = useNat ? connectHost : ip.trim()
     const u = user.trim() || 'root'
+    const p = useNat ? connectPort : undefined
     if (!h) return
-    if (onConnect) onConnect(h, u)
-    else navigateVmSshSession(vmName, h, u)
+    if (onConnect) onConnect(h, u, p)
+    else navigateVmSshSession(vmName, h, u, platformVmId, p)
     onClose()
+  }
+
+  const exposeAndCopy = async () => {
+    if (!platformVmId) return
+    setBusy(true)
+    try {
+      const taken = portForwardRules.map((r) => r.host_port)
+      await createVmPortForward(platformVmId, buildExposePayload(vmName, 22, taken))
+      notify('SSH exposed on hypervisor')
+      onRefreshPortForwards?.()
+      const cmd = laptopSshCommand(user, defaultIp, hypervisorAddress, [
+        ...portForwardRules,
+        { protocol: 'tcp', host_port: 2222, vm_port: 22 },
+      ])
+      if (cmd) {
+        await navigator.clipboard.writeText(cmd)
+        notify('SSH command copied')
+      }
+    } catch (e: unknown) {
+      notify(formatUserError(e))
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -77,19 +130,42 @@ export default function VmSshConnectDialog({
           </button>
         </div>
         <div className="p-5 space-y-3">
-          <label htmlFor="vm-ssh-ip" className="block text-sm text-slate-400 mb-1">
-            Guest IP (guest agent first; edit if needed)
-          </label>
-          <input
-            id="vm-ssh-ip"
-            type="text"
-            autoFocus
-            value={ip}
-            onChange={(e) => setIp(e.target.value)}
-            placeholder="192.168.122.100"
-            className="input w-full"
-            onKeyDown={(e) => { if (e.key === 'Enter' && ip.trim()) connect() }}
-          />
+          {useNat ? (
+            <div className="rounded-lg border border-amber-500/25 bg-amber-950/20 px-3 py-2 text-xs text-amber-100/90 space-y-2">
+              <p>Guest IP is on hypervisor NAT — connect via the hypervisor host{connectPort ? ` port ${connectPort}` : ''}.</p>
+              {!natPort && platformVmId ? (
+                <button type="button" className="btn-primary text-xs" disabled={busy} onClick={() => void exposeAndCopy()}>
+                  {busy ? 'Exposing…' : 'Expose SSH & copy command'}
+                </button>
+              ) : null}
+              {natPort && hypervisorAddress ? (
+                <p className="font-mono text-emerald-200/90 break-all">
+                  {laptopSshCommand(user, defaultIp, hypervisorAddress, portForwardRules)}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {!useNat ? (
+            <>
+              <label htmlFor="vm-ssh-ip" className="block text-sm text-slate-400 mb-1">
+                Guest IP (guest agent first; edit if needed)
+              </label>
+              <input
+                id="vm-ssh-ip"
+                type="text"
+                autoFocus
+                value={ip}
+                onChange={(e) => setIp(e.target.value)}
+                placeholder="192.168.122.100"
+                className="input w-full"
+                onKeyDown={(e) => { if (e.key === 'Enter' && ip.trim()) connect() }}
+              />
+            </>
+          ) : (
+            <p className="text-sm text-slate-300">
+              Target: <span className="font-mono text-emerald-300">{connectHost}{connectPort ? `:${connectPort}` : ''}</span>
+            </p>
+          )}
           <label htmlFor="vm-ssh-user" className="block text-sm text-slate-400 mb-1 mt-3">
             SSH user
           </label>
@@ -102,7 +178,7 @@ export default function VmSshConnectDialog({
             className="input w-full"
             autoComplete="username"
           />
-          {detectedIps.length > 0 && (
+          {detectedIps.length > 0 && !useNat && (
             <div>
               <span className="text-xs text-slate-500">Detected IPs:</span>
               <div className="flex flex-wrap gap-1 mt-1">
@@ -120,12 +196,17 @@ export default function VmSshConnectDialog({
             </div>
           )}
           <p className="text-xs text-slate-500">
-            Opens an in-browser SSH terminal (port 22). Use the private key matching your cloud-init public key.
+            In-browser SSH uses hypervisor keys. From your laptop use the copied command with your cloud-init private key.
           </p>
         </div>
         <div className="flex justify-end gap-3 px-5 pb-5">
           <button type="button" onClick={onClose} className="btn-secondary text-sm">Cancel</button>
-          <button type="button" onClick={connect} disabled={!ip.trim()} className="btn-primary text-sm">
+          <button
+            type="button"
+            onClick={connect}
+            disabled={!connectHost || (useNat && !natPort)}
+            className="btn-primary text-sm"
+          >
             Connect
           </button>
         </div>

@@ -61,6 +61,21 @@ test('custom named service can be exposed', async ({ page }) => {
   await expect(page.getByTestId('vm-port-forward-panel').getByRole('button', { name: 'Jenkins', exact: true })).toBeVisible()
 })
 
+test('overview daily access exposes scanned guest port', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/vms/v1')
+  await expect(page.getByTestId('vm-daily-access')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('vm-laptop-access-checklist')).toBeVisible()
+  const exposeBtn = page.getByTestId('expose-guest-port-80')
+  if (await exposeBtn.count()) {
+    const createReq = page.waitForRequest(
+      (req) => req.url().includes('/port-forwards') && req.method() === 'POST',
+    )
+    await exposeBtn.click()
+    expect((await createReq).postDataJSON()).toMatchObject({ vm_port: 80, protocol: 'tcp' })
+  }
+})
+
 test('host linux tab shows GPU inventory', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/hosts/h1')

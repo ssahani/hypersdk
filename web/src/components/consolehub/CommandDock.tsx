@@ -71,7 +71,7 @@ export default function CommandDock({ visible = true, onCtrlAltDel, onExplain, o
         {onSwitchLens ? (
           <>
             <button type="button" className={btn} onClick={() => onSwitchLens('serial')}>Serial</button>
-            <button type="button" className={btn} onClick={() => onSwitchLens('native_ssh')}>SSH</button>
+            <button type="button" className={btn} onClick={() => onSwitchLens('shell')}>SSH</button>
           </>
         ) : null}
         {onExplain ? (

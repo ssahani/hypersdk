@@ -44,7 +44,7 @@ struct LiveConsoleSession {
     audit_id: Uuid,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct GuestAccessHints {
     /// ssh_key | password | both | unknown
     pub auth_mode: String,
@@ -66,6 +66,9 @@ pub struct ConsoleHubPlan {
     pub protocols: Vec<String>,
     pub webrtc_spice_available: bool,
     pub guest_access: GuestAccessHints,
+    pub hypervisor_address: Option<String>,
+    pub ssh_connect_host: Option<String>,
+    pub ssh_connect_port: Option<u16>,
 }
 
 #[derive(Debug, Serialize)]
@@ -198,12 +201,90 @@ fn kubevirt_plan(vm_id: Uuid, vm_name: &str, namespace: &str, ws_token: &str) ->
             protocols: vec![],
         },
         guest_ip: None,
-        ssh_user: None,
+        ssh_user: Some("cloud-user".into()),
         os_hint: "kubevirt".into(),
-        protocols: vec!["novnc".into()],
+        protocols: vec!["novnc".into(), "serial".into()],
         webrtc_spice_available: false,
         guest_access: empty_guest_access(),
+        hypervisor_address: None,
+        ssh_connect_host: None,
+        ssh_connect_port: None,
     }
+}
+
+async fn kubevirt_plan_enriched(
+    pool: &sqlx::PgPool,
+    daemon_base_url: &str,
+    vm_id: Uuid,
+    vm_name: &str,
+    namespace: &str,
+    ws_token: &str,
+) -> ConsoleHubPlan {
+    let mut plan = kubevirt_plan(vm_id, vm_name, namespace, ws_token);
+    let row: Option<(Option<String>, serde_json::Value)> = sqlx::query_as(
+        "SELECT guest_ip, spec_json FROM vms WHERE id = $1",
+    )
+    .bind(vm_id)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+    if let Some((guest_ip, spec)) = row {
+        if let Some(ip) = guest_ip.filter(|s| !s.trim().is_empty()) {
+            plan.guest_ip = Some(ip.clone());
+            plan.guest_access.guest_ip_private = is_private_guest_ip(&ip);
+        }
+        if let Ok(vm) = serde_json::from_value::<VirtualMachine>(spec.clone()) {
+            if let Some(mode) = auth_mode_from_spec(&vm) {
+                plan.guest_access.serial_password_login =
+                    mode == "password" || mode == "both";
+                plan.guest_access.auth_mode = mode;
+            }
+            let user = vm
+                .spec
+                .cloud_init
+                .as_ref()
+                .map(|ci| ci.user.trim())
+                .filter(|u| !u.is_empty());
+            if let Some(user) = user {
+                plan.ssh_user = Some(user.to_string());
+            }
+        }
+        if let Some(port) = spec
+            .get("machina")
+            .and_then(|m| m.get("kubevirt"))
+            .and_then(|k| k.get("ssh_node_port"))
+            .and_then(|v| v.as_u64())
+            .map(|p| p as u16)
+        {
+            plan.guest_access.ssh_nat_host_port = Some(port);
+            plan.ssh_connect_port = Some(port);
+            if let Some(node_ip) = spec
+                .get("machina")
+                .and_then(|m| m.get("kubevirt"))
+                .and_then(|k| k.get("ssh_node_host"))
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.trim().is_empty())
+            {
+                plan.hypervisor_address = Some(node_ip.trim().to_string());
+                plan.ssh_connect_host = Some(node_ip.trim().to_string());
+            }
+        } else if let Some(expose) =
+            crate::engine::kubevirt_ssh::discover_kubevirt_ssh_expose(
+                daemon_base_url,
+                namespace,
+                vm_name,
+            )
+            .await
+        {
+            plan.guest_access.ssh_nat_host_port = Some(expose.port);
+            plan.ssh_connect_port = Some(expose.port);
+            plan.hypervisor_address = Some(expose.host.clone());
+            plan.ssh_connect_host = Some(expose.host);
+            plan.guest_access.guest_ip_private = true;
+        }
+    }
+    plan
 }
 
 fn check_federated_console_auth(
@@ -353,12 +434,15 @@ fn plan_from_agent(
     agent: &machina_agent::pb::GetConsoleAccessPlanResponse,
     ws_token: &str,
     guest_access: GuestAccessHints,
+    hypervisor_address: Option<String>,
 ) -> ConsoleHubPlan {
     let recommended = if agent.recommended.is_empty() {
         "novnc".into()
     } else {
         agent.recommended.clone()
     };
+    let (ssh_host, ssh_port) =
+        ssh_connect_target(&agent.guest_ip, &guest_access, &hypervisor_address);
     ConsoleHubPlan {
         vm_id: vm_id.to_string(),
         vm_name: vm_name.to_string(),
@@ -390,7 +474,28 @@ fn plan_from_agent(
         },
         protocols: build_protocol_list(agent),
         webrtc_spice_available: agent.console_type == "spice",
-        guest_access,
+        guest_access: guest_access.clone(),
+        hypervisor_address: hypervisor_address.clone(),
+        ssh_connect_host: ssh_host.clone(),
+        ssh_connect_port: ssh_port,
+    }
+}
+
+fn ssh_connect_target(
+    guest_ip: &str,
+    guest_access: &GuestAccessHints,
+    _hypervisor_address: &Option<String>,
+) -> (Option<String>, Option<u16>) {
+    if guest_access.guest_ip_private {
+        if let Some(port) = guest_access.ssh_nat_host_port {
+            let host = Some("127.0.0.1".into());
+            return (host, Some(port));
+        }
+    }
+    if guest_ip.trim().is_empty() {
+        (None, None)
+    } else {
+        (Some(guest_ip.trim().to_string()), Some(22))
     }
 }
 
@@ -418,7 +523,17 @@ pub async fn consolehub_plan(
     if source == "kubevirt" {
         let ns = k8s_namespace.unwrap_or_else(|| "default".into());
         let ws_token = state.ws_tokens.issue(id).await;
-        return Ok(Json(kubevirt_plan(id, &vm_name, &ns, &ws_token)));
+        return Ok(Json(
+            kubevirt_plan_enriched(
+                &state.pool,
+                &state.config.daemon_base_url,
+                id,
+                &vm_name,
+                &ns,
+                &ws_token,
+            )
+            .await,
+        ));
     }
     let (vm_name, host_id) = vm_row(&state, id).await?;
     let agent_addr = host_agent_grpc(&state.pool, host_id).await?;
@@ -435,8 +550,23 @@ pub async fn consolehub_plan(
         .and_then(|v| serde_json::from_value(v).ok());
     let guest_access =
         build_guest_access_hints(&state.pool, host_id, &agent_plan, spec_vm.as_ref()).await;
+    let hypervisor_address: Option<String> = sqlx::query_scalar(
+        "SELECT NULLIF(TRIM(address), '') FROM hosts WHERE id = $1",
+    )
+    .bind(host_id)
+    .fetch_optional(&state.pool)
+    .await
+    .ok()
+    .flatten();
     let ws_token = state.ws_tokens.issue(id).await;
-    let mut plan = plan_from_agent(id, &vm_name, &agent_plan, &ws_token, guest_access);
+    let mut plan = plan_from_agent(
+        id,
+        &vm_name,
+        &agent_plan,
+        &ws_token,
+        guest_access,
+        hypervisor_address,
+    );
     let (_, _, guac_enabled) = host_guacamole_config(&state.pool, host_id, &state.config).await;
     if !guac_enabled {
         plan.guacamole.available = false;

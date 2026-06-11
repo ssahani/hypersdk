@@ -13,6 +13,8 @@ export default function SSHPage() {
   const [searchParams] = useSearchParams()
   const hostFromQuery = searchParams.get('host') ?? ''
   const userFromQuery = searchParams.get('user') ?? 'root'
+  const portFromQuery = parseInt(searchParams.get('port') ?? '22', 10)
+  const sshPort = Number.isFinite(portFromQuery) && portFromQuery > 0 ? portFromQuery : undefined
   const vmIdFromQuery = searchParams.get('vmId') ?? undefined
   const vmNameFromQuery = searchParams.get('vmName') ?? undefined
 
@@ -37,12 +39,12 @@ export default function SSHPage() {
         <Link to="/vms" className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Back">
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <h1 className="text-xl font-bold">SSH — {userFromQuery}@{host}</h1>
+        <h1 className="text-xl font-bold">SSH — {userFromQuery}@{host}{sshPort && sshPort !== 22 ? `:${sshPort}` : ''}</h1>
       </div>
       {(vmIdFromQuery || vmNameFromQuery) && (
         <AiTerminalSuggestStrip vmId={vmIdFromQuery} vmName={vmNameFromQuery} defaultOpen={false} />
       )}
-      <SSHConsole host={host} sshUser={userFromQuery} />
+      <SSHConsole host={host} sshUser={userFromQuery} sshPort={sshPort} />
     </div>
   )
 }

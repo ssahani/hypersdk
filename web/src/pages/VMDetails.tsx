@@ -20,7 +20,7 @@ import {
   attachVmWatchdog, attachVmSound, attachVmSerial, setVmVideoModel,
   addShare, removeShare,
 } from '../api/vm'
-import { listPlatformVms } from '../api/platform'
+import { listPlatformVms, getConsoleHubPlan, listVmPortForwards, listPlatformHosts, type VmPortForwardRule, type PlatformVm, type PlatformHost } from '../api/platform'
 import { getVmDoctor, type VmDoctorReport } from '../api/ai'
 import {
   attachPciHostdev, detachPciHostdev, detachNodeDevice, reattachNodeDevice,
@@ -32,7 +32,9 @@ import { getStateBadgeClasses, formatBytes } from '../utils/vm'
 import { sessionBadgeClasses, statusActionLinkClasses, statusBadgeClasses, statusBgClass, statusSurfaceClasses, statusToneClass, utilizationTone } from '../utils/semanticColors'
 import { loadVmSshPrefs } from '../utils/vmSshPrefs'
 import VmDailyAccessStrip from '../components/vm/VmDailyAccessStrip'
+import VmPortForwardPanel from '../components/vm/VmPortForwardPanel'
 import VmSshConnectDialog, { navigateVmSshSession } from '../components/vm/VmSshConnectDialog'
+import type { GuestAccessHints } from '../utils/guestAccessHints'
 import { addRecentVM } from '../utils/recentVMs'
 import { purgeVmShortcuts } from '../utils/vmShortcuts'
 import { guestIpv4GatewayHints } from '../utils/guestIpv4GatewayHints'
@@ -127,6 +129,11 @@ export default function VMDetailsPage() {
   const [guestHostnameBusy, setGuestHostnameBusy] = useState(false)
   const [guestHealth, setGuestHealth] = useState<GuestHealthReport | null>(null)
   const [platformDoctor, setPlatformDoctor] = useState<VmDoctorReport | null>(null)
+  const [linkedPlatformVm, setLinkedPlatformVm] = useState<PlatformVm | null>(null)
+  const [platformHosts, setPlatformHosts] = useState<PlatformHost[]>([])
+  const [classicPortForwards, setClassicPortForwards] = useState<VmPortForwardRule[]>([])
+  const [classicGuestAccess, setClassicGuestAccess] = useState<GuestAccessHints | null>(null)
+  const [classicHypervisorAddress, setClassicHypervisorAddress] = useState<string | undefined>()
   const [networkGateways, setNetworkGateways] = useState<Record<string, string>>({})
   const [guestIfQueriedAt, setGuestIfQueriedAt] = useState<string | null>(null)
   const [sessionRole, setSessionRole] = useState<SessionRole | null>(null)
@@ -346,12 +353,19 @@ export default function VMDetailsPage() {
       try { setMemTune(await getMemTune(name, conn)) } catch { /* optional */ }
       if (info?.control_plane?.proxy_url) {
         try {
-          const pvm = (await listPlatformVms()).find((v) => v.name === name)
-          setPlatformDoctor(pvm ? await getVmDoctor(pvm.id) : null)
+          const [pvmList, hostList] = await Promise.all([listPlatformVms(), listPlatformHosts()])
+          const pvm = pvmList.find((v) => v.name === name) ?? null
+          setLinkedPlatformVm(pvm)
+          setPlatformHosts(hostList)
+          setPlatformDoctor(pvm ? await getVmDoctor(pvm.id).catch(() => null) : null)
         } catch {
+          setLinkedPlatformVm(null)
+          setPlatformHosts([])
           setPlatformDoctor(null)
         }
       } else {
+        setLinkedPlatformVm(null)
+        setPlatformHosts([])
         setPlatformDoctor(null)
       }
     } catch (e: unknown) {
@@ -367,6 +381,38 @@ export default function VMDetailsPage() {
       setLoading(false)
     }
   }, [name, toast, conn, info?.control_plane?.proxy_url])
+
+  const platformVmId = linkedPlatformVm?.id ?? platformDoctor?.vm_id
+
+  useEffect(() => {
+    if (!platformVmId) {
+      setClassicPortForwards([])
+      setClassicGuestAccess(null)
+      setClassicHypervisorAddress(undefined)
+      return
+    }
+    const host = linkedPlatformVm?.host_id
+      ? platformHosts.find((h) => h.id === linkedPlatformVm.host_id)
+      : undefined
+    void getConsoleHubPlan(platformVmId)
+      .then((plan) => {
+        setClassicGuestAccess(plan.guest_access ?? null)
+        setClassicHypervisorAddress(plan.hypervisor_address?.trim() || host?.address?.trim() || undefined)
+      })
+      .catch(() => {
+        setClassicGuestAccess(null)
+        setClassicHypervisorAddress(undefined)
+      })
+  }, [platformVmId, linkedPlatformVm?.host_id, platformHosts])
+
+  useEffect(() => {
+    const ip = guestIps[0]?.address?.trim() || vm?.guest_ip?.trim() || ''
+    if (!platformVmId || !ip) {
+      setClassicPortForwards([])
+      return
+    }
+    void listVmPortForwards(platformVmId).then(setClassicPortForwards).catch(() => setClassicPortForwards([]))
+  }, [platformVmId, guestIps, vm?.guest_ip])
 
   useEffect(() => { load() }, [load])
 
@@ -1212,6 +1258,15 @@ export default function VMDetailsPage() {
           return getVMXml(name!, conn)
         }}
         natForwardHref={classicNatHref}
+        platformVmId={platformVmId}
+        hypervisorAddress={classicHypervisorAddress}
+        guestAccess={classicGuestAccess}
+        portForwardRules={classicPortForwards}
+        onRefreshPortForwards={() => {
+          if (!platformVmId) return
+          void listVmPortForwards(platformVmId).then(setClassicPortForwards).catch(() => setClassicPortForwards([]))
+          void getConsoleHubPlan(platformVmId).then((plan) => setClassicGuestAccess(plan.guest_access ?? null)).catch(() => undefined)
+        }}
         onNotify={(m) => toast.success(m)}
       />
 
@@ -1753,6 +1808,19 @@ export default function VMDetailsPage() {
               )}
             </div>
           </details>
+          {platformVmId && classicGuestIp ? (
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4">
+              <h3 className="text-sm font-semibold text-slate-200 mb-3">Hypervisor NAT (port forwards)</h3>
+              <VmPortForwardPanel
+                platformVmId={platformVmId}
+                vmName={vm.name}
+                guestIp={classicGuestIp}
+                sshUser={classicSshUser}
+                hypervisorAddress={classicHypervisorAddress}
+                onNotify={(m) => toast.success(m)}
+              />
+            </div>
+          ) : null}
           <div className="flex justify-end">
             <button onClick={() => { setNicNetwork(networks[0]?.name || 'default'); setDialog('attach-nic') }} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Add NIC</button>
           </div>
@@ -3094,11 +3162,20 @@ export default function VMDetailsPage() {
       <VmSshConnectDialog
         open={sshDialogOpen}
         vmName={vm.name}
+        platformVmId={platformVmId}
         defaultIp={classicGuestIp}
         defaultUser={classicSshUser}
         detectedIps={classicDetectedIps}
+        hypervisorAddress={classicHypervisorAddress}
+        guestIpPrivate={classicGuestAccess?.guest_ip_private}
+        portForwardRules={classicPortForwards}
+        onRefreshPortForwards={() => {
+          if (!platformVmId) return
+          void listVmPortForwards(platformVmId).then(setClassicPortForwards).catch(() => setClassicPortForwards([]))
+        }}
         onClose={() => setSshDialogOpen(false)}
-        onConnect={(h, u) => navigateVmSshSession(vm.name, h, u)}
+        onConnect={(h, u, p) => navigateVmSshSession(vm.name, h, u, platformVmId, p)}
+        onNotify={(m) => toast.success(m)}
       />
 
       {kubevirtOpen && kubevirtBundle && (

@@ -87,6 +87,10 @@ import {
   getVmGuestServices,
   diagnoseVm,
   getVmTopology,
+  getConsoleHubPlan,
+  listVmPortForwards,
+  type VmPortForwardRule,
+  type ConsoleHubPlan,
   type TopologyGraph,
   type VmGuestHealthReport,
   type GuestAiInsightsReport,
@@ -246,6 +250,8 @@ export default function PlatformVmDetail() {
   const [vmDiagnoseLoading, setVmDiagnoseLoading] = useState(false)
   const [migrations, setMigrations] = useState<VmMigrationRecord[]>([])
   const [sshDialogOpen, setSshDialogOpen] = useState(false)
+  const [portForwardRules, setPortForwardRules] = useState<VmPortForwardRule[]>([])
+  const [consolePlan, setConsolePlan] = useState<ConsoleHubPlan | null>(null)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -322,6 +328,43 @@ export default function PlatformVmDetail() {
 
   useEffect(() => { void runHealth() }, [runHealth])
   useEffect(() => { void runDoctor() }, [runDoctor])
+
+  const loadPortForwards = useCallback(async () => {
+    if (!id) return
+    try {
+      const [rules, plan] = await Promise.all([
+        listVmPortForwards(id),
+        getConsoleHubPlan(id).catch(() => null),
+      ])
+      setPortForwardRules(rules)
+      if (plan) setConsolePlan(plan)
+    } catch {
+      setPortForwardRules([])
+    }
+  }, [id])
+
+  const loadConsolePlan = useCallback(async () => {
+    if (!id) return
+    try {
+      setConsolePlan(await getConsoleHubPlan(id))
+    } catch {
+      setConsolePlan(null)
+    }
+  }, [id])
+
+  useEffect(() => {
+    if (!id || vm?.inventory_source === 'kubevirt') return
+    void loadConsolePlan()
+  }, [id, vm?.inventory_source, loadConsolePlan])
+
+  useEffect(() => {
+    const ip = guestHealth?.guest_ip?.trim() || health?.guest_ip?.trim() || vm?.guest_ip?.trim() || ''
+    if (!id || !ip || vm?.inventory_source === 'kubevirt') {
+      setPortForwardRules([])
+      return
+    }
+    void loadPortForwards()
+  }, [id, guestHealth?.guest_ip, health?.guest_ip, vm?.guest_ip, vm?.inventory_source, loadPortForwards])
 
   useEffect(() => {
     if (!id || tab !== 'events') return
@@ -620,6 +663,8 @@ export default function PlatformVmDetail() {
     return ci?.user?.trim() || loadVmSshPrefs(vm?.name ?? '')?.user || 'root'
   })()
   const guestIp = resolvedGuestIp
+  const hypervisorAddress = hostRow?.address?.trim() || undefined
+  const guestAccess = consolePlan?.guest_access ?? null
 
   const natForwardHref = guestIp
     ? `/host-networking?tab=portforward&vm_ip=${encodeURIComponent(guestIp)}&vm_port=22`
@@ -919,6 +964,10 @@ export default function PlatformVmDetail() {
               consoleHref={`/platform/vms/${id}/consolehub`}
               specJson={specJson}
               platformVmId={id}
+              hypervisorAddress={hypervisorAddress}
+              guestAccess={guestAccess}
+              portForwardRules={portForwardRules}
+              onRefreshPortForwards={() => void loadPortForwards()}
               guestIpWaiting={vm.observed_state === 'running' && !guestIp}
               guestIpHint={guestHealth?.issues?.[0]}
               onRefreshGuestIp={() => void loadGuestHealth()}
@@ -1131,11 +1180,17 @@ export default function PlatformVmDetail() {
           <VmSshConnectDialog
             open={sshDialogOpen}
             vmName={vm.name}
+            platformVmId={id}
             defaultIp={guestIp}
             defaultUser={sshUser}
             detectedIps={guestIp ? [guestIp] : []}
+            hypervisorAddress={hypervisorAddress}
+            guestIpPrivate={guestAccess?.guest_ip_private}
+            portForwardRules={portForwardRules}
+            onRefreshPortForwards={() => void loadPortForwards()}
             onClose={() => setSshDialogOpen(false)}
-            onConnect={(h, u) => navigateVmSshSession(vm.name, h, u, id)}
+            onConnect={(h, u, p) => navigateVmSshSession(vm.name, h, u, id, p)}
+            onNotify={(m) => toast.success(m)}
           />
 
           {tab === 'doctor' && (
@@ -1483,6 +1538,7 @@ export default function PlatformVmDetail() {
                   vmName={vm.name}
                   guestIp={guestIp}
                   sshUser={sshUser}
+                  hypervisorAddress={hypervisorAddress}
                   onNotify={(msg) => toast.success(msg)}
                 />
               </MacGlassPanel>

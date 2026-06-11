@@ -12,6 +12,7 @@ use rand::RngCore;
 pub struct PendingSession {
     pub host: String,
     pub ssh_user: String,
+    pub ssh_port: u16,
     pub created_by: String,
     pub created_at: Instant,
 }
@@ -40,6 +41,7 @@ impl TerminalSessionStore {
         &self,
         host: String,
         ssh_user: String,
+        ssh_port: u16,
         created_by: String,
         ttl: Duration,
     ) -> String {
@@ -55,6 +57,7 @@ impl TerminalSessionStore {
             PendingSession {
                 host,
                 ssh_user,
+                ssh_port,
                 created_by,
                 created_at: Instant::now(),
             },
