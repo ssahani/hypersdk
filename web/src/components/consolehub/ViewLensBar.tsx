@@ -1,5 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
+import { consoleAccessHints, type GuestAccessHints } from '../../utils/guestAccessHints'
 import {
   Activity,
   Bot,
@@ -39,6 +40,10 @@ type Props = {
   onProtocolChange?: (protocol: string) => void
   /** Agent recommendation (novnc | serial) — Cockpit-style guidance. */
   recommended?: string
+  osHint?: string
+  guestAccess?: GuestAccessHints | null
+  sshUser?: string
+  guestIp?: string
 }
 
 export default function ViewLensBar({
@@ -48,13 +53,29 @@ export default function ViewLensBar({
   activeProtocol,
   onProtocolChange,
   recommended,
+  osHint,
+  guestAccess,
+  sshUser,
+  guestIp,
 }: Props) {
+  const serialAvailable = displayProtocols.includes('serial')
+  const accessHints = consoleAccessHints(guestAccess, active, {
+    sshUser,
+    guestIp,
+    hypervisorHost: typeof window !== 'undefined' ? window.location.hostname : undefined,
+  })
   const cockpitHint =
     recommended === 'serial' && active !== 'serial'
       ? 'Linux cloud images boot on Serial — switch to Serial for login output.'
-      : recommended === 'novnc' && active === 'serial'
-        ? 'Graphical desktop guest — use Display (VNC) for the GUI.'
-        : null
+      : active === 'display'
+        && activeProtocol === 'novnc'
+        && serialAvailable
+        && osHint === 'linux'
+        && recommended !== 'novnc'
+        ? 'Blank display? Cloud/server VMs log in on Serial — switch to the Serial lens.'
+        : recommended === 'novnc' && active === 'serial'
+          ? 'Graphical desktop guest — use Display (VNC) for the GUI.'
+          : null
 
   return (
     <div className="flex flex-col gap-2 shrink-0">
@@ -99,6 +120,9 @@ export default function ViewLensBar({
       {cockpitHint ? (
         <p className="text-xs text-amber-300/90 pl-1">{cockpitHint}</p>
       ) : null}
+      {accessHints.map((hint) => (
+        <p key={hint} className="text-xs text-amber-300/90 pl-1">{hint}</p>
+      ))}
     </div>
   )
 }

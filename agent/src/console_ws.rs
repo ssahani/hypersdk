@@ -210,6 +210,9 @@ async fn handle_serial(socket: WebSocket, name: String, libvirt: Arc<Mutex<Libvi
     };
 
     let (mut pty_read, mut pty_write) = tokio::io::split(pty_file);
+    // Wake idle getty/login prompts so the first browser frame is not a blank canvas.
+    let _ = pty_write.write_all(b"\r").await;
+
     let (mut ws_sink, mut ws_stream) = socket.split();
 
     let read_task = tokio::spawn(async move {

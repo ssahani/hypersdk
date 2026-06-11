@@ -1713,6 +1713,66 @@ fn resolve_console_pty(xml: &str) -> Option<String> {
         })
 }
 
+fn linux_cloud_serial_preferred(xml_lower: &str, os_hint: &str, desktop_golden: bool) -> bool {
+    if os_hint != "linux" || desktop_golden {
+        return false;
+    }
+    xml_lower.contains("cloudimg")
+        || xml_lower.contains("server-cloudimg")
+        || xml_lower.contains("-server-")
+        || xml_lower.contains("genericcloud")
+        || xml_lower.contains("cloud-init")
+        || xml_lower.contains("cloudinit")
+        || (xml_lower.contains("ubuntu") && xml_lower.contains(".qcow2"))
+}
+
+fn cloud_init_iso_path_from_xml(xml: &str) -> Option<String> {
+    for block in machina_core::xml::split_blocks(xml, "disk") {
+        let lower = block.to_lowercase();
+        if !lower.contains("cloud-init") && !lower.contains("cloudinit") && !lower.contains("cidata") {
+            continue;
+        }
+        if let Some(path) = machina_core::xml::extract_attr(&block, "source", "file") {
+            if !path.is_empty() {
+                return Some(path);
+            }
+        }
+    }
+    None
+}
+
+fn sniff_cloud_config_from_iso(iso_path: &str) -> Option<String> {
+    let data = std::fs::read(iso_path).ok()?;
+    let text = String::from_utf8_lossy(&data);
+    let start = text.find("#cloud-config")?;
+    let tail = &text[start..];
+    let end = tail.find('\0').unwrap_or(tail.len().min(16_384));
+    Some(tail[..end].to_string())
+}
+
+fn infer_guest_auth_mode(user_data: &str) -> &'static str {
+    let has_key = user_data.contains("ssh_authorized_keys");
+    let has_pw = user_data.contains("chpasswd:")
+        || user_data.contains("plain_text_passwd")
+        || (user_data.contains("passwd:") && user_data.contains("lock_passwd: false"));
+    match (has_key, has_pw) {
+        (true, true) => "both",
+        (true, false) => "ssh_key",
+        (false, true) => "password",
+        _ => "unknown",
+    }
+}
+
+fn guest_auth_mode_from_domain_xml(xml: &str) -> String {
+    let Some(iso) = cloud_init_iso_path_from_xml(xml) else {
+        return "unknown".into();
+    };
+    let Some(user_data) = sniff_cloud_config_from_iso(&iso) else {
+        return "unknown".into();
+    };
+    infer_guest_auth_mode(&user_data).into()
+}
+
 fn build_console_access_plan(
     libvirt: &Arc<std::sync::Mutex<libvirt_ops::LibvirtCtx>>,
     vm_name: &str,
@@ -1773,24 +1833,20 @@ fn build_console_access_plan(
     let desktop_golden = xml_lower.contains("ubuntu-24.04-desktop")
         || xml_lower.contains("-desktop.qcow2")
         || xml_lower.contains("ubuntu-desktop");
-    let server_cloud_linux = os_hint == "linux"
-        && !desktop_golden
-        && (xml_lower.contains("cloudimg")
-            || xml_lower.contains("server-cloudimg")
-            || xml_lower.contains("-server-")
-            || xml_lower.contains("genericcloud"));
+    let server_cloud_linux = linux_cloud_serial_preferred(&xml_lower, &os_hint, desktop_golden);
+    let serial_available = resolve_console_pty(&xml).is_some();
 
     let recommended = if os_hint == "windows" && !guest_ip.is_empty() && guac_up {
         "guacamole_rdp".into()
-    } else if desktop_golden || (os_hint == "linux" && console_type == "vnc" && vnc_port > 0 && !server_cloud_linux) {
-        "novnc".into()
-    } else if server_cloud_linux {
+    } else if server_cloud_linux && serial_available {
         "serial".into()
+    } else if desktop_golden {
+        "novnc".into()
     } else if console_type == "vnc" && vnc_port > 0 {
         "novnc".into()
     } else if !guest_ip.is_empty() && guac_up {
         "guacamole_ssh".into()
-    } else if resolve_console_pty(&xml).is_some() {
+    } else if serial_available {
         "serial".into()
     } else {
         "novnc".into()
@@ -1808,5 +1864,48 @@ fn build_console_access_plan(
         os_hint,
         guacamole_available: guac_up,
         guacamole_protocols: protocols,
+        guest_auth_mode: guest_auth_mode_from_domain_xml(&xml),
     })
+}
+
+#[cfg(test)]
+mod console_plan_tests {
+    use super::{infer_guest_auth_mode, linux_cloud_serial_preferred};
+
+    #[test]
+    fn ubuntu_cloud_init_iso_prefers_serial() {
+        let xml = r#"
+            <source file='/var/lib/libvirt/images/ubuntu-cloud-init.iso'/>
+            <source file='/var/lib/libvirt/images/ubuntu.qcow2'/>
+        "#;
+        assert!(linux_cloud_serial_preferred(&xml.to_lowercase(), "linux", false));
+    }
+
+    #[test]
+    fn desktop_golden_does_not_prefer_serial() {
+        let xml = r#"<source file='/var/lib/libvirt/images/ubuntu-24.04-desktop-amd64.qcow2'/>"#;
+        assert!(!linux_cloud_serial_preferred(&xml.to_lowercase(), "linux", true));
+    }
+
+    #[test]
+    fn cloud_init_user_data_ssh_key_only() {
+        let user_data = r#"#cloud-config
+users:
+  - name: ubuntu
+    ssh_authorized_keys:
+      - ssh-ed25519 AAA test
+"#;
+        assert_eq!(infer_guest_auth_mode(user_data), "ssh_key");
+    }
+
+    #[test]
+    fn cloud_init_user_data_password_only() {
+        let user_data = r#"#cloud-config
+chpasswd:
+  list: |
+    ubuntu:secret
+  expire: false
+"#;
+        assert_eq!(infer_guest_auth_mode(user_data), "password");
+    }
 }

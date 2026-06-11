@@ -18,6 +18,7 @@ import type { ConsoleHubSessionRow } from './ConsoleHubSessionHistory'
 import type { VmTimelineEntry } from '../../api/platformVmTimeline'
 import { recipeForError, type ConsoleRecipe } from '../../data/consoleRecipes'
 import ConsoleHubSession from './ConsoleHubSession'
+import GuestAccessBanner from './GuestAccessBanner'
 import { sendGuestKey } from '../../api/vm'
 import { useToastContext } from '../../contexts/ToastContext'
 
@@ -167,7 +168,17 @@ function CockpitInner({
       )
     }
     return (
-      <ConsoleHubSession
+      <div className="flex flex-col flex-1 min-h-0 w-full gap-2">
+        {(activeProtocol === 'serial' || activeProtocol === 'native_ssh') && (
+          <GuestAccessBanner
+            hints={plan?.guest_access}
+            lens={activeProtocol === 'serial' ? 'serial' : 'shell'}
+            sshUser={plan?.ssh_user ?? undefined}
+            guestIp={plan?.guest_ip ?? undefined}
+            vmId={vmId}
+          />
+        )}
+        <ConsoleHubSession
         key={`${activeProtocol}-${wsUrl ?? 'none'}-${connectKey}`}
         protocol={activeProtocol}
         vmName={vmName}
@@ -182,6 +193,7 @@ function CockpitInner({
         onReconnect={onReconnect}
         connectKey={connectKey}
       />
+      </div>
     )
   })()
 
@@ -220,6 +232,10 @@ function CockpitInner({
         activeProtocol={activeProtocol}
         onProtocolChange={onProtocolChange}
         recommended={plan?.recommended}
+        osHint={plan?.os_hint}
+        guestAccess={plan?.guest_access}
+        sshUser={plan?.ssh_user ?? undefined}
+        guestIp={plan?.guest_ip ?? undefined}
       />
       <MachineCanvas vmState={vmState} healthScore={healthScore} theatre={theatre} className="flex-1">
         {loading ? (

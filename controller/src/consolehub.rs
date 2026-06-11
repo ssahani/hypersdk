@@ -17,6 +17,7 @@ use futures_util::{SinkExt, StreamExt};
 use libvirt_guac_bridge::{bridge_from_plan, GuacBridgeTarget, GuacamoleBridgeParams};
 use serde::{Deserialize, Serialize};
 use sqlx::types::Json as SqlxJson;
+use machina_spec::VirtualMachine;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
@@ -44,6 +45,15 @@ struct LiveConsoleSession {
 }
 
 #[derive(Debug, Serialize)]
+pub struct GuestAccessHints {
+    /// ssh_key | password | both | unknown
+    pub auth_mode: String,
+    pub serial_password_login: bool,
+    pub guest_ip_private: bool,
+    pub ssh_nat_host_port: Option<u16>,
+}
+
+#[derive(Debug, Serialize)]
 pub struct ConsoleHubPlan {
     pub vm_id: String,
     pub vm_name: String,
@@ -55,6 +65,7 @@ pub struct ConsoleHubPlan {
     pub os_hint: String,
     pub protocols: Vec<String>,
     pub webrtc_spice_available: bool,
+    pub guest_access: GuestAccessHints,
 }
 
 #[derive(Debug, Serialize)]
@@ -191,6 +202,7 @@ fn kubevirt_plan(vm_id: Uuid, vm_name: &str, namespace: &str, ws_token: &str) ->
         os_hint: "kubevirt".into(),
         protocols: vec!["novnc".into()],
         webrtc_spice_available: false,
+        guest_access: empty_guest_access(),
     }
 }
 
@@ -256,11 +268,91 @@ async fn host_guacamole_config(
     (base_url, secret_hex, enabled)
 }
 
+fn empty_guest_access() -> GuestAccessHints {
+    GuestAccessHints {
+        auth_mode: "unknown".into(),
+        serial_password_login: true,
+        guest_ip_private: false,
+        ssh_nat_host_port: None,
+    }
+}
+
+fn is_private_guest_ip(ip: &str) -> bool {
+    let Ok(addr) = ip.trim().parse::<std::net::Ipv4Addr>() else {
+        return false;
+    };
+    let o = addr.octets();
+    o[0] == 10
+        || (o[0] == 172 && (16..=31).contains(&o[1]))
+        || (o[0] == 192 && o[1] == 168)
+        || (o[0] == 169 && o[1] == 254)
+}
+
+fn auth_mode_from_spec(vm: &VirtualMachine) -> Option<String> {
+    let ci = vm.spec.cloud_init.as_ref()?;
+    let has_pw = ci.password.as_ref().is_some_and(|p| !p.is_empty());
+    let has_key = ci.ssh_pubkey.as_ref().is_some_and(|k| !k.is_empty());
+    Some(match (has_key, has_pw) {
+        (true, true) => "both".into(),
+        (true, false) => "ssh_key".into(),
+        (false, true) => "password".into(),
+        _ => "unknown".into(),
+    })
+}
+
+fn serial_password_login(auth_mode: &str) -> bool {
+    matches!(auth_mode, "password" | "both" | "unknown")
+}
+
+async fn build_guest_access_hints(
+    pool: &sqlx::PgPool,
+    host_id: Uuid,
+    agent: &machina_agent::pb::GetConsoleAccessPlanResponse,
+    spec_vm: Option<&VirtualMachine>,
+) -> GuestAccessHints {
+    let mut auth_mode = if agent.guest_auth_mode.is_empty() {
+        "unknown".into()
+    } else {
+        agent.guest_auth_mode.clone()
+    };
+    if auth_mode == "unknown" {
+        if let Some(vm) = spec_vm {
+            if let Some(from_spec) = auth_mode_from_spec(vm) {
+                auth_mode = from_spec;
+            }
+        }
+    }
+    let guest_ip = agent.guest_ip.trim();
+    let guest_ip_private = is_private_guest_ip(guest_ip);
+    let mut ssh_nat_host_port = None;
+    if !guest_ip.is_empty() {
+        if let Ok(agent_addr) = host_agent_grpc(pool, host_id).await {
+            if let Ok(rules) = agent_client::list_port_forwards(&agent_addr).await {
+                ssh_nat_host_port = rules
+                    .iter()
+                    .find(|r| {
+                        r.protocol.eq_ignore_ascii_case("tcp")
+                            && r.vm_ip == guest_ip
+                            && r.vm_port == 22
+                    })
+                    .map(|r| r.host_port);
+            }
+        }
+    }
+    GuestAccessHints {
+        auth_mode: auth_mode.clone(),
+        serial_password_login: serial_password_login(&auth_mode),
+        guest_ip_private,
+        ssh_nat_host_port,
+    }
+}
+
 fn plan_from_agent(
     vm_id: Uuid,
     vm_name: &str,
     agent: &machina_agent::pb::GetConsoleAccessPlanResponse,
     ws_token: &str,
+    guest_access: GuestAccessHints,
 ) -> ConsoleHubPlan {
     let recommended = if agent.recommended.is_empty() {
         "novnc".into()
@@ -298,6 +390,7 @@ fn plan_from_agent(
         },
         protocols: build_protocol_list(agent),
         webrtc_spice_available: agent.console_type == "spice",
+        guest_access,
     }
 }
 
@@ -333,8 +426,17 @@ pub async fn consolehub_plan(
     let agent_plan = agent_client::get_console_access_plan(&mut client, &vm_name)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
+    let spec_vm: Option<VirtualMachine> = sqlx::query_scalar("SELECT spec_json FROM vms WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.pool)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|v| serde_json::from_value(v).ok());
+    let guest_access =
+        build_guest_access_hints(&state.pool, host_id, &agent_plan, spec_vm.as_ref()).await;
     let ws_token = state.ws_tokens.issue(id).await;
-    let mut plan = plan_from_agent(id, &vm_name, &agent_plan, &ws_token);
+    let mut plan = plan_from_agent(id, &vm_name, &agent_plan, &ws_token, guest_access);
     let (_, _, guac_enabled) = host_guacamole_config(&state.pool, host_id, &state.config).await;
     if !guac_enabled {
         plan.guacamole.available = false;

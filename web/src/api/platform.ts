@@ -350,6 +350,13 @@ export interface PlatformConsoleInfo {
   ws_path: string
 }
 
+export interface GuestAccessHints {
+  auth_mode: string
+  serial_password_login: boolean
+  guest_ip_private: boolean
+  ssh_nat_host_port?: number | null
+}
+
 export interface ConsoleHubPlan {
   vm_id: string
   vm_name: string
@@ -361,6 +368,7 @@ export interface ConsoleHubPlan {
   os_hint: string
   protocols: string[]
   webrtc_spice_available: boolean
+  guest_access?: GuestAccessHints
 }
 
 export interface ConsoleHubSessionResponse {

@@ -1482,6 +1482,7 @@ export default function PlatformVmDetail() {
                   platformVmId={id!}
                   vmName={vm.name}
                   guestIp={guestIp}
+                  sshUser={sshUser}
                   onNotify={(msg) => toast.success(msg)}
                 />
               </MacGlassPanel>

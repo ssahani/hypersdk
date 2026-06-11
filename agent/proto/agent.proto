@@ -240,6 +240,8 @@ message GetConsoleAccessPlanResponse {
   string os_hint = 9;
   bool guacamole_available = 10;
   repeated string guacamole_protocols = 11;
+  /// ssh_key | password | both | unknown — from cloud-init user-data when present.
+  string guest_auth_mode = 12;
 }
 
 message CloneVmRequest {

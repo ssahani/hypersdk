@@ -338,6 +338,12 @@ impl UndefineOptions {
     }
 }
 
+/// True when libvirt rejected undefine because a UEFI NVRAM file is still attached.
+pub fn error_suggests_nvram_undefine(msg: &str) -> bool {
+    let m = msg.to_lowercase();
+    m.contains("nvram") && (m.contains("undefine") || m.contains("cannot remove domain"))
+}
+
 /// Undefine persistent domain XML.
 ///
 /// Always adds safe auto-cleanup base flags so that VMs with snapshot metadata, managed-save
@@ -357,10 +363,18 @@ fn undefine_persistent(domain: &Domain, name: &str, user_flags: u32) -> Result<(
         Ok(()) => Ok(()),
         Err(e) => {
             let first = format!("{e}");
-            if !nvram_requested && first.to_lowercase().contains("nvram") {
-                return Err(LibvirtError::Invalid(format!(
-                    "Libvirt refused to remove this domain (UEFI NVRAM). Enable 'Remove NVRAM / var file' in advanced delete, or call the API with undefine_nvram=true (same as: virsh undefine {name} --nvram). Original error: {first}"
-                )));
+            if !nvram_requested && error_suggests_nvram_undefine(&first) {
+                let nvram_flags = flags | nvram_flag;
+                warn!(
+                    "undefine for VM '{name}' requires NVRAM removal — retrying with VIR_DOMAIN_UNDEFINE_NVRAM"
+                );
+                return domain
+                    .undefine_flags(nvram_flags as sys::virDomainUndefineFlagsValues)
+                    .map_err(|e2| {
+                        LibvirtError::Operation(format!(
+                            "Failed to delete VM '{name}' with NVRAM (first: {first}; nvram retry: {e2})"
+                        ))
+                    });
             }
             warn!(
                 "undefine_flags failed for VM '{name}' (flags={flags:#x}), retrying with base flags only: {first}"
@@ -698,5 +712,13 @@ mod tests {
             ..Default::default()
         };
         assert!(o.to_libvirt_flags().is_err());
+    }
+
+    #[test]
+    fn error_suggests_nvram_undefine_detects_libvirt_message() {
+        assert!(super::error_suggests_nvram_undefine(
+            "cannot undefine domain with nvram"
+        ));
+        assert!(!super::error_suggests_nvram_undefine("disk path mentions nvram-backup"));
     }
 }

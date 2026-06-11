@@ -281,6 +281,7 @@ export default function VmDailyAccessStrip({
                   platformVmId={platformVmId}
                   vmName={vmName}
                   guestIp={ip}
+                  sshUser={sshUser}
                   disabled={disabled}
                   onNotify={notify}
                 />

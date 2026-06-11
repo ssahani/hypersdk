@@ -2799,6 +2799,12 @@ export async function mockPlatformApi(page: Page, opts?: {
           os_hint: 'linux',
           protocols: ['novnc', 'guacamole_ssh', 'guacamole_vnc', 'serial'],
           webrtc_spice_available: false,
+          guest_access: {
+            auth_mode: 'ssh_key',
+            serial_password_login: false,
+            guest_ip_private: true,
+            ssh_nat_host_port: null,
+          },
         },
       })
     }
