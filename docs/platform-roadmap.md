@@ -135,8 +135,19 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 ### Batch 82 deliverables (PacketWolf network canvas depth)
 
 - **Discovery:** `packetwolf_discover.rs` — auto-find PacketWolf API via localhost probes + `kubectl get svc` (LoadBalancer/NodePort); `PACKETWOLF_AUTO_DISCOVER` (default on)
+- **Network Brain API:** `packetwolf/app/network_brain.py` — `/api/v1/network/overview`, `service-map`, `workloads`, `timeline`, `threats`, `top-talkers`, `/api/v1/nodes`
 - **Network canvas API:** `GET /api/v1/network-canvas` merges PacketWolf Network Brain — overview, service-map, workloads, timeline, threats, top-talkers, K8s nodes
-- **UI:** [`/platform/network-canvas`](/platform/network-canvas) — service map grid, connection list, threat pulse, K8s node chips, discovery banner
+- **UI:** [`/platform/network-canvas`](/platform/network-canvas) — SVG service map graph, workloads/timeline panels, threat pulse, K8s node chips, discovery banner
+
+### Batch 84 deliverables (Cockpit parity + globe + KubeVirt CRUD)
+
+- **Compute:** Overview CPU/memory topology modals; Settings tab links to overview (no duplicate resize)
+- **Storage:** Pool volume list/create/delete; libvirt pool destroy on host
+- **Snapshots:** VFIO precheck (single VM + Machine Finder batch); revert/clone action warnings
+- **Networking:** NIC IP on VM network tab; Finder guest-IP batch fallback; libvirt network destroy on host
+- **Overview:** Domain XML inline edit; hypervisor filesystems/processes panel
+- **WebGL globe:** Lazy `three.js` in `InfrastructureEarthGlobe` with canvas fallback
+- **KubeVirt:** Daemon lifecycle routes + K8s Workloads CRUD + platform VM detail actions
 
 ### Batch 81 deliverables (storage + VMware + reports)
 

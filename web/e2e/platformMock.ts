@@ -1980,6 +1980,20 @@ export async function mockPlatformApi(page: Page, opts?: {
         json: { id: 'p2', name: 'datastore-01', path: '/var/lib/libvirt/images', capacity_gib: 500, used_gib: 0, backend: 'directory' },
       })
     }
+    if (url.match(/\/storage\/pools\/[^/]+\/volumes\/[^/?]+/) && route.request().method() === 'DELETE') {
+      return route.fulfill({ json: { deleted: true } })
+    }
+    if (url.match(/\/storage\/pools\/[^/]+\/volumes/) && route.request().method() === 'POST') {
+      return route.fulfill({ json: { task_id: 'task-vol-create-mock', status: 'pending' } })
+    }
+    if (url.match(/\/storage\/pools\/[^/]+\/volumes/)) {
+      return route.fulfill({
+        json: {
+          pool: 'default',
+          volumes: [{ name: 'vol-a', type: 'file', path: '/var/lib/libvirt/images/vol-a.qcow2', capacity_bytes: 10_737_418_240 }],
+        },
+      })
+    }
     if (url.includes('/storage/pools') && !url.includes('/discover')) {
       return route.fulfill({ json: storagePools })
     }
@@ -3005,6 +3019,58 @@ export async function mockPlatformApi(page: Page, opts?: {
     }
     if (url.match(/\/vms\/[^/]+\/migrate/) && route.request().method() === 'POST') {
       return route.fulfill({ json: { task_id: 'task-migrate-abc123def456' } })
+    }
+    if (url.includes('/vms/guest-ips/batch') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          items: {
+            [vmFixture.id]: { guest_ip: '192.168.122.50', nic_ips: ['192.168.122.50', '10.0.0.5'] },
+          },
+        },
+      })
+    }
+    if (url.match(/\/vms\/[^/]+\/pending-config/)) {
+      return route.fulfill({ json: { pending: false, requires_shutdown: false, changes: [] } })
+    }
+    if (url.match(/\/vms\/[^/]+\/libvirt-details/)) {
+      return route.fulfill({
+        json: {
+          interfaces: [{ name: 'vnet0', mac: '52:54:00:12:34:56', ip: '192.168.122.50', type: 'network' }],
+          disks: [{ target: 'vda', source: '/var/lib/libvirt/images/vm-1.qcow2', bus: 'virtio' }],
+        },
+      })
+    }
+    if (url.match(/\/vms\/[^/]+\/libvirt(\?|$)/)) {
+      const action = new URL(url).searchParams.get('action') ?? ''
+      if (action === 'cpu.memory.topology') {
+        return route.fulfill({
+          json: {
+            sockets: 1,
+            cores: 2,
+            threads: 1,
+            vcpus: 2,
+            current_memory_kib: 2_097_152,
+            max_memory_kib: 4_194_304,
+            state: 'running',
+            has_vfio_hostdev: false,
+          },
+        })
+      }
+      if (action === 'snapshot.precheck') {
+        return route.fulfill({ json: { allowed: true, warnings: [], has_vfio: false } })
+      }
+      if (action === 'snapshot.action.precheck') {
+        return route.fulfill({
+          json: {
+            allowed: true,
+            warnings: [],
+            action: new URL(url).searchParams.get('snapshot_action') ?? 'revert',
+          },
+        })
+      }
+      if (route.request().method() === 'POST') {
+        return route.fulfill({ json: { ok: true, task_id: 'task-libvirt-mock' } })
+      }
     }
     if (url.match(/\/vms\/[^/]+(\?|$)/) || url.match(/\/vms\/[^/]+$/)) {
       return route.fulfill({ json: vmFixture })
