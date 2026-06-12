@@ -81,4 +81,21 @@ test.describe('Platform ConsoleHub', () => {
     await expect(page.getByTestId('webrtc-spice-console')).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText(/Performance mode/i)).toBeVisible()
   })
+
+  test('Cinema control strip hides after idle', async ({ page }) => {
+    await page.goto('/platform/vms/v1/consolehub')
+    await expect(page.getByTestId('cinema-control-strip')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('cinema-control-strip')).toHaveAttribute('data-idle', 'false')
+    await page.waitForTimeout(4000)
+    await expect(page.getByTestId('cinema-control-strip')).toHaveAttribute('data-idle', 'true')
+  })
+
+  test('restores saved Studio mode when consolehub URL omits mode', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('machina-console-mode:v1', 'studio')
+    })
+    await page.goto('/platform/vms/v1/consolehub')
+    await expect(page).toHaveURL(/mode=studio/, { timeout: 15_000 })
+    await expect(page.getByTestId('studio-layout')).toBeVisible({ timeout: 15_000 })
+  })
 })

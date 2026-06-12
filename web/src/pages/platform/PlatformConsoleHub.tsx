@@ -27,6 +27,8 @@ import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenter
 import {
   parseConsoleMode,
   cinemaPopoutPath,
+  resolveConsoleMode,
+  saveConsoleModePreference,
   type ConsoleExperienceMode,
 } from '../../utils/consoleExperienceMode'
 import { usePlatformMacDesktop } from '../../components/platform/mac/PlatformMacDesktopContext'
@@ -38,7 +40,7 @@ export default function PlatformConsoleHub() {
   const { id } = useParams<{ id: string }>()
   const protocolFromUrl = new URLSearchParams(location.search).get('protocol')
   const isPopout = isCenterPopoutMode(location.search)
-  const experienceMode = parseConsoleMode(location.search)
+  const experienceMode = resolveConsoleMode(location.search, id)
   const { setCinemaChromeHidden, setSidebarVisible } = usePlatformMacDesktop()
   const [plan, setPlan] = useState<ConsoleHubPlan | null>(null)
   const [session, setSession] = useState<ConsoleHubSessionResponse | null>(null)
@@ -67,9 +69,21 @@ export default function PlatformConsoleHub() {
     }
   }, [cinemaChrome, setCinemaChromeHidden, setSidebarVisible])
 
+  useEffect(() => {
+    if (!id) return
+    const params = new URLSearchParams(location.search)
+    if (params.has('mode')) return
+    const saved = resolveConsoleMode(location.search, id)
+    if (saved !== 'cinema') {
+      params.set('mode', saved)
+      navigate(`/platform/vms/${id}/consolehub?${params.toString()}`, { replace: true })
+    }
+  }, [id, location.search, navigate])
+
   const setExperienceMode = useCallback(
     (mode: ConsoleExperienceMode) => {
       if (!id) return
+      saveConsoleModePreference(id, mode)
       const params = new URLSearchParams(location.search)
       if (mode === 'cinema') params.delete('mode')
       else params.set('mode', mode)

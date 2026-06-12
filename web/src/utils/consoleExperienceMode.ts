@@ -2,10 +2,41 @@
 
 export type ConsoleExperienceMode = 'cinema' | 'studio' | 'mission'
 
+const MODE_PREF_PREFIX = 'machina-console-mode:'
+
 export function parseConsoleMode(search: string): ConsoleExperienceMode {
   const m = new URLSearchParams(search).get('mode')
   if (m === 'studio' || m === 'mission') return m
   return 'cinema'
+}
+
+/** When URL has no `mode` param, restore the operator's last choice for this VM. */
+export function resolveConsoleMode(search: string, vmId?: string | null): ConsoleExperienceMode {
+  const params = new URLSearchParams(search)
+  if (params.has('mode')) return parseConsoleMode(search)
+  if (vmId) {
+    const saved = loadConsoleModePreference(vmId)
+    if (saved) return saved
+  }
+  return 'cinema'
+}
+
+export function loadConsoleModePreference(vmId: string): ConsoleExperienceMode | null {
+  try {
+    const raw = localStorage.getItem(`${MODE_PREF_PREFIX}${vmId}`)
+    if (raw === 'cinema' || raw === 'studio' || raw === 'mission') return raw
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+export function saveConsoleModePreference(vmId: string, mode: ConsoleExperienceMode): void {
+  try {
+    localStorage.setItem(`${MODE_PREF_PREFIX}${vmId}`, mode)
+  } catch {
+    /* quota */
+  }
 }
 
 export function consoleModeSearchParam(mode: ConsoleExperienceMode): string {

@@ -93,6 +93,7 @@ export default function CinemaControlStrip({
     <div
       className={`absolute bottom-4 left-1/2 -translate-x-1/2 z-30 transition-opacity duration-300 ${show && !idle ? 'opacity-100' : 'opacity-0 pointer-events-none hover:opacity-100 hover:pointer-events-auto'}`}
       data-testid="cinema-control-strip"
+      data-idle={idle ? 'true' : 'false'}
     >
       <div className="flex flex-wrap items-center justify-center gap-1.5 px-2 py-1.5 rounded-2xl border border-white/10 bg-black/70 backdrop-blur-md shadow-xl">
         <div className="relative" ref={powerRef}>
