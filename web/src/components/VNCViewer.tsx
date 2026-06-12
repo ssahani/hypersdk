@@ -55,7 +55,15 @@ type RfbViewportHandle = {
 function applyViewportMode(
   rfb: { scaleViewport: boolean; clipViewport: boolean },
   scaledFit: boolean,
+  cockpitMode = false,
 ) {
+  if (cockpitMode) {
+    // Cinema Fit/Fill uses CSS scale on a wrapper; clipViewport must stay off or
+    // noVNC measures the transformed rect and clips the framebuffer to ~0.
+    rfb.scaleViewport = false
+    rfb.clipViewport = false
+    return
+  }
   if (scaledFit) {
     rfb.scaleViewport = true
     rfb.clipViewport = false
@@ -103,10 +111,15 @@ function refreshRfbViewport(
   rfb: RfbViewportHandle & { _fbWidth?: number; _fbHeight?: number },
   scaledFit: boolean,
   scrollEl?: HTMLElement | null,
+  cockpitMode = false,
 ) {
-  syncContainerLayoutForFit(scrollEl ?? null, rfb._target ?? null, scaledFit)
-  applyViewportMode(rfb, scaledFit)
+  syncContainerLayoutForFit(scrollEl ?? null, rfb._target ?? null, cockpitMode ? false : scaledFit)
+  applyViewportMode(rfb, scaledFit, cockpitMode)
   rfb._updateClip?.()
+  if (cockpitMode) {
+    rfb._updateScale?.()
+    return
+  }
   const box = viewportBox(scrollEl, rfb._target ?? null)
   if (scaledFit && fbReady(rfb) && box.w > 0 && box.h > 0 && rfb._display?.autoscale) {
     rfb._display.autoscale(box.w, box.h)
@@ -129,6 +142,24 @@ function scheduleFitViewportRefresh(
     if (!scaledFit) return
     const box = viewportBox(scrollEl, rfb._target ?? null)
     if ((!fbReady(rfb) || box.w <= 0 || box.h <= 0) && attempts < 120) {
+      attempts += 1
+      requestAnimationFrame(tick)
+    }
+  }
+  requestAnimationFrame(tick)
+}
+
+/** Retry native viewport setup until the guest framebuffer exists (Cinema first paint). */
+function scheduleCockpitViewportRefresh(
+  rfb: RfbViewportHandle & { _fbWidth?: number; _fbHeight?: number },
+  scrollEl: HTMLElement | null | undefined,
+  isCancelled: () => boolean,
+) {
+  let attempts = 0
+  const tick = () => {
+    if (isCancelled()) return
+    refreshRfbViewport(rfb, false, scrollEl, true)
+    if (!fbReady(rfb) && attempts < 120) {
       attempts += 1
       requestAnimationFrame(tick)
     }
@@ -179,6 +210,7 @@ export default function VNCViewer({
   const [showDotCursor, setShowDotCursor] = useState(true)
   /** Scaling to fit can blur and sometimes hurts pointer feel; native 1:1 + scroll is sharper/snappier. */
   const [scaledFit, setScaledFit] = useState(cockpitMode ? false : defaultScaledFit)
+  const scaleWrapperRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const rfbRef = useRef<{ disconnect: () => void; sendCtrlAltDel?: () => void; clipboardPasteFrom?: (text: string) => void; showDotCursor: boolean; clipViewport?: boolean; scaleViewport?: boolean; addEventListener?: (type: string, fn: (e: Event) => void) => void; removeEventListener?: (type: string, fn: (e: Event) => void) => void } | null>(null)
   const clip = useConsoleClipboardOptional()
@@ -247,7 +279,7 @@ export default function VNCViewer({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         rfb: any,
       ) => {
-        refreshRfbViewport(rfb, scaledFitRef.current, scrollRef.current)
+        refreshRfbViewport(rfb, scaledFitRef.current, scrollRef.current, cockpitMode)
         rfb.resizeSession = false
         rfb.focusOnClick = true
         rfb.showDotCursor = showDotCursorRef.current
@@ -257,7 +289,11 @@ export default function VNCViewer({
             setStatus('connected')
             vp?.setConnected(true)
             syncGuestSize(rfb)
-            scheduleFitViewportRefresh(rfb, scaledFitRef.current, scrollRef.current, () => cancelled)
+            if (cockpitMode) {
+              scheduleCockpitViewportRefresh(rfb, scrollRef.current, () => cancelled)
+            } else {
+              scheduleFitViewportRefresh(rfb, scaledFitRef.current, scrollRef.current, () => cancelled)
+            }
             const canvas = containerRef.current?.querySelector('canvas')
             onCanvasReady?.(canvas as HTMLCanvasElement | null)
             const clipCtx = clipRef.current
@@ -278,7 +314,7 @@ export default function VNCViewer({
             setTimeout(() => {
               if (!cancelled) {
                 syncGuestSize(rfb)
-                refreshRfbViewport(rfb, scaledFitRef.current, scrollRef.current)
+                refreshRfbViewport(rfb, scaledFitRef.current, scrollRef.current, cockpitMode)
               }
             }, 250)
           }
@@ -300,11 +336,11 @@ export default function VNCViewer({
         })
         rfb.addEventListener('desktopname', () => {
           syncGuestSize(rfb)
-          refreshRfbViewport(rfb, scaledFitRef.current, scrollRef.current)
+          refreshRfbViewport(rfb, scaledFitRef.current, scrollRef.current, cockpitMode)
         })
         rfb.addEventListener('resize', () => {
           syncGuestSize(rfb)
-          refreshRfbViewport(rfb, scaledFitRef.current, scrollRef.current)
+          refreshRfbViewport(rfb, scaledFitRef.current, scrollRef.current, cockpitMode)
         })
         rfb.addEventListener('credentialsrequired', () => {
           rfb.sendCredentials({ password: '' })
@@ -370,7 +406,12 @@ export default function VNCViewer({
   useEffect(() => {
     const rfb = rfbRef.current
     if (!rfb || status !== 'connected') return
-    refreshRfbViewport(rfb as RfbViewportHandle, rfbScaledFit(cockpitMode, scaledFit), scrollRef.current)
+    refreshRfbViewport(
+      rfb as RfbViewportHandle,
+      rfbScaledFit(cockpitMode, scaledFit),
+      scrollRef.current,
+      cockpitMode,
+    )
   }, [scaledFit, status, cockpitMode])
 
   useEffect(() => {
@@ -395,7 +436,7 @@ export default function VNCViewer({
         vp.setViewportSize(el.clientWidth, el.clientHeight)
         const rfb = rfbRef.current
         if (rfb && status === 'connected' && el.clientWidth > 0 && el.clientHeight > 0) {
-          refreshRfbViewport(rfb as RfbViewportHandle, false, el)
+          refreshRfbViewport(rfb as RfbViewportHandle, false, el, true)
         }
       })
     })
@@ -406,6 +447,23 @@ export default function VNCViewer({
       ro.disconnect()
     }
   }, [cockpitMode, vp, status])
+
+  useEffect(() => {
+    if (!cockpitMode || !vp) return
+    const rfb = rfbRef.current
+    if (!rfb || status !== 'connected') return
+    refreshRfbViewport(rfb as RfbViewportHandle, false, scrollRef.current, true)
+  }, [
+    cockpitMode,
+    status,
+    vp?.mode,
+    vp?.zoom,
+    vp?.guestWidth,
+    vp?.guestHeight,
+    vp?.viewportWidth,
+    vp?.viewportHeight,
+    vp,
+  ])
 
   useEffect(() => {
     if (!cockpitMode || !vp || !scrollRef.current) return
@@ -551,13 +609,18 @@ export default function VNCViewer({
         }}
       >
         <div
-          ref={containerRef}
-          className={`inline-block min-w-full min-h-full ${cockpitMode && vp?.mode === 'stretch' ? 'w-full h-full [&_canvas]:!w-full [&_canvas]:!h-full' : ''}`}
+          ref={scaleWrapperRef}
+          className="inline-block min-w-full min-h-full"
           style={{
             transform: cockpitTransform,
             transformOrigin: 'top left',
           }}
-        />
+        >
+          <div
+            ref={containerRef}
+            className={cockpitMode && vp?.mode === 'stretch' ? 'w-full h-full [&_canvas]:!w-full [&_canvas]:!h-full' : ''}
+          />
+        </div>
         {cockpitMode && status === 'connected' ? (
           <p className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 max-w-md text-center text-xs text-slate-400 bg-black/70 border border-white/10 rounded-lg px-3 py-2 pointer-events-none">
             Blank display? Linux cloud images often log to <strong className="text-slate-200">Serial</strong> only — use Serial or SSH in the dock. Click the canvas, then try <strong className="text-slate-200">Native</strong> or <strong className="text-slate-200">Ctrl+Alt+Del</strong>.
