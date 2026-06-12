@@ -77,6 +77,7 @@ When `CONSOLEHUB_RECORDING_ENABLED=1` on the controller:
 - **Break-glass** in Ops Shelf starts a mandatory audited + recorded session (`POST .../consolehub/break-glass`)
 - **Spectator links**: `/platform/vms/:id/consolehub?spectator={token}&session={sessionId}` — read-only view with watermark (validated via `GET /api/v1/consolehub/spectator/validate`)
 - **Share view** (collaborative console): Cinema control strip **Share** button or Ops Shelf → `POST /api/v1/vms/{id}/consolehub/collaborate` mints a time-limited read-only link for teammates
+- **Session replay**: when recording is enabled, Cinema captures the VNC canvas to `.webm` on exit; Ops Shelf session history shows **replay** when `GET /api/v1/consolehub/sessions/{id}/replay` is available (`CONSOLEHUB_RECORDING_DIR`, default `/var/lib/machina/console-recordings`)
 
 RBAC from the console plan (`permissions` on `/consolehub/plan`):
 
@@ -87,4 +88,4 @@ RBAC from the console plan (`permissions` on `/consolehub/plan`):
 
 ## Deferred (later enterprise)
 
-SPICE audio, multi-monitor, clipboard/file transfer to guest, full session replay storage (`recording_path` playback).
+SPICE audio, multi-monitor, clipboard/file transfer to guest.

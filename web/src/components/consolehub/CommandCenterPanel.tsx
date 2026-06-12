@@ -39,6 +39,7 @@ type Props = {
   canBreakGlass?: boolean
   shareLink?: string | null
   onShareView?: () => void
+  onOpenReplay?: (sessionId: string) => void | Promise<void>
 }
 
 const TABS: CommandCenterTab[] = ['Overview', 'Health', 'Events', 'AI']
@@ -65,6 +66,7 @@ export default function CommandCenterPanel({
   canBreakGlass = false,
   shareLink = null,
   onShareView,
+  onOpenReplay,
 }: Props) {
   const toast = useToastContext()
   const [doctor, setDoctor] = useState<VmDoctorReport | null>(null)
@@ -143,7 +145,7 @@ export default function CommandCenterPanel({
                   />
                 </div>
               ) : null}
-              <ConsoleHubSessionHistory sessions={sessions} />
+              <ConsoleHubSessionHistory sessions={sessions} onOpenReplay={onOpenReplay} />
               {onShareView ? (
                 <div className="rounded-lg border border-sky-500/30 bg-sky-950/20 p-3 space-y-2" data-testid="ops-shelf-collaborate">
                   <p className="text-xs font-medium text-sky-100">Share read-only view</p>

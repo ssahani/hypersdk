@@ -8,11 +8,14 @@ export type ConsoleHubSessionRow = {
   started_at: string
   ended_at?: string | null
   recording_enabled?: boolean
+  recording_path?: string | null
+  replay_available?: boolean
 }
 
 type Props = {
   sessions: ConsoleHubSessionRow[]
   loading?: boolean
+  onOpenReplay?: (sessionId: string) => void | Promise<void>
 }
 
 function fmtTime(iso: string): string {
@@ -23,7 +26,7 @@ function fmtTime(iso: string): string {
   }
 }
 
-export default function ConsoleHubSessionHistory({ sessions, loading }: Props) {
+export default function ConsoleHubSessionHistory({ sessions, loading, onOpenReplay }: Props) {
   if (loading) {
     return (
       <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 p-3 text-xs text-slate-500" data-testid="consolehub-session-history">
@@ -52,6 +55,18 @@ export default function ConsoleHubSessionHistory({ sessions, loading }: Props) {
             <span className="text-slate-500">{s.backend}</span>
             <span className="text-slate-500">{fmtTime(s.started_at)}</span>
             {s.recording_enabled ? <span className="text-red-300/90">rec</span> : null}
+            {s.replay_available && onOpenReplay ? (
+              <button
+                type="button"
+                className="text-sky-300 hover:text-sky-200"
+                data-testid={`consolehub-replay-${s.session_id.slice(0, 8)}`}
+                onClick={() => void onOpenReplay(s.session_id)}
+              >
+                replay
+              </button>
+            ) : s.recording_enabled && s.ended_at ? (
+              <span className="text-slate-500">replay pending</span>
+            ) : null}
             {s.ended_at ? <span className="text-emerald-400/80">ended</span> : <span className="text-amber-400/80">active</span>}
           </li>
         ))}

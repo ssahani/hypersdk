@@ -434,6 +434,33 @@ export const validateConsoleSpectator = (sessionId: string, token: string) =>
 export const endConsoleHubSession = (sessionId: string) =>
   platformFetch<{ ended: boolean }>(`/api/v1/consolehub/sessions/${sessionId}/end`, { method: 'POST' })
 
+export const uploadConsoleSessionReplay = async (sessionId: string, blob: Blob) => {
+  const base = getControllerBase()
+  const url = resolvePlatformApiUrl(`/api/v1/consolehub/sessions/${sessionId}/replay`, base)
+  const headers = platformHeaders()
+  headers.delete('Content-Type')
+  headers.set('Content-Type', blob.type || 'video/webm')
+  const res = await fetch(url, { method: 'PUT', body: blob, credentials: 'same-origin', headers })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(body || `Upload failed (${res.status})`)
+  }
+  return res.json() as Promise<{ uploaded: boolean; bytes: number }>
+}
+
+export const consoleSessionReplayUrl = (sessionId: string) =>
+  resolvePlatformApiUrl(`/api/v1/consolehub/sessions/${sessionId}/replay`)
+
+export const fetchConsoleSessionReplay = async (sessionId: string) => {
+  const url = consoleSessionReplayUrl(sessionId)
+  const res = await fetch(url, { credentials: 'same-origin', headers: platformHeaders() })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(body || `Replay unavailable (${res.status})`)
+  }
+  return res.blob()
+}
+
 export const requestConsoleAccess = (vmId: string, body: { protocol: string; reason?: string }) =>
   platformFetch<{ request_id: string; status: string }>(`/api/v1/vms/${vmId}/consolehub/access-requests`, {
     method: 'POST',
@@ -441,7 +468,17 @@ export const requestConsoleAccess = (vmId: string, body: { protocol: string; rea
   })
 
 export const listConsoleHubSessions = (vmId: string) =>
-  platformFetch<Array<{ session_id: string; actor: string; protocol: string; backend: string; started_at: string; ended_at?: string | null }>>(
+  platformFetch<Array<{
+    session_id: string
+    actor: string
+    protocol: string
+    backend: string
+    started_at: string
+    ended_at?: string | null
+    recording_enabled?: boolean
+    recording_path?: string | null
+    replay_available?: boolean
+  }>>(
     `/api/v1/vms/${vmId}/consolehub/sessions`,
   )
 

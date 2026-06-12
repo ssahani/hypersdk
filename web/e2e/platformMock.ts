@@ -552,6 +552,8 @@ const mockConsoleHubSessions = [
     started_at: new Date(Date.now() - 3_600_000).toISOString(),
     ended_at: new Date(Date.now() - 1_800_000).toISOString(),
     recording_enabled: true,
+    recording_path: '/var/lib/machina/console-recordings/00000000-0000-4000-8000-000000000001.webm',
+    replay_available: true,
   },
   {
     session_id: '00000000-0000-4000-8000-000000000002',
@@ -3145,6 +3147,16 @@ export async function mockPlatformApi(page: Page, opts?: {
           spectator_token: token,
         },
       })
+    }
+    if (url.match(/\/consolehub\/sessions\/[^/]+\/replay/) && route.request().method() === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'video/webm',
+        body: Buffer.from([0x1a, 0x45, 0xdf, 0xa3]),
+      })
+    }
+    if (url.match(/\/consolehub\/sessions\/[^/]+\/replay/) && route.request().method() === 'PUT') {
+      return route.fulfill({ json: { uploaded: true, bytes: 4 } })
     }
     if (url.includes('/consolehub/sessions') && route.request().method() === 'GET') {
       return route.fulfill({ json: mockConsoleHubSessions })

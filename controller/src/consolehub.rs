@@ -11,7 +11,7 @@ use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Extension, Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{any, get, post};
+use axum::routing::{any, get, post, put};
 use axum::{Json, Router};
 use futures_util::{SinkExt, StreamExt};
 use libvirt_guac_bridge::{bridge_from_plan, GuacBridgeTarget, GuacamoleBridgeParams};
@@ -191,6 +191,10 @@ pub fn api_routes() -> Router<AppState> {
         .route("/api/v1/vms/{id}/consolehub/plan", get(consolehub_plan))
         .route("/api/v1/vms/{id}/consolehub/sessions", get(list_sessions).post(create_session))
         .route("/api/v1/consolehub/sessions/{session_id}/end", post(end_session))
+        .route(
+            "/api/v1/consolehub/sessions/{session_id}/replay",
+            get(get_session_replay).put(upload_session_replay),
+        )
         .route("/api/v1/vms/{id}/consolehub/access-requests", post(create_access_request))
         .route("/api/v1/consolehub/access-requests/{request_id}/approve", post(approve_access_request))
         .route("/api/v1/vms/{id}/consolehub/break-glass", post(break_glass_session))
@@ -925,30 +929,56 @@ pub async fn create_session(
     }))
 }
 
+fn session_replay_path(state: &AppState, session_id: Uuid) -> std::path::PathBuf {
+    state
+        .config
+        .consolehub_recording_dir
+        .join(format!("{session_id}.webm"))
+}
+
 pub async fn list_sessions(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
-    let rows: Vec<(Uuid, String, String, String, chrono::DateTime<chrono::Utc>, Option<chrono::DateTime<chrono::Utc>>, bool)> =
-        sqlx::query_as(
-            "SELECT id, actor, protocol, backend, started_at, ended_at, recording_enabled FROM console_sessions WHERE vm_id = $1 ORDER BY started_at DESC LIMIT 50",
-        )
-        .bind(id)
-        .fetch_all(&state.pool)
-        .await?;
+    let rows: Vec<(
+        Uuid,
+        String,
+        String,
+        String,
+        chrono::DateTime<chrono::Utc>,
+        Option<chrono::DateTime<chrono::Utc>>,
+        bool,
+        Option<String>,
+    )> = sqlx::query_as(
+        "SELECT id, actor, protocol, backend, started_at, ended_at, recording_enabled, recording_path FROM console_sessions WHERE vm_id = $1 ORDER BY started_at DESC LIMIT 50",
+    )
+    .bind(id)
+    .fetch_all(&state.pool)
+    .await?;
     Ok(Json(
         rows.into_iter()
-            .map(|(sid, actor, protocol, backend, started, ended, recording)| {
-                serde_json::json!({
-                    "session_id": sid.to_string(),
-                    "actor": actor,
-                    "protocol": protocol,
-                    "backend": backend,
-                    "started_at": started.to_rfc3339(),
-                    "ended_at": ended.map(|t| t.to_rfc3339()),
-                    "recording_enabled": recording,
-                })
-            })
+            .map(
+                |(sid, actor, protocol, backend, started, ended, recording, recording_path)| {
+                    let replay_available = recording_path
+                        .as_ref()
+                        .and_then(|p| {
+                            let path = std::path::Path::new(p);
+                            path.exists().then_some(path.to_string_lossy().to_string())
+                        })
+                        .is_some();
+                    serde_json::json!({
+                        "session_id": sid.to_string(),
+                        "actor": actor,
+                        "protocol": protocol,
+                        "backend": backend,
+                        "started_at": started.to_rfc3339(),
+                        "ended_at": ended.map(|t| t.to_rfc3339()),
+                        "recording_enabled": recording,
+                        "recording_path": recording_path,
+                        "replay_available": replay_available,
+                    })
+                },
+            )
             .collect(),
     ))
 }
@@ -1152,14 +1182,112 @@ pub async fn end_session(
     Extension(user): Extension<AuthUser>,
     Path(session_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let replay_path = session_replay_path(&state, session_id)
+        .to_string_lossy()
+        .into_owned();
     sqlx::query(
-        "UPDATE console_sessions SET ended_at = NOW() WHERE id = $1 AND actor = $2",
+        "UPDATE console_sessions SET ended_at = NOW(),
+         recording_path = CASE WHEN recording_enabled THEN $3 ELSE recording_path END
+         WHERE id = $1 AND actor = $2",
     )
     .bind(session_id)
     .bind(&user.username)
+    .bind(&replay_path)
     .execute(&state.pool)
     .await?;
     Ok(Json(serde_json::json!({ "ended": true, "session_id": session_id.to_string() })))
+}
+
+pub async fn upload_session_replay(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(session_id): Path<Uuid>,
+    body: Body,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let row: Option<(bool, String)> = sqlx::query_as(
+        "SELECT recording_enabled, actor FROM console_sessions WHERE id = $1",
+    )
+    .bind(session_id)
+    .fetch_optional(&state.pool)
+    .await?;
+    let Some((recording_enabled, actor)) = row else {
+        return Err(ApiError::not_found("session not found"));
+    };
+    if !recording_enabled {
+        return Err(ApiError::bad_request("session was not recorded"));
+    }
+    if actor != user.username {
+        crate::auth::require_operator(&user)?;
+    }
+
+    let bytes = axum::body::to_bytes(body, 256 * 1024 * 1024)
+        .await
+        .map_err(|_| ApiError::bad_request("replay payload too large"))?;
+    if bytes.is_empty() {
+        return Err(ApiError::bad_request("empty replay payload"));
+    }
+
+    let path = session_replay_path(&state, session_id);
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| ApiError::internal(format!("create recording dir: {e}")))?;
+    }
+    tokio::fs::write(&path, &bytes)
+        .await
+        .map_err(|e| ApiError::internal(format!("write replay: {e}")))?;
+
+    let path_str = path.to_string_lossy().into_owned();
+    sqlx::query("UPDATE console_sessions SET recording_path = $2 WHERE id = $1")
+        .bind(session_id)
+        .bind(&path_str)
+        .execute(&state.pool)
+        .await?;
+
+    Ok(Json(serde_json::json!({
+        "uploaded": true,
+        "session_id": session_id.to_string(),
+        "recording_path": path_str,
+        "bytes": bytes.len(),
+    })))
+}
+
+pub async fn get_session_replay(
+    State(state): State<AppState>,
+    Extension(_user): Extension<AuthUser>,
+    Path(session_id): Path<Uuid>,
+) -> Result<Response, ApiError> {
+    let recording_path: Option<String> =
+        sqlx::query_scalar("SELECT recording_path FROM console_sessions WHERE id = $1")
+            .bind(session_id)
+            .fetch_optional(&state.pool)
+            .await?
+            .flatten();
+    let Some(path_str) = recording_path else {
+        return Err(ApiError::not_found("replay not available"));
+    };
+    let path = std::path::Path::new(&path_str);
+    if !path.is_file() {
+        return Err(ApiError::not_found("replay file missing"));
+    }
+    let bytes = tokio::fs::read(path)
+        .await
+        .map_err(|e| ApiError::internal(format!("read replay: {e}")))?;
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header(
+            axum::http::header::CONTENT_TYPE,
+            HeaderValue::from_static("video/webm"),
+        )
+        .header(
+            axum::http::header::CONTENT_DISPOSITION,
+            HeaderValue::from_str(&format!(
+                "inline; filename=\"console-{session_id}.webm\""
+            ))
+            .unwrap_or_else(|_| HeaderValue::from_static("inline")),
+        )
+        .body(Body::from(bytes))
+        .map_err(|e| ApiError::internal(format!("build response: {e}")))?)
 }
 
 #[derive(Debug, Deserialize)]

@@ -17,7 +17,7 @@ import MachineTimeline from './MachineTimeline'
 import CinemaShell from './CinemaShell'
 import StudioLayout from './StudioLayout'
 import type { ConsoleHubPlan, ConsoleHubSessionResponse } from '../../api/platform'
-import { createConsoleCollaborateLink, createVmSnapshot, vmPower } from '../../api/platform'
+import { createConsoleCollaborateLink, createVmSnapshot, fetchConsoleSessionReplay, vmPower } from '../../api/platform'
 import type { ConsoleHubSessionRow } from './ConsoleHubSessionHistory'
 import type { VmTimelineEntry } from '../../api/platformVmTimeline'
 import { recipeForError, type ConsoleRecipe } from '../../data/consoleRecipes'
@@ -36,6 +36,7 @@ import { isDisplayProtocol } from '../../utils/consoleExperienceMode'
 import { downloadCanvasScreenshot, saveVmPosterScreenshot } from '../../utils/vmPosterScreenshot'
 import { spectatorCinemaPath } from '../../utils/consoleExperienceMode'
 import { useConsoleAccessPolicy } from '../../hooks/useConsoleAccessPolicy'
+import { useConsoleSessionRecorder } from '../../hooks/useConsoleSessionRecorder'
 
 export type MachineCockpitProps = {
   vmId: string
@@ -105,6 +106,13 @@ function CockpitInner({
   const [vncCanvas, setVncCanvas] = useState<HTMLCanvasElement | null>(null)
   const [shareBusy, setShareBusy] = useState(false)
   const [shareLink, setShareLink] = useState<string | null>(null)
+
+  useConsoleSessionRecorder({
+    canvas: vncCanvas,
+    sessionId: session?.session_id,
+    recordingActive: access.recordingActive,
+    readOnly: access.readOnly,
+  })
 
   const displayProtocols = plan
     ? [...plan.protocols, ...(plan.guest_ip && !plan.protocols.includes('native_ssh') ? ['native_ssh'] : [])]
@@ -219,6 +227,17 @@ function CockpitInner({
     saveVmPosterScreenshot(vmId, vncCanvas.toDataURL('image/png'))
     toast.success('Screenshot saved')
   }
+
+  const handleOpenReplay = useCallback(async (sessionId: string) => {
+    try {
+      const blob = await fetchConsoleSessionReplay(sessionId)
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank', 'noopener,noreferrer')
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (e: unknown) {
+      toast.error(String(e))
+    }
+  }, [toast])
 
   const handleShareView = useCallback(async () => {
     if (!access.canPower || access.readOnly) return
@@ -444,6 +463,7 @@ function CockpitInner({
       canBreakGlass={access.canPower && !access.spectatorMode}
       shareLink={shareLink}
       onShareView={() => void handleShareView()}
+      onOpenReplay={(sessionId) => void handleOpenReplay(sessionId)}
       onOpenVmDetail={(tab) => {
         setCommandCenter(false)
         navigate(tab ? `/platform/vms/${vmId}?tab=${tab}` : `/platform/vms/${vmId}`)

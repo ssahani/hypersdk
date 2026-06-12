@@ -38,6 +38,8 @@ pub struct ControllerConfig {
     pub consolehub_require_approval: bool,
     /// Enable session recording metadata (Phase 2).
     pub consolehub_recording_enabled: bool,
+    /// Directory for ConsoleHub session replay files (`.webm` per session id).
+    pub consolehub_recording_dir: PathBuf,
     /// Require OIDC/SAML federation before opening production consoles (Phase 5).
     pub consolehub_require_oidc: bool,
     /// Hermes Launchpad API (Kubernetes app catalog + gateway).
@@ -116,6 +118,9 @@ impl Default for ControllerConfig {
             consolehub_recording_enabled: std::env::var("CONSOLEHUB_RECORDING_ENABLED")
                 .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
                 .unwrap_or(false),
+            consolehub_recording_dir: std::env::var("CONSOLEHUB_RECORDING_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| PathBuf::from("/var/lib/machina/console-recordings")),
             consolehub_require_oidc: std::env::var("CONSOLEHUB_REQUIRE_OIDC")
                 .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
                 .unwrap_or(false),

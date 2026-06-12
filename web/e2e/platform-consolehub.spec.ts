@@ -133,4 +133,11 @@ test.describe('Platform ConsoleHub', () => {
     await page.getByTestId('ops-shelf-handle').click()
     await expect(page.getByTestId('ops-shelf-collaborate')).toBeVisible()
   })
+
+  test('Ops Shelf session history shows replay for recorded sessions', async ({ page }) => {
+    await page.goto('/platform/vms/v1/consolehub')
+    await expect(page.getByTestId('cinema-shell')).toBeVisible({ timeout: 15_000 })
+    await page.getByTestId('ops-shelf-handle').click()
+    await expect(page.getByTestId('consolehub-replay-00000000')).toBeVisible()
+  })
 })
