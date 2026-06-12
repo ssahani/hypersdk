@@ -42,6 +42,11 @@ VERSION="{version}"
 STATE_DIR="$INSTALL_ROOT/export-state"
 EXPORT_FILE="$INSTALL_ROOT/export.jsonl"
 
+systemctl stop tetragon.service 2>/dev/null || true
+pkill -9 tetragon 2>/dev/null || true
+rm -rf "$INSTALL_ROOT/config"
+sleep 1
+
 mkdir -p "$POLICY_DIR" "$STATE_DIR"
 
 ARCH="$(uname -m)"
@@ -170,8 +175,11 @@ EOF
 
 systemctl daemon-reload
 systemctl enable tetragon.service 2>/dev/null || true
-systemctl restart tetragon.service
-sleep 2
+systemctl stop tetragon.service 2>/dev/null || true
+pkill -9 tetragon 2>/dev/null || true
+sleep 1
+systemctl start tetragon.service
+sleep 4
 if ! systemctl is-active --quiet tetragon.service; then
   echo "tetragon.service failed to start" >&2
   journalctl -u tetragon.service --no-pager -n 20 >&2 || true

@@ -61,6 +61,17 @@ async fn apply_bundle(
         Ok(result) if result.ok && (!result.tetragon_install_attempted || result.tetragon_service_active) => {
             let _ = packetwolf_bridge::ack_agent_bundle(cfg, host_id).await;
             let _ = packetwolf_local_db::clear_pending_tetragon(pool, host_id).await;
+            if result.tetragon_service_active {
+                packetwolf_local::mark_sensor_healthy(host_id);
+                let _ = packetwolf_local_db::upsert_sensor(
+                    pool,
+                    host_id,
+                    "healthy",
+                    DEFAULT_TETRAGON_VERSION,
+                    None,
+                )
+                .await;
+            }
             tracing::info!(
                 host_id = %host_id,
                 policies = result.policies_written,
@@ -112,7 +123,9 @@ pub async fn sync_host_tetragon_install(
     }
     bundle["host_id"] = serde_json::json!(host_id_str);
 
-    apply_bundle(cfg, pool, &host_id_str, agent_addr, &bundle).await?;
+    if !apply_bundle(cfg, pool, &host_id_str, agent_addr, &bundle).await? {
+        anyhow::bail!("Tetragon install bundle did not activate tetragon.service on agent");
+    }
     Ok(())
 }
 
