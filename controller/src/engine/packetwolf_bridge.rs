@@ -106,7 +106,16 @@ fn auth_headers(cfg: &ControllerConfig, req: reqwest::blocking::RequestBuilder) 
 }
 
 pub fn ingest_base_url(cfg: &ControllerConfig) -> String {
-    packetwolf_ingest_base_url(cfg)
+    if cfg.packetwolf_enabled && fabric_api_available(cfg) {
+        packetwolf_ingest_base_url(cfg)
+    } else if cfg.packetwolf_enabled {
+        format!(
+            "http://127.0.0.1:{}/api/v1/zeus-security/ingest",
+            cfg.port
+        )
+    } else {
+        "http://127.0.0.1:9091/api/v1/ingest".into()
+    }
 }
 
 fn packetwolf_ingest_base_url(cfg: &ControllerConfig) -> String {
@@ -124,7 +133,7 @@ fn is_fabric_sensors_json(value: &Value) -> bool {
     value.get("sensors").map(|v| v.is_array()).unwrap_or(false)
 }
 
-fn fabric_api_available(cfg: &ControllerConfig) -> bool {
+pub fn fabric_api_available(cfg: &ControllerConfig) -> bool {
     get_json(cfg, "/api/v1/sensors")
         .is_some_and(|v| is_fabric_sensors_json(&v))
 }
@@ -646,7 +655,7 @@ pub async fn queue_tetragon_install(cfg: &ControllerConfig, host_id: &str) -> se
             return serde_json::json!({"ok": false});
         }
         if !fabric_api_available(&cfg) {
-            let export_url = packetwolf_ingest_base_url(&cfg);
+            let export_url = ingest_base_url(&cfg);
             return packetwolf_local::queue_tetragon_install(&host_id, &export_url);
         }
         let Ok(client) = build_client(cfg.packetwolf_insecure_tls, 10) else {

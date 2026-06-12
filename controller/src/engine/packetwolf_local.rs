@@ -128,6 +128,38 @@ pub fn list_sensors() -> Vec<Value> {
         .unwrap_or_default()
 }
 
+pub fn mark_sensor_healthy(host_id: &str) {
+    if let Ok(mut state) = LOCAL_FABRIC.write() {
+        if let Some(sensor) = state.sensors.get_mut(host_id) {
+            sensor.status = "healthy".into();
+            sensor.last_event_at = Some(now_iso());
+        }
+    }
+}
+
+pub fn record_events(host_id: &str, count: usize) {
+    if count == 0 {
+        return;
+    }
+    if let Ok(mut state) = LOCAL_FABRIC.write() {
+        if let Some(sensor) = state.sensors.get_mut(host_id) {
+            sensor.status = "healthy".into();
+            sensor.last_event_at = Some(now_iso());
+        } else {
+            state.sensors.insert(
+                host_id.to_string(),
+                LocalSensor {
+                    host_id: host_id.to_string(),
+                    status: "healthy".into(),
+                    tetragon_version: DEFAULT_TETRAGON_VERSION.into(),
+                    registered_at: now_iso(),
+                    last_event_at: Some(now_iso()),
+                },
+            );
+        }
+    }
+}
+
 pub fn queue_tetragon_install(host_id: &str, export_url: &str) -> Value {
     let _ = register_sensor(host_id, DEFAULT_TETRAGON_VERSION);
     let bundle = json!({

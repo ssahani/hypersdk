@@ -57,6 +57,21 @@ pub async fn set_pending_tetragon(pool: &PgPool, host_id: &str, pending: &Value)
     Ok(())
 }
 
+pub async fn touch_sensor_events(pool: &PgPool, host_id: &str, count: usize) -> anyhow::Result<()> {
+    if count == 0 {
+        return Ok(());
+    }
+    sqlx::query(
+        "UPDATE packetwolf_local_sensors
+         SET status = 'healthy', last_event_at = NOW()
+         WHERE host_id = $1",
+    )
+    .bind(host_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 pub async fn clear_pending_tetragon(pool: &PgPool, host_id: &str) -> anyhow::Result<()> {
     sqlx::query("UPDATE packetwolf_local_sensors SET pending_tetragon = NULL WHERE host_id = $1")
         .bind(host_id)

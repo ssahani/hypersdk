@@ -10,6 +10,7 @@ use crate::api::ApiError;
 use crate::engine::ai::security as ai_security;
 use crate::engine::ai::security_graph;
 use crate::engine::packetwolf_bridge;
+use crate::engine::packetwolf_local;
 use crate::engine::zeus_security;
 use crate::state::AppState;
 
@@ -585,6 +586,49 @@ pub async fn agent_security_bundle(
     Path(id): Path<String>,
 ) -> Json<serde_json::Value> {
     Json(packetwolf_bridge::agent_bundle(&state.config, &id).await)
+}
+
+#[derive(Debug, Deserialize, serde::Serialize)]
+pub struct IngestEventsBody {
+    pub events: Vec<serde_json::Value>,
+}
+
+pub async fn ingest_tetragon_events(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<IngestEventsBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let count = body.events.len();
+    if count == 0 {
+        return Ok(Json(serde_json::json!({ "ingested": 0, "host_id": id })));
+    }
+
+    packetwolf_local::record_events(&id, count);
+    let _ = crate::engine::packetwolf_local_db::touch_sensor_events(&state.pool, &id, count).await;
+
+    if packetwolf_bridge::fabric_api_available(&state.config) {
+        let url = format!(
+            "{}/{}",
+            state.config.packetwolf_base_url.trim_end_matches('/'),
+            format!("api/v1/ingest/{id}")
+        );
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .danger_accept_invalid_certs(state.config.packetwolf_insecure_tls)
+            .build()
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+        let mut req = client.post(&url).json(&body);
+        if let Some(key) = state.config.packetwolf_api_key.as_deref().filter(|k| !k.is_empty()) {
+            req = req.header("Authorization", format!("Bearer {key}"));
+        }
+        let _ = req.send().await;
+    }
+
+    Ok(Json(serde_json::json!({
+        "ingested": count,
+        "host_id": id,
+        "source": "machina-controller"
+    })))
 }
 
 pub async fn host_fabric_status(

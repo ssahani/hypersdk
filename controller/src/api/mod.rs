@@ -397,6 +397,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/zeus-security/hosts/{id}/enforcement", get(zeus_security::host_enforcement))
         .route("/api/v1/zeus-security/hosts/{id}/fabric-status", get(zeus_security::host_fabric_status))
         .route("/api/v1/zeus-security/agents/{id}/bundle", get(zeus_security::agent_security_bundle))
+        .route("/api/v1/zeus-security/ingest/{id}", post(zeus_security::ingest_tetragon_events))
         .route("/api/v1/ai/security/explain-event", post(zeus_security::explain_event))
         .route("/api/v1/ai/security/attack-reconstruct", post(zeus_security::attack_reconstruct))
         .route("/api/v1/ai/security/nl-search", post(zeus_security::nl_search))
