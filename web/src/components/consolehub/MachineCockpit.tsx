@@ -46,6 +46,7 @@ export type MachineCockpitProps = {
   session: ConsoleHubSessionResponse | null
   wsUrl: string | null
   serialWsUrl?: string | null
+  platformSpiceWsPath?: string | null
   activeProtocol: string
   onProtocolChange: (protocol: string) => void
   vmState?: string | null
@@ -75,6 +76,7 @@ function CockpitInner({
   session,
   wsUrl,
   serialWsUrl,
+  platformSpiceWsPath = null,
   activeProtocol,
   onProtocolChange,
   vmState,
@@ -107,6 +109,7 @@ function CockpitInner({
   const [vncCanvas, setVncCanvas] = useState<HTMLCanvasElement | null>(null)
   const [shareBusy, setShareBusy] = useState(false)
   const [shareLink, setShareLink] = useState<string | null>(null)
+  const [spiceAudio, setSpiceAudio] = useState(true)
 
   useConsoleSessionRecorder({
     canvas: vncCanvas,
@@ -121,6 +124,8 @@ function CockpitInner({
 
   const cinemaActive = experienceMode === 'cinema' && lens === 'display' && isDisplayProtocol(activeProtocol)
   const studioActive = experienceMode === 'studio'
+  const spiceDisplay = activeProtocol === 'spice' || activeProtocol === 'webrtc_spice'
+  const enableSpiceAudio = spiceDisplay && spiceAudio && !access.readOnly
 
   useEffect(() => {
     vp.setProtocol(activeProtocol)
@@ -333,6 +338,8 @@ function CockpitInner({
       onReconnect={onReconnect}
       connectKey={connectKey}
       onCanvasReady={setVncCanvas}
+      enableSpiceAudio={enableSpiceAudio}
+      platformSpiceWsPath={platformSpiceWsPath}
     />
   )
 
@@ -465,6 +472,9 @@ function CockpitInner({
       shareLink={shareLink}
       onShareView={() => void handleShareView()}
       onOpenReplay={(sessionId) => void handleOpenReplay(sessionId)}
+      portForwardRules={portForwardRules}
+      readOnly={access.readOnly}
+      onExposeSsh={plan?.guest_access?.guest_ip_private ? exposeSsh : undefined}
       onOpenVmDetail={(tab) => {
         setCommandCenter(false)
         navigate(tab ? `/platform/vms/${vmId}?tab=${tab}` : `/platform/vms/${vmId}`)
@@ -506,6 +516,8 @@ function CockpitInner({
           readOnly={access.readOnly}
           onShareView={access.canPower && !access.spectatorMode ? () => void handleShareView() : undefined}
           shareBusy={shareBusy}
+          spiceAudioEnabled={enableSpiceAudio}
+          onToggleSpiceAudio={spiceDisplay && !access.readOnly ? () => setSpiceAudio((v) => !v) : undefined}
         >
           {sessionBlock}
         </CinemaShell>

@@ -34,6 +34,9 @@ type Props = {
   onRecord?: () => void
   onShareView?: () => void
   shareBusy?: boolean
+  activeProtocol?: string
+  spiceAudioEnabled?: boolean
+  onToggleSpiceAudio?: () => void
 }
 
 const ZOOM_LEVELS: ZoomLevel[] = [75, 100, 125, 150, 200]
@@ -53,6 +56,9 @@ export default function CinemaControlStrip({
   onRecord,
   onShareView,
   shareBusy = false,
+  activeProtocol = 'novnc',
+  spiceAudioEnabled = false,
+  onToggleSpiceAudio,
 }: Props) {
   const vp = useConsoleViewportOptional()
   const clip = useConsoleClipboardOptional()
@@ -309,6 +315,19 @@ export default function CinemaControlStrip({
               {onSendKey ? (
                 <button type="button" className="block w-full text-left px-2 py-1.5 text-xs text-slate-200 hover:bg-white/10 rounded" onClick={() => { onSendKey('esc'); setMoreOpen(false) }}>
                   Send Esc
+                </button>
+              ) : null}
+              {(activeProtocol === 'spice' || activeProtocol === 'webrtc_spice') && onToggleSpiceAudio ? (
+                <button
+                  type="button"
+                  className="block w-full text-left px-2 py-1.5 text-xs text-violet-200 hover:bg-white/10 rounded"
+                  data-testid="cinema-spice-audio-toggle"
+                  onClick={() => {
+                    onToggleSpiceAudio()
+                    setMoreOpen(false)
+                  }}
+                >
+                  {spiceAudioEnabled ? 'Disable SPICE audio' : 'Enable SPICE audio'}
                 </button>
               ) : null}
               <button

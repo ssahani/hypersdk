@@ -12,6 +12,7 @@ import {
   listVmTimeline,
   platformVmVncWsUrl,
   platformVmSerialWsUrl,
+  platformVmSpiceWsPath,
   platformVncWsUrl,
   requestConsoleAccess,
   runVmHealthCheck,
@@ -47,6 +48,7 @@ export default function PlatformConsoleHub() {
   const [activeProtocol, setActiveProtocol] = useState('novnc')
   const [wsUrl, setWsUrl] = useState<string | null>(null)
   const [serialWsUrl, setSerialWsUrl] = useState<string | null>(null)
+  const [platformSpiceWsPath, setPlatformSpiceWsPath] = useState<string | null>(null)
   const [vmName, setVmName] = useState<string | null>(null)
   const [vmState, setVmState] = useState<string | null>(null)
   const [nodeName, setNodeName] = useState<string | null>(null)
@@ -153,14 +155,17 @@ export default function PlatformConsoleHub() {
       if (isKubevirt) {
         setWsUrl(null)
         setSerialWsUrl(null)
+        setPlatformSpiceWsPath(null)
         if (hubPlan?.recommended === 'serial') {
           setActiveProtocol('serial')
         }
       } else if (wsToken) {
         setWsUrl(platformVmVncWsUrl(id, wsToken))
         setSerialWsUrl(platformVmSerialWsUrl(id, wsToken))
+        setPlatformSpiceWsPath(platformVmSpiceWsPath(id, wsToken))
       } else if (hubPlan?.native?.ws_path) {
         setWsUrl(platformVncWsUrl(hubPlan.native.ws_path))
+        setPlatformSpiceWsPath(null)
       }
 
       if (wsToken || hubPlan?.native?.ws_path) {
@@ -276,6 +281,7 @@ export default function PlatformConsoleHub() {
         session={session}
         wsUrl={wsUrl}
         serialWsUrl={serialWsUrl}
+        platformSpiceWsPath={platformSpiceWsPath}
         activeProtocol={activeProtocol}
         onProtocolChange={(p) => void switchProtocol(p)}
         vmState={vmState}

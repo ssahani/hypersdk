@@ -18,21 +18,40 @@ interface Props {
   libvirtConnection?: string | null
   /** Connect via WS proxy using vm name when spice port is resolved server-side. */
   autoConnect?: boolean
+  /** Platform ConsoleHub — use controller-issued WS path instead of daemon `/api/v1/ws-token`. */
+  platformSpiceWsPath?: string | null
+  /** Cinema / ConsoleHub — hide chrome; stretch to viewport. */
+  cockpitMode?: boolean
+  /** Request browser SPICE audio playback (depends on spice-html5 build). */
+  enableAudio?: boolean
 }
 
-export default function SPICEViewer({ vmName, port = -1, libvirtConnection, autoConnect = false }: Props) {
+export default function SPICEViewer({
+  vmName,
+  port = -1,
+  libvirtConnection,
+  autoConnect = false,
+  platformSpiceWsPath = null,
+  cockpitMode = false,
+  enableAudio = false,
+}: Props) {
   const [fullscreen, setFullscreen] = useState(false)
-  const [token, setToken] = useState<string | null>(null)
+  const [token, setToken] = useState<string | null>(platformSpiceWsPath ? 'platform' : null)
   const [tokenError, setTokenError] = useState(false)
 
   useEffect(() => {
+    if (platformSpiceWsPath) {
+      setToken('platform')
+      setTokenError(false)
+      return
+    }
     if (port <= 0 && !autoConnect) return
     let cancelled = false
     getWsToken()
       .then(t => { if (!cancelled) setToken(t) })
       .catch(() => { if (!cancelled) setTokenError(true) })
     return () => { cancelled = true }
-  }, [port])
+  }, [port, autoConnect, platformSpiceWsPath])
 
   if (port <= 0 && !autoConnect) {
     return (
@@ -69,12 +88,15 @@ export default function SPICEViewer({ vmName, port = -1, libvirtConnection, auto
   const wsPort =
     window.location.port ||
     (window.location.protocol === 'https:' ? '443' : String(DEFAULT_DAEMON_PORT))
-  const wsProxyPath = `ws/v1/spice/${encodeURIComponent(vmName)}?token=${encodeURIComponent(token)}${wsConnQs(libvirtConnection)}`
-  const spiceUrl = `/spice-html5/spice_auto.html?host=${wsHost}&port=${wsPort}&path=${encodeURIComponent(wsProxyPath)}`
+  const wsProxyPath = platformSpiceWsPath
+    ?? `ws/v1/spice/${encodeURIComponent(vmName)}?token=${encodeURIComponent(token)}${wsConnQs(libvirtConnection)}`
+  const audioQs = enableAudio ? '&audio=1&disable_audio=0' : ''
+  const spiceUrl = `/spice-html5/spice_auto.html?host=${wsHost}&port=${wsPort}&path=${encodeURIComponent(wsProxyPath)}${audioQs}`
 
   return (
-    <div className={fullscreen ? 'fixed inset-0 z-50 bg-black flex flex-col' : ''}>
-      <div className="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700 rounded-t-lg">
+    <div className={cockpitMode ? 'flex flex-col flex-1 min-h-0 w-full h-full' : fullscreen ? 'fixed inset-0 z-50 bg-black flex flex-col' : ''}>
+      {!cockpitMode ? (
+      <div className="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700 rounded-t-lg shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-2.5 h-2.5 rounded-full bg-purple-500" />
           <span className="text-sm text-slate-300">SPICE — {vmName}</span>
@@ -84,12 +106,15 @@ export default function SPICEViewer({ vmName, port = -1, libvirtConnection, auto
           {fullscreen ? <Minimize className="w-4 h-4 text-slate-400" /> : <Maximize className="w-4 h-4 text-slate-400" />}
         </button>
       </div>
+      ) : null}
       <iframe
         src={spiceUrl}
-        className={`w-full border-0 rounded-b-lg bg-black ${fullscreen ? 'flex-1' : ''}`}
-        style={fullscreen ? { height: '100%' } : { minHeight: '600px' }}
+        className={`w-full border-0 bg-black flex-1 min-h-0 ${cockpitMode ? 'rounded-none' : 'rounded-b-lg'} ${fullscreen ? 'flex-1' : ''}`}
+        style={cockpitMode ? undefined : fullscreen ? { height: '100%' } : { minHeight: '600px' }}
         title={`SPICE console for ${vmName}`}
-        allow="clipboard-read; clipboard-write"
+        allow="clipboard-read; clipboard-write; autoplay"
+        data-testid="spice-console-iframe"
+        data-audio={enableAudio ? 'on' : 'off'}
       />
     </div>
   )

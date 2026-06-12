@@ -79,7 +79,8 @@ test.describe('Platform ConsoleHub', () => {
     await expect(page.getByTestId('cinema-shell')).toBeVisible({ timeout: 15_000 })
     await page.getByRole('button', { name: 'webrtc spice', exact: true }).click()
     await expect(page.getByTestId('webrtc-spice-console')).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByText(/Performance mode/i)).toBeVisible()
+    await expect(page.getByTestId('spice-audio-banner')).toBeVisible()
+    await expect(page.getByTestId('spice-console-iframe')).toHaveAttribute('data-audio', 'on')
   })
 
   test('Cinema control strip hides after idle', async ({ page }) => {
@@ -150,5 +151,21 @@ test.describe('Platform ConsoleHub', () => {
     await page.getByTestId('cinema-clipboard').click()
     await expect(page.getByTestId('cinema-clipboard-panel')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Send to VM' })).toBeVisible()
+  })
+
+  test('Ops Shelf file transfer panel builds scp guidance', async ({ page }) => {
+    await page.goto('/platform/vms/v1/consolehub')
+    await expect(page.getByTestId('cinema-shell')).toBeVisible({ timeout: 15_000 })
+    await page.getByTestId('ops-shelf-handle').click()
+    await expect(page.getByTestId('ops-shelf-file-transfer')).toBeVisible()
+  })
+
+  test('SPICE Cinema enables browser audio on iframe', async ({ page }) => {
+    await page.goto('/platform/vms/sp1/consolehub')
+    await expect(page.getByTestId('cinema-shell')).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('button', { name: 'webrtc spice', exact: true }).click()
+    await expect(page.getByTestId('webrtc-spice-console')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('spice-console-iframe')).toHaveAttribute('data-audio', 'on')
+    await expect(page.getByTestId('cinema-spice-audio-badge')).toBeVisible()
   })
 })

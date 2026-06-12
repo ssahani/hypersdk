@@ -79,6 +79,8 @@ When `CONSOLEHUB_RECORDING_ENABLED=1` on the controller:
 - **Share view** (collaborative console): Cinema control strip **Share** button or Ops Shelf → `POST /api/v1/vms/{id}/consolehub/collaborate` mints a time-limited read-only link for teammates
 - **Session replay**: when recording is enabled, Cinema captures the VNC canvas to `.webm` on exit; Ops Shelf session history shows **replay** when `GET /api/v1/consolehub/sessions/{id}/replay` is available (`CONSOLEHUB_RECORDING_DIR`, default `/var/lib/machina/console-recordings`)
 - **Clipboard sync**: Cinema control strip **Clipboard** button opens a panel to send laptop text into the guest via noVNC and copy guest clipboard back when the VM pushes it over VNC
+- **Guest file transfer**: Ops Shelf **Send file to guest** builds an `scp` command (NAT or direct guest IP) after you pick a local file
+- **SPICE audio**: Performance/SPICE lenses pass `audio=1` to spice-html5 and enable browser autoplay; toggle in Cinema **More** menu (quality depends on guest vdagent and spice-html5 build)
 
 RBAC from the console plan (`permissions` on `/consolehub/plan`):
 
@@ -89,4 +91,4 @@ RBAC from the console plan (`permissions` on `/consolehub/plan`):
 
 ## Deferred (later enterprise)
 
-SPICE audio, multi-monitor, guest file transfer.
+Multi-monitor.

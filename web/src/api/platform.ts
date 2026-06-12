@@ -2178,6 +2178,11 @@ export function platformVmSerialWsUrl(vmId: string, token: string): string {
   return platformVncWsUrl(`/ws/v1/platform/serial/${encodeURIComponent(vmId)}?token=${encodeURIComponent(token)}`)
 }
 
+/** WebSocket path segment for platform SPICE (spice-html5 `path=` query). */
+export function platformVmSpiceWsPath(vmId: string, token: string): string {
+  return `ws/v1/platform/spice/${encodeURIComponent(vmId)}?token=${encodeURIComponent(token)}`
+}
+
 export const getHaStatus = () => platformFetch<HaStatusResponse>('/api/v1/ha/status')
 
 export const setVmHa = (id: string, body: Partial<HaPolicy> & { enabled: boolean }) =>

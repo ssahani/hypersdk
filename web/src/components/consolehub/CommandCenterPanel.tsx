@@ -9,8 +9,10 @@ import { useToastContext } from '../../contexts/ToastContext'
 import type { ConsoleHubSessionRow } from './ConsoleHubSessionHistory'
 import type { VmTimelineEntry } from '../../api/platformVmTimeline'
 import type { GuestAccessHints } from '../../utils/guestAccessHints'
+import type { VmPortForwardRule } from '../../api/platform'
 import MachineTimeline from './MachineTimeline'
 import ConsoleHubSessionHistory from './ConsoleHubSessionHistory'
+import ConsoleGuestFilePanel from './ConsoleGuestFilePanel'
 import VmPortForwardPanel from '../vm/VmPortForwardPanel'
 import MachinaDoctorPanel from '../platform/MachinaDoctorPanel'
 import ConsoleCopilotLens from './ConsoleCopilotLens'
@@ -40,6 +42,9 @@ type Props = {
   shareLink?: string | null
   onShareView?: () => void
   onOpenReplay?: (sessionId: string) => void | Promise<void>
+  portForwardRules?: VmPortForwardRule[]
+  readOnly?: boolean
+  onExposeSsh?: () => void
 }
 
 const TABS: CommandCenterTab[] = ['Overview', 'Health', 'Events', 'AI']
@@ -67,6 +72,9 @@ export default function CommandCenterPanel({
   shareLink = null,
   onShareView,
   onOpenReplay,
+  portForwardRules = [],
+  readOnly = false,
+  onExposeSsh,
 }: Props) {
   const toast = useToastContext()
   const [doctor, setDoctor] = useState<VmDoctorReport | null>(null)
@@ -146,6 +154,19 @@ export default function CommandCenterPanel({
                 </div>
               ) : null}
               <ConsoleHubSessionHistory sessions={sessions} onOpenReplay={onOpenReplay} />
+              {!readOnly ? (
+                <ConsoleGuestFilePanel
+                  vmId={vmId}
+                  vmName={vmName}
+                  guestIp={guestIp}
+                  guestAccess={guestAccess}
+                  hypervisorAddress={hypervisorAddress}
+                  sshUser={sshUser}
+                  portForwardRules={portForwardRules}
+                  readOnly={readOnly}
+                  onExposeSsh={onExposeSsh}
+                />
+              ) : null}
               {onShareView ? (
                 <div className="rounded-lg border border-sky-500/30 bg-sky-950/20 p-3 space-y-2" data-testid="ops-shelf-collaborate">
                   <p className="text-xs font-medium text-sky-100">Share read-only view</p>

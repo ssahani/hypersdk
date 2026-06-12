@@ -48,6 +48,8 @@ type Props = {
   readOnly?: boolean
   onShareView?: () => void
   shareBusy?: boolean
+  spiceAudioEnabled?: boolean
+  onToggleSpiceAudio?: () => void
 }
 
 function stateTone(state?: string | null): 'ok' | 'warn' | 'error' | 'neutral' {
@@ -90,6 +92,8 @@ export default function CinemaShell({
   readOnly = false,
   onShareView,
   shareBusy = false,
+  spiceAudioEnabled = false,
+  onToggleSpiceAudio,
 }: Props) {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const vp = useConsoleViewport()
@@ -129,6 +133,11 @@ export default function CinemaShell({
         {readOnly ? (
           <span className="px-2 py-0.5 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-100 text-[10px] uppercase tracking-wide" data-testid="cinema-readonly-badge">
             View only
+          </span>
+        ) : null}
+        {spiceAudioEnabled ? (
+          <span className="px-2 py-0.5 rounded-full bg-violet-950/80 border border-violet-500/40 text-violet-100 text-[10px] uppercase tracking-wide" data-testid="cinema-spice-audio-badge">
+            SPICE audio
           </span>
         ) : null}
         <span className="ml-auto text-slate-500 hidden sm:inline">{readOnly ? 'Spectator session' : 'Secure session'}</span>
@@ -191,6 +200,9 @@ export default function CinemaShell({
             onRecord={() => onNotify?.(recordingActive ? 'Session is being recorded for audit' : 'Enable CONSOLEHUB_RECORDING_ENABLED on controller for audit recording')}
             onShareView={onShareView}
             shareBusy={shareBusy}
+            activeProtocol={activeProtocol}
+            spiceAudioEnabled={spiceAudioEnabled}
+            onToggleSpiceAudio={onToggleSpiceAudio}
           />
           <ConsoleMinimap />
         </div>

@@ -35,6 +35,8 @@ type Props = {
   onReconnect?: () => void
   connectKey?: number
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
+  enableSpiceAudio?: boolean
+  platformSpiceWsPath?: string | null
 }
 
 function VncShell({ cockpitMode, children }: { cockpitMode?: boolean; children: ReactNode }) {
@@ -90,6 +92,8 @@ export default function ConsoleHubSession({
   onReconnect,
   connectKey,
   onCanvasReady,
+  enableSpiceAudio = false,
+  platformSpiceWsPath = null,
 }: Props) {
   if (session?.backend === 'guacamole' && session.session_id) {
     const src = `${session.embed_path}#/`
@@ -118,12 +122,26 @@ export default function ConsoleHubSession({
   }
 
   if (protocol === 'spice') {
-    return <SPICEViewer vmName={vmName} libvirtConnection={libvirtConnection} autoConnect />
+    return (
+      <SPICEViewer
+        vmName={vmName}
+        libvirtConnection={libvirtConnection}
+        autoConnect
+        platformSpiceWsPath={platformSpiceWsPath}
+        cockpitMode={cockpitMode}
+        enableAudio={enableSpiceAudio}
+      />
+    )
   }
 
   if (protocol === 'webrtc_spice') {
     return (
-      <WebRTCSpiceViewer vmName={vmName} libvirtConnection={libvirtConnection} />
+      <WebRTCSpiceViewer
+        vmName={vmName}
+        libvirtConnection={libvirtConnection}
+        platformSpiceWsPath={platformSpiceWsPath}
+        enableAudio={enableSpiceAudio}
+      />
     )
   }
 

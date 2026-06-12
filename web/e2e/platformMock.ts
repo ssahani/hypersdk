@@ -748,6 +748,9 @@ export async function mockPlatformApi(page: Page, opts?: {
         json: { pam: { enabled: true }, ldap: { enabled: false }, oidc: { enabled: false } },
       })
     }
+    if (url.includes('/ws-token') && route.request().method() === 'POST') {
+      return route.fulfill({ json: { token: 'mock-ws-token' } })
+    }
     if (url.includes('/system/platform-info')) {
       return route.fulfill({ json: platformInfo })
     }
