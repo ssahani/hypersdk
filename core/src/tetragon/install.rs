@@ -61,6 +61,8 @@ if [ "$needs_reinstall" = 1 ]; then
   systemctl stop tetragon.service 2>/dev/null || true
   rm -f /etc/systemd/system/tetragon.service
   rm -rf "$INSTALL_ROOT/config"
+  rm -f /usr/local/bin/tetra /usr/local/bin/tetragon
+  rm -rf /usr/local/lib/tetragon
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT
   TG_DIR="tetragon-v${{VERSION}}-${{TG_ARCH}}"
