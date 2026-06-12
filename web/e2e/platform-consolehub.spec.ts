@@ -140,4 +140,15 @@ test.describe('Platform ConsoleHub', () => {
     await page.getByTestId('ops-shelf-handle').click()
     await expect(page.getByTestId('consolehub-replay-00000000')).toBeVisible()
   })
+
+  test('Cinema clipboard panel opens from control strip', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await page.goto('/platform/vms/v1/consolehub')
+    await expect(page.getByTestId('cinema-control-strip')).toBeVisible({ timeout: 15_000 })
+    await page.mouse.move(640, 480)
+    await expect(page.getByTestId('cinema-control-strip')).toHaveAttribute('data-idle', 'false')
+    await page.getByTestId('cinema-clipboard').click()
+    await expect(page.getByTestId('cinema-clipboard-panel')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Send to VM' })).toBeVisible()
+  })
 })

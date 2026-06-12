@@ -7,6 +7,7 @@ import { Keyboard, Maximize, Minimize, Monitor, RefreshCw } from 'lucide-react'
 import { getWsToken } from '../api/client'
 import { statusBgClass } from '../utils/semanticColors'
 import { useConsoleViewportOptional } from './consolehub/ConsoleViewportContext'
+import { useConsoleClipboardOptional } from './consolehub/ConsoleClipboardContext'
 
 function wsConnQs(libvirtConnection?: string | null): string {
   if (!libvirtConnection || libvirtConnection === 'system') return ''
@@ -76,7 +77,9 @@ export default function VNCViewer({
   /** Scaling to fit can blur and sometimes hurts pointer feel; native 1:1 + scroll is sharper/snappier. */
   const [scaledFit, setScaledFit] = useState(defaultScaledFit || cockpitMode)
   const containerRef = useRef<HTMLDivElement>(null)
-  const rfbRef = useRef<{ disconnect: () => void; sendCtrlAltDel?: () => void; showDotCursor: boolean; clipViewport?: boolean; scaleViewport?: boolean } | null>(null)
+  const rfbRef = useRef<{ disconnect: () => void; sendCtrlAltDel?: () => void; clipboardPasteFrom?: (text: string) => void; showDotCursor: boolean; clipViewport?: boolean; scaleViewport?: boolean; addEventListener?: (type: string, fn: (e: Event) => void) => void; removeEventListener?: (type: string, fn: (e: Event) => void) => void } | null>(null)
+  const clip = useConsoleClipboardOptional()
+  const clipHandlerRef = useRef<((ev: Event) => void) | null>(null)
 
   const scaledFitRef = useRef(scaledFit)
   const showDotCursorRef = useRef(showDotCursor)
@@ -150,6 +153,19 @@ export default function VNCViewer({
             window.dispatchEvent(new Event('resize'))
             const canvas = containerRef.current?.querySelector('canvas')
             onCanvasReady?.(canvas as HTMLCanvasElement | null)
+            if (clip) {
+              const onGuestClipboard = (ev: Event) => {
+                const text = (ev as CustomEvent<{ text: string }>).detail?.text ?? ''
+                if (text) clip.onGuestClipboard(text)
+              }
+              clipHandlerRef.current = onGuestClipboard
+              rfb.addEventListener('clipboard', onGuestClipboard)
+              clip.registerBridge({
+                pasteToGuest: (text: string) => {
+                  rfb.clipboardPasteFrom?.(text)
+                },
+              })
+            }
             scrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
             requestAnimationFrame(() => {
               syncGuestSize(rfb)
@@ -170,6 +186,13 @@ export default function VNCViewer({
             vp?.setConnected(false)
             vp?.setGuestSize(0, 0)
             onCanvasReady?.(null)
+            if (clip) {
+              if (clipHandlerRef.current) {
+                rfb.removeEventListener('clipboard', clipHandlerRef.current)
+                clipHandlerRef.current = null
+              }
+              clip.registerBridge(null)
+            }
           }
         })
         rfb.addEventListener('desktopname', () => syncGuestSize(rfb))
@@ -222,13 +245,21 @@ export default function VNCViewer({
     return () => {
       cancelled = true
       if (raf) cancelAnimationFrame(raf)
-      if (rfbRef.current && typeof rfbRef.current.disconnect === 'function') {
-        try { rfbRef.current.disconnect() } catch { /* ignore */ }
+      if (rfbRef.current) {
+        const rfb = rfbRef.current
+        if (clipHandlerRef.current && rfb.removeEventListener) {
+          rfb.removeEventListener('clipboard', clipHandlerRef.current)
+        }
+        clipHandlerRef.current = null
+        clip?.registerBridge(null)
+        if (typeof rfb.disconnect === 'function') {
+          try { rfb.disconnect() } catch { /* ignore */ }
+        }
       }
       rfbRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reconnect when VM/port/ws URL/connectKey changes
-  }, [vmName, port, kubeVirtNamespace, libvirtConnection, wsUrlOverride, connectKey])
+  }, [vmName, port, kubeVirtNamespace, libvirtConnection, wsUrlOverride, connectKey, clip])
 
   useEffect(() => {
     if (!fillViewport || status !== 'connected') return

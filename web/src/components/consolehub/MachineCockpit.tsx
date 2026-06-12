@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { ConsoleViewportProvider, useConsoleViewport } from './ConsoleViewportContext'
+import { ConsoleClipboardProvider } from './ConsoleClipboardContext'
 import MachineCommandStrip from './MachineCommandStrip'
 import ViewLensBar, { lensToProtocol, type ConsoleLens } from './ViewLensBar'
 import MachineCanvas from './MachineCanvas'
@@ -644,7 +645,9 @@ function CockpitInner({
 export default function MachineCockpit(props: MachineCockpitProps) {
   return (
     <ConsoleViewportProvider>
-      <CockpitInner {...props} />
+      <ConsoleClipboardProvider>
+        <CockpitInner {...props} />
+      </ConsoleClipboardProvider>
     </ConsoleViewportProvider>
   )
 }

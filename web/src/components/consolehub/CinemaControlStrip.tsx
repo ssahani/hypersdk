@@ -16,6 +16,8 @@ import {
 } from 'lucide-react'
 import type { ViewportMode, ZoomLevel } from './ConsoleViewportContext'
 import { useConsoleViewportOptional } from './ConsoleViewportContext'
+import { useConsoleClipboardOptional } from './ConsoleClipboardContext'
+import { useToastContext } from '../../contexts/ToastContext'
 
 type Props = {
   visible?: boolean
@@ -53,12 +55,17 @@ export default function CinemaControlStrip({
   shareBusy = false,
 }: Props) {
   const vp = useConsoleViewportOptional()
+  const clip = useConsoleClipboardOptional()
+  const toast = useToastContext()
   const [show, setShow] = useState(true)
   const [idle, setIdle] = useState(false)
   const [powerOpen, setPowerOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [clipOpen, setClipOpen] = useState(false)
+  const [localDraft, setLocalDraft] = useState('')
   const powerRef = useRef<HTMLDivElement>(null)
   const moreRef = useRef<HTMLDivElement>(null)
+  const clipRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!visible) return
@@ -81,6 +88,7 @@ export default function CinemaControlStrip({
     const close = (e: MouseEvent) => {
       if (powerRef.current && !powerRef.current.contains(e.target as Node)) setPowerOpen(false)
       if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false)
+      if (clipRef.current && !clipRef.current.contains(e.target as Node)) setClipOpen(false)
     }
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
@@ -94,6 +102,42 @@ export default function CinemaControlStrip({
   const setMode = (mode: ViewportMode) => {
     vp.setMode(mode)
     setMoreOpen(false)
+  }
+
+  const openClipboard = async () => {
+    if (clipOpen) {
+      setClipOpen(false)
+      return
+    }
+    try {
+      const text = await navigator.clipboard.readText()
+      setLocalDraft(text)
+    } catch {
+      setLocalDraft('')
+    }
+    setClipOpen(true)
+  }
+
+  const sendToGuest = async () => {
+    if (!clip?.canSync || readOnly) return
+    const ok = await clip.pasteLocalToGuest(localDraft)
+    if (ok) {
+      toast.success('Sent clipboard to VM')
+      setClipOpen(false)
+    } else {
+      toast.error('Could not send clipboard — check permissions and VNC connection')
+    }
+  }
+
+  const copyFromGuest = async () => {
+    if (!clip?.guestText.trim()) return
+    const ok = await clip.copyGuestToLocal()
+    if (ok) {
+      setLocalDraft(clip.guestText)
+      toast.success('Copied VM clipboard to laptop')
+    } else {
+      toast.error('Could not copy to laptop clipboard')
+    }
   }
 
   return (
@@ -147,9 +191,57 @@ export default function CinemaControlStrip({
           </button>
         ) : null}
 
-        <button type="button" className={btn} title="Clipboard (use browser paste in canvas)">
-          <Clipboard className="w-3.5 h-3.5" />
-        </button>
+        <div className="relative" ref={clipRef}>
+          <button
+            type="button"
+            className={`${btn} ${readOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
+            disabled={readOnly}
+            title={readOnly ? 'Read-only session' : 'Sync clipboard with VM'}
+            data-testid="cinema-clipboard"
+            onClick={() => void openClipboard()}
+          >
+            <Clipboard className="w-3.5 h-3.5" />
+          </button>
+          {clipOpen && !readOnly ? (
+            <div
+              className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-72 rounded-lg border border-white/10 bg-slate-950/95 p-3 shadow-xl space-y-2"
+              data-testid="cinema-clipboard-panel"
+            >
+              <p className="text-[11px] font-medium text-slate-200">Clipboard sync</p>
+              {!clip?.canSync ? (
+                <p className="text-[10px] text-amber-200/80">Connect the display console to enable paste into the VM.</p>
+              ) : null}
+              <textarea
+                className="w-full min-h-[4.5rem] rounded border border-white/10 bg-black/40 px-2 py-1.5 text-xs text-slate-100 font-mono resize-y"
+                value={localDraft}
+                onChange={(e) => setLocalDraft(e.target.value)}
+                placeholder="Paste text to send to the VM…"
+              />
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  className={`${btn} text-[11px] ${!clip?.canSync ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  disabled={!clip?.canSync}
+                  onClick={() => void sendToGuest()}
+                >
+                  Send to VM
+                </button>
+                {clip?.guestText.trim() ? (
+                  <button type="button" className={`${btn} text-[11px]`} onClick={() => void copyFromGuest()}>
+                    Copy from VM
+                  </button>
+                ) : null}
+              </div>
+              {clip?.guestText.trim() ? (
+                <p className="text-[10px] text-slate-500 truncate" title={clip.guestText}>
+                  VM clipboard: {clip.guestText.slice(0, 80)}{clip.guestText.length > 80 ? '…' : ''}
+                </p>
+              ) : (
+                <p className="text-[10px] text-slate-500">Copy inside the VM to pull text here.</p>
+              )}
+            </div>
+          ) : null}
+        </div>
 
         {onOpenAi ? (
           <button type="button" className={`${btn} border-violet-500/40 text-violet-200`} onClick={onOpenAi}>
