@@ -16,7 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PDF_DIR = ROOT / "docs" / "client-presentations"
-DEFAULT_GLOB = "0[7-9]-*.pdf,10-*.pdf"
+DEFAULT_GLOB = "0[7-9]-*.pdf,1[01]-*.pdf"
 
 
 def load_env() -> None:

@@ -55,6 +55,7 @@ All presentations available as **interactive HTML** (viewable in any browser) an
 | **08** | **ConsoleHub Cinema & Studio** | Machina Cinema, Studio, Mission Control wall, Ops Shelf | Console operators, NOC | 5 |
 | **09** | **Connect Hub & Daily Access** | SSH, NAT laptop path, export, Access tab deep work | Daily VM operators | 4 |
 | **10** | **Platform Feature QA Matrix** | F01–F13 Playwright matrix (mock + live) | QA, release engineering | 4 |
+| **11** | **VM Disks, Compute & Devices** | Attach/resize disk, Edit CPU/memory, ISO, NIC, snapshots, migrate | Platform operators, infra engineers | 5 |
 
 ---
 
@@ -66,7 +67,7 @@ HTML decks live in this directory (same format as `hyper2kvm-/docs/client-presen
 # All decks (01–10)
 ./scripts/generate-client-presentation-pdfs.sh
 
-# New feature decks only (07–10)
+# New feature decks only (07–11)
 ./scripts/generate-feature-pdfs.sh
 
 # Mail to sibu@zyvor.dev (cc ssahani@zyvor.dev)
