@@ -251,3 +251,8 @@ Includes PAM login at `/login` → dashboard when credentials are set.
 ## Docs
 
 - OpenStack phases: [`openstack.md`](openstack.md)
+- Platform VM detail UX: [`guides/platform-vm-detail-ux.md`](guides/platform-vm-detail-ux.md)
+- Connect hub & daily access: [`guides/vm-daily-access.md`](guides/vm-daily-access.md)
+- Feature QA matrix (F01–F13): [`guides/platform-feature-qa.md`](guides/platform-feature-qa.md)
+- Cinema / Studio modes: [`machina-cinema-mode.md`](machina-cinema-mode.md)
+- Client feature PDFs: `./scripts/generate-feature-pdfs.sh` → [`guides/pdf/`](guides/pdf/)

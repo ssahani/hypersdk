@@ -19,6 +19,36 @@
 
 [**→ Full Presentation Library**](client-presentations/) with descriptions and generation instructions
 
+### Feature guide PDFs (client mail)
+
+Branded PDFs for recent platform UX and QA guides — generated from markdown, emailed to stakeholders:
+
+```bash
+./scripts/generate-feature-pdfs.sh          # docs/guides/pdf/*.pdf
+./scripts/mail-feature-pdfs.sh              # To sibu@zyvor.dev, cc ssahani@zyvor.dev
+```
+
+| PDF | Source |
+|-----|--------|
+| Platform VM Detail UX | [`guides/platform-vm-detail-ux.md`](guides/platform-vm-detail-ux.md) |
+| VM Daily Access & Connect hub | [`guides/vm-daily-access.md`](guides/vm-daily-access.md) |
+| Platform Feature QA (F01–F13) | [`guides/platform-feature-qa.md`](guides/platform-feature-qa.md) |
+| Machina Cinema Mode | [`machina-cinema-mode.md`](machina-cinema-mode.md) |
+
+SMTP: `scripts/deploy-mailer.env` or `../hypersdk-web/contact-mailer.env` (see `deploy-mailer.env.example`).
+
+---
+
+## Platform guides
+
+| Guide | Description |
+|-------|-------------|
+| [Platform VM Detail UX](guides/platform-vm-detail-ux.md) | Hero, action bar, attention stack, Connect hub, Access tab |
+| [VM daily access](guides/vm-daily-access.md) | Connect hub, laptop NAT path, export, ports |
+| [Platform feature QA](guides/platform-feature-qa.md) | F01–F13 Playwright matrix (mock + live) |
+| [VM lifecycle & SSH](guides/vm-lifecycle-ssh.md) | SSH keys, cloud-init, port forwards |
+| [Machina Cinema Mode](machina-cinema-mode.md) | Cinema / Studio / Mission Control wall |
+
 ---
 
 ## Getting Started
@@ -31,6 +61,8 @@
 | [Guacamole Integration](guacamole-integration.md) | HTML5 gateway integration (optional) |
 | [OIDC & local Linux user](oidc-effective-linux-user.md) | Session vs NSS mapping, defaults, run-as-user boundary |
 | [UX wiring & QA](ux.md) | Cross-shell UX, login variants, manual QA matrix, E2E pointers |
+| [Platform VM Detail UX](guides/platform-vm-detail-ux.md) | Connect hub, Access tab, action bar, attention stack |
+| [Platform feature QA](guides/platform-feature-qa.md) | F01–F13 feature matrix (`npm run test:e2e:features`) |
 | [Machina Cinema Mode](machina-cinema-mode.md) | Cinema / Studio console UX, entry points, tests |
 | [Operator runbook](runbook.md) | Health, backup, remote access, web login troubleshooting |
 | [Developing on macOS](macos-build.md) | **Remote-only Rust builds** — do not `cargo build` / `make` on Mac |

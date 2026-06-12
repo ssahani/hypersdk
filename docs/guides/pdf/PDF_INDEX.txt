@@ -1,0 +1,11 @@
+Machina — feature guide PDFs
+════════════════════════════════════════
+
+Generated from docs/guides/*.md and docs/machina-cinema-mode.md
+
+  07-platform-vm-detail-ux.pdf
+  08-vm-daily-access-connect-hub.pdf
+  09-platform-feature-qa-matrix.pdf
+  10-machina-cinema-mode.pdf
+
+  zyvor.dev · HyperSDK · © 2026

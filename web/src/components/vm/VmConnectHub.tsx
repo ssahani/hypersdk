@@ -108,6 +108,7 @@ export default function VmConnectHub({
   const [sshOpen, setSshOpen] = useState(false)
   const [exposeBusy, setExposeBusy] = useState<number | null>(null)
   const [natOpen, setNatOpen] = useState(natExpanded)
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const running = vmState === 'running'
   const ip = guestIp.trim()
   const topPorts = (guestPorts?.ports ?? []).slice(0, 5)
@@ -117,10 +118,12 @@ export default function VmConnectHub({
 
   const notify = (msg: string) => onNotify?.(msg)
 
-  const copy = async (text: string, label: string) => {
+  const copy = async (text: string, label: string, key: string) => {
     try {
       await navigator.clipboard.writeText(text)
       notify(label)
+      setCopiedKey(key)
+      window.setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 700)
     } catch {
       notify('Copy failed')
     }
@@ -168,15 +171,20 @@ export default function VmConnectHub({
   }
 
   const natRuleCount = portForwardRules.length
+  const laptopStepsDone = [running, Boolean(ip), sshExposed].filter(Boolean).length
+  const laptopProgress = guestAccess?.guest_ip_private ? Math.round((laptopStepsDone / 3) * 100) : 0
 
   return (
     <>
-      <div className="rounded-2xl border border-slate-700/50 bg-slate-900/60 p-4 space-y-4" data-testid="vm-daily-access">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-slate-200">Connect</h3>
+      <div className="vm-connect-hub p-4 space-y-4 animate-fade-in" data-testid="vm-daily-access">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-100 tracking-tight">Connect</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Cinema, SSH, NAT, and laptop commands in one place</p>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             {ip && (
-              <span className="text-xs font-mono text-emerald-300/90">
+              <span className="text-xs font-mono text-emerald-300/90 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
                 {privateIp ? `${sshUser}@${ip} (NAT)` : `${sshUser}@${ip}`}
                 {sshExposed && hypervisorAddress ? ` · SSH :${sshNatHostPort(portForwardRules)}` : ''}
               </span>
@@ -199,20 +207,26 @@ export default function VmConnectHub({
         </div>
 
         {guestAccess?.guest_ip_private && (
-          <div className="rounded-lg border border-sky-500/20 bg-sky-950/20 px-3 py-2 space-y-1.5" data-testid="vm-laptop-access-checklist">
-            <p className="text-[10px] uppercase tracking-wider text-sky-200/80">Laptop path</p>
-            <ul className="space-y-1 text-xs">
-              <li className="flex items-center gap-2">
-                {running ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <Circle className="w-3 h-3 text-slate-500" />}
-                <span className="text-slate-300">VM running</span>
+          <div className="rounded-xl border border-sky-500/25 bg-sky-950/25 px-3 py-3 space-y-2" data-testid="vm-laptop-access-checklist">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] uppercase tracking-wider text-sky-200/80">Laptop path</p>
+              <span className="text-[10px] font-medium text-sky-200/70">{laptopProgress}%</span>
+            </div>
+            <div className="vm-laptop-progress" aria-hidden>
+              <div className="vm-laptop-progress-bar" style={{ width: `${laptopProgress}%` }} />
+            </div>
+            <ul className="space-y-0.5 text-xs">
+              <li className={`vm-laptop-step ${running ? 'vm-laptop-step--done' : ''}`}>
+                {running ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Circle className="w-3.5 h-3.5 text-slate-500" />}
+                <span className="vm-laptop-step-label text-slate-400">VM running</span>
               </li>
-              <li className="flex flex-wrap items-center gap-2">
-                {ip ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <Circle className="w-3 h-3 text-slate-500" />}
-                <span className="text-slate-400">{ip || 'Guest IP'}</span>
+              <li className={`vm-laptop-step ${ip ? 'vm-laptop-step--done' : ''}`}>
+                {ip ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Circle className="w-3.5 h-3.5 text-slate-500" />}
+                <span className="vm-laptop-step-label text-slate-400">{ip || 'Guest IP'}</span>
               </li>
-              <li className="flex flex-wrap items-center gap-2">
-                {sshExposed ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <Circle className="w-3 h-3 text-slate-500" />}
-                <span className="text-slate-400">{sshExposed ? 'SSH exposed' : 'Expose SSH'}</span>
+              <li className={`vm-laptop-step ${sshExposed ? 'vm-laptop-step--done' : ''}`}>
+                {sshExposed ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Circle className="w-3.5 h-3.5 text-slate-500" />}
+                <span className="vm-laptop-step-label text-slate-400">{sshExposed ? 'SSH exposed' : 'Expose SSH'}</span>
               </li>
             </ul>
           </div>
@@ -221,7 +235,7 @@ export default function VmConnectHub({
         <div className="flex flex-wrap gap-2">
           <Link
             to={consoleHref}
-            className={`btn-primary text-xs inline-flex items-center gap-1 ${!running || disabled ? 'pointer-events-none opacity-50' : ''}`}
+            className={`btn-primary text-xs inline-flex items-center gap-1 vm-cinema-cta ${!running || disabled ? 'pointer-events-none opacity-50' : ''}`}
             aria-disabled={!running || disabled}
           >
             <Monitor className="w-3.5 h-3.5" /> Open Cinema
@@ -242,14 +256,19 @@ export default function VmConnectHub({
           </button>
           <button
             type="button"
-            className="btn-secondary text-xs inline-flex items-center gap-1"
+            className={`btn-secondary text-xs inline-flex items-center gap-1 ${copiedKey === 'ssh' ? 'vm-copy-flash' : ''}`}
             disabled={!sshCommand}
-            onClick={() => void copy(sshCommand, 'SSH command copied (add -i your-key if needed)')}
+            onClick={() => void copy(sshCommand, 'SSH command copied (add -i your-key if needed)', 'ssh')}
           >
-            <Copy className="w-3 h-3" /> Copy laptop cmd
+            <Copy className="w-3 h-3" /> {copiedKey === 'ssh' ? 'Copied!' : 'Copy laptop cmd'}
           </button>
-          <button type="button" className="btn-secondary text-xs" disabled={!ip} onClick={() => void copy(ip, 'Guest IP copied')}>
-            <Copy className="w-3 h-3 inline" /> IP
+          <button
+            type="button"
+            className={`btn-secondary text-xs ${copiedKey === 'ip' ? 'vm-copy-flash' : ''}`}
+            disabled={!ip}
+            onClick={() => void copy(ip, 'Guest IP copied', 'ip')}
+          >
+            <Copy className="w-3 h-3 inline" /> {copiedKey === 'ip' ? 'Copied!' : 'IP'}
           </button>
         </div>
 
@@ -332,7 +351,7 @@ export default function VmConnectHub({
                   onNotify={notify}
                 />
               ) : (
-                <div className="rounded-lg border border-slate-800/80 p-3 text-xs text-slate-400 space-y-2">
+                <div className="rounded-lg border border-slate-800/80 p-3 text-xs text-slate-400 space-y-2 bg-slate-950/40">
                   <p>{natRuleCount > 0 ? `${natRuleCount} NAT rule(s) active` : 'No NAT rules on this hypervisor yet.'}</p>
                   <button type="button" className="btn-secondary text-xs" onClick={() => setNatOpen(true)}>
                     Show expose panel

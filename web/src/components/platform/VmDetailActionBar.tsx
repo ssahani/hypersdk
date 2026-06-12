@@ -146,7 +146,7 @@ export default function VmDetailActionBar({
 
   return (
     <div className="flex flex-wrap items-center gap-2" data-testid="vm-detail-action-bar">
-      <Link to={cinemaHubPath(vmId)} className="btn-primary text-sm inline-flex items-center gap-1">
+      <Link to={cinemaHubPath(vmId)} className="btn-primary text-sm inline-flex items-center gap-1 vm-cinema-cta">
         <Monitor className="w-4 h-4" /> Open Cinema
       </Link>
       {!isKubevirt && (
@@ -169,7 +169,7 @@ export default function VmDetailActionBar({
           </button>
           {menuOpen ? (
             <div
-              className="absolute right-0 top-full z-50 mt-1 min-w-[12rem] rounded-lg border border-white/10 bg-slate-900 shadow-xl py-1"
+              className="absolute right-0 top-full z-50 mt-1 min-w-[12rem] rounded-lg border border-white/10 bg-slate-900/95 shadow-xl py-1 vm-detail-action-menu"
               role="menu"
             >
               {isRunning && power.onPause ? menuItem('Pause', power.onPause) : null}

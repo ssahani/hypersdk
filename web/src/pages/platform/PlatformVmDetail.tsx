@@ -120,6 +120,7 @@ import { loadVmSshPrefs } from '../../utils/vmSshPrefs'
 import VmConnectHub from '../../components/vm/VmConnectHub'
 import VmDetailActionBar from '../../components/platform/VmDetailActionBar'
 import VmAttentionStack from '../../components/platform/VmAttentionStack'
+import VmDetailHero from '../../components/platform/VmDetailHero'
 import VmPortForwardPanel from '../../components/vm/VmPortForwardPanel'
 import VmSshConnectDialog, { navigateVmSshSession } from '../../components/vm/VmSshConnectDialog'
 import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
@@ -140,6 +141,7 @@ import VmCpuTopologyModal from '../../components/platform/VmCpuTopologyModal'
 import VmMemorySizingModal from '../../components/platform/VmMemorySizingModal'
 import { putVmDomainXml } from '../../api/platformVmLibvirt'
 import { buildVmSpotlightPrefill, vmDetailBlockers } from '../../utils/vmDetailSpotlight'
+import { sshNatHostPort } from '../../utils/vmPortForwardServices'
 import { formatBytes } from '../../utils/vm'
 
 export default function PlatformVmDetail() {
@@ -932,6 +934,21 @@ export default function PlatformVmDetail() {
             />
           )}
 
+          {vm.inventory_source !== 'kubevirt' && (
+            <VmDetailHero
+              vmName={vm.name}
+              observedState={vm.observed_state}
+              guestIp={guestIp}
+              hostLabel={hostLabel}
+              healthScore={health?.score ? Number.parseInt(health.score, 10) : null}
+              doctorScore={doctor?.score_numeric ?? null}
+              sshExposed={Boolean(sshNatHostPort(portForwardRules))}
+              blockers={detailBlockers}
+              onOpenAccess={() => setTab('access')}
+              onOpenDoctor={() => setTab('doctor')}
+            />
+          )}
+
           <VmDetailTabs active={tab} onChange={setTab} />
 
           {isGuestRelatedTab(tab) && tab !== 'overview' && tab !== 'access' && (
@@ -993,7 +1010,7 @@ export default function PlatformVmDetail() {
           )}
 
           {tab === 'overview' && (
-            <div className="space-y-4">
+            <div className="space-y-4 animate-fade-in">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
                 <InfoCard label="Desired state" value={vm.desired_state} />
                 <InfoCard label="Lifecycle" value={vm.lifecycle_phase || 'idle'} />
@@ -1056,9 +1073,9 @@ export default function PlatformVmDetail() {
                 </MacGlassPanel>
               )}
               {doctor && (
-                <div className="flex flex-wrap items-center gap-2 text-sm text-slate-300 rounded-lg border border-white/[0.06] bg-slate-900/40 px-3 py-2">
-                  <span>
-                    Doctor: <span className="font-semibold text-slate-100">{doctor.score_numeric}/100</span>
+                <div className="flex flex-wrap items-center gap-2 text-sm rounded-xl border border-violet-500/20 bg-violet-950/20 px-4 py-3">
+                  <span className="text-slate-300">
+                    Doctor: <span className="font-semibold text-violet-200">{doctor.score_numeric}/100</span>
                     {doctor.issues.length > 0 ? ` · ${doctor.issues.length} issue(s)` : ' · all checks passed'}
                   </span>
                   <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => setTab('doctor')}>
@@ -2205,9 +2222,9 @@ export default function PlatformVmDetail() {
 
 function InfoCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-800/80 bg-slate-900/40 p-3">
+    <div className="glass glass-elevated rounded-liquid p-3 glass-hover-lift">
       <p className="text-[10px] uppercase tracking-wider text-slate-500">{label}</p>
-      <p className="font-medium text-slate-100 mt-0.5 capitalize">{value}</p>
+      <p className="font-semibold text-slate-100 mt-1 capitalize tracking-tight">{value}</p>
     </div>
   )
 }

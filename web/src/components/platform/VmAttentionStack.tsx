@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useState } from 'react'
-import { AlertTriangle, CheckCircle2, Circle, Copy, Loader2, Power, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Circle, Loader2, Power, X } from 'lucide-react'
 import type { VmGuestHealthReport, VmPendingConfig } from '../../api/platform'
 import { guestToolsStripVisible } from '../../utils/guestAgentUx'
 import type { GuestAccessHints } from '../../utils/guestAccessHints'
@@ -32,10 +32,14 @@ type AttentionItem = {
   priority: number
   label: string
   detail: string
+  tone: 'pending' | 'guest' | 'laptop'
   expanded: React.ReactNode
   chipLabel: string
-  onChipClick?: () => void
   dismissible?: boolean
+}
+
+function bannerClass(id: AttentionItem['tone']) {
+  return `vm-attention-banner vm-attention-banner--${id}`
 }
 
 export default function VmAttentionStack({
@@ -62,6 +66,7 @@ export default function VmAttentionStack({
       return false
     }
   })
+  const [activeId, setActiveId] = useState<string | null>(null)
 
   if (pendingLoading) return null
 
@@ -76,6 +81,7 @@ export default function VmAttentionStack({
     items.push({
       id: 'pending_config',
       priority: 1,
+      tone: 'pending',
       label: 'Changes pending shutdown',
       chipLabel: 'Pending config',
       detail: 'Persistent configuration differs from the running guest. Shut down and start the VM to apply changes.',
@@ -114,11 +120,11 @@ export default function VmAttentionStack({
     items.push({
       id: 'guest_agent',
       priority: 2,
+      tone: 'guest',
       label: 'Guest agent setup',
       chipLabel: 'Guest agent',
       detail,
       dismissible: true,
-      onChipClick: onOpenGuestHealth,
       expanded: (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <p className={`text-sm ${statusToneClass('warn')}`}>{detail}</p>
@@ -157,9 +163,9 @@ export default function VmAttentionStack({
     items.push({
       id: 'laptop_access',
       priority: 3,
+      tone: 'laptop',
       label: 'Laptop access',
       chipLabel: !ip ? 'Guest IP' : 'Expose SSH',
-      onChipClick: onOpenAccess,
       detail: !ip
         ? 'Guest IP not detected yet — install guest tools or wait for DHCP.'
         : 'Expose SSH on the hypervisor so you can connect from your laptop via NAT.',
@@ -197,19 +203,28 @@ export default function VmAttentionStack({
   if (items.length === 0) return null
 
   items.sort((a, b) => a.priority - b.priority)
-  const [expanded, ...rest] = items
+  const resolvedActiveId = activeId && items.some((i) => i.id === activeId) ? activeId : items[0]!.id
+  const resolvedActive = items.find((i) => i.id === resolvedActiveId) ?? items[0]!
+  const rest = items.filter((i) => i.id !== resolvedActive.id)
 
   return (
-    <div className="space-y-2" data-testid="vm-attention-stack">
+    <div className="space-y-2 animate-fade-in" data-testid="vm-attention-stack">
       <div
-        className={`rounded-xl border p-4 ${statusSurfaceClasses(expanded.id === 'pending_config' ? 'warn' : 'warn')}`}
-        data-testid={expanded.id === 'pending_config' ? 'vm-pending-config-banner' : undefined}
+        className={`rounded-xl border p-4 ${statusSurfaceClasses(resolvedActive.tone === 'pending' ? 'warn' : 'warn')} ${bannerClass(resolvedActive.tone)}`}
+        data-testid={resolvedActive.id === 'pending_config' ? 'vm-pending-config-banner' : undefined}
       >
         <div className="flex gap-3">
           <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0 space-y-2">
-            <p className="text-sm font-medium text-slate-100">{expanded.label}</p>
-            {expanded.expanded}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium text-slate-100">{resolvedActive.label}</p>
+              {items.length > 1 && (
+                <span className="text-[10px] uppercase tracking-wider text-slate-500">
+                  {items.length} issue{items.length === 1 ? '' : 's'}
+                </span>
+              )}
+            </div>
+            {resolvedActive.expanded}
           </div>
         </div>
       </div>
@@ -219,8 +234,8 @@ export default function VmAttentionStack({
             <button
               key={item.id}
               type="button"
-              className={statusPillClasses('warn')}
-              onClick={item.onChipClick}
+              className={`${statusPillClasses('warn')} vm-attention-chip`}
+              onClick={() => setActiveId(item.id)}
             >
               {item.chipLabel}
             </button>

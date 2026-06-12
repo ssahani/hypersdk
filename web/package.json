@@ -12,6 +12,8 @@
     "test:e2e": "node scripts/run-playwright.mjs",
     "test:e2e:install": "node scripts/run-playwright.mjs install --with-deps chromium",
     "test:e2e:live-ux": "node scripts/run-playwright.mjs -c playwright.live-ux.config.ts",
+    "test:e2e:features": "node scripts/run-playwright.mjs -c playwright.feature-matrix.config.ts",
+    "test:e2e:features:live": "node scripts/run-playwright.mjs -c playwright.feature-matrix.live.config.ts",
     "test:e2e:ui": "node scripts/run-playwright.mjs --ui",
     "check-ui-tokens": "node scripts/check-ui-tokens.mjs",
     "generate-openapi": "node ../scripts/generate-openapi.mjs",

@@ -121,6 +121,14 @@ if [[ "${E2E_INCLUDE_MOCK:-0}" == "1" ]]; then
   " || FAILED=$((FAILED + 1))
 fi
 
+# G: feature-by-feature matrix (mock build + live lab)
+if [[ "${E2E_FEATURE_MATRIX:-0}" == "1" ]]; then
+  run_phase "feature-matrix" \
+    env VSPASS="$PASS" PLAYWRIGHT_LIBVIRT_VM_ID="${PLAYWRIGHT_LIBVIRT_VM_ID:-}" \
+    "${SCRIPT_DIR}/e2e-feature-matrix-remote.sh" "$USER" "$HOST" \
+    || FAILED=$((FAILED + 1))
+fi
+
 ENDED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 UX_REPORT="${ROOT}/docs/ux-wiring-live-report.json"
 UX_FAILED=""

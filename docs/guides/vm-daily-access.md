@@ -2,6 +2,8 @@
 
 Operators use the **Connect** hub on VM detail (platform and classic) for everyday tasks: graphical console, SSH, copy commands, guest ports, NAT exposure, and exports.
 
+See also: [Platform VM Detail UX](platform-vm-detail-ux.md) (hero, action bar, Access tab layout).
+
 ## Connect hub (platform)
 
 On **VM detail → Overview**, a single **Connect** card consolidates what used to be separate Daily access, laptop checklist, and inline NAT panels:

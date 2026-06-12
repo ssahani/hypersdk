@@ -1,0 +1,143 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Serial feature-by-feature matrix (mocked API) — F01 through F13.
+
+import { test, expect } from '@playwright/test'
+import {
+  applyGuestHealthDegradedOverride,
+  openMockVmDetail,
+  openPowerOverflow,
+  setupMockPlatform,
+} from './helpers/featureMatrix'
+
+test.describe.configure({ mode: 'serial' })
+
+test.beforeAll(async ({ browser }) => {
+  // Warm browser for serial suite stability.
+  const page = await browser.newPage()
+  await page.close()
+})
+
+test.beforeEach(async ({ page }) => {
+  await setupMockPlatform(page)
+})
+
+test('F01 — VM detail hero shows machine strip and status pills', async ({ page }) => {
+  await openMockVmDetail(page)
+  await expect(page.getByTestId('vm-detail-hero')).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('.vm-detail-hero-icon--live')).toBeVisible()
+  await expect(
+    page.getByTestId('vm-detail-hero').getByText(/blocker|Ready to connect|Doctor \d+/i).first(),
+  ).toBeVisible({ timeout: 10_000 })
+})
+
+test('F02 — action bar exposes Cinema, SSH, and power overflow', async ({ page }) => {
+  await openMockVmDetail(page)
+  const bar = page.getByTestId('vm-detail-action-bar')
+  await expect(bar).toBeVisible({ timeout: 15_000 })
+  await expect(bar.getByRole('link', { name: /Open Cinema/i })).toBeVisible()
+  await expect(bar.getByRole('button', { name: 'SSH' })).toBeVisible()
+  await openPowerOverflow(page)
+  await expect(page.getByTestId('vm-force-reboot-button')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Studio' })).toBeVisible()
+})
+
+test('F03 — attention stack chips swap expanded banner', async ({ page }) => {
+  await applyGuestHealthDegradedOverride(page)
+  await openMockVmDetail(page)
+  const stack = page.getByTestId('vm-attention-stack')
+  await expect(stack).toBeVisible({ timeout: 15_000 })
+  await expect(stack.getByText('Guest agent setup', { exact: true })).toBeVisible()
+  await stack.getByRole('button', { name: 'Expose SSH' }).click()
+  await expect(stack.getByText('Laptop access', { exact: true })).toBeVisible()
+})
+
+test('F04 — Connect hub on Overview shows laptop path and copy actions', async ({ page }) => {
+  await openMockVmDetail(page)
+  await expect(page.getByTestId('vm-daily-access')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('vm-laptop-access-checklist')).toBeVisible()
+  const copyCmd = page.getByRole('button', { name: /Copy laptop cmd/i })
+  await expect(copyCmd).toBeEnabled()
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+  await copyCmd.click()
+  await expect(page.getByRole('button', { name: /^Copied!$/i })).toBeVisible({ timeout: 5_000 })
+})
+
+test('F05 — Access tab shows full NAT panel and export section', async ({ page }) => {
+  await openMockVmDetail(page, 'access')
+  await expect(page.getByTestId('vm-daily-access')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('vm-port-forward-panel')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Spec', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Spec \+ XML/i })).toBeVisible()
+})
+
+test('F06 — SSH connect dialog shows NAT banner and expose action', async ({ page }) => {
+  await openMockVmDetail(page)
+  await page.getByTestId('vm-detail-action-bar').getByRole('button', { name: 'SSH' }).click()
+  await expect(page.getByTestId('vm-ssh-connect-dialog')).toBeVisible()
+  await expect(page.getByTestId('vm-ssh-nat-banner')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Expose SSH & copy command' })).toBeVisible()
+})
+
+test('F07 — NAT expose SSH preset creates port-forward rule', async ({ page }) => {
+  await page.goto('/platform/vms/v1?tab=network')
+  await expect(page.getByTestId('vm-port-forward-panel')).toBeVisible({ timeout: 15_000 })
+  const createReq = page.waitForRequest(
+    (req) => req.url().includes('/port-forwards') && req.method() === 'POST',
+  )
+  await page.getByTestId('expose-service-ssh').click()
+  const req = await createReq
+  expect(req.postDataJSON()).toMatchObject({ host_port: 2222, vm_port: 22, protocol: 'tcp' })
+})
+
+test('F08 — Overview slim body shows usage bars and doctor one-liner', async ({ page }) => {
+  await openMockVmDetail(page)
+  await expect(page.getByTestId('vm-usage-bars')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText(/Doctor:/i)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Full report →' })).toBeVisible()
+})
+
+test('F09 — Console tab guidance links to Cinema and Studio', async ({ page }) => {
+  await openMockVmDetail(page, 'console')
+  const consoleSection = page.locator('div.pt-2').filter({ has: page.getByRole('heading', { name: 'VNC console' }) })
+  await expect(consoleSection).toBeVisible({ timeout: 15_000 })
+  await expect(consoleSection.getByRole('link', { name: /Open Cinema/i })).toBeVisible()
+  await expect(consoleSection.getByRole('link', { name: 'Studio', exact: true })).toBeVisible()
+})
+
+test('F10 — Doctor tab deep-links GuestKit migrate plan', async ({ page }) => {
+  await openMockVmDetail(page, 'doctor')
+  await expect(page.getByRole('button', { name: 'Run migrate plan' })).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: 'Run migrate plan' }).click()
+  await expect(page).toHaveURL(/tab=guestHealth/)
+})
+
+test('F11 — Cinema ConsoleHub shell, ops shelf, and serial recovery', async ({ page }) => {
+  await page.goto('/platform/vms/v1/consolehub?mode=studio')
+  await expect(page.getByTestId('studio-layout')).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: 'Serial' }).first().click()
+  await expect(page.getByTestId('console-login-recovery')).toBeVisible({ timeout: 15_000 })
+  await page.goto('/platform/vms/v1/consolehub?mode=cinema')
+  await expect(page.getByTestId('cinema-shell')).toBeVisible({ timeout: 15_000 })
+  await page.getByTestId('ops-shelf-handle').click()
+  await expect(page.getByTestId('ops-shelf')).toBeVisible({ timeout: 15_000 })
+})
+
+test('F12 — Machine Finder table SSH and gallery Cinema', async ({ page }) => {
+  await page.goto('/platform/vms?lens=table')
+  await expect(page.getByRole('heading', { name: /Machine Finder/i })).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: 'SSH' }).first().click()
+  await expect(page.getByTestId('vm-ssh-connect-dialog')).toBeVisible()
+  await page.goto('/platform/vms?lens=gallery')
+  await expect(page.getByTestId('machine-finder-gallery')).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('link', { name: /Open Cinema/i }).first().click()
+  await expect(page).toHaveURL(/\/consolehub/)
+})
+
+test('F13 — Mission Control command center opens SSH dialog', async ({ page }) => {
+  await page.goto('/platform')
+  await page.getByText('vm-1').first().click({ timeout: 15_000 })
+  await expect(page.getByTestId('fleet-command-center')).toBeVisible()
+  await page.getByTestId('fleet-command-center').getByRole('button', { name: 'SSH' }).click()
+  await expect(page.getByTestId('vm-ssh-connect-dialog')).toBeVisible()
+  await expect(page.getByTestId('vm-ssh-nat-banner')).toBeVisible()
+})

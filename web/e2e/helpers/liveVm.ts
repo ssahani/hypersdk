@@ -9,7 +9,7 @@ export const liveVmId = () => process.env.PLAYWRIGHT_LIBVIRT_VM_ID?.trim() ?? ''
 
 export const liveVmName = () => process.env.PLAYWRIGHT_LIBVIRT_VM_NAME?.trim() || 'ubuntu-desktop'
 
-const PRIMARY_TABS = new Set(['Overview', 'Console', 'Performance', 'Doctor', 'Disks', 'Devices'])
+const PRIMARY_TABS = new Set(['Overview', 'Access', 'Console', 'Performance', 'Doctor', 'Disks', 'Devices'])
 
 export function skipUnlessLiveVm(test: { skip: (cond: boolean, reason?: string) => void }) {
   test.skip(!liveBaseUrl() || !liveCredentials(), 'Set PLAYWRIGHT_LIVE_URL, PLAYWRIGHT_LIVE_USER, PLAYWRIGHT_LIVE_PASS')
