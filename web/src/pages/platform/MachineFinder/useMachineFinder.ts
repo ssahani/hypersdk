@@ -36,7 +36,7 @@ import {
 } from '../../../components/platform/SimpleCreateVmWizard'
 import { CLIENT_ONLY_FOLDERS, type MachineFinderLens, type MachineFinderOverlay } from './machineFinderTypes'
 
-const VALID_LENSES = new Set<MachineFinderLens>(['grid', 'table', 'topology', 'timeline', 'heatmap', 'migration'])
+const VALID_LENSES = new Set<MachineFinderLens>(['grid', 'gallery', 'table', 'topology', 'timeline', 'heatmap', 'migration'])
 const VALID_OVERLAYS = new Set<MachineFinderOverlay>([
   'default', 'health', 'backup', 'network', 'security', 'gpu', 'cost', 'migration',
 ])
@@ -292,6 +292,8 @@ export function useMachineFinder() {
     extraTags: string[] = [],
     cloudInitSshPubkey?: string,
     customSpec?: VmWizardPayload['customSpec'],
+    graphicsType: VmWizardPayload['graphicsType'] = 'both',
+    graphicsListen: VmWizardPayload['graphicsListen'] = '127.0.0.1',
   ): CreatePlatformVmBody => {
     const spec = sizeToSpec(size, customSpec)
     const cloudUser = cloudInitUserForOs(os)
@@ -305,6 +307,7 @@ export function useMachineFinder() {
         memory: spec.memory,
         storage: [{ name: 'root', size: spec.disk, class: 'silver' }],
         network: [{ network, ip_mode: 'dhcp' }],
+        graphics: { type: graphicsType, listen: graphicsListen },
         ...(cloudInitSshPubkey ? { cloud_init: { user: cloudUser, ssh_pubkey: cloudInitSshPubkey } } : {}),
       },
     }
@@ -354,6 +357,8 @@ export function useMachineFinder() {
             [],
             payload.cloudInitSshPubkey,
             payload.customSpec,
+            payload.graphicsType,
+            payload.graphicsListen,
           ),
         )
         toastQueuedOperation(toast, `Creating ${payload.name}`, r.task_id, tier)

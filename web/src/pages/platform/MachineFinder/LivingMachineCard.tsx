@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { Link } from 'react-router'
-import { Monitor, Terminal } from 'lucide-react'
+import { Monitor, Terminal, Wifi } from 'lucide-react'
 import { getPlatformVmMetrics, listVmBackups, runVmHealthCheck, type PlatformVm } from '../../../api/platform'
 import { getAiSecurity } from '../../../api/ai'
 import { machineAuraClass, machineAuraTone } from '../../../components/consolehub/MachineCanvas'
@@ -11,6 +11,7 @@ import { guestToolsStatusLabel } from '../../../utils/guestAgentUx'
 import { formatVmMemoryGiB, vmLaunchpadGradient, vmSemanticKind } from '../../../utils/vmVisual'
 import { statusPillClasses } from '../../../utils/semanticColors'
 import { openCenterPopout } from '../../../utils/platformCenterPopout'
+import { cinemaHubPath, cinemaPopoutPath } from '../../../utils/consoleExperienceMode'
 import type { MachineFinderOverlay } from './machineFinderTypes'
 
 type Props = {
@@ -227,13 +228,14 @@ export default function LivingMachineCard({
 
       {running && libvirt && (
         <div className="flex justify-center gap-1 mt-2" onClick={(e) => e.stopPropagation()}>
-          <Link to={`/platform/vms/${vm.id}/consolehub`} className="p-1.5 rounded-lg hover:bg-white/10" title="Console"><Monitor className="w-3.5 h-3.5 text-slate-400" /></Link>
+          <Link to={cinemaHubPath(vm.id, { protocol: 'novnc' })} className="p-1.5 rounded-lg hover:bg-white/10" title="VNC Cinema"><Monitor className="w-3.5 h-3.5 text-slate-400" /></Link>
+          <Link to={cinemaHubPath(vm.id, { protocol: 'spice' })} className="p-1.5 rounded-lg hover:bg-white/10" title="SPICE Cinema"><Wifi className="w-3.5 h-3.5 text-slate-400" /></Link>
           <button type="button" className="p-1.5 rounded-lg hover:bg-white/10" title="SSH" onClick={onSsh}><Terminal className="w-3.5 h-3.5 text-slate-400" /></button>
           <button
             type="button"
             className="p-1.5 rounded-lg hover:bg-white/10 text-[10px] text-slate-500"
-            title="Theatre console"
-            onClick={() => openCenterPopout(`/platform/vms/${vm.id}/consolehub?popout=1`)}
+            title="Pop out Cinema"
+            onClick={() => openCenterPopout(cinemaPopoutPath(vm.id))}
           >
             ⛶
           </button>

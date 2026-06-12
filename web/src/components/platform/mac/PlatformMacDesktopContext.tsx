@@ -13,8 +13,11 @@ type PlatformMacDesktopContextValue = {
   sidebarVisible: boolean
   sidebarCollapsed: boolean
   inspectorVisible: boolean
+  cinemaChromeHidden: boolean
   toggleSidebar: () => void
+  setSidebarVisible: (v: boolean) => void
   setSidebarCollapsed: (v: boolean) => void
+  setCinemaChromeHidden: (v: boolean) => void
   toggleInspector: () => void
   setInspectorVisible: (v: boolean) => void
 }
@@ -35,9 +38,10 @@ function defaultSidebarCollapsedForTier(tier: PlatformDesktopTier): boolean {
 }
 
 export function PlatformMacDesktopProvider({ children }: { children: ReactNode }) {
-  const [sidebarVisible, setSidebarVisible] = useState(() => defaultSidebarVisibleForTier(loadPlatformDesktopTier()))
+  const [sidebarVisible, setSidebarVisibleState] = useState(() => defaultSidebarVisibleForTier(loadPlatformDesktopTier()))
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => defaultSidebarCollapsedForTier(loadPlatformDesktopTier()))
   const [inspectorVisible, setInspectorVisible] = useState(true)
+  const [cinemaChromeHidden, setCinemaChromeHidden] = useState(false)
 
   useEffect(() => {
     const applyTier = () => {
@@ -59,7 +63,8 @@ export function PlatformMacDesktopProvider({ children }: { children: ReactNode }
     }
   }, [])
 
-  const toggleSidebar = useCallback(() => setSidebarVisible((v) => !v), [])
+  const toggleSidebar = useCallback(() => setSidebarVisibleState((v) => !v), [])
+  const setSidebarVisible = useCallback((v: boolean) => setSidebarVisibleState(v), [])
   const toggleInspector = useCallback(() => setInspectorVisible((v) => !v), [])
 
   const setCollapsed = useCallback((v: boolean) => {
@@ -72,12 +77,15 @@ export function PlatformMacDesktopProvider({ children }: { children: ReactNode }
       sidebarVisible,
       sidebarCollapsed,
       inspectorVisible,
+      cinemaChromeHidden,
       toggleSidebar,
+      setSidebarVisible,
       setSidebarCollapsed: setCollapsed,
+      setCinemaChromeHidden,
       toggleInspector,
       setInspectorVisible,
     }),
-    [sidebarVisible, sidebarCollapsed, inspectorVisible, toggleSidebar, setCollapsed, toggleInspector],
+    [sidebarVisible, sidebarCollapsed, inspectorVisible, cinemaChromeHidden, toggleSidebar, setSidebarVisible, setCollapsed, toggleInspector],
   )
 
   return <PlatformMacDesktopContext.Provider value={value}>{children}</PlatformMacDesktopContext.Provider>

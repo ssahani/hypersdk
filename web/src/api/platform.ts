@@ -1708,6 +1708,18 @@ export const convertVmSpiceToVnc = (id: string) =>
     method: 'POST',
   })
 
+export const addVmGraphics = (id: string, graphics_type: 'vnc' | 'spice', listen?: string) =>
+  platformFetch<{ status: string; message?: string }>(`/api/v1/vms/${id}/graphics/add`, {
+    method: 'POST',
+    body: JSON.stringify({ graphics_type, listen: listen ?? '127.0.0.1' }),
+  })
+
+export const removeVmGraphics = (id: string, graphics_type: 'vnc' | 'spice') =>
+  platformFetch<{ status: string; message?: string }>(`/api/v1/vms/${id}/graphics/remove`, {
+    method: 'POST',
+    body: JSON.stringify({ graphics_type }),
+  })
+
 export interface VmLibvirtInterface {
   mac_address: string
   source: string

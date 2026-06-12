@@ -40,16 +40,19 @@ function PlatformDesktopShell() {
   const isPopout = isCenterPopoutMode(location.search)
   const [wallpaper, setWallpaper] = useState<PlatformWallpaper>(() => loadPlatformWallpaper())
   const [dockEditorOpen, setDockEditorOpen] = useState(false)
-  const { sidebarVisible } = usePlatformMacDesktop()
+  const { sidebarVisible, cinemaChromeHidden } = usePlatformMacDesktop()
   const [tier] = usePlatformDesktopTier()
   const { openMissionControl, closeMissionControl } = useMissionControl()
   usePlatformTierRouteGuard()
 
   const navEpoch = useRef(0)
+  const cinemaRoute = location.pathname.includes('/consolehub') && cinemaChromeHidden
+  const hideChrome = cinemaRoute
   const meshSubtle = location.pathname !== '/platform' && suppressContextBar(location.pathname)
   const contextBarVisible =
-    contextNavForPath(location.pathname, tier) != null &&
-    shouldShowContextBar(location.pathname, tier)
+    !hideChrome
+    && contextNavForPath(location.pathname, tier) != null
+    && shouldShowContextBar(location.pathname, tier)
 
   useEffect(() => {
     const onWallpaper = () => setWallpaper(loadPlatformWallpaper())
@@ -160,35 +163,38 @@ function PlatformDesktopShell() {
       data-wallpaper={wallpaper}
       data-desktop-tier={tier}
       data-context-bar={contextBarVisible ? 'visible' : 'hidden'}
+      data-cinema-chrome={hideChrome ? 'hidden' : undefined}
     >
-      <header className="mac-menubar-inner glass shrink-0 sticky top-0 z-40 flex items-center gap-2 px-2 lg:px-3 h-11 overflow-visible">
-        <div className="flex items-center min-w-0 shrink-0 overflow-visible z-[400]">
-          <PlatformMacAppMenus />
-        </div>
-        <div className="flex-1 flex justify-center min-w-0 pointer-events-none">
-          <PlatformDynamicIsland />
-        </div>
-        <div className="ml-auto shrink-0 flex items-center gap-2 z-[400]">
-          <PlatformControlCenter />
-        </div>
-      </header>
+      {!hideChrome ? (
+        <header className="mac-menubar-inner glass shrink-0 sticky top-0 z-40 flex items-center gap-2 px-2 lg:px-3 h-11 overflow-visible">
+          <div className="flex items-center min-w-0 shrink-0 overflow-visible z-[400]">
+            <PlatformMacAppMenus />
+          </div>
+          <div className="flex-1 flex justify-center min-w-0 pointer-events-none">
+            <PlatformDynamicIsland />
+          </div>
+          <div className="ml-auto shrink-0 flex items-center gap-2 z-[400]">
+            <PlatformControlCenter />
+          </div>
+        </header>
+      ) : null}
 
-      <PlatformContextBar />
-      <PlatformMobileJumpNav />
+      {contextBarVisible ? <PlatformContextBar /> : null}
+      {!hideChrome ? <PlatformMobileJumpNav /> : null}
 
-      <div className="flex w-full flex-1 items-stretch">
-        {sidebarVisible ? <PlatformSidebar /> : null}
-        <div className="tahoe-canvas mac-desktop-main flex-1 min-w-0 relative">
-          <div className={`tahoe-mesh pointer-events-none${meshSubtle ? ' tahoe-mesh-subtle' : ''}`} aria-hidden />
-          <div className="relative z-[1] px-4 lg:px-6 pt-1 pb-16 lg:pb-24 max-w-[160rem] mx-auto w-full platform-mac-scroll-body">
-            <div className="platform-readable tahoe-readable-stack py-3 pb-8">
+      <div className="flex w-full flex-1 items-stretch min-h-0">
+        {sidebarVisible && !hideChrome ? <PlatformSidebar /> : null}
+        <div className="tahoe-canvas mac-desktop-main flex-1 min-w-0 relative min-h-0">
+          {!hideChrome ? <div className={`tahoe-mesh pointer-events-none${meshSubtle ? ' tahoe-mesh-subtle' : ''}`} aria-hidden /> : null}
+          <div className={`relative z-[1] w-full platform-mac-scroll-body ${hideChrome ? 'p-0 max-w-none h-full min-h-0' : 'px-4 lg:px-6 pt-1 pb-16 lg:pb-24 max-w-[160rem] mx-auto'}`}>
+            <div className={hideChrome ? 'h-full min-h-0' : 'platform-readable tahoe-readable-stack py-3 pb-8'}>
               <Outlet />
             </div>
           </div>
         </div>
       </div>
 
-      <PlatformMacDock />
+      {!hideChrome ? <PlatformMacDock /> : null}
       <PlatformDockEditor open={dockEditorOpen} onClose={() => setDockEditorOpen(false)} />
       <MissionControlOverlay />
     </div>

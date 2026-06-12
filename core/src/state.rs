@@ -478,7 +478,7 @@ fn default_graphics_listen() -> String {
 }
 
 fn default_graphics_type() -> String {
-    "vnc".to_string()
+    "both".to_string()
 }
 
 fn default_template_disk_mode() -> String {

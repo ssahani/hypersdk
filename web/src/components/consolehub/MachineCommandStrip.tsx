@@ -60,12 +60,12 @@ export default function MachineCommandStrip({
       <div className="flex items-center gap-2">
         {!theatre && onEnterTheatre ? (
           <button type="button" className="btn-secondary text-xs py-1 px-2" onClick={onEnterTheatre}>
-            Enter Theatre
+            Open Cinema
           </button>
         ) : null}
         {onCommandCenter ? (
           <button type="button" className="btn-secondary text-xs py-1 px-2 inline-flex items-center gap-1" onClick={onCommandCenter}>
-            <Cpu className="w-3.5 h-3.5" /> Command Center
+            <Cpu className="w-3.5 h-3.5" /> Ops Shelf
           </button>
         ) : null}
         {onAi ? (

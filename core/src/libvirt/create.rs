@@ -454,16 +454,10 @@ fn generate_domain_xml(
     let network = crate::xml::escape(&req.network);
     let disk_path_esc = crate::xml::escape(disk_path);
     let disk_driver_esc = crate::xml::escape(disk_driver);
-    let graphics_listen_esc = crate::xml::escape(graphics_listen);
 
-    // Resolve graphics type: if caller said "spice" but SPICE is unavailable, fall back to VNC.
-    let gtype = if graphics_type.eq_ignore_ascii_case("spice") && has_spice() {
-        "spice"
-    } else if graphics_type.eq_ignore_ascii_case("spice") {
-        "vnc"
-    } else {
-        "vnc"
-    };
+    // Resolve graphics block (vnc, spice, or both).
+    let graphics_xml =
+        super::graphics_convert::graphics_elements_xml(graphics_listen, graphics_type);
     // qxl is not always available (minimal qemu builds); vga is widely supported.
     let video_model = "vga";
 
@@ -600,7 +594,7 @@ fn generate_domain_xml(
       <target type='virtio' name='org.qemu.guest_agent.0'/>
     </channel>
     <!-- VNC: noVNC + /ws/v1/vnc/{{name}}. SPICE: spice-html5 + /ws/v1/spice/{{name}}. -->
-    <graphics type='{gtype}' port='-1' autoport='yes' listen='{graphics_listen}'/>
+    {graphics_xml}
     <video>
       <model type='{video_model}' heads='1'/>
     </video>
@@ -623,8 +617,7 @@ fn generate_domain_xml(
         virtio_win_cdrom_xml = virtio_win_cdrom_xml,
         cloud_init_cdrom_xml = cloud_init_cdrom_xml,
         network = network,
-        graphics_listen = graphics_listen_esc,
-        gtype = gtype,
+        graphics_xml = graphics_xml,
         video_model = video_model,
     )
 }

@@ -294,6 +294,35 @@ pub fn vm_invoke(
             )?;
             Ok(serde_json::json!({ "status": "ok", "message": msg }))
         }
+        "graphics.add" => {
+            let uri = conn
+                .get_uri()
+                .map_err(|e| LibvirtError::Operation(format!("libvirt URI: {e}")))?;
+            let graphics_type = payload_str(payload, "graphics_type")?;
+            let listen = payload
+                .get("listen")
+                .and_then(|v| v.as_str())
+                .unwrap_or("127.0.0.1");
+            let msg = machina_core::libvirt::graphics_convert::virt_xml_add_graphics(
+                &uri,
+                vm_name,
+                &graphics_type,
+                listen,
+            )?;
+            Ok(serde_json::json!({ "status": "ok", "message": msg }))
+        }
+        "graphics.remove" => {
+            let uri = conn
+                .get_uri()
+                .map_err(|e| LibvirtError::Operation(format!("libvirt URI: {e}")))?;
+            let graphics_type = payload_str(payload, "graphics_type")?;
+            let msg = machina_core::libvirt::graphics_convert::virt_xml_remove_graphics(
+                &uri,
+                vm_name,
+                &graphics_type,
+            )?;
+            Ok(serde_json::json!({ "status": "ok", "message": msg }))
+        }
         "cpu.topology.set" => {
             let sockets = payload_u32(payload, "sockets")?;
             let cores = payload_u32(payload, "cores")?;

@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 
-export type ViewportMode = 'fit' | 'native' | 'scroll' | 'zoom'
+export type ViewportMode = 'fit' | 'fill' | 'native' | 'scroll' | 'zoom' | 'stretch'
 export type ZoomLevel = 75 | 100 | 125 | 150 | 200
 
 export type ViewportState = {
@@ -56,7 +56,7 @@ export function ConsoleViewportProvider({ children }: { children: ReactNode }) {
     setState((s) => ({
       ...s,
       mode,
-      scaledFit: mode === 'fit',
+      scaledFit: mode === 'fit' || mode === 'fill',
     }))
   }, [])
 

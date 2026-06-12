@@ -18,6 +18,8 @@ import VmStatusBadge from '../../VmStatusBadge'
 import { formatVmMemoryGiB } from '../../../utils/vmVisual'
 import { useToastContext } from '../../../contexts/ToastContext'
 import ConsoleTheatrePreview from './ConsoleTheatrePreview'
+import VmConsoleQuickLinks from './VmConsoleQuickLinks'
+import { cinemaHubPath, studioHubPath, cinemaPopoutPath } from '../../../utils/consoleExperienceMode'
 import type { FleetCommandCenterProps } from './fleetCommandCenterTypes'
 
 export default function FleetCommandCenter({
@@ -91,15 +93,22 @@ export default function FleetCommandCenter({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Link to={`/platform/vms/${selectedVm.id}/consolehub`} className="btn-secondary text-xs flex-1 text-center inline-flex items-center justify-center gap-1">
-            <Monitor className="w-3.5 h-3.5" /> Console
-          </Link>
-          {selectedVm.inventory_source !== 'kubevirt' && (
-            <button type="button" className="btn-secondary text-xs flex-1 inline-flex items-center justify-center gap-1" onClick={() => onSsh(selectedVm)}>
-              <Terminal className="w-3.5 h-3.5" /> SSH
-            </button>
-          )}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-slate-400">Console</p>
+          <VmConsoleQuickLinks vmId={selectedVm.id} running={running} />
+          <div className="flex flex-wrap gap-2">
+            <Link to={cinemaHubPath(selectedVm.id)} className="btn-primary text-xs flex-1 text-center inline-flex items-center justify-center gap-1">
+              <Monitor className="w-3.5 h-3.5" /> Open Cinema
+            </Link>
+            <Link to={studioHubPath(selectedVm.id)} className="btn-secondary text-xs flex-1 text-center inline-flex items-center justify-center gap-1">
+              Studio
+            </Link>
+            {selectedVm.inventory_source !== 'kubevirt' && (
+              <button type="button" className="btn-secondary text-xs flex-1 inline-flex items-center justify-center gap-1" onClick={() => onSsh(selectedVm)}>
+                <Terminal className="w-3.5 h-3.5" /> SSH dialog
+              </button>
+            )}
+          </div>
         </div>
 
         {selectedVm.guest_ip && (

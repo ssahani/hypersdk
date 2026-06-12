@@ -34,6 +34,8 @@ interface Props {
   connectKey?: number
   /** Machine Cockpit — hide toolbar; viewport controlled by floating HUD. */
   cockpitMode?: boolean
+  /** Called when VNC canvas is ready (for Cinema screenshots). */
+  onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
 }
 
 /** Apply scale vs native resolution (scroll) — affects perceived sharpness and pointer mapping. */
@@ -63,6 +65,7 @@ export default function VNCViewer({
   onReconnect,
   cockpitMode = false,
   connectKey = 0,
+  onCanvasReady,
 }: Props) {
   const vp = useConsoleViewportOptional()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -145,6 +148,8 @@ export default function VNCViewer({
             syncGuestSize(rfb)
             applyViewportMode(rfb, scaledFitRef.current)
             window.dispatchEvent(new Event('resize'))
+            const canvas = containerRef.current?.querySelector('canvas')
+            onCanvasReady?.(canvas as HTMLCanvasElement | null)
             scrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
             requestAnimationFrame(() => {
               syncGuestSize(rfb)
@@ -164,6 +169,7 @@ export default function VNCViewer({
             setStatus('disconnected')
             vp?.setConnected(false)
             vp?.setGuestSize(0, 0)
+            onCanvasReady?.(null)
           }
         })
         rfb.addEventListener('desktopname', () => syncGuestSize(rfb))
@@ -245,14 +251,15 @@ export default function VNCViewer({
 
   useEffect(() => {
     if (!cockpitMode || !vp) return
-    const fit = vp.mode === 'fit'
-    setScaledFit(fit)
+    const mode = vp.mode
+    setScaledFit(mode === 'fit' || mode === 'fill' || mode === 'stretch')
   }, [cockpitMode, vp?.mode, vp])
 
   useEffect(() => {
     const rfb = rfbRef.current
     if (!rfb || status !== 'connected' || !cockpitMode || !vp) return
-    const fit = vp.mode === 'fit'
+    const mode = vp.mode
+    const fit = mode === 'fit' || mode === 'fill' || mode === 'stretch'
     applyViewportMode(rfb as { scaleViewport: boolean; clipViewport: boolean }, fit)
     window.dispatchEvent(new Event('resize'))
   }, [cockpitMode, vp?.mode, status, vp])
@@ -401,7 +408,7 @@ export default function VNCViewer({
       >
         <div
           ref={containerRef}
-          className="inline-block min-w-full min-h-full"
+          className={`inline-block min-w-full min-h-full ${cockpitMode && vp?.mode === 'stretch' ? 'w-full h-full [&_canvas]:!w-full [&_canvas]:!h-full' : ''}`}
           style={{
             transform: cockpitMode && vp?.mode === 'zoom' ? `scale(${vp.zoom / 100})` : undefined,
             transformOrigin: 'top left',

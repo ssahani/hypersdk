@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router'
 import { LaunchpadAppIcon } from '../../../components/platform/mac/PlatformMacUi'
+import { cinemaPopoutPath } from '../../../utils/consoleExperienceMode'
 import { openCenterPopout } from '../../../utils/platformCenterPopout'
 import type { PlatformVm } from '../../../api/platform'
 
@@ -36,7 +37,8 @@ const CARDS: Array<{
   { id: 'gpu', label: 'GPU Command Center', subtitle: 'Scheduling', icon: Sparkles, href: '/platform/gpu' },
   { id: 'migrate', label: 'Migration Planner', subtitle: 'Drag & drop', icon: Boxes, href: '/platform/vms?lens=migration' },
   { id: 'golden', label: 'Golden Image Builder', subtitle: 'Templates', icon: Wrench, href: '/platform/vm-builder' },
-  { id: 'console', label: 'ConsoleHub', subtitle: 'Live console', icon: Monitor, action: 'console' },
+  { id: 'console', label: 'Machina Cinema', subtitle: 'Live console', icon: Monitor, action: 'console' },
+  { id: 'live-wall', label: 'Live Preview Wall', subtitle: 'Fleet grid', icon: Monitor, href: '/platform/mission-control/live' },
   { id: 'trace', label: 'PacketWolf Trace', subtitle: 'Network path', icon: Terminal, href: '/platform/zeus' },
 ]
 
@@ -63,7 +65,7 @@ export default function MissionControlLaunchpad({ onCreateVm, lastVm }: Props) {
                 type="button"
                 className="text-left"
                 onClick={() => {
-                  if (lastVm) openCenterPopout(`/platform/vms/${lastVm.id}/consolehub?popout=1`)
+                  if (lastVm) openCenterPopout(cinemaPopoutPath(lastVm.id))
                   else window.location.href = '/platform/vms'
                 }}
               >

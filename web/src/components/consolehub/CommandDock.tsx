@@ -47,6 +47,7 @@ export default function CommandDock({ visible = true, onCtrlAltDel, onExplain, o
     >
       <div className="flex flex-wrap items-center justify-center gap-1.5 px-2 py-1.5 rounded-2xl border border-white/10 bg-black/65 backdrop-blur-md shadow-xl">
         <button type="button" className={btn} onClick={() => vp.setMode('fit')}>Fit</button>
+        <button type="button" className={btn} onClick={() => vp.setMode('fill')}>Fill</button>
         <button type="button" className={btn} onClick={() => vp.setMode('native')}>Native</button>
         <button type="button" className={btn} onClick={() => vp.setMode('scroll')}>
           <span className="inline-flex items-center gap-1"><Move className="w-3 h-3" /> Scroll</span>

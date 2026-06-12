@@ -106,6 +106,7 @@ const PlatformGpuCommandCenter = lazy(() => import('./pages/platform/PlatformGpu
 const PlatformVms = lazy(() => import('./pages/platform/PlatformVms'))
 const PlatformVmDetail = lazy(() => import('./pages/platform/PlatformVmDetail'))
 const PlatformConsoleHub = lazy(() => import('./pages/platform/PlatformConsoleHub'))
+const MissionControlLiveWall = lazy(() => import('./pages/platform/MissionControlLiveWall'))
 const PlatformConsoleRedirect = lazy(() => import('./pages/platform/PlatformConsoleRedirect'))
 const PlatformContent = lazy(() => import('./pages/platform/PlatformContent'))
 const PlatformIsoCreate = lazy(() => import('./pages/platform/PlatformIsoCreate'))
@@ -371,6 +372,7 @@ function AuthenticatedShellRoutes() {
                   <Route path="vms" element={<PlatformVms />} />
                   <Route path="vms/:id" element={<PlatformVmDetail />} />
                   <Route path="vms/:id/consolehub" element={<PlatformConsoleHub />} />
+                  <Route path="mission-control/live" element={<MissionControlLiveWall />} />
                   <Route path="vms/:id/console" element={<PlatformConsoleRedirect />} />
                   <Route path="applications" element={<PlatformApplications />} />
                   <Route path="launchpad/apps/:id" element={<PlatformLaunchpadAppDetail />} />

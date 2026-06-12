@@ -185,6 +185,13 @@ pub fn create_vm_virt_install(
     };
     crate::validate::validate_graphics_type(gt)?;
 
+    let want_both = gt.eq_ignore_ascii_case("both");
+    let gt_install = if want_both {
+        if win { "spice" } else { "vnc" }
+    } else {
+        gt
+    };
+
     let define_only = req.virt_install_define_only;
     let pxe = req.virt_install_pxe;
     let location = req.virt_install_location.trim();
@@ -281,8 +288,8 @@ pub fn create_vm_virt_install(
         args.push(format!("network={net}"));
     }
 
-    // Graphics
-    if gt.eq_ignore_ascii_case("spice") {
+    // Graphics (virt-install supports one device; `both` adds the second via virt-xml afterward)
+    if gt_install.eq_ignore_ascii_case("spice") {
         args.push("--graphics".into());
         args.push(format!("spice,listen={gl}"));
         // qxl is not always available (minimal qemu builds); vga is widely supported.
@@ -438,6 +445,9 @@ pub fn create_vm_virt_install(
             ))
         })?;
         subprocess::log_line(log, "machina", "Domain defined from virt-install XML.");
+        if want_both {
+            add_secondary_graphics_after_virt_install(libvirt_uri, &req.name, gt_install, gl)?;
+        }
         return Ok(());
     }
 
@@ -453,6 +463,28 @@ pub fn create_vm_virt_install(
         )));
     }
 
+    if want_both {
+        add_secondary_graphics_after_virt_install(libvirt_uri, &req.name, gt_install, gl)?;
+    }
+
+    Ok(())
+}
+
+fn add_secondary_graphics_after_virt_install(
+    libvirt_uri: &str,
+    vm_name: &str,
+    primary: &str,
+    listen: &str,
+) -> Result<(), LibvirtError> {
+    let secondary = if primary.eq_ignore_ascii_case("vnc") {
+        "spice"
+    } else {
+        "vnc"
+    };
+    if secondary == "spice" && !has_spice() {
+        return Ok(());
+    }
+    super::graphics_convert::virt_xml_add_graphics(libvirt_uri, vm_name, secondary, listen)?;
     Ok(())
 }
 

@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { Server } from 'lucide-react'
 import LivingMachineCard from '../MachineFinder/LivingMachineCard'
 import { openCenterPopout } from '../../../utils/platformCenterPopout'
+import { cinemaPopoutPath } from '../../../utils/consoleExperienceMode'
 import { statusPillClasses } from '../../../utils/semanticColors'
 import type { MissionControlFleetState } from './useMissionControlFleet'
 
@@ -55,7 +56,7 @@ export default function HostMachinePanels({ state }: Props) {
                     onSelect={() => setSelectedVmId(vm.id)}
                     onDragStart={() => setDragVmId(vm.id)}
                     onSsh={() => setSshVm(vm)}
-                    onDoubleClickTheatre={() => openCenterPopout(`/platform/vms/${vm.id}/consolehub?popout=1`)}
+                    onDoubleClickTheatre={() => openCenterPopout(cinemaPopoutPath(vm.id))}
                   />
                 ))}
               </div>
@@ -82,7 +83,7 @@ export default function HostMachinePanels({ state }: Props) {
                 onSelect={() => setSelectedVmId(vm.id)}
                 onDragStart={() => setDragVmId(vm.id)}
                 onSsh={() => setSshVm(vm)}
-                onDoubleClickTheatre={() => openCenterPopout(`/platform/vms/${vm.id}/consolehub?popout=1`)}
+                onDoubleClickTheatre={() => openCenterPopout(cinemaPopoutPath(vm.id))}
               />
             ))}
           </div>

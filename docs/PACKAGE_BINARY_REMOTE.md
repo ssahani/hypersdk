@@ -2,6 +2,8 @@
 
 Deliver **machina-daemon**, **TUI**, and **web/dist** as a tarball—no `deploy-remote.sh` on the client machine. Build on a **Linux amd64 hypervisor-class host** (same distro family the client will run).
 
+> **macOS developers:** do not run `make` or `cargo build` locally. Use this script (or `deploy-remote.sh --remote-build`) to compile on the remote host only. See [macos-build.md](macos-build.md).
+
 ## Quick command
 
 ```bash

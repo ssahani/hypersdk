@@ -49,7 +49,6 @@ import {
   getVmPendingConfig,
   renamePlatformVm,
   injectVmNmi,
-  convertVmSpiceToVnc,
   type VmPendingConfig,
   listPlatformNetworks,
   resizeVmDisk,
@@ -114,6 +113,7 @@ import { toastQueuedOperation } from '../../utils/platformTaskToast'
 import { purgeVmShortcuts } from '../../utils/vmShortcuts'
 import VmStatusBadge from '../../components/VmStatusBadge'
 import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
+import { cinemaHubPath, studioHubPath } from '../../utils/consoleExperienceMode'
 import { vmErrorPresentation } from '../../utils/vmErrorPresentation'
 import { formatVmMemoryGiB } from '../../utils/vmVisual'
 import { loadVmSshPrefs } from '../../utils/vmSshPrefs'
@@ -130,6 +130,7 @@ import { publishVmAsTemplate } from '../../api/platformTemplatesExtra'
 import PlatformVmAdvanced from '../../components/platform/PlatformVmAdvanced'
 import VmPendingConfigBanner from '../../components/platform/VmPendingConfigBanner'
 import VmDevicesPanel from '../../components/platform/VmDevicesPanel'
+import VmGraphicsPanel from '../../components/platform/VmGraphicsPanel'
 import VmQemuLogsPanel from '../../components/platform/VmQemuLogsPanel'
 import VmPendingBadge from '../../components/platform/VmPendingBadge'
 import SpotlightPageAction from '../../components/platform/SpotlightPageAction'
@@ -153,7 +154,7 @@ export default function PlatformVmDetail() {
   ).includes(rawTab as VmDetailTab) ? (rawTab as VmDetailTab) : 'overview'
   const setTab = (next: VmDetailTab, extra?: { guestAction?: string }) => {
     if (next === 'console' && id) {
-      navigate(`/platform/vms/${id}/consolehub`)
+      navigate(cinemaHubPath(id))
       return
     }
     setSearchParams((p) => {
@@ -222,7 +223,6 @@ export default function PlatformVmDetail() {
   const [domainXml, setDomainXml] = useState('')
   const [renameDraft, setRenameDraft] = useState('')
   const [descriptionDraft, setDescriptionDraft] = useState('')
-  const hasSpiceGraphics = domainXml.includes("type='spice'") || domainXml.includes('type="spice"')
   const [resizeTarget, setResizeTarget] = useState('')
   const [resizeGb, setResizeGb] = useState('10')
   const [nicNetwork, setNicNetwork] = useState('default')
@@ -798,8 +798,11 @@ export default function PlatformVmDetail() {
       icon={<Monitor className="w-6 h-6 text-slate-400" />}
       actions={vm ? (
         <div className="flex flex-wrap items-center gap-2">
-          <Link to={`/platform/vms/${id}/consolehub`} className="btn-primary text-sm inline-flex items-center gap-1">
-            <Monitor className="w-4 h-4" /> Console
+          <Link to={cinemaHubPath(id!)} className="btn-primary text-sm inline-flex items-center gap-1">
+            <Monitor className="w-4 h-4" /> Open Cinema
+          </Link>
+          <Link to={studioHubPath(id!)} className="btn-secondary text-sm inline-flex items-center gap-1">
+            Studio
           </Link>
           {vm.inventory_source !== 'kubevirt' && vm.observed_state === 'running' && id && (
             <a
@@ -965,7 +968,7 @@ export default function PlatformVmDetail() {
               vmState={vm.observed_state}
               sshUser={sshUser}
               guestIp={guestIp}
-              consoleHref={`/platform/vms/${id}/consolehub`}
+              consoleHref={cinemaHubPath(id)}
               specJson={specJson}
               platformVmId={id}
               hypervisorAddress={hypervisorAddress}
@@ -1241,10 +1244,10 @@ export default function PlatformVmDetail() {
           {tab === 'console' && (
             <MacGlassPanel title="VNC console">
               <p className="text-sm text-slate-400 mb-4">
-                Opens a full-screen noVNC session in a dedicated view.
+                Machina Cinema — immersive full-screen VNC/SPICE with floating controls.
               </p>
-              <Link to={`/platform/vms/${id}/consolehub`} className="btn-primary inline-flex items-center gap-2">
-                <Monitor className="w-4 h-4" /> Open VNC
+              <Link to={cinemaHubPath(id)} className="btn-primary inline-flex items-center gap-2">
+                <Monitor className="w-4 h-4" /> Open Cinema
               </Link>
             </MacGlassPanel>
           )}
@@ -1959,20 +1962,13 @@ export default function PlatformVmDetail() {
                   </div>
                 </MacGlassPanel>
               )}
-              {vm.inventory_source !== 'kubevirt' && hasSpiceGraphics && (
-                <MacGlassPanel title="Graphics">
-                  <p className="text-xs text-slate-500 mb-2">Convert SPICE display to VNC (Cockpit Machines parity).</p>
-                  <button
-                    type="button"
-                    className="btn-secondary text-sm"
-                    onClick={() => {
-                      if (!window.confirm('Convert SPICE to VNC? Guest may briefly lose display.')) return
-                      void act('SPICE converted to VNC', () => convertVmSpiceToVnc(id))
-                    }}
-                  >
-                    SPICE → VNC
-                  </button>
-                </MacGlassPanel>
+              {vm.inventory_source !== 'kubevirt' && (
+                <VmGraphicsPanel
+                  vmId={id}
+                  domainXml={domainXml}
+                  disabled={vm.managed === false}
+                  onChanged={() => void loadDomainXml()}
+                />
               )}
               {vm.inventory_source !== 'kubevirt' && (
                 <MacGlassPanel title="Boot & autostart">

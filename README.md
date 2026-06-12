@@ -344,7 +344,7 @@ Full install runs **dependencies and Rust**, then **builds the workspace and web
 
 ### Remote Deploy
 
-Sources are **rsync’d** to `~/.deployment/machina` on the host; **Rust and npm build only on the server** (not on your laptop). Arguments are always **`USER` then `HOST`** (or `USER@HOST`).
+Sources are **rsync’d** to `~/.deployment/machina` on the host; **Rust and npm build only on the server** (not on your laptop). **Do not run `cargo build` or `make` on macOS** — the workspace requires Linux libvirt; see [docs/macos-build.md](docs/macos-build.md). Arguments are always **`USER` then `HOST`** (or `USER@HOST`).
 
 ```bash
 ./scripts/deploy-remote.sh user@host --bind 0.0.0.0 --open-firewall   # keys or SSHPASS
@@ -388,11 +388,22 @@ sudo make uninstall # stop + remove everything
 
 ### Development Mode (no install)
 
+**Linux hypervisor only** for Rust binaries. On **macOS**, do not compile the Machina Rust workspace locally — use [docs/macos-build.md](docs/macos-build.md) and `./scripts/deploy-remote.sh USER@HOST --remote-build`.
+
+On a Linux dev host with libvirt dev packages installed:
+
 ```bash
 make build                          # debug build
 ./target/debug/machina-daemon     # run daemon
 ./target/debug/machina-tui        # run TUI
 cd web && npm run dev               # web UI dev server with hot reload (port 3000)
+```
+
+On **macOS**, limit local work to the web app:
+
+```bash
+cd web && npm run dev               # UI against remote daemon/controller
+cd web && npm run build             # typecheck + production bundle
 ```
 
 ---

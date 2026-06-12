@@ -5,6 +5,7 @@ import type { MachineFinderState } from './useMachineFinder'
 
 const LENSES: { id: MachineFinderLens; label: string }[] = [
   { id: 'grid', label: 'Grid' },
+  { id: 'gallery', label: 'Gallery' },
   { id: 'table', label: 'Table' },
   { id: 'topology', label: 'Topology' },
   { id: 'timeline', label: 'Timeline' },

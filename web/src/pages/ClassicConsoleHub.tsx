@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
+import { hubLinkClasses } from '../utils/semanticColors'
 import { ArrowLeft } from 'lucide-react'
 import {
   createClassicConsoleHubSession,
@@ -18,7 +19,7 @@ import { formatUserError } from '../utils/apiError'
 import MachineCockpit from '../components/consolehub/MachineCockpit'
 import type { ConsoleHubSessionRow } from '../components/consolehub/ConsoleHubSessionHistory'
 import PageLayout from '../components/PageLayout'
-import { hubLinkClasses } from '../utils/semanticColors'
+import { parseConsoleMode, type ConsoleExperienceMode } from '../utils/consoleExperienceMode'
 
 function classicWsUrl(pathTemplate: string, token: string): string | null {
   const path = pathTemplate.replace('__WS_TOKEN__', encodeURIComponent(token))
@@ -47,8 +48,9 @@ function toPlatformSession(sess: ClassicConsoleHubSessionResponse): ConsoleHubSe
 
 export default function ClassicConsoleHub() {
   const { name } = useParams<{ name: string }>()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const conn = searchParams.get('connection') ?? undefined
+  const experienceMode = parseConsoleMode(searchParams.toString())
   const [plan, setPlan] = useState<ClassicConsoleHubPlan | null>(null)
   const [session, setSession] = useState<ClassicConsoleHubSessionResponse | null>(null)
   const [activeProtocol, setActiveProtocol] = useState('novnc')
@@ -124,6 +126,21 @@ export default function ClassicConsoleHub() {
     }
   }
 
+  const setExperienceMode = useCallback(
+    (mode: ConsoleExperienceMode) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          if (mode === 'cinema') next.delete('mode')
+          else next.set('mode', mode)
+          return next
+        },
+        { replace: true },
+      )
+    },
+    [setSearchParams],
+  )
+
   const prepend = (
     <div className="flex flex-wrap items-center gap-3 text-sm">
       <Link to={vmDetailRoute(name ?? '', conn)} className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>
@@ -161,6 +178,8 @@ export default function ClassicConsoleHub() {
             onReconnect={() => setConnectKey((k) => k + 1)}
             connectKey={connectKey}
             prepend={prepend}
+            experienceMode={experienceMode}
+            onExperienceModeChange={setExperienceMode}
           />
         </div>
       ) : !loading ? (

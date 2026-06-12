@@ -1,0 +1,187 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import type { ReactNode } from 'react'
+import { useState } from 'react'
+import { ArrowLeft, ChevronLeft } from 'lucide-react'
+import { statusBadgeClasses } from '../../utils/semanticColors'
+import type { ConsoleHubPlan, VmPortForwardRule } from '../../api/platform'
+import AccessNotePill from './AccessNotePill'
+import CinemaControlStrip from './CinemaControlStrip'
+import FloatingConsoleHud from './FloatingConsoleHud'
+import ConsoleMinimap from './ConsoleMinimap'
+import ConsoleCommandPalette, {
+  buildDefaultConsoleActions,
+  useConsoleCommandPaletteShortcut,
+} from './ConsoleCommandPalette'
+import { useConsoleViewport } from './ConsoleViewportContext'
+
+type Props = {
+  vmId: string
+  vmName: string
+  vmState?: string | null
+  guestIp?: string | null
+  nodeName?: string | null
+  plan: ConsoleHubPlan | null
+  loading?: boolean
+  hypervisorAddress?: string
+  portForwardRules?: VmPortForwardRule[]
+  onPlanRefresh?: () => void
+  onNotify?: (message: string) => void
+  children: ReactNode
+  onBack: () => void
+  onOpenStudio: () => void
+  onOpenOpsShelf: () => void
+  onOpenAi: () => void
+  onSwitchLens: (lens: string) => void
+  onCtrlAltDel: () => void
+  onSendKey: (preset: 'esc' | 'ctrl_alt_del' | 'alt_tab') => void
+  onPower: (action: 'shutdown' | 'reboot' | 'stop') => void
+  onScreenshot: () => void
+  onSnapshot: () => void
+  onExposeSsh?: () => void
+  displayProtocols?: string[]
+  activeProtocol?: string
+  onProtocolChange?: (p: string) => void
+}
+
+function stateTone(state?: string | null): 'ok' | 'warn' | 'error' | 'neutral' {
+  const s = (state ?? '').toLowerCase()
+  if (s.includes('run') || s === 'active') return 'ok'
+  if (s.includes('migrat') || s.includes('pause')) return 'warn'
+  if (s.includes('fail') || s.includes('error')) return 'error'
+  return 'neutral'
+}
+
+export default function CinemaShell({
+  vmId,
+  vmName,
+  vmState,
+  guestIp,
+  nodeName,
+  plan,
+  loading,
+  hypervisorAddress,
+  portForwardRules = [],
+  onPlanRefresh,
+  onNotify,
+  children,
+  onBack,
+  onOpenStudio,
+  onOpenOpsShelf,
+  onOpenAi,
+  onSwitchLens,
+  onCtrlAltDel,
+  onSendKey,
+  onPower,
+  onScreenshot,
+  onSnapshot,
+  onExposeSsh,
+  displayProtocols = [],
+  activeProtocol,
+  onProtocolChange,
+}: Props) {
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const vp = useConsoleViewport()
+  const tone = stateTone(vmState)
+
+  useConsoleCommandPaletteShortcut(() => setPaletteOpen(true), !loading)
+
+  const actions = buildDefaultConsoleActions({
+    onSwitchLens,
+    onCtrlAltDel,
+    onSetMode: (mode) => vp.setMode(mode),
+    onExposeSsh,
+    onSnapshot,
+    onOpenAi,
+    onOpenOpsShelf,
+    onOpenStudio,
+    vmDetailHref: `/platform/vms/${vmId}`,
+  })
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-[#030305] flex flex-col min-h-0" data-testid="cinema-shell">
+      <header className="shrink-0 flex items-center gap-3 px-3 py-2 border-b border-white/[0.06] bg-black/40 backdrop-blur-md text-xs">
+        <button type="button" className="inline-flex items-center gap-1 text-slate-300 hover:text-white" onClick={onBack}>
+          <ArrowLeft className="w-4 h-4" /> Back
+        </button>
+        <span className="text-slate-500">Machina Cinema</span>
+        <span className={`w-2 h-2 rounded-full ${tone === 'ok' ? 'bg-emerald-400' : tone === 'warn' ? 'bg-amber-400' : 'bg-slate-500'}`} />
+        <span className="font-semibold text-slate-100 truncate">{vmName}</span>
+        {vmState ? <span className={`px-2 py-0.5 rounded-full capitalize ${statusBadgeClasses(tone)}`}>{vmState}</span> : null}
+        {guestIp ? <span className="font-mono text-emerald-300/90 hidden sm:inline">{guestIp}</span> : null}
+        {nodeName ? <span className="text-slate-500 hidden md:inline">Node {nodeName}</span> : null}
+        <span className="ml-auto text-slate-500 hidden sm:inline">Secure session</span>
+      </header>
+
+      <div className="relative flex-1 min-h-0 flex flex-col" data-cinema-viewport>
+        <AccessNotePill
+          hints={plan?.guest_access}
+          vmId={vmId}
+          vmName={vmName}
+          sshUser={plan?.ssh_user ?? undefined}
+          guestIp={plan?.guest_ip ?? undefined}
+          hypervisorHost={hypervisorAddress ?? plan?.hypervisor_address ?? undefined}
+          portForwardRules={portForwardRules}
+          onPlanRefresh={onPlanRefresh}
+          onNotify={onNotify}
+          onOpenShell={() => onSwitchLens('shell')}
+          onExplain={onOpenAi}
+        />
+
+        {displayProtocols.length > 1 && onProtocolChange ? (
+          <div className="absolute top-14 right-3 z-30 flex gap-1">
+            {displayProtocols.filter((p) => p !== 'native_ssh' && p !== 'serial').map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => onProtocolChange(p)}
+                className={
+                  p === activeProtocol
+                    ? 'px-2 py-0.5 rounded-full text-[10px] bg-emerald-900/50 text-emerald-100 border border-emerald-500/30'
+                    : 'px-2 py-0.5 rounded-full text-[10px] text-slate-400 bg-black/50 border border-white/10'
+                }
+              >
+                {p.replace('guacamole_', '').replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="flex-1 min-h-0 w-full relative flex flex-col bg-black">
+          {loading ? (
+            <div className="flex items-center justify-center flex-1 text-slate-500 text-sm">Connecting…</div>
+          ) : (
+            children
+          )}
+          <FloatingConsoleHud visible={!loading} />
+          <CinemaControlStrip
+            visible={!loading}
+            vmId={vmId}
+            onCtrlAltDel={onCtrlAltDel}
+            onSendKey={onSendKey}
+            onPower={onPower}
+            onScreenshot={onScreenshot}
+            onOpenAi={onOpenAi}
+            onOpenOpsShelf={onOpenOpsShelf}
+            onOpenStudio={onOpenStudio}
+            onSwitchLens={onSwitchLens}
+            onRecord={() => onNotify?.('Session recording coming soon')}
+          />
+          <ConsoleMinimap />
+        </div>
+
+        <button
+          type="button"
+          className="absolute right-0 top-1/2 -translate-y-1/2 z-30 px-1 py-3 rounded-l-lg bg-black/60 border border-white/10 border-r-0 text-slate-300 hover:bg-black/80 text-sm"
+          onClick={onOpenOpsShelf}
+          aria-label="Open Ops Shelf"
+          data-testid="ops-shelf-handle"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+      </div>
+
+      <ConsoleCommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} actions={actions} />
+    </div>
+  )
+}

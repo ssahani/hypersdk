@@ -44,3 +44,26 @@ export function consoleAccessHints(
 
   return out
 }
+
+/** Short labels for the Cinema Access Note pill (deduped). */
+export function aggregateAccessNoteLabels(
+  hints: GuestAccessHints | null | undefined,
+  opts: { sshUser?: string; guestIp?: string; hypervisorHost?: string },
+): string[] {
+  if (!hints) return []
+  const labels: string[] = []
+  if (hints.auth_mode === 'ssh_key') labels.push('SSH key-only')
+  if (hints.guest_ip_private) labels.push('NAT guest IP')
+  if (hints.auth_mode === 'ssh_key' && !hints.serial_password_login) labels.push('Serial has no password')
+  if (hints.guest_ip_private && !hints.ssh_nat_host_port) labels.push('SSH not exposed')
+  return [...new Set(labels)]
+}
+
+export function aggregateAccessNoteMessages(
+  hints: GuestAccessHints | null | undefined,
+  opts: { sshUser?: string; guestIp?: string; hypervisorHost?: string; vmNetworkHref?: string },
+): string[] {
+  const serial = consoleAccessHints(hints, 'serial', opts)
+  const shell = consoleAccessHints(hints, 'shell', opts)
+  return [...new Set([...serial, ...shell])]
+}

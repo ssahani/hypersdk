@@ -53,3 +53,13 @@ test('Hosts context includes Infrastructure Finder route', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /Machine Finder/i })).toBeVisible({ timeout: 15_000 })
   await expect(page.getByTestId('machine-finder-topology').getByRole('link', { name: 'Mission Control' })).toBeVisible()
 })
+
+test('Gallery lens shows Open Cinema tiles', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/vms?lens=gallery')
+  await expect(page.getByTestId('machine-finder-gallery')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('link', { name: /Open Cinema/i }).first()).toBeVisible()
+  await page.getByRole('link', { name: /Open Cinema/i }).first().click()
+  await expect(page).toHaveURL(/\/platform\/vms\/v1\/consolehub/)
+  await expect(page.getByTestId('cinema-shell')).toBeVisible({ timeout: 15_000 })
+})

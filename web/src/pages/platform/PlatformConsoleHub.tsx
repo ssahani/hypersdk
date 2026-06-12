@@ -1,8 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router'
-import { ArrowLeft } from 'lucide-react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import {
   createConsoleHubSession,
   getConsoleHubPlan,
@@ -23,17 +22,24 @@ import {
 import { formatUserError } from '../../utils/apiError'
 import { useToastContext } from '../../contexts/ToastContext'
 import MachineCockpit from '../../components/consolehub/MachineCockpit'
-import VmLaptopAccessChecklist from '../../components/vm/VmLaptopAccessChecklist'
 import type { ConsoleHubSessionRow } from '../../components/consolehub/ConsoleHubSessionHistory'
 import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
-import { hubLinkClasses } from '../../utils/semanticColors'
-import PageLayout from '../../components/PageLayout'
+import {
+  parseConsoleMode,
+  cinemaPopoutPath,
+  type ConsoleExperienceMode,
+} from '../../utils/consoleExperienceMode'
+import { usePlatformMacDesktop } from '../../components/platform/mac/PlatformMacDesktopContext'
 
 export default function PlatformConsoleHub() {
   const toast = useToastContext()
-  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const location = useLocation()
+  const { id } = useParams<{ id: string }>()
+  const protocolFromUrl = new URLSearchParams(location.search).get('protocol')
   const isPopout = isCenterPopoutMode(location.search)
+  const experienceMode = parseConsoleMode(location.search)
+  const { setCinemaChromeHidden, setSidebarVisible } = usePlatformMacDesktop()
   const [plan, setPlan] = useState<ConsoleHubPlan | null>(null)
   const [session, setSession] = useState<ConsoleHubSessionResponse | null>(null)
   const [activeProtocol, setActiveProtocol] = useState('novnc')
@@ -50,6 +56,27 @@ export default function PlatformConsoleHub() {
   const [history, setHistory] = useState<ConsoleHubSessionRow[]>([])
   const [machineTimeline, setMachineTimeline] = useState<Awaited<ReturnType<typeof listVmTimeline>>>([])
   const [portForwardRules, setPortForwardRules] = useState<VmPortForwardRule[]>([])
+
+  const cinemaChrome = experienceMode === 'cinema' && !isPopout
+
+  useEffect(() => {
+    setCinemaChromeHidden(cinemaChrome)
+    if (cinemaChrome) setSidebarVisible(false)
+    return () => {
+      setCinemaChromeHidden(false)
+    }
+  }, [cinemaChrome, setCinemaChromeHidden, setSidebarVisible])
+
+  const setExperienceMode = useCallback(
+    (mode: ConsoleExperienceMode) => {
+      if (!id) return
+      const params = new URLSearchParams(location.search)
+      if (mode === 'cinema') params.delete('mode')
+      else params.set('mode', mode)
+      navigate(`/platform/vms/${id}/consolehub?${params.toString()}`, { replace: true })
+    },
+    [id, location.search, navigate],
+  )
 
   const load = useCallback(async () => {
     if (!id) return
@@ -77,7 +104,10 @@ export default function PlatformConsoleHub() {
       if (hubPlan) {
         setPlan(hubPlan)
         setVmName(hubPlan.vm_name)
-        setActiveProtocol(hubPlan.recommended)
+        const preferred = protocolFromUrl && hubPlan.protocols.includes(protocolFromUrl)
+          ? protocolFromUrl
+          : hubPlan.recommended
+        setActiveProtocol(preferred)
         if (hubPlan.guest_ip?.trim()) {
           listVmPortForwards(id).then(setPortForwardRules).catch(() => setPortForwardRules([]))
         } else {
@@ -135,7 +165,13 @@ export default function PlatformConsoleHub() {
     } finally {
       setLoading(false)
     }
-  }, [id])
+  }, [id, protocolFromUrl])
+
+  useEffect(() => {
+    if (plan?.recommended === 'serial' && experienceMode === 'cinema') {
+      setExperienceMode('studio')
+    }
+  }, [plan?.recommended, experienceMode, setExperienceMode])
 
   useEffect(() => {
     void load()
@@ -177,99 +213,74 @@ export default function PlatformConsoleHub() {
     }
   }
 
-  const checklistPrepend =
-    plan?.guest_access?.guest_ip_private && id && vmName && plan.guest_ip ? (
-      <VmLaptopAccessChecklist
-        vmId={id}
-        vmName={vmName}
-        vmState={vmState ?? 'unknown'}
-        guestIp={plan.guest_ip}
-        sshUser={plan.ssh_user ?? 'ubuntu'}
-        hypervisorAddress={plan.hypervisor_address ?? undefined}
-        guestAccess={plan.guest_access}
-        portForwardRules={portForwardRules}
-        onRefreshRules={() => void load()}
-        onNotify={(m) => toast.success(m)}
-        networkTabHref={`/platform/vms/${id}?tab=network`}
-      />
-    ) : null
+  if (!id) return null
 
-  const prepend = !isPopout ? (
-    <div className="space-y-2 mb-2">
-      {checklistPrepend}
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-      <Link to="/platform/vms" className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>
-        <ArrowLeft className="w-4 h-4" /> VM list
-      </Link>
-      {id ? (
-        <Link to={`/platform/vms/${id}`} className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>
-          Back to VM
-        </Link>
-      ) : null}
-      {kubeVirtNamespace ? (
-        <span className="text-xs text-sky-300/90 font-mono">KubeVirt · {kubeVirtNamespace}/{vmName}</span>
-      ) : null}
-      {error?.toLowerCase().includes('approval') ? (
-        <button type="button" className="btn-secondary text-sm" onClick={() => void requestAccess()}>
-          Request console access
-        </button>
-      ) : null}
-      {id && !isPopout ? (
-        <button type="button" className="btn-secondary text-sm ml-auto" onClick={() => openCenterPopout(`/platform/vms/${id}/consolehub`)}>
-          Pop out
-        </button>
-      ) : null}
-      </div>
-    </div>
-  ) : checklistPrepend ?? undefined
+  if (!loading && !vmName) {
+    return (
+      <section className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-8 max-w-lg mx-auto text-center space-y-4" data-testid="consolehub-recovery">
+        <h2 className="text-lg font-semibold text-amber-100">Machine not found</h2>
+        <p className="text-sm text-amber-200/80">This VM does not exist or the session expired.</p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <Link to="/platform" className="btn-primary text-sm">Mission Control</Link>
+          <Link to="/platform/vms" className="btn-secondary text-sm">Machine Finder</Link>
+        </div>
+      </section>
+    )
+  }
+
+  if (!vmName) {
+    return <div className="flex items-center justify-center flex-1 text-slate-500 text-sm p-8">Loading…</div>
+  }
 
   return (
-    <PageLayout
-      compact
-      hideHeader
-      loading={loading && !vmName}
-      contentClassName="flex flex-col flex-1 min-h-0 h-full min-h-[calc(100dvh-14rem)]"
-      title={vmName ?? 'Machine Cockpit'}
-      subtitle="Zeus ConsoleHub · Machine Canvas"
+    <div
+      className={
+        cinemaChrome
+          ? 'fixed inset-0 z-[50] flex flex-col min-h-0 h-dvh w-full'
+          : 'flex flex-col flex-1 min-h-0 h-full min-h-[calc(100dvh-14rem)]'
+      }
+      data-cinema-route={cinemaChrome ? 'true' : undefined}
     >
-      {id && vmName ? (
-        <div className="flex flex-col flex-1 min-h-0 h-full">
-          <MachineCockpit
-          vmId={id}
-          vmName={vmName}
-          plan={plan}
-          session={session}
-          wsUrl={wsUrl}
-          serialWsUrl={serialWsUrl}
-          activeProtocol={activeProtocol}
-          onProtocolChange={(p) => void switchProtocol(p)}
-          vmState={vmState}
-          nodeName={nodeName}
-          healthScore={healthScore}
-          kubeVirtNamespace={kubeVirtNamespace}
-          error={error}
-          loading={loading}
-          history={history}
-          machineTimeline={machineTimeline}
-          isPopout={isPopout}
-          onReconnect={() => setConnectKey((k) => k + 1)}
-          connectKey={connectKey}
-          prepend={prepend}
-          hypervisorAddress={plan?.hypervisor_address ?? undefined}
-          portForwardRules={portForwardRules}
-          onPlanRefresh={() => void load()}
-        />
+      {!cinemaChrome && !isPopout && error?.toLowerCase().includes('approval') ? (
+        <div className="mb-2 px-1">
+          <button type="button" className="btn-secondary text-sm" onClick={() => void requestAccess()}>
+            Request console access
+          </button>
         </div>
-      ) : !loading && id ? (
-        <section className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-8 max-w-lg mx-auto text-center space-y-4" data-testid="consolehub-recovery">
-          <h2 className="text-lg font-semibold text-amber-100">Machine not found</h2>
-          <p className="text-sm text-amber-200/80">This VM does not exist or the session expired.</p>
-          <div className="flex flex-wrap justify-center gap-2">
-            <Link to="/platform" className="btn-primary text-sm">Mission Control</Link>
-            <Link to="/platform/vms" className="btn-secondary text-sm">Machine Finder</Link>
-          </div>
-        </section>
       ) : null}
-    </PageLayout>
+      {!cinemaChrome && !isPopout && id ? (
+        <div className="flex justify-end mb-2 px-1">
+          <button type="button" className="btn-secondary text-sm" onClick={() => openCenterPopout(cinemaPopoutPath(id!))}>
+            Pop out
+          </button>
+        </div>
+      ) : null}
+      <MachineCockpit
+        vmId={id}
+        vmName={vmName}
+        plan={plan}
+        session={session}
+        wsUrl={wsUrl}
+        serialWsUrl={serialWsUrl}
+        activeProtocol={activeProtocol}
+        onProtocolChange={(p) => void switchProtocol(p)}
+        vmState={vmState}
+        nodeName={nodeName}
+        healthScore={healthScore}
+        kubeVirtNamespace={kubeVirtNamespace}
+        error={error}
+        loading={loading}
+        history={history}
+        machineTimeline={machineTimeline}
+        isPopout={isPopout}
+        onReconnect={() => setConnectKey((k) => k + 1)}
+        connectKey={connectKey}
+        hypervisorAddress={plan?.hypervisor_address ?? undefined}
+        portForwardRules={portForwardRules}
+        onPlanRefresh={() => void load()}
+        experienceMode={experienceMode}
+        onExperienceModeChange={setExperienceMode}
+      />
+    </div>
   )
 }

@@ -2,6 +2,7 @@
 
 export type MachineFinderLens =
   | 'grid'
+  | 'gallery'
   | 'table'
   | 'topology'
   | 'timeline'

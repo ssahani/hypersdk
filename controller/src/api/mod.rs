@@ -148,6 +148,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/vms/{id}/rename", post(vms::rename_platform_vm))
         .route("/api/v1/vms/{id}/nmi", post(vms::inject_vm_nmi))
         .route("/api/v1/vms/{id}/graphics/spice-to-vnc", post(vms::convert_vm_spice_to_vnc))
+        .route("/api/v1/vms/{id}/graphics/add", post(vms::add_vm_graphics))
+        .route("/api/v1/vms/{id}/graphics/remove", post(vms::remove_vm_graphics))
         .route("/api/v1/vms/batch/power", post(vms::batch_vm_power))
         .route("/api/v1/vms/batch/snapshots", post(vms::batch_vm_snapshot))
         .route("/api/v1/vms/batch/delete", post(vms::batch_vm_delete))

@@ -56,6 +56,8 @@ export interface VmWizardPayload {
   network: string
   cloudInitSshPubkey?: string
   customSpec?: { cores: number; memoryGiB: number; diskGiB: number }
+  graphicsType?: 'vnc' | 'spice' | 'both'
+  graphicsListen?: string
   windows?: VmWizardWindowsOptions
   templateVersion?: string
   hostId?: string
@@ -98,6 +100,8 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
     customDiskGiB: 80,
   })
   const [network, setNetwork] = useState('default')
+  const [graphicsType, setGraphicsType] = useState<'vnc' | 'spice' | 'both'>('both')
+  const [graphicsListen, setGraphicsListen] = useState('127.0.0.1')
   const [sshPubkey, setSshPubkey] = useState('')
   const [busy, setBusy] = useState(false)
   const [templates, setTemplates] = useState<PlatformTemplate[]>([])
@@ -159,6 +163,7 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
   const matchedTemplate = findTemplate(templates, os)
   const isWindows = selectedFlavor?.windows ?? os.startsWith('windows')
   const isCustomIso = os === 'custom-iso'
+  const isCustomVirtInstall = os === 'custom-virt-install'
   const needsReadiness = Boolean(matchedTemplate) && !isWindows && !isCustomIso
 
   useEffect(() => {
@@ -237,6 +242,8 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
         templateVersion: matchedTemplate?.version,
         hostId: hostId || undefined,
         fromTemplate: needsReadiness,
+        graphicsType,
+        graphicsListen,
       }
       if (isWindows) {
         payload.windows = { virtio, uefi, tpm, secureBoot, rdp }
@@ -410,6 +417,36 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
             </div>
           )}
 
+          {!isCustomIso && !isCustomVirtInstall && (
+            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 space-y-3 text-sm">
+              <p className="text-slate-300 font-medium">Console graphics</p>
+              <label className="block">
+                <span className="text-slate-400 text-xs">Protocol</span>
+                <select
+                  className="input w-full mt-1"
+                  value={graphicsType}
+                  onChange={(e) => setGraphicsType(e.target.value as 'vnc' | 'spice' | 'both')}
+                >
+                  <option value="both">VNC + SPICE (recommended)</option>
+                  <option value="vnc">VNC only</option>
+                  <option value="spice">SPICE only</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-slate-400 text-xs">Listen address</span>
+                <select
+                  className="input w-full mt-1"
+                  value={graphicsListen}
+                  onChange={(e) => setGraphicsListen(e.target.value)}
+                >
+                  <option value="127.0.0.1">127.0.0.1 (local / SSH tunnel)</option>
+                  <option value="0.0.0.0">0.0.0.0 (all interfaces)</option>
+                  <option value="::1">::1 (IPv6 localhost)</option>
+                </select>
+              </label>
+            </div>
+          )}
+
           {!isWindows && !isCustomIso && (
             <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 space-y-3 text-sm">
               <label className="block">
@@ -482,6 +519,12 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
               <span className="text-slate-500">Network:</span>{' '}
               <span className="text-slate-100">{networkOptions.find((n) => n.id === network)?.label ?? network}</span>
             </p>
+            {!isCustomIso && !isCustomVirtInstall && (
+              <p>
+                <span className="text-slate-500">Console:</span>{' '}
+                <span className="text-slate-100">{graphicsType} @ {graphicsListen}</span>
+              </p>
+            )}
             {hostId && (
               <p>
                 <span className="text-slate-500">Host:</span>{' '}

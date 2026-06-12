@@ -79,6 +79,7 @@ const POWER_PATHS = [
   '/platform/observability',
   '/platform/placement',
   '/platform/policy',
+  '/platform/mission-control',
   '/platform/api-keys',
   '/platform/webhooks',
   '/platform/users',

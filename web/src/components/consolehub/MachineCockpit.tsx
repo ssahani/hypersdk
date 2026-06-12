@@ -14,6 +14,8 @@ import ZeroPanicRecoveryBar from './ZeroPanicRecoveryBar'
 import ConsoleCopilotLens from './ConsoleCopilotLens'
 import CommandCenterPanel, { type CommandCenterTab } from './CommandCenterPanel'
 import MachineTimeline from './MachineTimeline'
+import CinemaShell from './CinemaShell'
+import StudioLayout from './StudioLayout'
 import type { ConsoleHubPlan, ConsoleHubSessionResponse } from '../../api/platform'
 import { createVmSnapshot, vmPower } from '../../api/platform'
 import type { ConsoleHubSessionRow } from './ConsoleHubSessionHistory'
@@ -23,13 +25,15 @@ import ConsoleHubSession from './ConsoleHubSession'
 import GuestAccessBanner from './GuestAccessBanner'
 import ShellAccessBanner from './ShellAccessBanner'
 import ConsoleLoginRecoveryCard from './ConsoleLoginRecoveryCard'
-import VmLaptopAccessChecklist from '../vm/VmLaptopAccessChecklist'
 import VmPortForwardPanel from '../vm/VmPortForwardPanel'
 import type { VmPortForwardRule } from '../../api/platform'
 import { createVmPortForward } from '../../api/platform'
 import { buildExposePayload } from '../../utils/vmPortForwardServices'
 import { sendGuestKey } from '../../api/vm'
 import { useToastContext } from '../../contexts/ToastContext'
+import type { ConsoleExperienceMode } from '../../utils/consoleExperienceMode'
+import { isDisplayProtocol } from '../../utils/consoleExperienceMode'
+import { downloadCanvasScreenshot, saveVmPosterScreenshot } from '../../utils/vmPosterScreenshot'
 
 export type MachineCockpitProps = {
   vmId: string
@@ -56,6 +60,8 @@ export type MachineCockpitProps = {
   hypervisorAddress?: string
   portForwardRules?: VmPortForwardRule[]
   onPlanRefresh?: () => void
+  experienceMode?: ConsoleExperienceMode
+  onExperienceModeChange?: (mode: ConsoleExperienceMode) => void
 }
 
 function CockpitInner({
@@ -82,48 +88,53 @@ function CockpitInner({
   hypervisorAddress,
   portForwardRules = [],
   onPlanRefresh,
+  experienceMode = 'cinema',
+  onExperienceModeChange,
 }: MachineCockpitProps) {
   const toast = useToastContext()
   const navigate = useNavigate()
   const vp = useConsoleViewport()
   const [lens, setLens] = useState<ConsoleLens>('display')
-  const [theatre, setTheatre] = useState(isPopout ?? false)
   const [commandCenter, setCommandCenter] = useState(false)
   const [ccTab, setCcTab] = useState<CommandCenterTab>('Overview')
   const [activeRecipe, setActiveRecipe] = useState<ConsoleRecipe | null>(null)
   const [exposeBusy, setExposeBusy] = useState(false)
+  const [vncCanvas, setVncCanvas] = useState<HTMLCanvasElement | null>(null)
 
   const displayProtocols = plan
     ? [...plan.protocols, ...(plan.guest_ip && !plan.protocols.includes('native_ssh') ? ['native_ssh'] : [])]
     : []
+
+  const cinemaActive = experienceMode === 'cinema' && lens === 'display' && isDisplayProtocol(activeProtocol)
+  const studioActive = experienceMode === 'studio'
 
   useEffect(() => {
     vp.setProtocol(activeProtocol)
     if (activeProtocol === 'novnc' || activeProtocol.startsWith('guacamole_')) {
       vp.setMode('fit')
     }
-    if (loading) {
-      vp.setConnected(false)
-    }
+    if (loading) vp.setConnected(false)
   }, [activeProtocol, loading, vp])
 
   useEffect(() => {
-    vp.setScaledFit(vp.mode === 'fit')
+    vp.setScaledFit(vp.mode === 'fit' || vp.mode === 'fill')
   }, [vp.mode, vp])
 
   useEffect(() => {
     if (plan?.recommended === 'serial') {
       setLens('serial')
-    } else if (plan?.recommended === 'spice' || plan?.recommended === 'webrtc_spice') {
-      setLens('display')
-    } else if (plan?.recommended === 'novnc') {
+      if (experienceMode === 'cinema') onExperienceModeChange?.('studio')
+    } else if (plan?.recommended === 'spice' || plan?.recommended === 'webrtc_spice' || plan?.recommended === 'novnc') {
       setLens('display')
     }
-  }, [plan?.recommended])
+  }, [plan?.recommended, experienceMode, onExperienceModeChange])
 
   const switchLens = useCallback(
     (next: ConsoleLens | 'native_ssh') => {
       const resolved = next === 'native_ssh' ? 'shell' : next
+      if (resolved === 'shell' || resolved === 'serial') {
+        onExperienceModeChange?.('studio')
+      }
       setLens(resolved)
       if (resolved === 'ai' || resolved === 'events' || resolved === 'recovery') return
       if (resolved === 'network' || resolved === 'perf') {
@@ -134,7 +145,7 @@ function CockpitInner({
       const proto = lensToProtocol(resolved, displayProtocols, plan?.recommended ?? 'novnc')
       onProtocolChange(proto)
     },
-    [displayProtocols, onProtocolChange, plan?.recommended],
+    [displayProtocols, onExperienceModeChange, onProtocolChange, plan?.recommended],
   )
 
   const sendCtrlAltDel = async () => {
@@ -146,27 +157,73 @@ function CockpitInner({
     }
   }
 
+  const sendKeyPreset = async (preset: 'esc' | 'ctrl_alt_del' | 'alt_tab') => {
+    try {
+      await sendGuestKey(vmName, { preset })
+      toast.success(`Sent ${preset}`)
+    } catch {
+      toast.error('Could not send key')
+    }
+  }
+
+  const handlePower = async (action: 'shutdown' | 'reboot' | 'stop') => {
+    try {
+      if (action === 'reboot') await vmPower(vmId, 'reboot')
+      else if (action === 'shutdown') await vmPower(vmId, 'shutdown')
+      else await vmPower(vmId, 'stop')
+      toast.success(`${action} queued`)
+    } catch (e: unknown) {
+      toast.error(String(e))
+    }
+  }
+
+  const handleSnapshot = async () => {
+    try {
+      await createVmSnapshot(vmId, {
+        name: `snap-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}`,
+        disk_only: true,
+      })
+      toast.success('Snapshot queued')
+    } catch (e: unknown) {
+      toast.error(String(e))
+    }
+  }
+
+  const handleScreenshot = () => {
+    if (!vncCanvas) {
+      toast.error('Display not ready')
+      return
+    }
+    downloadCanvasScreenshot(vncCanvas, `${vmName}-cinema.png`)
+    saveVmPosterScreenshot(vmId, vncCanvas.toDataURL('image/png'))
+    toast.success('Screenshot saved')
+  }
+
+  const exposeSsh = useCallback(() => {
+    if (!plan?.guest_access?.guest_ip_private) return
+    setExposeBusy(true)
+    void (async () => {
+      try {
+        const taken = portForwardRules.map((r) => r.host_port)
+        await createVmPortForward(vmId, buildExposePayload(vmName, 22, taken))
+        toast.success('SSH exposed on hypervisor')
+        onPlanRefresh?.()
+      } catch (e: unknown) {
+        toast.error(String(e))
+      } finally {
+        setExposeBusy(false)
+      }
+    })()
+  }, [plan?.guest_access?.guest_ip_private, portForwardRules, vmId, vmName, onPlanRefresh, toast])
+
   const handleCommandCenterAction = useCallback(
     async (action: string) => {
       switch (action) {
         case 'Snapshot':
-          try {
-            await createVmSnapshot(vmId, {
-              name: `snap-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}`,
-              disk_only: true,
-            })
-            toast.success('Snapshot queued')
-          } catch (e: unknown) {
-            toast.error(String(e))
-          }
+          await handleSnapshot()
           break
         case 'Restart':
-          try {
-            await vmPower(vmId, 'reboot')
-            toast.success('Reboot queued')
-          } catch (e: unknown) {
-            toast.error(String(e))
-          }
+          await handlePower('reboot')
           break
         case 'Inspect Disk':
           navigate(`/platform/vms/${vmId}?tab=disks`)
@@ -188,6 +245,66 @@ function CockpitInner({
   )
 
   const recipe = activeRecipe ?? recipeForError(error ?? null)
+
+  const sessionBlock = (
+    <ConsoleHubSession
+      key={`${activeProtocol}-${wsUrl ?? 'none'}-${connectKey}`}
+      protocol={activeProtocol}
+      vmName={vmName}
+      wsUrl={wsUrl}
+      serialWsUrl={serialWsUrl}
+      session={session}
+      guestIp={plan?.guest_ip ?? undefined}
+      sshUser={plan?.ssh_user ?? undefined}
+      sshConnectHost={plan?.ssh_connect_host ?? undefined}
+      sshConnectPort={plan?.ssh_connect_port ?? undefined}
+      kubeVirtNamespace={kubeVirtNamespace ?? undefined}
+      fillViewport
+      cockpitMode
+      onReconnect={onReconnect}
+      connectKey={connectKey}
+      onCanvasReady={setVncCanvas}
+    />
+  )
+
+  const accessBanners =
+    activeProtocol === 'serial' || activeProtocol === 'native_ssh' ? (
+      <>
+        <GuestAccessBanner
+          hints={plan?.guest_access}
+          lens={activeProtocol === 'serial' ? 'serial' : 'shell'}
+          sshUser={plan?.ssh_user ?? undefined}
+          guestIp={plan?.guest_ip ?? undefined}
+          vmId={vmId}
+          vmName={vmName}
+          hypervisorHost={hypervisorAddress ?? plan?.hypervisor_address ?? undefined}
+          portForwardRules={portForwardRules}
+          onPlanRefresh={onPlanRefresh}
+          onNotify={(m) => toast.success(m)}
+        />
+        {activeProtocol === 'serial' && plan?.guest_access ? (
+          <ConsoleLoginRecoveryCard
+            hints={plan.guest_access}
+            vmId={vmId}
+            exposing={exposeBusy}
+            onSwitchToShell={() => switchLens('shell')}
+            onExposeSsh={
+              plan.guest_access.guest_ip_private && !plan.guest_access.ssh_nat_host_port ? exposeSsh : undefined
+            }
+          />
+        ) : null}
+        {activeProtocol === 'native_ssh' ? (
+          <ShellAccessBanner
+            hints={plan?.guest_access}
+            sshUser={plan?.ssh_user ?? undefined}
+            guestIp={plan?.guest_ip ?? undefined}
+            hypervisorHost={hypervisorAddress ?? plan?.hypervisor_address ?? undefined}
+            portForwardRules={portForwardRules}
+            onNotify={(m) => toast.success(m)}
+          />
+        ) : null}
+      </>
+    ) : null
 
   const canvasContent = (() => {
     if (lens === 'ai') {
@@ -250,82 +367,142 @@ function CockpitInner({
     }
     return (
       <div className="flex flex-col flex-1 min-h-0 w-full gap-2">
-        {(activeProtocol === 'serial' || activeProtocol === 'native_ssh') && (
-          <>
-            <GuestAccessBanner
-              hints={plan?.guest_access}
-              lens={activeProtocol === 'serial' ? 'serial' : 'shell'}
-              sshUser={plan?.ssh_user ?? undefined}
-              guestIp={plan?.guest_ip ?? undefined}
-              vmId={vmId}
-              vmName={vmName}
-              hypervisorHost={hypervisorAddress ?? plan?.hypervisor_address ?? undefined}
-              portForwardRules={portForwardRules}
-              onPlanRefresh={onPlanRefresh}
-              onNotify={(m) => toast.success(m)}
-            />
-            {activeProtocol === 'serial' && plan?.guest_access ? (
-              <ConsoleLoginRecoveryCard
-                hints={plan.guest_access}
-                vmId={vmId}
-                exposing={exposeBusy}
-                onSwitchToShell={() => switchLens('shell')}
-                onExposeSsh={
-                  plan.guest_access.guest_ip_private && !plan.guest_access.ssh_nat_host_port
-                    ? () => {
-                        setExposeBusy(true)
-                        void (async () => {
-                          try {
-                            const taken = portForwardRules.map((r) => r.host_port)
-                            await createVmPortForward(vmId, buildExposePayload(vmName, 22, taken))
-                            toast.success('SSH exposed on hypervisor')
-                            onPlanRefresh?.()
-                          } catch (e: unknown) {
-                            toast.error(String(e))
-                          } finally {
-                            setExposeBusy(false)
-                          }
-                        })()
-                      }
-                    : undefined
-                }
-              />
-            ) : null}
-            {activeProtocol === 'native_ssh' ? (
-              <ShellAccessBanner
-                hints={plan?.guest_access}
-                sshUser={plan?.ssh_user ?? undefined}
-                guestIp={plan?.guest_ip ?? undefined}
-                hypervisorHost={hypervisorAddress ?? plan?.hypervisor_address ?? undefined}
-                portForwardRules={portForwardRules}
-                onNotify={(m) => toast.success(m)}
-              />
-            ) : null}
-          </>
-        )}
-        <ConsoleHubSession
-        key={`${activeProtocol}-${wsUrl ?? 'none'}-${connectKey}`}
-        protocol={activeProtocol}
-        vmName={vmName}
-        wsUrl={wsUrl}
-        serialWsUrl={serialWsUrl}
-        session={session}
-        guestIp={plan?.guest_ip ?? undefined}
-        sshUser={plan?.ssh_user ?? undefined}
-        sshConnectHost={plan?.ssh_connect_host ?? undefined}
-        sshConnectPort={plan?.ssh_connect_port ?? undefined}
-        kubeVirtNamespace={kubeVirtNamespace ?? undefined}
-        fillViewport
-        cockpitMode
-        onReconnect={onReconnect}
-        connectKey={connectKey}
-      />
+        {!cinemaActive ? accessBanners : null}
+        {sessionBlock}
       </div>
     )
   })()
 
+  const opsShelf = (
+    <CommandCenterPanel
+      open={commandCenter && lens !== 'events'}
+      onClose={() => setCommandCenter(false)}
+      vmId={vmId}
+      vmName={vmName}
+      healthScore={healthScore}
+      vmState={vmState}
+      guestIp={plan?.guest_ip}
+      guestAccess={plan?.guest_access}
+      hypervisorAddress={hypervisorAddress ?? plan?.hypervisor_address ?? undefined}
+      sshUser={plan?.ssh_user ?? undefined}
+      sessions={history}
+      timeline={machineTimeline}
+      activeTab={ccTab}
+      onTabChange={setCcTab}
+      onAction={(action) => void handleCommandCenterAction(action)}
+      onPlanRefresh={onPlanRefresh}
+      onOpenVmDetail={(tab) => {
+        setCommandCenter(false)
+        navigate(tab ? `/platform/vms/${vmId}?tab=${tab}` : `/platform/vms/${vmId}`)
+      }}
+    />
+  )
+
+  if (cinemaActive) {
+    return (
+      <>
+        <CinemaShell
+          vmId={vmId}
+          vmName={vmName}
+          vmState={vmState}
+          guestIp={plan?.guest_ip}
+          nodeName={nodeName}
+          plan={plan}
+          loading={loading}
+          hypervisorAddress={hypervisorAddress}
+          portForwardRules={portForwardRules}
+          onPlanRefresh={onPlanRefresh}
+          onNotify={(m) => toast.success(m)}
+          onBack={() => navigate(`/platform/vms/${vmId}`)}
+          onOpenStudio={() => onExperienceModeChange?.('studio')}
+          onOpenOpsShelf={() => { setCommandCenter(true); setCcTab('Overview') }}
+          onOpenAi={() => { setCommandCenter(true); setCcTab('AI') }}
+          onSwitchLens={(l) => switchLens(l as ConsoleLens)}
+          onCtrlAltDel={() => void sendCtrlAltDel()}
+          onSendKey={(p) => void sendKeyPreset(p as 'esc' | 'ctrl_alt_del' | 'alt_tab')}
+          onPower={(a) => void handlePower(a)}
+          onScreenshot={handleScreenshot}
+          onSnapshot={() => void handleSnapshot()}
+          onExposeSsh={plan?.guest_access?.guest_ip_private ? exposeSsh : undefined}
+          displayProtocols={displayProtocols}
+          activeProtocol={activeProtocol}
+          onProtocolChange={onProtocolChange}
+        >
+          {sessionBlock}
+        </CinemaShell>
+        {opsShelf}
+      </>
+    )
+  }
+
+  if (studioActive) {
+    const secondary =
+      lens === 'display' ? (
+        <ConsoleHubSession
+          protocol="serial"
+          vmName={vmName}
+          wsUrl={wsUrl}
+          serialWsUrl={serialWsUrl}
+          session={session}
+          guestIp={plan?.guest_ip ?? undefined}
+          kubeVirtNamespace={kubeVirtNamespace ?? undefined}
+          fillViewport
+          cockpitMode
+          connectKey={connectKey}
+        />
+      ) : undefined
+
+    return (
+      <div className="flex flex-col flex-1 min-h-0 w-full">
+        {prepend}
+        {!error || wsUrl ? null : (
+          <ZeroPanicRecoveryBar
+            error={error}
+            vmState={vmState}
+            recipe={recipe}
+            onReconnect={onReconnect}
+            onOpenSerial={() => switchLens('serial')}
+            onOpenSsh={() => switchLens('shell')}
+            onOpenEvents={() => { setLens('events'); setCommandCenter(true); setCcTab('Events') }}
+            onAiDiagnose={() => switchLens('ai')}
+            onRunRecipe={setActiveRecipe}
+          />
+        )}
+        <StudioLayout
+          vmName={vmName}
+          vmState={vmState}
+          guestIp={plan?.guest_ip}
+          nodeName={nodeName}
+          healthScore={healthScore}
+          osHint={plan?.os_hint}
+          lens={lens}
+          onLensChange={switchLens}
+          displayProtocols={displayProtocols}
+          activeProtocol={activeProtocol}
+          onProtocolChange={onProtocolChange}
+          recommended={plan?.recommended}
+          onCommandCenter={() => { setCommandCenter(true); setCcTab('Overview') }}
+          onAi={() => { setCommandCenter(true); setCcTab('AI') }}
+          onOpenCinema={() => onExperienceModeChange?.('cinema')}
+          primary={
+            <MachineCanvas vmState={vmState} healthScore={healthScore} theatre className="flex-1 min-h-[50vh]">
+              {loading ? (
+                <div className="flex items-center justify-center flex-1 text-slate-500 text-sm">Loading…</div>
+              ) : (
+                canvasContent
+              )}
+            </MachineCanvas>
+          }
+          secondary={secondary}
+          timeline={<MachineTimeline sessions={history} timeline={machineTimeline} />}
+        />
+        {opsShelf}
+      </div>
+    )
+  }
+
   return (
-    <div className={`flex flex-col flex-1 min-h-0 w-full ${theatre ? 'fixed inset-0 z-[55] bg-[#050508] p-2 md:p-4' : ''}`}>
+    <div className={`flex flex-col flex-1 min-h-0 w-full ${isPopout ? 'fixed inset-0 z-[55] bg-[#050508] p-2 md:p-4' : ''}`}>
       {prepend}
       {!error || wsUrl ? null : (
         <ZeroPanicRecoveryBar
@@ -347,8 +524,7 @@ function CockpitInner({
         osHint={plan?.os_hint}
         nodeName={nodeName}
         healthScore={healthScore}
-        theatre={theatre}
-        onEnterTheatre={() => setTheatre(true)}
+        onEnterTheatre={() => onExperienceModeChange?.('cinema')}
         onCommandCenter={() => { setCommandCenter(true); setCcTab('Overview') }}
         onAi={() => { setCommandCenter(true); setCcTab('AI') }}
       />
@@ -361,14 +537,12 @@ function CockpitInner({
         recommended={plan?.recommended}
         osHint={plan?.os_hint}
       />
-      <MachineCanvas vmState={vmState} healthScore={healthScore} theatre={theatre} className="flex-1">
+      <MachineCanvas vmState={vmState} healthScore={healthScore} className="flex-1">
         {loading ? (
           <div className="flex items-center justify-center flex-1 text-slate-500 text-sm">Loading machine canvas…</div>
         ) : (
           <>
-            <div className="flex-1 min-h-0 w-full flex flex-col relative z-0">
-              {canvasContent}
-            </div>
+            <div className="flex-1 min-h-0 w-full flex flex-col relative z-0">{canvasContent}</div>
             {lens === 'display' ? (
               <>
                 <FloatingConsoleHud visible={!loading} />
@@ -384,33 +558,7 @@ function CockpitInner({
           </>
         )}
       </MachineCanvas>
-      {theatre && !isPopout ? (
-        <button type="button" className="fixed top-3 left-3 z-[70] btn-secondary text-xs" onClick={() => setTheatre(false)}>
-          Exit Theatre
-        </button>
-      ) : null}
-      <CommandCenterPanel
-        open={commandCenter && lens !== 'events'}
-        onClose={() => setCommandCenter(false)}
-        vmId={vmId}
-        vmName={vmName}
-        healthScore={healthScore}
-        vmState={vmState}
-        guestIp={plan?.guest_ip}
-        guestAccess={plan?.guest_access}
-        hypervisorAddress={hypervisorAddress ?? plan?.hypervisor_address ?? undefined}
-        sshUser={plan?.ssh_user ?? undefined}
-        sessions={history}
-        timeline={machineTimeline}
-        activeTab={ccTab}
-        onTabChange={setCcTab}
-        onAction={(action) => void handleCommandCenterAction(action)}
-        onPlanRefresh={onPlanRefresh}
-        onOpenVmDetail={(tab) => {
-          setCommandCenter(false)
-          navigate(tab ? `/platform/vms/${vmId}?tab=${tab}` : `/platform/vms/${vmId}`)
-        }}
-      />
+      {opsShelf}
     </div>
   )
 }

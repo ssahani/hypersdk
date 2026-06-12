@@ -2,6 +2,7 @@
 
 import PlatformEmptyState from '../../../components/platform/PlatformEmptyState'
 import { openCenterPopout } from '../../../utils/platformCenterPopout'
+import { cinemaPopoutPath } from '../../../utils/consoleExperienceMode'
 import { groupVmsBySource } from './groupVmsBySource'
 import LivingMachineCard from './LivingMachineCard'
 import MachineFinderHeatmapLens from './MachineFinderHeatmapLens'
@@ -89,7 +90,7 @@ function GridLens({ state, compact }: { state: MachineFinderState; compact?: boo
                 onDragStart={() => state.setDragVmId(vm.id)}
                 onSsh={() => state.setSshVm(vm)}
                 guestIp={state.displayGuestIp(vm)}
-                onDoubleClickTheatre={() => openCenterPopout(`/platform/vms/${vm.id}/consolehub?popout=1`)}
+                onDoubleClickTheatre={() => openCenterPopout(cinemaPopoutPath(vm.id))}
               />
             ))}
           </div>

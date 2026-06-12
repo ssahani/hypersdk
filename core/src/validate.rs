@@ -78,11 +78,22 @@ pub fn validate_disk_gb(disk_gb: u64) -> Result<(), LibvirtError> {
 /// `vnc` (noVNC in web) or `spice` (spice-html5 + `/ws/v1/spice/...`).
 pub fn validate_graphics_type(t: &str) -> Result<(), LibvirtError> {
     let t = t.trim().to_lowercase();
+    if t == "vnc" || t == "spice" || t == "both" {
+        return Ok(());
+    }
+    Err(LibvirtError::Invalid(
+        "graphics_type must be 'vnc', 'spice', or 'both'".to_string(),
+    ))
+}
+
+/// Single graphics device kind for virt-xml add/remove (not `both`).
+pub fn validate_graphics_kind(t: &str) -> Result<(), LibvirtError> {
+    let t = t.trim().to_lowercase();
     if t == "vnc" || t == "spice" {
         return Ok(());
     }
     Err(LibvirtError::Invalid(
-        "graphics_type must be 'vnc' or 'spice'".to_string(),
+        "graphics kind must be 'vnc' or 'spice'".to_string(),
     ))
 }
 
@@ -548,7 +559,10 @@ mod tests {
     fn test_validate_graphics_type() {
         assert!(validate_graphics_type("vnc").is_ok());
         assert!(validate_graphics_type("SPICE").is_ok());
+        assert!(validate_graphics_type("both").is_ok());
         assert!(validate_graphics_type(" rdp ").is_err());
+        assert!(validate_graphics_kind("vnc").is_ok());
+        assert!(validate_graphics_kind("both").is_err());
     }
 
     #[test]

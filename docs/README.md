@@ -32,6 +32,8 @@
 | [OIDC & local Linux user](oidc-effective-linux-user.md) | Session vs NSS mapping, defaults, run-as-user boundary |
 | [UX wiring & QA](ux.md) | Cross-shell UX, login variants, manual QA matrix, E2E pointers |
 | [Operator runbook](runbook.md) | Health, backup, remote access, web login troubleshooting |
+| [Developing on macOS](macos-build.md) | **Remote-only Rust builds** — do not `cargo build` / `make` on Mac |
+| [Remote binary packaging](PACKAGE_BINARY_REMOTE.md) | Build tarball on Linux, fetch to laptop |
 
 ---
 

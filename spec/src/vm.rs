@@ -126,7 +126,7 @@ fn default_graphics() -> GraphicsSpec {
     }
 }
 fn default_graphics_type() -> String {
-    "vnc".into()
+    "both".into()
 }
 fn default_graphics_listen() -> String {
     "127.0.0.1".into()

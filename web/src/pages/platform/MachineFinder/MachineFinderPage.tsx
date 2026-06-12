@@ -28,6 +28,7 @@ import MachineFinderCommandBar from './MachineFinderCommandBar'
 import MachineFinderCommandCenter from './MachineFinderCommandCenter'
 import MachineFinderLensBar from './MachineFinderLensBar'
 import MachineFinderSmartFolders from './MachineFinderSmartFolders'
+import VmGalleryLauncher, { categorizeVmsForGallery } from '../../../components/platform/VmGalleryLauncher'
 import { useMachineFinder } from './useMachineFinder'
 
 export default function MachineFinderPage() {
@@ -58,9 +59,11 @@ export default function MachineFinderPage() {
     load,
     tier,
     lens,
+    filteredVms,
   } = state
 
-  const showSidebar = lens === 'grid' || lens === 'table' || lens === 'migration'
+  const showSidebar = lens === 'grid' || lens === 'table' || lens === 'migration' || lens === 'gallery'
+  const galleryRows = categorizeVmsForGallery(filteredVms)
 
   return (
     <PageLayout compact hideHeader contentClassName="machine-finder-page pb-[calc(var(--dock-height,0px)+5rem)]">
@@ -105,7 +108,17 @@ export default function MachineFinderPage() {
             {showSidebar && <MachineFinderBriefing state={state} />}
             <MachineFinderResourceStrip />
             <MachineFinderLensBar state={state} />
-            <MachineFinderCanvas state={state} />
+            {lens === 'gallery' ? (
+              <div className="space-y-6" data-testid="machine-finder-gallery">
+                <VmGalleryLauncher vms={filteredVms.slice(0, 8)} title="Continue working" />
+                <VmGalleryLauncher vms={galleryRows.running} title="Running machines" />
+                <VmGalleryLauncher vms={galleryRows.linux} title="Linux machines" />
+                <VmGalleryLauncher vms={galleryRows.windows} title="Windows machines" />
+                <VmGalleryLauncher vms={galleryRows.needsAttention} title="Needs attention" />
+              </div>
+            ) : (
+              <MachineFinderCanvas state={state} />
+            )}
           </main>
 
           {showSidebar && <MachineFinderCommandCenter state={state} />}

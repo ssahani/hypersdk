@@ -6,6 +6,7 @@ import PlatformEmptyState from '../../../components/platform/PlatformEmptyState'
 import VmStatusBadge from '../../../components/VmStatusBadge'
 import { guestToolsStatusLabel } from '../../../utils/guestAgentUx'
 import { hubLinkClasses, statusPillClasses } from '../../../utils/semanticColors'
+import { cinemaHubPath } from '../../../utils/consoleExperienceMode'
 import { formatVmMemoryGiB } from '../../../utils/vmVisual'
 import { useToastContext } from '../../../contexts/ToastContext'
 import type { MachineFinderState } from './useMachineFinder'
@@ -107,7 +108,7 @@ export default function MachineFinderTableLens({ state }: Props) {
                 <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
                   {running && libvirt && (
                     <div className="inline-flex gap-1 justify-end">
-                      <Link to={`/platform/vms/${v.id}/consolehub`} className="btn-secondary text-xs py-1 px-2" title="Console"><Monitor className="w-3.5 h-3.5" /></Link>
+                      <Link to={cinemaHubPath(v.id)} className="btn-secondary text-xs py-1 px-2" title="Open Cinema"><Monitor className="w-3.5 h-3.5" /></Link>
                       <button type="button" className="btn-secondary text-xs py-1 px-2" title="SSH" onClick={() => setSshVm(v)}><Terminal className="w-3.5 h-3.5" /></button>
                       {(displayGuestIp(v)) && (
                         <button

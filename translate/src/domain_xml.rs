@@ -8,6 +8,29 @@ fn esc(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
+fn graphics_block(listen: &str, graphics_type: &str) -> String {
+    let gt = graphics_type.to_ascii_lowercase();
+    let want_vnc = gt == "vnc" || gt == "both";
+    let want_spice = gt == "spice" || gt == "both";
+    let mut lines = Vec::new();
+    if want_vnc {
+        lines.push(format!(
+            "<graphics type='vnc' port='-1' autoport='yes' listen='{listen}'/>"
+        ));
+    }
+    if want_spice {
+        lines.push(format!(
+            "<graphics type='spice' port='-1' autoport='yes' listen='{listen}'/>"
+        ));
+    }
+    if lines.is_empty() {
+        lines.push(format!(
+            "<graphics type='vnc' port='-1' autoport='yes' listen='{listen}'/>"
+        ));
+    }
+    lines.join("\n    ")
+}
+
 /// Generate libvirt domain XML from a declarative VM spec (operators never see this).
 pub fn domain_xml_from_spec(
     vm: &VirtualMachine,
@@ -28,6 +51,8 @@ pub fn domain_xml_from_spec(
     let disk_path_esc = esc(disk_path);
     let disk_driver_esc = esc(disk_driver);
     let gl = esc(&vm.spec.graphics.listen);
+    let gt = vm.spec.graphics.r#type.trim();
+    let graphics_xml = graphics_block(&gl, gt);
     let firmware = vm.spec.firmware.to_ascii_lowercase();
     let is_uefi = firmware == "uefi";
     let emulator = esc(&crate::qemu::find_qemu_binary());
@@ -149,7 +174,7 @@ pub fn domain_xml_from_spec(
     <channel type='unix'>
       <target type='virtio' name='org.qemu.guest_agent.0'/>
     </channel>
-{tpm_xml}    <graphics type='vnc' port='-1' autoport='yes' listen='{gl}'/>
+{tpm_xml}    {graphics_xml}
     <video>
       <model type='vga'/>
     </video>
@@ -171,6 +196,8 @@ mod tests {
         assert!(xml.contains("<name>demo</name>"));
         assert!(xml.contains("source network='default'"));
         assert!(xml.contains("type='qcow2'"));
+        assert!(xml.contains("type='vnc'"));
+        assert!(xml.contains("type='spice'"));
     }
 
     #[test]

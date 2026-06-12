@@ -7,6 +7,7 @@ import { navigateVmSshSession } from '../vm/VmSshConnectDialog'
 import type { FleetMissionOverview, MissionHost, PlatformVm } from '../../api/platform'
 import { hostStateTone, hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
 import { UNASSIGNED_RACK, UNASSIGNED_SITE } from '../../utils/machineFinderSelection'
+import { cinemaHubPath } from '../../utils/consoleExperienceMode'
 
 type ColumnProps<T> = {
   items: T[]
@@ -125,8 +126,8 @@ function VmInspector({ vm }: { vm: PlatformVm }) {
       </dl>
       {running && libvirt && (
         <div className="flex flex-wrap gap-2">
-          <Link to={`/platform/vms/${vm.id}/consolehub`} className="btn-secondary text-sm flex-1 text-center inline-flex items-center justify-center gap-1">
-            <Monitor className="w-3.5 h-3.5" /> VNC
+          <Link to={cinemaHubPath(vm.id)} className="btn-secondary text-sm flex-1 text-center inline-flex items-center justify-center gap-1">
+            <Monitor className="w-3.5 h-3.5" /> Open Cinema
           </Link>
           <button
             type="button"

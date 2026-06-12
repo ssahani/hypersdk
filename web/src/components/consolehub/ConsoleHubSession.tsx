@@ -34,6 +34,7 @@ type Props = {
   cockpitMode?: boolean
   onReconnect?: () => void
   connectKey?: number
+  onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
 }
 
 function VncShell({ cockpitMode, children }: { cockpitMode?: boolean; children: ReactNode }) {
@@ -50,6 +51,7 @@ function CockpitVnc(props: {
   cockpitMode?: boolean
   onReconnect?: () => void
   connectKey?: number
+  onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
 }) {
   const scaled = props.cockpitMode || Boolean(props.fillViewport)
   return (
@@ -65,6 +67,7 @@ function CockpitVnc(props: {
         cockpitMode={props.cockpitMode}
         onReconnect={props.onReconnect}
         connectKey={props.connectKey}
+        onCanvasReady={props.onCanvasReady}
       />
     </VncShell>
   )
@@ -86,6 +89,7 @@ export default function ConsoleHubSession({
   cockpitMode,
   onReconnect,
   connectKey,
+  onCanvasReady,
 }: Props) {
   if (session?.backend === 'guacamole' && session.session_id) {
     const src = `${session.embed_path}#/`
@@ -157,6 +161,7 @@ export default function ConsoleHubSession({
           cockpitMode={cockpitMode}
           onReconnect={onReconnect}
           connectKey={connectKey}
+          onCanvasReady={onCanvasReady}
         />
       </div>
     )
@@ -173,6 +178,7 @@ export default function ConsoleHubSession({
           cockpitMode={cockpitMode}
           onReconnect={onReconnect}
           connectKey={connectKey}
+          onCanvasReady={onCanvasReady}
         />
       </div>
     )
