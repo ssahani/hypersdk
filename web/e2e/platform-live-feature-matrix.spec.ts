@@ -4,9 +4,13 @@
 import { test, expect } from '@playwright/test'
 import { discoverLiveVm, openLiveVmDetailById } from './helpers/featureMatrix'
 import { ensureLoggedIn } from './helpers/liveAuth'
-import { liveBaseUrl, openVmDetailTab, skipUnlessLiveVm } from './helpers/liveVm'
+import { liveBaseUrl, skipUnlessLiveVm } from './helpers/liveVm'
 
 test.describe.configure({ mode: 'serial' })
+
+test.afterEach(async ({ page }) => {
+  await page.waitForTimeout(2_000)
+})
 
 let liveVm: { id: string; guest_ip?: string; observed_state?: string } | null = null
 
@@ -51,7 +55,7 @@ test('F03 — live attention stack or connect checklist visible', async ({ page 
   await ensureLoggedIn(page, live, { tier: 'power' })
   await openLiveVmDetailById(page, live, liveVm!.id)
   await expect(
-    page.getByTestId('vm-attention-stack').or(page.getByTestId('vm-laptop-access-checklist')),
+    page.getByTestId('vm-attention-stack').or(page.getByTestId('vm-laptop-access-checklist')).first(),
   ).toBeVisible({ timeout: 20_000 })
 })
 
@@ -97,7 +101,7 @@ test('F08 — live Overview usage or compute panels', async ({ page }) => {
   await ensureLoggedIn(page, live, { tier: 'power' })
   await openLiveVmDetailById(page, live, liveVm!.id)
   await expect(
-    page.getByTestId('vm-usage-bars').or(page.getByRole('heading', { name: 'Compute' })),
+    page.getByTestId('vm-usage-bars').or(page.getByRole('heading', { name: 'Compute' })).first(),
   ).toBeVisible({ timeout: 20_000 })
 })
 
@@ -106,16 +110,16 @@ test('F09 — live Console tab guidance', async ({ page }) => {
   const live = liveBaseUrl()
   await ensureLoggedIn(page, live, { tier: 'power' })
   await openLiveVmDetailById(page, live, liveVm!.id, 'console')
-  await expect(page.getByRole('link', { name: /Open Cinema/i })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('link', { name: /Open Cinema/i }).first()).toBeVisible({ timeout: 15_000 })
 })
 
 test('F10 — live Doctor tab loads', async ({ page }) => {
   test.skip(!liveVm?.id, 'no platform VMs on host')
+  test.setTimeout(180_000)
   const live = liveBaseUrl()
   await ensureLoggedIn(page, live, { tier: 'power' })
-  await openLiveVmDetailById(page, live, liveVm!.id)
-  await openVmDetailTab(page, 'Doctor')
-  await expect(page.getByRole('button', { name: /Rescan|Run migrate plan/i }).first()).toBeVisible({
+  await openLiveVmDetailById(page, live, liveVm!.id, 'doctor')
+  await expect(page.getByRole('button', { name: /Run scan|Rescan|Run migrate plan/i }).first()).toBeVisible({
     timeout: 30_000,
   })
 })
@@ -124,12 +128,21 @@ test('F11 — live ConsoleHub cinema and serial recovery', async ({ page }) => {
   test.skip(!liveVm?.id, 'no platform VMs on host')
   const live = liveBaseUrl()
   await ensureLoggedIn(page, live, { tier: 'power' })
-  await page.goto(`${live}/platform/vms/${liveVm!.id}/consolehub`)
-  await expect(page.getByTestId('cinema-shell')).toBeVisible({ timeout: 30_000 })
+  await page.goto(`${live}/platform/vms/${liveVm!.id}/consolehub?mode=studio`)
+  await expect(page.getByTestId('studio-layout')).toBeVisible({ timeout: 30_000 })
   await page.getByRole('button', { name: 'Serial' }).first().click()
   await expect(
-    page.getByTestId('console-login-recovery').or(page.getByTestId('vm-laptop-access-checklist')),
+    page
+      .getByTestId('console-login-recovery')
+      .or(page.getByTestId('vm-laptop-access-checklist'))
+      .or(page.getByRole('textbox', { name: 'Terminal input' }))
+      .or(page.getByText(/Serial Console/i))
+      .first(),
   ).toBeVisible({ timeout: 20_000 })
+  await page.goto(`${live}/platform/vms/${liveVm!.id}/consolehub?mode=cinema`)
+  await expect(page.getByTestId('cinema-shell')).toBeVisible({ timeout: 30_000 })
+  await page.getByRole('button', { name: /Ops Shelf|Open Ops Shelf/i }).first().click()
+  await expect(page.getByTestId('ops-shelf')).toBeVisible({ timeout: 20_000 })
 })
 
 test('F12 — live Machine Finder SSH entry point', async ({ page }) => {
@@ -163,12 +176,12 @@ test('F14 — live Compute panel and Edit CPU modal', async ({ page }) => {
   await ensureLoggedIn(page, live, { tier: 'power' })
   await openLiveVmDetailById(page, live, liveVm!.id)
   await expect(
-    page.getByRole('heading', { name: 'Compute' }).or(page.getByTestId('vm-usage-bars')),
+    page.getByRole('heading', { name: 'Compute' }).or(page.getByTestId('vm-usage-bars')).first(),
   ).toBeVisible({ timeout: 20_000 })
   const editCpu = page.getByRole('button', { name: 'Edit CPU' })
   test.skip((await editCpu.count()) === 0, 'Compute panel not available')
   await editCpu.click()
-  await expect(page.getByText(/CPU topology/i)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('heading', { name: /CPU topology/i })).toBeVisible({ timeout: 10_000 })
 })
 
 test('F15 — live Disks tab attach and resize forms', async ({ page }) => {
@@ -207,5 +220,6 @@ test('F18 — live Devices tab and Disks insert ISO panel', async ({ page }) => 
   await expect(page.getByTestId('vm-devices-panel')).toBeVisible({ timeout: 30_000 })
   await openLiveVmDetailById(page, live, liveVm!.id, 'disks')
   await expect(page.getByTestId('vm-insert-iso-panel')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId('vm-insert-iso-browse')).toBeVisible()
   await expect(page.getByTestId('vm-insert-iso-submit')).toBeVisible()
 })

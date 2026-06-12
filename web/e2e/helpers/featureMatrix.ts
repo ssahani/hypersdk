@@ -80,10 +80,29 @@ export async function discoverLiveVm(page: Page, baseUrl: string): Promise<LiveV
   return vms.find((v) => v.guest_ip?.startsWith('192.168.')) ?? vms[0] ?? null
 }
 
+async function waitOutOfRateLimit(page: Page) {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const rateLimit = page.getByRole('alert').filter({ hasText: /Rate limit exceeded/i })
+    if (!(await rateLimit.isVisible().catch(() => false))) {
+      return
+    }
+    const waitMs = Math.min(15_000 * (attempt + 1), 60_000)
+    await page.waitForTimeout(waitMs)
+    const retry = page.getByRole('button', { name: 'Retry' })
+    if (await retry.isVisible().catch(() => false)) {
+      await retry.click()
+      await page.waitForLoadState('domcontentloaded')
+    }
+  }
+}
+
 export async function openLiveVmDetailById(page: Page, baseUrl: string, vmId: string, tab?: string) {
   const qs = tab ? `?tab=${tab}` : ''
   await page.goto(`${baseUrl}/platform/vms/${vmId}${qs}`, { waitUntil: 'domcontentloaded' })
-  await expect(page.getByTestId('vm-detail-action-bar').or(page.getByRole('link', { name: /Open Cinema/i }))).toBeVisible({
-    timeout: 60_000,
-  })
+  await waitOutOfRateLimit(page)
+  if (tab === 'doctor') {
+    await expect(page.getByRole('button', { name: /Run scan|Rescan/i }).first()).toBeVisible({ timeout: 60_000 })
+    return
+  }
+  await expect(page.getByTestId('vm-detail-action-bar')).toBeVisible({ timeout: 60_000 })
 }
