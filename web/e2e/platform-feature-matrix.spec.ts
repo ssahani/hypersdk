@@ -188,10 +188,18 @@ test('F18 — Devices tab, CD-ROM inventory, and insert ISO', async ({ page }) =
   await openMockVmDetail(page, 'devices')
   await expect(page.getByTestId('vm-devices-panel')).toBeVisible({ timeout: 15_000 })
   await expect(page.getByRole('heading', { name: 'Shared directories (virtiofs)' })).toBeVisible()
+  const isoScan = page.waitForResponse((r) => r.url().includes('/browse/isos') && r.ok())
   await openMockVmDetail(page, 'disks')
-  await expect(page.getByText('debian-12.iso')).toBeVisible()
+  await isoScan
   await expect(page.getByTestId('cdrom-eject-sda')).toBeVisible()
   await expect(page.getByTestId('vm-insert-iso-panel')).toBeVisible()
+  await expect(page.getByTestId('vm-insert-iso-scan')).toBeVisible()
+  await expect(page.getByTestId('vm-insert-iso-browse')).toBeEnabled()
+  await page.getByTestId('vm-insert-iso-browse').click()
+  await expect(page.getByRole('dialog', { name: 'Browse for ISO' })).toBeVisible()
+  await page.getByRole('button', { name: '/var/lib/libvirt/images' }).click()
+  await page.getByRole('button', { name: 'Select' }).click()
+  await expect(page.getByRole('dialog', { name: 'Browse for ISO' })).toBeHidden()
   const insertReq = page.waitForRequest((req) => {
     if (req.method() !== 'POST' || !req.url().includes('/libvirt')) return false
     try {

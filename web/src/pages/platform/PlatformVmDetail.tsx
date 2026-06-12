@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
-import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield, ExternalLink, Monitor, Pause, Power, Server, Loader2, Network, ToggleLeft, ToggleRight } from 'lucide-react'
+import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield, ExternalLink, Monitor, Pause, Power, Server, Loader2, Network, ToggleLeft, ToggleRight, FolderOpen } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
 import GuestToolsStrip from '../../components/platform/GuestToolsStrip'
 import GuestAgentDiagnosticsPanel, {
@@ -143,6 +143,9 @@ import { putVmDomainXml } from '../../api/platformVmLibvirt'
 import { buildVmSpotlightPrefill, vmDetailBlockers } from '../../utils/vmDetailSpotlight'
 import { sshNatHostPort } from '../../utils/vmPortForwardServices'
 import { formatBytes } from '../../utils/vm'
+import { getSession, type SessionRole } from '../../api/auth'
+import { listIsos, type ImageFile } from '../../api/extras'
+import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../../components/BrowseHostPathModal'
 
 export default function PlatformVmDetail() {
   const location = useLocation()
@@ -219,6 +222,10 @@ export default function PlatformVmDetail() {
   const [attachDev, setAttachDev] = useState('vdb')
   const [isoPath, setIsoPath] = useState('/var/lib/libvirt/images/debian-12.iso')
   const [isoTarget, setIsoTarget] = useState('sda')
+  const [isoFiles, setIsoFiles] = useState<ImageFile[]>([])
+  const [isoBrowseOpen, setIsoBrowseOpen] = useState(false)
+  const [attachDiskBrowseOpen, setAttachDiskBrowseOpen] = useState(false)
+  const [sessionRole, setSessionRole] = useState<SessionRole | null>(null)
   const [libvirtDetails, setLibvirtDetails] = useState<VmLibvirtDetails | null>(null)
   const [libvirtDetailsLoading, setLibvirtDetailsLoading] = useState(false)
   const [pendingConfig, setPendingConfig] = useState<VmPendingConfig | null>(null)
@@ -259,6 +266,8 @@ export default function PlatformVmDetail() {
   const [sshDialogOpen, setSshDialogOpen] = useState(false)
   const [portForwardRules, setPortForwardRules] = useState<VmPortForwardRule[]>([])
   const [consolePlan, setConsolePlan] = useState<ConsoleHubPlan | null>(null)
+
+  const canBrowseHost = sessionRole === 'admin'
 
   const load = useCallback(async () => {
     if (!id) return
@@ -332,6 +341,15 @@ export default function PlatformVmDetail() {
   }, [id])
 
   useEffect(() => { void load() }, [load])
+
+  useEffect(() => {
+    getSession()
+      .then((s) => {
+        if (s.authenticated) setSessionRole(s.role ?? 'admin')
+        else setSessionRole(null)
+      })
+      .catch(() => setSessionRole(null))
+  }, [])
 
   useEffect(() => { void runHealth() }, [runHealth])
   useEffect(() => { void runDoctor() }, [runDoctor])
@@ -536,6 +554,11 @@ export default function PlatformVmDetail() {
       if (tab === 'overview') void loadComputeTopology()
       if (tab === 'overview' || tab === 'access' || tab === 'settings' || tab === 'advanced' || tab === 'devices') void loadDomainXml()
       void loadLibvirtDetails()
+      if (tab === 'disks') {
+        void listIsos()
+          .then((r) => setIsoFiles(r.files ?? []))
+          .catch(() => setIsoFiles([]))
+      }
       if (tab === 'network') {
         void listPlatformNetworks()
           .then((nets) => setPlatformNetworks(nets.map((n) => ({ name: n.name }))))
@@ -1325,7 +1348,25 @@ export default function PlatformVmDetail() {
               )}
               <MacGlassPanel title="Attach disk">
                 <div className="flex flex-wrap gap-3 items-end">
-                  <label className="text-xs text-slate-500">Path<input className="input mt-1 block min-w-[18rem]" value={attachPath} onChange={(e) => setAttachPath(e.target.value)} /></label>
+                  <label className="text-xs text-slate-500">
+                    Path
+                    <div className="mt-1 flex gap-2 min-w-[18rem]">
+                      <input className="input flex-1 min-w-0 font-mono text-xs" value={attachPath} onChange={(e) => setAttachPath(e.target.value)} />
+                      <button
+                        type="button"
+                        className="btn-secondary shrink-0 inline-flex items-center gap-1.5 text-xs"
+                        data-testid="vm-attach-disk-browse"
+                        disabled={!canBrowseHost}
+                        title={!canBrowseHost ? 'Browsing host paths requires the admin role' : undefined}
+                        onClick={() => {
+                          if (canBrowseHost) setAttachDiskBrowseOpen(true)
+                        }}
+                      >
+                        <FolderOpen className="w-3.5 h-3.5" aria-hidden />
+                        Browse
+                      </button>
+                    </div>
+                  </label>
                   <label className="text-xs text-slate-500">Target dev<input className="input mt-1 block w-24" value={attachDev} onChange={(e) => setAttachDev(e.target.value)} /></label>
                   <button type="button" className="btn-secondary" disabled={vm.managed === false} onClick={() => void act('Attach disk queued', () => attachVmDisk(id, { disk_path: attachPath, target_dev: attachDev }))}>Attach</button>
                 </div>
@@ -1356,12 +1397,44 @@ export default function PlatformVmDetail() {
                 <div className="flex flex-wrap gap-3 items-end">
                   <label className="text-xs text-slate-500">
                     ISO path
-                    <input
-                      className="input mt-1 block min-w-[18rem] font-mono text-xs"
-                      value={isoPath}
-                      onChange={(e) => setIsoPath(e.target.value)}
-                      placeholder="/var/lib/libvirt/images/debian-12.iso"
-                    />
+                    <div className="mt-1 space-y-2 min-w-[18rem]">
+                      {isoFiles.length > 0 ? (
+                        <select
+                          className="input block w-full text-xs"
+                          data-testid="vm-insert-iso-scan"
+                          value={isoPath}
+                          onChange={(e) => setIsoPath(e.target.value)}
+                        >
+                          <option value="">Select ISO (from scan)…</option>
+                          {isoFiles.map((f) => (
+                            <option key={f.path} value={f.path}>
+                              {f.name} ({(f.size_bytes / 1048576).toFixed(0)} MB)
+                            </option>
+                          ))}
+                        </select>
+                      ) : null}
+                      <div className="flex gap-2">
+                        <input
+                          className="input flex-1 min-w-0 font-mono text-xs"
+                          value={isoPath}
+                          onChange={(e) => setIsoPath(e.target.value)}
+                          placeholder="/var/lib/libvirt/images/debian-12.iso"
+                        />
+                        <button
+                          type="button"
+                          className="btn-secondary shrink-0 inline-flex items-center gap-1.5 text-xs"
+                          data-testid="vm-insert-iso-browse"
+                          disabled={!canBrowseHost}
+                          title={!canBrowseHost ? 'Browsing host paths requires the admin role' : undefined}
+                          onClick={() => {
+                            if (canBrowseHost) setIsoBrowseOpen(true)
+                          }}
+                        >
+                          <FolderOpen className="w-3.5 h-3.5" aria-hidden />
+                          Browse
+                        </button>
+                      </div>
+                    </div>
                   </label>
                   <label className="text-xs text-slate-500">
                     CD-ROM target
@@ -1388,7 +1461,7 @@ export default function PlatformVmDetail() {
                     Insert ISO
                   </button>
                 </div>
-                <p className="text-xs text-slate-500 mt-2">Uses libvirt <code className="text-slate-400">cdrom.insert</code> — same as classic VM detail CD-ROM dialog.</p>
+                <p className="text-xs text-slate-500 mt-2">ISO scan, host browse, or typed path — same libvirt <code className="text-slate-400">cdrom.insert</code> as classic VM detail.</p>
               </MacGlassPanel>
             </div>
           )}
@@ -2251,6 +2324,25 @@ export default function PlatformVmDetail() {
                 }}
                 onNotify={(m) => toast.success(m)}
                 onError={(m) => toast.error(m)}
+              />
+            </>
+          )}
+
+          {vm.inventory_source !== 'kubevirt' && (
+            <>
+              <BrowseHostPathModal
+                open={isoBrowseOpen}
+                onClose={() => setIsoBrowseOpen(false)}
+                title="Browse for ISO"
+                canSelectFile={isIsoFileName}
+                onSelectPath={(p) => setIsoPath(p)}
+              />
+              <BrowseHostPathModal
+                open={attachDiskBrowseOpen}
+                onClose={() => setAttachDiskBrowseOpen(false)}
+                title="Browse for disk image"
+                canSelectFile={isHostDiskImageFileName}
+                onSelectPath={(p) => setAttachPath(p)}
               />
             </>
           )}

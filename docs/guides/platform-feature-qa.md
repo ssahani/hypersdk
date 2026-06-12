@@ -30,7 +30,7 @@ See also: [Platform VM Detail UX](platform-vm-detail-ux.md), [VM daily access (C
 | F15 | Disks | Tab **Disks** → Attach / Resize | `vm-disks-panel`, libvirt inventory, POST attach | `-g F15` | `-g F15` |
 | F16 | Network / NIC | Tab **Network** (More menu) | NIC list, **Attach NIC** button | `-g F16` | `-g F16` |
 | F17 | Snapshots | Tab **Snapshots** (More menu) | `vm-snapshots-panel`, Create snapshot | `-g F17` | `-g F17` |
-| F18 | Devices / ISO | Tab **Devices**; Disks insert ISO + eject | virtiofs panel; `cdrom.insert` on Disks | `-g F18` | `-g F18` |
+| F18 | Devices / ISO | Tab **Devices**; Disks insert ISO + eject | virtiofs panel; ISO scan + browse + `cdrom.insert` on Disks | `-g F18` | `-g F18` |
 
 ## Run all features (mocked, local)
 

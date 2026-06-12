@@ -1321,6 +1321,51 @@ export async function mockPlatformApi(page: Page, opts?: {
             },
       })
     }
+    if (url.includes('/browse/dir')) {
+      const reqUrl = new URL(route.request().url())
+      const dirPath = reqUrl.searchParams.get('path') ?? ''
+      if (!dirPath) {
+        return route.fulfill({
+          json: {
+            path: '',
+            parent: null,
+            roots: ['/var/lib/libvirt/images'],
+            entries: [],
+          },
+        })
+      }
+      if (dirPath === '/var/lib/libvirt/images') {
+        return route.fulfill({
+          json: {
+            path: '/var/lib/libvirt/images',
+            parent: '/var/lib/libvirt',
+            roots: ['/var/lib/libvirt/images'],
+            entries: [
+              {
+                name: 'debian-12.iso',
+                path: '/var/lib/libvirt/images/debian-12.iso',
+                is_directory: false,
+                size_bytes: 800000000,
+              },
+              {
+                name: 'data.qcow2',
+                path: '/var/lib/libvirt/images/data.qcow2',
+                is_directory: false,
+                size_bytes: 5000000000,
+              },
+            ],
+          },
+        })
+      }
+      return route.fulfill({
+        json: {
+          path: dirPath,
+          parent: '/var/lib/libvirt/images',
+          roots: ['/var/lib/libvirt/images'],
+          entries: [],
+        },
+      })
+    }
     if (url.includes('/browse/disks')) {
       return route.fulfill({
         json: {

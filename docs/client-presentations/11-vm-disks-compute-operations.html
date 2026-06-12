@@ -98,10 +98,10 @@ code { background: rgba(13,148,136,0.1); padding: 2px 6px; border-radius: 4px; f
     <tr><td><strong>Detach disk</strong></td><td>Per-row Detach</td><td>Queued libvirt detach by target</td></tr>
     <tr><td><strong>Resize block device</strong></td><td>Select disk + GiB</td><td><code>resizeVmDisk</code></td></tr>
     <tr><td><strong>Edit disk</strong></td><td>Bus, cache, readonly</td><td><code>disk.tune</code> — virtio/sata/scsi/ide</td></tr>
-    <tr><td><strong>CD-ROM insert / eject</strong></td><td>Insert ISO panel + Eject on cdrom row</td><td><code>cdrom.insert</code> / <code>cdrom.eject</code> on Disks tab</td></tr>
+    <tr><td><strong>CD-ROM insert / eject</strong></td><td>Insert ISO panel + Eject on cdrom row</td><td>ISO scan, host browse, typed path; <code>cdrom.insert</code> / <code>cdrom.eject</code></td></tr>
     <tr><td><strong>Platform disk records</strong></td><td>Secondary list</td><td><code>GET /vms/{id}/disks</code></td></tr>
   </table>
-  <p style="margin-top:1em;opacity:0.85;">Platform Disks tab: insert ISO path + target, eject mounted CD-ROM. Classic VM detail retains browse-host dialog.</p>
+  <p style="margin-top:1em;opacity:0.85;">Platform Disks tab: ISO scan dropdown, host browse (<code>GET /browse/dir</code>), typed path, attach-disk browse — parity with classic VM detail CD-ROM dialog.</p>
   <div class="page-footer"><span>HyperSDK / machina</span><span>VM Disks, Compute &amp; Devices</span></div>
 </div>
 
