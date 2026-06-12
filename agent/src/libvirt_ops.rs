@@ -481,6 +481,9 @@ impl LibvirtCtx {
         postcopy: bool,
         undefine_source: bool,
         tunnelled: bool,
+        migrate_disks: Vec<String>,
+        disks_uri: Option<String>,
+        copy_storage: bool,
     ) -> Result<(), LibvirtError> {
         if bandwidth_mib > 0 {
             machina_core::libvirt::migrate::migrate_set_max_speed(&self.conn, name, bandwidth_mib)?;
@@ -495,12 +498,24 @@ impl LibvirtCtx {
         if tunnelled {
             extra_flags |= sys::VIR_MIGRATE_TUNNELLED;
         }
+        if copy_storage {
+            extra_flags |= sys::VIR_MIGRATE_NON_SHARED_DISK;
+        }
+        let extra = if migrate_disks.is_empty() && disks_uri.is_none() {
+            None
+        } else {
+            Some(machina_core::libvirt::migrate::MigrateParametersApi {
+                migrate_disks,
+                disks_uri,
+                ..Default::default()
+            })
+        };
         machina_core::libvirt::migrate::migrate_vm_uri(
             &self.conn,
             name,
             dest_uri,
             live,
-            None,
+            extra.as_ref(),
             extra_flags,
         )
     }

@@ -64,6 +64,8 @@ import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { toastQueuedOperation } from '../../utils/platformTaskToast'
 import HostCockpitPanels from '../../components/platform/HostCockpitPanels'
 import PlatformHostTerminalPanel from '../../components/platform/PlatformHostTerminalPanel'
+import HostPackageKitPanel from '../../components/platform/HostPackageKitPanel'
+import { getHostCockpitInventory, type HostCockpitSystem } from '../../api/platformHostCockpit'
 
 function psiBar(label: string, pct: number) {
   return (
@@ -132,6 +134,7 @@ export default function PlatformHostDetailPage() {
   const [processes, setProcesses] = useState<HostLinuxProcess[]>([])
   const [upgradePreview, setUpgradePreview] = useState<string | null>(null)
   const [linuxOpsBusy, setLinuxOpsBusy] = useState(false)
+  const [linuxSystemCockpit, setLinuxSystemCockpit] = useState<HostCockpitSystem | null>(null)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -162,16 +165,18 @@ export default function PlatformHostDetailPage() {
       setLldp(l)
     }
     if (section === 'linux') {
-      const [obs, updates, fs, procs] = await Promise.all([
+      const [obs, updates, fs, procs, sysCockpit] = await Promise.all([
         getHostLinuxObservability(id).catch(() => null),
         getHostLinuxUpdates(id).catch(() => null),
         getHostLinuxFilesystems(id).catch(() => ({ filesystems: [] })),
         getHostLinuxProcesses(id, 'memory', 15).catch(() => ({ processes: [] })),
+        getHostCockpitInventory(id, 'system').then((r) => r.system ?? null).catch(() => null),
       ])
       setLinuxObs(obs)
       setLinuxUpdates(updates)
       setFilesystems(fs.filesystems ?? [])
       setProcesses(procs.processes ?? [])
+      setLinuxSystemCockpit(sysCockpit)
       setGpuLoading(true)
       setGpuError(null)
       try {
@@ -503,7 +508,7 @@ export default function PlatformHostDetailPage() {
                     }
                   />
                 )}
-                {lldp && lldp.neighbors.length > 0 && (
+                {lldp?.neighbors && lldp.neighbors.length > 0 && (
                   <MacGlassPanel title={`LLDP (${lldp.source})`}>
                     {lldp.neighbors.slice(0, 10).map((n, i) => (
                       <MacListRow key={i} title={n.system_name || n.chassis_id || 'neighbor'} subtitle={`${n.local_interface} → ${n.port_id || n.port_description}`} />
@@ -613,6 +618,15 @@ export default function PlatformHostDetailPage() {
                           />
                         ))}
                       </MacGlassPanel>
+                    )}
+                    {id && linuxUpdates && (
+                      <HostPackageKitPanel
+                        hostId={id}
+                        updates={linuxUpdates}
+                        maintenanceMode={Boolean(host?.maintenance_mode)}
+                        packagekit={linuxSystemCockpit?.packagekit}
+                        onRefresh={() => void load()}
+                      />
                     )}
                     {linuxUpdates && (
                       <MacGlassPanel

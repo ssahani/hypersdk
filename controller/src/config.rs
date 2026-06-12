@@ -40,6 +40,10 @@ pub struct ControllerConfig {
     pub consolehub_recording_enabled: bool,
     /// Require OIDC/SAML federation before opening production consoles (Phase 5).
     pub consolehub_require_oidc: bool,
+    /// Hermes Launchpad API (Kubernetes app catalog + gateway).
+    pub hermes_api_base: String,
+    pub hermes_public_base: String,
+    pub hermes_path_prefix: String,
 }
 
 impl Default for ControllerConfig {
@@ -115,6 +119,12 @@ impl Default for ControllerConfig {
             consolehub_require_oidc: std::env::var("CONSOLEHUB_REQUIRE_OIDC")
                 .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
                 .unwrap_or(false),
+            hermes_api_base: std::env::var("HERMES_API_BASE")
+                .unwrap_or_else(|_| "http://127.0.0.1:31847/api/v1".into()),
+            hermes_public_base: std::env::var("HERMES_PUBLIC_BASE")
+                .unwrap_or_else(|_| "http://127.0.0.1:31847".into()),
+            hermes_path_prefix: std::env::var("HERMES_PATH_PREFIX")
+                .unwrap_or_else(|_| "/launchpad".into()),
         }
     }
 }

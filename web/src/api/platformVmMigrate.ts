@@ -10,6 +10,9 @@ export type VmMigrateOptions = {
   postcopy?: boolean
   undefine_source?: boolean
   tunnelled?: boolean
+  migrate_disks?: string[]
+  disks_uri?: string
+  copy_storage?: boolean
 }
 
 export const vmMigrate = (id: string, opts: VmMigrateOptions) =>
@@ -22,5 +25,8 @@ export const vmMigrate = (id: string, opts: VmMigrateOptions) =>
       postcopy: opts.postcopy ?? false,
       undefine_source: opts.undefine_source ?? false,
       tunnelled: opts.tunnelled ?? false,
+      migrate_disks: opts.migrate_disks ?? [],
+      disks_uri: opts.disks_uri,
+      copy_storage: opts.copy_storage ?? false,
     }),
   })

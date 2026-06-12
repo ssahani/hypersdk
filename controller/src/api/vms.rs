@@ -979,6 +979,12 @@ pub struct MigrateVmBody {
     pub undefine_source: bool,
     #[serde(default)]
     pub tunnelled: bool,
+    #[serde(default)]
+    pub migrate_disks: Vec<String>,
+    #[serde(default)]
+    pub disks_uri: Option<String>,
+    #[serde(default)]
+    pub copy_storage: bool,
 }
 
 fn default_live() -> bool {
@@ -1006,6 +1012,9 @@ pub async fn migrate_vm(
             "postcopy": body.postcopy,
             "undefine_source": body.undefine_source,
             "tunnelled": body.tunnelled,
+            "migrate_disks": body.migrate_disks,
+            "disks_uri": body.disks_uri,
+            "copy_storage": body.copy_storage,
         }),
         Some("vm"),
         Some(id),

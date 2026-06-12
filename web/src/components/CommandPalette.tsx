@@ -5,7 +5,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useLocation, useNavigate } from 'react-router'
-import { Search, Plus, Camera, Server, Play, Square, Power, Terminal, ArrowRight, Network, HardDrive, Clock, Star, Boxes, Upload, Pin, Keyboard, Info, Bell, ClipboardList, Activity, Settings, Monitor } from 'lucide-react'
+import { Search, Plus, Camera, Server, Play, Square, Power, Terminal, ArrowRight, Network, HardDrive, Clock, Star, Boxes, Upload, Pin, Keyboard, Info, Bell, ClipboardList, Activity, Settings, Monitor, LayoutGrid } from 'lucide-react'
+import { searchLaunchpad, type LaunchpadSearchHit } from '../api/launchpad'
+import { launchpadStatusLabel, openLaunchpadApp } from '../utils/launchpadHelpers'
 import { navigateVmSshSession } from './vm/VmSshConnectDialog'
 import { listVMs, startVM, stopVM, shutdownVM, VmInfo } from '../api/vm'
 import { listPlatformHosts, listPlatformVms } from '../api/platform'
@@ -70,6 +72,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   const [reviewNlOps, setReviewNlOps] = useState<NlOpsPlan | null>(null)
   const [nlOpsQuery, setNlOpsQuery] = useState('')
   const [spotlightIntents, setSpotlightIntents] = useState<SpotlightIntent[]>([])
+  const [launchpadHits, setLaunchpadHits] = useState<LaunchpadSearchHit[]>([])
   const [executing, setExecuting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -203,6 +206,24 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   const platformSpotlightPaths = onPlatformDesktop
     ? spotlightPathSetForTier(platformTier, info)
     : new Set<string>()
+
+  useEffect(() => {
+    if (!open || !onPlatformDesktop || query.trim().length < 2) {
+      setLaunchpadHits([])
+      return
+    }
+    const q = query.trim()
+    if (q === 'broken' || q === 'broken services') {
+      setLaunchpadHits([])
+      return
+    }
+    const t = window.setTimeout(() => {
+      void searchLaunchpad(q)
+        .then((hits) => setLaunchpadHits(hits ?? []))
+        .catch(() => setLaunchpadHits([]))
+    }, 180)
+    return () => window.clearTimeout(t)
+  }, [open, onPlatformDesktop, query])
 
   useEffect(() => {
     if (!open || !platformConnected || !query.trim() || query.length < 3) {
@@ -603,6 +624,42 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   const q = query.toLowerCase()
   const parsedCommand = parsePlatformCommand(query, onlineHostCount)
 
+  if (onPlatformDesktop && (q === 'broken' || q === 'broken services')) {
+    items.unshift({
+      id: 'launchpad-broken-filter',
+      icon: <LayoutGrid className="w-4 h-4 text-orange-400" />,
+      label: 'Apps need attention',
+      sublabel: 'Launchpad · broken routes',
+      action: () => go('/platform/launchpad?filter=broken'),
+      category: 'Launchpad',
+    })
+  }
+
+  for (const hit of launchpadHits) {
+    items.unshift({
+      id: `launchpad-${hit.app.id}`,
+      icon: <LayoutGrid className="w-4 h-4 text-orange-400" />,
+      label: hit.app.displayName,
+      sublabel: `${hit.app.category} · ${launchpadStatusLabel(hit.app.status)} · Open app`,
+      action: () => {
+        close()
+        void openLaunchpadApp(hit.app)
+      },
+      category: 'Launchpad',
+    })
+  }
+
+  if (onPlatformDesktop && !q) {
+    items.unshift({
+      id: 'launchpad-home',
+      icon: <LayoutGrid className="w-4 h-4 text-orange-400" />,
+      label: 'Launchpad',
+      sublabel: 'Kubernetes apps & consoles',
+      action: () => go('/platform/launchpad'),
+      category: 'Launchpad',
+    })
+  }
+
   for (const intent of spotlightIntents) {
     const cmdId = intent.id as PlatformCommand['id']
     const knownCmd = ['import-networks', 'import-storage', 'sync-hosts', 'create-vm', 'show-offline-hosts', 'backup-vm', 'migrate-vm', 'enable-ha-vm'].includes(cmdId)
@@ -683,6 +740,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
     'Recent',
     'Pinned',
     'Zeus Spotlight',
+    'Launchpad',
     'Platform Commands',
     ...spotlightZoneOrder(),
     'Platform Actions',

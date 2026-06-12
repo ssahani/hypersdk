@@ -496,6 +496,118 @@ pub fn host_invoke(
             let msg = machina_core::host_cockpit::nm_create_bond(&name, &ifaces)?;
             Ok(serde_json::json!({ "status": "ok", "message": msg, "name": name }))
         }
+        "cockpit.nm.create_team" => {
+            let name = payload_str(payload, "name")?;
+            let runner = payload.get("runner").and_then(|v| v.as_str()).unwrap_or("loadbalance");
+            let ifaces: Vec<String> = payload
+                .get("interfaces")
+                .and_then(|v| v.as_array())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let msg = machina_core::host_cockpit::nm_create_team(&name, &ifaces, runner)?;
+            Ok(serde_json::json!({ "status": "ok", "message": msg, "name": name }))
+        }
+        "cockpit.nm.create_vlan" => {
+            let name = payload.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let parent = payload_str(payload, "parent")?;
+            let vlan_id = payload_u32(payload, "vlan_id")?;
+            let msg = machina_core::host_cockpit::nm_create_vlan(name, &parent, vlan_id)?;
+            Ok(serde_json::json!({ "status": "ok", "message": msg }))
+        }
+        "cockpit.nm.create_wifi" => {
+            let ssid = payload_str(payload, "ssid")?;
+            let password = payload.get("password").and_then(|v| v.as_str()).unwrap_or("");
+            let msg = machina_core::host_cockpit::nm_create_wifi(&ssid, password)?;
+            Ok(serde_json::json!({ "status": "ok", "message": msg }))
+        }
+        "cockpit.nm.create_wireguard" => {
+            let name = payload_str(payload, "name")?;
+            let address = payload_str(payload, "address")?;
+            let private_key = payload.get("private_key").and_then(|v| v.as_str()).unwrap_or("");
+            let peer_public_key = payload_str(payload, "peer_public_key")?;
+            let endpoint = payload_str(payload, "endpoint")?;
+            let allowed_ips = payload.get("allowed_ips").and_then(|v| v.as_str()).unwrap_or("0.0.0.0/0");
+            let msg = machina_core::host_cockpit::nm_create_wireguard(
+                &name,
+                &address,
+                private_key,
+                &peer_public_key,
+                &endpoint,
+                allowed_ips,
+            )?;
+            Ok(serde_json::json!({ "status": "ok", "message": msg, "name": name }))
+        }
+        "cockpit.packagekit.refresh" => {
+            let msg = machina_core::host_cockpit::packagekit_refresh()?;
+            Ok(serde_json::json!({ "status": "ok", "message": msg }))
+        }
+        "host.package.install" => {
+            let pkgs: Vec<String> = payload
+                .get("packages")
+                .and_then(|v| v.as_array())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            if pkgs.is_empty() {
+                return Err(LibvirtError::Invalid("packages required".into()));
+            }
+            let res = machina_core::host_platform::package_install(pkgs)?;
+            let message = if !res.ok {
+                let detail = res.stderr.trim();
+                if detail.is_empty() {
+                    format!("{} failed (exit {})", res.command, res.exit_code)
+                } else {
+                    detail.lines().next().unwrap_or(detail).to_string()
+                }
+            } else {
+                let out = res.stdout.trim();
+                if out.is_empty() {
+                    format!("{} succeeded", res.command)
+                } else {
+                    out.lines().last().unwrap_or(out).to_string()
+                }
+            };
+            Ok(serde_json::json!({ "status": "ok", "message": message, "result": res }))
+        }
+        "host.package.remove" => {
+            let pkgs: Vec<String> = payload
+                .get("packages")
+                .and_then(|v| v.as_array())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            if pkgs.is_empty() {
+                return Err(LibvirtError::Invalid("packages required".into()));
+            }
+            let purge = payload_bool(payload, "purge");
+            let res = machina_core::host_platform::package_remove(pkgs, purge)?;
+            let message = if !res.ok {
+                let detail = res.stderr.trim();
+                if detail.is_empty() {
+                    format!("{} failed (exit {})", res.command, res.exit_code)
+                } else {
+                    detail.lines().next().unwrap_or(detail).to_string()
+                }
+            } else {
+                let out = res.stdout.trim();
+                if out.is_empty() {
+                    format!("{} succeeded", res.command)
+                } else {
+                    out.lines().last().unwrap_or(out).to_string()
+                }
+            };
+            Ok(serde_json::json!({ "status": "ok", "message": message, "result": res }))
+        }
         other => Err(LibvirtError::Invalid(format!("unknown host invoke action: {other}"))),
     }
 }

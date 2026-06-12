@@ -1346,6 +1346,76 @@ async fn post_host_cockpit_action_handler(
                 .unwrap_or_default();
             machina_core::host_cockpit::nm_create_bond(name, &ifaces)
         }
+        "cockpit.nm.create_team" => {
+            let name = body.payload.get("name").and_then(|v| v.as_str()).ok_or_else(|| LibvirtError::Invalid("name required".into()))?;
+            let runner = body.payload.get("runner").and_then(|v| v.as_str()).unwrap_or("loadbalance");
+            let ifaces: Vec<String> = body.payload.get("interfaces").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect()).unwrap_or_default();
+            machina_core::host_cockpit::nm_create_team(name, &ifaces, runner)
+        }
+        "cockpit.nm.create_vlan" => {
+            let name = body.payload.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let parent = body.payload.get("parent").and_then(|v| v.as_str()).ok_or_else(|| LibvirtError::Invalid("parent required".into()))?;
+            let vlan_id = body.payload.get("vlan_id").and_then(|v| v.as_u64()).and_then(|n| u32::try_from(n).ok()).ok_or_else(|| LibvirtError::Invalid("vlan_id required".into()))?;
+            machina_core::host_cockpit::nm_create_vlan(name, parent, vlan_id)
+        }
+        "cockpit.nm.create_wifi" => {
+            let ssid = body.payload.get("ssid").and_then(|v| v.as_str()).ok_or_else(|| LibvirtError::Invalid("ssid required".into()))?;
+            let password = body.payload.get("password").and_then(|v| v.as_str()).unwrap_or("");
+            machina_core::host_cockpit::nm_create_wifi(ssid, password)
+        }
+        "cockpit.nm.create_wireguard" => {
+            let name = body.payload.get("name").and_then(|v| v.as_str()).ok_or_else(|| LibvirtError::Invalid("name required".into()))?;
+            let address = body.payload.get("address").and_then(|v| v.as_str()).ok_or_else(|| LibvirtError::Invalid("address required".into()))?;
+            let private_key = body.payload.get("private_key").and_then(|v| v.as_str()).unwrap_or("");
+            let peer_public_key = body.payload.get("peer_public_key").and_then(|v| v.as_str()).ok_or_else(|| LibvirtError::Invalid("peer_public_key required".into()))?;
+            let endpoint = body.payload.get("endpoint").and_then(|v| v.as_str()).ok_or_else(|| LibvirtError::Invalid("endpoint required".into()))?;
+            let allowed_ips = body.payload.get("allowed_ips").and_then(|v| v.as_str()).unwrap_or("0.0.0.0/0");
+            machina_core::host_cockpit::nm_create_wireguard(name, address, private_key, peer_public_key, endpoint, allowed_ips)
+        }
+        "cockpit.packagekit.refresh" => machina_core::host_cockpit::packagekit_refresh(),
+        "host.package.install" => {
+            let pkgs: Vec<String> = body.payload.get("packages").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect()).unwrap_or_default();
+            if pkgs.is_empty() {
+                return Err(LibvirtError::Invalid("packages required".into()));
+            }
+            let res = machina_core::host_platform::package_install(pkgs)?;
+            if !res.ok {
+                let detail = res.stderr.trim();
+                return Err(LibvirtError::Operation(if detail.is_empty() {
+                    format!("{} failed (exit {})", res.command, res.exit_code)
+                } else {
+                    detail.lines().next().unwrap_or(detail).to_string()
+                }));
+            }
+            let msg = res.stdout.trim();
+            Ok(if msg.is_empty() {
+                format!("{} succeeded", res.command)
+            } else {
+                msg.lines().last().unwrap_or(msg).to_string()
+            })
+        }
+        "host.package.remove" => {
+            let pkgs: Vec<String> = body.payload.get("packages").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect()).unwrap_or_default();
+            if pkgs.is_empty() {
+                return Err(LibvirtError::Invalid("packages required".into()));
+            }
+            let purge = body.payload.get("purge").and_then(|v| v.as_bool()).unwrap_or(false);
+            let res = machina_core::host_platform::package_remove(pkgs, purge)?;
+            if !res.ok {
+                let detail = res.stderr.trim();
+                return Err(LibvirtError::Operation(if detail.is_empty() {
+                    format!("{} failed (exit {})", res.command, res.exit_code)
+                } else {
+                    detail.lines().next().unwrap_or(detail).to_string()
+                }));
+            }
+            let msg = res.stdout.trim();
+            Ok(if msg.is_empty() {
+                format!("{} succeeded", res.command)
+            } else {
+                msg.lines().last().unwrap_or(msg).to_string()
+            })
+        }
         other => Err(LibvirtError::Invalid(format!("unknown action: {other}"))),
     })
     .await

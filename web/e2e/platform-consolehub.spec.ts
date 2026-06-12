@@ -79,4 +79,12 @@ test.describe('Platform ConsoleHub', () => {
     await page.getByRole('button', { name: 'Serial' }).first().click()
     await expect(page.getByTestId('kubevirt-serial-console')).toBeVisible({ timeout: 15_000 })
   })
+
+  test('SPICE VM shows WebRTC performance console tab', async ({ page }) => {
+    await page.goto('/platform/vms/sp1/consolehub')
+    await expect(page.getByText('spice-vm-1').first()).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('button', { name: 'webrtc spice', exact: true }).click()
+    await expect(page.getByTestId('webrtc-spice-console')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText(/Performance mode/i)).toBeVisible()
+  })
 })

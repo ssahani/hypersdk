@@ -289,6 +289,13 @@ impl HostAgent for AgentService {
         let postcopy = req.postcopy;
         let undefine_source = req.undefine_source;
         let tunnelled = req.tunnelled;
+        let migrate_disks = req.migrate_disks;
+        let disks_uri = if req.disks_uri.is_empty() {
+            None
+        } else {
+            Some(req.disks_uri.clone())
+        };
+        let copy_storage = req.copy_storage;
         tokio::task::spawn_blocking(move || {
             let ctx = libvirt.lock().map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
             ctx.migrate(
@@ -299,6 +306,9 @@ impl HostAgent for AgentService {
                 postcopy,
                 undefine_source,
                 tunnelled,
+                migrate_disks,
+                disks_uri,
+                copy_storage,
             )
         })
         .await

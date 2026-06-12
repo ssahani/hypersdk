@@ -50,6 +50,7 @@ export const PLATFORM_SIDEBAR: PlatformNavSection[] = [
     collapsible: true,
     items: [
       { to: '/platform/zeus', label: 'Machina Zeus OS', icon: ic(Cpu) },
+      { to: '/platform/launchpad', label: 'Launchpad', icon: ic(LayoutDashboard) },
       { to: '/platform/integrations', label: 'Apps & Integrations', icon: ic(Plug) },
       { to: '/platform/enroll', label: 'Add Host', icon: ic(UserPlus) },
     ],
@@ -81,6 +82,7 @@ export const PLATFORM_PAGE_LABELS: Record<string, string> = {
   '/platform': 'Mission Control',
   '/platform/vms': 'Finder',
   '/platform/applications': 'Applications',
+  '/platform/launchpad': 'Launchpad',
   '/platform/hosts': 'Hosts',
   '/platform/hosts/finder': 'Machine Finder',
   '/platform/integrations': 'Apps & Integrations',

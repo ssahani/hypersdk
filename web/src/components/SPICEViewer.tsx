@@ -16,15 +16,17 @@ interface Props {
   vmName: string
   port?: number
   libvirtConnection?: string | null
+  /** Connect via WS proxy using vm name when spice port is resolved server-side. */
+  autoConnect?: boolean
 }
 
-export default function SPICEViewer({ vmName, port = -1, libvirtConnection }: Props) {
+export default function SPICEViewer({ vmName, port = -1, libvirtConnection, autoConnect = false }: Props) {
   const [fullscreen, setFullscreen] = useState(false)
   const [token, setToken] = useState<string | null>(null)
   const [tokenError, setTokenError] = useState(false)
 
   useEffect(() => {
-    if (port <= 0) return
+    if (port <= 0 && !autoConnect) return
     let cancelled = false
     getWsToken()
       .then(t => { if (!cancelled) setToken(t) })
@@ -32,7 +34,7 @@ export default function SPICEViewer({ vmName, port = -1, libvirtConnection }: Pr
     return () => { cancelled = true }
   }, [port])
 
-  if (port <= 0) {
+  if (port <= 0 && !autoConnect) {
     return (
       <div className="flex flex-col items-center justify-center bg-black rounded-lg p-12 text-center" style={{ minHeight: '500px' }}>
         <Monitor className="w-16 h-16 text-slate-600 mb-4" />
@@ -76,7 +78,7 @@ export default function SPICEViewer({ vmName, port = -1, libvirtConnection }: Pr
         <div className="flex items-center gap-3">
           <div className="w-2.5 h-2.5 rounded-full bg-purple-500" />
           <span className="text-sm text-slate-300">SPICE — {vmName}</span>
-          <span className="text-xs text-slate-500">port {port}</span>
+          {port > 0 ? <span className="text-xs text-slate-500">port {port}</span> : null}
         </div>
         <button onClick={() => setFullscreen(!fullscreen)} className="p-1.5 hover:bg-slate-700 rounded transition" title="Fullscreen">
           {fullscreen ? <Minimize className="w-4 h-4 text-slate-400" /> : <Maximize className="w-4 h-4 text-slate-400" />}

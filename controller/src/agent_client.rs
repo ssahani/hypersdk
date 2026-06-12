@@ -175,6 +175,9 @@ pub async fn migrate_vm(
     postcopy: bool,
     undefine_source: bool,
     tunnelled: bool,
+    migrate_disks: Vec<String>,
+    disks_uri: Option<String>,
+    copy_storage: bool,
 ) -> anyhow::Result<MigrateVmResponse> {
     Ok(client
         .migrate_vm(MigrateVmRequest {
@@ -185,6 +188,9 @@ pub async fn migrate_vm(
             postcopy,
             undefine_source,
             tunnelled,
+            migrate_disks,
+            disks_uri: disks_uri.unwrap_or_default(),
+            copy_storage,
         })
         .await?
         .into_inner())

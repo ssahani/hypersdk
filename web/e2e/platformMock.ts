@@ -25,6 +25,49 @@ export const platformInfo = {
   fleet: { enabled: false, peer_count: 0 },
 }
 
+const mockLaunchpadApps = [
+  {
+    id: 'monitoring/grafana',
+    slug: 'grafana',
+    canonicalSlug: 'grafana',
+    displayName: 'Grafana',
+    description: 'Monitoring dashboard',
+    namespace: 'monitoring',
+    category: 'Monitoring',
+    icon: 'grafana',
+    backend: { kind: 'Service', name: 'grafana', port: 80, scheme: 'http', path: '/' },
+    routePath: '/launchpad/a/monitoring/grafana',
+    publicUrl: 'http://127.0.0.1:31847/launchpad/apps/grafana',
+    status: 'healthy',
+    source: 'signature',
+    authMode: 'none',
+    score: 80,
+    visibility: { published: true, hidden: false, favorite: true },
+    readyEndpoints: 1,
+    updatedAt: '2026-06-12T12:00:00.000Z',
+  },
+  {
+    id: 'monitoring/prometheus-server',
+    slug: 'prometheus-server',
+    canonicalSlug: 'prometheus',
+    displayName: 'Prometheus',
+    description: 'Metrics',
+    namespace: 'monitoring',
+    category: 'Monitoring',
+    icon: 'prometheus',
+    backend: { kind: 'Service', name: 'prometheus-server', port: 9090, scheme: 'http', path: '/' },
+    routePath: '/launchpad/a/monitoring/prometheus-server',
+    publicUrl: 'http://127.0.0.1:31847/launchpad/apps/prometheus',
+    status: 'healthy',
+    source: 'signature',
+    authMode: 'none',
+    score: 75,
+    visibility: { published: true, hidden: false, favorite: false },
+    readyEndpoints: 1,
+    updatedAt: '2026-06-12T11:00:00.000Z',
+  },
+]
+
 const fleetFinder = {
   summary: '2 VM(s) · 1 running',
   smart_folders: [
@@ -456,7 +499,13 @@ const mockHostCockpitNetwork = {
     default_zone: 'public',
     zones: [{ name: 'public', target: 'default', services: ['ssh', 'dhcpv6-client'], ports: ['8080/tcp'] }],
   },
-  summary: '1 bond · 1 bridge · firewalld active',
+  ovs: {
+    probed: true,
+    available: true,
+    bridges: [{ name: 'br-int', ports: ['eth0', 'patch-tun'] }],
+    summary: '1 OVS bridge',
+  },
+  summary: '1 bond · 1 bridge · OVS · firewalld active',
 }
 
 const mockHostCockpitSystem = {
@@ -469,7 +518,13 @@ const mockHostCockpitSystem = {
   systemd_units: [{ unit: 'sshd.service', load: 'loaded', active: 'active', sub: 'running', description: 'OpenSSH server' }],
   journal_errors_1h: 2,
   journal_recent: ['sshd[1234]: Failed password for invalid user admin'],
-  summary: 'SELinux enforcing · tuned virtual-guest · 0 failed units',
+  packagekit: {
+    available: true,
+    running: true,
+    version: '1.2.6',
+    summary: 'PackageKit daemon active',
+  },
+  summary: 'SELinux enforcing · tuned virtual-guest · PackageKit active · 0 failed units',
 }
 
 const mockConsoleHubSessions = [
@@ -516,6 +571,12 @@ const kubevirtVmFixture = {
   host_id: 'h1',
   inventory_source: 'kubevirt',
   k8s_namespace: 'default',
+}
+
+const spiceVmFixture = {
+  ...sampleVm,
+  id: 'sp1',
+  name: 'spice-vm-1',
 }
 
 function k8sNodeFixture(name: string, plane: 'worker' | 'control_plane' | 'mixed', ready = true) {
@@ -678,6 +739,39 @@ export async function mockPlatformApi(page: Page, opts?: {
         json: { status: 'ok', leader: true, controller_id: 'ctrl-test-1' },
       })
     }
+    if (url.includes('/api/v1/launchpad/config')) {
+      return route.fulfill({
+        json: {
+          publicBase: 'http://127.0.0.1:31847',
+          pathPrefix: '/launchpad',
+          enabled: true,
+        },
+      })
+    }
+    if (url.includes('/api/v1/launchpad/favorites')) {
+      return route.fulfill({ json: mockLaunchpadApps.filter((a) => a.visibility.favorite) })
+    }
+    if (url.includes('/api/v1/launchpad/catalog') || url.includes('/api/v1/launchpad/apps')) {
+      return route.fulfill({ json: mockLaunchpadApps })
+    }
+    if (url.includes('/api/v1/launchpad/health/apps')) {
+      return route.fulfill({
+        json: {
+          total: mockLaunchpadApps.length,
+          healthy: mockLaunchpadApps.length,
+          degraded: 0,
+          broken: 0,
+          apps: [],
+        },
+      })
+    }
+    if (url.includes('/api/v1/launchpad/search')) {
+      const q = new URL(url).searchParams.get('q')?.toLowerCase() ?? ''
+      const hits = mockLaunchpadApps
+        .filter((a) => a.displayName.toLowerCase().includes(q) || a.slug.includes(q))
+        .map((app) => ({ app, score: 90 }))
+      return route.fulfill({ json: hits })
+    }
     if (url.match(/\/hosts\/[^/]+\/linux\/observability/)) {
       return route.fulfill({
         json: {
@@ -773,6 +867,11 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.match(/\/hosts\/[^/]+\/linux\/reboot/) && route.request().method() === 'POST') {
       return route.fulfill({
         json: { task_id: 'task-linux-reboot-1', summary: 'Host reboot queued' },
+      })
+    }
+    if (url.match(/\/hosts\/[^/]+\/lldp/)) {
+      return route.fulfill({
+        json: { source: 'lldpctl', neighbors: [], raw_text: '', summary: 'No LLDP neighbors' },
       })
     }
     if (url.match(/\/hosts\/[^/]+\/cockpit\/actions/) && route.request().method() === 'POST') {
@@ -2924,21 +3023,28 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.match(/\/vms\/[^/]+\/consolehub\/plan/)) {
       const vmId = url.match(/\/vms\/([^/]+)\/consolehub\/plan/)?.[1]
       const isKubevirt = vmId === 'kv1'
+      const isSpice = vmId === 'sp1'
       const sshRule = portForwardRules.find((r) => r.vm_port === 22)
       return route.fulfill({
         json: {
           vm_id: vmId ?? 'v1',
-          vm_name: isKubevirt ? 'kv-vm-1' : 'vm-1',
-          recommended: isKubevirt ? 'serial' : 'novnc',
+          vm_name: isKubevirt ? 'kv-vm-1' : isSpice ? 'spice-vm-1' : 'vm-1',
+          recommended: isKubevirt ? 'serial' : isSpice ? 'webrtc_spice' : 'novnc',
           native: isKubevirt
             ? { console_type: 'serial', ws_path: null, serial_ws_path: null, available: true }
-            : { console_type: 'vnc', ws_path: '/ws/v1/platform/vnc/v1?token=mock-ws-token', serial_ws_path: '/ws/v1/platform/serial/v1?token=mock-ws-token', available: true },
-          guacamole: { available: !isKubevirt, protocols: isKubevirt ? [] : ['vnc', 'ssh'] },
+            : isSpice
+              ? { console_type: 'spice', ws_path: '/ws/v1/platform/spice/sp1?token=mock-ws-token', serial_ws_path: null, available: true }
+              : { console_type: 'vnc', ws_path: '/ws/v1/platform/vnc/v1?token=mock-ws-token', serial_ws_path: '/ws/v1/platform/serial/v1?token=mock-ws-token', available: true },
+          guacamole: { available: !isKubevirt && !isSpice, protocols: isKubevirt || isSpice ? [] : ['vnc', 'ssh'] },
           guest_ip: isKubevirt ? null : '192.168.122.10',
           ssh_user: 'ubuntu',
           os_hint: 'linux',
-          protocols: isKubevirt ? ['serial', 'novnc'] : ['novnc', 'guacamole_ssh', 'guacamole_vnc', 'serial', 'native_ssh'],
-          webrtc_spice_available: false,
+          protocols: isKubevirt
+            ? ['serial', 'novnc']
+            : isSpice
+              ? ['spice', 'webrtc_spice', 'novnc', 'serial', 'native_ssh']
+              : ['novnc', 'guacamole_ssh', 'guacamole_vnc', 'serial', 'native_ssh'],
+          webrtc_spice_available: isSpice,
           guest_access: isKubevirt
             ? null
             : {
@@ -3251,6 +3357,7 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.match(/\/vms\/[^/]+(\?|$)/) || url.match(/\/vms\/[^/]+$/)) {
       const vmId = url.match(/\/vms\/([^/?]+)/)?.[1]
       if (vmId === 'kv1') return route.fulfill({ json: kubevirtVmFixture })
+      if (vmId === 'sp1') return route.fulfill({ json: spiceVmFixture })
       return route.fulfill({ json: vmFixture })
     }
     if (url.includes('/vms')) {
@@ -3258,7 +3365,7 @@ export async function mockPlatformApi(page: Page, opts?: {
       if (url.includes('folder=missing')) {
         return route.fulfill({ json: [missingVm] })
       }
-      return route.fulfill({ json: [vmFixture, kubevirtVmFixture, missingVm] })
+      return route.fulfill({ json: [vmFixture, kubevirtVmFixture, spiceVmFixture, missingVm] })
     }
     if (url.includes('/zeus-firewall/multisite/dr-templates')) {
       return route.fulfill({

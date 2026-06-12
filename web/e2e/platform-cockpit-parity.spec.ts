@@ -80,4 +80,29 @@ test.describe('Cockpit parity surfaces (mock)', () => {
     await expect(page.getByTestId('platform-host-terminal')).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText(/127\.0\.0\.1|host-1/i).first()).toBeVisible()
   })
+
+  test('Host detail network tab shows OVS SDN and NM create wizard', async ({ page }) => {
+    await page.goto('/platform/hosts/h1?tab=network')
+    await expect(page.getByTestId('host-ovs-panel')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('br-int')).toBeVisible()
+    await expect(page.getByTestId('host-nm-create-wizard')).toBeVisible()
+    await page.getByRole('button', { name: 'vlan', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Create VLAN' })).toBeVisible()
+  })
+
+  test('Host detail linux tab shows PackageKit panel', async ({ page }) => {
+    await page.goto('/platform/hosts/h1?tab=linux')
+    await expect(page.getByTestId('host-packagekit-panel')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('PackageKit daemon active')).toBeVisible()
+  })
+
+  test('VM settings shows storage live-migration fields', async ({ page }) => {
+    await page.goto('/platform/vms/v1')
+    await page.getByRole('button', { name: 'More' }).click()
+    await page.getByRole('menuitem', { name: 'Settings', exact: true }).click()
+    await expect(page.getByTestId('vm-migrate-panel')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('Copy disk storage (non-shared)')).toBeVisible()
+    await expect(page.getByPlaceholder('/var/lib/libvirt/images/vm.qcow2')).toBeVisible()
+    await expect(page.getByPlaceholder('qemu+ssh://dest/system')).toBeVisible()
+  })
 })

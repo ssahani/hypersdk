@@ -12,6 +12,8 @@ import { dispatchOpenSpotlight } from '../../utils/platformJarvisShell'
 import { useMissionControl } from './mac/MissionControlContext'
 import { useFleetDesktop } from '../../hooks/useFleetDesktop'
 import { getFleetFinder } from '../../api/platform'
+import { useLaunchpadDockApps } from '../../hooks/useLaunchpadDockApps'
+import { openLaunchpadApp } from '../../utils/launchpadHelpers'
 
 function isPlatformShell(pathname: string): boolean {
   return pathname.startsWith('/platform')
@@ -24,6 +26,7 @@ export default function PlatformMacDock() {
   const { openCopilot } = useAi()
   const { closeMissionControl } = useMissionControl()
   const dockItems = usePlatformDockItems()
+  const launchpadFavorites = useLaunchpadDockApps(4)
   const { desktop } = useFleetDesktop(isPlatformShell(location.pathname), 90_000)
   const [mounted, setMounted] = useState(false)
   const [dockVisible, setDockVisible] = useState(true)
@@ -144,6 +147,27 @@ export default function PlatformMacDock() {
             </Link>
           )
         })}
+
+        {launchpadFavorites.length > 0 ? (
+          <>
+            <div className="mac-dock-divider" aria-hidden />
+            {launchpadFavorites.map((app) => (
+              <button
+                key={`launchpad-${app.id}`}
+                type="button"
+                title={app.displayName}
+                aria-label={`Open ${app.displayName}`}
+                className="mac-dock-item"
+                onClick={() => void openLaunchpadApp(app)}
+              >
+                <span className="text-xs font-semibold text-orange-300">
+                  {app.displayName.trim().charAt(0).toUpperCase()}
+                </span>
+                <span className="mac-dock-tooltip">{app.displayName}</span>
+              </button>
+            ))}
+          </>
+        ) : null}
 
         <div className="mac-dock-divider" aria-hidden />
 

@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { ExternalLink } from 'lucide-react'
 import VNCViewer from '../VNCViewer'
 import SPICEViewer from '../SPICEViewer'
+import WebRTCSpiceViewer from './WebRTCSpiceViewer'
 import SerialConsole from '../SerialConsole'
 import SSHConsole from '../SSHConsole'
 import KubeVirtSerialConsole from '../KubeVirtSerialConsole'
@@ -113,19 +114,12 @@ export default function ConsoleHubSession({
   }
 
   if (protocol === 'spice') {
-    return <SPICEViewer vmName={vmName} libvirtConnection={libvirtConnection} />
+    return <SPICEViewer vmName={vmName} libvirtConnection={libvirtConnection} autoConnect />
   }
 
   if (protocol === 'webrtc_spice') {
     return (
-      <div className="rounded-lg border border-violet-500/30 bg-violet-950/20 p-4 text-sm text-violet-100 flex flex-col gap-3 flex-1 min-h-0">
-        <p>WebRTC/SPICE high-performance mode — opt-in upgrade for SPICE-capable guests.</p>
-        {wsUrl ? (
-          <CockpitVnc vmName={vmName} wsUrl={wsUrl} fillViewport={fillViewport} cockpitMode={cockpitMode} onReconnect={onReconnect} connectKey={connectKey} />
-        ) : (
-          <SPICEViewer vmName={vmName} />
-        )}
-      </div>
+      <WebRTCSpiceViewer vmName={vmName} libvirtConnection={libvirtConnection} />
     )
   }
 

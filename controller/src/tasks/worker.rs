@@ -466,6 +466,16 @@ async fn vm_migrate(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     let postcopy = msg.payload["postcopy"].as_bool().unwrap_or(false);
     let undefine_source = msg.payload["undefine_source"].as_bool().unwrap_or(false);
     let tunnelled = msg.payload["tunnelled"].as_bool().unwrap_or(false);
+    let migrate_disks: Vec<String> = msg.payload["migrate_disks"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    let disks_uri = msg.payload["disks_uri"].as_str().map(str::to_string);
+    let copy_storage = msg.payload["copy_storage"].as_bool().unwrap_or(false);
 
     vm_lifecycle::set_vm_phase(&state.pool, vm_id, vm_lifecycle::PHASE_MIGRATING).await?;
 
@@ -504,8 +514,20 @@ async fn vm_migrate(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
 
     let agent_addr = host_agent_addr(&state.pool, source_host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
-    agent_client::migrate_vm(&mut client, &row.0, &dest_uri, live, bandwidth_mib, postcopy, undefine_source, tunnelled)
-        .await?;
+    agent_client::migrate_vm(
+        &mut client,
+        &row.0,
+        &dest_uri,
+        live,
+        bandwidth_mib,
+        postcopy,
+        undefine_source,
+        tunnelled,
+        migrate_disks,
+        disks_uri,
+        copy_storage,
+    )
+    .await?;
 
     sqlx::query("UPDATE vms SET host_id = $1, updated_at = NOW() WHERE id = $2")
         .bind(dest_host_id)

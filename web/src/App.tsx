@@ -141,6 +141,7 @@ const PlatformMigration = lazy(() => import('./pages/platform/PlatformMigration'
 const PlatformActivityMonitor = lazy(() => import('./pages/platform/PlatformActivityMonitor'))
 const PlatformRecommendations = lazy(() => import('./pages/platform/PlatformRecommendations'))
 const PlatformApplications = lazy(() => import('./pages/platform/PlatformApplications'))
+const PlatformLaunchpad = lazy(() => import('./pages/platform/PlatformLaunchpad'))
 const PlatformBackups = lazy(() => import('./pages/platform/PlatformBackups'))
 const PlatformTopology = lazy(() => import('./pages/platform/PlatformTopology'))
 const PlatformZeusOs = lazy(() => import('./pages/platform/PlatformZeusOs'))
@@ -370,6 +371,7 @@ function AuthenticatedShellRoutes() {
                   <Route path="vms/:id/consolehub" element={<PlatformConsoleHub />} />
                   <Route path="vms/:id/console" element={<PlatformConsoleRedirect />} />
                   <Route path="applications" element={<PlatformApplications />} />
+                  <Route path="launchpad" element={<PlatformLaunchpad />} />
                   <Route path="content" element={<PlatformContent />} />
                   <Route path="create-iso" element={<PlatformIsoCreate />} />
                   <Route path="create-advanced" element={<PlatformVirtInstallCreate />} />

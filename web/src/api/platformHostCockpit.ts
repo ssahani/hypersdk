@@ -48,6 +48,12 @@ export type HostCockpitNetwork = {
     default_zone: string
     zones: FirewalldZone[]
   }
+  ovs?: {
+    probed: boolean
+    available: boolean
+    bridges: Array<{ name: string; ports: string[] }>
+    summary: string
+  }
   summary: string
 }
 
@@ -69,6 +75,7 @@ export type HostCockpitSystem = {
   systemd_units: SystemdUnitRow[]
   journal_errors_1h: number
   journal_recent: string[]
+  packagekit?: { available: boolean; running: boolean; version: string; summary: string }
   summary: string
 }
 

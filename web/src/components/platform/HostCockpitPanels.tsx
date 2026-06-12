@@ -14,6 +14,7 @@ import {
   type HostCockpitSystem,
 } from '../../api/platformHostCockpit'
 import { MacGlassPanel } from './mac/PlatformMacUi'
+import HostNmCreateWizard from './HostNmCreateWizard'
 import { formatUserError } from '../../utils/apiError'
 import { useToastContext } from '../../contexts/ToastContext'
 
@@ -63,8 +64,6 @@ function NetworkSection({
   onRefresh: () => void
 }) {
   const toast = useToastContext()
-  const [bondName, setBondName] = useState('bond0')
-  const [bondIfaces, setBondIfaces] = useState('')
   const [fwZone, setFwZone] = useState(data.firewalld.default_zone || 'public')
   const [fwService, setFwService] = useState('ssh')
   const [busy, setBusy] = useState(false)
@@ -112,15 +111,23 @@ function NetworkSection({
           )}
         </div>
       ))}
-      <MacGlassPanel title="Create bond" subtitle="nmcli bond (802.3ad)">
-        <div className="grid gap-2 sm:grid-cols-2">
-          <input className="input text-xs" value={bondName} onChange={(e) => setBondName(e.target.value)} placeholder="bond0" />
-          <input className="input text-xs" value={bondIfaces} onChange={(e) => setBondIfaces(e.target.value)} placeholder="eth0,eth1" />
-        </div>
-        <button type="button" className="btn-secondary text-xs mt-2" disabled={busy} onClick={() => void runAction('cockpit.nm.create_bond', { name: bondName, interfaces: bondIfaces.split(',').map((s) => s.trim()).filter(Boolean) })}>
-          Create bond
-        </button>
-      </MacGlassPanel>
+      {data.ovs?.available ? (
+        <MacGlassPanel title="Open vSwitch (OVS SDN)" subtitle={data.ovs.summary} data-testid="host-ovs-panel">
+          {data.ovs.bridges.length === 0 ? (
+            <p className="text-xs text-slate-600">No OVS bridges</p>
+          ) : (
+            <ul className="text-xs space-y-2">
+              {data.ovs.bridges.map((b) => (
+                <li key={b.name} className="rounded border border-slate-800/80 px-2 py-1">
+                  <span className="font-mono text-slate-200">{b.name}</span>
+                  <span className="text-slate-500 ml-2">{b.ports.length ? b.ports.join(', ') : 'no ports'}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </MacGlassPanel>
+      ) : null}
+      <HostNmCreateWizard hostId={hostId} classic={classic} onRefresh={onRefresh} />
       {data.firewalld.available && (
         <MacGlassPanel title="firewalld" subtitle={data.firewalld.running ? `default zone: ${data.firewalld.default_zone}` : 'not running'}>
           {data.firewalld.zones.slice(0, 4).map((z) => (

@@ -196,6 +196,12 @@ message MigrateVmRequest {
   bool undefine_source = 6;
   /// Use tunnelled migration instead of peer-to-peer.
   bool tunnelled = 7;
+  /// Disk target paths to migrate with non-shared storage (libvirt migrate_disks).
+  repeated string migrate_disks = 8;
+  /// Destination storage URI for disk migration (e.g. qemu+ssh://dest/system).
+  string disks_uri = 9;
+  /// Copy disk storage during migration (VIR_MIGRATE_NON_SHARED_DISK).
+  bool copy_storage = 10;
 }
 
 message MigrateVmResponse {

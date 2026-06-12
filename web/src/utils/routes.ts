@@ -9,6 +9,7 @@ import {
   Cpu, Activity, MonitorCog, Usb, Cog, ScrollText, FileText, Key, Users, Database, Terminal,
   ClipboardList,
   Boxes,
+  LayoutGrid,
   Package,
   Cloud,
   Stethoscope,
@@ -161,6 +162,7 @@ export const navGroups: NavGroup[] = [
         items: [
           { to: '/platform', icon: React.createElement(Cloud, { className: 'w-4 h-4' }), label: 'Mission Control' },
           { to: '/platform/vms', icon: React.createElement(MonitorCog, { className: 'w-4 h-4' }), label: 'Virtual Machines' },
+          { to: '/platform/launchpad', icon: React.createElement(LayoutGrid, { className: 'w-4 h-4' }), label: 'Launchpad' },
           { to: '/platform/applications', icon: React.createElement(Boxes, { className: 'w-4 h-4' }), label: 'Applications' },
           { to: '/platform/hosts', icon: React.createElement(Server, { className: 'w-4 h-4' }), label: 'Hosts' },
         ],
@@ -317,6 +319,7 @@ export const routeLabels: Record<string, string> = {
   '/platform': 'Zyvor Platform',
   '/platform/vms': 'Virtual Machines',
   '/platform/applications': 'Applications',
+  '/platform/launchpad': 'Launchpad',
   '/platform/hosts': 'Hosts',
   '/platform/content': 'Images & ISOs',
   '/platform/templates': 'Templates',

@@ -179,6 +179,9 @@ export default function PlatformVmDetail() {
   const [migratePostcopy, setMigratePostcopy] = useState(false)
   const [migrateUndefineSource, setMigrateUndefineSource] = useState(false)
   const [migrateTunnelled, setMigrateTunnelled] = useState(false)
+  const [migrateDisks, setMigrateDisks] = useState('')
+  const [migrateDisksUri, setMigrateDisksUri] = useState('')
+  const [migrateCopyStorage, setMigrateCopyStorage] = useState(false)
   const [timeline, setTimeline] = useState<VmTimelineEntry[]>([])
   const [cloneName, setCloneName] = useState('')
   const [cloneMode, setCloneMode] = useState<'linked' | 'full'>('linked')
@@ -2024,16 +2027,47 @@ export default function PlatformVmDetail() {
                         <input type="checkbox" checked={migrateTunnelled} onChange={(e) => setMigrateTunnelled(e.target.checked)} /> Tunnelled
                       </label>
                       <label className="flex items-center gap-2">
-                        Bandwidth (MiB/s)
+                        <input type="checkbox" checked={migrateCopyStorage} onChange={(e) => setMigrateCopyStorage(e.target.checked)} /> Copy disk storage (non-shared)
+                      </label>
+                      <label className="flex items-center gap-2 sm:col-span-2">
+                        Disk paths (comma-separated, optional)
                         <input
-                          type="number"
-                          min={0}
-                          className="input w-20 text-xs"
-                          placeholder="auto"
-                          value={migrateBandwidth}
-                          onChange={(e) => setMigrateBandwidth(e.target.value)}
+                          className="input flex-1 text-xs font-mono"
+                          placeholder="/var/lib/libvirt/images/vm.qcow2"
+                          value={migrateDisks}
+                          onChange={(e) => setMigrateDisks(e.target.value)}
                         />
                       </label>
+                      <label className="flex items-center gap-2 sm:col-span-2">
+                        Destination storage URI (optional)
+                        <input
+                          className="input flex-1 text-xs font-mono"
+                          placeholder="qemu+ssh://dest/system"
+                          value={migrateDisksUri}
+                          onChange={(e) => setMigrateDisksUri(e.target.value)}
+                        />
+                      </label>
+                      {(libvirtDetails?.disks ?? []).filter((d) => d.device === 'disk' && d.source).length > 0 ? (
+                        <div className="sm:col-span-2 flex flex-wrap gap-2">
+                          {(libvirtDetails?.disks ?? []).filter((d) => d.device === 'disk' && d.source).map((d) => (
+                            <button
+                              key={d.target}
+                              type="button"
+                              className="btn-secondary text-[10px] font-mono"
+                              onClick={() => {
+                                const path = d.source
+                                setMigrateDisks((prev) => {
+                                  const parts = prev.split(',').map((s) => s.trim()).filter(Boolean)
+                                  if (parts.includes(path)) return prev
+                                  return [...parts, path].join(', ')
+                                })
+                              }}
+                            >
+                              + {d.target}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                     <div className="flex gap-2">
                       <button type="button" className="btn-secondary text-sm" disabled={!destHost} onClick={async () => {
@@ -2052,6 +2086,9 @@ export default function PlatformVmDetail() {
                           postcopy: migratePostcopy,
                           undefine_source: migrateUndefineSource,
                           tunnelled: migrateTunnelled,
+                          migrate_disks: migrateDisks.split(',').map((s) => s.trim()).filter(Boolean),
+                          disks_uri: migrateDisksUri.trim() || undefined,
+                          copy_storage: migrateCopyStorage,
                         }))}
                       >
                         Migrate
