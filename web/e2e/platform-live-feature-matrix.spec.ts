@@ -1,10 +1,10 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
-// Serial feature-by-feature matrix (live lab) — read-only F01 through F13.
+// Serial feature-by-feature matrix (live lab) — read-only F01 through F18.
 
 import { test, expect } from '@playwright/test'
 import { discoverLiveVm, openLiveVmDetailById } from './helpers/featureMatrix'
 import { ensureLoggedIn } from './helpers/liveAuth'
-import { liveBaseUrl, skipUnlessLiveVm } from './helpers/liveVm'
+import { liveBaseUrl, openVmDetailTab, skipUnlessLiveVm } from './helpers/liveVm'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -155,4 +155,55 @@ test('F13 — live Mission Control SSH dialog', async ({ page }) => {
   await expect(page.getByTestId('fleet-command-center')).toBeVisible({ timeout: 15_000 })
   await page.getByTestId('fleet-command-center').getByRole('button', { name: 'SSH' }).click()
   await expect(page.getByTestId('vm-ssh-connect-dialog')).toBeVisible({ timeout: 10_000 })
+})
+
+test('F14 — live Compute panel and Edit CPU modal', async ({ page }) => {
+  test.skip(!liveVm?.id, 'no platform VMs on host')
+  const live = liveBaseUrl()
+  await ensureLoggedIn(page, live, { tier: 'power' })
+  await openLiveVmDetailById(page, live, liveVm!.id)
+  await expect(
+    page.getByRole('heading', { name: 'Compute' }).or(page.getByTestId('vm-usage-bars')),
+  ).toBeVisible({ timeout: 20_000 })
+  const editCpu = page.getByRole('button', { name: 'Edit CPU' })
+  test.skip((await editCpu.count()) === 0, 'Compute panel not available')
+  await editCpu.click()
+  await expect(page.getByText(/CPU topology/i)).toBeVisible({ timeout: 10_000 })
+})
+
+test('F15 — live Disks tab attach and resize forms', async ({ page }) => {
+  test.skip(!liveVm?.id, 'no platform VMs on host')
+  const live = liveBaseUrl()
+  await ensureLoggedIn(page, live, { tier: 'power' })
+  await openLiveVmDetailById(page, live, liveVm!.id, 'disks')
+  await expect(page.getByTestId('vm-disks-panel')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByRole('heading', { name: 'Attach disk' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Resize block device' })).toBeVisible()
+})
+
+test('F16 — live Network tab Attach NIC', async ({ page }) => {
+  test.skip(!liveVm?.id, 'no platform VMs on host')
+  const live = liveBaseUrl()
+  await ensureLoggedIn(page, live, { tier: 'power' })
+  await openLiveVmDetailById(page, live, liveVm!.id, 'network')
+  await expect(page.getByTestId('vm-network-panel')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByRole('button', { name: 'Attach NIC' })).toBeVisible()
+})
+
+test('F17 — live Snapshots tab create workflow', async ({ page }) => {
+  test.skip(!liveVm?.id, 'no platform VMs on host')
+  const live = liveBaseUrl()
+  await ensureLoggedIn(page, live, { tier: 'power' })
+  await openLiveVmDetailById(page, live, liveVm!.id, 'snapshots')
+  await expect(page.getByTestId('vm-snapshots-panel')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByRole('button', { name: 'Create snapshot' })).toBeVisible()
+})
+
+test('F18 — live Devices tab virtiofs section', async ({ page }) => {
+  test.skip(!liveVm?.id, 'no platform VMs on host')
+  const live = liveBaseUrl()
+  await ensureLoggedIn(page, live, { tier: 'power' })
+  await openLiveVmDetailById(page, live, liveVm!.id, 'devices')
+  await expect(page.getByTestId('vm-devices-panel')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByRole('heading', { name: 'Shared directories (virtiofs)' })).toBeVisible()
 })

@@ -1,10 +1,10 @@
 # Platform feature QA matrix
 
-Walk through platform access flows **one feature at a time** (F01–F13). Each ID maps to an automated Playwright test in mock and live suites.
+Walk through platform VM flows **one feature at a time** (F01–F18). Each ID maps to an automated Playwright test in mock and live suites.
 
-See also: [Platform VM Detail UX](platform-vm-detail-ux.md), [VM daily access (Connect hub)](vm-daily-access.md).
+See also: [Platform VM Detail UX](platform-vm-detail-ux.md), [VM daily access (Connect hub)](vm-daily-access.md), deck **11-vm-disks-compute-operations** in [client-presentations](../client-presentations/).
 
-## Feature index
+## Feature index — Connect & Console (F01–F13)
 
 | ID | Feature | UI steps (manual) | Expected | Mock test | Live test |
 |----|---------|-------------------|----------|-----------|-----------|
@@ -22,6 +22,16 @@ See also: [Platform VM Detail UX](platform-vm-detail-ux.md), [VM daily access (C
 | F12 | Machine Finder | Table SSH; Gallery → Cinema | SSH dialog; consolehub navigation | `-g F12` | `-g F12` |
 | F13 | Mission Control | Platform home → VM card → SSH | Fleet command center SSH dialog | `-g F13` | `-g F13` |
 
+## Feature index — Disks, compute & devices (F14–F18)
+
+| ID | Feature | UI steps (manual) | Expected | Mock test | Live test |
+|----|---------|-------------------|----------|-----------|-----------|
+| F14 | Compute | Overview → **Edit CPU** / **Edit memory** | CPU topology modal; memory GiB fields | `-g F14` | `-g F14` |
+| F15 | Disks | Tab **Disks** → Attach / Resize | `vm-disks-panel`, libvirt inventory, POST attach | `-g F15` | `-g F15` |
+| F16 | Network / NIC | Tab **Network** (More menu) | NIC list, **Attach NIC** button | `-g F16` | `-g F16` |
+| F17 | Snapshots | Tab **Snapshots** (More menu) | `vm-snapshots-panel`, Create snapshot | `-g F17` | `-g F17` |
+| F18 | Devices / ISO | Tab **Devices**; Disks CD-ROM row | virtiofs panel; cdrom eject on Disks | `-g F18` | `-g F18` |
+
 ## Run all features (mocked, local)
 
 From `web/`:
@@ -31,12 +41,12 @@ npm run build
 npm run test:e2e:features
 ```
 
-Runs serially (`workers: 1`) in feature order F01→F13.
+Runs serially (`workers: 1`) in feature order F01→F18.
 
 ## Run single feature (mock)
 
 ```bash
-npm run test:e2e:features -- -g "F04"
+npm run test:e2e:features -- -g "F15"
 ```
 
 ## Run live lab matrix
@@ -52,7 +62,7 @@ export PLAYWRIGHT_LIBVIRT_VM_ID=87ddc1a8-b0e9-43c4-b866-faf219663f7f  # optional
 cd web && npm run test:e2e:features:live
 ```
 
-Live tests are **read-only** (no delete, force reboot, or destructive power actions).
+Live tests are **read-only** (no delete, force reboot, attach disk, or destructive power actions).
 
 ## Remote runner (mock + live on lab host)
 
@@ -80,5 +90,5 @@ E2E_FEATURE_MATRIX=1 VSPASS=max ./scripts/e2e-platform-complete-remote.sh sus 21
 
 ## Success criteria
 
-- All 13 mock tests pass in CI without live env.
+- All 18 mock tests pass in CI without live env.
 - Live matrix passes or skips gracefully when VM state differs (stopped guest, SSH already exposed, etc.).

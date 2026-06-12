@@ -54,7 +54,7 @@ All presentations available as **interactive HTML** (viewable in any browser) an
 | **07** | **Platform VM Detail UX** | Hero, action bar, attention stack, Connect hub, Access tab | Platform operators, solutions architects | 6 |
 | **08** | **ConsoleHub Cinema & Studio** | Machina Cinema, Studio, Mission Control wall, Ops Shelf | Console operators, NOC | 5 |
 | **09** | **Connect Hub & Daily Access** | SSH, NAT laptop path, export, Access tab deep work | Daily VM operators | 4 |
-| **10** | **Platform Feature QA Matrix** | F01–F13 Playwright matrix (mock + live) | QA, release engineering | 4 |
+| **10** | **Platform Feature QA Matrix** | F01–F18 Playwright matrix (mock + live) | QA, release engineering | 5 |
 | **11** | **VM Disks, Compute & Devices** | Attach/resize disk, Edit CPU/memory, ISO, NIC, snapshots, migrate | Platform operators, infra engineers | 5 |
 
 ---

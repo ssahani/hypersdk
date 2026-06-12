@@ -36,10 +36,10 @@ td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
 <body>
 
 <div class="cover">
-  <div class="badge">Playwright · F01–F13 · Mock + Live</div>
+  <div class="badge">Playwright · F01–F18 · Mock + Live</div>
   <h1>Platform Feature <span>QA Matrix</span></h1>
   <p style="font-size:1.3em;font-weight:700;margin-bottom:0.4em;">One feature at a time — serial automated walkthrough</p>
-  <p>Maps operator flows on platform VM detail, Connect hub, Access tab, ConsoleHub, Machine Finder, and Mission Control to Playwright tests F01 through F13.</p>
+  <p>Maps Connect/Access/ConsoleHub flows (F01–F13) and disk/compute/device ops (F14–F18) to serial Playwright tests.</p>
 </div>
 
 <div class="page page-dark">
@@ -74,12 +74,26 @@ td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
   <div class="page-footer"><span>HyperSDK / machina</span><span>Platform Feature QA Matrix</span></div>
 </div>
 
+<div class="page page-light">
+  <span class="section-label">F14–F18</span>
+  <h2>Disks, compute &amp; <span>devices</span></h2>
+  <table>
+    <tr><th>ID</th><th>Feature</th><th>Tab / action</th><th>Mock</th></tr>
+    <tr><td>F14</td><td>Compute</td><td>Overview → Edit CPU / Edit memory</td><td><code>-g F14</code></td></tr>
+    <tr><td>F15</td><td>Disks</td><td>Disks → Attach disk, Resize block device</td><td><code>-g F15</code></td></tr>
+    <tr><td>F16</td><td>Network</td><td>Network → Attach NIC</td><td><code>-g F16</code></td></tr>
+    <tr><td>F17</td><td>Snapshots</td><td>Snapshots → Create snapshot</td><td><code>-g F17</code></td></tr>
+    <tr><td>F18</td><td>Devices / ISO</td><td>Devices virtiofs; Disks CD-ROM eject</td><td><code>-g F18</code></td></tr>
+  </table>
+  <div class="page-footer"><span>HyperSDK / machina</span><span>Platform Feature QA Matrix</span></div>
+</div>
+
 <div class="page page-dark">
   <span class="section-label">Run</span>
   <h2>Commands &amp; <span>Configs</span></h2>
   <div class="code">cd web
 npm run build
-npm run test:e2e:features          # mock matrix (serial F01–F13)
+npm run test:e2e:features          # mock matrix (serial F01–F18)
 npm run test:e2e:features:live     # live lab (read-only)
 
 # Single feature:
@@ -98,7 +112,7 @@ E2E_FEATURE_MATRIX=1 ./scripts/e2e-platform-complete-remote.sh</div>
 <div class="page page-light">
   <span class="section-label">Docs</span>
   <h2>Guide &amp; <span>Integration</span></h2>
-  <p class="subtitle">Internal guide: <strong>docs/guides/platform-feature-qa.md</strong></p>
+  <p class="subtitle">Internal guide: <strong>docs/guides/platform-feature-qa.md</strong> · deck <strong>11-vm-disks-compute-operations</strong></p>
   <table>
     <tr><th>Artifact</th><th>Path</th></tr>
     <tr><td>Helper</td><td><code>web/e2e/helpers/featureMatrix.ts</code></td></tr>

@@ -69,11 +69,11 @@ Primary tab for connectivity deep work:
 
 | Suite | Coverage |
 |-------|----------|
-| `web/e2e/platform-feature-matrix.spec.ts` | F01–F13 serial mock matrix |
+| `web/e2e/platform-feature-matrix.spec.ts` | F01–F18 serial mock matrix |
 | `web/e2e/platform-live-feature-matrix.spec.ts` | Live lab smoke (read-only) |
 | `web/e2e/platform-vm-operator.spec.ts` | Connect hub, action bar, Access tab |
 
-See [Platform feature QA matrix](platform-feature-qa.md) for feature IDs F01–F13.
+See [Platform feature QA matrix](platform-feature-qa.md) for feature IDs F01–F18.
 
 ## Related guides
 

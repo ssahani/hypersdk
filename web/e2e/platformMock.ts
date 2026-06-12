@@ -3320,6 +3320,15 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.match(/\/vms\/[^/]+\/backups/)) {
       return route.fulfill({ json: [] })
     }
+    if (url.match(/\/vms\/[^/]+\/disks\/attach/) && route.request().method() === 'POST') {
+      return route.fulfill({ json: { task_id: 'task-attach-disk-mock', status: 'pending' } })
+    }
+    if (url.match(/\/vms\/[^/]+\/disks\/resize\//) && route.request().method() === 'POST') {
+      return route.fulfill({ json: { task_id: 'task-resize-disk-mock', status: 'pending' } })
+    }
+    if (url.match(/\/vms\/[^/]+\/nics\/attach/) && route.request().method() === 'POST') {
+      return route.fulfill({ json: { task_id: 'task-attach-nic-mock', status: 'pending' } })
+    }
     if (url.match(/\/vms\/[^/]+\/disks/)) {
       return route.fulfill({ json: [] })
     }
@@ -3419,8 +3428,21 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.match(/\/vms\/[^/]+\/libvirt-details/)) {
       return route.fulfill({
         json: {
-          interfaces: [{ name: 'vnet0', mac: '52:54:00:12:34:56', ip: '192.168.122.50', type: 'network' }],
-          disks: [{ target: 'vda', source: '/var/lib/libvirt/images/vm-1.qcow2', bus: 'virtio' }],
+          name: 'vm-1',
+          uuid: '00000000-0000-4000-8000-000000000001',
+          state: 'running',
+          vcpus: 2,
+          memory_mb: 2048,
+          os_type: 'hvm',
+          arch: 'x86_64',
+          autostart: true,
+          persistent: true,
+          interfaces: [{ mac_address: '52:54:00:12:34:56', ip: '192.168.122.50', source: 'default', model: 'virtio' }],
+          disks: [
+            { target: 'vda', device: 'disk', source: '/var/lib/libvirt/images/vm-1.qcow2', bus: 'virtio' },
+            { target: 'sda', device: 'cdrom', source: '/var/lib/libvirt/images/debian-12.iso', bus: 'sata' },
+          ],
+          filesystems: [{ source: '/var/share', mount_tag: 'share' }],
         },
       })
     }

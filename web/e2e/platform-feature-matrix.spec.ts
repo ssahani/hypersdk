@@ -1,5 +1,5 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
-// Serial feature-by-feature matrix (mocked API) — F01 through F13.
+// Serial feature-by-feature matrix (mocked API) — F01 through F18.
 
 import { test, expect } from '@playwright/test'
 import {
@@ -140,4 +140,55 @@ test('F13 — Mission Control command center opens SSH dialog', async ({ page })
   await page.getByTestId('fleet-command-center').getByRole('button', { name: 'SSH' }).click()
   await expect(page.getByTestId('vm-ssh-connect-dialog')).toBeVisible()
   await expect(page.getByTestId('vm-ssh-nat-banner')).toBeVisible()
+})
+
+test('F14 — Compute panel opens CPU and memory modals', async ({ page }) => {
+  await openMockVmDetail(page)
+  await expect(page.getByRole('heading', { name: 'Compute' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('vm-usage-bars')).toBeVisible()
+  await page.getByRole('button', { name: 'Edit CPU' }).click()
+  await expect(page.getByText(/CPU topology — vm-1/i)).toBeVisible()
+  await expect(page.getByText('Active vCPUs:')).toBeVisible()
+  await page.getByRole('button', { name: 'Close' }).click()
+  await page.getByRole('button', { name: 'Edit memory' }).click()
+  await expect(page.getByText(/Memory — vm-1/i)).toBeVisible()
+  await expect(page.getByText('Maximum memory (GiB)')).toBeVisible()
+})
+
+test('F15 — Disks tab attach and resize block device', async ({ page }) => {
+  await openMockVmDetail(page, 'disks')
+  await expect(page.getByTestId('vm-disks-panel')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('heading', { name: 'Libvirt disks' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Attach disk' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Resize block device' })).toBeVisible()
+  const attachReq = page.waitForRequest(
+    (req) => req.url().includes('/disks/attach') && req.method() === 'POST',
+  )
+  await page.getByRole('button', { name: 'Attach', exact: true }).click()
+  const req = await attachReq
+  expect(req.postDataJSON()).toMatchObject({ disk_path: expect.any(String), target_dev: expect.any(String) })
+})
+
+test('F16 — Network tab lists NICs and attach control', async ({ page }) => {
+  await openMockVmDetail(page, 'network')
+  await expect(page.getByTestId('vm-network-panel')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('heading', { name: 'Network interfaces' })).toBeVisible()
+  await expect(page.getByText(/52:54:00:12:34:56|default/).first()).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('button', { name: 'Attach NIC' })).toBeVisible()
+})
+
+test('F17 — Snapshots tab create snapshot workflow', async ({ page }) => {
+  await openMockVmDetail(page, 'snapshots')
+  await expect(page.getByTestId('vm-snapshots-panel')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByPlaceholder('snap-01')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Create snapshot' })).toBeVisible()
+})
+
+test('F18 — Devices tab and CD-ROM inventory on Disks', async ({ page }) => {
+  await openMockVmDetail(page, 'devices')
+  await expect(page.getByTestId('vm-devices-panel')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('heading', { name: 'Shared directories (virtiofs)' })).toBeVisible()
+  await openMockVmDetail(page, 'disks')
+  await expect(page.getByText('debian-12.iso')).toBeVisible()
+  await expect(page.getByTestId('cdrom-eject-sda')).toBeVisible()
 })
