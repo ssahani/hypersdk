@@ -4,6 +4,7 @@ import DetailTabs from './DetailTabs'
 
 export type VmDetailTab =
   | 'overview'
+  | 'access'
   | 'doctor'
   | 'console'
   | 'performance'
@@ -23,6 +24,7 @@ export type VmDetailTab =
 
 const PRIMARY = [
   { id: 'overview' as const, label: 'Overview' },
+  { id: 'access' as const, label: 'Access' },
   { id: 'console' as const, label: 'Console' },
   { id: 'performance' as const, label: 'Performance' },
   { id: 'doctor' as const, label: 'Doctor' },
@@ -54,5 +56,5 @@ export default function VmDetailTabs({ active, onChange }: VmDetailTabsProps) {
 }
 
 export function isGuestRelatedTab(tab: VmDetailTab): boolean {
-  return tab === 'overview' || tab === 'guestHealth' || tab === 'guestServices' || tab === 'security'
+  return tab === 'overview' || tab === 'access' || tab === 'guestHealth' || tab === 'guestServices' || tab === 'security'
 }

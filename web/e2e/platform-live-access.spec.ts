@@ -23,6 +23,20 @@ test('platform VM overview shows daily access when guest IP is private', async (
   await expect(page.getByTestId('vm-daily-access').or(page.getByTestId('vm-laptop-access-checklist'))).toBeVisible({
     timeout: 20_000,
   })
+  await expect(page.getByTestId('vm-detail-action-bar')).toBeVisible({ timeout: 20_000 })
+})
+
+test('Access tab shows connect hub on live VM', async ({ page }) => {
+  const vmsRes = await page.request.get(`${live}/api/v1/platform/controller/api/v1/vms`, {
+    ignoreHTTPSErrors: true,
+  })
+  const vms = (await vmsRes.json()) as Array<{ id: string; guest_ip?: string }>
+  const vm = vms.find((v) => v.guest_ip?.startsWith('192.168.')) ?? vms[0]
+  test.skip(!vm?.id, 'no platform VMs on host')
+
+  await page.goto(`${live}/platform/vms/${vm.id}?tab=access`)
+  await expect(page.getByTestId('vm-daily-access')).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByTestId('vm-port-forward-panel')).toBeVisible({ timeout: 20_000 })
 })
 
 test('network tab exposes SSH via port forward panel', async ({ page }) => {

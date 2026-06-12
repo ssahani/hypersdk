@@ -1,44 +1,67 @@
 # VM daily access (SSH, VNC, export, ports)
 
-Operators use the **Daily access** panel on VM detail (platform and classic) for everyday tasks: graphical console, SSH, copy commands, guest ports, NAT exposure, and exports.
+Operators use the **Connect** hub on VM detail (platform and classic) for everyday tasks: graphical console, SSH, copy commands, guest ports, NAT exposure, and exports.
 
-## Daily access panel
+## Connect hub (platform)
 
-On **VM detail → Overview** (platform) or below the power toolbar (classic), the panel has four sections:
+On **VM detail → Overview**, a single **Connect** card consolidates what used to be separate Daily access, laptop checklist, and inline NAT panels:
 
 | Section | Actions |
 |---------|---------|
-| **Connect** | **VNC** — ConsoleHub / noVNC; **SSH** — in-browser terminal (hypervisor keys) |
-| **Copy** | Guest IP; NAT-aware `ssh -p … user@hypervisor` when guest is on libvirt NAT; VNC deep link |
-| **Ports** | Top guest listening ports (with guest tools); **Expose** chip creates hypervisor NAT; open laptop HTTP URLs |
-| **Export** | Download spec JSON, domain XML, both, or copy spec to clipboard |
+| **Connect** | **Open Cinema** — ConsoleHub / noVNC; **SSH** — in-browser terminal (hypervisor keys); copy guest IP and NAT-aware laptop `ssh` command |
+| **Laptop path** | Inline checklist when the guest is on libvirt NAT (e.g. `192.168.122.x`): VM running → guest IP → expose SSH → copy laptop command |
+| **Expose service** | Presets (SSH, HTTP, HTTPS, …) and custom port form; active NAT rules in a compact table (expand on Overview, full panel on **Access** tab) |
+| **Export** | Download spec JSON, domain XML, both, or copy spec (shown on **Access** tab) |
 
-When the guest IP is on hypervisor NAT (e.g. `192.168.122.x`), a **Laptop access checklist** walks through: VM running → guest IP → expose SSH → copy laptop command.
+The card keeps `data-testid="vm-daily-access"` and `vm-laptop-access-checklist` for automation.
 
-### SSH from your laptop
+### Access tab
+
+**VM detail → Access** is the deep-work surface for connectivity:
+
+- Full Connect hub with NAT panel expanded and export actions
+- Links to **Guest security & ports** and **Guest health** tabs
+- Same NAT presets as **Network → Hypervisor NAT** and ConsoleHub **Network** lens
+
+Use `?tab=access` to deep-link directly.
+
+### Header action bar
+
+The page header shows **Open Cinema**, **SSH**, one contextual power action (Start / Shutdown / Resume), and a **Power & more** overflow menu (pause, reboot, NMI, force stop, Studio, Virt-Viewer, pop out, delete). **Ask Zeus** opens Spotlight with VM blockers and suggested intents.
+
+### Attention stack
+
+Above the tabs, **at most one** banner is expanded (pending config shutdown, guest agent offline, or incomplete laptop NAT path). Lower-priority items appear as compact chips; dismiss persists per VM.
+
+## Classic VM detail
+
+On classic **VM detail**, the Daily access strip below the power toolbar mirrors the Connect hub layout.
+
+## SSH from your laptop
 
 - Machina does not store private keys.
 - Cloud-init VMs are often **SSH-key only** — use the private key that matches the injected public key: `ssh -i ~/.ssh/id_ed25519 -p 2222 ubuntu@HYPERVISOR_IP`.
+- The UI prefers the cloud-init user (e.g. `ubuntu`) over stored SSH prefs when available.
 - The UI copies hypervisor host + NAT port automatically when a rule exists (default SSH preset: host `2222` → guest `22`).
 - Private guest IPs are **not** reachable directly from your laptop — always connect via the hypervisor address and NAT port.
 
-### In-browser SSH (ConsoleHub Shell)
+## In-browser SSH (ConsoleHub Shell)
 
 - Uses the hypervisor daemon’s SSH keys, not your cloud-init key.
 - When NAT is exposed, ConsoleHub dials `127.0.0.1:NAT_PORT` on the hypervisor.
 - If login fails, expose SSH and connect from your laptop with your private key.
 
-### VNC
+## VNC
 
 - **Platform:** `/platform/vms/{id}/consolehub` — Machine Cockpit with Display / Serial / Shell lenses.
 - **Classic:** `/vms/{name}/console` — same noVNC viewer.
 - Linux cloud images often log in on **Serial** first; use ConsoleHub’s Serial lens or the recovery card when password login is not configured.
 
-### Ports (platform)
+## Ports (platform)
 
 Requires QEMU guest agent / Machina guest tools. Lists in-guest listeners via `GET /api/v1/zeus-firewall/vms/{id}/guest-ports`.
 
-**NAT port forwarding** is managed on **VM detail → Network → Hypervisor NAT**, in ConsoleHub **Network** lens, and inline from scanned ports / guest-access banners.
+**NAT port forwarding** is managed on **VM detail → Access** or **Network → Hypervisor NAT**, in ConsoleHub **Network** lens, and inline from scanned ports / guest-access banners.
 
 Known presets include SSH (2222→22), HTTP (9080→80), HTTPS (9443→443), databases, Grafana, etc. Custom named services can be saved per VM (server-side templates).
 

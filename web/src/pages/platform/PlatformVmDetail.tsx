@@ -117,7 +117,9 @@ import { cinemaHubPath, studioHubPath } from '../../utils/consoleExperienceMode'
 import { vmErrorPresentation } from '../../utils/vmErrorPresentation'
 import { formatVmMemoryGiB } from '../../utils/vmVisual'
 import { loadVmSshPrefs } from '../../utils/vmSshPrefs'
-import VmDailyAccessStrip from '../../components/vm/VmDailyAccessStrip'
+import VmConnectHub from '../../components/vm/VmConnectHub'
+import VmDetailActionBar from '../../components/platform/VmDetailActionBar'
+import VmAttentionStack from '../../components/platform/VmAttentionStack'
 import VmPortForwardPanel from '../../components/vm/VmPortForwardPanel'
 import VmSshConnectDialog, { navigateVmSshSession } from '../../components/vm/VmSshConnectDialog'
 import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
@@ -128,7 +130,6 @@ import { tasksHubHref } from '../../utils/platformHubLinks'
 import { downloadVmIacBundle, downloadVmIacZip, exportVmDisk, exportVmIac, pruneStaleVmRecord, retirePlatformVm, type VmIacExportBundle } from '../../api/platformVmLifecycle'
 import { publishVmAsTemplate } from '../../api/platformTemplatesExtra'
 import PlatformVmAdvanced from '../../components/platform/PlatformVmAdvanced'
-import VmPendingConfigBanner from '../../components/platform/VmPendingConfigBanner'
 import VmDevicesPanel from '../../components/platform/VmDevicesPanel'
 import VmGraphicsPanel from '../../components/platform/VmGraphicsPanel'
 import VmQemuLogsPanel from '../../components/platform/VmQemuLogsPanel'
@@ -137,8 +138,8 @@ import SpotlightPageAction from '../../components/platform/SpotlightPageAction'
 import { invokeVmLibvirt, queryVmLibvirt, precheckVmSnapshot, precheckVmSnapshotAction, type CpuMemoryTopology, type SnapshotPrecheck } from '../../api/platformVmLibvirt'
 import VmCpuTopologyModal from '../../components/platform/VmCpuTopologyModal'
 import VmMemorySizingModal from '../../components/platform/VmMemorySizingModal'
-import HostResourcesOverviewPanel from '../../components/platform/HostResourcesOverviewPanel'
 import { putVmDomainXml } from '../../api/platformVmLibvirt'
+import { buildVmSpotlightPrefill, vmDetailBlockers } from '../../utils/vmDetailSpotlight'
 import { formatBytes } from '../../utils/vm'
 
 export default function PlatformVmDetail() {
@@ -150,7 +151,7 @@ export default function PlatformVmDetail() {
   const tabParam = searchParams.get('tab')
   const rawTab = tabParam === 'guestPorts' ? 'security' : tabParam
   const tab: VmDetailTab = (
-    ['overview', 'doctor', 'console', 'performance', 'disks', 'devices', 'network', 'guestHealth', 'guestServices', 'security', 'snapshots', 'backup', 'topology', 'events', 'logs', 'settings', 'advanced'] as VmDetailTab[]
+    ['overview', 'access', 'doctor', 'console', 'performance', 'disks', 'devices', 'network', 'guestHealth', 'guestServices', 'security', 'snapshots', 'backup', 'topology', 'events', 'logs', 'settings', 'advanced'] as VmDetailTab[]
   ).includes(rawTab as VmDetailTab) ? (rawTab as VmDetailTab) : 'overview'
   const setTab = (next: VmDetailTab, extra?: { guestAction?: string }) => {
     if (next === 'console' && id) {
@@ -200,9 +201,7 @@ export default function PlatformVmDetail() {
   const [memoryModalOpen, setMemoryModalOpen] = useState(false)
   const [computeTopology, setComputeTopology] = useState<CpuMemoryTopology | null>(null)
   const [computeTopologyLoading, setComputeTopologyLoading] = useState(false)
-  const [overviewDomainXml, setOverviewDomainXml] = useState('')
-  const [overviewXmlOpen, setOverviewXmlOpen] = useState(false)
-  const [overviewXmlSaving, setOverviewXmlSaving] = useState(false)
+  const [domainXmlSaving, setDomainXmlSaving] = useState(false)
   const [snapAiHint, setSnapAiHint] = useState<GuestAiInsightsReport | null>(null)
   const [snapAiLoading, setSnapAiLoading] = useState(false)
   const [publishTplName, setPublishTplName] = useState('')
@@ -527,11 +526,11 @@ export default function PlatformVmDetail() {
   }, [id, vm?.inventory_source, vm?.observed_state, loadPendingConfig])
 
   useEffect(() => {
-    if (tab === 'security' && id) void loadGuestPorts()
+    if ((tab === 'security' || tab === 'access' || tab === 'overview') && id) void loadGuestPorts()
     if (tab === 'guestServices' && id) void loadGuestServices()
-    if ((tab === 'overview' || tab === 'disks' || tab === 'devices' || tab === 'network' || tab === 'settings' || tab === 'advanced') && id && vm?.inventory_source !== 'kubevirt') {
+    if ((tab === 'overview' || tab === 'access' || tab === 'disks' || tab === 'devices' || tab === 'network' || tab === 'settings' || tab === 'advanced') && id && vm?.inventory_source !== 'kubevirt') {
       if (tab === 'overview') void loadComputeTopology()
-      if (tab === 'overview' || tab === 'settings' || tab === 'advanced' || tab === 'devices') void loadDomainXml()
+      if (tab === 'overview' || tab === 'access' || tab === 'settings' || tab === 'advanced' || tab === 'devices') void loadDomainXml()
       void loadLibvirtDetails()
       if (tab === 'network') {
         void listPlatformNetworks()
@@ -540,10 +539,6 @@ export default function PlatformVmDetail() {
       }
     }
   }, [tab, id, loadComputeTopology, loadGuestPorts, loadGuestServices, loadLibvirtDetails, loadDomainXml, vm?.inventory_source])
-
-  useEffect(() => {
-    if (tab === 'overview' && domainXml) setOverviewDomainXml(domainXml)
-  }, [tab, domainXml])
 
   useEffect(() => {
     if (tab !== 'snapshots' || !id || vm?.inventory_source === 'kubevirt') {
@@ -676,86 +671,61 @@ export default function PlatformVmDetail() {
 
   const canInstall = Boolean(
     vm?.tags?.includes('define-only')
-    && ['stopped', 'shut off', 'shutoff'].includes(vm.observed_state),
+    && ['stopped', 'shut off', 'shutoff'].includes(vm?.observed_state ?? ''),
   )
 
-  const powerActions = vm && vm.inventory_source !== 'kubevirt' && vm.observed_state !== 'missing' ? (
-    <>
-      {canInstall && (
-        <button
-          type="button"
-          className="btn-primary text-sm"
-          data-testid="vm-install-button"
-          onClick={() => void act('Install queued', () => installPlatformVm(id))}
-        >
-          <HardDrive className="w-4 h-4" /> Install
-        </button>
-      )}
-      {(vm.observed_state === 'stopped' || vm.observed_state === 'shut off') && !canInstall && (
-        <button type="button" className="btn-primary text-sm" onClick={() => void act('Start queued', () => vmPower(id, 'start'))}><Play className="w-4 h-4" /> Start</button>
-      )}
-      {vm.observed_state === 'paused' && (
-        <button type="button" className="btn-primary text-sm" onClick={() => void act('Resume queued', () => vmPower(id, 'resume'))}><Play className="w-4 h-4" /> Resume</button>
-      )}
-      {vm.observed_state === 'running' && (
-        <>
-          {guestHealth?.install_state === 'running' && guestHealth.agent_ping ? (
-            <button
-              type="button"
-              className="btn-secondary text-sm"
-              title="Clean shutdown via QEMU guest agent"
-              onClick={() => void act('Graceful shutdown queued', () => vmPower(id, 'shutdown', { mode: 'agent' }))}
-            >
-              <Power className="w-4 h-4" /> Graceful shutdown
-            </button>
-          ) : (
-            <button type="button" className="btn-secondary text-sm" title="ACPI shutdown" onClick={() => void act('Shutdown queued', () => vmPower(id, 'shutdown'))}>
-              <Power className="w-4 h-4" /> Shutdown
-            </button>
-          )}
-          <button type="button" className="btn-secondary text-sm" onClick={() => void act('Pause queued', () => vmPower(id, 'pause'))}><Pause className="w-4 h-4" /> Pause</button>
-          {guestHealth?.install_state === 'running' && guestHealth.agent_ping ? (
-            <button
-              type="button"
-              className="btn-secondary text-sm"
-              title="Clean reboot via QEMU guest agent"
-              onClick={() => void act('Graceful reboot queued', () => vmPower(id, 'reboot', { mode: 'agent' }))}
-            >
-              <RotateCcw className="w-4 h-4" /> Graceful reboot
-            </button>
-          ) : (
-            <button type="button" className="btn-secondary text-sm" onClick={() => void act('Reboot queued', () => vmPower(id, 'reboot'))}>
-              <RotateCcw className="w-4 h-4" /> Reboot
-            </button>
-          )}
-          <button
-            type="button"
-            className="btn-secondary text-sm"
-            title="Force reboot (libvirt Reset)"
-            data-testid="vm-force-reboot-button"
-            onClick={() => void act('Force reboot queued', () => vmPower(id, 'reset'))}
-          >
-            <RotateCcw className="w-4 h-4" /> Force reboot
-          </button>
-          <button
-            type="button"
-            className="btn-secondary text-sm"
-            title="Inject NMI (debug hung guest)"
-            onClick={() => void act('NMI injected', () => injectVmNmi(id))}
-            data-testid="vm-nmi-button"
-          >
-            NMI
-          </button>
-        </>
-      )}
-      {(vm.observed_state === 'running' || vm.observed_state === 'paused') && (
-        <button type="button" className="btn-secondary text-sm" title="Force power off (libvirt destroy)" onClick={() => void act('Force stop queued', () => vmPower(id, 'stop'))}><Square className="w-4 h-4" /> Force stop</button>
-      )}
-      {vm.inventory_source !== 'kubevirt' && (
-        <button type="button" className="btn-secondary text-sm" onClick={() => setSshDialogOpen(true)}><Terminal className="w-4 h-4" /> SSH</button>
-      )}
-    </>
-  ) : null
+  const detailBlockers = vm
+    ? vmDetailBlockers({
+        pending: pendingConfig,
+        guestHealth,
+        guestToolsStatus: health?.guest_tools_status,
+        observedState: vm.observed_state,
+        guestIp,
+        guestAccess,
+        portForwardRules,
+      })
+    : []
+
+  const spotlightPrefill = vm
+    ? buildVmSpotlightPrefill({
+        vmName: vm.name,
+        observedState: vm.observed_state,
+        guestIp,
+        healthScore: health?.score ? Number.parseInt(health.score, 10) : null,
+        doctor,
+        blockers: detailBlockers,
+      })
+    : ''
+
+  const connectHubProps = vm && vm.inventory_source !== 'kubevirt' ? {
+    vmName: vm.name,
+    vmState: vm.observed_state,
+    sshUser,
+    guestIp,
+    consoleHref: cinemaHubPath(id!),
+    specJson,
+    platformVmId: id,
+    hypervisorAddress,
+    guestAccess,
+    portForwardRules,
+    onRefreshPortForwards: () => void loadPortForwards(),
+    guestIpWaiting: vm.observed_state === 'running' && !guestIp,
+    guestIpHint: guestHealth?.issues?.[0],
+    onRefreshGuestIp: () => void loadGuestHealth(),
+    onInstallGuestTools: vm.observed_state === 'running' ? () => void queueGuestToolsInstall() : undefined,
+    guestToolsInstalling: guestInstalling,
+    onExportXml: async () => {
+      const { xml } = await getVmDomainXml(id!)
+      return xml
+    },
+    guestPorts,
+    guestPortsLoading,
+    onRefreshPorts: () => void loadGuestPorts(),
+    onAllPorts: () => setTab('security'),
+    natForwardHref,
+    onNotify: (m: string) => toast.success(m),
+    onOpenAccessTab: () => setTab('access'),
+  } : null
 
   return (
     <PageLayout
@@ -796,47 +766,69 @@ export default function PlatformVmDetail() {
         </span>
       ) : undefined}
       icon={<Monitor className="w-6 h-6 text-slate-400" />}
-      actions={vm ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <Link to={cinemaHubPath(id!)} className="btn-primary text-sm inline-flex items-center gap-1">
-            <Monitor className="w-4 h-4" /> Open Cinema
-          </Link>
-          <Link to={studioHubPath(id!)} className="btn-secondary text-sm inline-flex items-center gap-1">
-            Studio
-          </Link>
-          {vm.inventory_source !== 'kubevirt' && vm.observed_state === 'running' && id && (
-            <a
-              href={platformVmViewerVvUrl(id)}
-              className="btn-secondary text-sm inline-flex items-center gap-1"
-              download={`${vm.name}.vv`}
-              data-testid="vm-virt-viewer-download"
-            >
-              <ExternalLink className="w-4 h-4" /> Virt-Viewer
-            </a>
-          )}
-          {powerActions}
-          {!isPopout && (
-            <SpotlightPageAction
-              prefill={`${vm.name} guest health doctor`}
-              label="Ask Zeus"
-            />
-          )}
-          {!isPopout && (
-            <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" onClick={() => openCenterPopout(`/platform/vms/${id}`)}>
-              <ExternalLink className="w-4 h-4" /> Pop out
-            </button>
-          )}
-          <button
-            type="button"
-            className="btn-danger text-sm"
-            onClick={() => {
+      actions={vm && id ? (
+        vm.inventory_source === 'kubevirt' ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to={cinemaHubPath(id)} className="btn-primary text-sm inline-flex items-center gap-1">
+              <Monitor className="w-4 h-4" /> Open Cinema
+            </Link>
+            {!isPopout ? <SpotlightPageAction prefill={spotlightPrefill} label="Ask Zeus" /> : null}
+          </div>
+        ) : (
+          <VmDetailActionBar
+            vmId={id}
+            vmName={vm.name}
+            inventorySource={vm.inventory_source}
+            observedState={vm.observed_state}
+            canInstall={canInstall}
+            guestHealth={guestHealth}
+            isPopout={isPopout}
+            virtViewerUrl={vm.observed_state === 'running' ? platformVmViewerVvUrl(id) : null}
+            spotlightPrefill={spotlightPrefill}
+            onSsh={() => setSshDialogOpen(true)}
+            onDelete={() => {
               if (!window.confirm('Delete this VM permanently?')) return
               void queueVmDelete('Delete queued')
             }}
-          >
-            <Trash2 className="w-4 h-4" /> Delete
-          </button>
-        </div>
+            onPopout={!isPopout ? () => openCenterPopout(`/platform/vms/${id}`) : undefined}
+            act={act}
+            power={{
+              onInstall: canInstall ? () => void act('Install queued', () => installPlatformVm(id)) : undefined,
+              onStart: (vm.observed_state === 'stopped' || vm.observed_state === 'shut off') && !canInstall
+                ? () => void act('Start queued', () => vmPower(id, 'start'))
+                : undefined,
+              onResume: vm.observed_state === 'paused'
+                ? () => void act('Resume queued', () => vmPower(id, 'resume'))
+                : undefined,
+              onShutdown: vm.observed_state === 'running'
+                ? () => void act('Shutdown queued', () => vmPower(id, 'shutdown'))
+                : undefined,
+              onGracefulShutdown:
+                vm.observed_state === 'running' && guestHealth?.install_state === 'running' && guestHealth.agent_ping
+                  ? () => void act('Graceful shutdown queued', () => vmPower(id, 'shutdown', { mode: 'agent' }))
+                  : undefined,
+              onPause: vm.observed_state === 'running'
+                ? () => void act('Pause queued', () => vmPower(id, 'pause'))
+                : undefined,
+              onReboot: vm.observed_state === 'running'
+                ? () => void act('Reboot queued', () => vmPower(id, 'reboot'))
+                : undefined,
+              onGracefulReboot:
+                vm.observed_state === 'running' && guestHealth?.install_state === 'running' && guestHealth.agent_ping
+                  ? () => void act('Graceful reboot queued', () => vmPower(id, 'reboot', { mode: 'agent' }))
+                  : undefined,
+              onForceReboot: vm.observed_state === 'running'
+                ? () => void act('Force reboot queued', () => vmPower(id, 'reset'))
+                : undefined,
+              onNmi: vm.observed_state === 'running'
+                ? () => void act('NMI injected', () => injectVmNmi(id))
+                : undefined,
+              onForceStop: (vm.observed_state === 'running' || vm.observed_state === 'paused')
+                ? () => void act('Force stop queued', () => vmPower(id, 'stop'))
+                : undefined,
+            }}
+          />
+        )
       ) : undefined}
       error={error}
       onErrorRetry={() => void load()}
@@ -922,12 +914,42 @@ export default function PlatformVmDetail() {
             <StructuredErrorBanner error={vmErrorPresentation(vm.last_error)} />
           )}
           {vm.inventory_source !== 'kubevirt' && (
-            <VmPendingConfigBanner
+            <VmAttentionStack
+              vmId={id}
               pending={pendingConfig}
-              loading={pendingConfigLoading}
-              onShutdown={() => void act('Shutdown queued', () => vmPower(id, 'shutdown'))}
+              pendingLoading={pendingConfigLoading}
+              guestHealth={guestHealth}
+              guestToolsStatus={health?.guest_tools_status}
+              observedState={vm.observed_state}
+              guestIp={guestIp}
+              guestAccess={guestAccess}
+              portForwardRules={portForwardRules}
+              guestToolsInstalling={guestInstalling}
+              onShutdownForPending={() => void act('Shutdown queued', () => vmPower(id, 'shutdown'))}
+              onOpenGuestHealth={() => setTab('guestHealth')}
+              onInstallGuestTools={vm.observed_state === 'running' ? () => void queueGuestToolsInstall() : undefined}
+              onOpenAccess={() => setTab('access')}
             />
           )}
+
+          <VmDetailTabs active={tab} onChange={setTab} />
+
+          {isGuestRelatedTab(tab) && tab !== 'overview' && tab !== 'access' && (
+            <GuestToolsStrip
+              vmId={id}
+              compact
+              guestHealth={guestHealth}
+              guestToolsStatus={health?.guest_tools_status}
+              guestIp={guestHealth?.guest_ip || health?.guest_ip}
+              guestHostname={guestHealth?.guest_hostname || health?.guest_hostname}
+              installing={guestInstalling}
+              onOpenGuestHealth={() => setTab('guestHealth')}
+              onInstall={
+                vm.observed_state === 'running' ? () => void queueGuestToolsInstall() : undefined
+              }
+            />
+          )}
+
           {(vm.observed_state === 'missing' || (vm.last_error && /nodomain|domain not found|no domain with matching name|domain_not_found|kubevirt_not_found/i.test(vm.last_error))) && (
             <div className="flex flex-wrap gap-2">
               <button
@@ -944,60 +966,34 @@ export default function PlatformVmDetail() {
             </div>
           )}
 
-          <VmDetailTabs active={tab} onChange={setTab} />
-
-          {isGuestRelatedTab(tab) && (
-            <GuestToolsStrip
-              vmId={id}
-              compact={tab !== 'overview'}
-              guestHealth={guestHealth}
-              guestToolsStatus={health?.guest_tools_status}
-              guestIp={guestHealth?.guest_ip || health?.guest_ip}
-              guestHostname={guestHealth?.guest_hostname || health?.guest_hostname}
-              installing={guestInstalling}
-              onOpenGuestHealth={() => setTab('guestHealth')}
-              onInstall={
-                vm.observed_state === 'running' ? () => void queueGuestToolsInstall() : undefined
-              }
-            />
+          {tab === 'overview' && connectHubProps && (
+            <VmConnectHub {...connectHubProps} natExpanded={false} />
           )}
 
-          {tab === 'overview' && vm.inventory_source !== 'kubevirt' && (
-            <VmDailyAccessStrip
-              vmName={vm.name}
-              vmState={vm.observed_state}
-              sshUser={sshUser}
-              guestIp={guestIp}
-              consoleHref={cinemaHubPath(id)}
-              specJson={specJson}
-              platformVmId={id}
-              hypervisorAddress={hypervisorAddress}
-              guestAccess={guestAccess}
-              portForwardRules={portForwardRules}
-              onRefreshPortForwards={() => void loadPortForwards()}
-              guestIpWaiting={vm.observed_state === 'running' && !guestIp}
-              guestIpHint={guestHealth?.issues?.[0]}
-              onRefreshGuestIp={() => void loadGuestHealth()}
-              onInstallGuestTools={
-                vm.observed_state === 'running' ? () => void queueGuestToolsInstall() : undefined
-              }
-              guestToolsInstalling={guestInstalling}
-              onExportXml={async () => {
-                const { xml } = await getVmDomainXml(id)
-                return xml
-              }}
-              guestPorts={guestPorts}
-              guestPortsLoading={guestPortsLoading}
-              onRefreshPorts={() => void loadGuestPorts()}
-              onAllPorts={() => setTab('security')}
-              natForwardHref={natForwardHref}
-              onNotify={(m) => toast.success(m)}
-            />
+          {tab === 'access' && connectHubProps && (
+            <div className="space-y-4 pt-2">
+              <VmConnectHub {...connectHubProps} natExpanded showExport />
+              <MacGlassPanel title="Guest security & ports" subtitle="In-guest listeners and host firewall">
+                {vm.host_id && (
+                  <Link to={`/platform/zeus/security/firewall/${vm.host_id}`} className={`text-sm inline-flex items-center gap-1 mb-3 ${hubLinkClasses()}`}>
+                    <Shield className="w-4 h-4" /> Host firewall (Zeus) →
+                  </Link>
+                )}
+                <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => setTab('security')}>
+                  Full port inventory →
+                </button>
+              </MacGlassPanel>
+              <MacGlassPanel title="Guest health">
+                <p className="text-sm text-slate-400 mb-2">Agent status, offline assurance, and service inventory.</p>
+                <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => setTab('guestHealth')}>
+                  Open Guest health →
+                </button>
+              </MacGlassPanel>
+            </div>
           )}
 
           {tab === 'overview' && (
             <div className="space-y-4">
-              <MachinaExplainObjectPanel kind="vm" id={id!} name={vm.name} showOpenLink={false} />
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
                 <InfoCard label="Desired state" value={vm.desired_state} />
                 <InfoCard label="Lifecycle" value={vm.lifecycle_phase || 'idle'} />
@@ -1059,129 +1055,27 @@ export default function PlatformVmDetail() {
                   )}
                 </MacGlassPanel>
               )}
-              {vm.inventory_source !== 'kubevirt' && vm.host_id && (
-                <HostResourcesOverviewPanel
-                  hostId={vm.host_id}
-                  hostname={hosts.find((h) => h.id === vm.host_id)?.hostname}
-                />
-              )}
-              {vm.inventory_source !== 'kubevirt' && (
-                <MacGlassPanel title="Domain XML" subtitle="Inline domain definition (Cockpit-style overview edit)">
-                  <button
-                    type="button"
-                    className={`text-xs ${hubLinkClasses()}`}
-                    onClick={() => setOverviewXmlOpen((o) => !o)}
-                  >
-                    {overviewXmlOpen ? 'Hide XML editor' : 'Show XML editor'}
+              {doctor && (
+                <div className="flex flex-wrap items-center gap-2 text-sm text-slate-300 rounded-lg border border-white/[0.06] bg-slate-900/40 px-3 py-2">
+                  <span>
+                    Doctor: <span className="font-semibold text-slate-100">{doctor.score_numeric}/100</span>
+                    {doctor.issues.length > 0 ? ` · ${doctor.issues.length} issue(s)` : ' · all checks passed'}
+                  </span>
+                  <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => setTab('doctor')}>
+                    Full report →
                   </button>
-                  {overviewXmlOpen && (
-                    <div className="mt-3 space-y-3">
-                      <textarea
-                        className="input w-full font-mono text-xs min-h-[12rem]"
-                        value={overviewDomainXml}
-                        onChange={(e) => setOverviewDomainXml(e.target.value)}
-                        spellCheck={false}
-                      />
-                      <button
-                        type="button"
-                        className="btn-secondary text-sm"
-                        disabled={vm.managed === false || overviewXmlSaving || !overviewDomainXml.trim()}
-                        onClick={async () => {
-                          setOverviewXmlSaving(true)
-                          try {
-                            await putVmDomainXml(id!, overviewDomainXml)
-                            toast.success('Domain XML updated')
-                            await loadDomainXml()
-                            await loadLibvirtDetails()
-                          } catch (e: unknown) {
-                            toast.error(formatUserError(e))
-                          } finally {
-                            setOverviewXmlSaving(false)
-                          }
-                        }}
-                      >
-                        {overviewXmlSaving ? 'Saving…' : 'Save XML (define)'}
-                      </button>
-                    </div>
-                  )}
-                </MacGlassPanel>
-              )}
-              <MacGlassPanel
-                title="Zeus health doctor"
-                subtitle="Live VM diagnostics from the controller doctor API"
-                action={
                   <button type="button" className="btn-secondary text-xs" disabled={doctorLoading} onClick={() => void runDoctor()}>
                     {doctorLoading ? 'Scanning…' : 'Rescan'}
                   </button>
-                }
-              >
-                {doctorLoading && !doctor && <p className="text-sm text-slate-500">Running health scan…</p>}
-                {doctor && (
-                  <div className="space-y-2 text-sm">
-                    <p className="text-slate-200">
-                      Score <span className="font-semibold">{doctor.score_numeric}/100</span>
-                      {' · '}
-                      <span className={statusToneClass(doctor.healthy ? 'ok' : 'warn')}>{doctor.score_label}</span>
-                      {' · '}
-                      <span className="text-slate-500">{doctor.checks_passed}/{doctor.checks_total} checks passed</span>
-                    </p>
-                    {doctor.issues.length > 0 ? (
-                      <ul className="text-xs text-slate-400 space-y-1">
-                        {doctor.issues.slice(0, 3).map((issue) => (
-                          <li key={issue.id}>{issue.message}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-xs text-slate-500">All checks passed.</p>
-                    )}
-                    <div className="flex flex-wrap gap-3 pt-1">
-                      <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => setTab('doctor')}>
-                        Full doctor report →
-                      </button>
-                      {info?.guestkit?.enabled && (
-                        <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => setTab('guestHealth')}>
-                          Offline assurance →
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {!doctorLoading && !doctor && (
-                  <p className="text-sm text-slate-500">Doctor scan unavailable — open the Doctor tab to retry.</p>
-                )}
-              </MacGlassPanel>
+                </div>
+              )}
+              {vm.host_id && (
+                <Link to={`/platform/hosts/${vm.host_id}`} className={`text-sm inline-flex items-center gap-1 ${hubLinkClasses()}`}>
+                  View host resources →
+                </Link>
+              )}
               {vm.observed_state !== 'running' && (
                 <VmOverviewTroubleshootPanel vmId={id!} vmName={vm.name} onOpenDoctor={() => setTab('doctor')} />
-              )}
-              <details className="rounded-xl border border-white/[0.06] bg-slate-900/40 group">
-                <summary className="cursor-pointer list-none px-4 py-3 flex items-center justify-between gap-2 text-sm font-medium text-white">
-                  <span>AI terminal tips</span>
-                  <span className="text-xs text-slate-500 font-normal group-open:hidden">Zeus-suggested commands · expand</span>
-                </summary>
-                <div className="px-4 pb-4 border-t border-white/[0.04]">
-                  <AiTerminalSuggestStrip vmId={id} vmName={vm.name} compact />
-                </div>
-              </details>
-              <MacGlassPanel title="Organization">
-                <div className="flex flex-wrap gap-3 items-end">
-                  <div>
-                    <label className="text-xs text-slate-500 block mb-1">Project</label>
-                    <input className="input" value={project} onChange={(e) => setProject(e.target.value)} placeholder="default" />
-                  </div>
-                  <div className="flex-1 min-w-[12rem]">
-                    <label className="text-xs text-slate-500 block mb-1">Tags</label>
-                    <input className="input w-full" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="prod, web" />
-                  </div>
-                  <button type="button" className="btn-secondary" onClick={() => void act('Project updated', () => patchVm(id, { project, tags: tags.split(',').map((t) => t.trim()).filter(Boolean) }))}>Save</button>
-                </div>
-              </MacGlassPanel>
-              {vm.host_id && (
-                <div className="flex flex-wrap gap-3 text-sm">
-                  <Link to={`/platform/zeus/security/firewall/${vm.host_id}`} className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>
-                    <Shield className="w-4 h-4" /> Host firewall (Zeus)
-                  </Link>
-                  <button type="button" className={hubLinkClasses()} onClick={() => setTab('doctor')}>Run health doctor →</button>
-                </div>
               )}
             </div>
           )}
@@ -1204,6 +1098,7 @@ export default function PlatformVmDetail() {
 
           {tab === 'doctor' && (
             <div className="pt-2 space-y-3">
+              <MachinaExplainObjectPanel kind="vm" id={id!} name={vm.name} showOpenLink={false} />
               <div className="flex justify-end">
                 <ExplainButton screen="vm_doctor" objectRef={{ vm_id: id, score: doctor?.score_numeric }} />
               </div>
@@ -1242,14 +1137,24 @@ export default function PlatformVmDetail() {
           )}
 
           {tab === 'console' && (
-            <MacGlassPanel title="VNC console">
-              <p className="text-sm text-slate-400 mb-4">
-                Machina Cinema — immersive full-screen VNC/SPICE with floating controls.
-              </p>
-              <Link to={cinemaHubPath(id)} className="btn-primary inline-flex items-center gap-2">
-                <Monitor className="w-4 h-4" /> Open Cinema
-              </Link>
-            </MacGlassPanel>
+            <div className="space-y-4 pt-2">
+              <MacGlassPanel title="VNC console">
+                <p className="text-sm text-slate-400 mb-4">
+                  Machina Cinema — immersive full-screen VNC/SPICE with floating controls.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Link to={cinemaHubPath(id!)} className="btn-primary inline-flex items-center gap-2">
+                    <Monitor className="w-4 h-4" /> Open Cinema
+                  </Link>
+                  <Link to={studioHubPath(id!)} className="btn-secondary inline-flex items-center gap-2">
+                    Studio
+                  </Link>
+                </div>
+              </MacGlassPanel>
+              <MacGlassPanel title="AI terminal tips" subtitle="Zeus-suggested commands for this VM">
+                <AiTerminalSuggestStrip vmId={id} vmName={vm.name} compact />
+              </MacGlassPanel>
+            </div>
           )}
 
           {tab === 'performance' && (
@@ -1921,6 +1826,19 @@ export default function PlatformVmDetail() {
 
           {tab === 'settings' && (
             <div className="space-y-4">
+              <MacGlassPanel title="Organization">
+                <div className="flex flex-wrap gap-3 items-end">
+                  <div>
+                    <label className="text-xs text-slate-500 block mb-1">Project</label>
+                    <input className="input" value={project} onChange={(e) => setProject(e.target.value)} placeholder="default" />
+                  </div>
+                  <div className="flex-1 min-w-[12rem]">
+                    <label className="text-xs text-slate-500 block mb-1">Tags</label>
+                    <input className="input w-full" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="prod, web" />
+                  </div>
+                  <button type="button" className="btn-secondary" onClick={() => void act('Project updated', () => patchVm(id, { project, tags: tags.split(',').map((t) => t.trim()).filter(Boolean) }))}>Save</button>
+                </div>
+              </MacGlassPanel>
               <MacGlassPanel title="Description">
                 <p className="text-xs text-slate-500 mb-2">Operator notes stored in the VM spec (Cockpit Machines parity).</p>
                 <textarea
@@ -1995,6 +1913,36 @@ export default function PlatformVmDetail() {
                     <button type="button" className={hubLinkClasses()} onClick={() => setTab('overview')}>Overview</button>
                     {' '}Compute panel — use Edit CPU / Edit memory there.
                   </p>
+                </MacGlassPanel>
+              )}
+              {vm.inventory_source !== 'kubevirt' && (
+                <MacGlassPanel title="Domain XML" subtitle="Inline domain definition (libvirt define)">
+                  <textarea
+                    className="input w-full font-mono text-xs min-h-[12rem] mt-2"
+                    value={domainXml}
+                    onChange={(e) => setDomainXml(e.target.value)}
+                    spellCheck={false}
+                  />
+                  <button
+                    type="button"
+                    className="btn-secondary text-sm mt-3"
+                    disabled={vm.managed === false || domainXmlSaving || !domainXml.trim()}
+                    onClick={async () => {
+                      setDomainXmlSaving(true)
+                      try {
+                        await putVmDomainXml(id!, domainXml)
+                        toast.success('Domain XML updated')
+                        await loadDomainXml()
+                        await loadLibvirtDetails()
+                      } catch (e: unknown) {
+                        toast.error(formatUserError(e))
+                      } finally {
+                        setDomainXmlSaving(false)
+                      }
+                    }}
+                  >
+                    {domainXmlSaving ? 'Saving…' : 'Save XML (define)'}
+                  </button>
                 </MacGlassPanel>
               )}
               <MacGlassPanel title="High availability">

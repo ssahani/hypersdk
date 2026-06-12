@@ -76,6 +76,30 @@ test('overview daily access exposes scanned guest port', async ({ page }) => {
   }
 })
 
+test('VM detail header uses action bar with power overflow', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/vms/v1')
+  await expect(page.getByTestId('vm-detail-action-bar')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('vm-detail-action-bar').getByRole('link', { name: /Open Cinema/i })).toBeVisible()
+  await expect(page.getByTestId('vm-detail-action-bar').getByRole('button', { name: 'SSH' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Power & more/i })).toBeVisible()
+})
+
+test('Access tab shows expanded connect hub and NAT panel', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/vms/v1?tab=access')
+  await expect(page.getByTestId('vm-daily-access')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('vm-port-forward-panel')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Guest security & ports' })).toBeVisible()
+})
+
+test('overview attention stack surfaces laptop NAT path', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/vms/v1')
+  await expect(page.getByTestId('vm-attention-stack')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('vm-attention-stack').getByText('Laptop access', { exact: true })).toBeVisible()
+})
+
 test('host linux tab shows GPU inventory', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/hosts/h1')

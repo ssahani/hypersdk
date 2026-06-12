@@ -11,7 +11,7 @@ test.describe('Platform SSH connect dialog', () => {
   test('VM detail SSH shows NAT banner and expose action', async ({ page }) => {
     await page.goto('/platform/vms/v1')
     await expect(page.getByTestId('vm-daily-access')).toBeVisible({ timeout: 15_000 })
-    await page.locator('button.btn-secondary.text-sm').filter({ hasText: 'SSH' }).click()
+    await page.getByTestId('vm-detail-action-bar').getByRole('button', { name: 'SSH' }).click()
     await expect(page.getByTestId('vm-ssh-connect-dialog')).toBeVisible()
     await expect(page.getByTestId('vm-ssh-nat-banner')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Expose SSH & copy command' })).toBeVisible()
