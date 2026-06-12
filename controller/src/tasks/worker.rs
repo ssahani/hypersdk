@@ -437,8 +437,13 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
     {
         tracing::warn!(%host_id, "firewall posture sync during inventory: {e:#}");
     }
-    if let Err(e) =
-        crate::engine::packetwolf_sync::sync_host_security_bundle(&state.config, host_id, &agent_addr).await
+    if let Err(e) = crate::engine::packetwolf_sync::sync_host_security_bundle(
+        &state.config,
+        &state.pool,
+        host_id,
+        &agent_addr,
+    )
+    .await
     {
         tracing::warn!(%host_id, "security bundle sync during inventory: {e:#}");
     }
@@ -1312,22 +1317,19 @@ async fn host_tetragon_install(state: &AppState, msg: &TaskMessage) -> anyhow::R
     let host_id = Uuid::parse_str(host_id_str)
         .map_err(|_| anyhow::anyhow!("host_id missing or invalid"))?;
     update_task_progress(&state.pool, msg.task_id, 20, "registering PacketWolf sensor").await?;
-    let _ = crate::engine::packetwolf_bridge::register_sensor(&state.config, host_id_str).await;
-    let _ = crate::engine::packetwolf_bridge::queue_tetragon_install(&state.config, host_id_str).await;
-    update_task_progress(
-        &state.pool,
-        msg.task_id,
-        50,
-        "pushing Tetragon bundle to machina-agent",
-    )
-    .await?;
     if let Ok(agent_addr) = host_agent_addr(&state.pool, host_id).await {
-        let _ = crate::engine::packetwolf_sync::sync_host_security_bundle(
+        if let Err(e) = crate::engine::packetwolf_sync::sync_host_tetragon_install(
+            &state.pool,
             &state.config,
             host_id,
             &agent_addr,
         )
-        .await;
+        .await
+        {
+            anyhow::bail!("Tetragon enrollment failed: {e:#}");
+        }
+    } else {
+        anyhow::bail!("host agent address not found");
     }
     update_task_progress(&state.pool, msg.task_id, 100, "Tetragon enrollment complete").await?;
     Ok(())
@@ -1483,6 +1485,7 @@ async fn host_enforcement_apply(state: &AppState, msg: &TaskMessage) -> anyhow::
         if let Ok(agent_addr) = host_agent_addr(&state.pool, host_uuid).await {
             let _ = crate::engine::packetwolf_sync::sync_host_security_bundle(
                 &state.config,
+                &state.pool,
                 host_uuid,
                 &agent_addr,
             )

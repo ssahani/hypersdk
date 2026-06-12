@@ -105,6 +105,7 @@ pub async fn migrate(pool: &PgPool) -> anyhow::Result<()> {
                 include_str!("../../migrations/042_marketplace_os_refresh.sql")
             }
             "043_consolehub.sql" => include_str!("../../migrations/043_consolehub.sql"),
+            "044_packetwolf_local.sql" => include_str!("../../migrations/044_packetwolf_local.sql"),
             _ => continue,
         };
         for stmt in sql.split(';').map(str::trim).filter(|s| !s.is_empty()) {

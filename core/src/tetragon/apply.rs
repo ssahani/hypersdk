@@ -40,11 +40,8 @@ fn sync_policy_to_tetragon(name: &str, body: Option<&str>, dry_run: bool) -> Res
 }
 
 fn tetragon_in_path() -> bool {
-    std::process::Command::new("which")
-        .arg("tetragon")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    PathBuf::from("/usr/local/lib/tetragon/bpf").is_dir()
+        && PathBuf::from("/usr/local/bin/tetragon").is_file()
 }
 
 fn is_service_active(unit: &str) -> bool {
@@ -147,9 +144,13 @@ pub fn apply_security_bundle(bundle_json: &str, dry_run: bool) -> Result<Securit
                     operations.extend(result.operations);
                     tetragon_service_active = result.service_active;
                     tetragon_export_timer_active = result.export_timer_active;
-                    install_message = result.message;
+                    install_message = if result.ok {
+                        result.message
+                    } else {
+                        format!("Tetragon install failed: {}", result.message)
+                    };
                 }
-                Err(e) => install_message = e.to_string(),
+                Err(e) => install_message = format!("Tetragon install error: {e}"),
             }
         }
     }
@@ -185,8 +186,11 @@ pub fn apply_security_bundle(bundle_json: &str, dry_run: bool) -> Result<Securit
         format!("Applied {policies_written} TracingPolicy file(s)")
     };
 
+    let install_ok = !tetragon_install_attempted
+        || (tetragon_service_active && !install_message.contains("failed"));
+
     Ok(SecurityBundleApplyResult {
-        ok: true,
+        ok: install_ok,
         policy_dir: dir.display().to_string(),
         policies_written,
         install_script_written,

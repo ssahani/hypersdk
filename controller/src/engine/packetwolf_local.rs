@@ -4,10 +4,12 @@
 use std::collections::HashMap;
 use std::sync::{LazyLock, RwLock};
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde_json::{json, Value};
 
 use crate::config::ControllerConfig;
+
+pub const DEFAULT_TETRAGON_VERSION: &str = "1.7.0";
 
 #[derive(Debug, Clone)]
 struct LocalSensor {
@@ -32,6 +34,55 @@ struct LocalFabricState {
 }
 
 static LOCAL_FABRIC: LazyLock<RwLock<LocalFabricState>> = LazyLock::new(|| RwLock::new(LocalFabricState::default()));
+
+pub fn load_from_rows(
+    rows: Vec<(
+        String,
+        String,
+        String,
+        DateTime<Utc>,
+        Option<DateTime<Utc>>,
+        Option<Value>,
+    )>,
+) {
+    if let Ok(mut state) = LOCAL_FABRIC.write() {
+        state.sensors.clear();
+        state.pending_tetragon.clear();
+        for (host_id, status, tetragon_version, registered_at, last_event_at, pending) in rows {
+            state.sensors.insert(
+                host_id.clone(),
+                LocalSensor {
+                    host_id: host_id.clone(),
+                    status,
+                    tetragon_version,
+                    registered_at: registered_at.to_rfc3339(),
+                    last_event_at: last_event_at.map(|t| t.to_rfc3339()),
+                },
+            );
+            if let Some(p) = pending {
+                let export_url = p
+                    .get("export_url")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                if !export_url.is_empty() {
+                    state.pending_tetragon.insert(
+                        host_id,
+                        PendingTetragonInstall {
+                            host_id: p
+                                .get("host_id")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string(),
+                            export_url,
+                            queued_at: now_iso(),
+                        },
+                    );
+                }
+            }
+        }
+    }
+}
 
 fn now_iso() -> String {
     Utc::now().to_rfc3339()
@@ -78,7 +129,7 @@ pub fn list_sensors() -> Vec<Value> {
 }
 
 pub fn queue_tetragon_install(host_id: &str, export_url: &str) -> Value {
-    let _ = register_sensor(host_id, "1.0.0");
+    let _ = register_sensor(host_id, DEFAULT_TETRAGON_VERSION);
     let bundle = json!({
         "host_id": host_id,
         "status": "queued",

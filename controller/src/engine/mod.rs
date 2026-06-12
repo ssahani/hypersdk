@@ -10,6 +10,7 @@ pub mod packetwolf_bridge;
 pub mod packetwolf_discover;
 pub mod packetwolf_k8s;
 pub mod packetwolf_local;
+pub mod packetwolf_local_db;
 pub mod packetwolf_sync;
 pub mod zeus_firewall;
 pub mod zeus_security;

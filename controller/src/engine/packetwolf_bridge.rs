@@ -105,6 +105,10 @@ fn auth_headers(cfg: &ControllerConfig, req: reqwest::blocking::RequestBuilder) 
     }
 }
 
+pub fn ingest_base_url(cfg: &ControllerConfig) -> String {
+    packetwolf_ingest_base_url(cfg)
+}
+
 fn packetwolf_ingest_base_url(cfg: &ControllerConfig) -> String {
     if cfg.packetwolf_enabled {
         format!(
@@ -518,7 +522,7 @@ pub async fn sensors(cfg: &ControllerConfig) -> serde_json::Value {
 }
 
 pub async fn register_sensor(cfg: &ControllerConfig, host_id: &str) -> serde_json::Value {
-    let path = format!("/api/v1/sensors/{host_id}/register?tetragon_version=1.0.0");
+    let path = format!("/api/v1/sensors/{host_id}/register?tetragon_version=1.7.0");
     let cfg = cfg.clone();
     let host_id = host_id.to_string();
     tokio::task::spawn_blocking(move || {
@@ -526,7 +530,7 @@ pub async fn register_sensor(cfg: &ControllerConfig, host_id: &str) -> serde_jso
             return serde_json::json!({"ok": false});
         }
         if !fabric_api_available(&cfg) {
-            return packetwolf_local::register_sensor(&host_id, "1.0.0");
+            return packetwolf_local::register_sensor(&host_id, "1.7.0");
         }
         let Ok(client) = build_client(cfg.packetwolf_insecure_tls, 10) else {
             return serde_json::json!({"ok": false});

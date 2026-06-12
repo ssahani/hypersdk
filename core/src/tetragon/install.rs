@@ -51,7 +51,16 @@ case "$ARCH" in
   *) echo "unsupported architecture: $ARCH" >&2; exit 1 ;;
 esac
 
-if ! [ -x /usr/local/bin/tetragon ] || ! [ -d /usr/local/lib/tetragon/bpf ]; then
+needs_reinstall=0
+if ! [ -d /usr/local/lib/tetragon/bpf ]; then needs_reinstall=1; fi
+if [ -x /usr/local/bin/tetragon ] && /usr/local/bin/tetragon 2>&1 | head -1 | grep -q 'Tetragon CLI'; then needs_reinstall=1; fi
+if ! systemctl is-active --quiet tetragon.service 2>/dev/null; then needs_reinstall=1; fi
+if [ -f /etc/systemd/system/tetragon.service ] && grep -q -- '--config-dir' /etc/systemd/system/tetragon.service 2>/dev/null; then needs_reinstall=1; fi
+
+if [ "$needs_reinstall" = 1 ]; then
+  systemctl stop tetragon.service 2>/dev/null || true
+  rm -f /etc/systemd/system/tetragon.service
+  rm -rf "$INSTALL_ROOT/config"
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT
   TG_DIR="tetragon-v${{VERSION}}-${{TG_ARCH}}"
@@ -63,6 +72,11 @@ if ! [ -x /usr/local/bin/tetragon ] || ! [ -d /usr/local/lib/tetragon/bpf ]; the
     exit 1
   fi
   bash "$TMP/$TG_DIR/install.sh"
+fi
+
+if [ -f /usr/local/lib/tetragon/systemd/tetragon.service ]; then
+  cp -f /usr/local/lib/tetragon/systemd/tetragon.service /usr/lib/systemd/system/tetragon.service
+  rm -f /etc/systemd/system/tetragon.service
 fi
 
 install -d /etc/tetragon/tetragon.conf.d/ /etc/tetragon/tetragon.tp.d/
@@ -94,7 +108,7 @@ LINES="$(wc -l < "$TMP" | tr -d ' ')"
 [ "$LINES" -gt 0 ] || exit 0
 
 python3 - "$TMP" "$EXPORT_URL" "$HOST_ID" <<'PY'
-import json, sys, urllib.request
+import json, ssl, sys, urllib.request
 path, url, host_id = sys.argv[1:4]
 events = []
 for line in open(path, encoding="utf-8", errors="replace"):
@@ -114,7 +128,12 @@ req = urllib.request.Request(
     headers={{"Content-Type": "application/json"}},
     method="POST",
 )
-with urllib.request.urlopen(req, timeout=15) as resp:
+ctx = None
+if url.startswith("https:"):
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+with urllib.request.urlopen(req, timeout=15, context=ctx) as resp:
     resp.read()
 PY
 
@@ -150,6 +169,12 @@ EOF
 systemctl daemon-reload
 systemctl enable tetragon.service 2>/dev/null || true
 systemctl restart tetragon.service
+sleep 2
+if ! systemctl is-active --quiet tetragon.service; then
+  echo "tetragon.service failed to start" >&2
+  journalctl -u tetragon.service --no-pager -n 20 >&2 || true
+  exit 1
+fi
 systemctl enable --now tetragon-export.timer
 echo "Tetragon installed; export to $EXPORT_URL/$HOST_ID"
 "#,
@@ -223,14 +248,19 @@ pub fn run_tetragon_install(spec: &TetragonInstallSpec, dry_run: bool) -> Result
         operations.push(format!("exec {}", script_path.display()));
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        let binary_installed = Command::new("which")
-            .arg("tetragon")
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false);
+        let binary_installed = Command::new("test")
+            .args(["-d", "/usr/local/lib/tetragon/bpf"])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+            && Command::new("test")
+                .args(["-x", "/usr/local/bin/tetragon"])
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
         let service_active = is_service_active("tetragon.service");
         let export_timer_active = is_service_active("tetragon-export.timer");
-        let ok = output.status.success() && binary_installed;
+        let ok = output.status.success() && binary_installed && service_active;
         let message = if ok {
             if stdout.is_empty() {
                 "Tetragon installed and services enabled".into()
@@ -273,6 +303,7 @@ mod tests {
         assert!(script.contains("tetragon-export.timer"));
         assert!(script.contains("tetragon-v${VERSION}-${TG_ARCH}.tar.gz") || script.contains("${TG_DIR}.tar.gz"));
         assert!(script.contains("/etc/tetragon/tetragon.conf.d/export-filename"));
+        assert!(script.contains("needs_reinstall"));
         assert!(script.contains("VERSION=\"1.7.0\""));
     }
 }

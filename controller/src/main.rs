@@ -42,6 +42,9 @@ async fn main() -> anyhow::Result<()> {
     let pool = db::connect(&config.database_url).await?;
     db::migrate(&pool).await?;
     db::ensure_bootstrap(&pool, &config.admin_user, &config.admin_password).await?;
+    if let Err(e) = machina_controller::engine::packetwolf_local_db::hydrate(&pool).await {
+        tracing::warn!("PacketWolf local fabric hydrate: {e:#}");
+    }
 
   let (local_bus, rx) = InMemoryTaskBus::new();
     let local_tx = local_bus.sender();
