@@ -14,7 +14,7 @@ fn policy_dir() -> PathBuf {
 }
 
 fn tetragon_version() -> String {
-    std::env::var("MACHINA_TETRAGON_VERSION").unwrap_or_else(|_| "1.0.0".into())
+    std::env::var("MACHINA_TETRAGON_VERSION").unwrap_or_else(|_| "1.7.0".into())
 }
 
 fn is_service_active(unit: &str) -> bool {
@@ -61,10 +61,10 @@ if ! command -v tetragon >/dev/null 2>&1; then
   esac
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT
-  URL="https://github.com/cilium/tetragon/releases/download/v${{VERSION}}/tetragon-linux-${{TG_ARCH}}.tar.gz"
-  curl -fsSL -o "$TMP/tetragon.tar.gz" "$URL"
-  tar -xzf "$TMP/tetragon.tar.gz" -C "$TMP"
-  TG_BIN="$(find "$TMP" -type f -name tetragon 2>/dev/null | head -1)"
+  URL="https://github.com/cilium/tetragon/releases/download/v${{VERSION}}/tetra-linux-${{TG_ARCH}}.tar.gz"
+  curl -fsSL -o "$TMP/tetra.tar.gz" "$URL"
+  tar -xzf "$TMP/tetra.tar.gz" -C "$TMP"
+  TG_BIN="$(find "$TMP" -type f \( -name tetragon -o -name tetra \) 2>/dev/null | head -1)"
   if [ -z "$TG_BIN" ]; then
     echo "tetragon binary not found in release tarball" >&2
     exit 1
@@ -295,5 +295,7 @@ mod tests {
         assert!(script.contains("host-abc"));
         assert!(script.contains("tetragon.service"));
         assert!(script.contains("tetragon-export.timer"));
+        assert!(script.contains("tetra-linux-${TG_ARCH}.tar.gz"));
+        assert!(script.contains("VERSION=\"1.7.0\""));
     }
 }
