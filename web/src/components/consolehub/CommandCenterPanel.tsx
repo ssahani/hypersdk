@@ -37,6 +37,8 @@ type Props = {
   onOpenVmDetail?: (tab?: string) => void
   activeProtocol?: string
   canBreakGlass?: boolean
+  shareLink?: string | null
+  onShareView?: () => void
 }
 
 const TABS: CommandCenterTab[] = ['Overview', 'Health', 'Events', 'AI']
@@ -61,6 +63,8 @@ export default function CommandCenterPanel({
   onOpenVmDetail,
   activeProtocol = 'novnc',
   canBreakGlass = false,
+  shareLink = null,
+  onShareView,
 }: Props) {
   const toast = useToastContext()
   const [doctor, setDoctor] = useState<VmDoctorReport | null>(null)
@@ -140,6 +144,18 @@ export default function CommandCenterPanel({
                 </div>
               ) : null}
               <ConsoleHubSessionHistory sessions={sessions} />
+              {onShareView ? (
+                <div className="rounded-lg border border-sky-500/30 bg-sky-950/20 p-3 space-y-2" data-testid="ops-shelf-collaborate">
+                  <p className="text-xs font-medium text-sky-100">Share read-only view</p>
+                  <p className="text-[11px] text-sky-200/70">Invite a teammate to watch this console in Cinema — no power or keyboard control.</p>
+                  <button type="button" className="btn-secondary text-xs w-full" onClick={onShareView}>
+                    Copy spectator link
+                  </button>
+                  {shareLink ? (
+                    <p className="text-[10px] font-mono text-sky-300/80 break-all">{shareLink}</p>
+                  ) : null}
+                </div>
+              ) : null}
               {canBreakGlass ? (
                 <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 space-y-2" data-testid="ops-shelf-break-glass">
                   <p className="text-xs font-medium text-amber-100 flex items-center gap-1.5">

@@ -3105,6 +3105,7 @@ export async function mockPlatformApi(page: Page, opts?: {
       const token = params.get('token')
       const sessionId = params.get('session_id')
       const valid = token === 'mock-spectator' && sessionId === '00000000-0000-4000-8000-000000000002'
+        || token === 'mock-collab-spectator' && sessionId === '00000000-0000-4000-8000-0000000000aa'
       return route.fulfill({
         json: valid
           ? { valid: true, vm_id: 'v1', actor: 'admin', protocol: 'novnc', read_only: true }
@@ -3124,6 +3125,24 @@ export async function mockPlatformApi(page: Page, opts?: {
           expires_at: new Date(Date.now() + 3_600_000).toISOString(),
           recording_enabled: true,
           spectator_token: 'mock-spectator',
+        },
+      })
+    }
+    if (url.includes('/consolehub/collaborate') && route.request().method() === 'POST') {
+      const collabVmId = url.match(/\/vms\/([^/]+)\/consolehub\/collaborate/)?.[1] ?? 'v1'
+      const sessionId = '00000000-0000-4000-8000-0000000000aa'
+      const token = 'mock-collab-spectator'
+      return route.fulfill({
+        json: {
+          session_id: sessionId,
+          vm_id: collabVmId,
+          protocol: 'novnc',
+          backend: 'native',
+          embed_path: `/platform/vms/${collabVmId}/consolehub?mode=cinema&session=${sessionId}&spectator=${token}`,
+          audit_id: 'audit-collab',
+          expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+          recording_enabled: true,
+          spectator_token: token,
         },
       })
     }

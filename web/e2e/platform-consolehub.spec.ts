@@ -123,4 +123,14 @@ test.describe('Platform ConsoleHub', () => {
     await panel.getByRole('button', { name: 'Start break-glass session' }).click()
     await expect(page.getByText(/Break-glass session started/i)).toBeVisible({ timeout: 10_000 })
   })
+
+  test('Share view copies collaborative spectator link', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await page.goto('/platform/vms/v1/consolehub')
+    await expect(page.getByTestId('cinema-shell')).toBeVisible({ timeout: 15_000 })
+    await page.getByTestId('cinema-share-view').click()
+    await expect(page.getByText(/Collaborator link copied/i)).toBeVisible({ timeout: 10_000 })
+    await page.getByTestId('ops-shelf-handle').click()
+    await expect(page.getByTestId('ops-shelf-collaborate')).toBeVisible()
+  })
 })

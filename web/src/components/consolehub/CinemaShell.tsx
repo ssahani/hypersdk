@@ -46,6 +46,8 @@ type Props = {
   watermarkLabel?: string | null
   recordingActive?: boolean
   readOnly?: boolean
+  onShareView?: () => void
+  shareBusy?: boolean
 }
 
 function stateTone(state?: string | null): 'ok' | 'warn' | 'error' | 'neutral' {
@@ -86,6 +88,8 @@ export default function CinemaShell({
   watermarkLabel,
   recordingActive,
   readOnly = false,
+  onShareView,
+  shareBusy = false,
 }: Props) {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const vp = useConsoleViewport()
@@ -185,6 +189,8 @@ export default function CinemaShell({
             onOpenStudio={onOpenStudio}
             onSwitchLens={onSwitchLens}
             onRecord={() => onNotify?.(recordingActive ? 'Session is being recorded for audit' : 'Enable CONSOLEHUB_RECORDING_ENABLED on controller for audit recording')}
+            onShareView={onShareView}
+            shareBusy={shareBusy}
           />
           <ConsoleMinimap />
         </div>

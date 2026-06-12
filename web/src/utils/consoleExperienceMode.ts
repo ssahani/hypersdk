@@ -69,3 +69,8 @@ export function studioHubPath(vmId: string, extra?: Record<string, string>): str
 export function cinemaPopoutPath(vmId: string, extra?: Record<string, string>): string {
   return cinemaHubPath(vmId, { popout: '1', ...extra })
 }
+
+export function spectatorCinemaPath(vmId: string, sessionId: string, spectatorToken: string): string {
+  const q = new URLSearchParams({ mode: 'cinema', session: sessionId, spectator: spectatorToken })
+  return `/platform/vms/${vmId}/consolehub?${q}`
+}

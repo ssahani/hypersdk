@@ -12,6 +12,7 @@ import {
   RotateCcw,
   Sparkles,
   Square,
+  Users,
 } from 'lucide-react'
 import type { ViewportMode, ZoomLevel } from './ConsoleViewportContext'
 import { useConsoleViewportOptional } from './ConsoleViewportContext'
@@ -29,6 +30,8 @@ type Props = {
   onOpenStudio?: () => void
   onSwitchLens?: (lens: string) => void
   onRecord?: () => void
+  onShareView?: () => void
+  shareBusy?: boolean
 }
 
 const ZOOM_LEVELS: ZoomLevel[] = [75, 100, 125, 150, 200]
@@ -46,6 +49,8 @@ export default function CinemaControlStrip({
   onOpenStudio,
   onSwitchLens,
   onRecord,
+  onShareView,
+  shareBusy = false,
 }: Props) {
   const vp = useConsoleViewportOptional()
   const [show, setShow] = useState(true)
@@ -149,6 +154,19 @@ export default function CinemaControlStrip({
         {onOpenAi ? (
           <button type="button" className={`${btn} border-violet-500/40 text-violet-200`} onClick={onOpenAi}>
             <Sparkles className="w-3.5 h-3.5" />
+          </button>
+        ) : null}
+
+        {onShareView && !readOnly ? (
+          <button
+            type="button"
+            className={`${btn} border-sky-500/30 text-sky-100`}
+            disabled={shareBusy}
+            onClick={onShareView}
+            title="Share read-only view link"
+            data-testid="cinema-share-view"
+          >
+            <Users className="w-3.5 h-3.5" />
           </button>
         ) : null}
 

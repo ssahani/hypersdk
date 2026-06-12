@@ -8,6 +8,7 @@ import {
   parseConsoleMode,
   resolveConsoleMode,
   saveConsoleModePreference,
+  spectatorCinemaPath,
   studioHubPath,
 } from './consoleExperienceMode'
 
@@ -55,6 +56,10 @@ describe('consoleExperienceMode', () => {
     expect(loadConsoleModePreference('a')).toBe('studio')
     expect(loadConsoleModePreference('b')).toBe('mission')
     expect(loadConsoleModePreference('missing')).toBeNull()
+  })
+
+  it('builds spectator cinema paths', () => {
+    expect(spectatorCinemaPath('v1', 'sess-1', 'tok')).toBe('/platform/vms/v1/consolehub?mode=cinema&session=sess-1&spectator=tok')
   })
 
   it('builds cinema and studio hub paths', () => {

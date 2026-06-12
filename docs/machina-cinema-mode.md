@@ -76,6 +76,7 @@ When `CONSOLEHUB_RECORDING_ENABLED=1` on the controller:
 - Session history rows mark `rec` for recorded sessions
 - **Break-glass** in Ops Shelf starts a mandatory audited + recorded session (`POST .../consolehub/break-glass`)
 - **Spectator links**: `/platform/vms/:id/consolehub?spectator={token}&session={sessionId}` — read-only view with watermark (validated via `GET /api/v1/consolehub/spectator/validate`)
+- **Share view** (collaborative console): Cinema control strip **Share** button or Ops Shelf → `POST /api/v1/vms/{id}/consolehub/collaborate` mints a time-limited read-only link for teammates
 
 RBAC from the console plan (`permissions` on `/consolehub/plan`):
 
@@ -86,4 +87,4 @@ RBAC from the console plan (`permissions` on `/consolehub/plan`):
 
 ## Deferred (later enterprise)
 
-Session recording, RBAC-gated console actions, watermark/read-only support sessions, SPICE audio, multi-monitor, collaborative shared console.
+SPICE audio, multi-monitor, clipboard/file transfer to guest, full session replay storage (`recording_path` playback).

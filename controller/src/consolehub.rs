@@ -194,6 +194,7 @@ pub fn api_routes() -> Router<AppState> {
         .route("/api/v1/vms/{id}/consolehub/access-requests", post(create_access_request))
         .route("/api/v1/consolehub/access-requests/{request_id}/approve", post(approve_access_request))
         .route("/api/v1/vms/{id}/consolehub/break-glass", post(break_glass_session))
+        .route("/api/v1/vms/{id}/consolehub/collaborate", post(collaborate_session))
         .route("/api/v1/consolehub/spectator/validate", get(validate_spectator))
         .route("/api/v1/vms/{id}/consolehub/explain", post(consolehub_explain))
 }
@@ -989,6 +990,87 @@ pub struct BreakGlassBody {
     pub protocol: String,
     #[serde(default)]
     pub reason: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CollaborateBody {
+    pub protocol: Option<String>,
+    #[serde(default)]
+    pub reason: String,
+}
+
+/// Issue a read-only spectator link for collaborative console viewing.
+pub async fn collaborate_session(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<CollaborateBody>,
+) -> Result<Json<ConsoleSessionResponse>, ApiError> {
+    crate::auth::require_operator(&user)?;
+    let (_, host_id, _, _) = vm_meta(&state, id).await?;
+    let protocol = body
+        .protocol
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "novnc".into());
+    let session_id = Uuid::new_v4();
+    let spectator_token = Uuid::new_v4().to_string();
+    let audit_id = Uuid::new_v4();
+    let ttl = Duration::from_secs(state.config.consolehub_session_ttl_secs);
+    let expires_at = chrono::Utc::now() + chrono::Duration::seconds(ttl.as_secs() as i64);
+
+    sqlx::query(
+        "INSERT INTO console_sessions (id, vm_id, host_id, actor, protocol, backend, expires_at, audit_id, recording_enabled, spectator_token, metadata_json)
+         VALUES ($1,$2,$3,$4,$5,'native',$6,$7,TRUE,$8,$9)",
+    )
+    .bind(session_id)
+    .bind(id)
+    .bind(host_id)
+    .bind(&user.username)
+    .bind(&protocol)
+    .bind(expires_at)
+    .bind(audit_id)
+    .bind(&spectator_token)
+    .bind(SqlxJson(serde_json::json!({
+        "collaborate": true,
+        "reason": body.reason,
+    })))
+    .execute(&state.pool)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO audit_logs (id, actor, action, resource_type, resource_id, detail)
+         VALUES ($1,$2,$3,$4,$5,$6)",
+    )
+    .bind(audit_id)
+    .bind(&user.username)
+    .bind("consolehub.collaborate")
+    .bind("vm")
+    .bind(id)
+    .bind(SqlxJson(serde_json::json!({
+        "protocol": protocol,
+        "session_id": session_id.to_string(),
+        "reason": body.reason,
+    })))
+    .execute(&state.pool)
+    .await?;
+
+    let share_path = format!(
+        "/platform/vms/{id}/consolehub?mode=cinema&session={session_id}&spectator={}",
+        urlencoding::encode(&spectator_token)
+    );
+
+    Ok(Json(ConsoleSessionResponse {
+        session_id: session_id.to_string(),
+        vm_id: id.to_string(),
+        protocol,
+        backend: "native".into(),
+        embed_path: share_path.clone(),
+        emergency_url: None,
+        audit_id: audit_id.to_string(),
+        expires_at: expires_at.to_rfc3339(),
+        spectator_token: Some(spectator_token),
+        recording_enabled: true,
+    }))
 }
 
 /// Break-glass console access with mandatory audit + recording (Phase 5).

@@ -420,6 +420,12 @@ export const breakGlassConsoleSession = (id: string, body: { protocol: string; r
     body: JSON.stringify(body),
   })
 
+export const createConsoleCollaborateLink = (id: string, body: { protocol?: string; reason?: string }) =>
+  platformFetch<ConsoleHubSessionResponse>(`/api/v1/vms/${id}/consolehub/collaborate`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
 export const validateConsoleSpectator = (sessionId: string, token: string) =>
   platformFetch<SpectatorValidateResponse>(
     `/api/v1/consolehub/spectator/validate?session_id=${encodeURIComponent(sessionId)}&token=${encodeURIComponent(token)}`,

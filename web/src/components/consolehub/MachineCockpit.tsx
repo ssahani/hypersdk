@@ -17,7 +17,7 @@ import MachineTimeline from './MachineTimeline'
 import CinemaShell from './CinemaShell'
 import StudioLayout from './StudioLayout'
 import type { ConsoleHubPlan, ConsoleHubSessionResponse } from '../../api/platform'
-import { createVmSnapshot, vmPower } from '../../api/platform'
+import { createConsoleCollaborateLink, createVmSnapshot, vmPower } from '../../api/platform'
 import type { ConsoleHubSessionRow } from './ConsoleHubSessionHistory'
 import type { VmTimelineEntry } from '../../api/platformVmTimeline'
 import { recipeForError, type ConsoleRecipe } from '../../data/consoleRecipes'
@@ -34,6 +34,7 @@ import { useToastContext } from '../../contexts/ToastContext'
 import type { ConsoleExperienceMode } from '../../utils/consoleExperienceMode'
 import { isDisplayProtocol } from '../../utils/consoleExperienceMode'
 import { downloadCanvasScreenshot, saveVmPosterScreenshot } from '../../utils/vmPosterScreenshot'
+import { spectatorCinemaPath } from '../../utils/consoleExperienceMode'
 import { useConsoleAccessPolicy } from '../../hooks/useConsoleAccessPolicy'
 
 export type MachineCockpitProps = {
@@ -102,6 +103,8 @@ function CockpitInner({
   const [activeRecipe, setActiveRecipe] = useState<ConsoleRecipe | null>(null)
   const [exposeBusy, setExposeBusy] = useState(false)
   const [vncCanvas, setVncCanvas] = useState<HTMLCanvasElement | null>(null)
+  const [shareBusy, setShareBusy] = useState(false)
+  const [shareLink, setShareLink] = useState<string | null>(null)
 
   const displayProtocols = plan
     ? [...plan.protocols, ...(plan.guest_ip && !plan.protocols.includes('native_ssh') ? ['native_ssh'] : [])]
@@ -216,6 +219,34 @@ function CockpitInner({
     saveVmPosterScreenshot(vmId, vncCanvas.toDataURL('image/png'))
     toast.success('Screenshot saved')
   }
+
+  const handleShareView = useCallback(async () => {
+    if (!access.canPower || access.readOnly) return
+    if (session?.spectator_token && session.session_id) {
+      const link = spectatorCinemaPath(vmId, session.session_id, session.spectator_token)
+      setShareLink(link)
+      await navigator.clipboard.writeText(`${window.location.origin}${link}`)
+      toast.success('Spectator link copied — read-only Cinema view')
+      return
+    }
+    setShareBusy(true)
+    try {
+      const res = await createConsoleCollaborateLink(vmId, {
+        protocol: activeProtocol,
+        reason: 'Shared Cinema view',
+      })
+      const token = res.spectator_token
+      if (!token) throw new Error('No spectator token returned')
+      const link = spectatorCinemaPath(vmId, res.session_id, token)
+      setShareLink(link)
+      await navigator.clipboard.writeText(`${window.location.origin}${link}`)
+      toast.success('Collaborator link copied — viewers get read-only access')
+    } catch (e: unknown) {
+      toast.error(String(e))
+    } finally {
+      setShareBusy(false)
+    }
+  }, [access.canPower, access.readOnly, session, vmId, activeProtocol, toast])
 
   const exposeSsh = useCallback(() => {
     if (!plan?.guest_access?.guest_ip_private) return
@@ -411,6 +442,8 @@ function CockpitInner({
       onPlanRefresh={onPlanRefresh}
       activeProtocol={activeProtocol}
       canBreakGlass={access.canPower && !access.spectatorMode}
+      shareLink={shareLink}
+      onShareView={() => void handleShareView()}
       onOpenVmDetail={(tab) => {
         setCommandCenter(false)
         navigate(tab ? `/platform/vms/${vmId}?tab=${tab}` : `/platform/vms/${vmId}`)
@@ -450,6 +483,8 @@ function CockpitInner({
           watermarkLabel={access.watermarkLabel}
           recordingActive={access.recordingActive}
           readOnly={access.readOnly}
+          onShareView={access.canPower && !access.spectatorMode ? () => void handleShareView() : undefined}
+          shareBusy={shareBusy}
         >
           {sessionBlock}
         </CinemaShell>
