@@ -8,6 +8,7 @@ import {
   LayoutGrid,
   MoreHorizontal,
   PanelRight,
+  Play,
   Power,
   RotateCcw,
   Sparkles,
@@ -18,10 +19,12 @@ import type { ViewportMode, ZoomLevel } from './ConsoleViewportContext'
 import { useConsoleViewportOptional } from './ConsoleViewportContext'
 import { useConsoleClipboardOptional } from './ConsoleClipboardContext'
 import { useToastContext } from '../../contexts/ToastContext'
+import { vmSemanticKind } from '../../utils/vmVisual'
 
 type Props = {
   visible?: boolean
   vmId: string
+  vmState?: string | null
   readOnly?: boolean
   onCtrlAltDel?: () => void
   onSendKey?: (preset: 'esc' | 'ctrl_alt_del' | 'alt_tab') => void
@@ -44,6 +47,7 @@ const ZOOM_LEVELS: ZoomLevel[] = [75, 100, 125, 150, 200]
 export default function CinemaControlStrip({
   visible = true,
   vmId,
+  vmState,
   readOnly = false,
   onCtrlAltDel,
   onSendKey,
@@ -102,6 +106,11 @@ export default function CinemaControlStrip({
 
   if (!visible || !vp) return null
 
+  const offline = vmSemanticKind(vmState ?? undefined) === 'stopped'
+  const powerQuickAction = offline ? ('reboot' as const) : ('reboot' as const)
+  const powerQuickLabel = offline ? 'Start' : 'Reboot'
+  const PowerQuickIcon = offline ? Play : RotateCcw
+
   const btn =
     'px-2.5 py-1.5 rounded-lg text-xs bg-white/5 border border-white/10 text-slate-200 hover:bg-white/10 transition inline-flex items-center gap-1'
 
@@ -159,13 +168,13 @@ export default function CinemaControlStrip({
           </button>
           {powerOpen ? (
             <div className="absolute bottom-full left-0 mb-1 min-w-[10rem] rounded-lg border border-white/10 bg-slate-950/95 p-1 shadow-xl">
-              {(['shutdown', 'reboot', 'stop'] as const).map((a) => (
+              {(offline ? (['start', 'stop'] as const) : (['shutdown', 'reboot', 'stop'] as const)).map((a) => (
                 <button
                   key={a}
                   type="button"
                   className="block w-full text-left px-2 py-1.5 text-xs text-slate-200 hover:bg-white/10 rounded capitalize"
                   onClick={() => {
-                    onPower?.(a)
+                    onPower?.(a === 'start' ? 'reboot' : a)
                     setPowerOpen(false)
                   }}
                 >
@@ -176,8 +185,15 @@ export default function CinemaControlStrip({
           ) : null}
         </div>
 
-        <button type="button" className={`${btn} ${readOnly ? 'opacity-40 cursor-not-allowed' : ''}`} disabled={readOnly} onClick={() => !readOnly && onPower?.('reboot')} title="Reboot">
-          <RotateCcw className="w-3.5 h-3.5" />
+        <button
+          type="button"
+          className={`${btn} ${readOnly ? 'opacity-40 cursor-not-allowed' : ''}`}
+          disabled={readOnly}
+          onClick={() => !readOnly && onPower?.(powerQuickAction)}
+          title={readOnly ? 'Read-only session' : powerQuickLabel}
+          data-testid={offline ? 'cinema-power-start' : 'cinema-power-reboot'}
+        >
+          <PowerQuickIcon className="w-3.5 h-3.5" />
         </button>
 
         {onCtrlAltDel ? (

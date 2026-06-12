@@ -196,11 +196,18 @@ function controllerUnreachableMessage(body: string, status: number): string | nu
 export async function platformFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const base = getControllerBase()
   const url = resolvePlatformApiUrl(path, base)
+  const buildInit = (source?: RequestInit): RequestInit => {
+    const headers = platformHeaders(source?.headers)
+    if (source?.body == null || source.body === '') {
+      headers.delete('Content-Type')
+    }
+    return { credentials: 'same-origin', ...source, headers }
+  }
   let res: Response
   const max429Retries = 3
   for (let attempt = 0; attempt <= max429Retries; attempt++) {
     try {
-      res = await fetch(url, { credentials: 'same-origin', ...init, headers: platformHeaders(init?.headers) })
+      res = await fetch(url, buildInit(init))
     } catch (e: unknown) {
       throw platformFetchError(base, e)
     }
@@ -214,9 +221,7 @@ export async function platformFetch<T>(path: string, init?: RequestInit): Promis
   if (res!.status === 401 && (localStorage.getItem(LS_JWT) || localStorage.getItem(LS_BASIC))) {
     localStorage.removeItem(LS_JWT)
     localStorage.removeItem(LS_BASIC)
-    const retryHeaders = new Headers(init?.headers)
-    if (!retryHeaders.has('Content-Type')) retryHeaders.set('Content-Type', 'application/json')
-    res = await fetch(url, { credentials: 'same-origin', ...init, headers: retryHeaders })
+    res = await fetch(url, buildInit(init))
   }
   if (!res!.ok) {
     const body = await res!.text().catch(() => '')
@@ -1929,7 +1934,7 @@ export type VmPowerAction = 'start' | 'stop' | 'reboot' | 'reset' | 'shutdown' |
 export const vmPower = (id: string, action: VmPowerAction, opts?: { mode?: 'agent' }) =>
   platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/${action}`, {
     method: 'POST',
-    ...(opts?.mode ? { body: JSON.stringify({ mode: opts.mode }) } : {}),
+    body: JSON.stringify(opts?.mode ? { mode: opts.mode } : {}),
   })
 
 export const installPlatformVm = (id: string) =>

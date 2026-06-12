@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { ArrowLeft, ChevronLeft } from 'lucide-react'
 import { statusBadgeClasses } from '../../utils/semanticColors'
+import { vmSemanticKind } from '../../utils/vmVisual'
 import type { ConsoleHubPlan, VmPortForwardRule } from '../../api/platform'
 import AccessNotePill from './AccessNotePill'
 import CinemaControlStrip from './CinemaControlStrip'
@@ -98,6 +99,7 @@ export default function CinemaShell({
   const [paletteOpen, setPaletteOpen] = useState(false)
   const vp = useConsoleViewport()
   const tone = stateTone(vmState)
+  const offline = vmSemanticKind(vmState ?? undefined) === 'stopped'
 
   useConsoleCommandPaletteShortcut(() => setPaletteOpen(true), !loading)
 
@@ -184,10 +186,22 @@ export default function CinemaShell({
             children
           )}
           {watermarkLabel ? <ConsoleWatermark label={watermarkLabel} sublabel={recordingActive ? 'Audit trail' : readOnly ? 'Spectator' : undefined} /> : null}
+          {offline && !loading ? (
+            <div
+              className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/85 px-6 text-center pointer-events-none"
+              data-testid="cinema-offline-overlay"
+            >
+              <p className="text-slate-200 text-sm font-medium">VM is powered off</p>
+              <p className="text-slate-400 text-xs max-w-md">
+                Graphical console needs a running guest. Use the Start control in the bar below, or open Studio for serial recovery.
+              </p>
+            </div>
+          ) : null}
           <FloatingConsoleHud visible={!loading} />
           <CinemaControlStrip
             visible={!loading}
             vmId={vmId}
+            vmState={vmState}
             readOnly={readOnly}
             onCtrlAltDel={readOnly ? undefined : onCtrlAltDel}
             onSendKey={readOnly ? undefined : onSendKey}

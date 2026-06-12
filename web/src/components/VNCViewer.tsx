@@ -52,7 +52,6 @@ function applyViewportMode(
     rfb.scaleViewport = false
     rfb.clipViewport = true
   }
-  window.dispatchEvent(new Event('resize'))
 }
 
 export default function VNCViewer({
@@ -80,6 +79,8 @@ export default function VNCViewer({
   const containerRef = useRef<HTMLDivElement>(null)
   const rfbRef = useRef<{ disconnect: () => void; sendCtrlAltDel?: () => void; clipboardPasteFrom?: (text: string) => void; showDotCursor: boolean; clipViewport?: boolean; scaleViewport?: boolean; addEventListener?: (type: string, fn: (e: Event) => void) => void; removeEventListener?: (type: string, fn: (e: Event) => void) => void } | null>(null)
   const clip = useConsoleClipboardOptional()
+  const clipRef = useRef(clip)
+  clipRef.current = clip
   const clipHandlerRef = useRef<((ev: Event) => void) | null>(null)
 
   const scaledFitRef = useRef(scaledFit)
@@ -154,17 +155,17 @@ export default function VNCViewer({
             vp?.setConnected(true)
             syncGuestSize(rfb)
             applyViewportMode(rfb, scaledFitRef.current)
-            window.dispatchEvent(new Event('resize'))
             const canvas = containerRef.current?.querySelector('canvas')
             onCanvasReady?.(canvas as HTMLCanvasElement | null)
-            if (clip) {
+            const clipCtx = clipRef.current
+            if (clipCtx) {
               const onGuestClipboard = (ev: Event) => {
                 const text = (ev as CustomEvent<{ text: string }>).detail?.text ?? ''
-                if (text) clip.onGuestClipboard(text)
+                if (text) clipRef.current?.onGuestClipboard(text)
               }
               clipHandlerRef.current = onGuestClipboard
               rfb.addEventListener('clipboard', onGuestClipboard)
-              clip.registerBridge({
+              clipCtx.registerBridge({
                 pasteToGuest: (text: string) => {
                   rfb.clipboardPasteFrom?.(text)
                 },
@@ -174,13 +175,9 @@ export default function VNCViewer({
             requestAnimationFrame(() => {
               syncGuestSize(rfb)
               applyViewportMode(rfb, scaledFitRef.current)
-              window.dispatchEvent(new Event('resize'))
             })
             setTimeout(() => {
-              if (!cancelled) {
-                syncGuestSize(rfb)
-                window.dispatchEvent(new Event('resize'))
-              }
+              if (!cancelled) syncGuestSize(rfb)
             }, 250)
           }
         })
@@ -200,10 +197,7 @@ export default function VNCViewer({
           }
         })
         rfb.addEventListener('desktopname', () => syncGuestSize(rfb))
-        rfb.addEventListener('resize', () => {
-          syncGuestSize(rfb)
-          window.dispatchEvent(new Event('resize'))
-        })
+        rfb.addEventListener('resize', () => syncGuestSize(rfb))
         rfb.addEventListener('credentialsrequired', () => {
           rfb.sendCredentials({ password: '' })
         })
@@ -255,7 +249,7 @@ export default function VNCViewer({
           rfb.removeEventListener('clipboard', clipHandlerRef.current)
         }
         clipHandlerRef.current = null
-        clip?.registerBridge(null)
+        clipRef.current?.registerBridge(null)
         if (typeof rfb.disconnect === 'function') {
           try { rfb.disconnect() } catch { /* ignore */ }
         }
@@ -263,14 +257,7 @@ export default function VNCViewer({
       rfbRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reconnect when VM/port/ws URL/connectKey changes
-  }, [vmName, port, kubeVirtNamespace, libvirtConnection, wsUrlOverride, connectKey, clip])
-
-  useEffect(() => {
-    if (!fillViewport || status !== 'connected') return
-    const onResize = () => window.dispatchEvent(new Event('resize'))
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [fillViewport, status])
+  }, [vmName, port, kubeVirtNamespace, libvirtConnection, wsUrlOverride, connectKey])
 
   useEffect(() => {
     const rfb = rfbRef.current
@@ -296,40 +283,49 @@ export default function VNCViewer({
     const mode = vp.mode
     const fit = mode === 'fit' || mode === 'fill' || mode === 'stretch'
     applyViewportMode(rfb as { scaleViewport: boolean; clipViewport: boolean }, fit)
-    window.dispatchEvent(new Event('resize'))
   }, [cockpitMode, vp?.mode, status, vp])
 
   useEffect(() => {
     if (!cockpitMode || !vp || !scrollRef.current) return
     const el = scrollRef.current
+    let frame = 0
     const ro = new ResizeObserver(() => {
-      vp.setViewportSize(el.clientWidth, el.clientHeight)
-      const rfb = rfbRef.current
-      if (rfb && status === 'connected' && el.clientWidth > 0 && el.clientHeight > 0) {
-        applyViewportMode(rfb as { scaleViewport: boolean; clipViewport: boolean }, scaledFitRef.current)
-        window.dispatchEvent(new Event('resize'))
-      }
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        vp.setViewportSize(el.clientWidth, el.clientHeight)
+        const rfb = rfbRef.current
+        if (rfb && status === 'connected' && el.clientWidth > 0 && el.clientHeight > 0) {
+          applyViewportMode(rfb as { scaleViewport: boolean; clipViewport: boolean }, scaledFitRef.current)
+        }
+      })
     })
     ro.observe(el)
     vp.setViewportSize(el.clientWidth, el.clientHeight)
-    return () => ro.disconnect()
+    return () => {
+      cancelAnimationFrame(frame)
+      ro.disconnect()
+    }
   }, [cockpitMode, vp, status])
 
   useEffect(() => {
     if (!cockpitMode || !vp || !scrollRef.current) return
     const el = scrollRef.current
-    el.scrollLeft = vp.scrollLeft
-    el.scrollTop = vp.scrollTop
+    if (el.scrollLeft !== vp.scrollLeft) el.scrollLeft = vp.scrollLeft
+    if (el.scrollTop !== vp.scrollTop) el.scrollTop = vp.scrollTop
   }, [cockpitMode, vp?.scrollLeft, vp?.scrollTop, vp])
 
   useEffect(() => {
-    if (!cockpitMode || !vp || !scrollRef.current || vp.monitors.length < 2) return
+    if (!cockpitMode || !vp || !scrollRef.current || vp.monitors.length < 2 || vp.activeMonitor === 'all') return
     const target = monitorScrollTarget(vp.monitors, vp.activeMonitor)
     if (!target) return
-    scrollRef.current.scrollLeft = target.left
-    scrollRef.current.scrollTop = target.top
-    vp.setScroll(target.left, target.top)
-  }, [cockpitMode, vp?.activeMonitor, vp?.monitors, vp])
+    const el = scrollRef.current
+    if (el.scrollLeft === target.left && el.scrollTop === target.top) return
+    el.scrollLeft = target.left
+    el.scrollTop = target.top
+    if (vp.scrollLeft !== target.left || vp.scrollTop !== target.top) {
+      vp.setScroll(target.left, target.top)
+    }
+  }, [cockpitMode, vp?.activeMonitor, vp?.monitors, vp?.scrollLeft, vp?.scrollTop, vp])
 
   function sendCtrlAltDel() {
     rfbRef.current?.sendCtrlAltDel?.()

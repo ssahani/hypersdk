@@ -33,6 +33,7 @@ import { buildExposePayload } from '../../utils/vmPortForwardServices'
 import { sendGuestKey } from '../../api/vm'
 import { useToastContext } from '../../contexts/ToastContext'
 import type { ConsoleExperienceMode } from '../../utils/consoleExperienceMode'
+import { vmSemanticKind } from '../../utils/vmVisual'
 import { isDisplayProtocol } from '../../utils/consoleExperienceMode'
 import { downloadCanvasScreenshot, saveVmPosterScreenshot } from '../../utils/vmPosterScreenshot'
 import { spectatorCinemaPath } from '../../utils/consoleExperienceMode'
@@ -100,6 +101,7 @@ function CockpitInner({
   const toast = useToastContext()
   const navigate = useNavigate()
   const vp = useConsoleViewport()
+  const { setProtocol, setMode, setConnected } = vp
   const access = useConsoleAccessPolicy(plan, session)
   const [lens, setLens] = useState<ConsoleLens>('display')
   const [commandCenter, setCommandCenter] = useState(false)
@@ -128,16 +130,12 @@ function CockpitInner({
   const enableSpiceAudio = spiceDisplay && spiceAudio && !access.readOnly
 
   useEffect(() => {
-    vp.setProtocol(activeProtocol)
+    setProtocol(activeProtocol)
     if (activeProtocol === 'novnc' || activeProtocol.startsWith('guacamole_')) {
-      vp.setMode('fit')
+      setMode('fit')
     }
-    if (loading) vp.setConnected(false)
-  }, [activeProtocol, loading, vp])
-
-  useEffect(() => {
-    vp.setScaledFit(vp.mode === 'fit' || vp.mode === 'fill')
-  }, [vp.mode, vp])
+    if (loading) setConnected(false)
+  }, [activeProtocol, loading, setProtocol, setMode, setConnected])
 
   useEffect(() => {
     if (plan?.recommended === 'serial') {
@@ -198,11 +196,16 @@ function CockpitInner({
       toast.info('Read-only session — power actions disabled')
       return
     }
+    const offline = vmSemanticKind(vmState ?? undefined) === 'stopped'
+    const effectiveAction =
+      action === 'reboot' && offline ? ('start' as const) : action
     try {
-      if (action === 'reboot') await vmPower(vmId, 'reboot')
-      else if (action === 'shutdown') await vmPower(vmId, 'shutdown')
+      if (effectiveAction === 'start') await vmPower(vmId, 'start')
+      else if (effectiveAction === 'reboot') await vmPower(vmId, 'reboot')
+      else if (effectiveAction === 'shutdown') await vmPower(vmId, 'shutdown')
       else await vmPower(vmId, 'stop')
-      toast.success(`${action} queued`)
+      toast.success(`${effectiveAction === 'start' ? 'start' : action} queued`)
+      onPlanRefresh?.()
     } catch (e: unknown) {
       toast.error(String(e))
     }

@@ -61,60 +61,78 @@ export function ConsoleViewportProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<ViewportState>(defaultState)
 
   const setMode = useCallback((mode: ViewportMode) => {
-    setState((s) => ({
-      ...s,
-      mode,
-      scaledFit: mode === 'fit' || mode === 'fill',
-    }))
+    setState((s) => {
+      const scaledFit = mode === 'fit' || mode === 'fill'
+      if (s.mode === mode && s.scaledFit === scaledFit) return s
+      return { ...s, mode, scaledFit }
+    })
   }, [])
 
   const setZoom = useCallback((zoom: ZoomLevel) => {
-    setState((s) => ({ ...s, zoom, mode: 'zoom', scaledFit: false }))
+    setState((s) => {
+      if (s.zoom === zoom && s.mode === 'zoom' && !s.scaledFit) return s
+      return { ...s, zoom, mode: 'zoom', scaledFit: false }
+    })
   }, [])
 
   const setScaledFit = useCallback((scaledFit: boolean) => {
-    setState((s) => ({ ...s, scaledFit, mode: scaledFit ? 'fit' : 'native' }))
+    setState((s) => {
+      const mode = scaledFit ? 'fit' : 'native'
+      if (s.scaledFit === scaledFit && s.mode === mode) return s
+      return { ...s, scaledFit, mode }
+    })
   }, [])
 
   const setGuestSize = useCallback((guestWidth: number, guestHeight: number) => {
-    setState((s) => ({
-      ...s,
-      guestWidth,
-      guestHeight,
-      resolution: guestWidth > 0 ? `${guestWidth}×${guestHeight}` : s.resolution,
-    }))
+    setState((s) => {
+      const resolution = guestWidth > 0 ? `${guestWidth}×${guestHeight}` : s.resolution
+      if (s.guestWidth === guestWidth && s.guestHeight === guestHeight && s.resolution === resolution) return s
+      return { ...s, guestWidth, guestHeight, resolution }
+    })
   }, [])
 
   const setScroll = useCallback((scrollLeft: number, scrollTop: number) => {
-    setState((s) => ({ ...s, scrollLeft, scrollTop }))
+    setState((s) => {
+      if (s.scrollLeft === scrollLeft && s.scrollTop === scrollTop) return s
+      return { ...s, scrollLeft, scrollTop }
+    })
   }, [])
 
   const setViewportSize = useCallback((viewportWidth: number, viewportHeight: number) => {
-    setState((s) => ({ ...s, viewportWidth, viewportHeight }))
+    setState((s) => {
+      if (s.viewportWidth === viewportWidth && s.viewportHeight === viewportHeight) return s
+      return { ...s, viewportWidth, viewportHeight }
+    })
   }, [])
 
   const setConnected = useCallback((connected: boolean) => {
-    setState((s) => ({ ...s, connected }))
+    setState((s) => (s.connected === connected ? s : { ...s, connected }))
   }, [])
 
   const setProtocol = useCallback((protocol: string) => {
-    setState((s) => ({ ...s, protocol }))
+    setState((s) => (s.protocol === protocol ? s : { ...s, protocol }))
   }, [])
 
   const setResolution = useCallback((resolution: string) => {
-    setState((s) => ({ ...s, resolution }))
+    setState((s) => (s.resolution === resolution ? s : { ...s, resolution }))
   }, [])
 
   const setMonitors = useCallback((monitors: ConsoleMonitor[]) => {
-    setState((s) => ({
-      ...s,
-      monitors,
-      activeMonitor: monitors.length > 1 ? s.activeMonitor : 'all',
-    }))
+    setState((s) => {
+      const activeMonitor = monitors.length > 1 ? s.activeMonitor : 'all'
+      if (
+        s.monitors.length === monitors.length
+        && s.monitors.every((mon, i) => mon.id === monitors[i]?.id && mon.x === monitors[i]?.x)
+        && s.activeMonitor === activeMonitor
+      ) {
+        return s
+      }
+      return { ...s, monitors, activeMonitor }
+    })
   }, [])
 
   const setActiveMonitor = useCallback((activeMonitor: ActiveMonitor) => {
-    setState((s) => ({ ...s, activeMonitor }))
+    setState((s) => (s.activeMonitor === activeMonitor ? s : { ...s, activeMonitor }))
   }, [])
 
   useEffect(() => {
