@@ -816,15 +816,15 @@ async fn login_handler(
         return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Username and password required", "error_code": "invalid_request" }))).into_response();
     }
 
+    let cfg = &auth.0;
     if !req
         .username
         .chars()
-        .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '.')
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '.' || (c == '@' && cfg.ldap.is_enabled()))
     {
         return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Invalid username characters", "error_code": "invalid_request" }))).into_response();
     }
 
-    let cfg = &auth.0;
     if cfg.ldap.is_enabled() {
         match crate::ldap_auth::ldap_authenticate(&cfg.ldap, &req.username, &req.password) {
             Ok(ldap) => {

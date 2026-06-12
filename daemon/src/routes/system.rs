@@ -8,7 +8,8 @@ use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use machina_core::system_accounts;
 use machina_core::{
-    apply_observability_patch, audit, audit_ship, settings_view_from_config, LibvirtError,
+    apply_ldap_patch, apply_observability_patch, audit, audit_ship, ldap_settings_view_from_config,
+    settings_view_from_config, LibvirtError, LdapSettingsPatch, LdapTestRequest, LdapTestResponse,
     LibvirtManager, MachinaConfig, ObservabilitySettingsPatch,
 };
 use serde::Deserialize;
@@ -353,6 +354,87 @@ async fn put_observability_settings(
     })))
 }
 
+async fn get_ldap_settings(
+    Extension(actor): Extension<RequestActor>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.can_manage_users() {
+        return Err(LibvirtError::Forbidden(
+            "LDAP settings require the admin role.".into(),
+        )
+        .into());
+    }
+    let cfg = MachinaConfig::load();
+    Ok(Json(serde_json::json!(ldap_settings_view_from_config(&cfg))))
+}
+
+async fn put_ldap_settings(
+    Extension(actor): Extension<RequestActor>,
+    Json(patch): Json<LdapSettingsPatch>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.can_manage_users() {
+        return Err(LibvirtError::Forbidden(
+            "LDAP settings require the admin role.".into(),
+        )
+        .into());
+    }
+    let mut cfg = MachinaConfig::load();
+    apply_ldap_patch(&mut cfg, &patch);
+    cfg.save()
+        .map_err(|e| AppError::from(LibvirtError::Operation(format!("save config: {e}"))))?;
+    let view = ldap_settings_view_from_config(&cfg);
+    info!("LDAP settings saved to {}", view.config_path);
+    Ok(Json(serde_json::json!({
+        "status": "saved",
+        "restart_recommended": false,
+        "settings": view,
+    })))
+}
+
+async fn post_ldap_test(
+    Extension(actor): Extension<RequestActor>,
+    Json(body): Json<LdapTestRequest>,
+) -> Result<Json<LdapTestResponse>, AppError> {
+    if !actor.role.can_manage_users() {
+        return Err(LibvirtError::Forbidden(
+            "LDAP test requires the admin role.".into(),
+        )
+        .into());
+    }
+    let cfg = MachinaConfig::load();
+    if !cfg.auth.ldap.is_enabled() {
+        return Ok(Json(LdapTestResponse {
+            ok: false,
+            message: "LDAP is not enabled in config".into(),
+            username: None,
+            role: None,
+        }));
+    }
+    let username = body.username.unwrap_or_default();
+    let password = body.password.unwrap_or_default();
+    if username.is_empty() || password.is_empty() {
+        return Ok(Json(LdapTestResponse {
+            ok: false,
+            message: "username and password required for bind test".into(),
+            username: None,
+            role: None,
+        }));
+    }
+    match crate::ldap_auth::ldap_authenticate(&cfg.auth.ldap, &username, &password) {
+        Ok(r) => Ok(Json(LdapTestResponse {
+            ok: true,
+            message: "LDAP bind succeeded".into(),
+            username: Some(r.username),
+            role: Some(format!("{:?}", r.role).to_lowercase()),
+        })),
+        Err(e) => Ok(Json(LdapTestResponse {
+            ok: false,
+            message: e,
+            username: None,
+            role: None,
+        })),
+    }
+}
+
 pub fn system_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/system/platform-info", get(platform_info))
@@ -367,4 +449,9 @@ pub fn system_routes() -> Router<LibvirtManager> {
             "/system/observability-settings",
             get(get_observability_settings).put(put_observability_settings),
         )
+        .route(
+            "/system/auth/ldap-settings",
+            get(get_ldap_settings).put(put_ldap_settings),
+        )
+        .route("/system/auth/ldap-test", post(post_ldap_test))
 }

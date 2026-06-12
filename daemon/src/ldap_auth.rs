@@ -40,7 +40,22 @@ pub fn ldap_authenticate(
     }
 
     let mut ldap = open_ldap(url, cfg)?;
-    let (user_dn, groups) = resolve_user_dn_and_groups(cfg, &mut ldap, username)?;
+
+    if username.contains('@') && cfg.bind_dn.trim().is_empty() && cfg.user_dn_template.trim().is_empty() {
+        ldap.simple_bind(username, password)
+            .map_err(|e| format!("LDAP bind failed: {e}"))?
+            .success()
+            .map_err(|e| format!("LDAP authentication failed: {e}"))?;
+        let groups = lookup_groups_for_upn(cfg, &mut ldap, username).unwrap_or_default();
+        let role = role_from_ldap_groups(cfg, &groups);
+        return Ok(LdapAuthResult {
+            username: session_username_from_input(username),
+            role,
+        });
+    }
+
+    let (user_dn, groups, session_username) =
+        resolve_user_dn_and_groups(cfg, &mut ldap, username)?;
     ldap.simple_bind(&user_dn, password)
         .map_err(|e| format!("LDAP bind failed: {e}"))?
         .success()
@@ -48,21 +63,37 @@ pub fn ldap_authenticate(
 
     let role = role_from_ldap_groups(cfg, &groups);
     Ok(LdapAuthResult {
-        username: username.to_string(),
+        username: session_username,
         role,
     })
+}
+
+fn session_username_from_input(raw: &str) -> String {
+    if let Some((left, _)) = raw.split_once('@') {
+        return left.to_string();
+    }
+    raw.to_string()
+}
+
+fn build_user_filter(cfg: &LdapConfig, username: &str) -> String {
+    if username.contains('@') {
+        return format!("(userPrincipalName={username})");
+    }
+    cfg.user_filter.replace("{username}", username)
 }
 
 fn resolve_user_dn_and_groups(
     cfg: &LdapConfig,
     ldap: &mut LdapConn,
     username: &str,
-) -> Result<(String, Vec<String>), String> {
+) -> Result<(String, Vec<String>, String), String> {
+    let session_username = session_username_from_input(username);
+
     let template = cfg.user_dn_template.trim();
     if !template.is_empty() {
         let dn = template.replace("{username}", username);
         let groups = fetch_groups_for_dn(cfg, ldap, &dn)?;
-        return Ok((dn, groups));
+        return Ok((dn, groups, session_username));
     }
 
     let bind_dn = cfg.bind_dn.trim();
@@ -72,7 +103,7 @@ fn resolve_user_dn_and_groups(
             .success()
             .map_err(|e| format!("LDAP service bind failed: {e}"))?;
 
-        let filter = cfg.user_filter.replace("{username}", username);
+        let filter = build_user_filter(cfg, username);
         let base = cfg.base_dn.trim();
         if base.is_empty() {
             return Err("LDAP base_dn required when using bind_dn + user_filter".into());
@@ -93,14 +124,37 @@ fn resolve_user_dn_and_groups(
             .get(&cfg.member_attribute)
             .cloned()
             .unwrap_or_default();
-        return Ok((entry.dn, groups));
+        return Ok((entry.dn, groups, session_username));
     }
 
     warn!(
-        "LDAP: configure user_dn_template or bind_dn+base_dn+user_filter for user '{}'",
+        "LDAP: configure user_dn_template, bind_dn+base_dn+user_filter, or sign in with user@domain UPN for user '{}'",
         username
     );
     Err("LDAP user DN resolution is not configured".into())
+}
+
+fn lookup_groups_for_upn(
+    cfg: &LdapConfig,
+    ldap: &mut LdapConn,
+    upn: &str,
+) -> Result<Vec<String>, String> {
+    let base = cfg.base_dn.trim();
+    if base.is_empty() {
+        return Ok(Vec::new());
+    }
+    let filter = format!("(userPrincipalName={upn})");
+    let attrs = vec![cfg.member_attribute.as_str()];
+    let (rs, _) = ldap
+        .search(base, Scope::Subtree, &filter, attrs)
+        .map_err(|e| format!("LDAP UPN lookup failed: {e}"))?
+        .success()
+        .map_err(|e| format!("LDAP UPN lookup failed: {e}"))?;
+    Ok(rs
+        .into_iter()
+        .map(SearchEntry::construct)
+        .flat_map(|e| e.attrs.get(&cfg.member_attribute).cloned().unwrap_or_default())
+        .collect())
 }
 
 fn fetch_groups_for_dn(

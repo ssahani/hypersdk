@@ -16,7 +16,9 @@ use_tls = false
 insecure_tls = false
 ```
 
-Active Directory: use `user_filter = "(sAMAccountName={username})"` and service `bind_dn` / `bind_password`.
+Active Directory: use `user_filter = "(sAMAccountName={username})"` and service `bind_dn` / `bind_password`, or sign in with **UPN** (`user@domain`) for direct bind.
+
+Lab domain **zyvorai.local**: see [AD integration (zyvorai.local)](guides/ad-integration-zyvorai.md).
 
 The web login form is unchanged; `/auth/providers` reports `ldap.enabled` and disables PAM when LDAP is the primary backend.
 

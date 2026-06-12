@@ -57,6 +57,7 @@ import { formatUserError } from '../../utils/apiError'
 import { statusToneClass } from '../../utils/semanticColors'
 import { getAiSettings, patchAiSettings, type AiSettings } from '../../api/ai'
 import { useAi } from '../../contexts/AiContext'
+import AdIntegrationPanel from '../../components/AdIntegrationPanel'
 
 export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
   const toast = useToastContext()
@@ -206,6 +207,9 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
             <a href={getOidcLoginUrl()} className="btn-primary inline-flex items-center">Login with OIDC</a>
           )}
         </div>
+      </SettingsBlock>
+      <SettingsBlock embedded={embedded} title="Active Directory / LDAP" subtitle="Domain login for machina-daemon (Settings → AD panel on hypervisor). UPN: user@zyvorai.local">
+        <AdIntegrationPanel compact />
       </SettingsBlock>
       <SettingsBlock embedded={embedded} title="Project quotas" subtitle="0 = unlimited. Enforced on VM create.">
         {quotas.length > 0 && (

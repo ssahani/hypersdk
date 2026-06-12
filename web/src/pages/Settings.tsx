@@ -40,6 +40,7 @@ import {
   verifyAuditLog,
   type ObservabilitySettingsView,
 } from '../api/observability'
+import AdIntegrationPanel from '../components/AdIntegrationPanel'
 import { getMetricsTraces, type HttpTraceSpan } from '../api/metrics'
 type Tab = 'roles' | 'tokens' | 'alerts' | 'webhooks' | 'schedules' | 'notifications' | 'snapshots'
 
@@ -406,6 +407,14 @@ export default function SettingsPage() {
           </div>
         </section>
       )}
+
+      <section className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-4">
+        <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+          <Shield className="w-4 h-4 text-sky-400" />
+          Active Directory / LDAP
+        </h2>
+        <AdIntegrationPanel />
+      </section>
 
       {obsSettings ? (
         <section className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-4">

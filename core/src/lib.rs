@@ -27,6 +27,7 @@ pub mod host_cockpit;
 pub mod host_platform;
 pub mod host_virt;
 pub mod ldap_role;
+pub mod ldap_settings;
 pub mod obs_counters;
 pub mod kubevirt;
 pub mod openstack;
@@ -53,6 +54,10 @@ pub use observability_settings::{
     apply_observability_patch, settings_view_from_config, AuditObservabilityView,
     MetricsHistoryRemoteView, ObservabilitySettingsPatch, ObservabilitySettingsView,
     OtlpSettingsView,
+};
+pub use ldap_settings::{
+    apply_ldap_patch, ldap_settings_view_from_config, zyvorai_local_preset, LdapSettingsPatch,
+    LdapSettingsView, LdapTestRequest, LdapTestResponse,
 };
 pub use firewall::{
     apply_k8s_plan, apply_plan, cloud_sg_monthly_cost, compile_k8s_policies, compile_profile_plan,
