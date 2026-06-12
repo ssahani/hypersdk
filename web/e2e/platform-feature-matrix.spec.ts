@@ -184,11 +184,26 @@ test('F17 — Snapshots tab create snapshot workflow', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Create snapshot' })).toBeVisible()
 })
 
-test('F18 — Devices tab and CD-ROM inventory on Disks', async ({ page }) => {
+test('F18 — Devices tab, CD-ROM inventory, and insert ISO', async ({ page }) => {
   await openMockVmDetail(page, 'devices')
   await expect(page.getByTestId('vm-devices-panel')).toBeVisible({ timeout: 15_000 })
   await expect(page.getByRole('heading', { name: 'Shared directories (virtiofs)' })).toBeVisible()
   await openMockVmDetail(page, 'disks')
   await expect(page.getByText('debian-12.iso')).toBeVisible()
   await expect(page.getByTestId('cdrom-eject-sda')).toBeVisible()
+  await expect(page.getByTestId('vm-insert-iso-panel')).toBeVisible()
+  const insertReq = page.waitForRequest((req) => {
+    if (req.method() !== 'POST' || !req.url().includes('/libvirt')) return false
+    try {
+      const body = req.postDataJSON() as { action?: string; payload?: { iso_path?: string } }
+      return body.action === 'cdrom.insert'
+    } catch {
+      return false
+    }
+  })
+  await page.getByTestId('vm-insert-iso-submit').click()
+  const req = await insertReq
+  const body = req.postDataJSON() as { payload: { iso_path: string; target: string } }
+  expect(body.payload.iso_path).toContain('.iso')
+  expect(body.payload.target).toBeTruthy()
 })

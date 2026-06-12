@@ -217,6 +217,8 @@ export default function PlatformVmDetail() {
   const [metrics, setMetrics] = useState<{ cpu_percent: number; memory_used_mib: number; updated_at: string } | null>(null)
   const [attachPath, setAttachPath] = useState('/var/lib/libvirt/images/data.qcow2')
   const [attachDev, setAttachDev] = useState('vdb')
+  const [isoPath, setIsoPath] = useState('/var/lib/libvirt/images/debian-12.iso')
+  const [isoTarget, setIsoTarget] = useState('sda')
   const [libvirtDetails, setLibvirtDetails] = useState<VmLibvirtDetails | null>(null)
   const [libvirtDetailsLoading, setLibvirtDetailsLoading] = useState(false)
   const [pendingConfig, setPendingConfig] = useState<VmPendingConfig | null>(null)
@@ -1349,6 +1351,44 @@ export default function PlatformVmDetail() {
                     Resize
                   </button>
                 </div>
+              </MacGlassPanel>
+              <MacGlassPanel title="Insert ISO" subtitle="Attach host ISO to a CD-ROM target (live when running)" data-testid="vm-insert-iso-panel">
+                <div className="flex flex-wrap gap-3 items-end">
+                  <label className="text-xs text-slate-500">
+                    ISO path
+                    <input
+                      className="input mt-1 block min-w-[18rem] font-mono text-xs"
+                      value={isoPath}
+                      onChange={(e) => setIsoPath(e.target.value)}
+                      placeholder="/var/lib/libvirt/images/debian-12.iso"
+                    />
+                  </label>
+                  <label className="text-xs text-slate-500">
+                    CD-ROM target
+                    <select className="input mt-1 block w-24" value={isoTarget} onChange={(e) => setIsoTarget(e.target.value)}>
+                      {(libvirtDetails?.disks ?? []).filter((d) => d.device === 'cdrom').map((d) => (
+                        <option key={d.target} value={d.target}>{d.target}</option>
+                      ))}
+                      {(libvirtDetails?.disks ?? []).filter((d) => d.device === 'cdrom').length === 0 && (
+                        <>
+                          <option value="sda">sda</option>
+                          <option value="sdb">sdb</option>
+                          <option value="hda">hda</option>
+                        </>
+                      )}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    data-testid="vm-insert-iso-submit"
+                    disabled={vm.managed === false || !isoPath.trim()}
+                    onClick={() => void act('ISO inserted', () => invokeVmLibvirt(id, 'cdrom.insert', { iso_path: isoPath.trim(), target: isoTarget }))}
+                  >
+                    Insert ISO
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500 mt-2">Uses libvirt <code className="text-slate-400">cdrom.insert</code> — same as classic VM detail CD-ROM dialog.</p>
               </MacGlassPanel>
             </div>
           )}

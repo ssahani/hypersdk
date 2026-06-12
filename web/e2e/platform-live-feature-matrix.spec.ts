@@ -199,11 +199,13 @@ test('F17 — live Snapshots tab create workflow', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Create snapshot' })).toBeVisible()
 })
 
-test('F18 — live Devices tab virtiofs section', async ({ page }) => {
+test('F18 — live Devices tab and Disks insert ISO panel', async ({ page }) => {
   test.skip(!liveVm?.id, 'no platform VMs on host')
   const live = liveBaseUrl()
   await ensureLoggedIn(page, live, { tier: 'power' })
   await openLiveVmDetailById(page, live, liveVm!.id, 'devices')
   await expect(page.getByTestId('vm-devices-panel')).toBeVisible({ timeout: 30_000 })
-  await expect(page.getByRole('heading', { name: 'Shared directories (virtiofs)' })).toBeVisible()
+  await openLiveVmDetailById(page, live, liveVm!.id, 'disks')
+  await expect(page.getByTestId('vm-insert-iso-panel')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId('vm-insert-iso-submit')).toBeVisible()
 })

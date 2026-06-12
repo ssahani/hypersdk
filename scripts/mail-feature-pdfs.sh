@@ -11,7 +11,7 @@ ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 export FEATURE_PDF_TO="${FEATURE_PDF_TO:-sibu@zyvor.dev}"
 export FEATURE_PDF_CC="${FEATURE_PDF_CC:-ssahani@zyvor.dev}"
 
-echo "══ Generate client-presentation PDFs (decks 07–10) ══"
+echo "══ Generate client-presentation PDFs (decks 07–11) ══"
 chmod +x "${SCRIPT_DIR}/generate-client-presentation-pdfs.sh"
 "${SCRIPT_DIR}/generate-feature-pdfs.sh"
 
