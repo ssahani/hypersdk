@@ -41,6 +41,14 @@ interface Props {
 }
 
 /** Apply scale vs native resolution (scroll) — affects perceived sharpness and pointer mapping. */
+type RfbViewportHandle = {
+  scaleViewport: boolean
+  clipViewport: boolean
+  _updateScale?: () => void
+  _updateClip?: () => void
+  _screen?: HTMLElement
+}
+
 function applyViewportMode(
   rfb: { scaleViewport: boolean; clipViewport: boolean },
   scaledFit: boolean,
@@ -52,6 +60,64 @@ function applyViewportMode(
     rfb.scaleViewport = false
     rfb.clipViewport = true
   }
+}
+
+function rfbScreenSize(rfb: RfbViewportHandle): { w: number; h: number } {
+  const screen = rfb._screen
+  if (!screen) return { w: 0, h: 0 }
+  const rect = screen.getBoundingClientRect()
+  return { w: rect.width, h: rect.height }
+}
+
+/** noVNC autoscale uses scale=0 when the screen element has no layout box yet (blank Fit on first open). */
+function syncContainerLayoutForFit(
+  scrollEl: HTMLElement | null | undefined,
+  containerEl: HTMLElement | null | undefined,
+  scaledFit: boolean,
+) {
+  if (!containerEl) return
+  if (!scaledFit) {
+    containerEl.style.width = ''
+    containerEl.style.height = ''
+    return
+  }
+  const w = scrollEl?.clientWidth ?? 0
+  const h = scrollEl?.clientHeight ?? 0
+  if (w > 0 && h > 0) {
+    containerEl.style.width = `${w}px`
+    containerEl.style.height = `${h}px`
+  }
+}
+
+function refreshRfbViewport(
+  rfb: RfbViewportHandle,
+  scaledFit: boolean,
+  scrollEl?: HTMLElement | null,
+) {
+  syncContainerLayoutForFit(scrollEl ?? null, rfb._screen ?? null, scaledFit)
+  applyViewportMode(rfb, scaledFit)
+  rfb._updateClip?.()
+  rfb._updateScale?.()
+}
+
+function scheduleFitViewportRefresh(
+  rfb: RfbViewportHandle,
+  scaledFit: boolean,
+  scrollEl: HTMLElement | null | undefined,
+  isCancelled: () => boolean,
+) {
+  let attempts = 0
+  const tick = () => {
+    if (isCancelled()) return
+    refreshRfbViewport(rfb, scaledFit, scrollEl)
+    if (!scaledFit) return
+    const size = rfbScreenSize(rfb)
+    if ((size.w <= 0 || size.h <= 0) && attempts < 90) {
+      attempts += 1
+      requestAnimationFrame(tick)
+    }
+  }
+  requestAnimationFrame(tick)
 }
 
 export default function VNCViewer({
@@ -144,7 +210,7 @@ export default function VNCViewer({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         rfb: any,
       ) => {
-        applyViewportMode(rfb, scaledFitRef.current)
+        refreshRfbViewport(rfb, scaledFitRef.current, scrollRef.current)
         rfb.resizeSession = false
         rfb.focusOnClick = true
         rfb.showDotCursor = showDotCursorRef.current
@@ -154,7 +220,7 @@ export default function VNCViewer({
             setStatus('connected')
             vp?.setConnected(true)
             syncGuestSize(rfb)
-            applyViewportMode(rfb, scaledFitRef.current)
+            scheduleFitViewportRefresh(rfb, scaledFitRef.current, scrollRef.current, () => cancelled)
             const canvas = containerRef.current?.querySelector('canvas')
             onCanvasReady?.(canvas as HTMLCanvasElement | null)
             const clipCtx = clipRef.current
@@ -172,12 +238,11 @@ export default function VNCViewer({
               })
             }
             scrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-            requestAnimationFrame(() => {
-              syncGuestSize(rfb)
-              applyViewportMode(rfb, scaledFitRef.current)
-            })
             setTimeout(() => {
-              if (!cancelled) syncGuestSize(rfb)
+              if (!cancelled) {
+                syncGuestSize(rfb)
+                refreshRfbViewport(rfb, scaledFitRef.current, scrollRef.current)
+              }
             }, 250)
           }
         })
@@ -187,17 +252,23 @@ export default function VNCViewer({
             vp?.setConnected(false)
             vp?.setGuestSize(0, 0)
             onCanvasReady?.(null)
-            if (clip) {
+            if (clipRef.current) {
               if (clipHandlerRef.current) {
                 rfb.removeEventListener('clipboard', clipHandlerRef.current)
                 clipHandlerRef.current = null
               }
-              clip.registerBridge(null)
+              clipRef.current.registerBridge(null)
             }
           }
         })
-        rfb.addEventListener('desktopname', () => syncGuestSize(rfb))
-        rfb.addEventListener('resize', () => syncGuestSize(rfb))
+        rfb.addEventListener('desktopname', () => {
+          syncGuestSize(rfb)
+          refreshRfbViewport(rfb, scaledFitRef.current, scrollRef.current)
+        })
+        rfb.addEventListener('resize', () => {
+          syncGuestSize(rfb)
+          refreshRfbViewport(rfb, scaledFitRef.current, scrollRef.current)
+        })
         rfb.addEventListener('credentialsrequired', () => {
           rfb.sendCredentials({ password: '' })
         })
@@ -262,7 +333,7 @@ export default function VNCViewer({
   useEffect(() => {
     const rfb = rfbRef.current
     if (!rfb || status !== 'connected') return
-    applyViewportMode(rfb as { scaleViewport: boolean; clipViewport: boolean }, scaledFit)
+    refreshRfbViewport(rfb as RfbViewportHandle, scaledFit, scrollRef.current)
   }, [scaledFit, status])
 
   useEffect(() => {
@@ -282,7 +353,7 @@ export default function VNCViewer({
     if (!rfb || status !== 'connected' || !cockpitMode || !vp) return
     const mode = vp.mode
     const fit = mode === 'fit' || mode === 'fill' || mode === 'stretch'
-    applyViewportMode(rfb as { scaleViewport: boolean; clipViewport: boolean }, fit)
+    refreshRfbViewport(rfb as RfbViewportHandle, fit, scrollRef.current)
   }, [cockpitMode, vp?.mode, status, vp])
 
   useEffect(() => {
@@ -295,7 +366,7 @@ export default function VNCViewer({
         vp.setViewportSize(el.clientWidth, el.clientHeight)
         const rfb = rfbRef.current
         if (rfb && status === 'connected' && el.clientWidth > 0 && el.clientHeight > 0) {
-          applyViewportMode(rfb as { scaleViewport: boolean; clipViewport: boolean }, scaledFitRef.current)
+          refreshRfbViewport(rfb as RfbViewportHandle, scaledFitRef.current, el)
         }
       })
     })
