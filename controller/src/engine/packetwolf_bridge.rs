@@ -6,6 +6,7 @@ use serde_json::Value;
 
 use crate::config::ControllerConfig;
 use crate::engine::packetwolf_discover::{self, DiscoveredEndpoint};
+use crate::engine::packetwolf_local;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PacketwolfStatus {
@@ -102,6 +103,26 @@ fn auth_headers(cfg: &ControllerConfig, req: reqwest::blocking::RequestBuilder) 
     } else {
         req
     }
+}
+
+fn packetwolf_ingest_base_url(cfg: &ControllerConfig) -> String {
+    if cfg.packetwolf_enabled {
+        format!(
+            "{}/api/v1/ingest",
+            cfg.packetwolf_base_url.trim_end_matches('/')
+        )
+    } else {
+        "http://127.0.0.1:9091/api/v1/ingest".into()
+    }
+}
+
+fn is_fabric_sensors_json(value: &Value) -> bool {
+    value.get("sensors").map(|v| v.is_array()).unwrap_or(false)
+}
+
+fn fabric_api_available(cfg: &ControllerConfig) -> bool {
+    get_json(cfg, "/api/v1/sensors")
+        .is_some_and(|v| is_fabric_sensors_json(&v))
 }
 
 fn get_json(cfg: &ControllerConfig, path: &str) -> Option<Value> {
@@ -453,7 +474,17 @@ pub async fn search(cfg: &ControllerConfig, query: &str, host_id: Option<&str>) 
 }
 
 pub async fn fabric_health(cfg: &ControllerConfig) -> serde_json::Value {
-    fabric_get(cfg, "/api/v1/fabric/health").await
+    let cfg = cfg.clone();
+    tokio::task::spawn_blocking(move || {
+        if fabric_api_available(&cfg) {
+            get_json(&cfg, "/api/v1/fabric/health").unwrap_or_else(|| serde_json::json!({}))
+        } else {
+            let (reachable, _) = fetch_health(&cfg.packetwolf_base_url, cfg.packetwolf_insecure_tls);
+            packetwolf_local::fabric_health(&cfg, reachable)
+        }
+    })
+    .await
+    .unwrap_or_else(|_| serde_json::json!({}))
 }
 
 pub async fn hunt_queries(cfg: &ControllerConfig) -> serde_json::Value {
@@ -474,16 +505,28 @@ pub async fn run_hunt_query(
 }
 
 pub async fn sensors(cfg: &ControllerConfig) -> serde_json::Value {
-    fabric_get(cfg, "/api/v1/sensors").await
+    let cfg = cfg.clone();
+    tokio::task::spawn_blocking(move || {
+        if fabric_api_available(&cfg) {
+            get_json(&cfg, "/api/v1/sensors").unwrap_or_else(|| serde_json::json!({"sensors": []}))
+        } else {
+            packetwolf_local::sensors_response()
+        }
+    })
+    .await
+    .unwrap_or_else(|_| serde_json::json!({"sensors": []}))
 }
 
 pub async fn register_sensor(cfg: &ControllerConfig, host_id: &str) -> serde_json::Value {
     let path = format!("/api/v1/sensors/{host_id}/register?tetragon_version=1.0.0");
     let cfg = cfg.clone();
-    let path = path.clone();
+    let host_id = host_id.to_string();
     tokio::task::spawn_blocking(move || {
         if !cfg.packetwolf_enabled {
             return serde_json::json!({"ok": false});
+        }
+        if !fabric_api_available(&cfg) {
+            return packetwolf_local::register_sensor(&host_id, "1.0.0");
         }
         let Ok(client) = build_client(cfg.packetwolf_insecure_tls, 10) else {
             return serde_json::json!({"ok": false});
@@ -493,6 +536,13 @@ pub async fn register_sensor(cfg: &ControllerConfig, host_id: &str) -> serde_jso
             .send()
             .ok()
             .and_then(|r| r.json().ok())
+            .map(|v: Value| {
+                if v.get("ok").is_none() && v.get("host_id").is_some() {
+                    serde_json::json!({"ok": true, "sensor": v})
+                } else {
+                    v
+                }
+            })
             .unwrap_or_else(|| serde_json::json!({"ok": false}))
     })
     .await
@@ -549,11 +599,39 @@ pub async fn host_enforcement(cfg: &ControllerConfig, host_id: &str) -> serde_js
 }
 
 pub async fn agent_bundle(cfg: &ControllerConfig, host_id: &str) -> serde_json::Value {
-    fabric_get(cfg, &format!("/api/v1/agents/{host_id}/bundle")).await
+    let cfg = cfg.clone();
+    let host_id = host_id.to_string();
+    tokio::task::spawn_blocking(move || {
+        if !cfg.packetwolf_enabled {
+            return serde_json::json!({});
+        }
+        if fabric_api_available(&cfg) {
+            get_json(&cfg, &format!("/api/v1/agents/{host_id}/bundle"))
+                .unwrap_or_else(|| serde_json::json!({}))
+        } else {
+            packetwolf_local::agent_bundle(&host_id)
+        }
+    })
+    .await
+    .unwrap_or_else(|_| serde_json::json!({}))
 }
 
 pub async fn ack_agent_bundle(cfg: &ControllerConfig, host_id: &str) -> serde_json::Value {
-    fabric_post(cfg, &format!("/api/v1/agents/{host_id}/bundle/ack"), serde_json::json!({})).await
+    let cfg = cfg.clone();
+    let host_id = host_id.to_string();
+    tokio::task::spawn_blocking(move || {
+        if !cfg.packetwolf_enabled {
+            return serde_json::json!({"ok": false});
+        }
+        if fabric_api_available(&cfg) {
+            post_json(&cfg, &format!("/api/v1/agents/{host_id}/bundle/ack"), serde_json::json!({}))
+                .unwrap_or_else(|| serde_json::json!({"ok": false}))
+        } else {
+            packetwolf_local::ack_agent_bundle(&host_id)
+        }
+    })
+    .await
+    .unwrap_or_else(|_| serde_json::json!({"ok": false}))
 }
 
 pub async fn queue_tetragon_install(cfg: &ControllerConfig, host_id: &str) -> serde_json::Value {
@@ -562,6 +640,10 @@ pub async fn queue_tetragon_install(cfg: &ControllerConfig, host_id: &str) -> se
     tokio::task::spawn_blocking(move || {
         if !cfg.packetwolf_enabled {
             return serde_json::json!({"ok": false});
+        }
+        if !fabric_api_available(&cfg) {
+            let export_url = packetwolf_ingest_base_url(&cfg);
+            return packetwolf_local::queue_tetragon_install(&host_id, &export_url);
         }
         let Ok(client) = build_client(cfg.packetwolf_insecure_tls, 10) else {
             return serde_json::json!({"ok": false});
@@ -578,4 +660,16 @@ pub async fn queue_tetragon_install(cfg: &ControllerConfig, host_id: &str) -> se
     })
     .await
     .unwrap_or_else(|_| serde_json::json!({"ok": false}))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fabric_sensors_json_detection() {
+        assert!(is_fabric_sensors_json(&serde_json::json!({"sensors": []})));
+        assert!(!is_fabric_sensors_json(&serde_json::json!({"html": true})));
+        assert!(!is_fabric_sensors_json(&serde_json::json!({})));
+    }
 }

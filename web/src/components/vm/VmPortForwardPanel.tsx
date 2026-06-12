@@ -238,7 +238,7 @@ export default function VmPortForwardPanel({
 
   if (!ip) {
     return (
-      <p className={`text-sm text-slate-500 ${className}`}>
+      <p className={`text-sm text-slate-500 ${className}`} data-testid="vm-port-forward-panel">
         Guest IP required — start the VM and install guest tools to manage hypervisor NAT rules.
       </p>
     )
