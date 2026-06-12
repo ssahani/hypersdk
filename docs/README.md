@@ -19,23 +19,12 @@
 
 [**→ Full Presentation Library**](client-presentations/) with descriptions and generation instructions
 
-### Feature guide PDFs (client mail)
-
-Branded PDFs for recent platform UX and QA guides — generated from markdown, emailed to stakeholders:
+New feature decks (07–10): VM Detail UX, ConsoleHub Cinema/Studio, Connect hub, F01–F13 QA matrix. Generate PDFs and mail:
 
 ```bash
-./scripts/generate-feature-pdfs.sh          # docs/guides/pdf/*.pdf
-./scripts/mail-feature-pdfs.sh              # To sibu@zyvor.dev, cc ssahani@zyvor.dev
+./scripts/generate-feature-pdfs.sh    # docs/client-presentations/07–10-*.pdf
+./scripts/mail-feature-pdfs.sh        # To sibu@zyvor.dev, cc ssahani@zyvor.dev
 ```
-
-| PDF | Source |
-|-----|--------|
-| Platform VM Detail UX | [`guides/platform-vm-detail-ux.md`](guides/platform-vm-detail-ux.md) |
-| VM Daily Access & Connect hub | [`guides/vm-daily-access.md`](guides/vm-daily-access.md) |
-| Platform Feature QA (F01–F13) | [`guides/platform-feature-qa.md`](guides/platform-feature-qa.md) |
-| Machina Cinema Mode | [`machina-cinema-mode.md`](machina-cinema-mode.md) |
-
-SMTP: `scripts/deploy-mailer.env` or `../hypersdk-web/contact-mailer.env` (see `deploy-mailer.env.example`).
 
 ---
 

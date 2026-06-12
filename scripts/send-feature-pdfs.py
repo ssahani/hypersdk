@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Email Machina feature guide PDFs via Zoho SMTP (hypersdk-web contact-mailer.env)."""
+"""Email Machina client-presentation PDFs (hyper2kvm slide-deck format)."""
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import os
 import smtplib
 import ssl
@@ -14,7 +15,8 @@ from email.mime.text import MIMEText
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_PDF_DIR = ROOT / "docs" / "guides" / "pdf"
+DEFAULT_PDF_DIR = ROOT / "docs" / "client-presentations"
+DEFAULT_GLOB = "0[7-9]-*.pdf,10-*.pdf"
 
 
 def load_env() -> None:
@@ -47,6 +49,10 @@ def env_bool(name: str, default: bool = True) -> bool:
 def parse_list(name: str, fallback: str) -> list[str]:
     raw = os.environ.get(name, fallback)
     return [x.strip() for x in raw.split(",") if x.strip()]
+
+
+def match_any(name: str, patterns: list[str]) -> bool:
+    return any(fnmatch.fnmatch(name, p.strip()) for p in patterns if p.strip())
 
 
 def send_mail(
@@ -89,8 +95,6 @@ def send_mail(
         msg.attach(att)
 
     all_rcpt = to_addrs + cc_addrs
-    payload = msg.as_bytes()
-
     if use_tls and port == 465:
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL(host, port, context=context, timeout=60) as smtp:
@@ -105,16 +109,28 @@ def send_mail(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Send Machina feature guide PDFs")
+    parser = argparse.ArgumentParser(description="Send Machina client-presentation PDFs")
     parser.add_argument("--pdf-dir", type=Path, default=DEFAULT_PDF_DIR)
+    parser.add_argument(
+        "--glob",
+        default=os.environ.get("FEATURE_PDF_GLOB", DEFAULT_GLOB),
+        help="Comma-separated fnmatch patterns (default: new feature decks 07–10)",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
     load_env()
     pdf_dir: Path = args.pdf_dir
-    pdfs = sorted(pdf_dir.glob("*.pdf")) if pdf_dir.is_dir() else []
+    patterns = [p.strip() for p in args.glob.split(",") if p.strip()]
+    pdfs = sorted(
+        p for p in pdf_dir.glob("*.pdf") if match_any(p.name, patterns)
+    ) if pdf_dir.is_dir() else []
     if not pdfs:
-        print(f"No PDFs in {pdf_dir} — run ./scripts/generate-feature-pdfs.sh first", file=sys.stderr)
+        print(
+            f"No PDFs matched in {pdf_dir} (patterns: {args.glob}) — "
+            "run ./scripts/generate-feature-pdfs.sh first",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     to_addrs = parse_list("FEATURE_PDF_TO", "sibu@zyvor.dev")
@@ -122,27 +138,30 @@ def main() -> None:
     prefix = os.environ.get("FEATURE_PDF_SUBJECT_PREFIX", "[Machina Features]").strip()
     when = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-    subject = f"{prefix} Platform VM Detail UX + Connect hub guides ({len(pdfs)} PDFs)"
+    subject = f"{prefix} New platform decks — VM Detail UX, Cinema, Connect hub, QA matrix ({len(pdfs)} PDFs)"
     names = "\n".join(f"  - {p.name}" for p in pdfs)
     text = "\n".join(
         [
-            "Machina feature guide PDFs",
+            "Machina client presentation PDFs (docs/client-presentations format)",
             "",
             f"Generated: {when}",
             "",
             "Attached:",
             names,
             "",
-            "Covers: Platform VM Detail UX, Connect hub / daily access, feature QA matrix (F01–F13), Cinema mode.",
+            "Covers: Platform VM Detail UX, ConsoleHub Cinema/Studio, Connect hub daily access, F01–F13 QA matrix.",
+            "",
+            "HTML source: machina/docs/client-presentations/",
             "",
             "zyvor.dev · HyperSDK · © 2026",
         ]
     )
-    html = f"""<html><body style="font-family:system-ui,sans-serif;color:#111">
-<h2>Machina feature guide PDFs</h2>
+    html_body = f"""<html><body style="font-family:system-ui,sans-serif;color:#111">
+<h2>Machina client presentation PDFs</h2>
 <p><b>Generated:</b> {when}</p>
+<p>Format: <code>docs/client-presentations</code> (hyper2kvm slide-deck style)</p>
 <ul>{''.join(f'<li>{p.name}</li>' for p in pdfs)}</ul>
-<p>Platform VM Detail UX redesign, Connect hub, feature QA matrix, and Cinema mode.</p>
+<p>Platform VM Detail UX · ConsoleHub Cinema/Studio · Connect hub · Feature QA matrix F01–F13.</p>
 <p><a href="https://zyvor.dev">zyvor.dev</a> · HyperSDK · © 2026</p>
 </body></html>"""
 
@@ -153,7 +172,7 @@ def main() -> None:
         print(text)
         return
 
-    send_mail(subject, text, html, to_addrs, cc_addrs, pdfs)
+    send_mail(subject, text, html_body, to_addrs, cc_addrs, pdfs)
     print(f"Sent {len(pdfs)} PDFs to {', '.join(to_addrs)} (cc: {', '.join(cc_addrs)})")
 
 

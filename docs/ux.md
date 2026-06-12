@@ -255,4 +255,4 @@ Includes PAM login at `/login` → dashboard when credentials are set.
 - Connect hub & daily access: [`guides/vm-daily-access.md`](guides/vm-daily-access.md)
 - Feature QA matrix (F01–F13): [`guides/platform-feature-qa.md`](guides/platform-feature-qa.md)
 - Cinema / Studio modes: [`machina-cinema-mode.md`](machina-cinema-mode.md)
-- Client feature PDFs: `./scripts/generate-feature-pdfs.sh` → [`guides/pdf/`](guides/pdf/)
+- Client presentation decks: [`client-presentations/`](client-presentations/) · `./scripts/generate-client-presentation-pdfs.sh`

@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
-# Generate Machina feature guide PDFs and email to client stakeholders.
+# Generate new Machina feature decks (07–10) as PDFs and email stakeholders.
 #
-# Usage:
-#   ./scripts/mail-feature-pdfs.sh
-#   FEATURE_PDF_TO=sibu@zyvor.dev FEATURE_PDF_CC=ssahani@zyvor.dev ./scripts/mail-feature-pdfs.sh
-#
+# HTML source: docs/client-presentations/ (hyper2kvm slide-deck format)
 # SMTP: scripts/deploy-mailer.env or ../hypersdk-web/contact-mailer.env
 set -euo pipefail
 
@@ -14,7 +11,8 @@ ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 export FEATURE_PDF_TO="${FEATURE_PDF_TO:-sibu@zyvor.dev}"
 export FEATURE_PDF_CC="${FEATURE_PDF_CC:-ssahani@zyvor.dev}"
 
-echo "══ Generate feature guide PDFs ══"
+echo "══ Generate client-presentation PDFs (decks 07–10) ══"
+chmod +x "${SCRIPT_DIR}/generate-client-presentation-pdfs.sh"
 "${SCRIPT_DIR}/generate-feature-pdfs.sh"
 
 echo ""
