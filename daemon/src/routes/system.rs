@@ -419,7 +419,7 @@ async fn post_ldap_test(
             role: None,
         }));
     }
-    match crate::ldap_auth::ldap_authenticate(&cfg.auth.ldap, &username, &password) {
+    match crate::ldap_auth::ldap_authenticate_async(&cfg.auth.ldap, &username, &password).await {
         Ok(r) => Ok(Json(LdapTestResponse {
             ok: true,
             message: "LDAP bind succeeded".into(),

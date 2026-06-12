@@ -826,7 +826,7 @@ async fn login_handler(
     }
 
     if cfg.ldap.is_enabled() {
-        match crate::ldap_auth::ldap_authenticate(&cfg.ldap, &req.username, &req.password) {
+        match crate::ldap_auth::ldap_authenticate_async(&cfg.ldap, &req.username, &req.password).await {
             Ok(ldap) => {
                 let role = ldap.role.clone();
                 info!(

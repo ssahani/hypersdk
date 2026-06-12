@@ -1,0 +1,18 @@
+# Machina daemon — Active Directory login for zyvorai.local
+# Copy relevant [auth.ldap] block into /etc/machina/config.toml
+# Domain: zyvorai.local · DC: 45.82.66.172
+# Test: sshant@zyvorai.local or short name sshant (with UPN suffix in login form)
+
+[auth.ldap]
+enabled = true
+url = "ldap://45.82.66.172:389"
+base_dn = "DC=zyvorai,DC=local"
+user_filter = "(sAMAccountName={username})"
+# Optional service account for search-before-bind (leave empty when users sign in with UPN):
+# bind_dn = "CN=svc-machina,CN=Users,DC=zyvorai,DC=local"
+# bind_password = "secret"
+# Or direct UPN template when users always type user@domain:
+# user_dn_template = "{username}"
+member_attribute = "memberOf"
+use_tls = false
+insecure_tls = false

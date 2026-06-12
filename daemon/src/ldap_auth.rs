@@ -15,6 +15,20 @@ pub struct LdapAuthResult {
     pub role: Role,
 }
 
+/// Run blocking LDAP I/O off the async runtime (ldap3 `sync` cannot block inside Tokio workers).
+pub async fn ldap_authenticate_async(
+    cfg: &LdapConfig,
+    username: &str,
+    password: &str,
+) -> Result<LdapAuthResult, String> {
+    let cfg = cfg.clone();
+    let username = username.to_string();
+    let password = password.to_string();
+    tokio::task::spawn_blocking(move || ldap_authenticate(&cfg, &username, &password))
+        .await
+        .map_err(|e| format!("LDAP worker failed: {e}"))?
+}
+
 fn open_ldap(url: &str, cfg: &LdapConfig) -> Result<LdapConn, String> {
     let mut settings = LdapConnSettings::new();
     if cfg.insecure_tls {
