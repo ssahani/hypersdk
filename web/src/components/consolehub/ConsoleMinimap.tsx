@@ -26,7 +26,7 @@ export default function ConsoleMinimap() {
   )
 
   if (!vp) return null
-  const { guestWidth, guestHeight, viewportWidth, viewportHeight, scrollLeft, scrollTop } = vp
+  const { guestWidth, guestHeight, viewportWidth, viewportHeight, scrollLeft, scrollTop, monitors } = vp
   if (guestWidth <= 0 || guestHeight <= 0) return null
   if (guestWidth <= viewportWidth && guestHeight <= viewportHeight) return null
 
@@ -62,6 +62,15 @@ export default function ConsoleMinimap() {
           window.addEventListener('mouseup', up)
         }}
       >
+        {monitors.map((mon, idx) =>
+          idx === 0 ? null : (
+            <div
+              key={mon.id}
+              className="absolute top-0 bottom-0 w-px bg-emerald-400/40 pointer-events-none"
+              style={{ left: mon.x * scale }}
+            />
+          ),
+        )}
         <div
           className="absolute border-2 border-emerald-400/90 bg-emerald-500/10 rounded-sm pointer-events-none"
           style={{ left: viewX, top: viewY, width: viewW, height: viewH }}

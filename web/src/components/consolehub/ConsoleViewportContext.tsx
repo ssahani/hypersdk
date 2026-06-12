@@ -1,6 +1,8 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import type { ActiveMonitor, ConsoleMonitor } from '../../utils/consoleMonitors'
+import { inferConsoleMonitors } from '../../utils/consoleMonitors'
 
 export type ViewportMode = 'fit' | 'fill' | 'native' | 'scroll' | 'zoom' | 'stretch'
 export type ZoomLevel = 75 | 100 | 125 | 150 | 200
@@ -18,6 +20,8 @@ export type ViewportState = {
   connected: boolean
   protocol: string
   resolution: string
+  monitors: ConsoleMonitor[]
+  activeMonitor: ActiveMonitor
 }
 
 type ViewportCtx = ViewportState & {
@@ -30,6 +34,8 @@ type ViewportCtx = ViewportState & {
   setConnected: (v: boolean) => void
   setProtocol: (p: string) => void
   setResolution: (r: string) => void
+  setMonitors: (monitors: ConsoleMonitor[]) => void
+  setActiveMonitor: (monitor: ActiveMonitor) => void
 }
 
 const defaultState: ViewportState = {
@@ -45,6 +51,8 @@ const defaultState: ViewportState = {
   connected: false,
   protocol: 'novnc',
   resolution: '—',
+  monitors: [],
+  activeMonitor: 'all',
 }
 
 const Ctx = createContext<ViewportCtx | null>(null)
@@ -97,6 +105,31 @@ export function ConsoleViewportProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, resolution }))
   }, [])
 
+  const setMonitors = useCallback((monitors: ConsoleMonitor[]) => {
+    setState((s) => ({
+      ...s,
+      monitors,
+      activeMonitor: monitors.length > 1 ? s.activeMonitor : 'all',
+    }))
+  }, [])
+
+  const setActiveMonitor = useCallback((activeMonitor: ActiveMonitor) => {
+    setState((s) => ({ ...s, activeMonitor }))
+  }, [])
+
+  useEffect(() => {
+    const onTestGuestSize = (event: Event) => {
+      const detail = (event as CustomEvent<{ width?: number; height?: number }>).detail
+      const width = detail?.width ?? 0
+      const height = detail?.height ?? 0
+      if (width <= 0 || height <= 0) return
+      setGuestSize(width, height)
+      setMonitors(inferConsoleMonitors(width, height))
+    }
+    window.addEventListener('machina:console-guest-size', onTestGuestSize)
+    return () => window.removeEventListener('machina:console-guest-size', onTestGuestSize)
+  }, [setGuestSize, setMonitors])
+
   const value = useMemo(
     () => ({
       ...state,
@@ -109,8 +142,10 @@ export function ConsoleViewportProvider({ children }: { children: ReactNode }) {
       setConnected,
       setProtocol,
       setResolution,
+      setMonitors,
+      setActiveMonitor,
     }),
-    [state, setMode, setZoom, setScaledFit, setGuestSize, setScroll, setViewportSize, setConnected, setProtocol, setResolution],
+    [state, setMode, setZoom, setScaledFit, setGuestSize, setScroll, setViewportSize, setConnected, setProtocol, setResolution, setMonitors, setActiveMonitor],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

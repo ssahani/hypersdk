@@ -168,4 +168,19 @@ test.describe('Platform ConsoleHub', () => {
     await expect(page.getByTestId('spice-console-iframe')).toHaveAttribute('data-audio', 'on')
     await expect(page.getByTestId('cinema-spice-audio-badge')).toBeVisible()
   })
+
+  test('Cinema multi-monitor chips appear for ultra-wide guest', async ({ page }) => {
+    await page.goto('/platform/vms/v1/consolehub')
+    await expect(page.getByTestId('cinema-control-strip')).toBeVisible({ timeout: 15_000 })
+    await page.evaluate(() => {
+      window.dispatchEvent(
+        new CustomEvent('machina:console-guest-size', { detail: { width: 3840, height: 1080 } }),
+      )
+    })
+    await expect(page.getByTestId('cinema-monitor-all')).toBeVisible()
+    await expect(page.getByTestId('cinema-monitor-0')).toBeVisible()
+    await expect(page.getByTestId('cinema-monitor-1')).toBeVisible()
+    await page.getByTestId('cinema-monitor-1').click()
+    await expect(page.getByTestId('cinema-monitor-1')).toHaveClass(/border-emerald-500/)
+  })
 })

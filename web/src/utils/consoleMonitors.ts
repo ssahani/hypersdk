@@ -1,0 +1,43 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+export type ConsoleMonitor = {
+  id: number
+  label: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** Infer side-by-side monitor regions from an ultra-wide guest framebuffer. */
+export function inferConsoleMonitors(guestWidth: number, guestHeight: number): ConsoleMonitor[] {
+  if (guestWidth < 2400 || guestHeight < 600) return []
+  const aspect = guestWidth / guestHeight
+  if (aspect < 1.65) return []
+
+  const panelW = guestHeight >= 900 ? 1920 : 1280
+  let count = Math.round(guestWidth / panelW)
+  count = Math.max(2, Math.min(4, count))
+  const sliceW = Math.floor(guestWidth / count)
+
+  return Array.from({ length: count }, (_, i) => ({
+    id: i,
+    label: `M${i + 1}`,
+    x: i * sliceW,
+    y: 0,
+    width: i === count - 1 ? guestWidth - sliceW * (count - 1) : sliceW,
+    height: guestHeight,
+  }))
+}
+
+export type ActiveMonitor = number | 'all'
+
+export function monitorScrollTarget(
+  monitors: ConsoleMonitor[],
+  active: ActiveMonitor,
+): { left: number; top: number } | null {
+  if (active === 'all' || monitors.length === 0) return null
+  const mon = monitors[active]
+  if (!mon) return null
+  return { left: mon.x, top: mon.y }
+}

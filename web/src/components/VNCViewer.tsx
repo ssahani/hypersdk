@@ -7,6 +7,7 @@ import { Keyboard, Maximize, Minimize, Monitor, RefreshCw } from 'lucide-react'
 import { getWsToken } from '../api/client'
 import { statusBgClass } from '../utils/semanticColors'
 import { useConsoleViewportOptional } from './consolehub/ConsoleViewportContext'
+import { inferConsoleMonitors, monitorScrollTarget } from '../utils/consoleMonitors'
 import { useConsoleClipboardOptional } from './consolehub/ConsoleClipboardContext'
 
 function wsConnQs(libvirtConnection?: string | null): string {
@@ -132,7 +133,10 @@ export default function VNCViewer({
       const syncGuestSize = (rfb: { _fbWidth?: number; _fbHeight?: number }) => {
         const w = rfb._fbWidth ?? 0
         const h = rfb._fbHeight ?? 0
-        if (w > 0 && h > 0) vp?.setGuestSize(w, h)
+        if (w > 0 && h > 0) {
+          vp?.setGuestSize(w, h)
+          vp?.setMonitors(inferConsoleMonitors(w, h))
+        }
       }
 
       const wireCommon = (
@@ -317,6 +321,15 @@ export default function VNCViewer({
     el.scrollLeft = vp.scrollLeft
     el.scrollTop = vp.scrollTop
   }, [cockpitMode, vp?.scrollLeft, vp?.scrollTop, vp])
+
+  useEffect(() => {
+    if (!cockpitMode || !vp || !scrollRef.current || vp.monitors.length < 2) return
+    const target = monitorScrollTarget(vp.monitors, vp.activeMonitor)
+    if (!target) return
+    scrollRef.current.scrollLeft = target.left
+    scrollRef.current.scrollTop = target.top
+    vp.setScroll(target.left, target.top)
+  }, [cockpitMode, vp?.activeMonitor, vp?.monitors, vp])
 
   function sendCtrlAltDel() {
     rfbRef.current?.sendCtrlAltDel?.()

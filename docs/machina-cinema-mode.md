@@ -81,6 +81,7 @@ When `CONSOLEHUB_RECORDING_ENABLED=1` on the controller:
 - **Clipboard sync**: Cinema control strip **Clipboard** button opens a panel to send laptop text into the guest via noVNC and copy guest clipboard back when the VM pushes it over VNC
 - **Guest file transfer**: Ops Shelf **Send file to guest** builds an `scp` command (NAT or direct guest IP) after you pick a local file
 - **SPICE audio**: Performance/SPICE lenses pass `audio=1` to spice-html5 and enable browser autoplay; toggle in Cinema **More** menu (quality depends on guest vdagent and spice-html5 build)
+- **Multi-monitor**: when the guest framebuffer is ultra-wide (e.g. 3840×1080), Cinema infers side-by-side panels and shows **All / M1 / M2** chips in the control strip; selecting a monitor scrolls the native viewport to that region (display map shows dividers)
 
 RBAC from the console plan (`permissions` on `/consolehub/plan`):
 
@@ -91,4 +92,4 @@ RBAC from the console plan (`permissions` on `/consolehub/plan`):
 
 ## Deferred (later enterprise)
 
-Multi-monitor.
+None — Cinema enterprise backlog is complete for v1.

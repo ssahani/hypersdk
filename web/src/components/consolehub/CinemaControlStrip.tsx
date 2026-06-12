@@ -197,6 +197,30 @@ export default function CinemaControlStrip({
           </button>
         ) : null}
 
+        {vp.monitors.length > 1 ? (
+          <>
+            <button
+              type="button"
+              className={`${btn} ${vp.activeMonitor === 'all' ? 'border-emerald-500/40 text-emerald-100' : ''}`}
+              onClick={() => vp.setActiveMonitor('all')}
+              data-testid="cinema-monitor-all"
+            >
+              All
+            </button>
+            {vp.monitors.map((mon) => (
+              <button
+                key={mon.id}
+                type="button"
+                className={`${btn} ${vp.activeMonitor === mon.id ? 'border-emerald-500/40 text-emerald-100' : ''}`}
+                onClick={() => vp.setActiveMonitor(mon.id)}
+                data-testid={`cinema-monitor-${mon.id}`}
+              >
+                {mon.label}
+              </button>
+            ))}
+          </>
+        ) : null}
+
         <div className="relative" ref={clipRef}>
           <button
             type="button"
