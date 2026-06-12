@@ -929,15 +929,46 @@ pub fn get_systemd_interface_status(iface: &str) -> Result<String, LibvirtError>
     )
 }
 
-pub fn create_port_forward(req: &CreatePortForwardRequest) -> Result<(), LibvirtError> {
-    if req.protocol != "tcp" && req.protocol != "udp" {
+/// Reserved host ports for Machina daemons — must not be used for guest NAT rules.
+const PORT_FORWARD_RESERVED_HOST_PORTS: &[u16] = &[5092, 5093, 50051, 50052];
+
+pub fn validate_port_forward_protocol(protocol: &str) -> Result<(), LibvirtError> {
+    if protocol != "tcp" && protocol != "udp" {
         return Err(LibvirtError::Invalid(
             "Protocol must be 'tcp' or 'udp'".to_string(),
         ));
     }
-    if req.host_port == 0 || req.vm_port == 0 {
-        return Err(LibvirtError::Invalid("Ports must be non-zero".to_string()));
+    Ok(())
+}
+
+pub fn validate_port_forward_host_port(host_port: u16) -> Result<(), LibvirtError> {
+    if host_port == 0 {
+        return Err(LibvirtError::Invalid("host_port must be non-zero".to_string()));
     }
+    if host_port < 1024 {
+        return Err(LibvirtError::Invalid(
+            "host_port must be >= 1024 (privileged ports are not allowed)".to_string(),
+        ));
+    }
+    if PORT_FORWARD_RESERVED_HOST_PORTS.contains(&host_port) {
+        return Err(LibvirtError::Invalid(format!(
+            "host_port {host_port} is reserved for Machina services"
+        )));
+    }
+    Ok(())
+}
+
+pub fn validate_port_forward_vm_port(vm_port: u16) -> Result<(), LibvirtError> {
+    if vm_port == 0 {
+        return Err(LibvirtError::Invalid("vm_port must be non-zero".to_string()));
+    }
+    Ok(())
+}
+
+pub fn create_port_forward(req: &CreatePortForwardRequest) -> Result<(), LibvirtError> {
+    validate_port_forward_protocol(&req.protocol)?;
+    validate_port_forward_host_port(req.host_port)?;
+    validate_port_forward_vm_port(req.vm_port)?;
     if req.vm_ip.parse::<std::net::Ipv4Addr>().is_err() {
         return Err(LibvirtError::Invalid(format!(
             "Invalid VM IP: {}",
@@ -1007,10 +1038,11 @@ pub fn delete_port_forward(
     vm_ip: &str,
     vm_port: u16,
 ) -> Result<(), LibvirtError> {
-    if proto != "tcp" && proto != "udp" {
-        return Err(LibvirtError::Invalid(
-            "Protocol must be 'tcp' or 'udp'".to_string(),
-        ));
+    validate_port_forward_protocol(proto)?;
+    validate_port_forward_host_port(host_port)?;
+    validate_port_forward_vm_port(vm_port)?;
+    if vm_ip.parse::<std::net::Ipv4Addr>().is_err() {
+        return Err(LibvirtError::Invalid(format!("Invalid VM IP: {vm_ip}")));
     }
 
     // Delete PREROUTING DNAT rule
@@ -1339,4 +1371,41 @@ fn parse_fw_direction(line: &str) -> (String, String) {
         }
     }
     ("inbound".to_string(), "0.0.0.0".to_string())
+}
+
+#[cfg(test)]
+mod port_forward_validation_tests {
+    use super::{
+        validate_port_forward_host_port, validate_port_forward_protocol,
+        validate_port_forward_vm_port,
+    };
+
+    #[test]
+    fn rejects_privileged_host_port() {
+        assert!(validate_port_forward_host_port(22).is_err());
+        assert!(validate_port_forward_host_port(80).is_err());
+    }
+
+    #[test]
+    fn rejects_reserved_machina_ports() {
+        assert!(validate_port_forward_host_port(50051).is_err());
+        assert!(validate_port_forward_host_port(5092).is_err());
+    }
+
+    #[test]
+    fn accepts_unprivileged_host_port() {
+        assert!(validate_port_forward_host_port(2222).is_ok());
+    }
+
+    #[test]
+    fn rejects_zero_ports() {
+        assert!(validate_port_forward_host_port(0).is_err());
+        assert!(validate_port_forward_vm_port(0).is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_protocol() {
+        assert!(validate_port_forward_protocol("icmp").is_err());
+        assert!(validate_port_forward_protocol("tcp").is_ok());
+    }
 }

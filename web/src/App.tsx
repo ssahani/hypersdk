@@ -312,6 +312,10 @@ function AuthenticatedShellRoutes() {
 
   const closeHelp = useCallback(() => setHelpOpen(false), [])
 
+  useEffect(() => {
+    setHelpOpen(false)
+  }, [location.pathname, location.search])
+
   const shellClass =
     theme === 'steel'
       ? 'dashboard-steel min-h-screen flex flex-col text-[#d7dde5]'

@@ -9,6 +9,7 @@ import { unlockDockPreviewPath, usePlatformDockItems } from '../../utils/platfor
 import { useToastContext } from '../../contexts/ToastContext'
 import { platformDesktopTabActive, platformDesktopTabGroup } from '../../utils/platformDesktopTabs'
 import { dispatchOpenSpotlight } from '../../utils/platformJarvisShell'
+import { useMissionControl } from './mac/MissionControlContext'
 import { useFleetDesktop } from '../../hooks/useFleetDesktop'
 import { getFleetFinder } from '../../api/platform'
 
@@ -21,6 +22,7 @@ export default function PlatformMacDock() {
   const navigate = useNavigate()
   const toast = useToastContext()
   const { openCopilot } = useAi()
+  const { closeMissionControl } = useMissionControl()
   const dockItems = usePlatformDockItems()
   const { desktop } = useFleetDesktop(isPlatformShell(location.pathname), 90_000)
   const [mounted, setMounted] = useState(false)
@@ -73,6 +75,7 @@ export default function PlatformMacDock() {
   }, [autoHide, location.pathname])
 
   const goDock = (path: string) => {
+    closeMissionControl()
     const hub = platformDesktopTabGroup(path)
     navigate(hub)
   }

@@ -8,7 +8,15 @@ export const JARVIS_SHELL_EVENT = 'machina-jarvis-shell-changed'
 export const OPEN_SPOTLIGHT_EVENT = 'machina-open-spotlight'
 export const CLOSE_PLATFORM_MENUS_EVENT = 'machina-close-platform-menus'
 export const CLOSE_MISSION_CONTROL_EVENT = 'machina-close-mission-control'
+export const DISMISS_PLATFORM_SHELL_EVENT = 'machina-dismiss-platform-shell'
 export const SCROLL_GEOGRAPHY_EVENT = 'machina-scroll-geography'
+
+/** Close transient platform chrome (mission control, menus, control center backdrop, dock editor). */
+export function dismissPlatformShellOverlays() {
+  window.dispatchEvent(new CustomEvent(CLOSE_MISSION_CONTROL_EVENT))
+  window.dispatchEvent(new CustomEvent(CLOSE_PLATFORM_MENUS_EVENT))
+  window.dispatchEvent(new CustomEvent(DISMISS_PLATFORM_SHELL_EVENT))
+}
 
 export function defaultJarvisShellForTier(tier: PlatformDesktopTier): boolean {
   return tier === 'normal'

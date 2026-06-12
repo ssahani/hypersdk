@@ -45,7 +45,13 @@ export function useWebGlGlobe(
       }
       if (disposed || !canvasRef.current) return
 
-      const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true })
+      let renderer: import('three').WebGLRenderer
+      try {
+        renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true })
+      } catch {
+        if (!disposed) setWebGlActive(false)
+        return
+      }
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
       renderer.setClearColor(0x020617, 0)
 

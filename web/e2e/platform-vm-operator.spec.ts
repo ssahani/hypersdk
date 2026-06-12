@@ -58,7 +58,7 @@ test('custom named service can be exposed', async ({ page }) => {
     protocol: 'tcp',
   })
   await expect(page.getByText('Your saved services')).toBeVisible()
-  await expect(page.getByTestId('vm-port-forward-panel').getByRole('button', { name: 'Jenkins', exact: true })).toBeVisible()
+  await expect(page.getByTestId('vm-port-forward-panel').getByText('Jenkins ✓')).toBeVisible()
 })
 
 test('overview daily access exposes scanned guest port', async ({ page }) => {
@@ -94,4 +94,14 @@ test('doctor tab deep-links GuestKit migrate plan on guest health', async ({ pag
   await expect(page).toHaveURL(/tab=guestHealth/)
   await expect(page.getByText('KVM migration plan')).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('82%')).toBeVisible()
+})
+
+test('port forward open link uses hypervisor host and remove clears rule', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/vms/v1?tab=network')
+  await expect(page.getByTestId('vm-port-forward-panel')).toBeVisible({ timeout: 15_000 })
+  const openLink = page.getByTestId('vm-port-forward-panel').getByRole('link', { name: /^open$/i })
+  await expect(openLink).toHaveAttribute('href', /127\.0\.0\.1:9080/)
+  await page.getByRole('button', { name: 'remove' }).click()
+  await expect(page.getByText('9080→80')).toHaveCount(0)
 })

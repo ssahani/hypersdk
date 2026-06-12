@@ -552,6 +552,23 @@ export async function mockPlatformApi(page: Page, opts?: {
   const vmFixture = opts?.stoppedVm
     ? { ...sampleVm, observed_state: 'stopped', desired_state: 'stopped', lifecycle_phase: 'idle' }
     : sampleVm
+  const portForwardRules: Array<{
+    id: string
+    protocol: string
+    host_port: number
+    vm_ip: string
+    vm_port: number
+    description: string
+  }> = [
+    {
+      id: 'pf-1',
+      protocol: 'tcp',
+      host_port: 9080,
+      vm_ip: '192.168.122.10',
+      vm_port: 80,
+      description: 'vm-1',
+    },
+  ]
   let promptTitle = 'RCA template'
   let storagePools: Array<{ id: string; name: string; path: string; capacity_gib: number; used_gib: number }> =
     opts?.emptyStorage ? [] : [{ id: 'p1', name: 'default', path: '/var/lib/libvirt/images', capacity_gib: 500, used_gib: 12 }]
@@ -2787,6 +2804,7 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({ json: { token: 'mock-ws-token' } })
     }
     if (url.match(/\/vms\/[^/]+\/consolehub\/plan/)) {
+      const sshRule = portForwardRules.find((r) => r.vm_port === 22)
       return route.fulfill({
         json: {
           vm_id: 'v1',
@@ -2797,17 +2815,17 @@ export async function mockPlatformApi(page: Page, opts?: {
           guest_ip: '192.168.122.10',
           ssh_user: 'ubuntu',
           os_hint: 'linux',
-          protocols: ['novnc', 'guacamole_ssh', 'guacamole_vnc', 'serial'],
+          protocols: ['novnc', 'guacamole_ssh', 'guacamole_vnc', 'serial', 'native_ssh'],
           webrtc_spice_available: false,
           guest_access: {
             auth_mode: 'ssh_key',
             serial_password_login: false,
             guest_ip_private: true,
-            ssh_nat_host_port: null,
+            ssh_nat_host_port: sshRule?.host_port ?? null,
           },
           hypervisor_address: 'lab.test',
-          ssh_connect_host: null,
-          ssh_connect_port: null,
+          ssh_connect_host: sshRule ? 'lab.test' : null,
+          ssh_connect_port: sshRule?.host_port ?? null,
         },
       })
     }
@@ -2990,24 +3008,33 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({ json: [] })
     }
     if (url.match(/\/vms\/[^/]+\/port-forwards\/delete/) && route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as { host_port?: number; vm_port?: number }
+      const idx = portForwardRules.findIndex(
+        (r) => r.host_port === body.host_port && r.vm_port === body.vm_port,
+      )
+      if (idx >= 0) portForwardRules.splice(idx, 1)
       return route.fulfill({ json: { ok: true } })
     }
     if (url.match(/\/vms\/[^/]+\/port-forwards/) && route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as {
+        host_port: number
+        vm_port: number
+        protocol?: string
+        vm_ip?: string
+        description?: string
+      }
+      portForwardRules.push({
+        id: `pf-${portForwardRules.length + 1}`,
+        protocol: body.protocol ?? 'tcp',
+        host_port: body.host_port,
+        vm_ip: body.vm_ip ?? '192.168.122.10',
+        vm_port: body.vm_port,
+        description: body.description ?? vmFixture.name,
+      })
       return route.fulfill({ json: { ok: true } })
     }
     if (url.match(/\/vms\/[^/]+\/port-forwards/)) {
-      return route.fulfill({
-        json: [
-          {
-            id: 'pf-1',
-            protocol: 'tcp',
-            host_port: 9080,
-            vm_ip: '192.168.122.50',
-            vm_port: 80,
-            description: 'vm-1',
-          },
-        ],
-      })
+      return route.fulfill({ json: portForwardRules })
     }
     if (url.match(/\/vms\/[^/]+\/doctor/)) {
       return route.fulfill({

@@ -30,4 +30,12 @@ test.describe('classic operator UX', () => {
     await page.goto('/events')
     await expect(page.getByRole('heading', { name: /live metrics/i })).toBeVisible({ timeout: 15_000 })
   })
+
+  test('/vms SSH opens resolved platform connect dialog when linked', async ({ page }) => {
+    await page.goto('/vms')
+    await expect(page.getByText('vm-1')).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('button', { name: 'SSH' }).click()
+    await expect(page.getByTestId('vm-ssh-connect-dialog')).toBeVisible()
+    await expect(page.getByTestId('vm-ssh-nat-banner')).toBeVisible({ timeout: 15_000 })
+  })
 })

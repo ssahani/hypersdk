@@ -2219,6 +2219,24 @@ pub struct DeleteVmPortForwardBody {
     pub vm_port: u16,
 }
 
+fn validate_vm_port_forward_fields(
+    protocol: &str,
+    host_port: u16,
+    vm_port: u16,
+) -> Result<(), ApiError> {
+    use machina_core::libvirt::host_network::{
+        validate_port_forward_host_port, validate_port_forward_protocol,
+        validate_port_forward_vm_port,
+    };
+    validate_port_forward_protocol(protocol)
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    validate_port_forward_host_port(host_port)
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    validate_port_forward_vm_port(vm_port)
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    Ok(())
+}
+
 async fn vm_host_agent(state: &AppState, vm_id: Uuid) -> Result<(String, String), ApiError> {
     let row: (String, Option<Uuid>, String, Option<String>) = sqlx::query_as(
         "SELECT name, host_id, COALESCE(inventory_source, 'libvirt'), guest_ip FROM vms WHERE id = $1",
@@ -2275,9 +2293,7 @@ pub async fn create_vm_port_forward(
         ));
     }
     let proto = body.protocol.to_lowercase();
-    if proto != "tcp" && proto != "udp" {
-        return Err(ApiError::bad_request("protocol must be tcp or udp"));
-    }
+    validate_vm_port_forward_fields(&proto, body.host_port, body.vm_port)?;
     crate::agent_client::create_port_forward(
         &agent_addr,
         &proto,
@@ -2302,6 +2318,7 @@ pub async fn delete_vm_port_forward(
         return Err(ApiError::bad_request("Guest IP is not known yet"));
     }
     let proto = body.protocol.to_lowercase();
+    validate_vm_port_forward_fields(&proto, body.host_port, body.vm_port)?;
     crate::agent_client::delete_port_forward(
         &agent_addr,
         &proto,

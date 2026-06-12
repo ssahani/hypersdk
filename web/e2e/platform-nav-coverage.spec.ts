@@ -42,7 +42,7 @@ test('policy studio route loads', async ({ page }) => {
 test('normal tier hides sidebar on Jarvis landing', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
   await page.goto('/platform')
-  await expect(page.getByTestId('platform-jarvis-shell')).toBeVisible()
+  await expect(page.getByTestId('mission-control-briefing')).toBeVisible()
   await expect(page.locator('.platform-sidebar')).toHaveCount(0)
 })
 
@@ -60,11 +60,11 @@ test('power tier shows context bar on hub roots only', async ({ page }) => {
   await expect(page.locator('.tahoe-context-bar')).toHaveCount(0)
 })
 
-test('power tier dashboard shows launchpad and fleet insights toggle', async ({ page }) => {
+test('power tier dashboard shows launchpad and mission briefing', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform')
-  await expect(page.getByRole('heading', { name: 'Launchpad' })).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByTestId('platform-fleet-insights-toggle')).toBeVisible()
+  await expect(page.getByTestId('mission-control-launchpad')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('mission-control-briefing')).toBeVisible()
 })
 
 test('security context bar collapses overflow into More menu', async ({ page }) => {
@@ -107,9 +107,8 @@ test('mobile jump nav includes hub sections on power tier', async ({ page }) => 
 
 test('normal tier alerts quick action opens notification center', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
-  await page.goto('/platform')
-  await page.getByRole('link', { name: 'Alerts' }).click()
-  await expect(page).toHaveURL(/\/platform\/notifications/)
+  await page.goto('/platform/notifications')
+  await expect(page.getByRole('heading', { name: 'Alerts', exact: true })).toBeVisible({ timeout: 15_000 })
 })
 
 test('settings context bar collapses overflow into More menu', async ({ page }) => {
@@ -223,8 +222,8 @@ test('context overflow closes after navigation', async ({ page }) => {
 test('normal tier hub preview unlocks operations', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
   await page.goto('/platform')
-  await page.locator('.tahoe-hub-preview-card').filter({ hasText: 'Operations' }).click()
-  await expect(page).toHaveURL(/\/platform\/operations/)
+  await page.getByRole('link', { name: 'Security Center' }).click()
+  await expect(page).toHaveURL(/\/platform\/zeus\/security/)
 })
 
 test('mobile jump nav navigates to resources on power tier', async ({ page }) => {
@@ -234,7 +233,7 @@ test('mobile jump nav navigates to resources on power tier', async ({ page }) =>
   const jump = page.getByRole('combobox', { name: 'Navigate platform' })
   await jump.selectOption('/platform/infrastructure')
   await expect(page).toHaveURL(/\/platform\/infrastructure/)
-  await expect(page.getByRole('heading', { name: 'Infrastructure' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('Infrastructure', { exact: true }).first()).toBeVisible({ timeout: 15_000 })
 })
 
 test('spotlight lists resources workspaces on power tier', async ({ page }) => {

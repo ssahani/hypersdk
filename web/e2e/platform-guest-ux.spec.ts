@@ -33,15 +33,14 @@ test.describe('Platform guest UX', () => {
       })
     })
     await page.goto('/platform/vms')
-    await page.getByPlaceholder('Search VMs…').fill('empty-test')
-    await page.getByRole('button', { name: 'Analyze guests' }).click()
-    const reportCard = page.locator('div.rounded-xl').filter({
-      has: page.getByLabel('Dismiss fleet guest report'),
+    await page.getByTestId('machine-finder-search').fill('empty-test')
+    await page.getByRole('button', { name: 'Analyze' }).click()
+    const report = page.getByTestId('machine-finder-page').locator('div.rounded-xl').filter({
+      has: page.locator('p.text-slate-200', { hasText: 'No VMs matched for empty-test query.' }),
     })
-    await expect(reportCard.getByText('No VMs matched for empty-test query.')).toBeVisible({ timeout: 15_000 })
-    await page.locator('aside.fixed.right-0 header button').click()
-    await page.getByLabel('Dismiss fleet guest report').click()
-    await expect(reportCard).not.toBeVisible()
+    await expect(report).toBeVisible({ timeout: 15_000 })
+    await report.locator('button[aria-label="Dismiss"]').evaluate((btn) => (btn as HTMLButtonElement).click())
+    await expect(report).toHaveCount(0, { timeout: 5000 })
   })
 
   test('fleet guest query VM rows deep-link to guest health tab', async ({ page }) => {
@@ -63,7 +62,7 @@ test.describe('Platform guest UX', () => {
       })
     })
     await page.goto('/platform/vms')
-    await page.getByRole('button', { name: 'Analyze guests' }).click()
+    await page.getByRole('button', { name: 'Analyze' }).click()
     await page.locator('a[href="/platform/vms/v1?tab=guestHealth"]').click()
     await expect(page).toHaveURL(/\/platform\/vms\/v1\?tab=guestHealth/)
   })

@@ -38,6 +38,13 @@ impl AgentService {
     }
 }
 
+fn grpc_port_u16(field: &str, value: u32) -> Result<u16, Status> {
+    if value == 0 || value > u16::MAX as u32 {
+        return Err(Status::invalid_argument(format!("invalid {field}")));
+    }
+    Ok(value as u16)
+}
+
 async fn run_vm_op<Req, F>(
     request: Request<Req>,
     libvirt: Arc<std::sync::Mutex<libvirt_ops::LibvirtCtx>>,
@@ -1617,11 +1624,13 @@ impl HostAgent for AgentService {
         request: Request<CreatePortForwardRequest>,
     ) -> Result<Response<CreatePortForwardResponse>, Status> {
         let req = request.into_inner();
+        let host_port = grpc_port_u16("host_port", req.host_port)?;
+        let vm_port = grpc_port_u16("vm_port", req.vm_port)?;
         let core_req = machina_core::libvirt::host_network::CreatePortForwardRequest {
             protocol: req.protocol,
-            host_port: req.host_port as u16,
+            host_port,
             vm_ip: req.vm_ip,
-            vm_port: req.vm_port as u16,
+            vm_port,
             description: req.description,
         };
         match tokio::task::spawn_blocking(move || {
@@ -1646,12 +1655,14 @@ impl HostAgent for AgentService {
         request: Request<DeletePortForwardRequest>,
     ) -> Result<Response<DeletePortForwardResponse>, Status> {
         let req = request.into_inner();
+        let host_port = grpc_port_u16("host_port", req.host_port)?;
+        let vm_port = grpc_port_u16("vm_port", req.vm_port)?;
         match tokio::task::spawn_blocking(move || {
             machina_core::libvirt::host_network::delete_port_forward(
                 &req.protocol,
-                req.host_port as u16,
+                host_port,
                 &req.vm_ip,
-                req.vm_port as u16,
+                vm_port,
             )
         })
         .await

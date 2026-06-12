@@ -626,7 +626,6 @@ if systemctl is-active machina-controller &>/dev/null; then
   if [ -f $REMOTE_DIR/scripts/lib/platform-sweep-remote.sh ]; then
     echo '▶ Platform inventory sweep (sync + prune stale VMs)'
     sudo bash $REMOTE_DIR/scripts/lib/platform-sweep-remote.sh || echo '⚠️  platform sweep had issues'
-    sudo systemctl restart machina-agent 2>/dev/null || true
   fi
 fi
 " || warn "service status check failed"
@@ -677,6 +676,15 @@ if $RUN_E2E; then
     if [[ -n "${VSPASS:-}" || -n "${SSHPASS:-}" ]]; then
         if $INSTALL_PLATFORM && ! $SKIP_PLATFORM_E2E; then
             deploy_ui_highlight "🧪 Post-deploy full E2E (daemon + platform proxy + controller)"
+            info "Waiting for agent gRPC :50051 before install smoke…"
+            ssh_r_bash "$REMOTE" '
+for i in $(seq 1 15); do
+  if ss -ltn 2>/dev/null | grep -q ":50051"; then echo "agent gRPC ready"; exit 0; fi
+  sleep 2
+done
+echo "agent gRPC not ready after 30s" >&2
+exit 1
+' || warn "agent gRPC wait timed out (install smoke may flake)"
             FULL_E2E_FLAGS=()
             if $SKIP_DAEMON_E2E; then FULL_E2E_FLAGS+=(--skip-daemon-e2e); fi
             FULL_E2E_OK=true
@@ -705,6 +713,7 @@ if $RUN_E2E; then
                 deploy_ui_highlight "🧪 Post-deploy live VM create/delete (Playwright)"
                 if PLAYWRIGHT_LIVE_URL="${LIVE_BASE}" PLAYWRIGHT_LIVE_USER="${USER}" PLAYWRIGHT_LIVE_PASS="${LIVE_PW}" \
                     npm --prefix "${SCRIPT_DIR}/../web" run test:e2e -- --workers=1 --timeout=300000 \
+                    e2e/platform-live-access.spec.ts \
                     e2e/platform-live-vm-create.spec.ts \
                     e2e/platform-live-machine-finder-delete.spec.ts \
                     e2e/platform-live-vm-delete.spec.ts; then

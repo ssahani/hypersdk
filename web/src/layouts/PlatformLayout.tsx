@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router'
 import PlatformSidebar from '../components/platform/PlatformSidebar'
 import PlatformControlCenter from '../components/platform/PlatformControlCenter'
@@ -31,7 +31,7 @@ import { usePlatformTierRouteGuard } from '../hooks/usePlatformTierRouteGuard'
 import { useKeyboardShortcut, isInputFocused } from '../hooks/useKeyboardShortcut'
 import { suppressContextBar } from '../utils/platformNavRegistry'
 import { contextNavForPath, shouldShowContextBar } from '../utils/platformContextNav'
-import { dispatchScrollGeography } from '../utils/platformJarvisShell'
+import { dismissPlatformShellOverlays, dispatchScrollGeography } from '../utils/platformJarvisShell'
 
 function PlatformDesktopShell() {
   const location = useLocation()
@@ -42,9 +42,10 @@ function PlatformDesktopShell() {
   const [dockEditorOpen, setDockEditorOpen] = useState(false)
   const { sidebarVisible } = usePlatformMacDesktop()
   const [tier] = usePlatformDesktopTier()
-  const { openMissionControl } = useMissionControl()
+  const { openMissionControl, closeMissionControl } = useMissionControl()
   usePlatformTierRouteGuard()
 
+  const navEpoch = useRef(0)
   const meshSubtle = location.pathname !== '/platform' && suppressContextBar(location.pathname)
   const contextBarVisible =
     contextNavForPath(location.pathname, tier) != null &&
@@ -124,6 +125,17 @@ function PlatformDesktopShell() {
     if (!location.pathname.startsWith('/platform')) return
     upsertPlatformDesktopTab({ path: location.pathname, label: platformPageLabel(location.pathname) })
   }, [location.pathname])
+
+  useEffect(() => {
+    if (!location.pathname.startsWith('/platform')) return
+    if (navEpoch.current === 0) {
+      navEpoch.current += 1
+      return
+    }
+    closeMissionControl()
+    setDockEditorOpen(false)
+    dismissPlatformShellOverlays()
+  }, [location.pathname, location.search, closeMissionControl])
 
   if (isPopout) {
     return (

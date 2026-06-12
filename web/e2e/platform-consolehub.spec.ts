@@ -42,4 +42,31 @@ test.describe('Platform ConsoleHub', () => {
     await page.getByRole('button', { name: 'SSH' }).last().click()
     await expect(page.getByRole('button', { name: 'Shell' })).toHaveClass(/emerald/)
   })
+
+  test('Shell lens shows guest access and shell access banners', async ({ page }) => {
+    await page.goto('/platform/vms/v1/consolehub')
+    await page.getByRole('button', { name: 'Shell' }).first().click()
+    await expect(page.getByTestId('guest-access-banner')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('shell-access-banner')).toBeVisible()
+  })
+
+  test('Serial recovery card switches to shell lens', async ({ page }) => {
+    await page.goto('/platform/vms/v1/consolehub')
+    await page.getByRole('button', { name: 'Serial' }).first().click()
+    await expect(page.getByTestId('console-login-recovery')).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('button', { name: 'Switch to Shell' }).click()
+    await expect(page.getByRole('button', { name: 'Shell' })).toHaveClass(/emerald/)
+  })
+
+  test('Command Center opens with tabs and compact NAT panel', async ({ page }) => {
+    await page.goto('/platform/vms/v1/consolehub')
+    await page.getByRole('button', { name: 'Command Center' }).first().click()
+    const panel = page.getByTestId('command-center-panel')
+    await expect(panel).toBeVisible({ timeout: 15_000 })
+    await expect(panel.getByTestId('vm-port-forward-panel')).toBeVisible()
+    await panel.getByRole('button', { name: 'Health' }).click()
+    await expect(panel.getByRole('button', { name: 'Run scan' })).toBeVisible()
+    await panel.getByRole('button', { name: 'Events' }).click()
+    await panel.getByRole('button', { name: 'AI' }).click()
+  })
 })

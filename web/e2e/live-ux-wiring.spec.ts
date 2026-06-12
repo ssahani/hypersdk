@@ -272,9 +272,6 @@ for (const entry of manifest.entries) {
         apiFailures,
       })
       await attachFailure(page, entry, reason)
-      await context.close()
-      expect(apiFailures, `API failures on ${entry.path}`).toEqual([])
-      expect(hardJs).toEqual([])
     } else {
       report.passed += 1
       report.results.push({
@@ -283,12 +280,19 @@ for (const entry of manifest.entries) {
         status: 'passed',
         warnings: warnCount,
       })
-      await context.close()
     }
+    await context.close()
   })
 }
 
 test.afterAll(async () => {
   report.generated_at = new Date().toISOString()
   fs.writeFileSync(REPORT_PATH, JSON.stringify(report, null, 2) + '\n')
+  if (report.failed > 0) {
+    const failedIds = report.results.filter((r) => r.status === 'failed').map((r) => r.id).slice(0, 10)
+    throw new Error(
+      `Live UX wiring: ${report.failed} failed, ${report.passed} passed, ${report.skipped} skipped` +
+        (failedIds.length ? ` (e.g. ${failedIds.join(', ')})` : ''),
+    )
+  }
 })

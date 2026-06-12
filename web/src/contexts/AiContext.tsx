@@ -67,6 +67,10 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
     if (host) setContextHostId(host)
   }, [location.pathname, params.id])
 
+  useEffect(() => {
+    setCopilotOpen(false)
+  }, [location.pathname, location.search])
+
   const openCopilot = useCallback(() => setCopilotOpen(true), [])
   const closeCopilot = useCallback(() => setCopilotOpen(false), [])
   const toggleCopilot = useCallback(() => setCopilotOpen((o) => !o), [])

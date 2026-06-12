@@ -83,7 +83,15 @@ export function suggestHostPort(guestPort: number, taken: number[] = []): number
 }
 
 export function publicHostname(explicit?: string): string {
-  return explicit?.trim() || (typeof window !== 'undefined' ? window.location.hostname : '')
+  const raw = explicit?.trim()
+  if (raw && isSafePublicHostname(raw)) return raw
+  return typeof window !== 'undefined' ? window.location.hostname : ''
+}
+
+/** Hostnames/IPs safe to embed in ssh/http URLs (no path, scheme, or whitespace injection). */
+function isSafePublicHostname(value: string): boolean {
+  if (!value || value.includes('..')) return false
+  return /^[a-zA-Z0-9.\-[\]:]+$/.test(value)
 }
 
 export function isPrivateGuestIp(ip: string): boolean {

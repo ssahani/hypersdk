@@ -1119,7 +1119,8 @@ async fn guac_http_proxy_impl(
         }
     }
     let bytes = resp.bytes().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
-    Ok(out.body(Body::from(bytes)).unwrap())
+    out.body(Body::from(bytes))
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 async fn guac_ws_proxy(

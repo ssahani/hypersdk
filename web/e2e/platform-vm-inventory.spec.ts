@@ -5,15 +5,8 @@ import { mockPlatformApi } from './platformMock'
 
 const VM_LIST_ROUTE = '**/platform/controller/api/v1/vms**'
 
-async function useListView(page: import('@playwright/test').Page) {
-  await page.addInitScript(() => {
-    localStorage.setItem('platform-vms-view', 'list')
-  })
-}
-
 test('VM list shows KubeVirt source filter', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
-  await useListView(page)
   await page.route(VM_LIST_ROUTE, async (route) => {
     const url = route.request().url()
     if (url.includes('source=kubevirt')) {
@@ -41,14 +34,13 @@ test('VM list shows KubeVirt source filter', async ({ page }) => {
     }
     return route.continue()
   })
-  await page.goto('/platform/vms?source=kubevirt')
+  await page.goto('/platform/vms?lens=table&source=kubevirt')
   await expect(page.getByRole('link', { name: 'guest-1' })).toBeVisible({ timeout: 15_000 })
   await expect(page.locator('table').getByText('kubevirt', { exact: true })).toBeVisible()
 })
 
 test('VM list shows missing state badge', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
-  await useListView(page)
   await page.route(VM_LIST_ROUTE, async (route) => {
     if (route.request().method() !== 'GET') return route.continue()
     return route.fulfill({
@@ -73,7 +65,7 @@ test('VM list shows missing state badge', async ({ page }) => {
       }],
     })
   })
-  await page.goto('/platform/vms?folder=missing')
+  await page.goto('/platform/vms?lens=table&folder=missing')
   await expect(page.getByRole('link', { name: 'ghost-vm' })).toBeVisible({ timeout: 15_000 })
-  await expect(page.locator('table').getByText('(missing)')).toBeVisible()
+  await expect(page.locator('table').getByText('missing', { exact: true })).toBeVisible()
 })

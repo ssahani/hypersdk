@@ -34,8 +34,10 @@ test('normal tier shell bridge links to integrations hub', async ({ page }) => {
   const integrationsLink = bar.getByRole('link', { name: /Apps.*Integrations/i })
   await expect(integrationsLink).toHaveAttribute('href', /\/platform\/integrations$/)
   await integrationsLink.scrollIntoViewIfNeeded()
-  await integrationsLink.click({ force: true })
-  await expect(page).toHaveURL(/\/platform\/integrations/, { timeout: 20_000 })
+  await Promise.all([
+    page.waitForURL(/\/platform\/integrations/, { timeout: 20_000 }),
+    integrationsLink.click(),
+  ])
 })
 
 test('OpenStack subnav links to platform when fleet mode', async ({ page }) => {

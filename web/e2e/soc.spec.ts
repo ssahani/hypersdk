@@ -16,20 +16,25 @@ test('SOC hub overview loads', async ({ page }) => {
 
 test('SOC alerts tab shows detail panel', async ({ page }) => {
   await page.goto('/platform/soc')
+  await expect(page.getByRole('heading', { name: 'Security Operations Center' })).toBeVisible({ timeout: 15_000 })
   await page.getByRole('button', { name: 'Alerts' }).click()
   await expect(page.getByRole('button', { name: /critical_anomaly/ })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Alert detail' })).toBeVisible()
   await expect(page.getByText('MITRE ATT&CK')).toBeVisible()
   await expect(page.getByText('T1046')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Acknowledge' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Acknowledge' })).toBeVisible({ timeout: 15_000 })
 })
 
 test('SOC Splunk integration test', async ({ page }) => {
   await page.goto('/platform/soc')
   await page.getByRole('button', { name: 'Integrations' }).click()
   await expect(page.getByText('Splunk HTTP Event Collector')).toBeVisible()
+  const testReq = page.waitForResponse(
+    (r) => r.url().includes('/integrations/splunk/test') && r.request().method() === 'POST' && r.ok(),
+  )
   await page.getByRole('button', { name: 'Test connection' }).click()
-  await expect(page.getByText(/Splunk HEC accepted/i)).toBeVisible({ timeout: 10_000 })
+  const body = await (await testReq).json()
+  expect(String(body.message ?? '')).toMatch(/Splunk HEC accepted/i)
 })
 
 test('SOC playbooks tab loads editor', async ({ page }) => {

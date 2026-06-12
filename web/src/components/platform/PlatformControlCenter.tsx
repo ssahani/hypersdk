@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import {
   SlidersHorizontal,
   X,
@@ -48,9 +48,10 @@ import { tierAtLeast } from '../../utils/platformDesktopTier'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { hubTilesForTier, type DesktopHubTile } from '../../utils/platformHubZones'
 import { operationsHubHref } from '../../utils/platformHubLinks'
-import { loadJarvisShell, saveJarvisShell } from '../../utils/platformJarvisShell'
+import { DISMISS_PLATFORM_SHELL_EVENT, loadJarvisShell, saveJarvisShell } from '../../utils/platformJarvisShell'
 
 export default function PlatformControlCenter() {
+  const location = useLocation()
   const { mode, openCopilot } = useAi()
   const toast = useToastContext()
   const [tier] = usePlatformDesktopTier()
@@ -106,6 +107,16 @@ export default function PlatformControlCenter() {
     if (open) void load()
   }, [open, load])
 
+  useEffect(() => {
+    const dismiss = () => setOpen(false)
+    window.addEventListener(DISMISS_PLATFORM_SHELL_EVENT, dismiss)
+    return () => window.removeEventListener(DISMISS_PLATFORM_SHELL_EVENT, dismiss)
+  }, [])
+
+  useEffect(() => {
+    setOpen(false)
+  }, [location.pathname, location.search])
+
   const running = vms.filter((v) => v.observed_state === 'running').length
   const activeTasks = tasks.filter((t) => t.status === 'running' || t.status === 'pending').length
   const failedTasks = tasks.filter((t) => t.status === 'failed').length
@@ -121,6 +132,7 @@ export default function PlatformControlCenter() {
   const showPower = tierAtLeast(tier, 'power')
   const showAdvanced = tier === 'advanced'
   const hubTiles = hubTilesForTier(tier)
+  const closePanel = () => setOpen(false)
 
   const hubIcon = (id: DesktopHubTile['id']) => {
     switch (id) {
@@ -226,6 +238,7 @@ export default function PlatformControlCenter() {
                   href="/platform"
                   tone={offlineCount === 0 ? 'ok' : 'warn'}
                   spark={memPct != null ? `${memPct}% mem` : undefined}
+                  onNavigate={closePanel}
                 />
                 {showPower && (
                   <ModuleTile
@@ -235,6 +248,7 @@ export default function PlatformControlCenter() {
                     href={operationsHubHref(tier)}
                     spark={failedTasks ? `${failedTasks} failed` : undefined}
                     tone={failedTasks ? 'warn' : undefined}
+                    onNavigate={closePanel}
                   />
                 )}
                 {hubTiles.map((hub) => {
@@ -248,6 +262,7 @@ export default function PlatformControlCenter() {
                       href={hub.href}
                       tone={meta.tone}
                       spark={meta.spark}
+                      onNavigate={closePanel}
                     />
                   )
                 })}
@@ -283,6 +298,7 @@ export default function PlatformControlCenter() {
                   value={operatorSummary}
                   href="/platform/zeus/security"
                   tone="warn"
+                  onNavigate={closePanel}
                 />
               )}
               {(showPower && (desktop?.pressure_hosts ?? linuxHealth?.pressure_hosts ?? 0) > 0) && (
@@ -292,6 +308,7 @@ export default function PlatformControlCenter() {
                   value={desktop?.linux_summary ?? linuxHealth?.summary ?? 'Hosts under IO/thermal pressure'}
                   href="/platform/hosts"
                   tone="warn"
+                  onNavigate={closePanel}
                 />
               )}
               {hostsRebootRequired > 0 && (
@@ -301,6 +318,7 @@ export default function PlatformControlCenter() {
                   value={`${hostsRebootRequired} host(s) pending reboot after patches`}
                   href="/platform/maintenance?tab=updates"
                   tone="warn"
+                  onNavigate={closePanel}
                 />
               )}
               {offlineCount > 0 && (
@@ -310,6 +328,7 @@ export default function PlatformControlCenter() {
                   value="Fix — sync agent"
                   href={`/platform/hosts/${offlineHosts[0]?.id ?? ''}`}
                   tone="warn"
+                  onNavigate={closePanel}
                 />
               )}
               <Row
@@ -318,6 +337,7 @@ export default function PlatformControlCenter() {
                 value={unreadAlerts ? `${unreadAlerts} unread` : warnings ? `${warnings} item(s)` : 'None'}
                 href={operationsHubHref(tier)}
                 tone={unreadAlerts || warnings ? 'warn' : 'ok'}
+                onNavigate={closePanel}
               />
             </div>
             <div className="px-4 py-3 border-t border-slate-800 space-y-2">
@@ -373,6 +393,7 @@ function ModuleTile({
   value,
   href,
   onClick,
+  onNavigate,
   tone,
   spark,
 }: {
@@ -381,6 +402,7 @@ function ModuleTile({
   value: string
   href?: string
   onClick?: () => void
+  onNavigate?: () => void
   tone?: 'ok' | 'warn'
   spark?: string
 }) {
@@ -395,7 +417,11 @@ function ModuleTile({
     </>
   )
   if (href) {
-    return <Link to={href} className={cls}>{inner}</Link>
+    return (
+      <Link to={href} className={cls} onClick={onNavigate}>
+        {inner}
+      </Link>
+    )
   }
   return (
     <button type="button" className={`${cls} w-full`} onClick={onClick}>
@@ -437,12 +463,14 @@ function Row({
   value,
   href,
   tone,
+  onNavigate,
 }: {
   icon: React.ReactNode
   label: string
   value: string
   href?: string
   tone?: 'ok' | 'warn'
+  onNavigate?: () => void
 }) {
   const cls = `flex items-center gap-3 p-2 rounded-xl hover:bg-slate-800/50 transition ${tone === 'warn' ? statusToneClass('warn') : ''}`
   const inner = (
@@ -456,7 +484,11 @@ function Row({
     </>
   )
   if (href) {
-    return <Link to={href} className={cls}>{inner}</Link>
+    return (
+      <Link to={href} className={cls} onClick={onNavigate}>
+        {inner}
+      </Link>
+    )
   }
   return <div className={cls}>{inner}</div>
 }

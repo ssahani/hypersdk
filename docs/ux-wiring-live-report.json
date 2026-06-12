@@ -1,9 +1,9 @@
 {
   "host": "212.8.252.194",
-  "generated_at": "2026-06-10T19:22:32.309Z",
-  "passed": 204,
+  "generated_at": "2026-06-11T18:49:07.888Z",
+  "passed": 208,
   "failed": 0,
-  "skipped": 40,
+  "skipped": 37,
   "results": [
     {
       "id": "classic:/",
@@ -98,20 +98,20 @@
     {
       "id": "k8s:/k8s",
       "path": "/k8s",
-      "status": "skipped",
-      "reason": "k8s disabled"
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "k8s:/k8s/kata",
       "path": "/k8s/kata",
-      "status": "skipped",
-      "reason": "k8s disabled"
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "k8s:/k8s/workloads",
       "path": "/k8s/workloads",
-      "status": "skipped",
-      "reason": "k8s disabled"
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "classic:/logs",
@@ -1088,6 +1088,12 @@
     {
       "id": "platform:/platform/vms/:id/consolehub",
       "path": "/platform/vms/:id/consolehub",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/vms/:id?tab=network",
+      "path": "/platform/vms/:id?tab=network",
       "status": "passed",
       "warnings": 0
     },

@@ -78,7 +78,7 @@ export default function GuestAccessBanner({
   if (messages.length === 0 && !showActions) return null
 
   return (
-    <div className="shrink-0 space-y-2 rounded-lg border border-amber-500/30 bg-amber-950/25 px-3 py-2 text-xs text-amber-100/95">
+    <div className="shrink-0 space-y-2 rounded-lg border border-amber-500/30 bg-amber-950/25 px-3 py-2 text-xs text-amber-100/95" data-testid="guest-access-banner">
       {messages.map((msg) => (
         <p key={msg}>{msg}</p>
       ))}

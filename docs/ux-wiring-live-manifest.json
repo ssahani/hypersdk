@@ -2140,10 +2140,12 @@
       "shell": "platform",
       "path": "/platform/vms/:id",
       "tier": "normal",
-      "headingPattern": ".+",
+      "headingPattern": "Daily access|Laptop access|Overview",
       "requires": null,
-      "actions": [],
-      "resolve": null
+      "actions": [
+        { "kind": "tab", "label": "Network" }
+      ],
+      "resolve": "platformResource"
     },
     {
       "id": "platform:/platform/vms/:id/console",
@@ -2153,17 +2155,30 @@
       "headingPattern": ".+",
       "requires": null,
       "actions": [],
-      "resolve": null
+      "resolve": "platformResource"
     },
     {
       "id": "platform:/platform/vms/:id/consolehub",
       "shell": "platform",
       "path": "/platform/vms/:id/consolehub",
       "tier": "normal",
-      "headingPattern": ".+",
+      "headingPattern": "Laptop access|Command Center|Display|Shell",
+      "requires": null,
+      "actions": [
+        { "kind": "click", "role": "button", "name": "Serial" },
+        { "kind": "click", "role": "button", "name": "Command Center" }
+      ],
+      "resolve": "platformResource"
+    },
+    {
+      "id": "platform:/platform/vms/:id?tab=network",
+      "shell": "platform",
+      "path": "/platform/vms/:id?tab=network",
+      "tier": "normal",
+      "headingPattern": "Hypervisor NAT|port forward|Network",
       "requires": null,
       "actions": [],
-      "resolve": null
+      "resolve": "platformResource"
     },
     {
       "id": "platform:/platform/webhooks",
@@ -2940,9 +2955,11 @@
       "shell": "classic",
       "path": "/vms/:name/consolehub",
       "tier": "normal",
-      "headingPattern": "Console|ConsoleHub",
+      "headingPattern": "Console|ConsoleHub|Display|Shell",
       "requires": null,
-      "actions": [],
+      "actions": [
+        { "kind": "click", "role": "button", "name": "Serial" }
+      ],
       "resolve": "classicVm"
     }
   ]

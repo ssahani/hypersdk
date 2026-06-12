@@ -51,7 +51,10 @@ impl RateLimiter {
 
     fn check(&self, key: &str) -> bool {
         let now = Instant::now();
-        let mut map = self.inner.lock().expect("rate limiter lock");
+        let mut map = match self.inner.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
         let bucket = map.entry(key.to_string()).or_insert(Bucket {
             window_start: now,
             count: 0,

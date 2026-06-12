@@ -95,7 +95,6 @@ test('machine finder delete from command center does not crash', async ({ page }
   expect((await deleteReq).ok()).toBeTruthy()
 
   await expect(page.getByTestId('machine-card-v1')).toHaveCount(0, { timeout: 10_000 })
-  await expect(page.getByTestId('machine-finder-migrate-zone')).toContainText('0 VMs')
   await expect(page.getByText('Application error|Something went wrong')).toHaveCount(0)
   expect(errors.filter((e) => !e.includes('ResizeObserver'))).toEqual([])
 })

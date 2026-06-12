@@ -35,7 +35,18 @@ export function MissionControlProvider({ children }: { children: ReactNode }) {
     try { sessionStorage.removeItem('machina-open-mission') } catch { /* ignore */ }
     setOpen(false)
   }, [])
-  const toggleMissionControl = useCallback(() => setOpen((v) => !v), [])
+  const toggleMissionControl = useCallback(() => {
+    setOpen((v) => {
+      const next = !v
+      try {
+        if (next) sessionStorage.setItem('machina-open-mission', '1')
+        else sessionStorage.removeItem('machina-open-mission')
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     const onClose = () => closeMissionControl()

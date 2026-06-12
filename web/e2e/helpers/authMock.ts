@@ -6,6 +6,10 @@ const platformInfo = {
   version: '0.1.0-test',
   tls: { enabled: false },
   auth: { pam_service: 'sshd', oidc_enabled: false },
+  control_plane: {
+    proxy_url: '/api/v1/platform/controller',
+    direct_url: 'http://127.0.0.1:5093',
+  },
   kubevirt: {
     exec_enabled: false,
     default_namespace: 'default',
@@ -96,8 +100,44 @@ export async function mockAuthenticatedApi(page: Page) {
     if (url.includes('/fleet/alerts')) {
       return route.fulfill({ json: { peers: [], total_unacknowledged: 0 } })
     }
-    if (url.endsWith('/vms') || url.match(/\/vms(\?|$)/)) {
+    if (url.match(/\/platform\/controller\/api\/v1\/vms\/[^/]+\/consolehub\/plan/)) {
+      return route.fulfill({
+        json: {
+          vm_id: 'v1',
+          vm_name: 'vm-1',
+          recommended: 'serial',
+          guest_ip: '192.168.122.10',
+          ssh_user: 'ubuntu',
+          guest_access: { auth_mode: 'ssh_key', guest_ip_private: true, ssh_nat_host_port: null },
+          hypervisor_address: 'lab.test',
+          protocols: ['serial', 'native_ssh'],
+        },
+      })
+    }
+    if (url.match(/\/platform\/controller\/api\/v1\/vms\/[^/]+\/port-forwards/)) {
       return route.fulfill({ json: [] })
+    }
+    if (url.match(/\/platform\/controller\/api\/v1\/vms(\?|$)/)) {
+      return route.fulfill({
+        json: [{
+          id: 'v1',
+          name: 'vm-1',
+          guest_ip: '192.168.122.10',
+          host_id: 'h1',
+          observed_state: 'running',
+          inventory_source: 'libvirt',
+        }],
+      })
+    }
+    if (url.match(/\/platform\/controller\/api\/v1\/hosts(\?|$)/)) {
+      return route.fulfill({
+        json: [{ id: 'h1', hostname: 'host-1', address: 'lab.test', state: 'online' }],
+      })
+    }
+    if (url.endsWith('/vms') || url.match(/\/vms(\?|$)/)) {
+      return route.fulfill({
+        json: [{ name: 'vm-1', state: 'running', guest_ip: '192.168.122.10' }],
+      })
     }
     if (url.match(/\/networks(\?|$)/)) {
       return route.fulfill({ json: [] })

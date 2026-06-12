@@ -6,6 +6,7 @@ import {
   isPrivateGuestIp,
   laptopHttpHref,
   laptopSshCommand,
+  publicHostname,
   ruleMatchesService,
   serviceAccessLabel,
   sshNatHostPort,
@@ -69,5 +70,13 @@ describe('vmPortForwardServices', () => {
   it('infers access kind for custom ports', () => {
     expect(inferAccessFromPorts(5432)).toBe('tcp')
     expect(inferAccessFromPorts(8080, true)).toBe('http')
+  })
+
+  it('sanitizes unsafe hostnames for link building', () => {
+    expect(publicHostname('lab.test')).toBe('lab.test')
+    expect(publicHostname('  lab.test  ')).toBe('lab.test')
+    expect(publicHostname('evil.com/foo')).toBe('')
+    expect(publicHostname('http://evil.test')).toBe('')
+    expect(publicHostname('[::1]')).toBe('[::1]')
   })
 })

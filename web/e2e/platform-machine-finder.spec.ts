@@ -11,9 +11,7 @@ test('Machine Finder shows site → rack → host → VM columns', async ({ page
   await expect(page.getByRole('button', { name: 'Rack A' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'host-1' })).toBeVisible()
   await page.getByRole('button', { name: 'host-1' }).click()
-  const vmColumn = page.locator('.mac-finder-columns button').filter({ hasText: 'vm-1' })
-  await expect(vmColumn.first()).toBeVisible({ timeout: 10_000 })
-  await vmColumn.first().click()
+  await page.getByTestId('machine-finder-topology').getByRole('button', { name: 'vm-1', exact: true }).click()
   await expect(page.getByRole('link', { name: 'Open VM' })).toBeVisible()
 })
 
@@ -53,5 +51,5 @@ test('Hosts context includes Infrastructure Finder route', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/vms?lens=topology')
   await expect(page.getByRole('heading', { name: /Machine Finder/i })).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByRole('link', { name: 'Mission Control' })).toBeVisible()
+  await expect(page.getByTestId('machine-finder-topology').getByRole('link', { name: 'Mission Control' })).toBeVisible()
 })

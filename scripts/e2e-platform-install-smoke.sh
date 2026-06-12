@@ -43,16 +43,26 @@ if ! echo "$r" | grep -q '"database":"ok"'; then
 fi
 
 hdr "PLATFORM INSTALL: AGENT PORT"
-if command -v ss >/dev/null 2>&1; then
-  if ss -ltn 2>/dev/null | grep -q ':50051'; then
-    ok "agent gRPC port 50051 listening"
+agent_port_listening() {
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltn 2>/dev/null | grep -q ':50051'
+  elif command -v netstat >/dev/null 2>&1; then
+    netstat -ltn 2>/dev/null | grep -q ':50051'
   else
-    fail "agent gRPC port 50051 not listening"
+    return 1
   fi
-elif command -v netstat >/dev/null 2>&1; then
-  if netstat -ltn 2>/dev/null | grep -q ':50051'; then
-    ok "agent gRPC port 50051 listening"
-  else
+}
+if command -v ss >/dev/null 2>&1 || command -v netstat >/dev/null 2>&1; then
+  found=0
+  for _ in $(seq 1 15); do
+    if agent_port_listening; then
+      ok "agent gRPC port 50051 listening"
+      found=1
+      break
+    fi
+    sleep 2
+  done
+  if [[ "$found" -eq 0 ]]; then
     fail "agent gRPC port 50051 not listening"
   fi
 else

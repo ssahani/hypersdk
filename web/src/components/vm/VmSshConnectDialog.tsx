@@ -119,6 +119,7 @@ export default function VmSshConnectDialog({
     >
       <div
         className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4"
+        data-testid="vm-ssh-connect-dialog"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
@@ -131,7 +132,7 @@ export default function VmSshConnectDialog({
         </div>
         <div className="p-5 space-y-3">
           {useNat ? (
-            <div className="rounded-lg border border-amber-500/25 bg-amber-950/20 px-3 py-2 text-xs text-amber-100/90 space-y-2">
+            <div className="rounded-lg border border-amber-500/25 bg-amber-950/20 px-3 py-2 text-xs text-amber-100/90 space-y-2" data-testid="vm-ssh-nat-banner">
               <p>Guest IP is on hypervisor NAT — connect via the hypervisor host{connectPort ? ` port ${connectPort}` : ''}.</p>
               {!natPort && platformVmId ? (
                 <button type="button" className="btn-primary text-xs" disabled={busy} onClick={() => void exposeAndCopy()}>

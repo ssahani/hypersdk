@@ -33,3 +33,11 @@ test('platform help menu opens platform guide dialog', async ({ page }) => {
   await expect(page.getByRole('dialog', { name: 'Help' })).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText(/libvirt\/KVM stays the engine/i)).toBeVisible()
 })
+
+test('platform VM detail links to ConsoleHub', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/vms/v1')
+  await expect(page.getByRole('link', { name: /console/i }).first()).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('link', { name: /console/i }).first().click()
+  await expect(page).toHaveURL(/\/consolehub/)
+})
