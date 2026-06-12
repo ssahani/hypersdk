@@ -34,6 +34,7 @@ import { useToastContext } from '../../contexts/ToastContext'
 import type { ConsoleExperienceMode } from '../../utils/consoleExperienceMode'
 import { isDisplayProtocol } from '../../utils/consoleExperienceMode'
 import { downloadCanvasScreenshot, saveVmPosterScreenshot } from '../../utils/vmPosterScreenshot'
+import { useConsoleAccessPolicy } from '../../hooks/useConsoleAccessPolicy'
 
 export type MachineCockpitProps = {
   vmId: string
@@ -94,6 +95,7 @@ function CockpitInner({
   const toast = useToastContext()
   const navigate = useNavigate()
   const vp = useConsoleViewport()
+  const access = useConsoleAccessPolicy(plan, session)
   const [lens, setLens] = useState<ConsoleLens>('display')
   const [commandCenter, setCommandCenter] = useState(false)
   const [ccTab, setCcTab] = useState<CommandCenterTab>('Overview')
@@ -149,6 +151,10 @@ function CockpitInner({
   )
 
   const sendCtrlAltDel = async () => {
+    if (!access.canSendKeys) {
+      toast.info('Read-only session — cannot send keys')
+      return
+    }
     try {
       await sendGuestKey(vmName, { preset: 'ctrl_alt_del' })
       toast.success('Sent Ctrl+Alt+Del')
@@ -158,6 +164,10 @@ function CockpitInner({
   }
 
   const sendKeyPreset = async (preset: 'esc' | 'ctrl_alt_del' | 'alt_tab') => {
+    if (!access.canSendKeys) {
+      toast.info('Read-only session — cannot send keys')
+      return
+    }
     try {
       await sendGuestKey(vmName, { preset })
       toast.success(`Sent ${preset}`)
@@ -167,6 +177,10 @@ function CockpitInner({
   }
 
   const handlePower = async (action: 'shutdown' | 'reboot' | 'stop') => {
+    if (!access.canPower) {
+      toast.info('Read-only session — power actions disabled')
+      return
+    }
     try {
       if (action === 'reboot') await vmPower(vmId, 'reboot')
       else if (action === 'shutdown') await vmPower(vmId, 'shutdown')
@@ -178,6 +192,10 @@ function CockpitInner({
   }
 
   const handleSnapshot = async () => {
+    if (!access.canSnapshot) {
+      toast.info('Read-only session — snapshots disabled')
+      return
+    }
     try {
       await createVmSnapshot(vmId, {
         name: `snap-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}`,
@@ -391,6 +409,8 @@ function CockpitInner({
       onTabChange={setCcTab}
       onAction={(action) => void handleCommandCenterAction(action)}
       onPlanRefresh={onPlanRefresh}
+      activeProtocol={activeProtocol}
+      canBreakGlass={access.canPower && !access.spectatorMode}
       onOpenVmDetail={(tab) => {
         setCommandCenter(false)
         navigate(tab ? `/platform/vms/${vmId}?tab=${tab}` : `/platform/vms/${vmId}`)
@@ -427,6 +447,9 @@ function CockpitInner({
           displayProtocols={displayProtocols}
           activeProtocol={activeProtocol}
           onProtocolChange={onProtocolChange}
+          watermarkLabel={access.watermarkLabel}
+          recordingActive={access.recordingActive}
+          readOnly={access.readOnly}
         >
           {sessionBlock}
         </CinemaShell>

@@ -357,6 +357,14 @@ export interface GuestAccessHints {
   ssh_nat_host_port?: number | null
 }
 
+export interface ConsolePermissions {
+  role: string
+  read_only: boolean
+  can_power: boolean
+  can_snapshot: boolean
+  can_send_keys: boolean
+}
+
 export interface ConsoleHubPlan {
   vm_id: string
   vm_name: string
@@ -372,6 +380,8 @@ export interface ConsoleHubPlan {
   hypervisor_address?: string | null
   ssh_connect_host?: string | null
   ssh_connect_port?: number | null
+  session_recording_enabled?: boolean
+  permissions?: ConsolePermissions
 }
 
 export interface ConsoleHubSessionResponse {
@@ -384,16 +394,36 @@ export interface ConsoleHubSessionResponse {
   audit_id: string
   expires_at: string
   spectator_token?: string | null
+  recording_enabled?: boolean
+}
+
+export interface SpectatorValidateResponse {
+  valid: boolean
+  vm_id: string
+  actor: string
+  protocol: string
+  read_only: boolean
 }
 
 export const getConsoleHubPlan = (id: string) =>
   platformFetch<ConsoleHubPlan>(`/api/v1/vms/${id}/consolehub/plan`)
 
-export const createConsoleHubSession = (id: string, body: { protocol?: string; rdp_username?: string; rdp_domain?: string }) =>
+export const createConsoleHubSession = (id: string, body: { protocol?: string; rdp_username?: string; rdp_domain?: string; break_glass?: boolean }) =>
   platformFetch<ConsoleHubSessionResponse>(`/api/v1/vms/${id}/consolehub/sessions`, {
     method: 'POST',
     body: JSON.stringify(body),
   })
+
+export const breakGlassConsoleSession = (id: string, body: { protocol: string; reason?: string }) =>
+  platformFetch<ConsoleHubSessionResponse>(`/api/v1/vms/${id}/consolehub/break-glass`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const validateConsoleSpectator = (sessionId: string, token: string) =>
+  platformFetch<SpectatorValidateResponse>(
+    `/api/v1/consolehub/spectator/validate?session_id=${encodeURIComponent(sessionId)}&token=${encodeURIComponent(token)}`,
+  )
 
 export const endConsoleHubSession = (sessionId: string) =>
   platformFetch<{ ended: boolean }>(`/api/v1/consolehub/sessions/${sessionId}/end`, { method: 'POST' })

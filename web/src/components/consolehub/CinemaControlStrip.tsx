@@ -19,6 +19,7 @@ import { useConsoleViewportOptional } from './ConsoleViewportContext'
 type Props = {
   visible?: boolean
   vmId: string
+  readOnly?: boolean
   onCtrlAltDel?: () => void
   onSendKey?: (preset: 'esc' | 'ctrl_alt_del' | 'alt_tab') => void
   onPower?: (action: 'shutdown' | 'reboot' | 'stop') => void
@@ -35,6 +36,7 @@ const ZOOM_LEVELS: ZoomLevel[] = [75, 100, 125, 150, 200]
 export default function CinemaControlStrip({
   visible = true,
   vmId,
+  readOnly = false,
   onCtrlAltDel,
   onSendKey,
   onPower,
@@ -97,7 +99,7 @@ export default function CinemaControlStrip({
     >
       <div className="flex flex-wrap items-center justify-center gap-1.5 px-2 py-1.5 rounded-2xl border border-white/10 bg-black/70 backdrop-blur-md shadow-xl">
         <div className="relative" ref={powerRef}>
-          <button type="button" className={btn} onClick={() => setPowerOpen((v) => !v)} title="Power">
+          <button type="button" className={`${btn} ${readOnly ? 'opacity-40 cursor-not-allowed' : ''}`} disabled={readOnly} onClick={() => !readOnly && setPowerOpen((v) => !v)} title={readOnly ? 'Read-only session' : 'Power'}>
             <Power className="w-3.5 h-3.5" />
           </button>
           {powerOpen ? (
@@ -119,7 +121,7 @@ export default function CinemaControlStrip({
           ) : null}
         </div>
 
-        <button type="button" className={btn} onClick={() => onPower?.('reboot')} title="Reboot">
+        <button type="button" className={`${btn} ${readOnly ? 'opacity-40 cursor-not-allowed' : ''}`} disabled={readOnly} onClick={() => !readOnly && onPower?.('reboot')} title="Reboot">
           <RotateCcw className="w-3.5 h-3.5" />
         </button>
 

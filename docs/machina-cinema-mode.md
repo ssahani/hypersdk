@@ -68,6 +68,22 @@ cd web && npm run build && npx playwright test e2e/platform-consolehub.spec.ts
 cd web && npm test -- consoleExperienceMode
 ```
 
-## Deferred (enterprise phase)
+## Enterprise console (Phase 5)
+
+When `CONSOLEHUB_RECORDING_ENABLED=1` on the controller:
+
+- Cinema shows a **Rec** badge and diagonal **Recorded · {user}** watermark
+- Session history rows mark `rec` for recorded sessions
+- **Break-glass** in Ops Shelf starts a mandatory audited + recorded session (`POST .../consolehub/break-glass`)
+- **Spectator links**: `/platform/vms/:id/consolehub?spectator={token}&session={sessionId}` — read-only view with watermark (validated via `GET /api/v1/consolehub/spectator/validate`)
+
+RBAC from the console plan (`permissions` on `/consolehub/plan`):
+
+| Role | Power | Snapshots | Send keys |
+|------|-------|-----------|-----------|
+| admin / operator | yes | yes | yes |
+| viewer / readonly | no | no | no |
+
+## Deferred (later enterprise)
 
 Session recording, RBAC-gated console actions, watermark/read-only support sessions, SPICE audio, multi-monitor, collaborative shared console.

@@ -13,6 +13,7 @@ import ConsoleCommandPalette, {
   buildDefaultConsoleActions,
   useConsoleCommandPaletteShortcut,
 } from './ConsoleCommandPalette'
+import ConsoleWatermark from './ConsoleWatermark'
 import { useConsoleViewport } from './ConsoleViewportContext'
 
 type Props = {
@@ -42,6 +43,9 @@ type Props = {
   displayProtocols?: string[]
   activeProtocol?: string
   onProtocolChange?: (p: string) => void
+  watermarkLabel?: string | null
+  recordingActive?: boolean
+  readOnly?: boolean
 }
 
 function stateTone(state?: string | null): 'ok' | 'warn' | 'error' | 'neutral' {
@@ -79,6 +83,9 @@ export default function CinemaShell({
   displayProtocols = [],
   activeProtocol,
   onProtocolChange,
+  watermarkLabel,
+  recordingActive,
+  readOnly = false,
 }: Props) {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const vp = useConsoleViewport()
@@ -110,7 +117,17 @@ export default function CinemaShell({
         {vmState ? <span className={`px-2 py-0.5 rounded-full capitalize ${statusBadgeClasses(tone)}`}>{vmState}</span> : null}
         {guestIp ? <span className="font-mono text-emerald-300/90 hidden sm:inline">{guestIp}</span> : null}
         {nodeName ? <span className="text-slate-500 hidden md:inline">Node {nodeName}</span> : null}
-        <span className="ml-auto text-slate-500 hidden sm:inline">Secure session</span>
+        {recordingActive ? (
+          <span className="px-2 py-0.5 rounded-full bg-red-950/80 border border-red-500/40 text-red-200 text-[10px] uppercase tracking-wide" data-testid="cinema-recording-badge">
+            Rec
+          </span>
+        ) : null}
+        {readOnly ? (
+          <span className="px-2 py-0.5 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-100 text-[10px] uppercase tracking-wide" data-testid="cinema-readonly-badge">
+            View only
+          </span>
+        ) : null}
+        <span className="ml-auto text-slate-500 hidden sm:inline">{readOnly ? 'Spectator session' : 'Secure session'}</span>
       </header>
 
       <div className="relative flex-1 min-h-0 flex flex-col" data-cinema-viewport>
@@ -153,19 +170,21 @@ export default function CinemaShell({
           ) : (
             children
           )}
+          {watermarkLabel ? <ConsoleWatermark label={watermarkLabel} sublabel={recordingActive ? 'Audit trail' : readOnly ? 'Spectator' : undefined} /> : null}
           <FloatingConsoleHud visible={!loading} />
           <CinemaControlStrip
             visible={!loading}
             vmId={vmId}
-            onCtrlAltDel={onCtrlAltDel}
-            onSendKey={onSendKey}
-            onPower={onPower}
+            readOnly={readOnly}
+            onCtrlAltDel={readOnly ? undefined : onCtrlAltDel}
+            onSendKey={readOnly ? undefined : onSendKey}
+            onPower={readOnly ? undefined : onPower}
             onScreenshot={onScreenshot}
             onOpenAi={onOpenAi}
             onOpenOpsShelf={onOpenOpsShelf}
             onOpenStudio={onOpenStudio}
             onSwitchLens={onSwitchLens}
-            onRecord={() => onNotify?.('Session recording coming soon')}
+            onRecord={() => onNotify?.(recordingActive ? 'Session is being recorded for audit' : 'Enable CONSOLEHUB_RECORDING_ENABLED on controller for audit recording')}
           />
           <ConsoleMinimap />
         </div>

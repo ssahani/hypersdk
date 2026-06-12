@@ -98,4 +98,29 @@ test.describe('Platform ConsoleHub', () => {
     await expect(page).toHaveURL(/mode=studio/, { timeout: 15_000 })
     await expect(page.getByTestId('studio-layout')).toBeVisible({ timeout: 15_000 })
   })
+
+  test('Cinema shows recording watermark when policy enabled', async ({ page }) => {
+    await page.goto('/platform/vms/v1/consolehub')
+    await expect(page.getByTestId('cinema-shell')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('cinema-recording-badge')).toBeVisible()
+    await expect(page.getByTestId('console-watermark')).toBeVisible()
+  })
+
+  test('spectator link enables read-only Cinema badges', async ({ page }) => {
+    await page.goto('/platform/vms/v1/consolehub?spectator=mock-spectator&session=00000000-0000-4000-8000-000000000002')
+    await expect(page.getByTestId('cinema-shell')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('cinema-readonly-badge')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('console-watermark')).toContainText('Read-only', { timeout: 15_000 })
+  })
+
+  test('Ops Shelf break-glass starts recorded session', async ({ page }) => {
+    await page.goto('/platform/vms/v1/consolehub')
+    await expect(page.getByTestId('cinema-shell')).toBeVisible({ timeout: 15_000 })
+    await page.getByTestId('ops-shelf-handle').click()
+    const panel = page.getByTestId('ops-shelf')
+    await expect(panel.getByTestId('ops-shelf-break-glass')).toBeVisible()
+    await panel.getByPlaceholder('Reason (required for audit)').fill('Emergency access for prod outage')
+    await panel.getByRole('button', { name: 'Start break-glass session' }).click()
+    await expect(page.getByText(/Break-glass session started/i)).toBeVisible({ timeout: 10_000 })
+  })
 })

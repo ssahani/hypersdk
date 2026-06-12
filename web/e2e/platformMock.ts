@@ -551,6 +551,7 @@ const mockConsoleHubSessions = [
     backend: 'libvirt',
     started_at: new Date(Date.now() - 3_600_000).toISOString(),
     ended_at: new Date(Date.now() - 1_800_000).toISOString(),
+    recording_enabled: true,
   },
   {
     session_id: '00000000-0000-4000-8000-000000000002',
@@ -559,6 +560,7 @@ const mockConsoleHubSessions = [
     backend: 'libvirt',
     started_at: new Date(Date.now() - 600_000).toISOString(),
     ended_at: null,
+    recording_enabled: false,
   },
 ]
 
@@ -3087,6 +3089,41 @@ export async function mockPlatformApi(page: Page, opts?: {
           hypervisor_address: 'lab.test',
           ssh_connect_host: isKubevirt ? null : sshRule ? 'lab.test' : null,
           ssh_connect_port: isKubevirt ? null : sshRule?.host_port ?? null,
+          session_recording_enabled: true,
+          permissions: {
+            role: 'admin',
+            read_only: false,
+            can_power: true,
+            can_snapshot: true,
+            can_send_keys: true,
+          },
+        },
+      })
+    }
+    if (url.includes('/consolehub/spectator/validate')) {
+      const params = new URL(url).searchParams
+      const token = params.get('token')
+      const sessionId = params.get('session_id')
+      const valid = token === 'mock-spectator' && sessionId === '00000000-0000-4000-8000-000000000002'
+      return route.fulfill({
+        json: valid
+          ? { valid: true, vm_id: 'v1', actor: 'admin', protocol: 'novnc', read_only: true }
+          : { valid: false, vm_id: '', actor: '', protocol: '', read_only: true },
+      })
+    }
+    if (url.includes('/consolehub/break-glass') && route.request().method() === 'POST') {
+      const breakVmId = url.match(/\/vms\/([^/]+)\/consolehub\/break-glass/)?.[1] ?? 'v1'
+      return route.fulfill({
+        json: {
+          session_id: '00000000-0000-4000-8000-000000000099',
+          vm_id: breakVmId,
+          protocol: 'novnc',
+          backend: 'native',
+          embed_path: '/platform/vms/v1/consolehub',
+          audit_id: 'audit-1',
+          expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+          recording_enabled: true,
+          spectator_token: 'mock-spectator',
         },
       })
     }

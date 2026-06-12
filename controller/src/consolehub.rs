@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use axum::body::Body;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Extension, Path, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{any, get, post};
@@ -54,6 +54,39 @@ pub struct GuestAccessHints {
 }
 
 #[derive(Debug, Serialize)]
+pub struct ConsolePermissions {
+    pub role: String,
+    pub read_only: bool,
+    pub can_power: bool,
+    pub can_snapshot: bool,
+    pub can_send_keys: bool,
+}
+
+impl Default for ConsolePermissions {
+    fn default() -> Self {
+        Self {
+            role: "admin".into(),
+            read_only: false,
+            can_power: true,
+            can_snapshot: true,
+            can_send_keys: true,
+        }
+    }
+}
+
+fn console_permissions_for(user: &AuthUser) -> ConsolePermissions {
+    let read_only = user.role == "viewer" || user.role == "readonly";
+    let can_power = matches!(user.role.as_str(), "admin" | "operator");
+    ConsolePermissions {
+        role: user.role.clone(),
+        read_only,
+        can_power,
+        can_snapshot: can_power,
+        can_send_keys: !read_only,
+    }
+}
+
+#[derive(Debug, Serialize)]
 pub struct ConsoleHubPlan {
     pub vm_id: String,
     pub vm_name: String,
@@ -69,6 +102,9 @@ pub struct ConsoleHubPlan {
     pub hypervisor_address: Option<String>,
     pub ssh_connect_host: Option<String>,
     pub ssh_connect_port: Option<u16>,
+    /// True when `CONSOLEHUB_RECORDING_ENABLED` is set on the controller.
+    pub session_recording_enabled: bool,
+    pub permissions: ConsolePermissions,
 }
 
 #[derive(Debug, Serialize)]
@@ -107,6 +143,22 @@ pub struct ConsoleSessionResponse {
     pub audit_id: String,
     pub expires_at: String,
     pub spectator_token: Option<String>,
+    pub recording_enabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SpectatorValidateQuery {
+    pub session_id: Uuid,
+    pub token: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SpectatorValidateResponse {
+    pub valid: bool,
+    pub vm_id: String,
+    pub actor: String,
+    pub protocol: String,
+    pub read_only: bool,
 }
 
 impl ConsoleSessionStore {
@@ -142,6 +194,7 @@ pub fn api_routes() -> Router<AppState> {
         .route("/api/v1/vms/{id}/consolehub/access-requests", post(create_access_request))
         .route("/api/v1/consolehub/access-requests/{request_id}/approve", post(approve_access_request))
         .route("/api/v1/vms/{id}/consolehub/break-glass", post(break_glass_session))
+        .route("/api/v1/consolehub/spectator/validate", get(validate_spectator))
         .route("/api/v1/vms/{id}/consolehub/explain", post(consolehub_explain))
 }
 
@@ -209,6 +262,8 @@ fn kubevirt_plan(vm_id: Uuid, vm_name: &str, namespace: &str, ws_token: &str) ->
         hypervisor_address: None,
         ssh_connect_host: None,
         ssh_connect_port: None,
+        session_recording_enabled: false,
+        permissions: ConsolePermissions::default(),
     }
 }
 
@@ -478,6 +533,8 @@ fn plan_from_agent(
         hypervisor_address: hypervisor_address.clone(),
         ssh_connect_host: ssh_host.clone(),
         ssh_connect_port: ssh_port,
+        session_recording_enabled: false,
+        permissions: ConsolePermissions::default(),
     }
 }
 
@@ -517,23 +574,28 @@ fn build_protocol_list(agent: &machina_agent::pb::GetConsoleAccessPlanResponse) 
 
 pub async fn consolehub_plan(
     State(state): State<AppState>,
+    Extension(user): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ConsoleHubPlan>, ApiError> {
+    let policy = |plan: &mut ConsoleHubPlan| {
+        plan.session_recording_enabled = state.config.consolehub_recording_enabled;
+        plan.permissions = console_permissions_for(&user);
+    };
     let (vm_name, _host_id, source, k8s_namespace) = vm_meta(&state, id).await?;
     if source == "kubevirt" {
         let ns = k8s_namespace.unwrap_or_else(|| "default".into());
         let ws_token = state.ws_tokens.issue(id).await;
-        return Ok(Json(
-            kubevirt_plan_enriched(
-                &state.pool,
-                &state.config.daemon_base_url,
-                id,
-                &vm_name,
-                &ns,
-                &ws_token,
-            )
-            .await,
-        ));
+        let mut plan = kubevirt_plan_enriched(
+            &state.pool,
+            &state.config.daemon_base_url,
+            id,
+            &vm_name,
+            &ns,
+            &ws_token,
+        )
+        .await;
+        policy(&mut plan);
+        return Ok(Json(plan));
     }
     let (vm_name, host_id) = vm_row(&state, id).await?;
     let agent_addr = host_agent_grpc(&state.pool, host_id).await?;
@@ -580,6 +642,7 @@ pub async fn consolehub_plan(
             };
         }
     }
+    policy(&mut plan);
     Ok(Json(plan))
 }
 
@@ -694,6 +757,7 @@ pub async fn create_session(
             audit_id: audit_id.to_string(),
             expires_at: expires_at.to_rfc3339(),
             spectator_token: None,
+            recording_enabled: false,
         }));
     }
     let (vm_name, host_id) = vm_row(&state, id).await?;
@@ -856,6 +920,7 @@ pub async fn create_session(
         audit_id: audit_id.to_string(),
         expires_at: expires_at.to_rfc3339(),
         spectator_token: if recording { Some(spectator_token) } else { None },
+        recording_enabled: recording,
     }))
 }
 
@@ -863,16 +928,16 @@ pub async fn list_sessions(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
-    let rows: Vec<(Uuid, String, String, String, chrono::DateTime<chrono::Utc>, Option<chrono::DateTime<chrono::Utc>>)> =
+    let rows: Vec<(Uuid, String, String, String, chrono::DateTime<chrono::Utc>, Option<chrono::DateTime<chrono::Utc>>, bool)> =
         sqlx::query_as(
-            "SELECT id, actor, protocol, backend, started_at, ended_at FROM console_sessions WHERE vm_id = $1 ORDER BY started_at DESC LIMIT 50",
+            "SELECT id, actor, protocol, backend, started_at, ended_at, recording_enabled FROM console_sessions WHERE vm_id = $1 ORDER BY started_at DESC LIMIT 50",
         )
         .bind(id)
         .fetch_all(&state.pool)
         .await?;
     Ok(Json(
         rows.into_iter()
-            .map(|(sid, actor, protocol, backend, started, ended)| {
+            .map(|(sid, actor, protocol, backend, started, ended, recording)| {
                 serde_json::json!({
                     "session_id": sid.to_string(),
                     "actor": actor,
@@ -880,10 +945,43 @@ pub async fn list_sessions(
                     "backend": backend,
                     "started_at": started.to_rfc3339(),
                     "ended_at": ended.map(|t| t.to_rfc3339()),
+                    "recording_enabled": recording,
                 })
             })
             .collect(),
     ))
+}
+
+/// Validate a spectator token for read-only console viewing (recorded sessions).
+pub async fn validate_spectator(
+    State(_state): State<AppState>,
+    axum::extract::Query(q): Query<SpectatorValidateQuery>,
+) -> Result<Json<SpectatorValidateResponse>, ApiError> {
+    let row: Option<(Uuid, String, String)> = sqlx::query_as(
+        "SELECT vm_id, actor, protocol FROM console_sessions WHERE id = $1 AND spectator_token = $2 AND ended_at IS NULL AND recording_enabled = TRUE",
+    )
+    .bind(q.session_id)
+    .bind(q.token.trim())
+    .fetch_optional(&_state.pool)
+    .await?;
+
+    let Some((vm_id, actor, protocol)) = row else {
+        return Ok(Json(SpectatorValidateResponse {
+            valid: false,
+            vm_id: String::new(),
+            actor: String::new(),
+            protocol: String::new(),
+            read_only: true,
+        }));
+    };
+
+    Ok(Json(SpectatorValidateResponse {
+        valid: true,
+        vm_id: vm_id.to_string(),
+        actor,
+        protocol,
+        read_only: true,
+    }))
 }
 
 #[derive(Debug, Deserialize)]

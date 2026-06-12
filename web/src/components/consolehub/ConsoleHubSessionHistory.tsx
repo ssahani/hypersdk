@@ -7,6 +7,7 @@ export type ConsoleHubSessionRow = {
   backend: string
   started_at: string
   ended_at?: string | null
+  recording_enabled?: boolean
 }
 
 type Props = {
@@ -50,6 +51,7 @@ export default function ConsoleHubSessionHistory({ sessions, loading }: Props) {
             <span>{s.protocol}</span>
             <span className="text-slate-500">{s.backend}</span>
             <span className="text-slate-500">{fmtTime(s.started_at)}</span>
+            {s.recording_enabled ? <span className="text-red-300/90">rec</span> : null}
             {s.ended_at ? <span className="text-emerald-400/80">ended</span> : <span className="text-amber-400/80">active</span>}
           </li>
         ))}

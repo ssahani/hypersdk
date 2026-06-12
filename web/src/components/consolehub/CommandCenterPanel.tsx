@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { X } from 'lucide-react'
+import { ShieldAlert, X } from 'lucide-react'
+import { breakGlassConsoleSession } from '../../api/platform'
 import { getVmDoctor, type VmDoctorReport } from '../../api/ai'
+import { useToastContext } from '../../contexts/ToastContext'
 import type { ConsoleHubSessionRow } from './ConsoleHubSessionHistory'
 import type { VmTimelineEntry } from '../../api/platformVmTimeline'
 import type { GuestAccessHints } from '../../utils/guestAccessHints'
@@ -33,6 +35,8 @@ type Props = {
   onAction?: (action: string) => void
   onPlanRefresh?: () => void
   onOpenVmDetail?: (tab?: string) => void
+  activeProtocol?: string
+  canBreakGlass?: boolean
 }
 
 const TABS: CommandCenterTab[] = ['Overview', 'Health', 'Events', 'AI']
@@ -55,9 +59,14 @@ export default function CommandCenterPanel({
   onAction,
   onPlanRefresh,
   onOpenVmDetail,
+  activeProtocol = 'novnc',
+  canBreakGlass = false,
 }: Props) {
+  const toast = useToastContext()
   const [doctor, setDoctor] = useState<VmDoctorReport | null>(null)
   const [doctorLoading, setDoctorLoading] = useState(false)
+  const [breakGlassReason, setBreakGlassReason] = useState('')
+  const [breakGlassBusy, setBreakGlassBusy] = useState(false)
 
   const ip = guestIp?.trim() ?? ''
 
@@ -131,6 +140,39 @@ export default function CommandCenterPanel({
                 </div>
               ) : null}
               <ConsoleHubSessionHistory sessions={sessions} />
+              {canBreakGlass ? (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 space-y-2" data-testid="ops-shelf-break-glass">
+                  <p className="text-xs font-medium text-amber-100 flex items-center gap-1.5">
+                    <ShieldAlert className="w-3.5 h-3.5" /> Break-glass console
+                  </p>
+                  <p className="text-[11px] text-amber-200/70">Starts a recorded, audited session when JIT approval is blocked.</p>
+                  <input
+                    type="text"
+                    className="input w-full text-xs"
+                    placeholder="Reason (required for audit)"
+                    value={breakGlassReason}
+                    onChange={(e) => setBreakGlassReason(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn-secondary text-xs w-full"
+                    disabled={breakGlassBusy || breakGlassReason.trim().length < 4}
+                    onClick={() => {
+                      setBreakGlassBusy(true)
+                      void breakGlassConsoleSession(vmId, { protocol: activeProtocol, reason: breakGlassReason.trim() })
+                        .then(() => {
+                          toast.success('Break-glass session started — recording enabled')
+                          setBreakGlassReason('')
+                          onPlanRefresh?.()
+                        })
+                        .catch((e: unknown) => toast.error(String(e)))
+                        .finally(() => setBreakGlassBusy(false))
+                    }}
+                  >
+                    Start break-glass session
+                  </button>
+                </div>
+              ) : null}
               <div>
                 <p className="text-xs font-medium text-slate-400 mb-2">Quick actions</p>
                 <div className="flex flex-wrap gap-2">
