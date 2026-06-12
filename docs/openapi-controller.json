@@ -5800,6 +5800,84 @@
         }
       }
     },
+    "/api/v1/networks/{id}/activate": {
+      "post": {
+        "summary": "POST /api/v1/networks/{id}/activate",
+        "tags": [
+          "networks"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/{id}/deactivate": {
+      "post": {
+        "summary": "POST /api/v1/networks/{id}/deactivate",
+        "tags": [
+          "networks"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/networks/discover": {
       "post": {
         "summary": "POST /api/v1/networks/discover",
@@ -5825,6 +5903,25 @@
                 "additionalProperties": true
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/networks/live": {
+      "get": {
+        "summary": "GET /api/v1/networks/live",
+        "tags": [
+          "networks"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
           }
         }
       }
@@ -6818,9 +6915,126 @@
         }
       }
     },
+    "/api/v1/storage/pools/{id}/activate": {
+      "post": {
+        "summary": "POST /api/v1/storage/pools/{id}/activate",
+        "tags": [
+          "storage"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/storage/pools/{id}/backup-sla": {
       "post": {
         "summary": "POST /api/v1/storage/pools/{id}/backup-sla",
+        "tags": [
+          "storage"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/storage/pools/{id}/deactivate": {
+      "post": {
+        "summary": "POST /api/v1/storage/pools/{id}/deactivate",
+        "tags": [
+          "storage"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/storage/pools/{id}/refresh": {
+      "post": {
+        "summary": "POST /api/v1/storage/pools/{id}/refresh",
         "tags": [
           "storage"
         ],
@@ -6877,6 +7091,72 @@
         "parameters": [
           {
             "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/storage/pools/{id}/volumes": {
+      "get": {
+        "summary": "GET /api/v1/storage/pools/{id}/volumes",
+        "tags": [
+          "storage"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/storage/pools/{id}/volumes/{vol_name}": {
+      "delete": {
+        "summary": "DELETE /api/v1/storage/pools/{id}/volumes/{vol_name}",
+        "tags": [
+          "storage"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "vol_name",
             "in": "path",
             "required": true,
             "schema": {
@@ -6958,6 +7238,25 @@
                 "additionalProperties": true
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/storage/pools/live": {
+      "get": {
+        "summary": "GET /api/v1/storage/pools/live",
+        "tags": [
+          "storage"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
           }
         }
       }
@@ -7912,6 +8211,45 @@
         }
       }
     },
+    "/api/v1/vms/{id}/consolehub/explain": {
+      "post": {
+        "summary": "POST /api/v1/vms/{id}/consolehub/explain",
+        "tags": [
+          "vms"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/vms/{id}/consolehub/plan": {
       "get": {
         "summary": "GET /api/v1/vms/{id}/consolehub/plan",
@@ -8365,6 +8703,45 @@
         ]
       }
     },
+    "/api/v1/vms/{id}/graphics/spice-to-vnc": {
+      "post": {
+        "summary": "POST /api/v1/vms/{id}/graphics/spice-to-vnc",
+        "tags": [
+          "vms"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/vms/{id}/guest-tools/install": {
       "post": {
         "summary": "POST /api/v1/vms/{id}/guest-tools/install",
@@ -8669,6 +9046,45 @@
     "/api/v1/vms/{id}/health-check": {
       "post": {
         "summary": "POST /api/v1/vms/{id}/health-check",
+        "tags": [
+          "vms"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/vms/{id}/install": {
+      "post": {
+        "summary": "POST /api/v1/vms/{id}/install",
         "tags": [
           "vms"
         ],
@@ -9024,6 +9440,45 @@
         }
       }
     },
+    "/api/v1/vms/{id}/nmi": {
+      "post": {
+        "summary": "POST /api/v1/vms/{id}/nmi",
+        "tags": [
+          "vms"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/vms/{id}/pause": {
       "post": {
         "summary": "POST /api/v1/vms/{id}/pause",
@@ -9061,6 +9516,64 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/vms/{id}/pending-config": {
+      "get": {
+        "summary": "GET /api/v1/vms/{id}/pending-config",
+        "tags": [
+          "vms"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/vms/{id}/port-forward-templates": {
+      "get": {
+        "summary": "GET /api/v1/vms/{id}/port-forward-templates",
+        "tags": [
+          "vms"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
       }
     },
     "/api/v1/vms/{id}/port-forwards": {
@@ -9209,9 +9722,116 @@
         }
       }
     },
+    "/api/v1/vms/{id}/qemu-logs": {
+      "get": {
+        "summary": "GET /api/v1/vms/{id}/qemu-logs",
+        "tags": [
+          "vms"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/v1/vms/{id}/reboot": {
       "post": {
         "summary": "POST /api/v1/vms/{id}/reboot",
+        "tags": [
+          "vms"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/vms/{id}/rename": {
+      "post": {
+        "summary": "POST /api/v1/vms/{id}/rename",
+        "tags": [
+          "vms"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/vms/{id}/reset": {
+      "post": {
+        "summary": "POST /api/v1/vms/{id}/reset",
         "tags": [
           "vms"
         ],
@@ -9729,6 +10349,35 @@
         }
       }
     },
+    "/api/v1/vms/{id}/viewer.vv": {
+      "get": {
+        "summary": "GET /api/v1/vms/{id}/viewer.vv",
+        "tags": [
+          "vms"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/v1/vms/{id}/ws-token": {
       "post": {
         "summary": "POST /api/v1/vms/{id}/ws-token",
@@ -9887,6 +10536,93 @@
     "/api/v1/vms/from-template": {
       "post": {
         "summary": "POST /api/v1/vms/from-template",
+        "tags": [
+          "vms"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/vms/from-virt-install": {
+      "post": {
+        "summary": "POST /api/v1/vms/from-virt-install",
+        "tags": [
+          "vms"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/vms/guest-ips/batch": {
+      "post": {
+        "summary": "POST /api/v1/vms/guest-ips/batch",
+        "tags": [
+          "vms"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/vms/pending-config/batch": {
+      "post": {
+        "summary": "POST /api/v1/vms/pending-config/batch",
         "tags": [
           "vms"
         ],
@@ -12256,6 +12992,45 @@
         }
       }
     },
+    "/api/v1/zeus-security/ingest/{id}": {
+      "post": {
+        "summary": "POST /api/v1/zeus-security/ingest/{id}",
+        "tags": [
+          "zeus-security"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/zeus-security/k8s/{cluster_id}/export-status": {
       "get": {
         "summary": "GET /api/v1/zeus-security/k8s/{cluster_id}/export-status",
@@ -12387,6 +13162,340 @@
           },
           "500": {
             "description": "Server error"
+          }
+        }
+      }
+    },
+    "/consolehub/guacamole/{session_id}": {
+      "delete": {
+        "summary": "DELETE /consolehub/guacamole/{session_id}",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "get": {
+        "summary": "GET /consolehub/guacamole/{session_id}",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "summary": "PATCH /consolehub/guacamole/{session_id}",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "POST /consolehub/guacamole/{session_id}",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "PUT /consolehub/guacamole/{session_id}",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/consolehub/guacamole/{session_id}/": {
+      "delete": {
+        "summary": "DELETE /consolehub/guacamole/{session_id}/",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "get": {
+        "summary": "GET /consolehub/guacamole/{session_id}/",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "summary": "PATCH /consolehub/guacamole/{session_id}/",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "POST /consolehub/guacamole/{session_id}/",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "PUT /consolehub/guacamole/{session_id}/",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
           }
         }
       }
@@ -12782,6 +13891,31 @@
             "description": "Server error"
           }
         }
+      }
+    },
+    "/ws/v1/platform/serial/{vm_id}": {
+      "get": {
+        "summary": "WebSocket /ws/v1/platform/serial/{vm_id}",
+        "tags": [
+          "platform"
+        ],
+        "description": "WebSocket endpoint — use wscat or a WebSocket client. Obtain a token via POST /api/v1/ws-token first.",
+        "x-machina-transport": "websocket",
+        "responses": {
+          "101": {
+            "description": "Switching Protocols"
+          }
+        },
+        "parameters": [
+          {
+            "name": "vm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
       }
     },
     "/ws/v1/platform/vnc/{vm_id}": {

@@ -675,419 +675,6 @@
         ]
       }
     },
-    "/api/v1/consolehub/guacamole/{session_id}/{*path}": {
-      "delete": {
-        "summary": "DELETE /api/v1/consolehub/guacamole/{session_id}/{*path}",
-        "tags": [
-          "consolehub"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "500": {
-            "description": "Server error"
-          }
-        },
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "*path",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      },
-      "get": {
-        "summary": "GET /api/v1/consolehub/guacamole/{session_id}/{*path}",
-        "tags": [
-          "consolehub"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "500": {
-            "description": "Server error"
-          }
-        },
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "*path",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      },
-      "patch": {
-        "summary": "PATCH /api/v1/consolehub/guacamole/{session_id}/{*path}",
-        "tags": [
-          "consolehub"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "500": {
-            "description": "Server error"
-          }
-        },
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "*path",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "POST /api/v1/consolehub/guacamole/{session_id}/{*path}",
-        "tags": [
-          "consolehub"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "500": {
-            "description": "Server error"
-          }
-        },
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "*path",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "summary": "PUT /api/v1/consolehub/guacamole/{session_id}/{*path}",
-        "tags": [
-          "consolehub"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "500": {
-            "description": "Server error"
-          }
-        },
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "*path",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/consolehub/guacamole/{session_id}/websocket-tunnel": {
-      "delete": {
-        "summary": "DELETE /api/v1/consolehub/guacamole/{session_id}/websocket-tunnel",
-        "tags": [
-          "consolehub"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "500": {
-            "description": "Server error"
-          }
-        },
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      },
-      "get": {
-        "summary": "GET /api/v1/consolehub/guacamole/{session_id}/websocket-tunnel",
-        "tags": [
-          "consolehub"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "500": {
-            "description": "Server error"
-          }
-        },
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      },
-      "patch": {
-        "summary": "PATCH /api/v1/consolehub/guacamole/{session_id}/websocket-tunnel",
-        "tags": [
-          "consolehub"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "500": {
-            "description": "Server error"
-          }
-        },
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "POST /api/v1/consolehub/guacamole/{session_id}/websocket-tunnel",
-        "tags": [
-          "consolehub"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "500": {
-            "description": "Server error"
-          }
-        },
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "summary": "PUT /api/v1/consolehub/guacamole/{session_id}/websocket-tunnel",
-        "tags": [
-          "consolehub"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "500": {
-            "description": "Server error"
-          }
-        },
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/consolehub/sessions/{session_id}/end": {
-      "post": {
-        "summary": "POST /api/v1/consolehub/sessions/{session_id}/end",
-        "tags": [
-          "consolehub"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "500": {
-            "description": "Server error"
-          }
-        },
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/cpu/compare": {
       "post": {
         "summary": "POST /api/v1/cpu/compare",
@@ -3488,6 +3075,53 @@
             }
           }
         ]
+      }
+    },
+    "/api/v1/k8s/kubevirt/virtualmachines/{namespace}/{name}/lifecycle": {
+      "post": {
+        "summary": "POST /api/v1/k8s/kubevirt/virtualmachines/{namespace}/{name}/lifecycle",
+        "tags": [
+          "k8s"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/k8s/kubevirt/vm-summary": {
@@ -8748,6 +8382,35 @@
         }
       }
     },
+    "/api/v1/platform/serial/{vm_id}": {
+      "get": {
+        "summary": "GET /api/v1/platform/serial/{vm_id}",
+        "tags": [
+          "platform"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "vm_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/v1/platform/vnc/{vm_id}": {
       "get": {
         "summary": "GET /api/v1/platform/vnc/{vm_id}",
@@ -13167,6 +12830,753 @@
           },
           "500": {
             "description": "Server error"
+          }
+        }
+      }
+    },
+    "/consolehub/guacamole/{session_id}": {
+      "delete": {
+        "summary": "DELETE /consolehub/guacamole/{session_id}",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "get": {
+        "summary": "GET /consolehub/guacamole/{session_id}",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "summary": "PATCH /consolehub/guacamole/{session_id}",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "POST /consolehub/guacamole/{session_id}",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "PUT /consolehub/guacamole/{session_id}",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/consolehub/guacamole/{session_id}/": {
+      "delete": {
+        "summary": "DELETE /consolehub/guacamole/{session_id}/",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "get": {
+        "summary": "GET /consolehub/guacamole/{session_id}/",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "summary": "PATCH /consolehub/guacamole/{session_id}/",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "POST /consolehub/guacamole/{session_id}/",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "PUT /consolehub/guacamole/{session_id}/",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/consolehub/guacamole/{session_id}/{*path}": {
+      "delete": {
+        "summary": "DELETE /consolehub/guacamole/{session_id}/{*path}",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "*path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "get": {
+        "summary": "GET /consolehub/guacamole/{session_id}/{*path}",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "*path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "summary": "PATCH /consolehub/guacamole/{session_id}/{*path}",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "*path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "POST /consolehub/guacamole/{session_id}/{*path}",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "*path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "PUT /consolehub/guacamole/{session_id}/{*path}",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "*path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/consolehub/guacamole/{session_id}/websocket-tunnel": {
+      "delete": {
+        "summary": "DELETE /consolehub/guacamole/{session_id}/websocket-tunnel",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "get": {
+        "summary": "GET /consolehub/guacamole/{session_id}/websocket-tunnel",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "summary": "PATCH /consolehub/guacamole/{session_id}/websocket-tunnel",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "POST /consolehub/guacamole/{session_id}/websocket-tunnel",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "PUT /consolehub/guacamole/{session_id}/websocket-tunnel",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/consolehub/sessions/{session_id}/end": {
+      "post": {
+        "summary": "POST /consolehub/sessions/{session_id}/end",
+        "tags": [
+          "root"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
           }
         }
       }

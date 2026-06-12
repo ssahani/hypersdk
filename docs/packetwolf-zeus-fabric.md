@@ -57,6 +57,7 @@ insecure_tls = true
 | `GET /api/v1/zeus-security/hosts/{id}/timeline` | Security flight recorder |
 | `GET /api/v1/zeus-security/hosts/{id}/process-graph` | Process ancestry |
 | `GET /api/v1/zeus-security/hosts/{id}/fabric-status` | Live agent TracingPolicy + Tetragon service state |
+| `POST /api/v1/zeus-security/ingest/{id}` | Tetragon event ingest relay (local registry + optional forward to PacketWolf) |
 | `POST /api/v1/zeus-security/hosts/{id}/tetragon/install` | Enroll Tetragon sensor |
 | `POST /api/v1/zeus-security/k8s/{cluster_id}/tetragon/install` | Enroll Tetragon via Helm on cluster |
 | `GET /api/v1/zeus-security/k8s/{cluster_id}/export-status` | PacketWolf export forwarder readiness |
@@ -119,11 +120,13 @@ Responses include `llm_powered: true` when the model was used. Threat Hunting wo
 
 ## Phase 9 — Production Tetragon install (PW-28–PW-30)
 
-- **Host install:** `core/tetragon/install.rs` — package manager or GitHub release download, `tetragon.service`, `tetragon-export.timer` forwarding JSONL export to `POST /api/v1/ingest/{hostId}`
-- **Bundle apply:** `apply_security_bundle` runs install when `tetragon_install` is present in the agent bundle
+- **Host install:** `core/tetragon/install.rs` — official Cilium release tarball (`tetragon-v1.7.0-{arch}.tar.gz`), upstream `install.sh`, `tetragon.service`, `tetragon-export.timer` forwarding JSONL export to ingest
+- **Ingest target:** when PacketWolf fabric APIs are available, export posts to `POST {packetwolf}/api/v1/ingest/{hostId}`; when production PacketWolf only serves the SPA (no ingest), the controller relays at `POST /api/v1/zeus-security/ingest/{hostId}` on port **5093**
+- **Local fabric fallback:** controller maintains an in-memory + PostgreSQL sensor registry (`packetwolf_local_sensors`) when production PacketWolf returns HTML for `/api/v1/sensors` and related fabric routes
+- **Bundle apply:** `apply_security_bundle` runs install when `tetragon_install` is present in the agent bundle; enrollment fails if `tetragon.service` does not become active
 - **K8s:** `packetwolf_k8s` runs `helm upgrade --install tetragon cilium/tetragon` from `k8s.tetragon.install` task
-- **Fabric status:** `tetragon_service_active`, `tetragon_export_timer_active` on agent and Machine Security header
-- **Env:** `MACHINA_TETRAGON_VERSION` (default `1.0.0`), `MACHINA_TETRAGON_DIR`, `MACHINA_TETRAGON_EXPORT_BATCH`
+- **Fabric status:** `tetragon_service_active`, `tetragon_export_timer_active`, `export_url` on agent and Machine Security header
+- **Env:** `MACHINA_TETRAGON_VERSION` (default `1.7.0`), `MACHINA_TETRAGON_DIR`, `MACHINA_TETRAGON_EXPORT_BATCH`
 
 ## Phase 10 — K8s export forwarder (PW-31–PW-33)
 
@@ -164,9 +167,19 @@ Responses include `llm_powered: true` when the model was used. Threat Hunting wo
 ## Tetragon enrollment
 
 1. Operator clicks **Install Tetragon** on machine security view.
-2. Controller enqueues `host.tetragon.install` task and registers sensor with PacketWolf.
-3. Agent installs Tetragon binary/systemd unit (production path) or K8s Helm release on cluster bootstrap.
-4. Tetragon export → PacketWolf ingest → ClickHouse + Security Center timeline.
+2. Controller enqueues `host.tetragon.install` task, registers sensor (PacketWolf or local fallback), and pushes agent bundle with `export_url`.
+3. Agent installs Tetragon via official release bundle, writes TracingPolicies, and starts `tetragon.service` + `tetragon-export.timer`.
+4. `tetragon-export.timer` batches JSONL lines → ingest relay → sensor marked healthy with `last_event_at`.
+
+**Production PacketWolf without dev fabric APIs:** point `[packetwolf] enabled = true` at the production HTTPS endpoint; Machina detects missing fabric routes and uses the controller ingest relay plus local sensor registry automatically. Re-enroll after upgrading controller to refresh `export_url` on hosts that still target the old PacketWolf ingest path.
+
+```bash
+# Verify on host
+curl -sf http://127.0.0.1:5093/api/v1/zeus-security/fleet/sensors
+curl -sf http://127.0.0.1:5093/api/v1/zeus-security/hosts/{hostId}/fabric-status
+systemctl is-active tetragon.service tetragon-export.timer
+sudo systemctl start tetragon-export.service   # should exit 0
+```
 
 ## Testing
 
