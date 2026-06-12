@@ -6,8 +6,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useLocation, useNavigate } from 'react-router'
 import { Search, Plus, Camera, Server, Play, Square, Power, Terminal, ArrowRight, Network, HardDrive, Clock, Star, Boxes, Upload, Pin, Keyboard, Info, Bell, ClipboardList, Activity, Settings, Monitor, LayoutGrid } from 'lucide-react'
-import { searchLaunchpad, type LaunchpadSearchHit } from '../api/launchpad'
-import { launchpadStatusLabel, openLaunchpadApp } from '../utils/launchpadHelpers'
+import { launchpadHealthSummary, searchLaunchpad, type LaunchpadSearchHit } from '../api/launchpad'
+import { launchpadInspectPath, launchpadStatusLabel, openLaunchpadApp } from '../utils/launchpadHelpers'
 import { navigateVmSshSession } from './vm/VmSshConnectDialog'
 import { listVMs, startVM, stopVM, shutdownVM, VmInfo } from '../api/vm'
 import { listPlatformHosts, listPlatformVms } from '../api/platform'
@@ -73,6 +73,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   const [nlOpsQuery, setNlOpsQuery] = useState('')
   const [spotlightIntents, setSpotlightIntents] = useState<SpotlightIntent[]>([])
   const [launchpadHits, setLaunchpadHits] = useState<LaunchpadSearchHit[]>([])
+  const [launchpadBrokenCount, setLaunchpadBrokenCount] = useState(0)
   const [executing, setExecuting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -206,6 +207,16 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   const platformSpotlightPaths = onPlatformDesktop
     ? spotlightPathSetForTier(platformTier, info)
     : new Set<string>()
+
+  useEffect(() => {
+    if (!open || !onPlatformDesktop) {
+      setLaunchpadBrokenCount(0)
+      return
+    }
+    void launchpadHealthSummary()
+      .then((h) => setLaunchpadBrokenCount((h.broken ?? 0) + (h.degraded ?? 0)))
+      .catch(() => setLaunchpadBrokenCount(0))
+  }, [open, onPlatformDesktop])
 
   useEffect(() => {
     if (!open || !onPlatformDesktop || query.trim().length < 2) {
@@ -625,11 +636,15 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   const parsedCommand = parsePlatformCommand(query, onlineHostCount)
 
   if (onPlatformDesktop && (q === 'broken' || q === 'broken services')) {
+    const countLabel =
+      launchpadBrokenCount > 0
+        ? `Launchpad · ${launchpadBrokenCount} app${launchpadBrokenCount === 1 ? '' : 's'} need attention`
+        : 'Launchpad · filter broken routes'
     items.unshift({
       id: 'launchpad-broken-filter',
       icon: <LayoutGrid className="w-4 h-4 text-orange-400" />,
       label: 'Apps need attention',
-      sublabel: 'Launchpad · broken routes',
+      sublabel: countLabel,
       action: () => go('/platform/launchpad?filter=broken'),
       category: 'Launchpad',
     })
@@ -637,10 +652,18 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
 
   for (const hit of launchpadHits) {
     items.unshift({
+      id: `launchpad-inspect-${hit.app.id}`,
+      icon: <LayoutGrid className="w-4 h-4 text-orange-400" />,
+      label: hit.app.displayName,
+      sublabel: `${hit.app.category} · ${launchpadStatusLabel(hit.app.status)} · Inspect`,
+      action: () => go(launchpadInspectPath(hit.app)),
+      category: 'Launchpad',
+    })
+    items.unshift({
       id: `launchpad-${hit.app.id}`,
       icon: <LayoutGrid className="w-4 h-4 text-orange-400" />,
       label: hit.app.displayName,
-      sublabel: `${hit.app.category} · ${launchpadStatusLabel(hit.app.status)} · Open app`,
+      sublabel: `${hit.app.category} · ${launchpadStatusLabel(hit.app.status)} · Open`,
       action: () => {
         close()
         void openLaunchpadApp(hit.app)

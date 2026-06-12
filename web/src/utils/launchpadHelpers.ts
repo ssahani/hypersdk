@@ -1,7 +1,13 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import type { LaunchpadApp } from '../api/launchpad'
-import { getLaunchpadConfig } from '../api/launchpad'
+import { getLaunchpadConfig, pinLaunchpadFavorite } from '../api/launchpad'
+
+export const LAUNCHPAD_FAVORITES_CHANGED = 'launchpad-favorites-changed'
+
+export function dispatchLaunchpadFavoritesChanged() {
+  window.dispatchEvent(new CustomEvent(LAUNCHPAD_FAVORITES_CHANGED))
+}
 
 export function launchpadStatusLabel(status: string): string {
   switch (status) {
@@ -42,4 +48,24 @@ export async function launchpadOpenUrl(app: LaunchpadApp): Promise<string> {
 export async function openLaunchpadApp(app: LaunchpadApp) {
   const url = await launchpadOpenUrl(app)
   window.open(url, '_blank', 'noopener,noreferrer')
+}
+
+export async function copyLaunchpadUrl(app: LaunchpadApp) {
+  const url = await launchpadOpenUrl(app)
+  await navigator.clipboard.writeText(url)
+  return url
+}
+
+export async function pinLaunchpadApp(app: LaunchpadApp) {
+  await pinLaunchpadFavorite(app.id)
+  dispatchLaunchpadFavoritesChanged()
+}
+
+export function launchpadDetailPath(app: LaunchpadApp): string {
+  const slug = app.canonicalSlug || app.id.split('/').pop() || app.slug
+  return `/platform/launchpad/apps/${encodeURIComponent(slug)}`
+}
+
+export function launchpadInspectPath(app: LaunchpadApp): string {
+  return `${launchpadDetailPath(app)}?inspect=1`
 }

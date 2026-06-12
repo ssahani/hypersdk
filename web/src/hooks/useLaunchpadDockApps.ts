@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router'
 import { listLaunchpadFavorites, type LaunchpadApp } from '../api/launchpad'
+import { LAUNCHPAD_FAVORITES_CHANGED } from '../utils/launchpadHelpers'
 
 export function useLaunchpadDockApps(limit = 4): LaunchpadApp[] {
   const location = useLocation()
@@ -14,15 +15,20 @@ export function useLaunchpadDockApps(limit = 4): LaunchpadApp[] {
       return
     }
     let cancelled = false
-    void listLaunchpadFavorites()
-      .then((favs) => {
-        if (!cancelled) setApps(favs.slice(0, limit))
-      })
-      .catch(() => {
-        if (!cancelled) setApps([])
-      })
+    const refresh = () => {
+      void listLaunchpadFavorites()
+        .then((favs) => {
+          if (!cancelled) setApps(favs.slice(0, limit))
+        })
+        .catch(() => {
+          if (!cancelled) setApps([])
+        })
+    }
+    refresh()
+    window.addEventListener(LAUNCHPAD_FAVORITES_CHANGED, refresh)
     return () => {
       cancelled = true
+      window.removeEventListener(LAUNCHPAD_FAVORITES_CHANGED, refresh)
     }
   }, [location.pathname, limit])
 

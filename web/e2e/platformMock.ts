@@ -25,6 +25,22 @@ export const platformInfo = {
   fleet: { enabled: false, peer_count: 0 },
 }
 
+const mockLaunchpadDiagnosis = {
+  appId: 'monitoring/grafana',
+  routePath: '/launchpad/a/monitoring/grafana',
+  publicUrl: 'http://127.0.0.1:31847/launchpad/apps/grafana',
+  backend: { kind: 'Service', name: 'grafana', port: 80, scheme: 'http', path: '/' },
+  chain: [
+    { id: 'user', label: 'User' },
+    { id: 'identity', label: 'Zeus Identity' },
+    { id: 'gateway', label: 'Hermes Gateway' },
+    { id: 'approute', label: 'AppRoute: grafana' },
+    { id: 'namespace', label: 'Namespace: monitoring' },
+    { id: 'service', label: 'Service grafana:80', status: 'healthy' },
+  ],
+  suggestedActions: [{ label: 'Open Kubernetes workloads', href: '/k8s/workloads?ns=monitoring' }],
+}
+
 const mockLaunchpadApps = [
   {
     id: 'monitoring/grafana',
@@ -748,10 +764,25 @@ export async function mockPlatformApi(page: Page, opts?: {
         },
       })
     }
+    if (url.includes('/api/v1/launchpad/favorites') && route.request().method() === 'PUT') {
+      return route.fulfill({ status: 204, body: '' })
+    }
     if (url.includes('/api/v1/launchpad/favorites')) {
       return route.fulfill({ json: mockLaunchpadApps.filter((a) => a.visibility.favorite) })
     }
-    if (url.includes('/api/v1/launchpad/catalog') || url.includes('/api/v1/launchpad/apps')) {
+    if (url.includes('/api/v1/launchpad/apps/') && url.includes('/diagnosis')) {
+      return route.fulfill({ json: mockLaunchpadDiagnosis })
+    }
+    if (url.match(/\/api\/v1\/launchpad\/apps\/[^/?]+/)) {
+      const idPart = decodeURIComponent(url.split('/api/v1/launchpad/apps/')[1]?.split('?')[0] ?? '')
+      const app =
+        mockLaunchpadApps.find((a) => a.id === idPart) ||
+        mockLaunchpadApps.find((a) => a.canonicalSlug === idPart) ||
+        mockLaunchpadApps.find((a) => a.slug === idPart)
+      if (app) return route.fulfill({ json: app })
+      return route.fulfill({ status: 404, json: { error: 'not found' } })
+    }
+    if (url.includes('/api/v1/launchpad/catalog') || url.endsWith('/api/v1/launchpad/apps')) {
       return route.fulfill({ json: mockLaunchpadApps })
     }
     if (url.includes('/api/v1/launchpad/health/apps')) {

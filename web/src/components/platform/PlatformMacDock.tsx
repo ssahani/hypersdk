@@ -13,6 +13,7 @@ import { useMissionControl } from './mac/MissionControlContext'
 import { useFleetDesktop } from '../../hooks/useFleetDesktop'
 import { getFleetFinder } from '../../api/platform'
 import { useLaunchpadDockApps } from '../../hooks/useLaunchpadDockApps'
+import { gradientForName } from './mac/PlatformMacUi'
 import { openLaunchpadApp } from '../../utils/launchpadHelpers'
 
 function isPlatformShell(pathname: string): boolean {
@@ -157,10 +158,12 @@ export default function PlatformMacDock() {
                 type="button"
                 title={app.displayName}
                 aria-label={`Open ${app.displayName}`}
-                className="mac-dock-item"
+                className="mac-dock-item mac-dock-launchpad-app"
                 onClick={() => void openLaunchpadApp(app)}
               >
-                <span className="text-xs font-semibold text-orange-300">
+                <span
+                  className={`w-8 h-8 rounded-[22%] bg-gradient-to-br ${gradientForName(app.displayName)} flex items-center justify-center text-white text-xs font-bold shadow-md`}
+                >
                   {app.displayName.trim().charAt(0).toUpperCase()}
                 </span>
                 <span className="mac-dock-tooltip">{app.displayName}</span>

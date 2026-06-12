@@ -76,9 +76,43 @@ export async function getLaunchpadConfig(): Promise<LaunchpadConfig> {
   return cachedConfig
 }
 
+export interface LaunchpadDiagnosisChainNode {
+  id: string
+  label: string
+  status?: string
+}
+
+export interface LaunchpadSuggestedAction {
+  label: string
+  href: string
+}
+
+export interface LaunchpadDiagnosis {
+  appId: string
+  routePath: string
+  publicUrl: string
+  backend: LaunchpadBackend
+  problem?: string
+  cause?: string
+  chain: LaunchpadDiagnosisChainNode[]
+  suggestedActions: LaunchpadSuggestedAction[]
+}
+
+function launchpadAppPath(id: string, suffix = '') {
+  const encoded = id.split('/').map(encodeURIComponent).join('/')
+  return `/api/v1/launchpad/apps/${encoded}${suffix}`
+}
+
 export const listLaunchpadApps = () => platformFetch<LaunchpadApp[]>('/api/v1/launchpad/apps')
 export const listLaunchpadCatalog = () => platformFetch<LaunchpadApp[]>('/api/v1/launchpad/catalog')
 export const listLaunchpadFavorites = () => platformFetch<LaunchpadApp[]>('/api/v1/launchpad/favorites')
+export const getLaunchpadApp = (id: string) => platformFetch<LaunchpadApp>(launchpadAppPath(id))
+export const getLaunchpadDiagnosis = (id: string) =>
+  platformFetch<LaunchpadDiagnosis>(launchpadAppPath(id, '/diagnosis'))
+export const pinLaunchpadFavorite = (id: string) =>
+  platformFetch<void>(`/api/v1/launchpad/favorites/${id.split('/').map(encodeURIComponent).join('/')}`, {
+    method: 'PUT',
+  })
 export const launchpadHealthSummary = () => platformFetch<LaunchpadHealthSummary>('/api/v1/launchpad/health/apps')
 export const searchLaunchpad = (q: string) =>
   platformFetch<LaunchpadSearchHit[]>(`/api/v1/launchpad/search?q=${encodeURIComponent(q)}&limit=20`)

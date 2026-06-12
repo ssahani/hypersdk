@@ -29,6 +29,7 @@ import MissionControlBriefing from './MissionControlBriefing'
 import MissionControlGeography from './MissionControlGeography'
 import MissionControlHero from './MissionControlHero'
 import MissionControlLaunchpad from './MissionControlLaunchpad'
+import LaunchpadMissionControlStrip from '../../../components/launchpad/LaunchpadMissionControlStrip'
 import { useMissionControlFleet } from './useMissionControlFleet'
 import EnterpriseSecurityStrip from '../../../components/platform/EnterpriseSecurityStrip'
 
@@ -134,6 +135,7 @@ export default function MissionControlPage() {
             </section>
           )}
           <MissionControlLaunchpad onCreateVm={() => setWizardOpen(true)} lastVm={lastRunningVm} />
+          <LaunchpadMissionControlStrip />
           <ActionDropZones state={state} />
           <HostMachinePanels state={state} />
           <MissionControlGeography expanded={geoExpanded} onToggle={() => setGeoExpanded((v) => !v)} />
