@@ -44,9 +44,11 @@ interface Props {
 type RfbViewportHandle = {
   scaleViewport: boolean
   clipViewport: boolean
+  _target?: HTMLElement
   _updateScale?: () => void
   _updateClip?: () => void
-  _screen?: HTMLElement
+  _fixScrollbars?: () => void
+  _display?: { autoscale: (w: number, h: number) => void }
 }
 
 function applyViewportMode(
@@ -62,46 +64,59 @@ function applyViewportMode(
   }
 }
 
-function rfbScreenSize(rfb: RfbViewportHandle): { w: number; h: number } {
-  const screen = rfb._screen
-  if (!screen) return { w: 0, h: 0 }
-  const rect = screen.getBoundingClientRect()
-  return { w: rect.width, h: rect.height }
+function viewportBox(
+  scrollEl: HTMLElement | null | undefined,
+  targetEl: HTMLElement | null | undefined,
+): { w: number; h: number } {
+  const sw = scrollEl?.clientWidth ?? 0
+  const sh = scrollEl?.clientHeight ?? 0
+  if (sw > 0 && sh > 0) return { w: sw, h: sh }
+  const target = targetEl?.getBoundingClientRect()
+  return { w: target?.width ?? 0, h: target?.height ?? 0 }
 }
 
-/** noVNC autoscale uses scale=0 when the screen element has no layout box yet (blank Fit on first open). */
+/** Size the noVNC target before Fit autoscale — avoids scale=0 blank canvas on first Cinema open. */
 function syncContainerLayoutForFit(
   scrollEl: HTMLElement | null | undefined,
-  containerEl: HTMLElement | null | undefined,
+  targetEl: HTMLElement | null | undefined,
   scaledFit: boolean,
 ) {
-  if (!containerEl) return
+  if (!targetEl) return
   if (!scaledFit) {
-    containerEl.style.width = ''
-    containerEl.style.height = ''
+    targetEl.style.width = ''
+    targetEl.style.height = ''
     return
   }
-  const w = scrollEl?.clientWidth ?? 0
-  const h = scrollEl?.clientHeight ?? 0
+  const { w, h } = viewportBox(scrollEl, targetEl)
   if (w > 0 && h > 0) {
-    containerEl.style.width = `${w}px`
-    containerEl.style.height = `${h}px`
+    targetEl.style.width = `${w}px`
+    targetEl.style.height = `${h}px`
   }
+}
+
+function fbReady(rfb: { _fbWidth?: number; _fbHeight?: number }): boolean {
+  return (rfb._fbWidth ?? 0) > 0 && (rfb._fbHeight ?? 0) > 0
 }
 
 function refreshRfbViewport(
-  rfb: RfbViewportHandle,
+  rfb: RfbViewportHandle & { _fbWidth?: number; _fbHeight?: number },
   scaledFit: boolean,
   scrollEl?: HTMLElement | null,
 ) {
-  syncContainerLayoutForFit(scrollEl ?? null, rfb._screen ?? null, scaledFit)
+  syncContainerLayoutForFit(scrollEl ?? null, rfb._target ?? null, scaledFit)
   applyViewportMode(rfb, scaledFit)
   rfb._updateClip?.()
+  const box = viewportBox(scrollEl, rfb._target ?? null)
+  if (scaledFit && fbReady(rfb) && box.w > 0 && box.h > 0 && rfb._display?.autoscale) {
+    rfb._display.autoscale(box.w, box.h)
+    rfb._fixScrollbars?.()
+    return
+  }
   rfb._updateScale?.()
 }
 
 function scheduleFitViewportRefresh(
-  rfb: RfbViewportHandle,
+  rfb: RfbViewportHandle & { _fbWidth?: number; _fbHeight?: number },
   scaledFit: boolean,
   scrollEl: HTMLElement | null | undefined,
   isCancelled: () => boolean,
@@ -111,8 +126,8 @@ function scheduleFitViewportRefresh(
     if (isCancelled()) return
     refreshRfbViewport(rfb, scaledFit, scrollEl)
     if (!scaledFit) return
-    const size = rfbScreenSize(rfb)
-    if ((size.w <= 0 || size.h <= 0) && attempts < 90) {
+    const box = viewportBox(scrollEl, rfb._target ?? null)
+    if ((!fbReady(rfb) || box.w <= 0 || box.h <= 0) && attempts < 120) {
       attempts += 1
       requestAnimationFrame(tick)
     }
