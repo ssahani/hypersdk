@@ -27,6 +27,7 @@ import ExplainButton from '../../components/ai/ExplainButton'
 import OsDiagnosePanel from '../../components/platform/OsDiagnosePanel'
 import VmDetailTabs, { type VmDetailTab, isGuestRelatedTab } from '../../components/platform/VmDetailTabs'
 import { MacGlassPanel, MacListRow } from '../../components/platform/mac/PlatformMacUi'
+import VmUsageBars from '../../components/platform/VmUsageBars'
 import JsonInspector from '../../components/platform/JsonInspector'
 import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
 import {
@@ -998,12 +999,14 @@ export default function PlatformVmDetail() {
                 <InfoCard label="Backup" value={backups.some((b) => b.status === 'completed') ? 'Protected' : 'Not configured'} />
               </div>
               {metrics && (
-                <MacGlassPanel title="At a glance">
-                  <div className="flex flex-wrap gap-6 text-sm text-slate-300">
-                    <span className="flex items-center gap-2"><Activity className="w-4 h-4 text-slate-500" /> CPU {metrics.cpu_percent.toFixed(1)}%</span>
-                    <span>Memory {metrics.memory_used_mib} MiB</span>
-                    <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => setTab('performance')}>Performance details →</button>
-                  </div>
+                <MacGlassPanel title="Live usage" subtitle="Cockpit-style CPU and memory bars">
+                  <VmUsageBars
+                    cpuPercent={metrics.cpu_percent}
+                    memoryUsedMib={metrics.memory_used_mib}
+                    memoryTotalMib={vm.memory_mib ?? undefined}
+                    vcpuCount={vm.vcpus ?? undefined}
+                  />
+                  <button type="button" className={`text-xs mt-3 ${hubLinkClasses()}`} onClick={() => setTab('performance')}>Performance details →</button>
                 </MacGlassPanel>
               )}
               {vm.inventory_source !== 'kubevirt' && (

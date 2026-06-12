@@ -6,6 +6,7 @@ import VNCViewer from '../VNCViewer'
 import SPICEViewer from '../SPICEViewer'
 import SerialConsole from '../SerialConsole'
 import SSHConsole from '../SSHConsole'
+import KubeVirtSerialConsole from '../KubeVirtSerialConsole'
 import type { ConsoleHubSessionResponse } from '../../api/platform'
 import type { ClassicConsoleHubSessionResponse } from '../../api/vm'
 
@@ -138,6 +139,13 @@ export default function ConsoleHubSession({
   }
 
   if (protocol === 'serial') {
+    if (kubeVirtNamespace) {
+      return (
+        <div className="flex flex-col flex-1 min-h-0 w-full" data-testid="kubevirt-serial-console">
+          <KubeVirtSerialConsole namespace={kubeVirtNamespace} vmName={vmName} />
+        </div>
+      )
+    }
     return (
       <div className="flex flex-col flex-1 min-h-0 w-full">
         <SerialConsole vmName={vmName} libvirtConnection={libvirtConnection} wsUrl={serialWsUrl ?? undefined} />

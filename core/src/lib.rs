@@ -23,6 +23,7 @@ pub mod fmt;
 pub mod host_inventory;
 pub mod metrics_history;
 pub mod host_linux_obs;
+pub mod host_cockpit;
 pub mod host_platform;
 pub mod host_virt;
 pub mod ldap_role;

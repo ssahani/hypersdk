@@ -429,6 +429,68 @@ const sampleNetwork = {
 
 let platformNetworks = [{ ...sampleNetwork }]
 
+const mockHostCockpitStorage = {
+  probed: true,
+  mdraid: [{ name: '/dev/md0', detail: 'raid1 · 2 devices', state: 'clean' }],
+  luks: [{ name: '/dev/mapper/luks-root', detail: 'crypt', state: 'active' }],
+  lvm: [{ name: 'vg0/lv_root', detail: 'ext4 · 40G', state: 'active' }],
+  stratis: [],
+  vdo: [],
+  multipath: [{ name: 'mpatha', detail: 'active ready running', state: 'active' }],
+  iscsi: [],
+  summary: 'RAID · LUKS · LVM · multipath detected',
+}
+
+const mockHostCockpitNetwork = {
+  probed: true,
+  connections: [{ name: 'System eth0', uuid: 'u1', kind: '802-3-ethernet', device: 'eth0', state: 'activated' }],
+  bonds: [{ name: 'bond0', uuid: 'u2', kind: 'bond', device: 'bond0', state: 'activated' }],
+  teams: [],
+  bridges: [{ name: 'br0', uuid: 'u3', kind: 'bridge', device: 'br0', state: 'activated' }],
+  vlans: [{ name: 'eth0.100', uuid: 'u4', kind: 'vlan', device: 'eth0.100', state: 'activated' }],
+  wifi: [],
+  wireguard: [],
+  firewalld: {
+    available: true,
+    running: true,
+    default_zone: 'public',
+    zones: [{ name: 'public', target: 'default', services: ['ssh', 'dhcpv6-client'], ports: ['8080/tcp'] }],
+  },
+  summary: '1 bond · 1 bridge · firewalld active',
+}
+
+const mockHostCockpitSystem = {
+  probed: true,
+  kdump: { available: true, active: true, summary: 'kdump.service active' },
+  selinux: { available: true, mode: 'Enforcing', enforce_supported: true },
+  tuned: { available: true, active_profile: 'virtual-guest', recommended_profile: 'virtual-guest', profiles: ['virtual-guest', 'throughput-performance'] },
+  realmd: { available: true, active: false, summary: 'not joined' },
+  systemd_failed: 0,
+  systemd_units: [{ unit: 'sshd.service', load: 'loaded', active: 'active', sub: 'running', description: 'OpenSSH server' }],
+  journal_errors_1h: 2,
+  journal_recent: ['sshd[1234]: Failed password for invalid user admin'],
+  summary: 'SELinux enforcing · tuned virtual-guest · 0 failed units',
+}
+
+const mockConsoleHubSessions = [
+  {
+    session_id: '00000000-0000-4000-8000-000000000001',
+    actor: 'admin',
+    protocol: 'novnc',
+    backend: 'libvirt',
+    started_at: new Date(Date.now() - 3_600_000).toISOString(),
+    ended_at: new Date(Date.now() - 1_800_000).toISOString(),
+  },
+  {
+    session_id: '00000000-0000-4000-8000-000000000002',
+    actor: 'admin',
+    protocol: 'serial',
+    backend: 'libvirt',
+    started_at: new Date(Date.now() - 600_000).toISOString(),
+    ended_at: null,
+  },
+]
+
 const sampleVm = {
   id: 'v1',
   name: 'vm-1',
@@ -445,6 +507,15 @@ const sampleVm = {
   inventory_source: 'libvirt',
   guest_ip: '192.168.122.50',
   guest_tools_status: 'healthy',
+}
+
+const kubevirtVmFixture = {
+  ...sampleVm,
+  id: 'kv1',
+  name: 'kv-vm-1',
+  host_id: 'h1',
+  inventory_source: 'kubevirt',
+  k8s_namespace: 'default',
 }
 
 function k8sNodeFixture(name: string, plane: 'worker' | 'control_plane' | 'mixed', ready = true) {
@@ -703,6 +774,18 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({
         json: { task_id: 'task-linux-reboot-1', summary: 'Host reboot queued' },
       })
+    }
+    if (url.match(/\/hosts\/[^/]+\/cockpit\/actions/) && route.request().method() === 'POST') {
+      return route.fulfill({ json: { status: 'ok', message: 'Applied (mock)' } })
+    }
+    if (url.match(/\/hosts\/[^/]+\/cockpit(\?|$)/)) {
+      const section = new URL(url, 'http://mock.local').searchParams.get('section') || 'all'
+      const hostId = url.match(/\/hosts\/([^/]+)\/cockpit/)?.[1] ?? 'h1'
+      const body: Record<string, unknown> = { host_id: hostId }
+      if (section === 'all' || section === 'storage') body.storage = mockHostCockpitStorage
+      if (section === 'all' || section === 'network') body.network = mockHostCockpitNetwork
+      if (section === 'all' || section === 'system') body.system = mockHostCockpitSystem
+      return route.fulfill({ json: body })
     }
     if (url.includes('/zeus-firewall/status')) {
       return route.fulfill({
@@ -1958,6 +2041,17 @@ export async function mockPlatformApi(page: Page, opts?: {
       storagePools = [{ id: 'p1', name: 'default', path: '/var/lib/libvirt/images', capacity_gib: 500, used_gib: 12 }]
       return route.fulfill({ json: { imported: 1, pools: storagePools } })
     }
+    if (url.includes('/networks/live')) {
+      return route.fulfill({
+        json: {
+          host_id: 'h1',
+          networks: [
+            { name: 'default', active: true, persistent: true, autostart: true, bridge: 'virbr0' },
+            { name: 'isolated', active: false, persistent: true, autostart: false, bridge: 'virbr1' },
+          ],
+        },
+      })
+    }
     if (url.includes('/networks/discover')) {
       const nets = opts?.emptyNetworks ? [] : platformNetworks
       return route.fulfill({ json: { imported: nets.length, networks: nets } })
@@ -1982,6 +2076,17 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.includes('/networks') && !url.includes('/discover')) {
       const nets = opts?.emptyNetworks ? [] : platformNetworks
       return route.fulfill({ json: nets })
+    }
+    if (url.includes('/storage/pools/live')) {
+      return route.fulfill({
+        json: {
+          host_id: 'h1',
+          pools: [
+            { name: 'default', state: 'active', path: '/var/lib/libvirt/images', capacity_gb: 500, available_gb: 420, autostart: true },
+            { name: 'data', state: 'inactive', path: '/data/libvirt', capacity_gb: 1000, available_gb: 900, autostart: false },
+          ],
+        },
+      })
     }
     if (url.includes('/storage/pools/') && url.includes('/snapshot-policy')) {
       return route.fulfill({
@@ -2036,15 +2141,28 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({
         json: {
           summary: 'OK',
-          pool_count: 0,
+          pool_count: 2,
           tier_count: 0,
-          total_capacity_gib: 0,
-          total_used_gib: 0,
+          total_capacity_gib: 500,
+          total_used_gib: 120,
           pools_over_85_pct: 0,
           smart_failure_count: 0,
           smart_hosts_affected: 0,
-          pools: [],
+          pools: [
+            { id: 'p1', name: 'default', storage_class: 'local', used_gib: 80, capacity_gib: 250, used_pct: 32 },
+            { id: 'p2', name: 'data', storage_class: 'local', used_gib: 40, capacity_gib: 250, used_pct: 16 },
+          ],
           smart_disks: [],
+        },
+      })
+    }
+    if (url.includes('/fleet/network')) {
+      return route.fulfill({
+        json: {
+          summary: '2 networks',
+          network_count: 2,
+          hosts_online: 1,
+          segments: [],
         },
       })
     }
@@ -2804,35 +2922,41 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({ json: { token: 'mock-ws-token' } })
     }
     if (url.match(/\/vms\/[^/]+\/consolehub\/plan/)) {
+      const vmId = url.match(/\/vms\/([^/]+)\/consolehub\/plan/)?.[1]
+      const isKubevirt = vmId === 'kv1'
       const sshRule = portForwardRules.find((r) => r.vm_port === 22)
       return route.fulfill({
         json: {
-          vm_id: 'v1',
-          vm_name: 'vm-1',
-          recommended: 'novnc',
-          native: { console_type: 'vnc', ws_path: '/ws/v1/platform/vnc/v1?token=mock-ws-token', serial_ws_path: '/ws/v1/platform/serial/v1?token=mock-ws-token', available: true },
-          guacamole: { available: true, protocols: ['vnc', 'ssh'] },
-          guest_ip: '192.168.122.10',
+          vm_id: vmId ?? 'v1',
+          vm_name: isKubevirt ? 'kv-vm-1' : 'vm-1',
+          recommended: isKubevirt ? 'serial' : 'novnc',
+          native: isKubevirt
+            ? { console_type: 'serial', ws_path: null, serial_ws_path: null, available: true }
+            : { console_type: 'vnc', ws_path: '/ws/v1/platform/vnc/v1?token=mock-ws-token', serial_ws_path: '/ws/v1/platform/serial/v1?token=mock-ws-token', available: true },
+          guacamole: { available: !isKubevirt, protocols: isKubevirt ? [] : ['vnc', 'ssh'] },
+          guest_ip: isKubevirt ? null : '192.168.122.10',
           ssh_user: 'ubuntu',
           os_hint: 'linux',
-          protocols: ['novnc', 'guacamole_ssh', 'guacamole_vnc', 'serial', 'native_ssh'],
+          protocols: isKubevirt ? ['serial', 'novnc'] : ['novnc', 'guacamole_ssh', 'guacamole_vnc', 'serial', 'native_ssh'],
           webrtc_spice_available: false,
-          guest_access: {
-            auth_mode: 'ssh_key',
-            serial_password_login: false,
-            guest_ip_private: true,
-            ssh_nat_host_port: sshRule?.host_port ?? null,
-          },
+          guest_access: isKubevirt
+            ? null
+            : {
+                auth_mode: 'ssh_key',
+                serial_password_login: false,
+                guest_ip_private: true,
+                ssh_nat_host_port: sshRule?.host_port ?? null,
+              },
           hypervisor_address: 'lab.test',
-          ssh_connect_host: sshRule ? 'lab.test' : null,
-          ssh_connect_port: sshRule?.host_port ?? null,
+          ssh_connect_host: isKubevirt ? null : sshRule ? 'lab.test' : null,
+          ssh_connect_port: isKubevirt ? null : sshRule?.host_port ?? null,
         },
       })
     }
-    if (url.match(/\/vms\/[^/]+\/consolehub\/sessions/) && route.request().method() === 'GET') {
-      return route.fulfill({ json: [] })
+    if (url.includes('/consolehub/sessions') && route.request().method() === 'GET') {
+      return route.fulfill({ json: mockConsoleHubSessions })
     }
-    if (url.match(/\/vms\/[^/]+\/consolehub\/sessions/) && route.request().method() === 'POST') {
+    if (url.includes('/consolehub/sessions') && route.request().method() === 'POST') {
       return route.fulfill({
         json: {
           session_id: '00000000-0000-4000-8000-000000000099',
@@ -2846,7 +2970,7 @@ export async function mockPlatformApi(page: Page, opts?: {
         },
       })
     }
-    if (url.match(/\/vms\/[^/]+\/console/)) {
+    if (url.match(/\/vms\/[^/]+\/console(?!hub)/)) {
       return route.fulfill({
         json: { vm_id: 'v1', vm_name: 'vm-1', console_type: 'vnc', ws_path: '/ws/v1/platform/vnc/v1?token=mock-ws-token' },
       })
@@ -2992,7 +3116,16 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({ json: [] })
     }
     if (url.match(/\/vms\/[^/]+\/metrics/)) {
-      return route.fulfill({ json: { cpu_percent: 12, memory_percent: 40 } })
+      const vmId = url.match(/\/vms\/([^/]+)\/metrics/)?.[1] ?? 'v1'
+      return route.fulfill({
+        json: {
+          vm_id: vmId,
+          cpu_percent: 12,
+          memory_used_mib: 768,
+          memory_percent: 40,
+          updated_at: new Date().toISOString(),
+        },
+      })
     }
     if (url.match(/\/vms\/[^/]+\/migrations/)) {
       return route.fulfill({ json: [] })
@@ -3116,6 +3249,8 @@ export async function mockPlatformApi(page: Page, opts?: {
       }
     }
     if (url.match(/\/vms\/[^/]+(\?|$)/) || url.match(/\/vms\/[^/]+$/)) {
+      const vmId = url.match(/\/vms\/([^/?]+)/)?.[1]
+      if (vmId === 'kv1') return route.fulfill({ json: kubevirtVmFixture })
       return route.fulfill({ json: vmFixture })
     }
     if (url.includes('/vms')) {
@@ -3123,7 +3258,7 @@ export async function mockPlatformApi(page: Page, opts?: {
       if (url.includes('folder=missing')) {
         return route.fulfill({ json: [missingVm] })
       }
-      return route.fulfill({ json: [vmFixture, missingVm] })
+      return route.fulfill({ json: [vmFixture, kubevirtVmFixture, missingVm] })
     }
     if (url.includes('/zeus-firewall/multisite/dr-templates')) {
       return route.fulfill({

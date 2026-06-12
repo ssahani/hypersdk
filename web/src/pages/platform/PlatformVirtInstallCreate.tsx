@@ -21,8 +21,9 @@ import { useToastContext } from '../../contexts/ToastContext'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { formatUserError } from '../../utils/apiError'
 import { toastQueuedOperation } from '../../utils/platformTaskToast'
+import { guestRhelImageUrl } from '../../api/guestImages'
 
-type InstallSource = 'url' | 'pxe' | 'download' | 'define'
+type InstallSource = 'url' | 'pxe' | 'download' | 'define' | 'import'
 type StorageMode = 'new' | 'existing' | 'volume' | 'backing'
 
 const STEPS = ['Install source', 'Name & size', 'Network', 'Review']
@@ -68,6 +69,8 @@ export default function PlatformVirtInstallCreate() {
   const [hostId, setHostId] = useState<string | null>(null)
   const [pools, setPools] = useState<Array<{ name: string }>>([])
   const [detectBusy, setDetectBusy] = useState(false)
+  const [rhelToken, setRhelToken] = useState('')
+  const [rhelBusy, setRhelBusy] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
@@ -91,6 +94,10 @@ export default function PlatformVirtInstallCreate() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+
+  useEffect(() => {
+    if (installSource === 'import') setStorageMode('existing')
+  }, [installSource])
 
   useEffect(() => {
     const name = searchParams.get('name')
@@ -122,11 +129,14 @@ export default function PlatformVirtInstallCreate() {
     if (step === 0) {
       if (installSource === 'url') return locationUrl.trim().length > 0
       if (installSource === 'download') return installOs.trim().length > 0
+      if (installSource === 'import') return true
       return true
     }
     if (step === 1) {
       const diskOk =
-        storageMode === 'new'
+        installSource === 'import'
+          ? existingDisk.trim().length > 0
+          : storageMode === 'new'
         || (storageMode === 'existing' && existingDisk.trim().length > 0)
         || (storageMode === 'volume' && diskPool.trim().length > 0 && diskVol.trim().length > 0)
         || (storageMode === 'backing' && backingStore.trim().length > 0)
@@ -213,6 +223,9 @@ export default function PlatformVirtInstallCreate() {
       }
     } else if (installSource === 'download') {
       body.virt_install_install_os = installOs.trim()
+    } else if (installSource === 'import') {
+      body.existing_disk = existingDisk.trim()
+      body.virt_install_define_only = true
     } else {
       body.virt_install_define_only = true
     }
@@ -260,6 +273,7 @@ export default function PlatformVirtInstallCreate() {
               {([
                 ['download', 'Automatic OS install', 'virt-install --install os=… (libosinfo)'],
                 ['url', 'URL / kickstart tree', 'virt-install --location http://…'],
+                ['import', 'Import disk image', 'Define VM from existing qcow2/raw (--import)'],
                 ['pxe', 'Network boot (PXE)', 'Extra NIC on libvirt network for PXE'],
                 ['define', 'Define only', 'Halted shell — install media later'],
               ] as const).map(([id, label, hint]) => (
@@ -274,6 +288,11 @@ export default function PlatformVirtInstallCreate() {
                 </button>
               ))}
             </div>
+            {installSource === 'import' && (
+              <p className="mt-4 text-xs text-slate-400">
+                Choose the disk path in step 2 (Root disk source → existing path). OS variant above is used for libosinfo metadata.
+              </p>
+            )}
             {installSource === 'download' && (
               <div className="mt-4 space-y-2">
                 <label className="text-xs text-slate-500 block">OS profile (libosinfo short id)</label>
@@ -297,6 +316,34 @@ export default function PlatformVirtInstallCreate() {
                 </button>
                 <label className="text-xs text-slate-500 block">Extra kernel args (optional)</label>
                 <input className="input w-full text-sm font-mono" value={extraArgs} onChange={(e) => setExtraArgs(e.target.value)} placeholder="inst.ks=…" />
+                <div className="rounded-lg border border-white/[0.06] p-3 space-y-2">
+                  <p className="text-xs text-slate-500">RHEL image URL (RHSM offline token)</p>
+                  <input className="input w-full text-sm" value={rhelToken} onChange={(e) => setRhelToken(e.target.value)} placeholder="offline access token" />
+                  <button
+                    type="button"
+                    className="btn-secondary text-xs"
+                    disabled={rhelBusy || !rhelToken.trim()}
+                    data-testid="virt-install-rhel-resolve"
+                    onClick={() => {
+                      setRhelBusy(true)
+                      void guestRhelImageUrl({ access_token: rhelToken.trim(), rhel_version: '9' })
+                        .then((r) => {
+                          const raw = r.raw as { href?: string; image?: { href?: string } } | undefined
+                          const href = raw?.href ?? raw?.image?.href
+                          if (href) {
+                            setLocationUrl(href)
+                            toast.success('RHEL image URL resolved')
+                          } else {
+                            toast.warning(r.error ?? 'No URL returned')
+                          }
+                        })
+                        .catch((e: unknown) => toast.error(formatUserError(e)))
+                        .finally(() => setRhelBusy(false))
+                    }}
+                  >
+                    {rhelBusy ? 'Resolving…' : 'Resolve RHEL image URL'}
+                  </button>
+                </div>
               </div>
             )}
             {installSource === 'pxe' && (

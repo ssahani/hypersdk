@@ -373,6 +373,18 @@ pub fn host_query(
             let nets = machina_core::libvirt::network::list_networks(conn)?;
             Ok(serde_json::to_value(nets).unwrap_or(Value::Null))
         }
+        "cockpit.storage" => {
+            let inv = machina_core::host_cockpit::storage_inventory()?;
+            Ok(serde_json::to_value(inv).unwrap_or(Value::Null))
+        }
+        "cockpit.network" => {
+            let inv = machina_core::host_cockpit::network_inventory()?;
+            Ok(serde_json::to_value(inv).unwrap_or(Value::Null))
+        }
+        "cockpit.system" => {
+            let inv = machina_core::host_cockpit::system_inventory()?;
+            Ok(serde_json::to_value(inv).unwrap_or(Value::Null))
+        }
         other => Err(LibvirtError::Invalid(format!("unknown host query action: {other}"))),
     }
 }
@@ -453,6 +465,36 @@ pub fn host_invoke(
             let name = payload_str(payload, "name")?;
             network::delete_network(conn, &name)?;
             Ok(serde_json::json!({ "status": "deleted", "name": name }))
+        }
+        "cockpit.firewalld.add_service" => {
+            let zone = payload.get("zone").and_then(|v| v.as_str()).unwrap_or("public");
+            let service = payload_str(payload, "service")?;
+            let msg = machina_core::host_cockpit::firewalld_add_service(zone, &service)?;
+            Ok(serde_json::json!({ "status": "ok", "message": msg }))
+        }
+        "cockpit.selinux.set_enforce" => {
+            let enforcing = payload_bool(payload, "enforcing");
+            let msg = machina_core::host_cockpit::selinux_set_enforce(enforcing)?;
+            Ok(serde_json::json!({ "status": "ok", "message": msg, "enforcing": enforcing }))
+        }
+        "cockpit.tuned.set_profile" => {
+            let profile = payload_str(payload, "profile")?;
+            let msg = machina_core::host_cockpit::tuned_set_profile(&profile)?;
+            Ok(serde_json::json!({ "status": "ok", "message": msg, "profile": profile }))
+        }
+        "cockpit.nm.create_bond" => {
+            let name = payload_str(payload, "name")?;
+            let ifaces: Vec<String> = payload
+                .get("interfaces")
+                .and_then(|v| v.as_array())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let msg = machina_core::host_cockpit::nm_create_bond(&name, &ifaces)?;
+            Ok(serde_json::json!({ "status": "ok", "message": msg, "name": name }))
         }
         other => Err(LibvirtError::Invalid(format!("unknown host invoke action: {other}"))),
     }

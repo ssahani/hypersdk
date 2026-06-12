@@ -62,6 +62,7 @@ import { PlatformClassicToolLinks } from '../../components/platform/PlatformCros
 import { getHostGpus, type HostGpuDevice } from '../../api/platformHostGpu'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { toastQueuedOperation } from '../../utils/platformTaskToast'
+import HostCockpitPanels from '../../components/platform/HostCockpitPanels'
 
 function psiBar(label: string, pct: number) {
   return (
@@ -83,6 +84,8 @@ const TAB_PARAM: Record<string, HostDetailTab> = {
   general: 'general',
   network: 'network',
   linux: 'linux',
+  storage: 'storage',
+  system: 'system',
   security: 'security',
   audit: 'audit',
 }
@@ -443,8 +446,17 @@ export default function PlatformHostDetailPage() {
               </>
             )}
 
+            {section === 'storage' && id && (
+              <HostCockpitPanels hostId={id} section="storage" classicHostPath={`/platform/hosts/${id}`} />
+            )}
+
+            {section === 'system' && id && (
+              <HostCockpitPanels hostId={id} section="system" classicHostPath={`/platform/hosts/${id}`} />
+            )}
+
             {section === 'network' && (
               <div className="space-y-4">
+                {id && <HostCockpitPanels hostId={id} section="network" />}
                 {netDiag ? (
                   <MacGlassPanel title="systemd networking">
                     <div className="grid gap-2 sm:grid-cols-2 text-sm mb-3 p-3">

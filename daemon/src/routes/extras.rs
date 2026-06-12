@@ -1254,6 +1254,106 @@ async fn set_timezone_handler(
     ))
 }
 
+#[derive(Deserialize)]
+struct CockpitSectionQuery {
+    section: Option<String>,
+}
+
+async fn get_host_cockpit_handler(
+    Query(q): Query<CockpitSectionQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let section = q.section.as_deref().unwrap_or("all");
+    let storage = if section == "all" || section == "storage" {
+        Some(
+            tokio::task::spawn_blocking(machina_core::host_cockpit::storage_inventory)
+                .await
+                .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+                .map_err(AppError::from)?,
+        )
+    } else {
+        None
+    };
+    let network = if section == "all" || section == "network" {
+        Some(
+            tokio::task::spawn_blocking(machina_core::host_cockpit::network_inventory)
+                .await
+                .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+                .map_err(AppError::from)?,
+        )
+    } else {
+        None
+    };
+    let system = if section == "all" || section == "system" {
+        Some(
+            tokio::task::spawn_blocking(machina_core::host_cockpit::system_inventory)
+                .await
+                .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+                .map_err(AppError::from)?,
+        )
+    } else {
+        None
+    };
+    Ok(Json(serde_json::json!({ "storage": storage, "network": network, "system": system })))
+}
+
+#[derive(Deserialize)]
+struct CockpitActionBody {
+    action: String,
+    #[serde(default)]
+    payload: serde_json::Value,
+}
+
+async fn post_host_cockpit_action_handler(
+    Json(body): Json<CockpitActionBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let result = tokio::task::spawn_blocking(move || match body.action.as_str() {
+        "cockpit.firewalld.add_service" => {
+            let zone = body.payload.get("zone").and_then(|v| v.as_str()).unwrap_or("public");
+            let service = body
+                .payload
+                .get("service")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| LibvirtError::Invalid("service required".into()))?;
+            machina_core::host_cockpit::firewalld_add_service(zone, service)
+        }
+        "cockpit.selinux.set_enforce" => {
+            let enforcing = body.payload.get("enforcing").and_then(|v| v.as_bool()).unwrap_or(true);
+            machina_core::host_cockpit::selinux_set_enforce(enforcing)
+        }
+        "cockpit.tuned.set_profile" => {
+            let profile = body
+                .payload
+                .get("profile")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| LibvirtError::Invalid("profile required".into()))?;
+            machina_core::host_cockpit::tuned_set_profile(profile)
+        }
+        "cockpit.nm.create_bond" => {
+            let name = body
+                .payload
+                .get("name")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| LibvirtError::Invalid("name required".into()))?;
+            let ifaces: Vec<String> = body
+                .payload
+                .get("interfaces")
+                .and_then(|v| v.as_array())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            machina_core::host_cockpit::nm_create_bond(name, &ifaces)
+        }
+        other => Err(LibvirtError::Invalid(format!("unknown action: {other}"))),
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    .map_err(AppError::from)?;
+    Ok(Json(serde_json::json!({ "status": "ok", "message": result })))
+}
+
 // ── Router ─────────────────────────────────────────────────────────
 
 pub fn extras_routes() -> Router<LibvirtManager> {
@@ -1340,4 +1440,6 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         .route("/host/system-info", get(get_system_info_handler))
         .route("/host/hostname", post(set_hostname_handler))
         .route("/host/timezone", post(set_timezone_handler))
+        .route("/host/cockpit", get(get_host_cockpit_handler))
+        .route("/host/cockpit/actions", post(post_host_cockpit_action_handler))
 }

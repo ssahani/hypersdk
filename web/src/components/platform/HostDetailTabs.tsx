@@ -2,12 +2,14 @@
 
 import DetailTabs from './DetailTabs'
 
-export type HostDetailTab = 'general' | 'network' | 'linux' | 'security' | 'audit'
+export type HostDetailTab = 'general' | 'network' | 'linux' | 'storage' | 'system' | 'security' | 'audit'
 
 const PRIMARY: Array<{ id: HostDetailTab; label: string }> = [
   { id: 'general', label: 'General' },
   { id: 'network', label: 'Network' },
+  { id: 'storage', label: 'Storage' },
   { id: 'linux', label: 'Linux' },
+  { id: 'system', label: 'System' },
   { id: 'security', label: 'Security' },
 ]
 

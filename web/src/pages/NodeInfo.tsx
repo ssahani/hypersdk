@@ -47,6 +47,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Cpu, HardDrive, Server, CheckCircle, XCircle, Clock, Gauge, RefreshCw, MemoryStick, Database, Monitor, Pencil, Check, X, FolderTree, ListOrdered, Package, Shield, Network, Users, UserSquare, Activity, ScrollText, ArrowUpCircle, PlusCircle, MinusCircle, Ban } from 'lucide-react'
 import { formatBytes } from '../utils/vm'
 import { ChoiceCardGrid, ChoiceLinkCard } from '../components/ChoiceCards'
+import HostCockpitPanels from '../components/platform/HostCockpitPanels'
 import { useToastContext } from '../contexts/ToastContext'
 import { getSession, type SessionRole } from '../api/auth'
 import { getHostLibvirtBoot, type LibvirtBootStatus } from '../api/host'
@@ -1638,6 +1639,11 @@ export default function NodeInfoPage() {
           </div>
         </div>
       )}
+
+      <div>
+        <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Cockpit host inventory</h3>
+        <HostCockpitPanels classic section="all" />
+      </div>
 
       <div>
         <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Host tools</h3>

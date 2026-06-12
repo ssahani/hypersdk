@@ -47,4 +47,31 @@ test.describe('Cockpit parity surfaces (mock)', () => {
     await page.getByRole('menuitem', { name: 'Snapshots', exact: true }).click()
     await expect(page.getByTestId('vm-snapshots-panel')).toBeVisible({ timeout: 15_000 })
   })
+
+  test('VM overview shows live CPU and memory usage bars', async ({ page }) => {
+    await page.goto('/platform/vms/v1')
+    await expect(page.getByTestId('vm-usage-bars')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('vm-usage-cpu')).toBeVisible()
+    await expect(page.getByTestId('vm-usage-memory')).toBeVisible()
+  })
+
+  test('Machine Finder resource strip shows pool and network counts', async ({ page }) => {
+    await page.goto('/platform/vms?lens=table')
+    const strip = page.getByTestId('machine-finder-resource-strip')
+    await expect(strip).toBeVisible({ timeout: 15_000 })
+    await expect(strip.getByText(/active/i).first()).toBeVisible()
+  })
+
+  test('Host detail storage tab shows Cockpit storaged inventory', async ({ page }) => {
+    await page.goto('/platform/hosts/h1?tab=storage')
+    await expect(page.getByTestId('host-cockpit-storage')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('RAID (mdadm)')).toBeVisible()
+    await expect(page.getByText('/dev/md0')).toBeVisible()
+  })
+
+  test('Host detail system tab shows kdump and SELinux panels', async ({ page }) => {
+    await page.goto('/platform/hosts/h1?tab=system')
+    await expect(page.getByTestId('host-cockpit-system')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole('button', { name: 'Enforcing' })).toBeVisible()
+  })
 })

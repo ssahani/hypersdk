@@ -26,6 +26,7 @@ mod ha;
 mod health;
 mod health_check;
 mod host_os;
+mod host_cockpit;
 mod hosts;
 mod maintenance;
 mod marketplace;
@@ -103,6 +104,8 @@ pub fn router(state: AppState) -> Router {
             post(host_os::host_linux_package_upgrade),
         )
         .route("/api/v1/hosts/{id}/linux/reboot", post(host_os::host_linux_reboot))
+        .route("/api/v1/hosts/{id}/cockpit", get(host_cockpit::host_cockpit_inventory))
+        .route("/api/v1/hosts/{id}/cockpit/actions", post(host_cockpit::host_cockpit_action))
         .route("/api/v1/hosts/{id}/diagnose", post(host_os::diagnose_host))
         .route("/api/v1/hosts/{id}/maintenance", post(hosts::host_maintenance))
         .route("/api/v1/vms", get(vms::list_vms).post(vms::create_vm))

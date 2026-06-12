@@ -1,8 +1,9 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useEffect, useState } from 'react'
-import { HardDrive, Network } from 'lucide-react'
-import { getFleetNetwork, getFleetStorage, type FleetNetworkOverview, type FleetStorageOverview } from '../../api/platform'
+import { HardDrive, Network, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
+import { getFleetNetwork, getFleetStorage, listLivePlatformNetworks, type FleetNetworkOverview, type FleetStorageOverview } from '../../api/platform'
+import { listLiveStoragePools } from '../../api/platformStorage'
 
 function usagePct(used: number, total: number): number {
   if (total <= 0) return 0
@@ -26,11 +27,35 @@ function UsageBar({ label, pct, tone }: { label: string; pct: number; tone: stri
 export default function MachineFinderResourceStrip() {
   const [storage, setStorage] = useState<FleetStorageOverview | null>(null)
   const [network, setNetwork] = useState<FleetNetworkOverview | null>(null)
+  const [poolActive, setPoolActive] = useState(0)
+  const [poolInactive, setPoolInactive] = useState(0)
+  const [netActive, setNetActive] = useState(0)
+  const [netInactive, setNetInactive] = useState(0)
 
   useEffect(() => {
     void Promise.all([
       getFleetStorage().then(setStorage).catch(() => setStorage(null)),
       getFleetNetwork().then(setNetwork).catch(() => setNetwork(null)),
+      listLiveStoragePools()
+        .then((r) => {
+          const pools = r.pools ?? []
+          setPoolActive(pools.filter((p) => p.state === 'active' || p.state === 'running').length)
+          setPoolInactive(pools.filter((p) => p.state !== 'active' && p.state !== 'running').length)
+        })
+        .catch(() => {
+          setPoolActive(0)
+          setPoolInactive(0)
+        }),
+      listLivePlatformNetworks()
+        .then((r) => {
+          const nets = r.networks ?? []
+          setNetActive(nets.filter((n) => n.active).length)
+          setNetInactive(nets.filter((n) => !n.active).length)
+        })
+        .catch(() => {
+          setNetActive(0)
+          setNetInactive(0)
+        }),
     ])
   }, [])
 
@@ -48,6 +73,10 @@ export default function MachineFinderResourceStrip() {
         <div className="flex-1 min-w-0 space-y-2">
           <p className="text-xs font-medium text-slate-300">Fleet storage</p>
           <UsageBar label={`${storage?.total_used_gib?.toFixed(0) ?? '—'} / ${storage?.total_capacity_gib?.toFixed(0) ?? '—'} GiB · ${poolCount} pools`} pct={storagePct} tone="bg-sky-500/70" />
+          <div className="flex items-center gap-3 text-[10px] text-slate-500">
+            <span className="inline-flex items-center gap-1"><ArrowUpCircle className="w-3 h-3 text-emerald-400" /> {poolActive} active</span>
+            <span className="inline-flex items-center gap-1"><ArrowDownCircle className="w-3 h-3 text-slate-500" /> {poolInactive} inactive</span>
+          </div>
         </div>
       </div>
       <div className="flex gap-3 min-w-0">
@@ -58,6 +87,10 @@ export default function MachineFinderResourceStrip() {
             {netCount} libvirt network(s)
             {network?.hosts_online != null ? ` · ${network.hosts_online} hosts online` : ''}
           </p>
+          <div className="flex items-center gap-3 text-[10px] text-slate-500">
+            <span className="inline-flex items-center gap-1"><ArrowUpCircle className="w-3 h-3 text-emerald-400" /> {netActive} active</span>
+            <span className="inline-flex items-center gap-1"><ArrowDownCircle className="w-3 h-3 text-slate-500" /> {netInactive} inactive</span>
+          </div>
         </div>
       </div>
     </section>

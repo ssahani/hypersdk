@@ -8,6 +8,7 @@ import type { ConsoleHubSessionRow } from './ConsoleHubSessionHistory'
 import type { VmTimelineEntry } from '../../api/platformVmTimeline'
 import type { GuestAccessHints } from '../../utils/guestAccessHints'
 import MachineTimeline from './MachineTimeline'
+import ConsoleHubSessionHistory from './ConsoleHubSessionHistory'
 import VmPortForwardPanel from '../vm/VmPortForwardPanel'
 import MachinaDoctorPanel from '../platform/MachinaDoctorPanel'
 import ConsoleCopilotLens from './ConsoleCopilotLens'
@@ -129,6 +130,7 @@ export default function CommandCenterPanel({
                   />
                 </div>
               ) : null}
+              <ConsoleHubSessionHistory sessions={sessions} />
               <div>
                 <p className="text-xs font-medium text-slate-400 mb-2">Quick actions</p>
                 <div className="flex flex-wrap gap-2">

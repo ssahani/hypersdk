@@ -25,20 +25,20 @@ function fmtTime(iso: string): string {
 export default function ConsoleHubSessionHistory({ sessions, loading }: Props) {
   if (loading) {
     return (
-      <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 p-3 text-xs text-slate-500">
+      <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 p-3 text-xs text-slate-500" data-testid="consolehub-session-history">
         Loading session history…
       </div>
     )
   }
   if (sessions.length === 0) {
     return (
-      <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 p-3 text-xs text-slate-500">
+      <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 p-3 text-xs text-slate-500" data-testid="consolehub-session-history">
         No recorded console sessions for this VM yet.
       </div>
     )
   }
   return (
-    <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 overflow-hidden">
+    <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 overflow-hidden" data-testid="consolehub-session-history">
       <div className="px-3 py-2 border-b border-slate-800/80 text-xs font-medium text-slate-300">
         Recent sessions
       </div>

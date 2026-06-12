@@ -109,6 +109,9 @@ export default function PlatformConsoleHub() {
       if (isKubevirt) {
         setWsUrl(null)
         setSerialWsUrl(null)
+        if (hubPlan?.recommended === 'serial') {
+          setActiveProtocol('serial')
+        }
       } else if (wsToken) {
         setWsUrl(platformVmVncWsUrl(id, wsToken))
         setSerialWsUrl(platformVmSerialWsUrl(id, wsToken))
@@ -154,6 +157,8 @@ export default function PlatformConsoleHub() {
         } else if (protocol === 'serial' && !kubeVirtNamespace) {
           const tokenRes = await issuePlatformVmWsToken(id)
           setSerialWsUrl(platformVmSerialWsUrl(id, tokenRes.token))
+        } else if (protocol === 'serial' && kubeVirtNamespace) {
+          setSerialWsUrl(null)
         }
       }
       setHistory(await listConsoleHubSessions(id).catch(() => []))
