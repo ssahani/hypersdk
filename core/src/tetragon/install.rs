@@ -42,62 +42,37 @@ VERSION="{version}"
 STATE_DIR="$INSTALL_ROOT/export-state"
 EXPORT_FILE="$INSTALL_ROOT/export.jsonl"
 
-mkdir -p "$INSTALL_ROOT/config" "$POLICY_DIR" "$STATE_DIR"
+mkdir -p "$POLICY_DIR" "$STATE_DIR"
 
-if ! command -v tetragon >/dev/null 2>&1; then
-  if command -v apt-get >/dev/null 2>&1; then
-    apt-get update -qq && apt-get install -y -qq tetragon 2>/dev/null || true
-  elif command -v dnf >/dev/null 2>&1; then
-    dnf install -y tetragon 2>/dev/null || true
-  fi
-fi
+ARCH="$(uname -m)"
+case "$ARCH" in
+  x86_64|amd64) TG_ARCH=amd64 ;;
+  aarch64|arm64) TG_ARCH=arm64 ;;
+  *) echo "unsupported architecture: $ARCH" >&2; exit 1 ;;
+esac
 
-if ! command -v tetragon >/dev/null 2>&1; then
-  ARCH="$(uname -m)"
-  case "$ARCH" in
-    x86_64|amd64) TG_ARCH=amd64 ;;
-    aarch64|arm64) TG_ARCH=arm64 ;;
-    *) echo "unsupported architecture: $ARCH" >&2; exit 1 ;;
-  esac
+if ! [ -x /usr/local/bin/tetragon ] || ! [ -d /usr/local/lib/tetragon/bpf ]; then
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT
-  URL="https://github.com/cilium/tetragon/releases/download/v${{VERSION}}/tetra-linux-${{TG_ARCH}}.tar.gz"
-  curl -fsSL -o "$TMP/tetra.tar.gz" "$URL"
-  tar -xzf "$TMP/tetra.tar.gz" -C "$TMP"
-  TG_BIN="$(find "$TMP" -type f \( -name tetragon -o -name tetra \) 2>/dev/null | head -1)"
-  if [ -z "$TG_BIN" ]; then
-    echo "tetragon binary not found in release tarball" >&2
+  TG_DIR="tetragon-v${{VERSION}}-${{TG_ARCH}}"
+  URL="https://github.com/cilium/tetragon/releases/download/v${{VERSION}}/${{TG_DIR}}.tar.gz"
+  curl -fsSL -o "$TMP/tetragon.tar.gz" "$URL"
+  tar -xzf "$TMP/tetragon.tar.gz" -C "$TMP"
+  if [ ! -f "$TMP/$TG_DIR/install.sh" ]; then
+    echo "Tetragon release install.sh missing in $TG_DIR" >&2
     exit 1
   fi
-  install -m 755 "$TG_BIN" "$BIN"
+  bash "$TMP/$TG_DIR/install.sh"
 fi
 
-cat > "$INSTALL_ROOT/config/tetragon.config.yaml" <<EOF
-export-filename: "$EXPORT_FILE"
-export-compact-encoding: false
-enable-process-cred: true
-enable-process-ns: true
-EOF
-
-cat > /etc/systemd/system/tetragon.service <<EOF
-[Unit]
-Description=Cilium Tetragon eBPF sensor (Machina Zeus)
-Documentation=https://github.com/cilium/tetragon
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-ExecStart=$BIN --config-dir $INSTALL_ROOT/config --tracing-policy-dir $POLICY_DIR
-Restart=on-failure
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=tetragon
-
-[Install]
-WantedBy=multi-user.target
-EOF
+install -d /etc/tetragon/tetragon.conf.d/ /etc/tetragon/tetragon.tp.d/
+printf '%s\n' "$EXPORT_FILE" > /etc/tetragon/tetragon.conf.d/export-filename
+if [ -d "$POLICY_DIR" ]; then
+  for f in "$POLICY_DIR"/*.json; do
+    [ -f "$f" ] || continue
+    cp -f "$f" /etc/tetragon/tetragon.tp.d/
+  done
+fi
 
 cat > "$INSTALL_ROOT/export-to-packetwolf.sh" <<'EXPORTEOF'
 #!/bin/sh
@@ -173,7 +148,8 @@ WantedBy=timers.target
 EOF
 
 systemctl daemon-reload
-systemctl enable --now tetragon.service
+systemctl enable tetragon.service 2>/dev/null || true
+systemctl restart tetragon.service
 systemctl enable --now tetragon-export.timer
 echo "Tetragon installed; export to $EXPORT_URL/$HOST_ID"
 "#,
@@ -295,7 +271,8 @@ mod tests {
         assert!(script.contains("host-abc"));
         assert!(script.contains("tetragon.service"));
         assert!(script.contains("tetragon-export.timer"));
-        assert!(script.contains("tetra-linux-${TG_ARCH}.tar.gz"));
+        assert!(script.contains("tetragon-v${VERSION}-${TG_ARCH}.tar.gz") || script.contains("${TG_DIR}.tar.gz"));
+        assert!(script.contains("/etc/tetragon/tetragon.conf.d/export-filename"));
         assert!(script.contains("VERSION=\"1.7.0\""));
     }
 }

@@ -19,6 +19,26 @@ fn policies_subdir() -> PathBuf {
     policy_dir().join("tracing-policies")
 }
 
+fn tetragon_tp_dir() -> PathBuf {
+    PathBuf::from("/etc/tetragon/tetragon.tp.d")
+}
+
+fn sync_policy_to_tetragon(name: &str, body: Option<&str>, dry_run: bool) -> Result<(), LibvirtError> {
+    if dry_run {
+        return Ok(());
+    }
+    let tp = tetragon_tp_dir();
+    let _ = fs::create_dir_all(&tp);
+    let dest = tp.join(format!("{name}.json"));
+    match body {
+        Some(content) => fs::write(&dest, content).map_err(LibvirtError::map_op("write tetragon tp policy"))?,
+        None => {
+            let _ = fs::remove_file(&dest);
+        }
+    }
+    Ok(())
+}
+
 fn tetragon_in_path() -> bool {
     std::process::Command::new("which")
         .arg("tetragon")
@@ -74,6 +94,7 @@ pub fn apply_security_bundle(bundle_json: &str, dry_run: bool) -> Result<Securit
         let path = dir.join(format!("{name_str}.json"));
         if path.is_file() && !dry_run {
             fs::remove_file(&path).map_err(LibvirtError::map_op("remove tetragon policy"))?;
+            let _ = sync_policy_to_tetragon(name_str, None, dry_run);
         }
         operations.push(format!("remove {}", path.display()));
     }
@@ -88,6 +109,7 @@ pub fn apply_security_bundle(bundle_json: &str, dry_run: bool) -> Result<Securit
         let body = serde_json::to_string_pretty(pol)
             .map_err(|e| LibvirtError::Internal(format!("serialize policy: {e}")))?;
         write_file(&path, &body, dry_run)?;
+        sync_policy_to_tetragon(&name, Some(&body), dry_run)?;
         operations.push(format!("write {}", path.display()));
         policies_written += 1;
     }
