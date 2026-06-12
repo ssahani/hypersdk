@@ -235,6 +235,10 @@ export default function VNCViewer({
             setStatus('connected')
             vp?.setConnected(true)
             syncGuestSize(rfb)
+            if (cockpitMode && scaledFitRef.current) {
+              // Prime 1:1 paint before Fit autoscale (matches clicking Native then Fit).
+              refreshRfbViewport(rfb, false, scrollRef.current)
+            }
             scheduleFitViewportRefresh(rfb, scaledFitRef.current, scrollRef.current, () => cancelled)
             const canvas = containerRef.current?.querySelector('canvas')
             onCanvasReady?.(canvas as HTMLCanvasElement | null)
@@ -278,10 +282,16 @@ export default function VNCViewer({
         })
         rfb.addEventListener('desktopname', () => {
           syncGuestSize(rfb)
+          if (cockpitMode && scaledFitRef.current) {
+            refreshRfbViewport(rfb, false, scrollRef.current)
+          }
           refreshRfbViewport(rfb, scaledFitRef.current, scrollRef.current)
         })
         rfb.addEventListener('resize', () => {
           syncGuestSize(rfb)
+          if (cockpitMode && scaledFitRef.current) {
+            refreshRfbViewport(rfb, false, scrollRef.current)
+          }
           refreshRfbViewport(rfb, scaledFitRef.current, scrollRef.current)
         })
         rfb.addEventListener('credentialsrequired', () => {
