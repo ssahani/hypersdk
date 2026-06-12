@@ -224,7 +224,7 @@ function SystemSection({
         <div className="flex flex-wrap gap-2 text-xs">
           <Link to="/services" className="btn-secondary">Classic Services</Link>
           <Link to="/logs" className="btn-secondary">Classic Logs</Link>
-          <Link to="/ssh" className="btn-secondary">Terminal</Link>
+          <Link to={`${classicHostPath}?tab=terminal`} className="btn-secondary">Terminal</Link>
           <Link to={classicHostPath} className="btn-secondary">Host detail</Link>
         </div>
       )}

@@ -90,9 +90,9 @@ Legacy `GET /api/v1/vms/{id}/console` remains for compatibility.
 |------|--------|
 | Classic single-host ConsoleHub shell (daemon-only, no controller) | Partial — `/vms/:name/consolehub` reuses legacy `Console.tsx` |
 | Daemon `/consolehub` proxy for non-platform installs | Not started |
-| KubeVirt console in ConsoleHub | Not started — separate WS path today |
-| OpenAPI regen for consolehub endpoints | Pending — run `npm run generate-openapi` |
+| KubeVirt console in ConsoleHub | **Shipped** — serial lens uses KubeVirt subresource WS; display lens uses KubeVirt VNC when `inventory_source=kubevirt` |
+| OpenAPI regen for consolehub endpoints | **Shipped** — `node scripts/generate-openapi.mjs` |
 | Playwright `@playwright/test` ≥1.61 stable | Pending — suppress DEP0205 via `playwright-node-env.ts` until then |
 | Guacamole HTML asset rewrite under proxy | Needs live-stack validation |
-| Session history UI (`GET …/consolehub/sessions`) | API only |
+| Session history UI (`GET …/consolehub/sessions`) | **Shipped** — Command Center Overview tab |
 | OIDC/SAML federation for console auth (Phase 5) | Future |

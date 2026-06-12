@@ -63,6 +63,7 @@ import { getHostGpus, type HostGpuDevice } from '../../api/platformHostGpu'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { toastQueuedOperation } from '../../utils/platformTaskToast'
 import HostCockpitPanels from '../../components/platform/HostCockpitPanels'
+import PlatformHostTerminalPanel from '../../components/platform/PlatformHostTerminalPanel'
 
 function psiBar(label: string, pct: number) {
   return (
@@ -86,6 +87,7 @@ const TAB_PARAM: Record<string, HostDetailTab> = {
   linux: 'linux',
   storage: 'storage',
   system: 'system',
+  terminal: 'terminal',
   security: 'security',
   audit: 'audit',
 }
@@ -452,6 +454,14 @@ export default function PlatformHostDetailPage() {
 
             {section === 'system' && id && (
               <HostCockpitPanels hostId={id} section="system" classicHostPath={`/platform/hosts/${id}`} />
+            )}
+
+            {section === 'terminal' && host && (
+              <PlatformHostTerminalPanel
+                hostname={host.hostname}
+                address={host.address}
+                online={host.state === 'online'}
+              />
             )}
 
             {section === 'network' && (

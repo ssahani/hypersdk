@@ -148,6 +148,9 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 - **Overview:** Domain XML inline edit; hypervisor filesystems/processes panel
 - **WebGL globe:** Lazy `three.js` in `InfrastructureEarthGlobe` with canvas fallback
 - **KubeVirt:** Daemon lifecycle routes + K8s Workloads CRUD + platform VM detail actions
+- **Host Cockpit modules:** `GET /api/v1/hosts/{id}/cockpit` — storaged (RAID/LUKS/LVM/Stratis/VDO/multipath), NetworkManager + firewalld editor, kdump/SELinux/Tuned/realmd/systemd/journal on host Storage/Network/System tabs; classic NodeInfo parity
+- **VM polish:** Machine Finder pool/network resource strip; live CPU/memory bars on VM overview; virt-install import + osinfo-detect + RHSM URL resolve
+- **ConsoleHub:** KubeVirt serial/VNC in ConsoleHub; session history in Command Center; platform host **Terminal** tab (browser SSH via daemon)
 
 ### Batch 81 deliverables (storage + VMware + reports)
 

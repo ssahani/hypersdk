@@ -74,4 +74,10 @@ test.describe('Cockpit parity surfaces (mock)', () => {
     await expect(page.getByTestId('host-cockpit-system')).toBeVisible({ timeout: 15_000 })
     await expect(page.getByRole('button', { name: 'Enforcing' })).toBeVisible()
   })
+
+  test('Host detail terminal tab shows embedded SSH panel', async ({ page }) => {
+    await page.goto('/platform/hosts/h1?tab=terminal')
+    await expect(page.getByTestId('platform-host-terminal')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText(/127\.0\.0\.1|host-1/i).first()).toBeVisible()
+  })
 })
