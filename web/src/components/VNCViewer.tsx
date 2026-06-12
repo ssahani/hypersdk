@@ -7,6 +7,7 @@ import { Keyboard, Maximize, Minimize, Monitor, RefreshCw } from 'lucide-react'
 import { getWsToken } from '../api/client'
 import { statusBgClass } from '../utils/semanticColors'
 import { useConsoleViewportOptional } from './consolehub/ConsoleViewportContext'
+import type { ViewportMode } from './consolehub/ConsoleViewportContext'
 import { inferConsoleMonitors, monitorScrollTarget } from '../utils/consoleMonitors'
 import { useConsoleClipboardOptional } from './consolehub/ConsoleClipboardContext'
 
@@ -135,6 +136,27 @@ function scheduleFitViewportRefresh(
   requestAnimationFrame(tick)
 }
 
+/** Cinema/Studio: keep noVNC at native 1:1 and CSS-scale the container for Fit/Fill. */
+function cockpitCssTransform(
+  mode: ViewportMode,
+  zoom: number,
+  guestW: number,
+  guestH: number,
+  viewportW: number,
+  viewportH: number,
+): string | undefined {
+  if (mode === 'stretch') return undefined
+  if (mode === 'zoom') return `scale(${zoom / 100})`
+  if (guestW <= 0 || guestH <= 0 || viewportW <= 0 || viewportH <= 0) return undefined
+  if (mode === 'fit') return `scale(${Math.min(viewportW / guestW, viewportH / guestH)})`
+  if (mode === 'fill') return `scale(${Math.max(viewportW / guestW, viewportH / guestH)})`
+  return undefined
+}
+
+function rfbScaledFit(cockpitMode: boolean, scaledFit: boolean): boolean {
+  return cockpitMode ? false : scaledFit
+}
+
 export default function VNCViewer({
   vmName,
   port = -1,
@@ -156,7 +178,7 @@ export default function VNCViewer({
   /** Soft cursor dot helps when the remote cursor shape is delayed (common on Windows before drivers). */
   const [showDotCursor, setShowDotCursor] = useState(true)
   /** Scaling to fit can blur and sometimes hurts pointer feel; native 1:1 + scroll is sharper/snappier. */
-  const [scaledFit, setScaledFit] = useState(defaultScaledFit || cockpitMode)
+  const [scaledFit, setScaledFit] = useState(cockpitMode ? false : defaultScaledFit)
   const containerRef = useRef<HTMLDivElement>(null)
   const rfbRef = useRef<{ disconnect: () => void; sendCtrlAltDel?: () => void; clipboardPasteFrom?: (text: string) => void; showDotCursor: boolean; clipViewport?: boolean; scaleViewport?: boolean; addEventListener?: (type: string, fn: (e: Event) => void) => void; removeEventListener?: (type: string, fn: (e: Event) => void) => void } | null>(null)
   const clip = useConsoleClipboardOptional()
@@ -166,7 +188,7 @@ export default function VNCViewer({
 
   const scaledFitRef = useRef(scaledFit)
   const showDotCursorRef = useRef(showDotCursor)
-  scaledFitRef.current = scaledFit
+  scaledFitRef.current = rfbScaledFit(cockpitMode, scaledFit)
   showDotCursorRef.current = showDotCursor
 
   useEffect(() => {
@@ -235,10 +257,6 @@ export default function VNCViewer({
             setStatus('connected')
             vp?.setConnected(true)
             syncGuestSize(rfb)
-            if (cockpitMode && scaledFitRef.current) {
-              // Prime 1:1 paint before Fit autoscale (matches clicking Native then Fit).
-              refreshRfbViewport(rfb, false, scrollRef.current)
-            }
             scheduleFitViewportRefresh(rfb, scaledFitRef.current, scrollRef.current, () => cancelled)
             const canvas = containerRef.current?.querySelector('canvas')
             onCanvasReady?.(canvas as HTMLCanvasElement | null)
@@ -282,16 +300,10 @@ export default function VNCViewer({
         })
         rfb.addEventListener('desktopname', () => {
           syncGuestSize(rfb)
-          if (cockpitMode && scaledFitRef.current) {
-            refreshRfbViewport(rfb, false, scrollRef.current)
-          }
           refreshRfbViewport(rfb, scaledFitRef.current, scrollRef.current)
         })
         rfb.addEventListener('resize', () => {
           syncGuestSize(rfb)
-          if (cockpitMode && scaledFitRef.current) {
-            refreshRfbViewport(rfb, false, scrollRef.current)
-          }
           refreshRfbViewport(rfb, scaledFitRef.current, scrollRef.current)
         })
         rfb.addEventListener('credentialsrequired', () => {
@@ -358,8 +370,8 @@ export default function VNCViewer({
   useEffect(() => {
     const rfb = rfbRef.current
     if (!rfb || status !== 'connected') return
-    refreshRfbViewport(rfb as RfbViewportHandle, scaledFit, scrollRef.current)
-  }, [scaledFit, status])
+    refreshRfbViewport(rfb as RfbViewportHandle, rfbScaledFit(cockpitMode, scaledFit), scrollRef.current)
+  }, [scaledFit, status, cockpitMode])
 
   useEffect(() => {
     const rfb = rfbRef.current
@@ -368,18 +380,10 @@ export default function VNCViewer({
   }, [showDotCursor, status])
 
   useEffect(() => {
-    if (!cockpitMode || !vp) return
+    if (cockpitMode || !vp) return
     const mode = vp.mode
     setScaledFit(mode === 'fit' || mode === 'fill' || mode === 'stretch')
   }, [cockpitMode, vp?.mode, vp])
-
-  useEffect(() => {
-    const rfb = rfbRef.current
-    if (!rfb || status !== 'connected' || !cockpitMode || !vp) return
-    const mode = vp.mode
-    const fit = mode === 'fit' || mode === 'fill' || mode === 'stretch'
-    refreshRfbViewport(rfb as RfbViewportHandle, fit, scrollRef.current)
-  }, [cockpitMode, vp?.mode, status, vp])
 
   useEffect(() => {
     if (!cockpitMode || !vp || !scrollRef.current) return
@@ -391,7 +395,7 @@ export default function VNCViewer({
         vp.setViewportSize(el.clientWidth, el.clientHeight)
         const rfb = rfbRef.current
         if (rfb && status === 'connected' && el.clientWidth > 0 && el.clientHeight > 0) {
-          refreshRfbViewport(rfb as RfbViewportHandle, scaledFitRef.current, el)
+          refreshRfbViewport(rfb as RfbViewportHandle, false, el)
         }
       })
     })
@@ -442,6 +446,10 @@ export default function VNCViewer({
   const vncTone = status === 'connected' ? 'ok' : status === 'connecting' || status === 'loading' ? 'warn' : 'error'
   const statusColor = `${statusBgClass(vncTone)}${vncTone === 'warn' ? ' animate-pulse' : ''}`
   const statusText = status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting...' : status === 'loading' ? 'Loading VNC client...' : 'Disconnected'
+  const cockpitTransform =
+    cockpitMode && vp
+      ? cockpitCssTransform(vp.mode, vp.zoom, vp.guestWidth, vp.guestHeight, vp.viewportWidth, vp.viewportHeight)
+      : undefined
 
   return (
     <div
@@ -546,7 +554,7 @@ export default function VNCViewer({
           ref={containerRef}
           className={`inline-block min-w-full min-h-full ${cockpitMode && vp?.mode === 'stretch' ? 'w-full h-full [&_canvas]:!w-full [&_canvas]:!h-full' : ''}`}
           style={{
-            transform: cockpitMode && vp?.mode === 'zoom' ? `scale(${vp.zoom / 100})` : undefined,
+            transform: cockpitTransform,
             transformOrigin: 'top left',
           }}
         />
