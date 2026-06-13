@@ -1387,6 +1387,80 @@ pub async fn get_vm_libvirt_details(
     Ok(Json(details))
 }
 
+pub async fn get_vm_hardware_summary(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<machina_core::libvirt::hardware_summary::VmHardwareSummaryReport>, ApiError> {
+    let row: (String, Option<Uuid>, String) = sqlx::query_as(
+        "SELECT name, host_id, COALESCE(inventory_source, 'libvirt') FROM vms WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await?;
+    if row.2 == "kubevirt" {
+        return Err(ApiError::bad_request(
+            "Hardware summary applies to libvirt-managed VMs only",
+        ));
+    }
+    let host_id = row
+        .1
+        .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
+    let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut client = crate::agent_client::connect(&agent_addr)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let result = crate::agent_client::vm_libvirt_query(
+        &mut client,
+        &row.0,
+        "hardware.summary",
+        &serde_json::json!({}),
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    let summary: machina_core::libvirt::hardware_summary::VmHardwareSummaryReport =
+        serde_json::from_value(result).map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(summary))
+}
+
+pub async fn get_vm_hardware_compat(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<machina_core::libvirt::hardware_summary::HardwareCompatReport>, ApiError> {
+    let row: (String, Option<Uuid>, String) = sqlx::query_as(
+        "SELECT name, host_id, COALESCE(inventory_source, 'libvirt') FROM vms WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await?;
+    if row.2 == "kubevirt" {
+        return Err(ApiError::bad_request(
+            "Hardware compatibility check applies to libvirt-managed VMs only",
+        ));
+    }
+    let host_id = row
+        .1
+        .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
+    let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut client = crate::agent_client::connect(&agent_addr)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let result = crate::agent_client::vm_libvirt_query(
+        &mut client,
+        &row.0,
+        "hardware.compat",
+        &serde_json::json!({}),
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    let report: machina_core::libvirt::hardware_summary::HardwareCompatReport =
+        serde_json::from_value(result).map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(report))
+}
+
 pub async fn get_vm_pending_config(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

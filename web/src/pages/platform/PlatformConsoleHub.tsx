@@ -60,6 +60,8 @@ export default function PlatformConsoleHub() {
   const [history, setHistory] = useState<ConsoleHubSessionRow[]>([])
   const [machineTimeline, setMachineTimeline] = useState<Awaited<ReturnType<typeof listVmTimeline>>>([])
   const [portForwardRules, setPortForwardRules] = useState<VmPortForwardRule[]>([])
+  const [inventorySource, setInventorySource] = useState<string | null>(null)
+  const [hostId, setHostId] = useState<string | null>(null)
 
   const cinemaChrome = experienceMode === 'cinema' && !isPopout
 
@@ -149,6 +151,8 @@ export default function PlatformConsoleHub() {
       setMachineTimeline(timeline)
       setHealthScore(health ? parseInt(health.score.split('/')[0], 10) || null : null)
       setVmState(vm?.observed_state ?? vm?.desired_state ?? null)
+      setInventorySource(vm?.inventory_source ?? 'libvirt')
+      setHostId(vm?.host_id ?? null)
       setNodeName(vm?.host_id ? vm.host_id.slice(0, 8) : null)
       const isKubevirt = vm?.inventory_source === 'kubevirt'
       setKubeVirtNamespace(isKubevirt ? (vm?.k8s_namespace ?? 'default') : null)
@@ -297,6 +301,8 @@ export default function PlatformConsoleHub() {
         connectKey={connectKey}
         hypervisorAddress={plan?.hypervisor_address ?? undefined}
         portForwardRules={portForwardRules}
+        inventorySource={inventorySource}
+        hostId={hostId}
         onPlanRefresh={() => void load()}
         experienceMode={experienceMode}
         onExperienceModeChange={setExperienceMode}

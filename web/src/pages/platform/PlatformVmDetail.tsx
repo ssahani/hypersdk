@@ -146,6 +146,11 @@ import { formatBytes } from '../../utils/vm'
 import { getSession, type SessionRole } from '../../api/auth'
 import { listIsos, type ImageFile } from '../../api/extras'
 import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../../components/BrowseHostPathModal'
+import { useVmHardware } from '../../hooks/useVmHardware'
+import VmHardwareDrawer from '../../components/vm/VmHardwareDrawer'
+import VmHardwareSection from '../../components/vm/VmHardwareSection'
+import VmWindowsReadinessPanel from '../../components/vm/VmWindowsReadinessPanel'
+import VmEditHardwareDrawer from '../../components/vm/VmEditHardwareDrawer'
 
 export default function PlatformVmDetail() {
   const location = useLocation()
@@ -156,7 +161,7 @@ export default function PlatformVmDetail() {
   const tabParam = searchParams.get('tab')
   const rawTab = tabParam === 'guestPorts' ? 'security' : tabParam
   const tab: VmDetailTab = (
-    ['overview', 'access', 'doctor', 'console', 'performance', 'disks', 'devices', 'network', 'guestHealth', 'guestServices', 'security', 'snapshots', 'backup', 'topology', 'events', 'logs', 'settings', 'advanced'] as VmDetailTab[]
+    ['overview', 'access', 'hardware', 'doctor', 'console', 'performance', 'disks', 'devices', 'network', 'guestHealth', 'guestServices', 'security', 'snapshots', 'backup', 'topology', 'events', 'logs', 'settings', 'advanced'] as VmDetailTab[]
   ).includes(rawTab as VmDetailTab) ? (rawTab as VmDetailTab) : 'overview'
   const setTab = (next: VmDetailTab, extra?: { guestAction?: string }) => {
     if (next === 'console' && id) {
@@ -204,6 +209,8 @@ export default function PlatformVmDetail() {
   const [snapPrecheckLoading, setSnapPrecheckLoading] = useState(false)
   const [cpuModalOpen, setCpuModalOpen] = useState(false)
   const [memoryModalOpen, setMemoryModalOpen] = useState(false)
+  const [hardwareDrawerOpen, setHardwareDrawerOpen] = useState(false)
+  const [hardwareEditOpen, setHardwareEditOpen] = useState(false)
   const [computeTopology, setComputeTopology] = useState<CpuMemoryTopology | null>(null)
   const [computeTopologyLoading, setComputeTopologyLoading] = useState(false)
   const [domainXmlSaving, setDomainXmlSaving] = useState(false)
@@ -550,7 +557,7 @@ export default function PlatformVmDetail() {
   useEffect(() => {
     if ((tab === 'security' || tab === 'access' || tab === 'overview') && id) void loadGuestPorts()
     if (tab === 'guestServices' && id) void loadGuestServices()
-    if ((tab === 'overview' || tab === 'access' || tab === 'disks' || tab === 'devices' || tab === 'network' || tab === 'settings' || tab === 'advanced') && id && vm?.inventory_source !== 'kubevirt') {
+    if ((tab === 'overview' || tab === 'access' || tab === 'hardware' || tab === 'disks' || tab === 'devices' || tab === 'network' || tab === 'settings' || tab === 'advanced') && id && vm?.inventory_source !== 'kubevirt') {
       if (tab === 'overview') void loadComputeTopology()
       if (tab === 'overview' || tab === 'access' || tab === 'settings' || tab === 'advanced' || tab === 'devices') void loadDomainXml()
       void loadLibvirtDetails()
@@ -692,6 +699,15 @@ export default function PlatformVmDetail() {
   const hypervisorAddress = hostRow?.address?.trim() || undefined
   const guestAccess = consolePlan?.guest_access ?? null
 
+  const hardware = useVmHardware({
+    vmId: id,
+    enabled: Boolean(id && vm?.inventory_source !== 'kubevirt'),
+    inventorySource: vm?.inventory_source,
+    portForwardRules,
+    protocols: consolePlan?.protocols ?? [],
+    osHint: consolePlan?.os_hint,
+  })
+
   const natForwardHref = guestIp
     ? `/host-networking?tab=portforward&vm_ip=${encodeURIComponent(guestIp)}&vm_port=22`
     : undefined
@@ -813,6 +829,7 @@ export default function PlatformVmDetail() {
             virtViewerUrl={vm.observed_state === 'running' ? platformVmViewerVvUrl(id) : null}
             spotlightPrefill={spotlightPrefill}
             onSsh={() => setSshDialogOpen(true)}
+            onOpenHardware={() => setHardwareDrawerOpen(true)}
             onDelete={() => {
               if (!window.confirm('Delete this VM permanently?')) return
               void queueVmDelete('Delete queued')
@@ -1030,6 +1047,49 @@ export default function PlatformVmDetail() {
                 <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => setTab('guestHealth')}>
                   Open Guest health →
                 </button>
+              </MacGlassPanel>
+            </div>
+          )}
+
+          {tab === 'hardware' && vm.inventory_source !== 'kubevirt' && id && (
+            <div className="space-y-4 pt-2" data-testid="vm-hardware-tab">
+              <MacGlassPanel title="Libvirt hardware" subtitle="Domain XML summary — edit without leaving VM detail">
+                {hardware.loading && !hardware.summary ? (
+                  <p className="text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</p>
+                ) : hardware.summary || hardware.report ? (
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-white/[0.08] bg-slate-900/40 px-3 py-1">
+                      <VmHardwareSection label="CPU" value={hardware.report?.cpu.value ?? hardware.summary!.cpu} badges={hardware.report?.cpu.badges} testId="vm-hardware-cpu" />
+                      <VmHardwareSection label="Memory" value={hardware.report?.memory.value ?? hardware.summary!.memory} badges={hardware.report?.memory.badges} badge={hardware.pending?.needs_shutdown && !hardware.report ? 'restart' : null} />
+                      <VmHardwareSection label="Firmware" value={hardware.report?.firmware.value ?? hardware.summary!.firmware} badges={hardware.report?.firmware.badges} />
+                      <VmHardwareSection label="TPM" value={hardware.report?.tpm.value ?? hardware.summary!.tpm} badges={hardware.report?.tpm.badges} />
+                      <VmHardwareSection label="Display" value={hardware.report?.display.value ?? hardware.summary!.display} badges={hardware.report?.display.badges} />
+                      <VmHardwareSection label="NIC" value={hardware.report?.nic.value ?? hardware.summary!.nic} badges={hardware.report?.nic.badges} />
+                      <VmHardwareSection label="Guest agent" value={hardware.report?.guest_agent.value ?? hardware.summary!.guestAgent} badges={hardware.report?.guest_agent.badges} />
+                      <VmHardwareSection label="Migration" value={hardware.report?.migration.value ?? hardware.summary!.migration} badges={hardware.report?.migration.badges} />
+                    </div>
+                    {hardware.report?.windows_readiness ? (
+                      <VmWindowsReadinessPanel
+                        report={hardware.report.windows_readiness}
+                        rdpExposed={hardware.summary?.rdpExposed}
+                        rdpHostPort={hardware.summary?.rdpHostPort}
+                      />
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">Hardware details unavailable.</p>
+                )}
+                <div className="flex flex-wrap gap-2 mt-4">
+                  <button type="button" className="btn-primary text-sm" disabled={vm.managed === false} onClick={() => setHardwareEditOpen(true)} data-testid="vm-hardware-edit">
+                    Edit Hardware
+                  </button>
+                  <button type="button" className="btn-secondary text-sm" onClick={() => setHardwareDrawerOpen(true)}>
+                    Open drawer
+                  </button>
+                  <Link to={cinemaHubPath(id)} className="btn-secondary text-sm inline-flex items-center gap-1">
+                    <Monitor className="w-4 h-4" /> Cinema
+                  </Link>
+                </div>
               </MacGlassPanel>
             </div>
           )}
@@ -2298,6 +2358,31 @@ export default function PlatformVmDetail() {
 
           {vm.inventory_source !== 'kubevirt' && id && (
             <>
+              <VmHardwareDrawer
+                open={hardwareDrawerOpen}
+                onClose={() => setHardwareDrawerOpen(false)}
+                vmId={id}
+                vmName={vm.name}
+                hostId={vm.host_id}
+                managed={vm.managed}
+                vmState={vm.observed_state}
+                hardware={hardware}
+                portForwardRules={portForwardRules}
+                protocols={consolePlan?.protocols ?? []}
+                canBrowseHost={canBrowseHost}
+                onPlanRefresh={() => void loadPortForwards()}
+              />
+              <VmEditHardwareDrawer
+                open={hardwareEditOpen}
+                onClose={() => setHardwareEditOpen(false)}
+                vmId={id}
+                vmName={vm.name}
+                hostId={vm.host_id}
+                managed={vm.managed}
+                vmState={vm.observed_state}
+                hardware={hardware}
+                canBrowseHost={canBrowseHost}
+              />
               <VmCpuTopologyModal
                 open={cpuModalOpen}
                 vmId={id}

@@ -3075,7 +3075,7 @@ export async function mockPlatformApi(page: Page, opts?: {
         },
       })
     }
-    if (url.match(/\/vms\/[^/]+\/ha/)) {
+    if (url.match(/\/vms\/[^/]+\/ha(\?|$)/)) {
       return route.fulfill({ json: { vm_id: 'v1', enabled: false, restart_policy: 'restart' } })
     }
     if (url.match(/\/vms\/[^/]+\/spec/)) {
@@ -3334,7 +3334,26 @@ export async function mockPlatformApi(page: Page, opts?: {
       })
     }
     if (url.match(/\/vms\/[^/]+\/domain-xml/)) {
-      return route.fulfill({ json: { xml: '<domain type="kvm"><name>vm-1</name></domain>' } })
+      return route.fulfill({
+        json: {
+          xml: `<domain type='kvm'>
+  <name>vm-1</name>
+  <memory unit='KiB'>2097152</memory>
+  <vcpu placement='static'>2</vcpu>
+  <os firmware='efi'>
+    <loader secure='yes'>/usr/share/OVMF/OVMF_CODE.secboot.fd</loader>
+  </os>
+  <cpu mode='host-model' check='partial'/>
+  <memballoon model='virtio'/>
+  <tpm model='tpm-crb'><backend type='emulator' version='2.0'/></tpm>
+  <video><model type='virtio'/></video>
+  <graphics type='vnc' port='-1' listen='127.0.0.1'/>
+  <graphics type='spice' port='-1' listen='127.0.0.1'/>
+  <interface type='network'><mac address='52:54:00:12:34:56'/><source network='default'/><model type='virtio'/></interface>
+  <disk type='file' device='disk'><target dev='vda' bus='virtio'/></disk>
+</domain>`,
+        },
+      })
     }
     if (url.match(/\/vms\/[^/]+\/health-check/) && route.request().method() === 'POST') {
       return route.fulfill({
@@ -3467,8 +3486,43 @@ export async function mockPlatformApi(page: Page, opts?: {
         },
       })
     }
+    if (url.includes('/hardware-summary')) {
+      return route.fulfill({
+        json: {
+          vm_name: 'vm-1',
+          state: 'running',
+          cpu: { label: 'CPU', value: '2 vCPU · host-passthrough · Skylake-Client', badges: [] },
+          memory: { label: 'Memory', value: '2 GiB · balloon enabled', badges: ['live'] },
+          firmware: { label: 'Firmware', value: 'UEFI · Secure Boot enabled', badges: ['restart_required'] },
+          tpm: { label: 'TPM', value: 'TPM 2.0 emulator · persistent', badges: ['restart_required'] },
+          display: { label: 'Display', value: 'SPICE / VNC', badges: [] },
+          video: { label: 'Video', value: 'qxl', badges: [] },
+          disk_bus: { label: 'Disk bus', value: 'virtio', badges: [] },
+          nic: { label: 'NIC', value: 'default · virtio', badges: [] },
+          guest_agent: { label: 'Guest agent', value: 'running', badges: [] },
+          host_devices: { label: 'Host devices', value: 'none', badges: [] },
+          migration: { label: 'Migration', value: 'safe', badges: [] },
+          windows_readiness: null,
+          balloon_enabled: true,
+          secure_boot: true,
+          has_vfio_hostdev: false,
+          needs_shutdown: false,
+        },
+      })
+    }
+    if (url.includes('/hardware-compat')) {
+      return route.fulfill({
+        json: {
+          ok: true,
+          issues: [],
+          cpu_modes_supported: ['host-passthrough', 'custom'],
+          tpm_supported: true,
+          uefi_supported: true,
+        },
+      })
+    }
     if (url.match(/\/vms\/[^/]+\/pending-config/)) {
-      return route.fulfill({ json: { pending: false, requires_shutdown: false, changes: [] } })
+      return route.fulfill({ json: { needs_shutdown: false, state: 'running', persistent: true, pending_changes: [] } })
     }
     if (url.match(/\/vms\/[^/]+\/libvirt-details/)) {
       return route.fulfill({

@@ -29,6 +29,7 @@ pub mod guest_agent_diag;
 pub mod guest_agent_provision;
 pub mod guest_health;
 pub mod guest_input;
+pub mod hardware_summary;
 pub mod host_cpu;
 pub mod host_network;
 pub mod host_sysctl;

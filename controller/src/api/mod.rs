@@ -140,6 +140,14 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/vms/{id}/vcpus", post(vms::set_vm_vcpus))
         .route("/api/v1/vms/{id}/memory", post(vms::set_vm_memory))
         .route("/api/v1/vms/{id}/libvirt-details", get(vms::get_vm_libvirt_details))
+        .route(
+            "/api/v1/vms/{id}/hardware-summary",
+            get(vms::get_vm_hardware_summary),
+        )
+        .route(
+            "/api/v1/vms/{id}/hardware-compat",
+            get(vms::get_vm_hardware_compat),
+        )
         .route("/api/v1/vms/{id}/pending-config", get(vms::get_vm_pending_config))
         .route("/api/v1/vms/pending-config/batch", post(vms::batch_vm_parity_summary))
         .route("/api/v1/vms/guest-ips/batch", post(vms::batch_vm_guest_ips))

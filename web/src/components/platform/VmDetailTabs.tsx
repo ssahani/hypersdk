@@ -5,6 +5,7 @@ import DetailTabs from './DetailTabs'
 export type VmDetailTab =
   | 'overview'
   | 'access'
+  | 'hardware'
   | 'doctor'
   | 'console'
   | 'performance'
@@ -25,6 +26,7 @@ export type VmDetailTab =
 const PRIMARY = [
   { id: 'overview' as const, label: 'Overview' },
   { id: 'access' as const, label: 'Access' },
+  { id: 'hardware' as const, label: 'Hardware' },
   { id: 'console' as const, label: 'Console' },
   { id: 'performance' as const, label: 'Performance' },
   { id: 'doctor' as const, label: 'Doctor' },

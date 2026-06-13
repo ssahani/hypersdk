@@ -87,6 +87,22 @@ pub fn vm_query(
                 "content": content,
             }))
         }
+        "hardware.summary" => {
+            let summary = machina_core::libvirt::hardware_summary::get_hardware_summary(conn, vm_name)?;
+            Ok(serde_json::to_value(summary).unwrap_or(Value::Null))
+        }
+        "hardware.compat" => {
+            let report = machina_core::libvirt::hardware_summary::check_hardware_compat(conn, vm_name)?;
+            Ok(serde_json::to_value(report).unwrap_or(Value::Null))
+        }
+        "domain.caps" => {
+            let arch = payload.get("arch").and_then(|v| v.as_str());
+            let machine = payload.get("machine").and_then(|v| v.as_str());
+            let xml = machina_core::libvirt::hardware_summary::get_domain_capabilities_xml(
+                conn, None, arch, machine, Some("kvm"),
+            )?;
+            Ok(serde_json::json!({ "xml": xml }))
+        }
         other => Err(LibvirtError::Invalid(format!("unknown vm query action: {other}"))),
     }
 }
