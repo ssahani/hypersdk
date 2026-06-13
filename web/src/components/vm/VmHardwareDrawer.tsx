@@ -247,6 +247,7 @@ export default function VmHardwareDrawer({
         vmId={vmId}
         vmName={vmName}
         hostId={hostId}
+        domainXml={hardware.domainXml}
         managed={managed}
         readOnly={readOnly}
         onAttached={() => void refresh()}

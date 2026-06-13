@@ -226,8 +226,10 @@ test.describe('Platform ConsoleHub', () => {
 
   test('Hardware drawer opens attach device browser', async ({ page }) => {
     const summaryReady = page.waitForResponse((r) => r.url().includes('/hardware-summary') && r.ok())
+    const domainReady = page.waitForResponse((r) => r.url().includes('/domain-xml') && r.ok())
     await page.goto('/platform/vms/v1/consolehub')
     await summaryReady
+    await domainReady
     await expect(page.getByTestId('cinema-control-strip')).toBeVisible({ timeout: 15_000 })
     await page.mouse.move(640, 480)
     await page.getByTestId('cinema-hardware').click()
@@ -240,10 +242,11 @@ test.describe('Platform ConsoleHub', () => {
     await nodeDevicesReady
     const attachDrawer = page.getByTestId('vm-hostdev-attach-drawer')
     await expect(attachDrawer).toBeVisible({ timeout: 15_000 })
-    await expect(attachDrawer.getByTestId('vm-hostdev-row-pci_0000_06_00_0')).toBeVisible()
+    await expect(attachDrawer.getByTestId('vm-hostdev-attached-pci-0000-03-00-0')).toBeVisible()
+    await expect(attachDrawer.getByTestId('vm-hostdev-row-pci_0000_06_00_0')).toContainText('IOMMU 14')
     await expect(attachDrawer.getByTestId('vm-hostdev-row-usb_1_2')).toBeVisible()
     await attachDrawer.getByRole('button', { name: 'Attach' }).first().click()
-    await expect(page.getByText(/Attached/i)).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('Attached pci_0000_06_00_0 · 0000:06:00.0')).toBeVisible({ timeout: 15_000 })
   })
 
   test('KubeVirt VM detail shows read-only Hardware tab', async ({ page }) => {
