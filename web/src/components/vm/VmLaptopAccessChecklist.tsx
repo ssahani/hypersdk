@@ -3,11 +3,10 @@
 import type { ReactNode } from 'react'
 import { CheckCircle2, Circle, Copy, Loader2 } from 'lucide-react'
 import { Link } from 'react-router'
-import { createVmPortForward } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
 import type { GuestAccessHints } from '../../utils/guestAccessHints'
 import {
-  buildExposePayload,
+  exposeGuestPortOnVm,
   laptopSshCommand,
   type NatRuleLike,
   sshNatHostPort,
@@ -53,8 +52,7 @@ export default function VmLaptopAccessChecklist({
 
   const exposeSsh = async () => {
     try {
-      const taken = portForwardRules.map((r) => r.host_port)
-      await createVmPortForward(vmId, buildExposePayload(vmName, 22, taken))
+      await exposeGuestPortOnVm(vmId, vmName, 22, portForwardRules)
       notify('SSH exposed on hypervisor')
       onRefreshRules?.()
     } catch (e: unknown) {

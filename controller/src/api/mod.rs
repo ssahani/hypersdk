@@ -61,6 +61,7 @@ mod topology;
 mod upgrade;
 mod users;
 mod vm_libvirt;
+mod vm_row;
 mod vms;
 mod webhooks;
 

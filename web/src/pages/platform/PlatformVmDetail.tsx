@@ -400,6 +400,19 @@ export default function PlatformVmDetail() {
     void loadPortForwards()
   }, [id, guestHealth?.guest_ip, health?.guest_ip, vm?.guest_ip, vm?.inventory_source, loadPortForwards])
 
+  const hardware = useVmHardware({
+    vmId: id,
+    enabled: Boolean(id && vm?.inventory_source !== 'kubevirt'),
+    inventorySource: vm?.inventory_source,
+    portForwardRules,
+    protocols: consolePlan?.protocols ?? [],
+    osHint: consolePlan?.os_hint,
+  })
+  const kubevirtHardware = useKubevirtHardware({
+    vmId: id,
+    enabled: Boolean(id && vm?.inventory_source === 'kubevirt'),
+  })
+
   useEffect(() => {
     if (!id || tab !== 'events') return
     void getVmMigrations(id).then(setMigrations).catch(() => setMigrations([]))
@@ -700,19 +713,6 @@ export default function PlatformVmDetail() {
   const guestIp = resolvedGuestIp
   const hypervisorAddress = hostRow?.address?.trim() || undefined
   const guestAccess = consolePlan?.guest_access ?? null
-
-  const hardware = useVmHardware({
-    vmId: id,
-    enabled: Boolean(id && vm?.inventory_source !== 'kubevirt'),
-    inventorySource: vm?.inventory_source,
-    portForwardRules,
-    protocols: consolePlan?.protocols ?? [],
-    osHint: consolePlan?.os_hint,
-  })
-  const kubevirtHardware = useKubevirtHardware({
-    vmId: id,
-    enabled: Boolean(id && vm?.inventory_source === 'kubevirt'),
-  })
 
   const natForwardHref = guestIp
     ? `/host-networking?tab=portforward&vm_ip=${encodeURIComponent(guestIp)}&vm_port=22`

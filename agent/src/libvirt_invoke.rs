@@ -46,8 +46,7 @@ pub fn vm_query(
             let xml = d
                 .get_xml_desc(0)
                 .map_err(LibvirtError::map_op("Failed to get domain XML"))?;
-            let lower = xml.to_ascii_lowercase();
-            let spice = lower.contains("type='spice'") || lower.contains("type=\"spice\"");
+            let spice = machina_core::libvirt::graphics_convert::domain_has_spice_graphics(&xml);
             Ok(serde_json::json!({
                 "needs_shutdown": pending.needs_shutdown,
                 "spice": spice,

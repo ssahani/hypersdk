@@ -41,21 +41,7 @@ async fn vm_agent_row(
     state: &AppState,
     vm_id: Uuid,
 ) -> Result<(String, Uuid), ApiError> {
-    let row: (String, Option<Uuid>, String) = sqlx::query_as(
-        "SELECT name, host_id, COALESCE(inventory_source, 'libvirt') FROM vms WHERE id = $1",
-    )
-    .bind(vm_id)
-    .fetch_one(&state.pool)
-    .await?;
-    if row.2 == "kubevirt" {
-        return Err(ApiError::bad_request(
-            "Libvirt operations apply to libvirt-managed VMs only",
-        ));
-    }
-    let host_id = row
-        .1
-        .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
-    Ok((row.0, host_id))
+    super::vm_row::vm_agent_row_libvirt(state, vm_id).await
 }
 
 pub async fn query_vm_libvirt(

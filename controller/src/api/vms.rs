@@ -1775,7 +1775,7 @@ pub async fn get_vm_qemu_logs(
     Path(id): Path<Uuid>,
     Query(q): Query<QemuLogsQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let (name, host_id) = vm_agent_row_libvirt(&state, id).await?;
+    let (name, host_id) = crate::api::vm_row::vm_agent_row_libvirt(&state, id).await?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
@@ -1850,7 +1850,7 @@ pub async fn inject_vm_nmi(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let (name, host_id) = vm_agent_row_libvirt(&state, id).await?;
+    let (name, host_id) = crate::api::vm_row::vm_agent_row_libvirt(&state, id).await?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
@@ -1868,7 +1868,7 @@ pub async fn convert_vm_spice_to_vnc(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let (name, host_id) = vm_agent_row_libvirt(&state, id).await?;
+    let (name, host_id) = crate::api::vm_row::vm_agent_row_libvirt(&state, id).await?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
@@ -1899,7 +1899,7 @@ pub async fn add_vm_graphics(
     Path(id): Path<Uuid>,
     Json(body): Json<VmGraphicsBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let (name, host_id) = vm_agent_row_libvirt(&state, id).await?;
+    let (name, host_id) = crate::api::vm_row::vm_agent_row_libvirt(&state, id).await?;
     let listen = body
         .listen
         .as_deref()
@@ -1934,7 +1934,7 @@ pub async fn remove_vm_graphics(
     Path(id): Path<Uuid>,
     Json(body): Json<VmGraphicsBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let (name, host_id) = vm_agent_row_libvirt(&state, id).await?;
+    let (name, host_id) = crate::api::vm_row::vm_agent_row_libvirt(&state, id).await?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
@@ -1954,22 +1954,6 @@ pub async fn remove_vm_graphics(
         format!("Removed {} graphics from VM {name}", body.graphics_type.trim()),
     );
     Ok(Json(result))
-}
-
-async fn vm_agent_row_libvirt(state: &AppState, vm_id: Uuid) -> Result<(String, Uuid), ApiError> {
-    let row: (String, Option<Uuid>, String) = sqlx::query_as(
-        "SELECT name, host_id, COALESCE(inventory_source, 'libvirt') FROM vms WHERE id = $1",
-    )
-    .bind(vm_id)
-    .fetch_one(&state.pool)
-    .await?;
-    if row.2 == "kubevirt" {
-        return Err(ApiError::bad_request("Libvirt operations apply to libvirt-managed VMs only"));
-    }
-    let host_id = row
-        .1
-        .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
-    Ok((row.0, host_id))
 }
 
 #[derive(Debug, Deserialize)]

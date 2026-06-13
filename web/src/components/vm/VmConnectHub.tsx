@@ -15,7 +15,7 @@ import {
   Terminal,
 } from 'lucide-react'
 import type { GuestPortReport } from '../../api/zeusFirewall'
-import { createVmPortForward, type VmPortForwardRule } from '../../api/platform'
+import { type VmPortForwardRule } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
 import VmPortForwardPanel from './VmPortForwardPanel'
 import { hubLinkClasses } from '../../utils/semanticColors'
@@ -23,7 +23,7 @@ import { VM_DAILY_ACCESS_GUIDE_URL } from '../../utils/vmDailyAccessGuide'
 import VmSshConnectDialog, { navigateVmSshSession } from './VmSshConnectDialog'
 import type { GuestAccessHints } from '../../utils/guestAccessHints'
 import {
-  buildExposePayload,
+  exposeGuestPortOnVm,
   isPrivateGuestIp,
   laptopHttpHref,
   laptopSshCommand,
@@ -144,8 +144,7 @@ export default function VmConnectHub({
     if (!platformVmId) return
     setExposeBusy(guestPort)
     try {
-      const taken = portForwardRules.map((r) => r.host_port)
-      await createVmPortForward(platformVmId, buildExposePayload(vmName, guestPort, taken))
+      await exposeGuestPortOnVm(platformVmId, vmName, guestPort, portForwardRules)
       notify(`Exposed guest port ${guestPort} on hypervisor`)
       onRefreshPortForwards?.()
     } catch (e: unknown) {

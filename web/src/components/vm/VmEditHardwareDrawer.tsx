@@ -104,7 +104,7 @@ export default function VmEditHardwareDrawer({
     try {
       await putVmDomainXml(vmId, xmlDraft)
       toast.success('Domain XML updated')
-      await refresh()
+      await refresh(true)
     } catch (e: unknown) {
       toast.error(formatUserError(e))
     } finally {
@@ -117,7 +117,7 @@ export default function VmEditHardwareDrawer({
     try {
       await invokeVmLibvirt(vmId, 'firmware.set', { uefi })
       toast.success(uefi ? 'UEFI firmware set' : 'BIOS firmware set')
-      await refresh()
+      await refresh(true)
     } catch (e: unknown) {
       toast.error(formatUserError(e))
     } finally {
@@ -194,12 +194,12 @@ export default function VmEditHardwareDrawer({
                           domainXml={domainXml}
                           loading={loading}
                           vmState={vmState}
-                          onChanged={() => void refresh()}
+                          onChanged={() => void refresh(true)}
                         />
                       </>
                     )}
                     {id === 'display' && (
-                      <VmGraphicsPanel vmId={vmId} domainXml={domainXml} disabled={disabled} onChanged={() => void refresh()} />
+                      <VmGraphicsPanel vmId={vmId} domainXml={domainXml} disabled={disabled} onChanged={() => void refresh(true)} />
                     )}
                     {id === 'storage' && (
                       <VmHardwareDisksSection
@@ -210,7 +210,7 @@ export default function VmEditHardwareDrawer({
                         loading={loading}
                         canBrowseHost={canBrowseHost}
                         compact
-                        onChanged={() => void refresh()}
+                        onChanged={() => void refresh(true)}
                         onNotify={(m) => toast.success(m)}
                         onError={(m) => toast.error(m)}
                       />
@@ -223,7 +223,7 @@ export default function VmEditHardwareDrawer({
                         pending={pending}
                         loading={loading}
                         compact
-                        onChanged={() => void refresh()}
+                        onChanged={() => void refresh(true)}
                         onNotify={(m) => toast.success(m)}
                         onError={(m) => toast.error(m)}
                       />
@@ -236,7 +236,7 @@ export default function VmEditHardwareDrawer({
                         domainXml={domainXml}
                         loading={loading}
                         vmState={vmState}
-                        onChanged={() => void refresh()}
+                        onChanged={() => void refresh(true)}
                       />
                     )}
                     {id === 'performance' && (
@@ -246,7 +246,7 @@ export default function VmEditHardwareDrawer({
                         vmName={vmName}
                         managed={managed}
                         libvirtDetails={details}
-                        onChanged={() => void refresh()}
+                        onChanged={() => void refresh(true)}
                       />
                     )}
                     {id === 'xml' && (
@@ -275,7 +275,7 @@ export default function VmEditHardwareDrawer({
         vmId={vmId}
         vmName={vmName}
         onClose={() => setCpuOpen(false)}
-        onSaved={() => void refresh()}
+        onSaved={() => void refresh(true)}
         onNotify={(m) => toast.success(m)}
         onError={(m) => toast.error(m)}
       />
@@ -285,7 +285,7 @@ export default function VmEditHardwareDrawer({
         vmName={vmName}
         running={running}
         onClose={() => setMemoryOpen(false)}
-        onSaved={() => void refresh()}
+        onSaved={() => void refresh(true)}
         onNotify={(m) => toast.success(m)}
         onError={(m) => toast.error(m)}
       />

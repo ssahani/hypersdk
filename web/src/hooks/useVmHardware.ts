@@ -18,6 +18,7 @@ import {
   type VmPortForwardRule,
 } from '../api/platform'
 import { queryVmLibvirt, type CpuMemoryTopology } from '../api/platformVmLibvirt'
+import { formatUserError } from '../utils/apiError'
 import { buildVmHardwareSummary, type VmHardwareSummary } from '../utils/vmHardwareSummary'
 
 export type UseVmHardwareOptions = {
@@ -44,7 +45,38 @@ export type UseVmHardwareResult = {
   compatLoading: boolean
   compatError: string | null
   checkCompat: () => Promise<void>
-  refresh: () => Promise<void>
+  refresh: (force?: boolean) => Promise<void>
+}
+
+type HardwareSnapshot = {
+  details: VmLibvirtDetails | null
+  domainXml: string
+  topology: CpuMemoryTopology | null
+  pending: VmPendingConfig | null
+  guestHealth: VmGuestHealthReport | null
+  report: VmHardwareSummaryReport | null
+}
+
+const HARDWARE_CACHE_MS = 10_000
+const hardwareCache = new Map<string, { at: number; snapshot: HardwareSnapshot }>()
+
+function applySnapshot(
+  snapshot: HardwareSnapshot,
+  setters: {
+    setDetails: (v: VmLibvirtDetails | null) => void
+    setDomainXml: (v: string) => void
+    setTopology: (v: CpuMemoryTopology | null) => void
+    setPending: (v: VmPendingConfig | null) => void
+    setGuestHealth: (v: VmGuestHealthReport | null) => void
+    setReport: (v: VmHardwareSummaryReport | null) => void
+  },
+) {
+  setters.setDetails(snapshot.details)
+  setters.setDomainXml(snapshot.domainXml)
+  setters.setTopology(snapshot.topology)
+  setters.setPending(snapshot.pending)
+  setters.setGuestHealth(snapshot.guestHealth)
+  setters.setReport(snapshot.report)
 }
 
 export function useVmHardware({
@@ -69,7 +101,7 @@ export function useVmHardware({
   const [compatLoading, setCompatLoading] = useState(false)
   const [compatError, setCompatError] = useState<string | null>(null)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (force = false) => {
     if (!vmId || !libvirt) {
       setDetails(null)
       setDomainXml('')
@@ -82,6 +114,28 @@ export function useVmHardware({
       setError(null)
       return
     }
+
+    const setters = {
+      setDetails,
+      setDomainXml,
+      setTopology,
+      setPending,
+      setGuestHealth,
+      setReport,
+    }
+
+    if (force) {
+      hardwareCache.delete(vmId)
+    }
+
+    const cached = hardwareCache.get(vmId)
+    if (!force && cached && Date.now() - cached.at < HARDWARE_CACHE_MS) {
+      applySnapshot(cached.snapshot, setters)
+      setError(null)
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
     setError(null)
     try {
@@ -93,14 +147,18 @@ export function useVmHardware({
         getVmGuestHealth(vmId).catch(() => null),
         getVmHardwareSummary(vmId).catch(() => null),
       ])
-      setDetails(d)
-      setDomainXml(xmlRes.xml ?? '')
-      setTopology(topo)
-      setPending(pend)
-      setGuestHealth(health)
-      setReport(hwReport)
+      const snapshot: HardwareSnapshot = {
+        details: d,
+        domainXml: xmlRes.xml ?? '',
+        topology: topo,
+        pending: pend,
+        guestHealth: health,
+        report: hwReport,
+      }
+      applySnapshot(snapshot, setters)
+      hardwareCache.set(vmId, { at: Date.now(), snapshot })
     } catch (e: unknown) {
-      setError(String(e))
+      setError(formatUserError(e))
     } finally {
       setLoading(false)
     }
@@ -118,14 +176,14 @@ export function useVmHardware({
       setCompat(result)
       setDomainCaps(caps)
     } catch (e: unknown) {
-      setCompatError(String(e))
+      setCompatError(formatUserError(e))
     } finally {
       setCompatLoading(false)
     }
   }, [vmId, libvirt])
 
   useEffect(() => {
-    void refresh()
+    void refresh(false)
   }, [refresh])
 
   const summary = useMemo(() => {
@@ -159,4 +217,9 @@ export function useVmHardware({
     checkCompat,
     refresh,
   }
+}
+
+/** Drop cached hardware for a VM after mutations (attach, edit, graphics). */
+export function invalidateVmHardwareCache(vmId: string | null | undefined) {
+  if (vmId) hardwareCache.delete(vmId)
 }

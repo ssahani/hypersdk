@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { Terminal, X } from 'lucide-react'
-import { createVmPortForward } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
 import { loadVmSshPrefs, saveVmSshPrefs } from '../../utils/vmSshPrefs'
 import { statusToneClass } from '../../utils/semanticColors'
 import {
-  buildExposePayload,
+  exposeGuestPortOnVm,
   laptopSshCommand,
   type NatRuleLike,
   sshNatHostPort,
@@ -91,8 +90,7 @@ export default function VmSshConnectDialog({
     if (!platformVmId) return
     setBusy(true)
     try {
-      const taken = portForwardRules.map((r) => r.host_port)
-      await createVmPortForward(platformVmId, buildExposePayload(vmName, 22, taken))
+      await exposeGuestPortOnVm(platformVmId, vmName, 22, portForwardRules)
       notify('SSH exposed on hypervisor')
       onRefreshPortForwards?.()
       const cmd = laptopSshCommand(user, defaultIp, hypervisorAddress, [

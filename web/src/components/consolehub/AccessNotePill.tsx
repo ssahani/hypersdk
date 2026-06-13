@@ -3,14 +3,13 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronUp, Copy, Terminal, AlertTriangle } from 'lucide-react'
 import { Link } from 'react-router'
-import { createVmPortForward } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
 import {
   aggregateAccessNoteLabels,
   aggregateAccessNoteMessages,
   type GuestAccessHints,
 } from '../../utils/guestAccessHints'
-import { buildExposePayload, laptopSshCommand, type NatRuleLike } from '../../utils/vmPortForwardServices'
+import { exposeGuestPortOnVm, laptopSshCommand, type NatRuleLike } from '../../utils/vmPortForwardServices'
 
 type Props = {
   hints: GuestAccessHints | null | undefined
@@ -61,8 +60,7 @@ export default function AccessNotePill({
     if (!vmId || !vmName) return
     setBusy(true)
     try {
-      const taken = portForwardRules.map((r) => r.host_port)
-      await createVmPortForward(vmId, buildExposePayload(vmName, 22, taken))
+      await exposeGuestPortOnVm(vmId, vmName, 22, portForwardRules)
       notify('SSH exposed on hypervisor')
       onPlanRefresh?.()
     } catch (e: unknown) {

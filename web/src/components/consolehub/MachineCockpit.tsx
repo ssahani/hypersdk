@@ -28,8 +28,8 @@ import ShellAccessBanner from './ShellAccessBanner'
 import ConsoleLoginRecoveryCard from './ConsoleLoginRecoveryCard'
 import VmPortForwardPanel from '../vm/VmPortForwardPanel'
 import type { VmPortForwardRule } from '../../api/platform'
-import { createVmPortForward } from '../../api/platform'
-import { buildExposePayload } from '../../utils/vmPortForwardServices'
+import { exposeGuestPortOnVm } from '../../utils/vmPortForwardServices'
+import { formatUserError } from '../../utils/apiError'
 import { sendGuestKey } from '../../api/vm'
 import { useToastContext } from '../../contexts/ToastContext'
 import type { ConsoleExperienceMode } from '../../utils/consoleExperienceMode'
@@ -306,12 +306,11 @@ function CockpitInner({
     setExposeBusy(true)
     void (async () => {
       try {
-        const taken = portForwardRules.map((r) => r.host_port)
-        await createVmPortForward(vmId, buildExposePayload(vmName, 22, taken))
+        await exposeGuestPortOnVm(vmId, vmName, 22, portForwardRules)
         toast.success('SSH exposed on hypervisor')
         onPlanRefresh?.()
       } catch (e: unknown) {
-        toast.error(String(e))
+        toast.error(formatUserError(e))
       } finally {
         setExposeBusy(false)
       }

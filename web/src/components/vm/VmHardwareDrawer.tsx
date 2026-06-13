@@ -6,13 +6,12 @@ import { Link } from 'react-router'
 import type { UseVmHardwareResult } from '../../hooks/useVmHardware'
 import type { VmHardwareSection as VmHardwareSectionDto, VmHardwareSummaryReport } from '../../api/platform'
 import type { VmPortForwardRule } from '../../api/platform'
-import { createVmPortForward } from '../../api/platform'
+import { exposeGuestPortOnVm } from '../../utils/vmPortForwardServices'
 import VmHardwareSection from './VmHardwareSection'
 import VmEditHardwareDrawer, { type SectionId } from './VmEditHardwareDrawer'
 import VmWindowsReadinessPanel from './VmWindowsReadinessPanel'
 import VmHardwareCompatPanel from './VmHardwareCompatPanel'
 import VmHostDeviceAttachDrawer from './VmHostDeviceAttachDrawer'
-import { buildExposePayload } from '../../utils/vmPortForwardServices'
 import { formatUserError } from '../../utils/apiError'
 import { useToastContext } from '../../contexts/ToastContext'
 import { cinemaHubPath } from '../../utils/consoleExperienceMode'
@@ -103,11 +102,10 @@ export default function VmHardwareDrawer({
   const exposeRdp = async () => {
     setExposeBusy(true)
     try {
-      const taken = portForwardRules.map((r) => r.host_port)
-      await createVmPortForward(vmId, buildExposePayload(vmName, 3389, taken))
+      await exposeGuestPortOnVm(vmId, vmName, 3389, portForwardRules)
       toast.success('RDP port 3389 exposed on hypervisor')
       onPlanRefresh?.()
-      await refresh()
+      await refresh(true)
     } catch (e: unknown) {
       toast.error(formatUserError(e))
     } finally {
@@ -250,7 +248,7 @@ export default function VmHardwareDrawer({
         domainXml={hardware.domainXml}
         managed={managed}
         readOnly={readOnly}
-        onAttached={() => void refresh()}
+        onAttached={() => void refresh(true)}
       />
     </>
   )

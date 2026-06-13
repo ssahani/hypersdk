@@ -1,5 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
+import { createVmPortForward } from '../api/platform'
+
 export type PortForwardAccessKind = 'ssh' | 'http' | 'https' | 'tcp'
 
 export interface PortForwardServiceTemplate {
@@ -136,6 +138,24 @@ export function buildExposePayload(
     vm_port: guestPort,
     description: `${vmName}:${label}`,
   }
+}
+
+export function takenHostPorts(rules: Array<{ host_port: number }>): number[] {
+  return rules.map((r) => r.host_port)
+}
+
+/** Create a NAT port-forward rule for a guest TCP port (SSH, RDP, etc.). */
+export async function exposeGuestPortOnVm(
+  vmId: string,
+  vmName: string,
+  guestPort: number,
+  existingRules: Array<{ host_port: number }>,
+  customName?: string,
+) {
+  return createVmPortForward(
+    vmId,
+    buildExposePayload(vmName, guestPort, takenHostPorts(existingRules), customName),
+  )
 }
 
 export function laptopSshCommand(
