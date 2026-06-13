@@ -39,7 +39,14 @@ pub fn graphics_elements_xml(listen: &str, graphics_type: &str) -> String {
 
 fn run_virt_xml(uri: &str, vm_name: &str, args: &[&str]) -> Result<String, LibvirtError> {
     let mut cmd = Command::new("virt-xml");
-    cmd.arg("-c").arg(uri).arg(vm_name).arg("--edit");
+    cmd.arg("-c").arg(uri).arg(vm_name);
+    // `--add-device` / `--remove-device` are separate virt-xml modes (not combinable with --edit).
+    let device_op = args
+        .iter()
+        .any(|a| *a == "--add-device" || *a == "--remove-device");
+    if !device_op {
+        cmd.arg("--edit");
+    }
     for a in args {
         cmd.arg(a);
     }
