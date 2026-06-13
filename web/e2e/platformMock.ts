@@ -3012,6 +3012,19 @@ export async function mockPlatformApi(page: Page, opts?: {
           ],
         })
       }
+      if (action === 'host.pci') {
+        return route.fulfill({
+          json: [
+            {
+              slot: '06:00.0',
+              class: 'VGA compatible controller',
+              vendor: 'NVIDIA Corporation',
+              device: 'GA102',
+              iommu_group: '14',
+            },
+          ],
+        })
+      }
       if (route.request().method() === 'POST') {
         return route.fulfill({ json: { ok: true, task_id: 'task-host-libvirt-mock' } })
       }
@@ -3381,6 +3394,11 @@ export async function mockPlatformApi(page: Page, opts?: {
   <graphics type='spice' port='-1' listen='127.0.0.1'/>
   <interface type='network'><mac address='52:54:00:12:34:56'/><source network='default'/><model type='virtio'/></interface>
   <disk type='file' device='disk'><target dev='vda' bus='virtio'/></disk>
+  <hostdev mode='subsystem' type='pci' managed='yes'>
+    <source>
+      <address domain='0x0000' bus='0x03' slot='0x00' function='0x0'/>
+    </source>
+  </hostdev>
 </domain>`,
         },
       })
