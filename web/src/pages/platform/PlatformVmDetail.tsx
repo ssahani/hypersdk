@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
-import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield, ExternalLink, Monitor, Pause, Power, Server, Loader2, Network, ToggleLeft, ToggleRight, FolderOpen } from 'lucide-react'
+import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield, ExternalLink, Monitor, Pause, Power, Server, Loader2, Network, ToggleLeft, ToggleRight, FolderOpen, Cpu } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
 import GuestToolsStrip from '../../components/platform/GuestToolsStrip'
 import GuestAgentDiagnosticsPanel, {
@@ -147,7 +147,9 @@ import { getSession, type SessionRole } from '../../api/auth'
 import { listIsos, type ImageFile } from '../../api/extras'
 import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../../components/BrowseHostPathModal'
 import { useVmHardware } from '../../hooks/useVmHardware'
+import { useKubevirtHardware } from '../../hooks/useKubevirtHardware'
 import VmHardwareDrawer from '../../components/vm/VmHardwareDrawer'
+import VmKubevirtHardwareDrawer from '../../components/vm/VmKubevirtHardwareDrawer'
 import VmHardwareSection from '../../components/vm/VmHardwareSection'
 import VmWindowsReadinessPanel from '../../components/vm/VmWindowsReadinessPanel'
 import VmEditHardwareDrawer from '../../components/vm/VmEditHardwareDrawer'
@@ -707,6 +709,10 @@ export default function PlatformVmDetail() {
     protocols: consolePlan?.protocols ?? [],
     osHint: consolePlan?.os_hint,
   })
+  const kubevirtHardware = useKubevirtHardware({
+    vmId: id,
+    enabled: Boolean(id && vm?.inventory_source === 'kubevirt'),
+  })
 
   const natForwardHref = guestIp
     ? `/host-networking?tab=portforward&vm_ip=${encodeURIComponent(guestIp)}&vm_port=22`
@@ -815,6 +821,9 @@ export default function PlatformVmDetail() {
             <Link to={cinemaHubPath(id)} className="btn-primary text-sm inline-flex items-center gap-1">
               <Monitor className="w-4 h-4" /> Open Cinema
             </Link>
+            <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" onClick={() => setHardwareDrawerOpen(true)} data-testid="vm-detail-hardware">
+              <Cpu className="w-4 h-4" /> Hardware
+            </button>
             {!isPopout ? <SpotlightPageAction prefill={spotlightPrefill} label="Ask Zeus" /> : null}
           </div>
         ) : (
@@ -1047,6 +1056,36 @@ export default function PlatformVmDetail() {
                 <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => setTab('guestHealth')}>
                   Open Guest health →
                 </button>
+              </MacGlassPanel>
+            </div>
+          )}
+
+          {tab === 'hardware' && vm.inventory_source === 'kubevirt' && id && (
+            <div className="space-y-4 pt-2" data-testid="vm-hardware-tab">
+              <MacGlassPanel title="KubeVirt hardware" subtitle="Cluster-managed VirtualMachine template — read-only in Machina">
+                {kubevirtHardware.loading && !kubevirtHardware.summary ? (
+                  <p className="text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</p>
+                ) : kubevirtHardware.summary ? (
+                  <div className="rounded-lg border border-white/[0.08] bg-slate-900/40 px-3 py-1">
+                    <VmHardwareSection label="CPU" value={kubevirtHardware.summary.cpu} testId="vm-hardware-cpu" />
+                    <VmHardwareSection label="Memory" value={kubevirtHardware.summary.memory} testId="vm-hardware-memory" />
+                    <VmHardwareSection label="Firmware" value={kubevirtHardware.summary.firmware} testId="vm-hardware-firmware" />
+                    <VmHardwareSection label="Display" value={kubevirtHardware.summary.display} testId="vm-hardware-display" />
+                    <VmHardwareSection label="NIC" value={kubevirtHardware.summary.nic} testId="vm-hardware-nic" />
+                    <VmHardwareSection label="Cluster" value={kubevirtHardware.summary.cluster} testId="vm-kubevirt-hardware-cluster" />
+                    <VmHardwareSection label="Node" value={kubevirtHardware.summary.node} testId="vm-kubevirt-hardware-node" />
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">Hardware details unavailable.</p>
+                )}
+                <div className="flex flex-wrap gap-2 mt-4">
+                  <button type="button" className="btn-secondary text-sm" onClick={() => setHardwareDrawerOpen(true)}>
+                    Open drawer
+                  </button>
+                  <Link to={cinemaHubPath(id)} className="btn-secondary text-sm inline-flex items-center gap-1">
+                    <Monitor className="w-4 h-4" /> Cinema
+                  </Link>
+                </div>
               </MacGlassPanel>
             </div>
           )}
@@ -2355,6 +2394,16 @@ export default function PlatformVmDetail() {
               onChanged={() => void loadLibvirtDetails()}
             />
           )}
+
+          {vm.inventory_source === 'kubevirt' && id ? (
+            <VmKubevirtHardwareDrawer
+              open={hardwareDrawerOpen}
+              onClose={() => setHardwareDrawerOpen(false)}
+              vmId={id}
+              vmName={vm.name}
+              hardware={kubevirtHardware}
+            />
+          ) : null}
 
           {vm.inventory_source !== 'kubevirt' && id && (
             <>

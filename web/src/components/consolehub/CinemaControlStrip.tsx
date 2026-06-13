@@ -342,8 +342,8 @@ export default function CinemaControlStrip({
           ) : null}
         </div>
 
-        {/* Hardware (libvirt only) */}
-        {libvirt && onOpenHardware ? (
+        {/* Hardware (libvirt + KubeVirt) */}
+        {onOpenHardware ? (
           <button type="button" className={`${btn} border-emerald-500/30 text-emerald-100`} onClick={onOpenHardware} title="Hardware" data-testid="cinema-hardware">
             <Cpu className="w-3.5 h-3.5" /> Hardware
           </button>

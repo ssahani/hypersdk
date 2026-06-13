@@ -152,7 +152,7 @@ export default function VmDetailActionBar({
       <Link to={cinemaHubPath(vmId)} className="btn-primary text-sm inline-flex items-center gap-1 vm-cinema-cta">
         <Monitor className="w-4 h-4" /> Open Cinema
       </Link>
-      {!isKubevirt && onOpenHardware ? (
+      {onOpenHardware ? (
         <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" onClick={onOpenHardware} data-testid="vm-detail-hardware">
           <Cpu className="w-4 h-4" /> Hardware
         </button>

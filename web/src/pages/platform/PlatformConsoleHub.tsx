@@ -157,8 +157,8 @@ export default function PlatformConsoleHub() {
       const isKubevirt = vm?.inventory_source === 'kubevirt'
       setKubeVirtNamespace(isKubevirt ? (vm?.k8s_namespace ?? 'default') : null)
       if (isKubevirt) {
-        setWsUrl(null)
-        setSerialWsUrl(null)
+        setWsUrl(hubPlan?.native?.ws_path ? platformVncWsUrl(hubPlan.native.ws_path) : null)
+        setSerialWsUrl(hubPlan?.native?.serial_ws_path ? platformVncWsUrl(hubPlan.native.serial_ws_path) : null)
         setPlatformSpiceWsPath(null)
         if (hubPlan?.recommended === 'serial') {
           setActiveProtocol('serial')

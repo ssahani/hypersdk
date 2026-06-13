@@ -1,0 +1,113 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import { Copy, Loader2, Monitor, X } from 'lucide-react'
+import { Link } from 'react-router'
+import type { UseKubevirtHardwareResult } from '../../hooks/useKubevirtHardware'
+import VmHardwareSection from './VmHardwareSection'
+import { cinemaHubPath } from '../../utils/consoleExperienceMode'
+import { useToastContext } from '../../contexts/ToastContext'
+
+type Props = {
+  open: boolean
+  onClose: () => void
+  vmId: string
+  vmName: string
+  hardware: UseKubevirtHardwareResult
+}
+
+export default function VmKubevirtHardwareDrawer({ open, onClose, vmId, vmName, hardware }: Props) {
+  const toast = useToastContext()
+  const { loading, error, summary, row } = hardware
+
+  if (!open) return null
+
+  const copy = async (label: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      toast.success(`${label} copied`)
+    } catch {
+      toast.error('Clipboard unavailable')
+    }
+  }
+
+  return (
+    <>
+      <button type="button" className="fixed inset-0 z-[75] bg-black/40 backdrop-blur-sm" aria-label="Close Hardware" onClick={onClose} />
+      <aside
+        className="fixed top-0 right-0 z-[80] h-full w-full max-w-md bg-slate-950/95 border-l border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200"
+        data-testid="vm-kubevirt-hardware-drawer"
+      >
+        <header className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
+          <div>
+            <h2 className="font-semibold text-slate-100">Hardware</h2>
+            <p className="text-xs text-slate-500">{vmName} · KubeVirt</p>
+          </div>
+          <button type="button" onClick={onClose} className="p-1.5 rounded hover:bg-white/10 text-slate-400"><X className="w-5 h-5" /></button>
+        </header>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 text-sm">
+          {loading && !summary ? (
+            <p className="text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading cluster hardware…</p>
+          ) : error ? (
+            <p className="text-sm text-rose-300">{error}</p>
+          ) : summary ? (
+            <>
+              <div className="rounded-lg border border-sky-500/20 bg-sky-950/20 p-3 text-xs text-sky-100" data-testid="vm-kubevirt-hardware-note">
+                Read-only cluster view. Edit the VirtualMachine template with kubectl or the K8s console.
+              </div>
+              <div className="rounded-lg border border-white/[0.08] bg-slate-900/40 px-3 py-1">
+                <VmHardwareSection label="CPU" value={summary.cpu} testId="vm-hardware-cpu" />
+                <VmHardwareSection label="Memory" value={summary.memory} testId="vm-hardware-memory" />
+                <VmHardwareSection label="Firmware" value={summary.firmware} testId="vm-hardware-firmware" />
+                <VmHardwareSection label="TPM" value={summary.tpm} testId="vm-hardware-tpm" />
+                <VmHardwareSection label="Display" value={summary.display} testId="vm-hardware-display" />
+                <VmHardwareSection label="Video" value={summary.video} testId="vm-hardware-video" />
+                <VmHardwareSection label="Disk bus" value={summary.diskBus} testId="vm-hardware-disk-bus" />
+                <VmHardwareSection label="NIC" value={summary.nic} testId="vm-hardware-nic" />
+                <VmHardwareSection label="Guest agent" value={summary.guestAgent} testId="vm-hardware-guest-agent" />
+                <VmHardwareSection label="Host devices" value={summary.hostDevices} testId="vm-hardware-host-devices" />
+                <VmHardwareSection label="Migration" value={summary.migration} testId="vm-hardware-migration" />
+                <VmHardwareSection label="Cluster" value={summary.cluster} testId="vm-kubevirt-hardware-cluster" />
+                <VmHardwareSection label="Node" value={summary.node} testId="vm-kubevirt-hardware-node" />
+                <VmHardwareSection label="VMI phase" value={summary.vmiPhase} testId="vm-kubevirt-hardware-vmi" />
+              </div>
+
+              <div className="rounded-lg border border-violet-500/20 bg-violet-950/20 p-3 space-y-2" data-testid="vm-kubevirt-hardware-access">
+                <p className="text-xs font-medium text-violet-100 flex items-center gap-1.5"><Monitor className="w-3.5 h-3.5" /> Console access</p>
+                <p className="text-xs text-slate-400">{summary.primaryAccess}</p>
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2">
+                    <code className="text-[11px] text-slate-300 break-all flex-1">{summary.virtctlVnc}</code>
+                    <button type="button" className="btn-secondary text-xs shrink-0" onClick={() => void copy('virtctl VNC', summary.virtctlVnc)}>
+                      <Copy className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <code className="text-[11px] text-slate-300 break-all flex-1">{summary.virtctlConsole}</code>
+                    <button type="button" className="btn-secondary text-xs shrink-0" onClick={() => void copy('virtctl console', summary.virtctlConsole)}>
+                      <Copy className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+                {row?.vnc_subresource_path ? (
+                  <p className="text-[11px] text-slate-500">VNC API: {row.vnc_subresource_path}</p>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-slate-500">Hardware details unavailable.</p>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            <Link to={cinemaHubPath(vmId)} className="btn-primary text-xs" onClick={onClose}>
+              Open Cinema
+            </Link>
+            <Link to="/platform/k8s/workloads" className="btn-secondary text-xs" onClick={onClose}>
+              K8s workloads
+            </Link>
+          </div>
+        </div>
+      </aside>
+    </>
+  )
+}
