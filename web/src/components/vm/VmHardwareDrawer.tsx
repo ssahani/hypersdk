@@ -11,6 +11,7 @@ import VmHardwareSection from './VmHardwareSection'
 import VmEditHardwareDrawer, { type SectionId } from './VmEditHardwareDrawer'
 import VmWindowsReadinessPanel from './VmWindowsReadinessPanel'
 import VmHardwareCompatPanel from './VmHardwareCompatPanel'
+import VmHostDeviceAttachDrawer from './VmHostDeviceAttachDrawer'
 import { buildExposePayload } from '../../utils/vmPortForwardServices'
 import { formatUserError } from '../../utils/apiError'
 import { useToastContext } from '../../contexts/ToastContext'
@@ -66,7 +67,8 @@ export default function VmHardwareDrawer({
   const [editSection, setEditSection] = useState<SectionId>('cpu')
   const [exposeBusy, setExposeBusy] = useState(false)
   const [compatOpen, setCompatOpen] = useState(false)
-  const { loading, summary, report, pending, refresh, checkCompat, compat, compatLoading, compatError } = hardware
+  const [attachOpen, setAttachOpen] = useState(false)
+  const { loading, summary, report, pending, refresh, checkCompat, compat, domainCaps, compatLoading, compatError } = hardware
 
   if (!open) return null
 
@@ -162,7 +164,7 @@ export default function VmHardwareDrawer({
           ) : null}
 
           {compatOpen ? (
-            <VmHardwareCompatPanel loading={compatLoading} report={compat} error={compatError} />
+            <VmHardwareCompatPanel loading={compatLoading} report={compat} domainCaps={domainCaps} error={compatError} />
           ) : null}
 
           <div className="rounded-lg border border-violet-500/20 bg-violet-950/20 p-3 space-y-2" data-testid="vm-hardware-access-section">
@@ -199,7 +201,16 @@ export default function VmHardwareDrawer({
             <button type="button" className="btn-primary text-xs" disabled={readOnly || managed === false} onClick={() => openEdit('cpu')} data-testid="vm-hardware-edit">
               Edit Hardware
             </button>
-            <button type="button" className="btn-secondary text-xs" disabled={readOnly || managed === false} onClick={() => openEdit('hostdev')}>
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              disabled={readOnly || managed === false}
+              onClick={(e) => {
+                e.stopPropagation()
+                setAttachOpen(true)
+              }}
+              data-testid="vm-hardware-attach-device"
+            >
               Attach Device
             </button>
             <button type="button" className="btn-secondary text-xs" disabled={readOnly || managed === false} onClick={() => openEdit('xml')}>
@@ -229,6 +240,16 @@ export default function VmHardwareDrawer({
         hardware={hardware}
         canBrowseHost={canBrowseHost}
         initialSection={editSection}
+      />
+      <VmHostDeviceAttachDrawer
+        open={attachOpen}
+        onClose={() => setAttachOpen(false)}
+        vmId={vmId}
+        vmName={vmName}
+        hostId={hostId}
+        managed={managed}
+        readOnly={readOnly}
+        onAttached={() => void refresh()}
       />
     </>
   )

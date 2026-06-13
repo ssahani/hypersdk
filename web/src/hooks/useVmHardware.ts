@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   getVmDomainXml,
   getVmGuestHealth,
+  getVmDomainCaps,
   getVmHardwareCompat,
   getVmHardwareSummary,
   getVmLibvirtDetails,
   getVmPendingConfig,
+  type VmDomainCapabilitiesReport,
   type VmGuestHealthReport,
   type VmHardwareCompatReport,
   type VmHardwareSummaryReport,
@@ -38,6 +40,7 @@ export type UseVmHardwareResult = {
   report: VmHardwareSummaryReport | null
   summary: VmHardwareSummary | null
   compat: VmHardwareCompatReport | null
+  domainCaps: VmDomainCapabilitiesReport | null
   compatLoading: boolean
   compatError: string | null
   checkCompat: () => Promise<void>
@@ -62,6 +65,7 @@ export function useVmHardware({
   const [guestHealth, setGuestHealth] = useState<VmGuestHealthReport | null>(null)
   const [report, setReport] = useState<VmHardwareSummaryReport | null>(null)
   const [compat, setCompat] = useState<VmHardwareCompatReport | null>(null)
+  const [domainCaps, setDomainCaps] = useState<VmDomainCapabilitiesReport | null>(null)
   const [compatLoading, setCompatLoading] = useState(false)
   const [compatError, setCompatError] = useState<string | null>(null)
 
@@ -74,6 +78,7 @@ export function useVmHardware({
       setGuestHealth(null)
       setReport(null)
       setCompat(null)
+      setDomainCaps(null)
       setError(null)
       return
     }
@@ -106,8 +111,12 @@ export function useVmHardware({
     setCompatLoading(true)
     setCompatError(null)
     try {
-      const result = await getVmHardwareCompat(vmId)
+      const [result, caps] = await Promise.all([
+        getVmHardwareCompat(vmId),
+        getVmDomainCaps(vmId).catch(() => null),
+      ])
       setCompat(result)
+      setDomainCaps(caps)
     } catch (e: unknown) {
       setCompatError(String(e))
     } finally {
@@ -144,6 +153,7 @@ export function useVmHardware({
     report,
     summary,
     compat,
+    domainCaps,
     compatLoading,
     compatError,
     checkCompat,

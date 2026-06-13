@@ -53,6 +53,16 @@ pub struct HardwareCompatReport {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DomainCapabilitiesReport {
+    pub arch: String,
+    pub virttype: String,
+    pub cpu_modes_supported: Vec<String>,
+    pub machine_types: Vec<String>,
+    pub tpm_supported: bool,
+    pub uefi_supported: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VmHardwareSummaryReport {
     pub vm_name: String,
     pub state: String,
@@ -556,6 +566,40 @@ fn caps_feature_supported(xml: &str, feature: &str) -> bool {
         format!("<{feature} supported='yes'/>"),
     ];
     patterns.iter().any(|p| xml.contains(p.as_str()))
+}
+
+fn caps_machine_types(xml: &str) -> Vec<String> {
+    let mut machines = Vec::new();
+    for block in crate::xml::split_blocks(xml, "machine") {
+        if let Some(name) = extract_attr(&block, "machine", "name") {
+            let canonical = extract_attr(&block, "machine", "canonical").unwrap_or_default();
+            if canonical.eq_ignore_ascii_case("yes") || machines.is_empty() {
+                if !machines.contains(&name) {
+                    machines.push(name);
+                }
+            }
+        }
+    }
+    machines
+}
+
+pub fn get_domain_capabilities_report(
+    conn: &Connect,
+    arch: Option<&str>,
+) -> Result<DomainCapabilitiesReport, LibvirtError> {
+    let caps_xml = get_domain_capabilities_xml(conn, None, arch, None, Some("kvm"))?;
+    let arch_name = arch.unwrap_or("x86_64").to_string();
+    let cpu_modes = caps_cpu_modes(&caps_xml);
+    Ok(DomainCapabilitiesReport {
+        arch: arch_name,
+        virttype: "kvm".into(),
+        cpu_modes_supported: cpu_modes,
+        machine_types: caps_machine_types(&caps_xml),
+        tpm_supported: caps_feature_supported(&caps_xml, "tpm"),
+        uefi_supported: caps_xml.contains("firmware='efi'")
+            || caps_xml.contains("firmware=\"efi\"")
+            || caps_xml.contains("<enum name='efi'"),
+    })
 }
 
 pub fn check_hardware_compat(conn: &Connect, name: &str) -> Result<HardwareCompatReport, LibvirtError> {

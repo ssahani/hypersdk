@@ -2986,7 +2986,33 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.match(/\/hosts\/[^/]+$/) && route.request().method() === 'DELETE') {
       return route.fulfill({ json: { deleted: true } })
     }
-    if (url.includes('/hosts')) {
+    if (url.match(/\/hosts\/[^/]+\/libvirt(\?|$)/)) {
+      const action = new URL(url).searchParams.get('action') ?? ''
+      if (action === 'host.node_devices') {
+        return route.fulfill({
+          json: [
+            {
+              name: 'pci_0000_06_00_0',
+              parent: 'computer',
+              driver: 'vfio-pci',
+              capability_type: 'pci',
+              xml: '<device><name>pci_0000_06_00_0</name><capability type="pci"><address domain="0x0000" bus="0x06" slot="0x00" function="0x0"/></capability></device>',
+            },
+            {
+              name: 'usb_1_2',
+              parent: 'usb_1',
+              driver: 'usb',
+              capability_type: 'usb_device',
+              xml: '<device><name>usb_1_2</name><capability type="usb_device"><vendor id="0x046d"/><product id="0xc52b"/></capability></device>',
+            },
+          ],
+        })
+      }
+      if (route.request().method() === 'POST') {
+        return route.fulfill({ json: { ok: true, task_id: 'task-host-libvirt-mock' } })
+      }
+    }
+    if (url.includes('/hosts') && !url.includes('/libvirt')) {
       if (opts?.emptyStorage) {
         return route.fulfill({ json: [{ ...sampleHost, state: 'offline' }] })
       }
@@ -3516,6 +3542,18 @@ export async function mockPlatformApi(page: Page, opts?: {
           ok: true,
           issues: [],
           cpu_modes_supported: ['host-passthrough', 'custom'],
+          tpm_supported: true,
+          uefi_supported: true,
+        },
+      })
+    }
+    if (url.includes('/domain-caps')) {
+      return route.fulfill({
+        json: {
+          arch: 'x86_64',
+          virttype: 'kvm',
+          cpu_modes_supported: ['host-passthrough', 'custom', 'maximum'],
+          machine_types: ['pc-q35-8.2', 'pc-i440fx-8.2'],
           tpm_supported: true,
           uefi_supported: true,
         },

@@ -1856,6 +1856,15 @@ export interface VmHardwareCompatReport {
   uefi_supported?: boolean
 }
 
+export interface VmDomainCapabilitiesReport {
+  arch: string
+  virttype: string
+  cpu_modes_supported: string[]
+  machine_types: string[]
+  tpm_supported: boolean
+  uefi_supported: boolean
+}
+
 export interface VmHardwareSummaryReport {
   vm_name: string
   state: string
@@ -1882,6 +1891,9 @@ export const getVmHardwareSummary = (id: string) =>
 
 export const getVmHardwareCompat = (id: string) =>
   platformFetch<VmHardwareCompatReport>(`/api/v1/vms/${id}/hardware-compat`)
+
+export const getVmDomainCaps = (id: string) =>
+  platformFetch<VmDomainCapabilitiesReport>(`/api/v1/vms/${id}/domain-caps`)
 
 export const detachVmDisk = (id: string, target: string) =>
   platformFetch<{ task_id: string }>(

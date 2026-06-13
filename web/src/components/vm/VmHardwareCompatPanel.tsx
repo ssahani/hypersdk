@@ -1,17 +1,18 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { CheckCircle2, CircleAlert, Loader2 } from 'lucide-react'
-import type { VmHardwareCompatReport } from '../../api/platform'
+import type { VmDomainCapabilitiesReport, VmHardwareCompatReport } from '../../api/platform'
 import HardwareApplyBadge from './HardwareApplyBadge'
 import { resolveHardwareBadges } from '../../utils/hardwareApplyBadges'
 
 type Props = {
   loading?: boolean
   report: VmHardwareCompatReport | null
+  domainCaps?: VmDomainCapabilitiesReport | null
   error?: string | null
 }
 
-export default function VmHardwareCompatPanel({ loading, report, error }: Props) {
+export default function VmHardwareCompatPanel({ loading, report, domainCaps, error }: Props) {
   if (loading) {
     return (
       <div className="rounded-lg border border-white/[0.08] bg-slate-900/40 p-3 text-xs text-slate-400 flex items-center gap-2" data-testid="vm-hardware-compat-panel">
@@ -27,6 +28,9 @@ export default function VmHardwareCompatPanel({ loading, report, error }: Props)
     )
   }
   if (!report) return null
+
+  const caps = domainCaps
+  const modes = report.cpu_modes_supported ?? caps?.cpu_modes_supported ?? []
 
   return (
     <div className="rounded-lg border border-white/[0.08] bg-slate-900/40 p-3 space-y-2" data-testid="vm-hardware-compat-panel">
@@ -56,12 +60,22 @@ export default function VmHardwareCompatPanel({ loading, report, error }: Props)
           ))}
         </ul>
       )}
-      {(() => {
-        const modes = report.cpu_modes_supported ?? []
-        return modes.length > 0 ? (
-          <p className="text-[11px] text-slate-500 pt-1">Host CPU modes: {modes.join(', ')}</p>
-        ) : null
-      })()}
+      {caps ? (
+        <div className="rounded border border-white/[0.06] bg-slate-950/40 p-2 space-y-1" data-testid="vm-domain-caps-summary">
+          <p className="text-[11px] text-slate-400">
+            Host domain capabilities · {caps.arch} / {caps.virttype}
+          </p>
+          <p className="text-[11px] text-slate-500">
+            TPM: {caps.tpm_supported ? 'supported' : 'not advertised'} · UEFI: {caps.uefi_supported ? 'supported' : 'not advertised'}
+          </p>
+          {caps.machine_types.length > 0 ? (
+            <p className="text-[11px] text-slate-500">Machines: {caps.machine_types.slice(0, 4).join(', ')}{caps.machine_types.length > 4 ? '…' : ''}</p>
+          ) : null}
+        </div>
+      ) : null}
+      {modes.length > 0 ? (
+        <p className="text-[11px] text-slate-500 pt-1">Host CPU modes: {modes.join(', ')}</p>
+      ) : null}
     </div>
   )
 }

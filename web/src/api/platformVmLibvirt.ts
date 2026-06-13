@@ -37,6 +37,7 @@ export type HostLibvirtQueryAction =
   | 'browse.isos'
   | 'host.usb'
   | 'host.pci'
+  | 'host.node_devices'
   | 'osinfo.list'
   | 'osinfo.detect'
   | 'storage.pools.list'

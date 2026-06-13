@@ -212,10 +212,38 @@ test.describe('Platform ConsoleHub', () => {
     await page.getByTestId('cinema-hardware').click()
     const drawer = page.getByTestId('vm-hardware-drawer')
     await expect(drawer).toBeVisible({ timeout: 15_000 })
+    const compatReady = page.waitForResponse((r) => r.url().includes('/hardware-compat') && r.ok())
+    const capsReady = page.waitForResponse((r) => r.url().includes('/domain-caps') && r.ok())
     await drawer.getByTestId('vm-hardware-compat-check').click()
+    await compatReady
+    await capsReady
     await expect(page.getByTestId('vm-hardware-compat-panel')).toContainText('Compatible with this host', {
       timeout: 15_000,
     })
+    await expect(page.getByTestId('vm-domain-caps-summary')).toContainText('x86_64 / kvm')
+    await expect(page.getByTestId('vm-domain-caps-summary')).toContainText('pc-q35-8.2')
+  })
+
+  test('Hardware drawer opens attach device browser', async ({ page }) => {
+    const summaryReady = page.waitForResponse((r) => r.url().includes('/hardware-summary') && r.ok())
+    await page.goto('/platform/vms/v1/consolehub')
+    await summaryReady
+    await expect(page.getByTestId('cinema-control-strip')).toBeVisible({ timeout: 15_000 })
+    await page.mouse.move(640, 480)
+    await page.getByTestId('cinema-hardware').click()
+    const drawer = page.getByTestId('vm-hardware-drawer')
+    await expect(drawer).toBeVisible({ timeout: 15_000 })
+    const nodeDevicesReady = page.waitForResponse(
+      (r) => r.url().includes('/hosts/h1/libvirt') && r.url().includes('host.node_devices') && r.ok(),
+    )
+    await drawer.getByTestId('vm-hardware-attach-device').click()
+    await nodeDevicesReady
+    const attachDrawer = page.getByTestId('vm-hostdev-attach-drawer')
+    await expect(attachDrawer).toBeVisible({ timeout: 15_000 })
+    await expect(attachDrawer.getByTestId('vm-hostdev-row-pci_0000_06_00_0')).toBeVisible()
+    await expect(attachDrawer.getByTestId('vm-hostdev-row-usb_1_2')).toBeVisible()
+    await attachDrawer.getByRole('button', { name: 'Attach' }).first().click()
+    await expect(page.getByText(/Attached/i)).toBeVisible({ timeout: 15_000 })
   })
 
   test('KubeVirt VM detail hides Hardware button', async ({ page }) => {
