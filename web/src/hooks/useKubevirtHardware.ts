@@ -17,7 +17,7 @@ export type UseKubevirtHardwareResult = {
   vm: PlatformVm | null
   row: KubeVirtVmSummaryRow | null
   summary: KubevirtHardwareSummary | null
-  refresh: () => Promise<void>
+  refresh: (force?: boolean) => Promise<void>
 }
 
 const KUBEVIRT_HARDWARE_CACHE_MS = 10_000

@@ -1,11 +1,14 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
+import { useEffect, useState } from 'react'
 import { Copy, Loader2, Monitor, X } from 'lucide-react'
 import { Link } from 'react-router'
 import type { UseKubevirtHardwareResult } from '../../hooks/useKubevirtHardware'
+import { patchK8sKubevirtVmSpec } from '../../api/k8s'
 import VmHardwareSection from './VmHardwareSection'
 import { cinemaHubPath } from '../../utils/consoleExperienceMode'
 import { useToastContext } from '../../contexts/ToastContext'
+import { formatUserError } from '../../utils/apiError'
 
 type Props = {
   open: boolean
@@ -15,11 +18,33 @@ type Props = {
   hardware: UseKubevirtHardwareResult
 }
 
+function kubevirtVmStopped(hardware: UseKubevirtHardwareResult): boolean {
+  const phase = hardware.row?.vmi_phase?.toLowerCase() ?? ''
+  const status = hardware.row?.vm_printable_status?.toLowerCase() ?? ''
+  const observed = hardware.vm?.observed_state?.toLowerCase() ?? ''
+  if (observed === 'stopped' || observed === 'shutoff') return true
+  if (status.includes('stop') || status.includes('halt')) return true
+  return phase === '' || phase === 'succeeded' || phase === 'failed'
+}
+
 export default function VmKubevirtHardwareDrawer({ open, onClose, vmId, vmName, hardware }: Props) {
   const toast = useToastContext()
-  const { loading, error, summary, row } = hardware
+  const { loading, error, summary, row, vm, refresh } = hardware
+  const [vcpusDraft, setVcpusDraft] = useState('')
+  const [memoryGiDraft, setMemoryGiDraft] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!vm) return
+    setVcpusDraft(vm.vcpus > 0 ? String(vm.vcpus) : '')
+    const gi = vm.memory_mib > 0 ? Math.max(1, Math.round(vm.memory_mib / 1024)) : 0
+    setMemoryGiDraft(gi > 0 ? String(gi) : '')
+  }, [vm])
 
   if (!open) return null
+
+  const canEdit = Boolean(vm) && kubevirtVmStopped(hardware)
+  const ns = vm?.k8s_namespace ?? row?.namespace ?? 'default'
 
   const copy = async (label: string, value: string) => {
     try {
@@ -27,6 +52,37 @@ export default function VmKubevirtHardwareDrawer({ open, onClose, vmId, vmName, 
       toast.success(`${label} copied`)
     } catch {
       toast.error('Clipboard unavailable')
+    }
+  }
+
+  const saveSpec = async () => {
+    if (!vm || !canEdit) return
+    const vcpus = vcpusDraft.trim() ? Number.parseInt(vcpusDraft, 10) : undefined
+    const memoryGi = memoryGiDraft.trim() ? Number.parseInt(memoryGiDraft, 10) : undefined
+    if (vcpus !== undefined && (!Number.isFinite(vcpus) || vcpus <= 0)) {
+      toast.error('vCPUs must be a positive integer')
+      return
+    }
+    if (memoryGi !== undefined && (!Number.isFinite(memoryGi) || memoryGi <= 0)) {
+      toast.error('Memory must be a positive GiB value')
+      return
+    }
+    if (vcpus === undefined && memoryGi === undefined) {
+      toast.error('Change CPU or memory before saving')
+      return
+    }
+    setSaving(true)
+    try {
+      await patchK8sKubevirtVmSpec(ns, vm.name, {
+        vcpus,
+        memory_mib: memoryGi !== undefined ? memoryGi * 1024 : undefined,
+      })
+      toast.success('VirtualMachine template updated')
+      await refresh(true)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -53,8 +109,50 @@ export default function VmKubevirtHardwareDrawer({ open, onClose, vmId, vmName, 
           ) : summary ? (
             <>
               <div className="rounded-lg border border-sky-500/20 bg-sky-950/20 p-3 text-xs text-sky-100" data-testid="vm-kubevirt-hardware-note">
-                Read-only cluster view. Edit the VirtualMachine template with kubectl or the K8s console.
+                {canEdit
+                  ? 'Stopped VM — patch CPU and memory on the VirtualMachine template below. Start the VM after saving.'
+                  : 'Running VM — stop the guest before editing template CPU or memory.'}
               </div>
+
+              {canEdit ? (
+                <div className="rounded-lg border border-emerald-500/20 bg-emerald-950/20 p-3 space-y-3" data-testid="vm-kubevirt-hardware-edit">
+                  <p className="text-xs font-medium text-emerald-100">Edit template</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="text-xs text-slate-400">
+                      vCPUs
+                      <input
+                        type="number"
+                        min={1}
+                        className="input-field w-full mt-1"
+                        value={vcpusDraft}
+                        onChange={(e) => setVcpusDraft(e.target.value)}
+                        data-testid="vm-kubevirt-hardware-vcpus"
+                      />
+                    </label>
+                    <label className="text-xs text-slate-400">
+                      Memory (GiB)
+                      <input
+                        type="number"
+                        min={1}
+                        className="input-field w-full mt-1"
+                        value={memoryGiDraft}
+                        onChange={(e) => setMemoryGiDraft(e.target.value)}
+                        data-testid="vm-kubevirt-hardware-memory"
+                      />
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-primary text-xs"
+                    disabled={saving}
+                    onClick={() => void saveSpec()}
+                    data-testid="vm-kubevirt-hardware-save"
+                  >
+                    {saving ? 'Saving…' : 'Save template'}
+                  </button>
+                </div>
+              ) : null}
+
               <div className="rounded-lg border border-white/[0.08] bg-slate-900/40 px-3 py-1">
                 <VmHardwareSection label="CPU" value={summary.cpu} testId="vm-hardware-cpu" />
                 <VmHardwareSection label="Memory" value={summary.memory} testId="vm-hardware-memory" />

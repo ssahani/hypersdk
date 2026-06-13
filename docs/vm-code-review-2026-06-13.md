@@ -5,7 +5,7 @@
 - **P0:** 2 found, 2 fixed
 - **P1:** 3 found, 3 fixed
 - **P2:** 5 found, 5 fixed
-- **P3:** 4 documented (deferred)
+- **P3:** 4 addressed (partial file splits + parity + kubevirt edit + daemon dedup)
 
 ---
 
@@ -40,14 +40,16 @@
 
 ---
 
-## P3 — Deferred (documented, not in this pass)
+## P3 — Addressed (phase 6 follow-up)
 
-| Item | Rationale |
-|------|-----------|
-| Split `vms.rs` (~2.8k LOC), `extras.rs` (~2.6k LOC), `VMDetails.tsx` (~3.4k LOC) | Large refactor; high merge conflict risk |
-| Remove daemon legacy REST duplicate of controller/agent paths | Needs migration plan and customer audit |
-| Classic `VMDetails.tsx` hardware drawer parity | Platform path is primary; classic uses inline panels |
-| KubeVirt hardware edit (patch VM spec) | Explicitly deferred in hardware roadmap |
+| Item | Done |
+|------|------|
+| Split giant files | `controller/src/api/vms/{mod,graphics,port_forwards,batch}.rs`; `core/src/libvirt/extras/{mod,usb,pci}.rs`; `web/src/pages/classic/{ClassicVmPlatformHardware,ClassicVmSpiceToVncButton}.tsx` (VMDetails devices tab still inline — next slice) |
+| Daemon legacy REST duplicates | Removed unused daemon `POST …/graphics/add\|remove` (no callers); classic SPICE→VNC prefers controller when platform VM linked |
+| Classic `VMDetails` hardware drawer parity | Devices tab shows `ClassicVmPlatformHardware` + shared `VmHardwareDrawer` when fleet VM is linked (libvirt) |
+| KubeVirt hardware edit | `POST /api/v1/k8s/kubevirt/virtualmachines/{ns}/{name}/spec` + edit form in `VmKubevirtHardwareDrawer` (CPU/memory when stopped) |
+
+**Still on daemon (standalone mode):** bulk classic VM REST in `daemon/src/routes/vms.rs` + `advanced.rs` — do not delete until classic UI retires or always proxies through controller.
 
 ---
 

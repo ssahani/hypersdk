@@ -1342,74 +1342,6 @@ async fn convert_spice_to_vnc_handler(
     })))
 }
 
-#[derive(Debug, Deserialize)]
-struct VmGraphicsBody {
-    graphics_type: String,
-    #[serde(default)]
-    listen: Option<String>,
-}
-
-async fn add_graphics_handler(
-    State(manager): State<LibvirtManager>,
-    Extension(actor): Extension<RequestActor>,
-    Path(name): Path<String>,
-    Query(conn_q): Query<ConnQuery>,
-    Json(body): Json<VmGraphicsBody>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    let listen = body
-        .listen
-        .as_deref()
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or("127.0.0.1")
-        .to_string();
-    let cq = conn_q.connection.clone();
-    let mgr = manager.clone();
-    let name2 = name.clone();
-    let graphics_type = body.graphics_type.trim().to_string();
-    let out = tokio::task::spawn_blocking(move || {
-        let t = mgr.resolve_query(cq.as_deref());
-        let uri = mgr.virt_uri_for_target(t);
-        machina_core::libvirt::graphics_convert::virt_xml_add_graphics(
-            &uri,
-            &name2,
-            &graphics_type,
-            &listen,
-        )
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
-    Ok(Json(serde_json::json!({
-        "status": "ok",
-        "name": name,
-        "virt_xml_stdout": out
-    })))
-}
-
-async fn remove_graphics_handler(
-    State(manager): State<LibvirtManager>,
-    Extension(actor): Extension<RequestActor>,
-    Path(name): Path<String>,
-    Query(conn_q): Query<ConnQuery>,
-    Json(body): Json<VmGraphicsBody>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    let cq = conn_q.connection.clone();
-    let mgr = manager.clone();
-    let name2 = name.clone();
-    let graphics_type = body.graphics_type.trim().to_string();
-    let out = tokio::task::spawn_blocking(move || {
-        let t = mgr.resolve_query(cq.as_deref());
-        let uri = mgr.virt_uri_for_target(t);
-        machina_core::libvirt::graphics_convert::virt_xml_remove_graphics(&uri, &name2, &graphics_type)
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
-    Ok(Json(serde_json::json!({
-        "status": "ok",
-        "name": name,
-        "virt_xml_stdout": out
-    })))
-}
-
 pub fn vm_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/vms", get(list_vms))
@@ -1472,8 +1404,6 @@ pub fn vm_routes() -> Router<LibvirtManager> {
             "/vms/{name}/graphics/convert-to-vnc",
             post(convert_spice_to_vnc_handler),
         )
-        .route("/vms/{name}/graphics/add", post(add_graphics_handler))
-        .route("/vms/{name}/graphics/remove", post(remove_graphics_handler))
         .route("/vms/{name}/rdp-info", get(rdp_info_handler))
 }
 

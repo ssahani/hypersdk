@@ -1062,7 +1062,7 @@ export default function PlatformVmDetail() {
 
           {tab === 'hardware' && vm.inventory_source === 'kubevirt' && id && (
             <div className="space-y-4 pt-2" data-testid="vm-hardware-tab">
-              <MacGlassPanel title="KubeVirt hardware" subtitle="Cluster-managed VirtualMachine template — read-only in Machina">
+              <MacGlassPanel title="KubeVirt hardware" subtitle="Cluster-managed VirtualMachine template — edit CPU/memory when stopped">
                 {kubevirtHardware.loading && !kubevirtHardware.summary ? (
                   <p className="text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</p>
                 ) : kubevirtHardware.summary ? (

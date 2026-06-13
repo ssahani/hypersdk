@@ -4,6 +4,12 @@
 
 //! Extra features: ISO/disk browser, USB passthrough, cloud-init, VM import, live resize, tags, PCI listing.
 
+mod pci;
+mod usb;
+
+pub use pci::*;
+pub use usb::*;
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::os::unix::fs::DirBuilderExt;
@@ -358,119 +364,6 @@ pub fn list_mkosi_workspaces() -> Vec<MkosiWorkspace> {
     }
     out.sort_by(|a, b| a.name.cmp(&b.name));
     out
-}
-
-// ── USB Passthrough ────────────────────────────────────────────────
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UsbDevice {
-    pub bus: String,
-    pub device: String,
-    pub vendor_id: String,
-    pub product_id: String,
-    pub description: String,
-}
-
-/// List host USB devices via lsusb.
-pub fn list_usb_devices() -> Result<Vec<UsbDevice>, LibvirtError> {
-    let output = Command::new("lsusb")
-        .output()
-        .map_err(LibvirtError::map_op("Failed to run lsusb"))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut devices = Vec::new();
-
-    for line in stdout.lines() {
-        // Format: Bus 001 Device 002: ID 1234:5678 Description
-        let parts: Vec<&str> = line.splitn(7, ' ').collect();
-        if parts.len() >= 7 {
-            let bus = parts[1].to_string();
-            let device = parts[3].trim_end_matches(':').to_string();
-            let id = parts[5];
-            let id_parts: Vec<&str> = id.split(':').collect();
-            if id_parts.len() == 2 {
-                devices.push(UsbDevice {
-                    bus,
-                    device,
-                    vendor_id: id_parts[0].to_string(),
-                    product_id: id_parts[1].to_string(),
-                    description: parts[6..].join(" "),
-                });
-            }
-        }
-    }
-
-    Ok(devices)
-}
-
-/// Attach a USB device to a VM by vendor:product ID.
-pub fn attach_usb(
-    conn: &Connect,
-    vm_name: &str,
-    vendor_id: &str,
-    product_id: &str,
-) -> Result<(), LibvirtError> {
-    // Validate hex IDs
-    if vendor_id.len() != 4
-        || product_id.len() != 4
-        || !vendor_id.chars().all(|c| c.is_ascii_hexdigit())
-        || !product_id.chars().all(|c| c.is_ascii_hexdigit())
-    {
-        return Err(LibvirtError::Invalid(
-            "Invalid USB vendor/product ID format".to_string(),
-        ));
-    }
-
-    let domain = lookup_domain(conn, vm_name)?;
-    let xml = format!(
-        r#"<hostdev mode='subsystem' type='usb' managed='yes'>
-  <source>
-    <vendor id='0x{vendor_id}'/>
-    <product id='0x{product_id}'/>
-  </source>
-</hostdev>"#,
-    );
-
-    let flags = super::device::get_domain_flags_pub(&domain);
-    domain
-        .attach_device_flags(&xml, flags)
-        .map_err(LibvirtError::map_op("Failed to attach USB device"))?;
-    Ok(())
-}
-
-/// Detach a USB device from a VM.
-pub fn detach_usb(
-    conn: &Connect,
-    vm_name: &str,
-    vendor_id: &str,
-    product_id: &str,
-) -> Result<(), LibvirtError> {
-    // Validate hex IDs
-    if vendor_id.len() != 4
-        || product_id.len() != 4
-        || !vendor_id.chars().all(|c| c.is_ascii_hexdigit())
-        || !product_id.chars().all(|c| c.is_ascii_hexdigit())
-    {
-        return Err(LibvirtError::Invalid(
-            "Invalid USB vendor/product ID format".to_string(),
-        ));
-    }
-
-    let domain = lookup_domain(conn, vm_name)?;
-    let xml = format!(
-        r#"<hostdev mode='subsystem' type='usb' managed='yes'>
-  <source>
-    <vendor id='0x{vendor_id}'/>
-    <product id='0x{product_id}'/>
-  </source>
-</hostdev>"#,
-    );
-
-    let flags = super::device::get_domain_flags_pub(&domain);
-    domain
-        .detach_device_flags(&xml, flags)
-        .map_err(LibvirtError::map_op("Failed to detach USB device"))?;
-    Ok(())
 }
 
 // ── Cloud-init ─────────────────────────────────────────────────────
@@ -2550,73 +2443,3 @@ pub fn host_reboot() -> Result<(), LibvirtError> {
     Ok(())
 }
 
-// ── PCI / IOMMU Passthrough Listing ───────────────────────────────
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PciDevice {
-    pub slot: String,
-    pub class: String,
-    pub vendor: String,
-    pub device: String,
-    pub iommu_group: String,
-}
-
-/// List host PCI devices by parsing `lspci -vmm` output.
-pub fn list_pci_devices() -> Result<Vec<PciDevice>, LibvirtError> {
-    let output = Command::new("lspci")
-        .args(["-vmm"])
-        .output()
-        .map_err(LibvirtError::map_op("Failed to run lspci"))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut devices = Vec::new();
-    let mut slot = String::new();
-    let mut class = String::new();
-    let mut vendor = String::new();
-    let mut device = String::new();
-    let mut iommu = String::new();
-
-    for line in stdout.lines() {
-        if line.trim().is_empty() {
-            if !slot.is_empty() {
-                devices.push(PciDevice {
-                    slot: slot.clone(),
-                    class: class.clone(),
-                    vendor: vendor.clone(),
-                    device: device.clone(),
-                    iommu_group: iommu.clone(),
-                });
-            }
-            slot.clear();
-            class.clear();
-            vendor.clear();
-            device.clear();
-            iommu.clear();
-            continue;
-        }
-        if let Some((key, val)) = line.split_once(':') {
-            let key = key.trim();
-            let val = val.trim().to_string();
-            match key {
-                "Slot" => slot = val,
-                "Class" => class = val,
-                "Vendor" => vendor = val,
-                "Device" => device = val,
-                "IOMMUGroup" => iommu = val,
-                _ => {}
-            }
-        }
-    }
-    // Flush last entry
-    if !slot.is_empty() {
-        devices.push(PciDevice {
-            slot,
-            class,
-            vendor,
-            device,
-            iommu_group: iommu,
-        });
-    }
-
-    Ok(devices)
-}

@@ -547,6 +547,16 @@ export const deleteK8sKubevirtVm = (namespace: string, name: string, context?: s
   return apiDelete(url)
 }
 
+export const patchK8sKubevirtVmSpec = (
+  namespace: string,
+  name: string,
+  body: { vcpus?: number; memory_mib?: number; context?: string },
+) =>
+  apiPost<{ ok: boolean; namespace: string; name: string }>(
+    `${API}/k8s/kubevirt/virtualmachines/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/spec`,
+    body,
+  )
+
 export const runK8sAction = (body: K8sActionRequest) => apiPost<K8sActionResult>(`${API}/k8s/action`, body)
 
 /** Allowlisted steps run on the **daemon host** via `helm` / `kubectl` (operator/admin only). */

@@ -3257,6 +3257,85 @@ async fn k8s_kubevirt_vm_lifecycle(
     })))
 }
 
+#[derive(Debug, Deserialize)]
+struct KubeVirtSpecBody {
+    #[serde(default)]
+    vcpus: Option<u32>,
+    #[serde(default)]
+    memory_mib: Option<u64>,
+    #[serde(default)]
+    context: Option<String>,
+}
+
+async fn k8s_kubevirt_vm_spec(
+    Extension(actor): Extension<RequestActor>,
+    axum::extract::Path((namespace, name)): axum::extract::Path<(String, String)>,
+    Json(body): Json<KubeVirtSpecBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+    let ctx = body.context.as_deref();
+    if let Some(c) = ctx {
+        ensure_k8s_context_name(c)?;
+    }
+    ensure_safe_name(&namespace, "namespace")?;
+    ensure_safe_name(&name, "name")?;
+    if body.vcpus.is_none() && body.memory_mib.is_none() {
+        return Err(AppError::from(LibvirtError::Invalid(
+            "Provide vcpus and/or memory_mib".into(),
+        )));
+    }
+    let mut domain = serde_json::Map::new();
+    if let Some(cores) = body.vcpus.filter(|&c| c > 0) {
+        domain.insert(
+            "cpu".into(),
+            serde_json::json!({ "cores": cores }),
+        );
+    }
+    if let Some(mib) = body.memory_mib.filter(|&m| m > 0) {
+        let mem_gi = ((mib + 1023) / 1024).max(1);
+        domain.insert(
+            "resources".into(),
+            serde_json::json!({
+                "requests": { "memory": format!("{mem_gi}Gi") }
+            }),
+        );
+    }
+    let patch = serde_json::json!({
+        "spec": {
+            "template": {
+                "spec": {
+                    "domain": domain
+                }
+            }
+        }
+    });
+    let patch_str = patch.to_string();
+    let args = vec![
+        "patch".into(),
+        "virtualmachine.kubevirt.io".into(),
+        name.clone(),
+        "-n".into(),
+        namespace.clone(),
+        "--type".into(),
+        "merge".into(),
+        "-p".into(),
+        patch_str,
+    ];
+    let res = run_kubectl_timeout(&args, KUBECTL_TIMEOUT_SECS, ctx).await?;
+    if !res.ok {
+        return Err(AppError::from(LibvirtError::Operation(format!(
+            "kubevirt spec patch failed (exit {}): {}{}",
+            res.exit_code, res.stderr, res.stdout
+        ))));
+    }
+    Ok(Json(serde_json::json!({
+        "namespace": namespace,
+        "name": name,
+        "ok": true,
+        "patch": patch,
+    })))
+}
+
 async fn k8s_overview(
     Extension(actor): Extension<RequestActor>,
     Query(q): Query<K8sOverviewQuery>,
@@ -3996,6 +4075,10 @@ pub fn k8s_routes() -> Router<LibvirtManager> {
         .route(
             "/k8s/kubevirt/virtualmachines/{namespace}/{name}/lifecycle",
             post(k8s_kubevirt_vm_lifecycle),
+        )
+        .route(
+            "/k8s/kubevirt/virtualmachines/{namespace}/{name}/spec",
+            post(k8s_kubevirt_vm_spec),
         )
         .route("/k8s/action", post(k8s_action))
         .route("/k8s/kata-deploy", post(k8s_kata_deploy))

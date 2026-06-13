@@ -259,7 +259,7 @@ test.describe('Platform ConsoleHub', () => {
     await expect(page.getByTestId('vm-kubevirt-hardware-node')).toContainText('worker-1')
     await page.getByTestId('vm-detail-hardware').click()
     await expect(page.getByTestId('vm-kubevirt-hardware-drawer')).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByTestId('vm-kubevirt-hardware-note')).toContainText('Read-only cluster view')
+    await expect(page.getByTestId('vm-kubevirt-hardware-note')).toContainText('Running VM')
   })
 
   test('KubeVirt Cinema Hardware button opens read-only drawer', async ({ page }) => {

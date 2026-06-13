@@ -12,7 +12,7 @@ import {
   getGuestObservability, getGuestHealth, type GuestObservability, type GuestHealthReport,
   insertCdrom, ejectCdrom, getVMLogs, getCpuTune, getMemTune, getKubeVirtBundle, KubeVirtBundle,
   postKubeVirtApply, postKubeVirtUpload, postKubeVirtStart, type KubeVirtClusterExecResult,
-  getBlockJobInfo, blockCommit, blockPull, blockJobAbort, vmDetailRoute, vmConsoleRoute, convertGraphicsSpiceToVnc, appendVmConnection,
+  getBlockJobInfo, blockCommit, blockPull, blockJobAbort, vmDetailRoute, vmConsoleRoute, appendVmConnection,
   setMemTune as applyMemTuneApi, setSchedulerTune, pinVcpu, getNumaTune, setNumaTune, pinEmulator,
   VmDetails, VmMetrics, GuestIpAddress, BootConfig, CpuTuneInfo, MemTuneInfo,
   VmDeleteUndefineOpts, BlockJobInfo,
@@ -32,6 +32,8 @@ import { getStateBadgeClasses, formatBytes } from '../utils/vm'
 import { sessionBadgeClasses, statusActionLinkClasses, statusBadgeClasses, statusBgClass, statusSurfaceClasses, statusToneClass, utilizationTone } from '../utils/semanticColors'
 import { loadVmSshPrefs } from '../utils/vmSshPrefs'
 import VmDailyAccessStrip from '../components/vm/VmDailyAccessStrip'
+import ClassicVmPlatformHardware from './classic/ClassicVmPlatformHardware'
+import ClassicVmSpiceToVncButton from './classic/ClassicVmSpiceToVncButton'
 import VmPortForwardPanel from '../components/vm/VmPortForwardPanel'
 import VmSshConnectDialog, { navigateVmSshSession } from '../components/vm/VmSshConnectDialog'
 import type { GuestAccessHints } from '../utils/guestAccessHints'
@@ -1191,19 +1193,18 @@ export default function VMDetailsPage() {
           <Link to={vmConsoleRoute(vm.name, conn)} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1"><Terminal className="w-4 h-4" /> Console</Link>
           <GuacamoleConsoleLink vmName={vm.name} connection={conn} />
           <RdpConsoleLink vmName={vm.name} connection={conn} />
-          <button
-            type="button"
-            title="virt-xml --convert-to-vnc (requires virt-xml on host; may change live graphics)"
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm transition flex items-center gap-1 text-slate-300"
-            onClick={() => {
-              if (!name || !window.confirm('Convert SPICE graphics to VNC via virt-xml? The guest may briefly lose display.')) return
-              void convertGraphicsSpiceToVnc(name, conn)
-                .then(() => { toast.success('virt-xml convert-to-vnc completed — check Console / XML'); load(); setVmXml('') })
-                .catch((e: unknown) => toast.error(formatUserError(e)))
+          <ClassicVmSpiceToVncButton
+            vmName={vm.name}
+            connection={conn}
+            platformVmId={platformVmId}
+            usePlatformApi={Boolean(platformVmId && linkedPlatformVm && linkedPlatformVm.inventory_source !== 'kubevirt')}
+            onSuccess={() => {
+              toast.success('SPICE→VNC completed — check Console / XML')
+              load()
+              setVmXml('')
             }}
-          >
-            SPICE→VNC
-          </button>
+            onError={(msg) => toast.error(msg)}
+          />
           <button type="button" onClick={openVmSshDialog} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1">
             <Terminal className="w-4 h-4" /> SSH
           </button>
@@ -1894,6 +1895,19 @@ export default function VMDetailsPage() {
 
       {tab === 'devices' && (
         <div className="space-y-6">
+          {platformVmId && linkedPlatformVm && linkedPlatformVm.inventory_source !== 'kubevirt' ? (
+            <ClassicVmPlatformHardware
+              platformVmId={platformVmId}
+              vmName={vm.name}
+              vmState={vm.state}
+              hostId={linkedPlatformVm.host_id}
+              managed={linkedPlatformVm.managed}
+              portForwardRules={classicPortForwards}
+              onPlanRefresh={() => {
+                void listVmPortForwards(platformVmId).then(setClassicPortForwards).catch(() => setClassicPortForwards([]))
+              }}
+            />
+          ) : null}
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 space-y-3">
             <h3 className="text-lg font-semibold text-slate-200">Virtual hardware</h3>
             <p className="text-xs text-slate-500">TPM, watchdog, sound, extra serial, and video — shut off the guest when libvirt requires a static config change.</p>
