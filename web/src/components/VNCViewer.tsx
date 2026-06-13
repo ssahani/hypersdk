@@ -37,6 +37,8 @@ interface Props {
   connectKey?: number
   /** Machine Cockpit — hide toolbar; viewport controlled by floating HUD. */
   cockpitMode?: boolean
+  /** Embedded preview (Command Center theatre) — scale to fit, no scrollbars or chrome. */
+  previewMode?: boolean
   /** Called when VNC canvas is ready (for Cinema screenshots). */
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
 }
@@ -199,6 +201,7 @@ export default function VNCViewer({
   fillViewportOffset = '13rem',
   onReconnect,
   cockpitMode = false,
+  previewMode = false,
   connectKey = 0,
   onCanvasReady,
 }: Props) {
@@ -209,7 +212,9 @@ export default function VNCViewer({
   /** Soft cursor dot helps when the remote cursor shape is delayed (common on Windows before drivers). */
   const [showDotCursor, setShowDotCursor] = useState(true)
   /** Scaling to fit can blur and sometimes hurts pointer feel; native 1:1 + scroll is sharper/snappier. */
-  const [scaledFit, setScaledFit] = useState(cockpitMode ? false : defaultScaledFit)
+  const [scaledFit, setScaledFit] = useState(
+    cockpitMode ? false : previewMode ? true : defaultScaledFit,
+  )
   const scaleWrapperRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const rfbRef = useRef<{ disconnect: () => void; sendCtrlAltDel?: () => void; clipboardPasteFrom?: (text: string) => void; showDotCursor: boolean; clipViewport?: boolean; scaleViewport?: boolean; addEventListener?: (type: string, fn: (e: Event) => void) => void; removeEventListener?: (type: string, fn: (e: Event) => void) => void } | null>(null)
@@ -508,6 +513,7 @@ export default function VNCViewer({
     cockpitMode && vp
       ? cockpitCssTransform(vp.mode, vp.zoom, vp.guestWidth, vp.guestHeight, vp.viewportWidth, vp.viewportHeight)
       : undefined
+  const fitWithoutScroll = previewMode || (scaledFit && fillViewport && !cockpitMode)
 
   return (
     <div
@@ -519,7 +525,7 @@ export default function VNCViewer({
             : 'flex flex-col rounded-b-lg overflow-hidden'
       }
     >
-      {!cockpitMode ? (
+      {!cockpitMode && !previewMode ? (
       <div className="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700 rounded-t-lg shrink-0">
         <div className="flex items-center gap-3">
           <div className={`w-2.5 h-2.5 rounded-full ${statusColor}`} />
@@ -569,7 +575,7 @@ export default function VNCViewer({
         </div>
       </div>
       ) : null}
-      {!cockpitMode ? (
+      {!cockpitMode && !previewMode ? (
       <p className="text-xs text-slate-500 px-4 py-2 bg-slate-900/40 border-b border-slate-700/50 leading-relaxed shrink-0">
         {status === 'disconnected' && (
           <span className="block text-amber-300/90 mb-1">
@@ -595,10 +601,10 @@ export default function VNCViewer({
       ) : null}
       <div
         ref={scrollRef}
-        className={`relative w-full h-full bg-black overflow-auto ${fullscreen || fillViewport || cockpitMode ? 'flex-1 min-h-[320px]' : ''}`}
+        className={`relative w-full h-full bg-black ${fitWithoutScroll ? 'overflow-hidden' : 'overflow-auto'} ${fullscreen || fillViewport || cockpitMode || previewMode ? 'flex-1 min-h-[320px]' : ''}`}
         onScroll={cockpitMode && vp ? (e) => vp.setScroll(e.currentTarget.scrollLeft, e.currentTarget.scrollTop) : undefined}
         style={{
-          height: cockpitMode
+          height: cockpitMode || previewMode
             ? '100%'
             : fullscreen
             ? undefined
@@ -610,15 +616,21 @@ export default function VNCViewer({
       >
         <div
           ref={scaleWrapperRef}
-          className="inline-block min-w-full min-h-full"
+          className={previewMode ? 'w-full h-full flex items-center justify-center' : 'inline-block min-w-full min-h-full'}
           style={{
             transform: cockpitTransform,
-            transformOrigin: 'top left',
+            transformOrigin: previewMode ? 'center center' : 'top left',
           }}
         >
           <div
             ref={containerRef}
-            className={cockpitMode && vp?.mode === 'stretch' ? 'w-full h-full [&_canvas]:!w-full [&_canvas]:!h-full' : ''}
+            className={
+              previewMode
+                ? 'max-w-full max-h-full [&_canvas]:max-w-full [&_canvas]:max-h-full [&_canvas]:object-contain'
+                : cockpitMode && vp?.mode === 'stretch'
+                  ? 'w-full h-full [&_canvas]:!w-full [&_canvas]:!h-full'
+                  : ''
+            }
           />
         </div>
         {cockpitMode && status === 'connected' ? (

@@ -75,10 +75,11 @@ export default function ConsoleTheatrePreview({ vmId, vmName, connected = true }
       {loadError ? (
         <p className="px-3 py-2 text-xs text-amber-300/90">{loadError}</p>
       ) : showVnc ? (
-        <div className="relative mx-2 mb-2 rounded-md border border-white/[0.06] overflow-hidden bg-black min-h-[7rem] max-h-[10rem]" data-testid="console-theatre-vnc">
+        <div className="relative mx-2 mb-2 rounded-md border border-white/[0.06] overflow-hidden bg-black aspect-video w-[calc(100%-1rem)] max-h-[11rem] flex flex-col" data-testid="console-theatre-vnc">
           <VNCViewer
             vmName={vmName}
             wsUrl={wsUrl ?? undefined}
+            previewMode
             defaultScaledFit
             fillViewport
             fillViewportOffset="0"
