@@ -20,6 +20,7 @@ import AiTerminalCompanion from '../../components/ai/AiTerminalCompanion'
 import GuacamoleConsoleLink from '../../components/GuacamoleConsoleLink'
 import SerialConsole from '../../components/SerialConsole'
 import VNCViewer from '../../components/VNCViewer'
+import { fillViewportVncProps } from '../../utils/embeddedVnc'
 import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
 import { hubLinkClasses } from '../../utils/semanticColors'
 
@@ -172,15 +173,19 @@ export default function PlatformConsole() {
             />
           ) : null}
           {activeTab === 'vnc' && vncWsUrl ? (
-            <VNCViewer
-              key={`vnc-${connectKey}`}
-              vmName={vmName}
-              wsUrl={vncWsUrl}
-              defaultScaledFit={false}
-              fillViewport={isPopout}
-              fillViewportOffset={isPopout ? '5.5rem' : '17rem'}
-              onReconnect={() => setConnectKey((k) => k + 1)}
-            />
+            <div
+              className="flex flex-col min-h-0 overflow-hidden rounded-lg border border-slate-700/50 bg-black"
+              style={{ height: isPopout ? 'calc(100dvh - 6rem)' : 'max(520px, calc(100dvh - 18rem))' }}
+            >
+              <VNCViewer
+                key={`vnc-${connectKey}`}
+                vmName={vmName}
+                wsUrl={vncWsUrl}
+                hideInstallerHint
+                onReconnect={() => setConnectKey((k) => k + 1)}
+                {...fillViewportVncProps}
+              />
+            </div>
           ) : null}
         </>
       )}

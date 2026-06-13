@@ -10,6 +10,7 @@ import {
   type ConsoleHubPlan,
 } from '../../../api/platform'
 import VNCViewer from '../../VNCViewer'
+import { embeddedVncPreviewProps } from '../../../utils/embeddedVnc'
 import { openCenterPopout } from '../../../utils/platformCenterPopout'
 import VmConsoleQuickLinks from './VmConsoleQuickLinks'
 import { cinemaHubPath, cinemaPopoutPath } from '../../../utils/consoleExperienceMode'
@@ -19,13 +20,21 @@ type Props = {
   vmId: string
   vmName: string
   connected?: boolean
+  /** `tile` — VNC only (live wall). `panel` — full theatre chrome (command center). */
+  variant?: 'panel' | 'tile'
 }
 
-export default function ConsoleTheatrePreview({ vmId, vmName, connected = true }: Props) {
+export default function ConsoleTheatrePreview({
+  vmId,
+  vmName,
+  connected = true,
+  variant = 'panel',
+}: Props) {
   const [plan, setPlan] = useState<ConsoleHubPlan | null>(null)
   const [wsUrl, setWsUrl] = useState<string | null>(null)
   const [connectKey, setConnectKey] = useState(0)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const tile = variant === 'tile'
 
   const load = useCallback(async () => {
     setLoadError(null)
@@ -59,6 +68,31 @@ export default function ConsoleTheatrePreview({ vmId, vmName, connected = true }
 
   const showVnc = Boolean(wsUrl) && (plan?.protocols.includes('novnc') ?? true)
 
+  if (tile) {
+    return (
+      <div className="flex flex-col h-full min-h-[10rem]" data-testid="console-theatre-preview">
+        {loadError ? (
+          <p className="px-3 py-2 text-xs text-amber-300/90">{loadError}</p>
+        ) : showVnc ? (
+          <div className="relative flex-1 min-h-0 overflow-hidden bg-black" data-testid="console-theatre-vnc">
+            <VNCViewer
+              vmName={vmName}
+              wsUrl={wsUrl ?? undefined}
+              connectKey={connectKey}
+              onReconnect={() => {
+                setConnectKey((k) => k + 1)
+                void load()
+              }}
+              {...embeddedVncPreviewProps}
+            />
+          </div>
+        ) : (
+          <p className="px-3 py-3 text-xs text-slate-500">Console preview unavailable.</p>
+        )}
+      </div>
+    )
+  }
+
   return (
     <section className="rounded-lg border border-white/[0.08] bg-black/40 overflow-hidden" data-testid="console-theatre-preview">
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.06] text-xs gap-2">
@@ -79,15 +113,12 @@ export default function ConsoleTheatrePreview({ vmId, vmName, connected = true }
           <VNCViewer
             vmName={vmName}
             wsUrl={wsUrl ?? undefined}
-            previewMode
-            defaultScaledFit
-            fillViewport
-            fillViewportOffset="0"
             connectKey={connectKey}
             onReconnect={() => {
               setConnectKey((k) => k + 1)
               void load()
             }}
+            {...embeddedVncPreviewProps}
           />
         </div>
       ) : (

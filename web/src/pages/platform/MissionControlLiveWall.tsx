@@ -57,7 +57,7 @@ export default function MissionControlLiveWall() {
                   <VmStatusBadge state={vm.observed_state ?? 'unknown'} />
                 </div>
                 <div className="min-h-[12rem]">
-                  <ConsoleTheatrePreview vmId={vm.id} vmName={vm.name} connected />
+                  <ConsoleTheatrePreview vmId={vm.id} vmName={vm.name} connected variant="tile" />
                 </div>
                 <div className="flex gap-2 p-2 border-t border-white/[0.06]">
                   <Link to={cinemaHubPath(vm.id)} data-testid="live-wall-open-cinema" className="btn-primary text-xs flex-1 text-center inline-flex items-center justify-center gap-1">

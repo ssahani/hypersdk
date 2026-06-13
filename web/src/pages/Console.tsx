@@ -9,6 +9,7 @@ import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import { readJsonObject } from '../api/client'
 import SerialConsole from '../components/SerialConsole'
 import VNCViewer from '../components/VNCViewer'
+import { fillViewportVncProps } from '../utils/embeddedVnc'
 import SPICEViewer from '../components/SPICEViewer'
 import {
   sendGuestKey, getGuestScreenshotBlob, virtViewerVvUrl, appendVmConnection, vmDetailRoute, getVM,
@@ -191,9 +192,9 @@ export default function ConsolePage() {
         </div>
       )}
 
-      <div className="card overflow-hidden rounded-liquid-lg">
+      <div className="card overflow-hidden rounded-liquid-lg flex flex-col min-h-0" style={{ height: 'max(520px, calc(100dvh - 14rem))' }}>
         {mode === 'vnc' ? (
-          <VNCViewer vmName={name} port={vncPort} libvirtConnection={conn} />
+          <VNCViewer vmName={name} port={vncPort} libvirtConnection={conn} hideInstallerHint {...fillViewportVncProps} />
         ) : mode === 'spice' ? (
           <SPICEViewer vmName={name} port={spicePort} libvirtConnection={conn} />
         ) : (

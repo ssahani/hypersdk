@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { Boxes, Copy, ExternalLink, Monitor, Network, Play, RefreshCw, RotateCw, Square, Terminal, Trash2 } from 'lucide-react'
 import VNCViewer from '../components/VNCViewer'
+import { fillViewportVncProps } from '../utils/embeddedVnc'
 import KubeVirtSerialConsole from '../components/KubeVirtSerialConsole'
 import KubeVirtExposeServiceModal from '../components/KubeVirtExposeServiceModal'
 import K8sConnectionErrorBanner from '../components/K8sConnectionErrorBanner'
@@ -978,7 +979,13 @@ spec:
           </div>
           <div className="flex-1 min-h-0 overflow-hidden p-2">
             {liveKubeVirt.kind === 'vnc' ? (
-              <VNCViewer vmName={liveKubeVirt.name} kubeVirtNamespace={liveKubeVirt.namespace} port={1} />
+              <VNCViewer
+                vmName={liveKubeVirt.name}
+                kubeVirtNamespace={liveKubeVirt.namespace}
+                port={1}
+                hideInstallerHint
+                {...fillViewportVncProps}
+              />
             ) : (
               <KubeVirtSerialConsole namespace={liveKubeVirt.namespace} vmName={liveKubeVirt.name} />
             )}

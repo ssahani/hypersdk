@@ -39,6 +39,8 @@ interface Props {
   cockpitMode?: boolean
   /** Embedded preview (Command Center theatre) — scale to fit, no scrollbars or chrome. */
   previewMode?: boolean
+  /** Hide the long installer hint under the toolbar (embedded panels). */
+  hideInstallerHint?: boolean
   /** Called when VNC canvas is ready (for Cinema screenshots). */
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
 }
@@ -202,6 +204,7 @@ export default function VNCViewer({
   onReconnect,
   cockpitMode = false,
   previewMode = false,
+  hideInstallerHint = false,
   connectKey = 0,
   onCanvasReady,
 }: Props) {
@@ -212,8 +215,9 @@ export default function VNCViewer({
   /** Soft cursor dot helps when the remote cursor shape is delayed (common on Windows before drivers). */
   const [showDotCursor, setShowDotCursor] = useState(true)
   /** Scaling to fit can blur and sometimes hurts pointer feel; native 1:1 + scroll is sharper/snappier. */
+  const wantsScaledFit = previewMode || hideInstallerHint || defaultScaledFit || fillViewport
   const [scaledFit, setScaledFit] = useState(
-    cockpitMode ? false : previewMode ? true : defaultScaledFit,
+    cockpitMode ? false : wantsScaledFit,
   )
   const scaleWrapperRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -513,7 +517,13 @@ export default function VNCViewer({
     cockpitMode && vp
       ? cockpitCssTransform(vp.mode, vp.zoom, vp.guestWidth, vp.guestHeight, vp.viewportWidth, vp.viewportHeight)
       : undefined
-  const fitWithoutScroll = previewMode || (scaledFit && fillViewport && !cockpitMode)
+  const cockpitFitSurface =
+    cockpitMode && vp && (vp.mode === 'fit' || vp.mode === 'fill' || vp.mode === 'stretch')
+  const fitWithoutScroll =
+    previewMode
+    || (scaledFit && fillViewport)
+    || (scaledFit && hideInstallerHint)
+    || Boolean(cockpitFitSurface)
 
   return (
     <div
@@ -575,7 +585,7 @@ export default function VNCViewer({
         </div>
       </div>
       ) : null}
-      {!cockpitMode && !previewMode ? (
+      {!cockpitMode && !previewMode && !hideInstallerHint ? (
       <p className="text-xs text-slate-500 px-4 py-2 bg-slate-900/40 border-b border-slate-700/50 leading-relaxed shrink-0">
         {status === 'disconnected' && (
           <span className="block text-amber-300/90 mb-1">
@@ -590,12 +600,19 @@ export default function VNCViewer({
               </>
             )
           : (
-              <>
-                Graphical installers stream full-screen bitmaps over VNC — pointer movement can lag behind display updates,
-                especially at high resolutions. Leave <strong className="text-slate-400">Scale to fit</strong> off for 1:1
-                mapping (scroll the panel), keep <strong className="text-slate-400">Local cursor</strong> on for immediate
-                feedback, and use <strong className="text-slate-400">SPICE</strong> when the VM offers it.
-              </>
+              scaledFit || fillViewport || hideInstallerHint ? (
+                <>
+                  Guest display is scaled to the panel. Keep <strong className="text-slate-400">Local cursor</strong> on for
+                  snappier pointer feedback, and use <strong className="text-slate-400">SPICE</strong> when the VM offers it.
+                </>
+              ) : (
+                <>
+                  Graphical installers stream full-screen bitmaps over VNC — pointer movement can lag behind display updates,
+                  especially at high resolutions. Leave <strong className="text-slate-400">Scale to fit</strong> off for 1:1
+                  mapping (scroll the panel), keep <strong className="text-slate-400">Local cursor</strong> on for immediate
+                  feedback, and use <strong className="text-slate-400">SPICE</strong> when the VM offers it.
+                </>
+              )
             )}
       </p>
       ) : null}

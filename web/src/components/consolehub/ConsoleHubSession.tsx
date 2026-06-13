@@ -55,7 +55,8 @@ function CockpitVnc(props: {
   connectKey?: number
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
 }) {
-  const scaled = props.cockpitMode || Boolean(props.fillViewport)
+  const embedded = Boolean(props.fillViewport && !props.cockpitMode)
+  const scaled = props.cockpitMode || embedded || Boolean(props.fillViewport)
   return (
     <VncShell cockpitMode={props.cockpitMode}>
       <VNCViewer
@@ -65,7 +66,8 @@ function CockpitVnc(props: {
         libvirtConnection={props.libvirtConnection}
         defaultScaledFit={scaled}
         fillViewport={props.fillViewport ?? props.cockpitMode}
-        fillViewportOffset="11rem"
+        fillViewportOffset="0"
+        previewMode={embedded}
         cockpitMode={props.cockpitMode}
         onReconnect={props.onReconnect}
         connectKey={props.connectKey}
