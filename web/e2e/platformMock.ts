@@ -1146,6 +1146,10 @@ export async function mockPlatformApi(page: Page, opts?: {
             spec_running: true,
             vm_printable_status: 'Running',
             vm_ready: true,
+            guest_ip: '10.244.0.18',
+            pod_ip: '10.244.0.18',
+            vmi_phase: 'Running',
+            node_name: 'worker-1',
             virtctl_console: 'virtctl console kv-vm-1 -n default',
             virtctl_vnc: 'virtctl vnc kv-vm-1 -n default',
             virtctl_vnc_socks: 'virtctl vnc kv-vm-1 -n default --proxy-only',
@@ -3138,9 +3142,9 @@ export async function mockPlatformApi(page: Page, opts?: {
         json: {
           vm_id: vmId ?? 'v1',
           vm_name: isKubevirt ? 'kv-vm-1' : isSpice ? 'spice-vm-1' : 'vm-1',
-          recommended: isKubevirt ? 'serial' : isSpice ? 'webrtc_spice' : 'novnc',
+          recommended: isKubevirt ? 'novnc' : isSpice ? 'webrtc_spice' : 'novnc',
           native: isKubevirt
-            ? { console_type: 'serial', ws_path: null, serial_ws_path: null, available: true }
+            ? { console_type: 'vnc', ws_path: '/ws/v1/platform/vnc/kv1?token=mock-ws-token', serial_ws_path: '/ws/v1/platform/serial/kv1?token=mock-ws-token', available: true }
             : isSpice
               ? { console_type: 'spice', ws_path: '/ws/v1/platform/spice/sp1?token=mock-ws-token', serial_ws_path: null, available: true }
               : { console_type: 'vnc', ws_path: '/ws/v1/platform/vnc/v1?token=mock-ws-token', serial_ws_path: '/ws/v1/platform/serial/v1?token=mock-ws-token', available: true },

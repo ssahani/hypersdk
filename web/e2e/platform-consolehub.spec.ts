@@ -246,10 +246,28 @@ test.describe('Platform ConsoleHub', () => {
     await expect(page.getByText(/Attached/i)).toBeVisible({ timeout: 15_000 })
   })
 
-  test('KubeVirt VM detail hides Hardware button', async ({ page }) => {
+  test('KubeVirt VM detail shows read-only Hardware tab', async ({ page }) => {
     await page.goto('/platform/vms/kv1')
     await expect(page.getByRole('link', { name: /Open Cinema/i })).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByTestId('vm-detail-hardware')).toHaveCount(0)
+    await expect(page.getByTestId('vm-detail-hardware')).toBeVisible()
+    await page.getByRole('tab', { name: 'Hardware' }).click()
+    await expect(page.getByTestId('vm-hardware-tab')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('vm-hardware-cpu')).toContainText('vCPU')
+    await expect(page.getByTestId('vm-kubevirt-hardware-node')).toContainText('worker-1')
+    await page.getByTestId('vm-detail-hardware').click()
+    await expect(page.getByTestId('vm-kubevirt-hardware-drawer')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('vm-kubevirt-hardware-note')).toContainText('Read-only cluster view')
+  })
+
+  test('KubeVirt Cinema Hardware button opens read-only drawer', async ({ page }) => {
+    await page.goto('/platform/vms/kv1/consolehub?mode=cinema')
+    await expect(page.getByTestId('cinema-control-strip')).toBeVisible({ timeout: 15_000 })
+    await page.mouse.move(640, 480)
+    await page.getByTestId('cinema-hardware').click()
+    const drawer = page.getByTestId('vm-kubevirt-hardware-drawer')
+    await expect(drawer).toBeVisible({ timeout: 15_000 })
+    await expect(drawer.getByTestId('vm-hardware-memory')).toContainText('GiB')
+    await expect(drawer.getByTestId('vm-kubevirt-hardware-vmi')).toContainText('Running')
   })
 
   test('VM detail Hardware tab and action bar button', async ({ page }) => {

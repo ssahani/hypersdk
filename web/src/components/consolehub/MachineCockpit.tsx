@@ -41,6 +41,8 @@ import { useConsoleAccessPolicy } from '../../hooks/useConsoleAccessPolicy'
 import { useConsoleSessionRecorder } from '../../hooks/useConsoleSessionRecorder'
 import { useVmHardware } from '../../hooks/useVmHardware'
 import VmHardwareDrawer from '../vm/VmHardwareDrawer'
+import VmKubevirtHardwareDrawer from '../vm/VmKubevirtHardwareDrawer'
+import { useKubevirtHardware } from '../../hooks/useKubevirtHardware'
 import VmNetworkDrawer from '../vm/VmNetworkDrawer'
 
 export type MachineCockpitProps = {
@@ -130,6 +132,10 @@ function CockpitInner({
     portForwardRules,
     protocols: plan?.protocols ?? [],
     osHint: plan?.os_hint,
+  })
+  const kubevirtHardware = useKubevirtHardware({
+    vmId,
+    enabled: !isLibvirt,
   })
 
   useConsoleSessionRecorder({
@@ -531,7 +537,7 @@ function CockpitInner({
           onSnapshot={() => void handleSnapshot()}
           onExposeSsh={plan?.guest_access?.guest_ip_private ? exposeSsh : undefined}
           libvirt={isLibvirt}
-          onOpenHardware={isLibvirt ? () => setHardwareOpen(true) : undefined}
+          onOpenHardware={() => setHardwareOpen(true)}
           onOpenNetwork={() => setNetworkOpen(true)}
           displayProtocols={displayProtocols}
           activeProtocol={activeProtocol}
@@ -546,19 +552,29 @@ function CockpitInner({
         >
           {sessionBlock}
         </CinemaShell>
-        <VmHardwareDrawer
-          open={hardwareOpen}
-          onClose={() => setHardwareOpen(false)}
-          vmId={vmId}
-          vmName={vmName}
-          hostId={hostId}
-          vmState={vmState ?? undefined}
-          hardware={hardware}
-          portForwardRules={portForwardRules}
-          protocols={plan?.protocols ?? []}
-          readOnly={access.readOnly}
-          onPlanRefresh={onPlanRefresh}
-        />
+        {isLibvirt ? (
+          <VmHardwareDrawer
+            open={hardwareOpen}
+            onClose={() => setHardwareOpen(false)}
+            vmId={vmId}
+            vmName={vmName}
+            hostId={hostId}
+            vmState={vmState ?? undefined}
+            hardware={hardware}
+            portForwardRules={portForwardRules}
+            protocols={plan?.protocols ?? []}
+            readOnly={access.readOnly}
+            onPlanRefresh={onPlanRefresh}
+          />
+        ) : (
+          <VmKubevirtHardwareDrawer
+            open={hardwareOpen}
+            onClose={() => setHardwareOpen(false)}
+            vmId={vmId}
+            vmName={vmName}
+            hardware={kubevirtHardware}
+          />
+        )}
         <VmNetworkDrawer
           open={networkOpen}
           onClose={() => setNetworkOpen(false)}
