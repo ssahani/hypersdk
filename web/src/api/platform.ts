@@ -1823,6 +1823,66 @@ export interface VmLibvirtDetails {
 export const getVmLibvirtDetails = (id: string) =>
   platformFetch<VmLibvirtDetails>(`/api/v1/vms/${id}/libvirt-details`)
 
+export interface VmHardwareSection {
+  label: string
+  value: string
+  badges?: string[]
+}
+
+export interface VmHardwareWindowsItem {
+  label: string
+  status: string
+  ok: boolean
+}
+
+export interface VmHardwareWindowsReadiness {
+  is_windows: boolean
+  items: VmHardwareWindowsItem[]
+  ready: boolean
+}
+
+export interface VmHardwareCompatIssue {
+  severity: string
+  category: string
+  message: string
+  badges: string[]
+}
+
+export interface VmHardwareCompatReport {
+  ok: boolean
+  issues: VmHardwareCompatIssue[]
+  cpu_modes_supported?: string[]
+  tpm_supported?: boolean
+  uefi_supported?: boolean
+}
+
+export interface VmHardwareSummaryReport {
+  vm_name: string
+  state: string
+  cpu: VmHardwareSection
+  memory: VmHardwareSection
+  firmware: VmHardwareSection
+  tpm: VmHardwareSection
+  display: VmHardwareSection
+  video: VmHardwareSection
+  disk_bus: VmHardwareSection
+  nic: VmHardwareSection
+  guest_agent: VmHardwareSection
+  host_devices: VmHardwareSection
+  migration: VmHardwareSection
+  windows_readiness?: VmHardwareWindowsReadiness | null
+  balloon_enabled?: boolean
+  secure_boot?: boolean
+  has_vfio_hostdev?: boolean
+  needs_shutdown?: boolean
+}
+
+export const getVmHardwareSummary = (id: string) =>
+  platformFetch<VmHardwareSummaryReport>(`/api/v1/vms/${id}/hardware-summary`)
+
+export const getVmHardwareCompat = (id: string) =>
+  platformFetch<VmHardwareCompatReport>(`/api/v1/vms/${id}/hardware-compat`)
+
 export const detachVmDisk = (id: string, target: string) =>
   platformFetch<{ task_id: string }>(
     `/api/v1/vms/${id}/disks/detach/${encodeURIComponent(target)}`,

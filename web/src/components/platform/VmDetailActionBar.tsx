@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import {
   ExternalLink,
+  Cpu,
   HardDrive,
   Monitor,
   MoreHorizontal,
@@ -47,6 +48,7 @@ type Props = {
   spotlightPrefill: string
   onSsh: () => void
   onDelete: () => void
+  onOpenHardware?: () => void
   onPopout?: () => void
   act: ActFn
   power: PowerHandlers
@@ -64,6 +66,7 @@ export default function VmDetailActionBar({
   spotlightPrefill,
   onSsh,
   onDelete,
+  onOpenHardware,
   onPopout,
   act,
   power,
@@ -149,6 +152,11 @@ export default function VmDetailActionBar({
       <Link to={cinemaHubPath(vmId)} className="btn-primary text-sm inline-flex items-center gap-1 vm-cinema-cta">
         <Monitor className="w-4 h-4" /> Open Cinema
       </Link>
+      {!isKubevirt && onOpenHardware ? (
+        <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" onClick={onOpenHardware} data-testid="vm-detail-hardware">
+          <Cpu className="w-4 h-4" /> Hardware
+        </button>
+      ) : null}
       {!isKubevirt && (
         <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" onClick={onSsh}>
           <Terminal className="w-4 h-4" /> SSH

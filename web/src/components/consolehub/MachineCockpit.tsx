@@ -39,6 +39,9 @@ import { downloadCanvasScreenshot, saveVmPosterScreenshot } from '../../utils/vm
 import { spectatorCinemaPath } from '../../utils/consoleExperienceMode'
 import { useConsoleAccessPolicy } from '../../hooks/useConsoleAccessPolicy'
 import { useConsoleSessionRecorder } from '../../hooks/useConsoleSessionRecorder'
+import { useVmHardware } from '../../hooks/useVmHardware'
+import VmHardwareDrawer from '../vm/VmHardwareDrawer'
+import VmNetworkDrawer from '../vm/VmNetworkDrawer'
 
 export type MachineCockpitProps = {
   vmId: string
@@ -65,6 +68,8 @@ export type MachineCockpitProps = {
   prepend?: ReactNode
   hypervisorAddress?: string
   portForwardRules?: VmPortForwardRule[]
+  inventorySource?: string | null
+  hostId?: string | null
   onPlanRefresh?: () => void
   experienceMode?: ConsoleExperienceMode
   onExperienceModeChange?: (mode: ConsoleExperienceMode) => void
@@ -94,6 +99,8 @@ function CockpitInner({
   prepend,
   hypervisorAddress,
   portForwardRules = [],
+  inventorySource,
+  hostId,
   onPlanRefresh,
   experienceMode = 'cinema',
   onExperienceModeChange,
@@ -112,6 +119,18 @@ function CockpitInner({
   const [shareBusy, setShareBusy] = useState(false)
   const [shareLink, setShareLink] = useState<string | null>(null)
   const [spiceAudio, setSpiceAudio] = useState(true)
+  const [hardwareOpen, setHardwareOpen] = useState(false)
+  const [networkOpen, setNetworkOpen] = useState(false)
+
+  const isLibvirt = inventorySource !== 'kubevirt'
+  const hardware = useVmHardware({
+    vmId,
+    enabled: isLibvirt,
+    inventorySource,
+    portForwardRules,
+    protocols: plan?.protocols ?? [],
+    osHint: plan?.os_hint,
+  })
 
   useConsoleSessionRecorder({
     canvas: vncCanvas,
@@ -511,6 +530,9 @@ function CockpitInner({
           onScreenshot={handleScreenshot}
           onSnapshot={() => void handleSnapshot()}
           onExposeSsh={plan?.guest_access?.guest_ip_private ? exposeSsh : undefined}
+          libvirt={isLibvirt}
+          onOpenHardware={isLibvirt ? () => setHardwareOpen(true) : undefined}
+          onOpenNetwork={() => setNetworkOpen(true)}
           displayProtocols={displayProtocols}
           activeProtocol={activeProtocol}
           onProtocolChange={onProtocolChange}
@@ -524,6 +546,30 @@ function CockpitInner({
         >
           {sessionBlock}
         </CinemaShell>
+        <VmHardwareDrawer
+          open={hardwareOpen}
+          onClose={() => setHardwareOpen(false)}
+          vmId={vmId}
+          vmName={vmName}
+          hostId={hostId}
+          vmState={vmState ?? undefined}
+          hardware={hardware}
+          portForwardRules={portForwardRules}
+          protocols={plan?.protocols ?? []}
+          readOnly={access.readOnly}
+          onPlanRefresh={onPlanRefresh}
+        />
+        <VmNetworkDrawer
+          open={networkOpen}
+          onClose={() => setNetworkOpen(false)}
+          vmId={vmId}
+          vmName={vmName}
+          guestIp={plan?.guest_ip}
+          sshUser={plan?.ssh_user ?? undefined}
+          hypervisorAddress={hypervisorAddress ?? plan?.hypervisor_address ?? undefined}
+          onPlanRefresh={onPlanRefresh}
+          onNotify={(m) => toast.success(m)}
+        />
         {opsShelf}
       </>
     )

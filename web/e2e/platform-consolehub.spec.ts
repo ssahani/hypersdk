@@ -10,7 +10,7 @@ test.describe('Platform ConsoleHub', () => {
 
   test('opens Cinema mode by default from VM detail', async ({ page }) => {
     await page.goto('/platform/vms/v1')
-    await expect(page.getByRole('heading', { name: 'vm-1' })).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('h1').filter({ hasText: 'vm-1' })).toBeVisible({ timeout: 15_000 })
     await page.getByRole('link', { name: /Open Cinema/i }).first().click()
     await expect(page).toHaveURL(/\/platform\/vms\/v1\/consolehub/)
     await expect(page.getByTestId('cinema-shell')).toBeVisible({ timeout: 15_000 })
@@ -129,6 +129,8 @@ test.describe('Platform ConsoleHub', () => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write'])
     await page.goto('/platform/vms/v1/consolehub')
     await expect(page.getByTestId('cinema-shell')).toBeVisible({ timeout: 15_000 })
+    await page.mouse.move(640, 480)
+    await page.getByTestId('cinema-more').click()
     await page.getByTestId('cinema-share-view').click()
     await expect(page.getByText(/Collaborator link copied/i)).toBeVisible({ timeout: 10_000 })
     await page.getByTestId('ops-shelf-handle').click()
@@ -177,10 +179,60 @@ test.describe('Platform ConsoleHub', () => {
         new CustomEvent('machina:console-guest-size', { detail: { width: 3840, height: 1080 } }),
       )
     })
-    await expect(page.getByTestId('cinema-monitor-all')).toBeVisible()
-    await expect(page.getByTestId('cinema-monitor-0')).toBeVisible()
-    await expect(page.getByTestId('cinema-monitor-1')).toBeVisible()
-    await page.getByTestId('cinema-monitor-1').click()
-    await expect(page.getByTestId('cinema-monitor-1')).toHaveClass(/border-emerald-500/)
+    await page.waitForTimeout(200)
+    await page.mouse.move(640, 480)
+    await page.getByTestId('cinema-display').click()
+    await expect(page.getByRole('button', { name: 'All monitors' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'M1' })).toBeVisible()
+  })
+
+  test('Cinema Hardware button opens libvirt hardware drawer', async ({ page }) => {
+    const summaryReady = page.waitForResponse((r) => r.url().includes('/hardware-summary') && r.ok())
+    await page.goto('/platform/vms/v1/consolehub')
+    await summaryReady
+    await expect(page.getByTestId('cinema-control-strip')).toBeVisible({ timeout: 15_000 })
+    await page.mouse.move(640, 480)
+    await page.getByTestId('cinema-hardware').click()
+    const drawer = page.getByTestId('vm-hardware-drawer')
+    await expect(drawer).toBeVisible({ timeout: 15_000 })
+    await expect(drawer.getByTestId('vm-hardware-cpu')).toContainText('vCPU')
+    await expect(drawer.getByTestId('vm-hardware-memory')).toContainText('GiB')
+    await expect(drawer.getByTestId('hardware-badge-live')).toBeVisible()
+    await drawer.getByTestId('vm-hardware-edit').click()
+    await expect(page.getByTestId('vm-edit-hardware-drawer')).toBeVisible()
+    await expect(page.getByTestId('vm-edit-hardware-section-cpu')).toBeVisible()
+  })
+
+  test('Hardware drawer runs compatibility check', async ({ page }) => {
+    const summaryReady = page.waitForResponse((r) => r.url().includes('/hardware-summary') && r.ok())
+    await page.goto('/platform/vms/v1/consolehub')
+    await summaryReady
+    await expect(page.getByTestId('cinema-control-strip')).toBeVisible({ timeout: 15_000 })
+    await page.mouse.move(640, 480)
+    await page.getByTestId('cinema-hardware').click()
+    const drawer = page.getByTestId('vm-hardware-drawer')
+    await expect(drawer).toBeVisible({ timeout: 15_000 })
+    await drawer.getByTestId('vm-hardware-compat-check').click()
+    await expect(page.getByTestId('vm-hardware-compat-panel')).toContainText('Compatible with this host', {
+      timeout: 15_000,
+    })
+  })
+
+  test('KubeVirt VM detail hides Hardware button', async ({ page }) => {
+    await page.goto('/platform/vms/kv1')
+    await expect(page.getByRole('link', { name: /Open Cinema/i })).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('vm-detail-hardware')).toHaveCount(0)
+  })
+
+  test('VM detail Hardware tab and action bar button', async ({ page }) => {
+    const summaryReady = page.waitForResponse((r) => r.url().includes('/hardware-summary') && r.ok())
+    await page.goto('/platform/vms/v1')
+    await summaryReady
+    await expect(page.getByTestId('vm-detail-hardware')).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('tab', { name: 'Hardware' }).click()
+    await expect(page.getByTestId('vm-hardware-tab')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('vm-hardware-cpu')).toContainText('vCPU')
+    await page.getByTestId('vm-hardware-edit').click()
+    await expect(page.getByTestId('vm-edit-hardware-drawer')).toBeVisible()
   })
 })

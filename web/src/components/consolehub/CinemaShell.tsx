@@ -41,6 +41,9 @@ type Props = {
   onScreenshot: () => void
   onSnapshot: () => void
   onExposeSsh?: () => void
+  libvirt?: boolean
+  onOpenHardware?: () => void
+  onOpenNetwork?: () => void
   displayProtocols?: string[]
   activeProtocol?: string
   onProtocolChange?: (p: string) => void
@@ -85,6 +88,9 @@ export default function CinemaShell({
   onScreenshot,
   onSnapshot,
   onExposeSsh,
+  libvirt = true,
+  onOpenHardware,
+  onOpenNetwork,
   displayProtocols = [],
   activeProtocol,
   onProtocolChange,
@@ -203,6 +209,7 @@ export default function CinemaShell({
             vmId={vmId}
             vmState={vmState}
             readOnly={readOnly}
+            libvirt={libvirt}
             onCtrlAltDel={readOnly ? undefined : onCtrlAltDel}
             onSendKey={readOnly ? undefined : onSendKey}
             onPower={readOnly ? undefined : onPower}
@@ -210,11 +217,16 @@ export default function CinemaShell({
             onOpenAi={onOpenAi}
             onOpenOpsShelf={onOpenOpsShelf}
             onOpenStudio={onOpenStudio}
+            onOpenHardware={onOpenHardware}
+            onOpenNetwork={onOpenNetwork}
+            onSnapshot={readOnly ? undefined : onSnapshot}
             onSwitchLens={onSwitchLens}
+            displayProtocols={displayProtocols}
+            activeProtocol={activeProtocol}
+            onProtocolChange={onProtocolChange}
             onRecord={() => onNotify?.(recordingActive ? 'Session is being recorded for audit' : 'Enable CONSOLEHUB_RECORDING_ENABLED on controller for audit recording')}
             onShareView={onShareView}
             shareBusy={shareBusy}
-            activeProtocol={activeProtocol}
             spiceAudioEnabled={spiceAudioEnabled}
             onToggleSpiceAudio={onToggleSpiceAudio}
           />
