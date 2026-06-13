@@ -103,6 +103,14 @@ pub fn vm_query(
             )?;
             Ok(serde_json::json!({ "xml": xml }))
         }
+        "domain.caps.report" => {
+            let arch = payload.get("arch").and_then(|v| v.as_str()).filter(|a| !a.is_empty());
+            let details = domain::get_vm_details(conn, vm_name).ok();
+            let arch = arch.or(details.as_ref().map(|d| d.arch.as_str()).filter(|a| !a.is_empty()));
+            let report =
+                machina_core::libvirt::hardware_summary::get_domain_capabilities_report(conn, arch)?;
+            Ok(serde_json::to_value(report).unwrap_or(Value::Null))
+        }
         other => Err(LibvirtError::Invalid(format!("unknown vm query action: {other}"))),
     }
 }
@@ -367,6 +375,11 @@ pub fn host_query(
         "host.pci" => {
             let devices = extras::list_pci_devices()?;
             Ok(serde_json::json!(devices))
+        }
+        "host.node_devices" => {
+            let cap = payload.get("capability").and_then(|v| v.as_str());
+            let devices = machina_core::libvirt::node_device::list_node_devices(conn, cap)?;
+            Ok(serde_json::to_value(devices).unwrap_or(Value::Null))
         }
         "osinfo.list" => {
             let join = Command::new("osinfo-query")

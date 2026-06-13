@@ -148,6 +148,7 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/vms/{id}/hardware-compat",
             get(vms::get_vm_hardware_compat),
         )
+        .route("/api/v1/vms/{id}/domain-caps", get(vms::get_vm_domain_caps))
         .route("/api/v1/vms/{id}/pending-config", get(vms::get_vm_pending_config))
         .route("/api/v1/vms/pending-config/batch", post(vms::batch_vm_parity_summary))
         .route("/api/v1/vms/guest-ips/batch", post(vms::batch_vm_guest_ips))

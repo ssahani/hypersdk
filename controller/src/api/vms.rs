@@ -1461,6 +1461,43 @@ pub async fn get_vm_hardware_compat(
     Ok(Json(report))
 }
 
+pub async fn get_vm_domain_caps(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<machina_core::libvirt::hardware_summary::DomainCapabilitiesReport>, ApiError> {
+    let row: (String, Option<Uuid>, String) = sqlx::query_as(
+        "SELECT name, host_id, COALESCE(inventory_source, 'libvirt') FROM vms WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await?;
+    if row.2 == "kubevirt" {
+        return Err(ApiError::bad_request(
+            "Domain capabilities apply to libvirt-managed VMs only",
+        ));
+    }
+    let host_id = row
+        .1
+        .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
+    let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut client = crate::agent_client::connect(&agent_addr)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let result = crate::agent_client::vm_libvirt_query(
+        &mut client,
+        &row.0,
+        "domain.caps.report",
+        &serde_json::json!({}),
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    let report: machina_core::libvirt::hardware_summary::DomainCapabilitiesReport =
+        serde_json::from_value(result).map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(report))
+}
+
 pub async fn get_vm_pending_config(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
