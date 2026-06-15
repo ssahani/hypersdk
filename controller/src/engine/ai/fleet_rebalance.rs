@@ -125,12 +125,11 @@ pub async fn execute(
             .map_err(|e| ApiError::internal(e.to_string()))?
             .ok_or_else(|| ApiError::bad_request(format!("host not found: {}", mv.to_host)))?;
 
-        let source_host: Option<Uuid> =
-            sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
-                .bind(vm_id)
-                .fetch_one(&state.pool)
-                .await
-                .map_err(|e| ApiError::internal(e.to_string()))?;
+        let source_host: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+            .bind(vm_id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
 
         let task_id = enqueue_task(
             state,

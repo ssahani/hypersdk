@@ -9,7 +9,8 @@ use uuid::Uuid;
 use crate::engine::vm_inventory::{cluster_inventory_policy, ClusterInventoryPolicy};
 use crate::state::AppState;
 
-const KUBEVIRT_MISSING: &str = "kubevirt_not_found: VirtualMachine no longer present in cluster inventory scan";
+const KUBEVIRT_MISSING: &str =
+    "kubevirt_not_found: VirtualMachine no longer present in cluster inventory scan";
 
 #[derive(Debug, Deserialize)]
 struct KubeVirtInventoryResponse {
@@ -195,7 +196,10 @@ async fn reconcile_kubevirt_tombstones(
                 .await?;
             state.emit_event(
                 "vm.removed",
-                format!("Discovered KubeVirt VM '{}/{}' removed from inventory", ns, row.name),
+                format!(
+                    "Discovered KubeVirt VM '{}/{}' removed from inventory",
+                    ns, row.name
+                ),
             );
         } else if row.managed && policy.inventory_mark_managed_missing {
             sqlx::query(

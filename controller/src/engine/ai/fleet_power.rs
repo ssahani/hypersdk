@@ -48,7 +48,10 @@ pub async fn optimize(pool: &PgPool) -> anyhow::Result<FleetPowerReport> {
         });
     }
 
-    let total_savings_usd_month = optimizations.iter().map(|o| o.estimated_savings_usd_month).sum();
+    let total_savings_usd_month = optimizations
+        .iter()
+        .map(|o| o.estimated_savings_usd_month)
+        .sum();
 
     let summary = if optimizations.is_empty() {
         "Fleet power profile balanced — no waste optimizations.".into()

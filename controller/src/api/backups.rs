@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::api::tasks::TaskResponse;
 use crate::api::ApiError;
-use crate::auth::AuthUser;
+use crate::auth::{require_operator, AuthUser};
 use crate::state::AppState;
 use crate::tasks::enqueue::enqueue_task;
 
@@ -51,10 +51,11 @@ pub async fn list_vm_backups(
 
 pub async fn create_vm_backup(
     State(state): State<AppState>,
-    Extension(_actor): Extension<AuthUser>,
+    Extension(actor): Extension<AuthUser>,
     Path(vm_id): Path<Uuid>,
     Json(body): Json<CreateBackupBody>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
         .bind(vm_id)
         .fetch_one(&state.pool)
@@ -96,7 +97,7 @@ pub async fn restore_vm_backup(
     Extension(actor): Extension<AuthUser>,
     Path((vm_id, backup_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<TaskResponse>, ApiError> {
-    crate::auth::require_operator(&actor)?;
+    require_operator(&actor)?;
     let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
         .bind(vm_id)
         .fetch_one(&state.pool)

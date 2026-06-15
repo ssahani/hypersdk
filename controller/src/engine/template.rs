@@ -121,7 +121,10 @@ pub async fn get_ha_policy(pool: &PgPool, vm_id: Uuid) -> anyhow::Result<Option<
 }
 
 /// Replace `{{ key }}` / `{{key}}` placeholders (Jinja-style subset).
-pub fn apply_template_vars(input: &str, vars: &std::collections::HashMap<String, String>) -> String {
+pub fn apply_template_vars(
+    input: &str,
+    vars: &std::collections::HashMap<String, String>,
+) -> String {
     let mut out = input.to_string();
     for (k, v) in vars {
         out = out.replace(&format!("{{{{ {k} }}}}"), v);

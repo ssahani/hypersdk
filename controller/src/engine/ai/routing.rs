@@ -51,7 +51,10 @@ pub struct RoutingRequest {
     pub user_id: Option<String>,
 }
 
-pub async fn resolve(pool: &PgPool, req: &RoutingRequest) -> anyhow::Result<Option<ResolvedProvider>> {
+pub async fn resolve(
+    pool: &PgPool,
+    req: &RoutingRequest,
+) -> anyhow::Result<Option<ResolvedProvider>> {
     let air_gap: bool = sqlx::query_scalar(
         "SELECT COALESCE(zeus_air_gap_llm, FALSE) FROM clusters ORDER BY created_at LIMIT 1",
     )
@@ -118,12 +121,14 @@ pub async fn list_rules(pool: &PgPool) -> anyhow::Result<Vec<RoutingRuleRow>> {
     .await?;
     Ok(rows
         .into_iter()
-        .map(|(task_class, provider_id, model_id, enabled)| RoutingRuleRow {
-            task_class,
-            provider_id,
-            model_id,
-            enabled,
-        })
+        .map(
+            |(task_class, provider_id, model_id, enabled)| RoutingRuleRow {
+                task_class,
+                provider_id,
+                model_id,
+                enabled,
+            },
+        )
         .collect())
 }
 

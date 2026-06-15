@@ -31,7 +31,11 @@ pub async fn propose(pool: &PgPool) -> anyhow::Result<SreRemediationReport> {
                 "rightsize_vm",
                 format!("Right-size memory for {}", f.vm_name),
                 format!("{} — add RAM or reduce workload before OOM.", f.message),
-                if f.severity == "critical" { "Review required" } else { "Low" },
+                if f.severity == "critical" {
+                    "Review required"
+                } else {
+                    "Low"
+                },
             ),
             "cpu" => (
                 "scale_out",

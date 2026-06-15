@@ -15,7 +15,6 @@ import PlatformWebhooks from './PlatformWebhooks'
 import PlatformReports from './PlatformReports'
 import PlatformEvents from './PlatformEvents'
 import PlatformProjects from './PlatformProjects'
-import PlatformResourcesHub from './PlatformResourcesHub'
 import PlatformIntegrations from './PlatformIntegrations'
 import PlatformSupport from './PlatformSupport'
 import PlatformEnterprise from './PlatformEnterprise'
@@ -32,6 +31,7 @@ import { getAiPolicyExport } from '../../api/ai'
 import { getFirewallOverview, type FirewallOverview } from '../../api/zeusFirewall'
 import { listAlertRules, listAlerts, listTokens } from '../../api/automation'
 import { getSession, type AuthSession } from '../../api/auth'
+import IdentitySsoPanel from '../../components/IdentitySsoPanel'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
@@ -55,6 +55,7 @@ function BrowserSessionInfo() {
 
 type SettingsSection =
   | 'general'
+  | 'identity'
   | 'zeus'
   | 'ai-providers'
   | 'security'
@@ -75,6 +76,7 @@ type SettingsSection =
 
 const SETTINGS_SECTIONS: SettingsSection[] = [
   'general',
+  'identity',
   'zeus',
   'ai-providers',
   'security',
@@ -108,6 +110,7 @@ function SettingsWorkspaceLink({ to, label }: { to: string; label: string }) {
 
 const SECTIONS: Array<{ id: SettingsSection; label: string; icon: React.ReactNode; fullPath?: string }> = [
   { id: 'general', label: 'General', icon: <Settings className="w-4 h-4" /> },
+  { id: 'identity', label: 'Identity & SSO', icon: <Shield className="w-4 h-4" /> },
   { id: 'zeus', label: 'Zeus', icon: <Sparkles className="w-4 h-4" /> },
   { id: 'ai-providers', label: 'AI Providers', icon: <Plug className="w-4 h-4" /> },
   { id: 'security', label: 'Security', icon: <Shield className="w-4 h-4" /> },
@@ -275,6 +278,13 @@ export default function PlatformSettingsHub() {
               <Link to="/settings?tab=automation" className={`text-sm inline-block ${hubLinkClasses()}`}>Open classic automation →</Link>
             </MacSettingsGroupBody>
           </MacSettingsGroup>
+        </div>
+      )}
+
+      {section === 'identity' && (
+        <div className="space-y-4">
+          <BrowserSessionInfo />
+          <IdentitySsoPanel compact />
         </div>
       )}
 
@@ -616,8 +626,7 @@ export default function PlatformSettingsHub() {
 
       {section === 'resources' && (
         <div>
-          <SettingsWorkspaceLink to="/platform/infrastructure" label="Open full Infrastructure hub" />
-          <PlatformResourcesHub embedded />
+          <SettingsWorkspaceLink to="/platform/storage" label="Open Infrastructure" />
         </div>
       )}
 

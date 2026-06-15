@@ -27,7 +27,9 @@ pub async fn hub(pool: &PgPool) -> anyhow::Result<RemediateHub> {
     let power = super::fleet_power::optimize(pool).await?;
     let firewall = super::firewall_remediate::propose(pool).await?;
     let exposure_waste = super::exposure_finops::propose_waste(pool, &cfg).await.ok();
-    let joint = super::exposure_finops::joint_sre_finops(pool, &cfg).await.ok();
+    let joint = super::exposure_finops::joint_sre_finops(pool, &cfg)
+        .await
+        .ok();
 
     let mut items = Vec::new();
 
@@ -117,7 +119,8 @@ pub async fn hub(pool: &PgPool) -> anyhow::Result<RemediateHub> {
     items.sort_by_key(|i| i.priority);
 
     let summary = if items.is_empty() {
-        "Remediation hub clear — no open SRE, compliance, firewall, FinOps, or fleet actions.".into()
+        "Remediation hub clear — no open SRE, compliance, firewall, FinOps, or fleet actions."
+            .into()
     } else {
         format!(
             "{} unified remediation(s): {} SRE · {} firewall · {} FinOps · {} joint · {} compliance · {} fleet",

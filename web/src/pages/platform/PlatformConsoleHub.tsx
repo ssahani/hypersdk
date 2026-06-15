@@ -149,7 +149,13 @@ export default function PlatformConsoleHub() {
 
       setHistory(sessions)
       setMachineTimeline(timeline)
-      setHealthScore(health ? parseInt(health.score.split('/')[0], 10) || null : null)
+      if (health) {
+        const parts = health.score.split('/')
+        const n = Number(parts[0])
+        setHealthScore(Number.isFinite(n) ? n : null)
+      } else {
+        setHealthScore(null)
+      }
       setVmState(vm?.observed_state ?? vm?.desired_state ?? null)
       setInventorySource(vm?.inventory_source ?? 'libvirt')
       setHostId(vm?.host_id ?? null)
@@ -197,6 +203,17 @@ export default function PlatformConsoleHub() {
   }, [plan?.recommended, experienceMode, setExperienceMode])
 
   useEffect(() => {
+    setWsUrl(null)
+    setSerialWsUrl(null)
+    setPlatformSpiceWsPath(null)
+    setSession(null)
+    setPlan(null)
+    setVmName(null)
+    setError(null)
+    setHistory([])
+  }, [id])
+
+  useEffect(() => {
     void load()
   }, [load, connectKey])
 
@@ -213,6 +230,9 @@ export default function PlatformConsoleHub() {
         if (protocol === 'novnc' && !kubeVirtNamespace) {
           const tokenRes = await issuePlatformVmWsToken(id)
           setWsUrl(platformVmVncWsUrl(id, tokenRes.token))
+        } else if ((protocol === 'spice' || protocol === 'webrtc_spice') && !kubeVirtNamespace) {
+          const tokenRes = await issuePlatformVmWsToken(id)
+          setPlatformSpiceWsPath(platformVmSpiceWsPath(id, tokenRes.token))
         } else if (protocol === 'serial' && !kubeVirtNamespace) {
           const tokenRes = await issuePlatformVmWsToken(id)
           setSerialWsUrl(platformVmSerialWsUrl(id, tokenRes.token))

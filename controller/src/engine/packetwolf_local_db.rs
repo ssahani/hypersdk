@@ -8,13 +8,19 @@ use sqlx::PgPool;
 use crate::engine::packetwolf_local;
 
 pub async fn hydrate(pool: &PgPool) -> anyhow::Result<()> {
-    let rows: Vec<(String, String, String, DateTime<Utc>, Option<DateTime<Utc>>, Option<Value>)> =
-        sqlx::query_as(
-            "SELECT host_id, status, tetragon_version, registered_at, last_event_at, pending_tetragon
+    let rows: Vec<(
+        String,
+        String,
+        String,
+        DateTime<Utc>,
+        Option<DateTime<Utc>>,
+        Option<Value>,
+    )> = sqlx::query_as(
+        "SELECT host_id, status, tetragon_version, registered_at, last_event_at, pending_tetragon
              FROM packetwolf_local_sensors",
-        )
-        .fetch_all(pool)
-        .await?;
+    )
+    .fetch_all(pool)
+    .await?;
     packetwolf_local::load_from_rows(rows);
     Ok(())
 }
@@ -44,7 +50,11 @@ pub async fn upsert_sensor(
     Ok(())
 }
 
-pub async fn set_pending_tetragon(pool: &PgPool, host_id: &str, pending: &Value) -> anyhow::Result<()> {
+pub async fn set_pending_tetragon(
+    pool: &PgPool,
+    host_id: &str,
+    pending: &Value,
+) -> anyhow::Result<()> {
     sqlx::query(
         "INSERT INTO packetwolf_local_sensors (host_id, status, tetragon_version, pending_tetragon)
          VALUES ($1, 'registered', '1.7.0', $2)

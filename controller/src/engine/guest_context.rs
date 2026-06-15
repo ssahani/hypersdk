@@ -98,7 +98,10 @@ pub fn from_health_report(
     if let Some(o) = obs {
         if let Some(arr) = o.get("ip_addresses").and_then(|v| v.as_array()) {
             for item in arr {
-                let ip_type = item.get("ip_type").and_then(|x| x.as_str()).unwrap_or("ipv4");
+                let ip_type = item
+                    .get("ip_type")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("ipv4");
                 if ip_type != "ipv4" {
                     continue;
                 }

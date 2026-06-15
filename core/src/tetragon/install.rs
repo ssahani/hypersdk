@@ -215,7 +215,10 @@ fn write_executable(path: &Path, contents: &str, dry_run: bool) -> Result<(), Li
     Ok(())
 }
 
-pub fn run_tetragon_install(spec: &TetragonInstallSpec, dry_run: bool) -> Result<TetragonInstallResult, LibvirtError> {
+pub fn run_tetragon_install(
+    spec: &TetragonInstallSpec,
+    dry_run: bool,
+) -> Result<TetragonInstallResult, LibvirtError> {
     let script_path = policy_dir().join("install-tetragon.sh");
     let script = render_install_script(spec);
     write_executable(&script_path, &script, dry_run)?;
@@ -281,7 +284,11 @@ pub fn run_tetragon_install(spec: &TetragonInstallSpec, dry_run: bool) -> Result
             format!(
                 "{}{}",
                 stderr,
-                if stderr.is_empty() { stdout } else { String::new() }
+                if stderr.is_empty() {
+                    stdout
+                } else {
+                    String::new()
+                }
             )
             .trim()
             .to_string()
@@ -311,7 +318,10 @@ mod tests {
         assert!(script.contains("host-abc"));
         assert!(script.contains("tetragon.service"));
         assert!(script.contains("tetragon-export.timer"));
-        assert!(script.contains("tetragon-v${VERSION}-${TG_ARCH}.tar.gz") || script.contains("${TG_DIR}.tar.gz"));
+        assert!(
+            script.contains("tetragon-v${VERSION}-${TG_ARCH}.tar.gz")
+                || script.contains("${TG_DIR}.tar.gz")
+        );
         assert!(script.contains("/etc/tetragon/tetragon.conf.d/export-filename"));
         assert!(script.contains("needs_reinstall"));
         assert!(script.contains("VERSION=\"1.7.0\""));

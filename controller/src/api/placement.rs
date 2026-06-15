@@ -4,7 +4,9 @@ use axum::extract::State;
 use axum::Json;
 
 use crate::api::ApiError;
-use crate::engine::placement::{compute_recommendations, persist_recommendations, PlacementRecommendationRow};
+use crate::engine::placement::{
+    compute_recommendations, persist_recommendations, PlacementRecommendationRow,
+};
 use crate::state::AppState;
 
 pub async fn list_recommendations(

@@ -47,15 +47,13 @@ pub async fn create_webhook(
 ) -> Result<Json<WebhookRow>, ApiError> {
     require_admin(&actor)?;
     let id = Uuid::new_v4();
-    sqlx::query(
-        "INSERT INTO webhooks (id, url, events, secret) VALUES ($1, $2, $3, $4)",
-    )
-    .bind(id)
-    .bind(&body.url)
-    .bind(&body.events)
-    .bind(&body.secret)
-    .execute(&state.pool)
-    .await?;
+    sqlx::query("INSERT INTO webhooks (id, url, events, secret) VALUES ($1, $2, $3, $4)")
+        .bind(id)
+        .bind(&body.url)
+        .bind(&body.events)
+        .bind(&body.secret)
+        .execute(&state.pool)
+        .await?;
     let row = sqlx::query_as::<_, WebhookRow>(
         "SELECT id, url, events, enabled, created_at FROM webhooks WHERE id = $1",
     )
@@ -173,10 +171,7 @@ pub async fn purge_webhook_deliveries(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_admin(&actor)?;
     let status = body.status.as_deref();
-    let url_pat = body
-        .url_contains
-        .as_deref()
-        .map(|s| format!("%{s}%"));
+    let url_pat = body.url_contains.as_deref().map(|s| format!("%{s}%"));
     let deleted = if let (Some(st), Some(url)) = (status, url_pat.as_deref()) {
         sqlx::query("DELETE FROM webhook_deliveries WHERE status = $1 AND url LIKE $2")
             .bind(st)

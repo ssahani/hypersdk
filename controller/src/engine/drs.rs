@@ -25,11 +25,10 @@ pub fn spawn(state: AppState) {
 }
 
 async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
-    let enabled: bool = sqlx::query_scalar(
-        "SELECT drs_auto_migrate FROM clusters ORDER BY created_at LIMIT 1",
-    )
-    .fetch_one(&state.pool)
-    .await?;
+    let enabled: bool =
+        sqlx::query_scalar("SELECT drs_auto_migrate FROM clusters ORDER BY created_at LIMIT 1")
+            .fetch_one(&state.pool)
+            .await?;
 
     if !enabled {
         return Ok(());
@@ -56,11 +55,10 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
             continue;
         }
 
-        let source_host: Option<Uuid> =
-            sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
-                .bind(vm_id)
-                .fetch_one(&state.pool)
-                .await?;
+        let source_host: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+            .bind(vm_id)
+            .fetch_one(&state.pool)
+            .await?;
 
         let _ = enqueue_task(
             state,
@@ -106,7 +104,10 @@ pub async fn get_inventory_sync_interval_secs(pool: &PgPool) -> anyhow::Result<i
     .map_err(Into::into)
 }
 
-pub async fn update_cluster_settings(pool: &PgPool, settings: &ClusterSettingsPatch) -> anyhow::Result<()> {
+pub async fn update_cluster_settings(
+    pool: &PgPool,
+    settings: &ClusterSettingsPatch,
+) -> anyhow::Result<()> {
     if let Some(v) = settings.drs_auto_migrate {
         sqlx::query("UPDATE clusters SET drs_auto_migrate = $1")
             .bind(v)
@@ -200,7 +201,15 @@ pub async fn fence_host(state: &AppState, host_id: Uuid) -> anyhow::Result<bool>
     .await?;
 
     let shell_cmd = std::env::var("MACHINA_FENCE_COMMAND").unwrap_or_default();
-    let mut client = agent_client::connect(&row.1).await?;
+    let mut client = tokio::time::timeout(
+        std::time::Duration::from_secs(8),
+        agent_client::connect(&row.1),
+    )
+    .await
+    .map_err(|_| anyhow::anyhow!(
+        "agent on {} ({}) unreachable; configure IPMI fencing for reliable isolation of unresponsive hosts",
+        row.0, row.1
+    ))??;
     let resp = agent_client::fence_host(
         &mut client,
         &row.0,
@@ -218,7 +227,11 @@ pub async fn fence_host(state: &AppState, host_id: Uuid) -> anyhow::Result<bool>
     )
     .bind(Uuid::new_v4())
     .bind(host_id)
-    .bind(if row.2 == "ipmi" { "ipmi-fence" } else { "fence" })
+    .bind(if row.2 == "ipmi" {
+        "ipmi-fence"
+    } else {
+        "fence"
+    })
     .bind(if row.2 == "ipmi" {
         format!("ipmitool -H {} power off", row.3)
     } else {

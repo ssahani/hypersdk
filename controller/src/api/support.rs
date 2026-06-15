@@ -2,10 +2,12 @@
 
 use axum::extract::State;
 use axum::response::IntoResponse;
+use axum::Extension;
 use axum::Json;
 use serde::Serialize;
 
 use crate::api::ApiError;
+use crate::auth::{require_admin, AuthUser};
 use crate::state::AppState;
 
 #[derive(Debug, Serialize)]
@@ -22,7 +24,9 @@ pub struct SupportBundleMeta {
 
 pub async fn support_bundle(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<impl IntoResponse, ApiError> {
+    require_admin(&actor)?;
     let task_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tasks")
         .fetch_one(&state.pool)
         .await?;

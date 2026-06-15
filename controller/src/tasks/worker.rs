@@ -79,7 +79,8 @@ async fn vm_apply(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         .as_str()
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
-    vm_lifecycle::set_vm_phase_clear_error(&state.pool, vm_id, vm_lifecycle::PHASE_CREATING).await?;
+    vm_lifecycle::set_vm_phase_clear_error(&state.pool, vm_id, vm_lifecycle::PHASE_CREATING)
+        .await?;
     let host_id: Uuid = msg.payload["host_id"]
         .as_str()
         .and_then(|s| Uuid::parse_str(s).ok())
@@ -112,13 +113,7 @@ async fn vm_apply(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         )
         .await?
         {
-            update_task_progress(
-                &state.pool,
-                msg.task_id,
-                35,
-                "Downloaded golden image",
-            )
-            .await?;
+            update_task_progress(&state.pool, msg.task_id, 35, "Downloaded golden image").await?;
         }
         Some(disk)
     } else {
@@ -147,11 +142,10 @@ async fn vm_apply(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     .execute(&state.pool)
     .await?;
 
-    let desired_state: String =
-        sqlx::query_scalar("SELECT desired_state FROM vms WHERE id = $1")
-            .bind(vm_id)
-            .fetch_one(&state.pool)
-            .await?;
+    let desired_state: String = sqlx::query_scalar("SELECT desired_state FROM vms WHERE id = $1")
+        .bind(vm_id)
+        .fetch_one(&state.pool)
+        .await?;
 
     if desired_state == "running" {
         vm_lifecycle::set_vm_phase(&state.pool, vm_id, vm_lifecycle::PHASE_STARTING).await?;
@@ -198,11 +192,10 @@ async fn vm_power(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     };
     vm_lifecycle::set_vm_phase_clear_error(&state.pool, vm_id, phase).await?;
 
-    let row: (String, Option<Uuid>) =
-        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
-            .bind(vm_id)
-            .fetch_one(&state.pool)
-            .await?;
+    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+        .bind(vm_id)
+        .fetch_one(&state.pool)
+        .await?;
     let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
@@ -233,7 +226,8 @@ async fn vm_install(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         .as_str()
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
-    vm_lifecycle::set_vm_phase_clear_error(&state.pool, vm_id, vm_lifecycle::PHASE_STARTING).await?;
+    vm_lifecycle::set_vm_phase_clear_error(&state.pool, vm_id, vm_lifecycle::PHASE_STARTING)
+        .await?;
 
     let row: (String, String, Option<Uuid>) =
         sqlx::query_as("SELECT name, spec_json, host_id FROM vms WHERE id = $1")
@@ -330,9 +324,21 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
     .bind(hb.cpu_percent)
     .bind(hb.memory_used_mib as i64)
     .bind(hb.memory_total_mib as i64)
-    .bind(info.as_ref().map(|i| i.cpu_model.as_str()).filter(|s| !s.is_empty()))
-    .bind(info.as_ref().map(|i| i.libvirt_version.as_str()).filter(|s| !s.is_empty()))
-    .bind(info.as_ref().map(|i| i.qemu_version.as_str()).filter(|s| !s.is_empty()))
+    .bind(
+        info.as_ref()
+            .map(|i| i.cpu_model.as_str())
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        info.as_ref()
+            .map(|i| i.libvirt_version.as_str())
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        info.as_ref()
+            .map(|i| i.qemu_version.as_str())
+            .filter(|s| !s.is_empty()),
+    )
     .bind(host_id)
     .execute(&state.pool)
     .await?;
@@ -390,7 +396,8 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
             .await;
 
             if vm.state == "running" {
-                crate::engine::vm_health::sync_guest_tools(&state.pool, id, &vm.name, host_id).await;
+                crate::engine::vm_health::sync_guest_tools(&state.pool, id, &vm.name, host_id)
+                    .await;
             }
         } else {
             let new_id = Uuid::new_v4();
@@ -416,24 +423,27 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
         }
     }
 
-    crate::engine::vm_inventory::reconcile_libvirt_host(
-        state,
-        host_id,
-        cluster_id,
-        &seen_names,
-    )
-    .await?;
+    crate::engine::vm_inventory::reconcile_libvirt_host(state, host_id, cluster_id, &seen_names)
+        .await?;
 
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
-    if let Err(e) = crate::engine::network_sync::sync_host_networks(&state.pool, host_id, &agent_addr).await {
+    if let Err(e) =
+        crate::engine::network_sync::sync_host_networks(&state.pool, host_id, &agent_addr).await
+    {
         tracing::warn!(%host_id, "network sync during inventory: {e:#}");
     }
-    if let Err(e) = crate::engine::storage_sync::sync_host_storage(&state.pool, host_id, &agent_addr).await {
+    if let Err(e) =
+        crate::engine::storage_sync::sync_host_storage(&state.pool, host_id, &agent_addr).await
+    {
         tracing::warn!(%host_id, "storage sync during inventory: {e:#}");
     }
-    if let Err(e) =
-        crate::engine::zeus_firewall::sync::sync_host_posture(&state.pool, &state.config, host_id, &agent_addr)
-            .await
+    if let Err(e) = crate::engine::zeus_firewall::sync::sync_host_posture(
+        &state.pool,
+        &state.config,
+        host_id,
+        &agent_addr,
+    )
+    .await
     {
         tracing::warn!(%host_id, "firewall posture sync during inventory: {e:#}");
     }
@@ -497,20 +507,18 @@ async fn vm_migrate(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         anyhow::bail!("migration pre-check failed: {msg}");
     }
 
-    let row: (String, Option<Uuid>) =
-        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
-            .bind(vm_id)
-            .fetch_one(&state.pool)
-            .await?;
+    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+        .bind(vm_id)
+        .fetch_one(&state.pool)
+        .await?;
     let source_host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
 
-    let dest_uri: String = sqlx::query_scalar(
-        "SELECT COALESCE(NULLIF(libvirt_uri, ''), $2) FROM hosts WHERE id = $1",
-    )
-    .bind(dest_host_id)
-    .bind(&state.config.default_libvirt_uri)
-    .fetch_one(&state.pool)
-    .await?;
+    let dest_uri: String =
+        sqlx::query_scalar("SELECT COALESCE(NULLIF(libvirt_uri, ''), $2) FROM hosts WHERE id = $1")
+            .bind(dest_host_id)
+            .bind(&state.config.default_libvirt_uri)
+            .fetch_one(&state.pool)
+            .await?;
 
     let agent_addr = host_agent_addr(&state.pool, source_host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
@@ -677,9 +685,7 @@ async fn ha_recover(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         .as_str()
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or_else(|| anyhow::anyhow!("host_id missing"))?;
-    let desired = msg.payload["desired_state"]
-        .as_str()
-        .unwrap_or("running");
+    let desired = msg.payload["desired_state"].as_str().unwrap_or("running");
 
     let row: (String, serde_json::Value) =
         sqlx::query_as("SELECT name, spec_json FROM vms WHERE id = $1")
@@ -787,15 +793,18 @@ async fn mark_task_failed(pool: &PgPool, id: Uuid, message: &str) -> anyhow::Res
     Ok(())
 }
 
-async fn update_task_progress(pool: &PgPool, id: Uuid, progress: i16, message: &str) -> anyhow::Result<()> {
-    sqlx::query(
-        "UPDATE tasks SET progress = $1, message = $2, updated_at = NOW() WHERE id = $3",
-    )
-    .bind(progress)
-    .bind(message)
-    .bind(id)
-    .execute(pool)
-    .await?;
+async fn update_task_progress(
+    pool: &PgPool,
+    id: Uuid,
+    progress: i16,
+    message: &str,
+) -> anyhow::Result<()> {
+    sqlx::query("UPDATE tasks SET progress = $1, message = $2, updated_at = NOW() WHERE id = $3")
+        .bind(progress)
+        .bind(message)
+        .bind(id)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
@@ -820,10 +829,7 @@ async fn vm_snapshot(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> 
 
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
-    let snap_name = msg.payload["name"]
-        .as_str()
-        .unwrap_or(&row.2)
-        .to_string();
+    let snap_name = msg.payload["name"].as_str().unwrap_or(&row.2).to_string();
     let description = msg.payload["description"]
         .as_str()
         .unwrap_or("machina platform snapshot")
@@ -877,11 +883,10 @@ async fn vm_snapshot_delete(state: &AppState, msg: &TaskMessage) -> anyhow::Resu
         .ok_or_else(|| anyhow::anyhow!("snapshot_name missing"))?
         .to_string();
 
-    let row: (String, Option<Uuid>) =
-        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
-            .bind(vm_id)
-            .fetch_one(&state.pool)
-            .await?;
+    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+        .bind(vm_id)
+        .fetch_one(&state.pool)
+        .await?;
     let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
@@ -905,20 +910,24 @@ async fn vm_backup(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
 
-    let row: (String, Option<Uuid>) =
-        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
-            .bind(vm_id)
-            .fetch_one(&state.pool)
-            .await?;
-    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
-    let backup_type: String = sqlx::query_scalar("SELECT backup_type FROM backup_records WHERE id = $1")
-        .bind(record_id)
+    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+        .bind(vm_id)
         .fetch_one(&state.pool)
         .await?;
+    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
+    let backup_type: String =
+        sqlx::query_scalar("SELECT backup_type FROM backup_records WHERE id = $1")
+            .bind(record_id)
+            .fetch_one(&state.pool)
+            .await?;
     let dest = state
         .config
         .backup_dir
-        .join(format!("{}-{}.qcow2", row.0, chrono::Utc::now().format("%Y%m%d%H%M%S")))
+        .join(format!(
+            "{}-{}.qcow2",
+            row.0,
+            chrono::Utc::now().format("%Y%m%d%H%M%S")
+        ))
         .to_string_lossy()
         .into_owned();
 
@@ -943,7 +952,10 @@ async fn vm_backup(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
             .execute(&state.pool)
             .await?;
 
-        if let Some(tid) = msg.payload["target_id"].as_str().and_then(|s| Uuid::parse_str(s).ok()) {
+        if let Some(tid) = msg.payload["target_id"]
+            .as_str()
+            .and_then(|s| Uuid::parse_str(s).ok())
+        {
             if let Ok(Some((kind, cfg))) = sqlx::query_as::<_, (String, serde_json::Value)>(
                 "SELECT kind, config_json FROM backup_targets WHERE id = $1",
             )
@@ -955,7 +967,13 @@ async fn vm_backup(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
                     let bucket = cfg["bucket"].as_str().unwrap_or("");
                     let prefix = cfg["prefix"].as_str().unwrap_or("machina");
                     if !bucket.is_empty() {
-                        let key = format!("{prefix}/{}", std::path::Path::new(&resp.path).file_name().and_then(|s| s.to_str()).unwrap_or("backup.qcow2"));
+                        let key = format!(
+                            "{prefix}/{}",
+                            std::path::Path::new(&resp.path)
+                                .file_name()
+                                .and_then(|s| s.to_str())
+                                .unwrap_or("backup.qcow2")
+                        );
                         let dest = format!("s3://{bucket}/{key}");
                         let endpoint = cfg["endpoint_url"].as_str().unwrap_or("");
                         let mut aws_args = vec!["s3", "cp", &resp.path, &dest];
@@ -963,10 +981,7 @@ async fn vm_backup(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
                             aws_args.push("--endpoint-url");
                             aws_args.push(endpoint);
                         }
-                        match std::process::Command::new("aws")
-                            .args(&aws_args)
-                            .output()
-                        {
+                        match std::process::Command::new("aws").args(&aws_args).output() {
                             Ok(out) if out.status.success() => {
                                 sqlx::query("UPDATE backup_records SET message = $1 WHERE id = $2")
                                     .bind(format!("{}; uploaded to {dest}", resp.message))
@@ -1010,11 +1025,10 @@ async fn vm_snapshot_revert(state: &AppState, msg: &TaskMessage) -> anyhow::Resu
         .ok_or_else(|| anyhow::anyhow!("snapshot_name missing"))?
         .to_string();
 
-    let row: (String, Option<Uuid>) =
-        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
-            .bind(vm_id)
-            .fetch_one(&state.pool)
-            .await?;
+    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+        .bind(vm_id)
+        .fetch_one(&state.pool)
+        .await?;
     let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
@@ -1022,7 +1036,10 @@ async fn vm_snapshot_revert(state: &AppState, msg: &TaskMessage) -> anyhow::Resu
     if !resp.ok {
         anyhow::bail!("revert failed: {}", resp.message);
     }
-    state.emit_event("vm.snapshot.revert", format!("Reverted {} to {}", row.0, snap_name));
+    state.emit_event(
+        "vm.snapshot.revert",
+        format!("Reverted {} to {}", row.0, snap_name),
+    );
     update_task_progress(&state.pool, msg.task_id, 100, "snapshot reverted").await?;
     Ok(())
 }
@@ -1093,18 +1110,24 @@ async fn vm_snapshot_clone(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
 
     if let Some(dest) = dest_host_id {
         if dest != host_id {
-            update_task_progress(&state.pool, msg.task_id, 80, "queueing migration to dest host").await?;
-            let live_migrate = msg.payload["live"].as_bool().unwrap_or(true);
-            let source_running: String = sqlx::query_scalar(
-                "SELECT observed_state FROM vms WHERE id = $1",
+            update_task_progress(
+                &state.pool,
+                msg.task_id,
+                80,
+                "queueing migration to dest host",
             )
-            .bind(vm_id)
-            .fetch_one(&state.pool)
-            .await
-            .unwrap_or_default();
+            .await?;
+            let live_migrate = msg.payload["live"].as_bool().unwrap_or(true);
+            let source_running: String =
+                sqlx::query_scalar("SELECT observed_state FROM vms WHERE id = $1")
+                    .bind(vm_id)
+                    .fetch_one(&state.pool)
+                    .await
+                    .unwrap_or_default();
             let use_live = live_migrate && source_running == "running";
             if use_live {
-                vm_lifecycle::set_vm_phase(&state.pool, new_id, vm_lifecycle::PHASE_STARTING).await?;
+                vm_lifecycle::set_vm_phase(&state.pool, new_id, vm_lifecycle::PHASE_STARTING)
+                    .await?;
                 agent_client::vm_power(&mut client, &new_name, "start", None).await?;
                 sqlx::query("UPDATE vms SET desired_state = 'running', observed_state = 'running' WHERE id = $1")
                     .bind(new_id)
@@ -1129,9 +1152,18 @@ async fn vm_snapshot_clone(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
 
     state.emit_event(
         "vm.snapshot.clone",
-        format!("Cloned {} from snapshot {} as {}", row.0, snap_name, new_name),
+        format!(
+            "Cloned {} from snapshot {} as {}",
+            row.0, snap_name, new_name
+        ),
     );
-    update_task_progress(&state.pool, msg.task_id, 100, "clone from snapshot complete").await?;
+    update_task_progress(
+        &state.pool,
+        msg.task_id,
+        100,
+        "clone from snapshot complete",
+    )
+    .await?;
     Ok(())
 }
 
@@ -1145,15 +1177,15 @@ async fn vm_backup_restore(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
 
-    let backup_path: String = sqlx::query_scalar("SELECT backup_path FROM backup_records WHERE id = $1")
-        .bind(record_id)
-        .fetch_one(&state.pool)
-        .await?;
-    let row: (String, Option<Uuid>) =
-        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
-            .bind(vm_id)
+    let backup_path: String =
+        sqlx::query_scalar("SELECT backup_path FROM backup_records WHERE id = $1")
+            .bind(record_id)
             .fetch_one(&state.pool)
             .await?;
+    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+        .bind(vm_id)
+        .fetch_one(&state.pool)
+        .await?;
     let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
 
     sqlx::query("UPDATE backup_records SET restore_status = 'running' WHERE id = $1")
@@ -1169,7 +1201,10 @@ async fn vm_backup_restore(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
             .bind(record_id)
             .execute(&state.pool)
             .await?;
-        state.emit_event("vm.backup.restore", format!("Restored {} from backup", row.0));
+        state.emit_event(
+            "vm.backup.restore",
+            format!("Restored {} from backup", row.0),
+        );
     } else {
         sqlx::query("UPDATE backup_records SET restore_status = 'failed' WHERE id = $1")
             .bind(record_id)
@@ -1201,7 +1236,13 @@ async fn templates_prefetch_missing(state: &AppState, msg: &TaskMessage) -> anyh
         crate::engine::template_readiness::list_missing_marketplace_images(&state.pool).await?;
     let targets: Vec<_> = missing.into_iter().filter(|m| m.auto_fetch).collect();
     if targets.is_empty() {
-        update_task_progress(&state.pool, msg.task_id, 100, "All auto-fetch images present").await?;
+        update_task_progress(
+            &state.pool,
+            msg.task_id,
+            100,
+            "All auto-fetch images present",
+        )
+        .await?;
         return Ok(());
     }
     let total = targets.len();
@@ -1336,9 +1377,15 @@ async fn host_tetragon_install(state: &AppState, msg: &TaskMessage) -> anyhow::R
         .get("host_id")
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    let host_id = Uuid::parse_str(host_id_str)
-        .map_err(|_| anyhow::anyhow!("host_id missing or invalid"))?;
-    update_task_progress(&state.pool, msg.task_id, 20, "registering PacketWolf sensor").await?;
+    let host_id =
+        Uuid::parse_str(host_id_str).map_err(|_| anyhow::anyhow!("host_id missing or invalid"))?;
+    update_task_progress(
+        &state.pool,
+        msg.task_id,
+        20,
+        "registering PacketWolf sensor",
+    )
+    .await?;
     if let Ok(agent_addr) = host_agent_addr(&state.pool, host_id).await {
         if let Err(e) = crate::engine::packetwolf_sync::sync_host_tetragon_install(
             &state.pool,
@@ -1353,7 +1400,13 @@ async fn host_tetragon_install(state: &AppState, msg: &TaskMessage) -> anyhow::R
     } else {
         anyhow::bail!("host agent address not found");
     }
-    update_task_progress(&state.pool, msg.task_id, 100, "Tetragon enrollment complete").await?;
+    update_task_progress(
+        &state.pool,
+        msg.task_id,
+        100,
+        "Tetragon enrollment complete",
+    )
+    .await?;
     Ok(())
 }
 
@@ -1408,17 +1461,15 @@ async fn k8s_tetragon_install(state: &AppState, msg: &TaskMessage) -> anyhow::Re
         },
     )
     .await?;
-    let _ = crate::engine::packetwolf_bridge::register_sensor(&state.config, &format!("k8s-{cluster_id}")).await;
+    let _ = crate::engine::packetwolf_bridge::register_sensor(
+        &state.config,
+        &format!("k8s-{cluster_id}"),
+    )
+    .await;
     if !helm.ok {
         anyhow::bail!(helm.message);
     }
-    update_task_progress(
-        &state.pool,
-        msg.task_id,
-        100,
-        &helm.message,
-    )
-    .await?;
+    update_task_progress(&state.pool, msg.task_id, 100, &helm.message).await?;
     Ok(())
 }
 
@@ -1558,24 +1609,29 @@ async fn storage_pool_provision(state: &AppState, msg: &TaskMessage) -> anyhow::
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or_else(|| anyhow::anyhow!("host_id missing"))?;
 
-    let row: (String, String, Option<String>) = sqlx::query_as(
-        "SELECT name, backend, path FROM storage_pools WHERE id = $1",
-    )
-    .bind(pool_id)
-    .fetch_one(&state.pool)
-    .await?;
-    let path = row.2.ok_or_else(|| anyhow::anyhow!("storage pool path required"))?;
+    let row: (String, String, Option<String>) =
+        sqlx::query_as("SELECT name, backend, path FROM storage_pools WHERE id = $1")
+            .bind(pool_id)
+            .fetch_one(&state.pool)
+            .await?;
+    let path = row
+        .2
+        .ok_or_else(|| anyhow::anyhow!("storage pool path required"))?;
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
     agent_client::provision_storage_pool(&mut client, &row.0, &row.1, &path).await?;
-    sqlx::query(
-        "UPDATE storage_pools SET path = COALESCE(path, $2) WHERE id = $1",
+    sqlx::query("UPDATE storage_pools SET path = COALESCE(path, $2) WHERE id = $1")
+        .bind(pool_id)
+        .bind(&path)
+        .execute(&state.pool)
+        .await?;
+    update_task_progress(
+        &state.pool,
+        msg.task_id,
+        100,
+        "storage pool provisioned on host",
     )
-    .bind(pool_id)
-    .bind(&path)
-    .execute(&state.pool)
     .await?;
-    update_task_progress(&state.pool, msg.task_id, 100, "storage pool provisioned on host").await?;
     state.emit_event(
         "storage.pool.provision",
         format!("Pool {} ({}) provisioned", row.0, row.1),
@@ -1593,23 +1649,16 @@ async fn network_provision(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or_else(|| anyhow::anyhow!("host_id missing"))?;
 
-    let row: (String, String, Option<i32>, Option<String>) = sqlx::query_as(
-        "SELECT name, backend, vlan_id, bridge FROM networks WHERE id = $1",
-    )
-    .bind(network_id)
-    .fetch_one(&state.pool)
-    .await?;
+    let row: (String, String, Option<i32>, Option<String>) =
+        sqlx::query_as("SELECT name, backend, vlan_id, bridge FROM networks WHERE id = $1")
+            .bind(network_id)
+            .fetch_one(&state.pool)
+            .await?;
     let bridge = row.3.unwrap_or_else(|| "virbr0".into());
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
-    agent_client::provision_network(
-        &mut client,
-        &row.0,
-        &row.1,
-        row.2.unwrap_or(0),
-        &bridge,
-    )
-    .await?;
+    agent_client::provision_network(&mut client, &row.0, &row.1, row.2.unwrap_or(0), &bridge)
+        .await?;
     update_task_progress(&state.pool, msg.task_id, 100, "network provisioned").await?;
     Ok(())
 }
@@ -1628,11 +1677,10 @@ async fn vm_disk_attach(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
         .unwrap_or("vdb")
         .to_string();
 
-    let row: (String, Option<Uuid>) =
-        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
-            .bind(vm_id)
-            .fetch_one(&state.pool)
-            .await?;
+    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+        .bind(vm_id)
+        .fetch_one(&state.pool)
+        .await?;
     let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
@@ -1643,11 +1691,10 @@ async fn vm_disk_attach(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
 }
 
 async fn vm_host_row(pool: &PgPool, vm_id: Uuid) -> anyhow::Result<(String, Uuid)> {
-    let row: (String, Option<Uuid>) =
-        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
-            .bind(vm_id)
-            .fetch_one(pool)
-            .await?;
+    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+        .bind(vm_id)
+        .fetch_one(pool)
+        .await?;
     let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
     Ok((row.0, host_id))
 }
@@ -1665,7 +1712,10 @@ async fn vm_disk_detach(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
     agent_client::detach_disk(&mut client, &name, &target_dev).await?;
-    state.emit_event("vm.disk.detach", format!("Detached disk {target_dev} from {name}"));
+    state.emit_event(
+        "vm.disk.detach",
+        format!("Detached disk {target_dev} from {name}"),
+    );
     update_task_progress(&state.pool, msg.task_id, 100, "disk detached").await?;
     Ok(())
 }
@@ -1711,7 +1761,10 @@ async fn vm_nic_attach(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
     agent_client::attach_nic(&mut client, &name, &network, &model).await?;
-    state.emit_event("vm.nic.attach", format!("Attached NIC on {network} to {name}"));
+    state.emit_event(
+        "vm.nic.attach",
+        format!("Attached NIC on {network} to {name}"),
+    );
     update_task_progress(&state.pool, msg.task_id, 100, "nic attached").await?;
     Ok(())
 }
@@ -1746,7 +1799,10 @@ async fn vm_autostart(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()>
     agent_client::set_autostart(&mut client, &name, enabled).await?;
     state.emit_event(
         "vm.autostart",
-        format!("Autostart {} for {name}", if enabled { "enabled" } else { "disabled" }),
+        format!(
+            "Autostart {} for {name}",
+            if enabled { "enabled" } else { "disabled" }
+        ),
     );
     update_task_progress(&state.pool, msg.task_id, 100, "autostart updated").await?;
     Ok(())
@@ -1799,21 +1855,25 @@ async fn vm_guest_tools_install(state: &AppState, msg: &TaskMessage) -> anyhow::
         .as_str()
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
-    let row: (String, Option<Uuid>) =
-        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
-            .bind(vm_id)
-            .fetch_one(&state.pool)
-            .await?;
+    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+        .bind(vm_id)
+        .fetch_one(&state.pool)
+        .await?;
     let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
     agent_client::install_guest_tools(&mut client, &row.0).await?;
     crate::engine::vm_health::sync_guest_tools(&state.pool, vm_id, &row.0, host_id).await;
-    sqlx::query("UPDATE vms SET guest_tools_status = 'installed', updated_at = NOW() WHERE id = $1")
-        .bind(vm_id)
-        .execute(&state.pool)
-        .await?;
-    state.emit_event("vm.guest_tools", format!("Guest tools channel attached for {}", row.0));
+    sqlx::query(
+        "UPDATE vms SET guest_tools_status = 'installed', updated_at = NOW() WHERE id = $1",
+    )
+    .bind(vm_id)
+    .execute(&state.pool)
+    .await?;
+    state.emit_event(
+        "vm.guest_tools",
+        format!("Guest tools channel attached for {}", row.0),
+    );
     update_task_progress(&state.pool, msg.task_id, 100, "guest tools install queued").await?;
     Ok(())
 }

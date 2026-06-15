@@ -1,12 +1,14 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use axum::extract::{Path, State};
+use axum::Extension;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::api::tasks::TaskResponse;
 use crate::api::ApiError;
+use crate::auth::{require_admin, require_operator, AuthUser};
 use crate::state::AppState;
 use crate::tasks::enqueue::enqueue_task;
 
@@ -33,7 +35,9 @@ pub struct CreateBlueprintBody {
 
 pub async fn list_blueprints(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<BlueprintRow>>, ApiError> {
+    require_operator(&actor)?;
     let rows = sqlx::query_as::<_, BlueprintRow>(
         "SELECT id, name, description, actions, vm_ids, created_at FROM blueprints ORDER BY name",
     )
@@ -44,12 +48,16 @@ pub async fn list_blueprints(
 
 pub async fn create_blueprint(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Json(body): Json<CreateBlueprintBody>,
 ) -> Result<Json<BlueprintRow>, ApiError> {
+    require_operator(&actor)?;
     let name = body.name.trim();
     machina_spec::validate_label(name).map_err(|e| ApiError::bad_request(e.to_string()))?;
     if body.actions.is_empty() {
-        return Err(ApiError::bad_request("actions required (start, stop, backup)"));
+        return Err(ApiError::bad_request(
+            "actions required (start, stop, backup)",
+        ));
     }
     let cluster_id: Uuid = sqlx::query_scalar("SELECT id FROM clusters LIMIT 1")
         .fetch_one(&state.pool)
@@ -79,8 +87,10 @@ pub async fn create_blueprint(
 
 pub async fn run_blueprint(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let row: (serde_json::Value, Vec<Uuid>) =
         sqlx::query_as("SELECT actions, vm_ids FROM blueprints WHERE id = $1")
             .bind(id)
@@ -98,20 +108,26 @@ pub async fn run_blueprint(
             .flatten();
         for action in &actions {
             let (op, payload) = match action.as_str() {
-                "start" => ("vm.power", serde_json::json!({ "vm_id": vm_id.to_string(), "action": "start" })),
-                "stop" => ("vm.power", serde_json::json!({ "vm_id": vm_id.to_string(), "action": "stop" })),
-                "backup" => ("vm.backup", serde_json::json!({ "vm_id": vm_id.to_string(), "backup_type": "full" })),
-                other => return Err(ApiError::bad_request(format!("unknown blueprint action: {other}"))),
+                "start" => (
+                    "vm.power",
+                    serde_json::json!({ "vm_id": vm_id.to_string(), "action": "start" }),
+                ),
+                "stop" => (
+                    "vm.power",
+                    serde_json::json!({ "vm_id": vm_id.to_string(), "action": "stop" }),
+                ),
+                "backup" => (
+                    "vm.backup",
+                    serde_json::json!({ "vm_id": vm_id.to_string(), "backup_type": "full" }),
+                ),
+                other => {
+                    return Err(ApiError::bad_request(format!(
+                        "unknown blueprint action: {other}"
+                    )))
+                }
             };
-            let task_id = enqueue_task(
-                &state,
-                op,
-                payload,
-                Some("vm"),
-                Some(*vm_id),
-                host_id,
-            )
-            .await?;
+            let task_id =
+                enqueue_task(&state, op, payload, Some("vm"), Some(*vm_id), host_id).await?;
             task_ids.push(task_id.to_string());
         }
     }
@@ -120,8 +136,10 @@ pub async fn run_blueprint(
 
 pub async fn delete_blueprint(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&actor)?;
     let deleted = sqlx::query("DELETE FROM blueprints WHERE id = $1")
         .bind(id)
         .execute(&state.pool)

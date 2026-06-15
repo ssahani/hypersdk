@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::api::ApiError;
-use crate::auth::AuthUser;
+use crate::auth::{require_operator, AuthUser};
 use crate::state::AppState;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -65,9 +65,10 @@ pub async fn list_fleet_snapshot_schedules(
 
 pub async fn create_fleet_snapshot_schedule(
     State(state): State<AppState>,
-    Extension(_actor): Extension<AuthUser>,
+    Extension(actor): Extension<AuthUser>,
     Json(body): Json<CreateFleetSnapshotScheduleBody>,
 ) -> Result<Json<FleetSnapshotScheduleRow>, ApiError> {
+    require_operator(&actor)?;
     if body.name.trim().is_empty() {
         return Err(ApiError::bad_request("name is required"));
     }

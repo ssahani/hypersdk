@@ -55,9 +55,10 @@ async fn sync_all_hosts(state: &AppState) -> anyhow::Result<()> {
 }
 
 async fn sync_kubevirt_inventory(state: &AppState) -> anyhow::Result<()> {
-    let cluster_id: Option<Uuid> = sqlx::query_scalar("SELECT id FROM clusters ORDER BY created_at LIMIT 1")
-        .fetch_optional(&state.pool)
-        .await?;
+    let cluster_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT id FROM clusters ORDER BY created_at LIMIT 1")
+            .fetch_optional(&state.pool)
+            .await?;
     let Some(cluster_id) = cluster_id else {
         return Ok(());
     };

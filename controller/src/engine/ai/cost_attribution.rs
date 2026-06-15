@@ -113,14 +113,19 @@ pub async fn attribute(pool: &PgPool) -> anyhow::Result<CostAttributionReport> {
     }
 
     let cfg = crate::config::ControllerConfig::default();
-    if let Ok(exp_teams) = crate::engine::zeus_firewall::finops::team_exposure_attribution(pool, &cfg).await {
+    if let Ok(exp_teams) =
+        crate::engine::zeus_firewall::finops::team_exposure_attribution(pool, &cfg).await
+    {
         for (team, exposure, _) in exp_teams {
             let key = if team.starts_with("metal:") {
                 format!("tag:{team}")
             } else {
                 format!("tag:{team}")
             };
-            if let Some(row) = teams.iter_mut().find(|t| t.team.contains(&team) || t.team == key) {
+            if let Some(row) = teams
+                .iter_mut()
+                .find(|t| t.team.contains(&team) || t.team == key)
+            {
                 row.exposure_monthly_usd = exposure;
             } else {
                 teams.push(TeamCostRow {

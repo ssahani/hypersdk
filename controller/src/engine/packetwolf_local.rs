@@ -33,7 +33,8 @@ struct LocalFabricState {
     pending_tetragon: HashMap<String, PendingTetragonInstall>,
 }
 
-static LOCAL_FABRIC: LazyLock<RwLock<LocalFabricState>> = LazyLock::new(|| RwLock::new(LocalFabricState::default()));
+static LOCAL_FABRIC: LazyLock<RwLock<LocalFabricState>> =
+    LazyLock::new(|| RwLock::new(LocalFabricState::default()));
 
 pub fn load_from_rows(
     rows: Vec<(
@@ -255,7 +256,11 @@ pub fn fabric_health(cfg: &ControllerConfig, packetwolf_reachable: bool) -> Valu
         "summary": "Production PacketWolf lacks dev fabric routes — sensor registry handled by Machina controller",
     }));
     let status = if packetwolf_reachable {
-        if sensors.is_empty() { "degraded" } else { "healthy" }
+        if sensors.is_empty() {
+            "degraded"
+        } else {
+            "healthy"
+        }
     } else {
         "offline"
     };
@@ -306,7 +311,10 @@ mod tests {
         );
 
         let ack = ack_agent_bundle(host);
-        assert_eq!(ack.get("acknowledged").and_then(|v| v.as_bool()), Some(true));
+        assert_eq!(
+            ack.get("acknowledged").and_then(|v| v.as_bool()),
+            Some(true)
+        );
         let bundle_after = agent_bundle(host);
         assert!(bundle_after.get("tetragon_install").unwrap().is_null());
     }

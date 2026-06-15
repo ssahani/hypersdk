@@ -44,6 +44,7 @@ jsonwebtoken = "9"
 urlencoding = "2"
 hex = "0.4"
 rand = { workspace = true }
+aes-gcm = { workspace = true }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 tokio-tungstenite = "0.28"
 libvirt-guac-bridge = { path = "../guac-bridge" }

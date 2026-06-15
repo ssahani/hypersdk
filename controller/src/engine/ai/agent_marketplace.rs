@@ -20,13 +20,15 @@ pub async fn list_agents(pool: &PgPool) -> anyhow::Result<Vec<AgentPluginRow>> {
     .await?;
     Ok(rows
         .into_iter()
-        .map(|(slug, name, description, agent_id, installed)| AgentPluginRow {
-            slug,
-            name,
-            description,
-            agent_id,
-            installed,
-        })
+        .map(
+            |(slug, name, description, agent_id, installed)| AgentPluginRow {
+                slug,
+                name,
+                description,
+                agent_id,
+                installed,
+            },
+        )
         .collect())
 }
 
@@ -57,13 +59,15 @@ async fn get(pool: &PgPool, slug: &str) -> anyhow::Result<Option<AgentPluginRow>
     .bind(slug)
     .fetch_optional(pool)
     .await?;
-    Ok(row.map(|(slug, name, description, agent_id, installed)| AgentPluginRow {
-        slug,
-        name,
-        description,
-        agent_id,
-        installed,
-    }))
+    Ok(row.map(
+        |(slug, name, description, agent_id, installed)| AgentPluginRow {
+            slug,
+            name,
+            description,
+            agent_id,
+            installed,
+        },
+    ))
 }
 
 #[derive(Debug, Deserialize)]

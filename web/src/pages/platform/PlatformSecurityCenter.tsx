@@ -16,6 +16,7 @@ import {
   getFleetThreatSummary,
   getFabricHealth,
   getZeusSecurityGraph,
+  getZeusSecuritySensors,
   getZeusSecurityStatus,
   installFleetTetragon,
   nlSecuritySearch,
@@ -74,6 +75,7 @@ export default function PlatformSecurityCenter() {
   const [graph, setGraph] = useState<SecurityGraph | null>(null)
   const [sensorCount, setSensorCount] = useState(0)
   const [sensorMatrix, setSensorMatrix] = useState<FleetSensorRow[]>([])
+  const [sensorRegistry, setSensorRegistry] = useState<Array<Record<string, unknown>>>([])
   const [fleetEnrollBusy, setFleetEnrollBusy] = useState(false)
   const [timeline, setTimeline] = useState<SecurityEvent[]>([])
   const [fabricHealth, setFabricHealth] = useState<FabricHealth | null>(null)
@@ -87,11 +89,12 @@ export default function PlatformSecurityCenter() {
     setError(null)
     setLoading(true)
     try {
-      const [st, th, gr, fleetSensors, tl, health] = await Promise.all([
+      const [st, th, gr, fleetSensors, sensorReg, tl, health] = await Promise.all([
         getZeusSecurityStatus(),
         getFleetThreatSummary(),
         getZeusSecurityGraph(),
         getFleetSensors(),
+        getZeusSecuritySensors().catch(() => ({ sensors: [] as Array<Record<string, unknown>> })),
         getFleetSecurityTimeline(24),
         getFabricHealth(),
       ])
@@ -100,6 +103,7 @@ export default function PlatformSecurityCenter() {
       setGraph(gr)
       setSensorCount(fleetSensors.sensors?.length ?? fleetSensors.matrix?.length ?? 0)
       setSensorMatrix(fleetSensors.matrix ?? [])
+      setSensorRegistry(sensorReg.sensors ?? [])
       setTimeline(tl.events ?? [])
       setFabricHealth(health)
     } catch (e: unknown) {
@@ -264,6 +268,27 @@ export default function PlatformSecurityCenter() {
               </ul>
             )}
           </MacGlassPanel>
+
+          {sensorRegistry.length > 0 && (
+            <MacGlassPanel
+              title="Sensor registry"
+              subtitle="GET /api/v1/zeus-security/sensors — enrolled PacketWolf / Tetragon endpoints"
+            >
+              <ul className="text-sm space-y-2">
+                {sensorRegistry.slice(0, 10).map((row, i) => (
+                  <li key={String(row.id ?? row.host_id ?? i)} className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.04] pb-2">
+                    <span className="text-slate-300">
+                      {String(row.hostname ?? row.name ?? row.host_id ?? 'sensor')}
+                      {row.kind ? <span className="text-slate-500 text-xs ml-2">{String(row.kind)}</span> : null}
+                    </span>
+                    <span className={`text-xs ${statusToneClass(row.healthy === false || row.status === 'unhealthy' ? 'warn' : 'ok')}`}>
+                      {String(row.status ?? (row.healthy === false ? 'unhealthy' : 'healthy'))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </MacGlassPanel>
+          )}
 
           <MacGlassPanel title="Critical" subtitle="Requires attention">
             {critical.length === 0 ? (

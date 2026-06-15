@@ -49,7 +49,14 @@ async fn mark_stale_hosts(state: &AppState) -> anyhow::Result<()> {
             .bind(id)
             .execute(pool)
             .await?;
-        record_ha_event(pool, None, Some(id), "host.offline", &format!("Host {hostname} marked offline")).await?;
+        record_ha_event(
+            pool,
+            None,
+            Some(id),
+            "host.offline",
+            &format!("Host {hostname} marked offline"),
+        )
+        .await?;
 
         let needs_fence: bool = sqlx::query_scalar(
             "SELECT EXISTS(
@@ -72,11 +79,10 @@ async fn mark_stale_hosts(state: &AppState) -> anyhow::Result<()> {
 }
 
 async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
-    let ha_enabled: bool = sqlx::query_scalar(
-        "SELECT ha_enabled FROM clusters ORDER BY created_at LIMIT 1",
-    )
-    .fetch_one(&state.pool)
-    .await?;
+    let ha_enabled: bool =
+        sqlx::query_scalar("SELECT ha_enabled FROM clusters ORDER BY created_at LIMIT 1")
+            .fetch_one(&state.pool)
+            .await?;
     if !ha_enabled {
         return Ok(());
     }
@@ -156,7 +162,10 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
             &format!("Recovering VM {vm_name} onto host {dest_host}"),
         )
         .await?;
-        state.emit_event("ha.recover", format!("Recovering {vm_name} after host failure"));
+        state.emit_event(
+            "ha.recover",
+            format!("Recovering {vm_name} after host failure"),
+        );
     }
     Ok(())
 }

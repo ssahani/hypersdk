@@ -6,7 +6,7 @@ use axum::Json;
 use uuid::Uuid;
 
 use crate::api::ApiError;
-use crate::auth::AuthUser;
+use crate::auth::{require_admin, AuthUser};
 use crate::engine::enterprise_security::{
     self, CreateAirGapBundleRequest, RegisterVaultProviderRequest, UpsertMfaPolicyRequest,
     UpsertTenantPolicyRequest,
@@ -33,9 +33,10 @@ pub async fn list_vault_providers(
 
 pub async fn register_vault_provider(
     State(state): State<AppState>,
-    Extension(_actor): Extension<AuthUser>,
+    Extension(actor): Extension<AuthUser>,
     Json(body): Json<RegisterVaultProviderRequest>,
 ) -> Result<Json<enterprise_security::VaultProviderRow>, ApiError> {
+    require_admin(&actor)?;
     enterprise_security::register_vault_provider(&state.pool, &body)
         .await
         .map(Json)
@@ -53,10 +54,11 @@ pub async fn list_mfa_policies(
 
 pub async fn upsert_mfa_policy(
     State(state): State<AppState>,
-    Extension(_actor): Extension<AuthUser>,
+    Extension(actor): Extension<AuthUser>,
     Path(role): Path<String>,
     Json(body): Json<UpsertMfaPolicyRequest>,
 ) -> Result<Json<enterprise_security::MfaPolicyRow>, ApiError> {
+    require_admin(&actor)?;
     enterprise_security::upsert_mfa_policy(&state.pool, &role, &body)
         .await
         .map(Json)
@@ -74,9 +76,10 @@ pub async fn list_air_gap_bundles(
 
 pub async fn create_air_gap_bundle(
     State(state): State<AppState>,
-    Extension(_actor): Extension<AuthUser>,
+    Extension(actor): Extension<AuthUser>,
     Json(body): Json<CreateAirGapBundleRequest>,
 ) -> Result<Json<enterprise_security::AirGapBundleRow>, ApiError> {
+    require_admin(&actor)?;
     enterprise_security::create_air_gap_bundle(&state.pool, &body)
         .await
         .map(Json)
@@ -95,9 +98,10 @@ pub async fn get_air_gap_bundle(
 
 pub async fn sync_vault_provider(
     State(state): State<AppState>,
-    Extension(_actor): Extension<AuthUser>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<enterprise_security::VaultSyncResult>, ApiError> {
+    require_admin(&actor)?;
     enterprise_security::sync_vault_provider(&state.pool, id)
         .await
         .map(Json)
@@ -106,8 +110,9 @@ pub async fn sync_vault_provider(
 
 pub async fn sync_all_vault_providers(
     State(state): State<AppState>,
-    Extension(_actor): Extension<AuthUser>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<enterprise_security::VaultSyncAllResult>, ApiError> {
+    require_admin(&actor)?;
     enterprise_security::sync_all_vault_providers(&state.pool)
         .await
         .map(Json)
@@ -143,10 +148,11 @@ pub async fn tenant_isolation_overview(
 
 pub async fn upsert_tenant_policy(
     State(state): State<AppState>,
-    Extension(_actor): Extension<AuthUser>,
+    Extension(actor): Extension<AuthUser>,
     Path(project): Path<String>,
     Json(body): Json<UpsertTenantPolicyRequest>,
 ) -> Result<Json<enterprise_security::TenantIsolationItem>, ApiError> {
+    require_admin(&actor)?;
     enterprise_security::upsert_tenant_policy(&state.pool, &project, &body)
         .await
         .map(Json)

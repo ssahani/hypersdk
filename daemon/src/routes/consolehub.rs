@@ -156,7 +156,11 @@ impl ConsoleSessionStore {
             return false;
         }
         let mut hist = self.history.write().await;
-        if let Some(row) = hist.iter_mut().rev().find(|r| r.session_id == id.to_string()) {
+        if let Some(row) = hist
+            .iter_mut()
+            .rev()
+            .find(|r| r.session_id == id.to_string())
+        {
             row.ended_at = Some(chrono::Utc::now().to_rfc3339());
         }
         true
@@ -187,13 +191,21 @@ fn guacamole_reachable(base_url: &str) -> bool {
         format!("{host_port}:8081")
     };
     std::net::TcpStream::connect_timeout(
-        &addr.parse().unwrap_or_else(|_| "127.0.0.1:8081".parse().unwrap()),
+        &addr
+            .parse()
+            .unwrap_or_else(|_| "127.0.0.1:8081".parse().unwrap()),
         Duration::from_millis(400),
     )
     .is_ok()
 }
 
-fn build_protocol_list(console_type: &str, guac_up: bool, vnc_port: i32, guest_ip: &str, os_hint: &str) -> Vec<String> {
+fn build_protocol_list(
+    console_type: &str,
+    guac_up: bool,
+    vnc_port: i32,
+    guest_ip: &str,
+    os_hint: &str,
+) -> Vec<String> {
     let mut out = vec!["novnc".into()];
     if console_type == "spice" {
         out.push("spice".into());
@@ -234,7 +246,9 @@ async fn build_plan(
             let xml = machina_core::libvirt::domain::get_vm_xml(conn, &name2).unwrap_or_default();
             let mut guest_ip = String::new();
             let mut os_hint = "unknown".to_string();
-            if xml.to_lowercase().contains("microsoft windows") || xml.to_lowercase().contains("<os>windows") {
+            if xml.to_lowercase().contains("microsoft windows")
+                || xml.to_lowercase().contains("<os>windows")
+            {
                 os_hint = "windows".into();
             } else if !xml.is_empty() {
                 os_hint = "linux".into();
@@ -346,7 +360,10 @@ fn urlencoding_light(s: &str) -> String {
 pub fn api_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/vms/{name}/consolehub/plan", get(consolehub_plan))
-        .route("/vms/{name}/consolehub/sessions", get(list_sessions).post(create_session))
+        .route(
+            "/vms/{name}/consolehub/sessions",
+            get(list_sessions).post(create_session),
+        )
         .route("/consolehub/sessions/{session_id}/end", post(end_session))
 }
 
@@ -356,9 +373,18 @@ pub fn proxy_routes() -> Router {
             "/consolehub/guacamole/{session_id}/websocket-tunnel",
             any(guac_ws_proxy),
         )
-        .route("/consolehub/guacamole/{session_id}", any(guac_http_proxy_root))
-        .route("/consolehub/guacamole/{session_id}/", any(guac_http_proxy_root))
-        .route("/consolehub/guacamole/{session_id}/{*path}", any(guac_http_proxy))
+        .route(
+            "/consolehub/guacamole/{session_id}",
+            any(guac_http_proxy_root),
+        )
+        .route(
+            "/consolehub/guacamole/{session_id}/",
+            any(guac_http_proxy_root),
+        )
+        .route(
+            "/consolehub/guacamole/{session_id}/{*path}",
+            any(guac_http_proxy),
+        )
 }
 
 async fn consolehub_plan(
@@ -419,7 +445,8 @@ async fn create_session(
     let audit_id = Uuid::new_v4();
     let expires_at = chrono::Utc::now() + chrono::Duration::seconds(ttl.as_secs() as i64);
 
-    let (backend, guac_token, emergency_url, guacamole_base) = if protocol.starts_with("guacamole_") {
+    let (backend, guac_token, emergency_url, guacamole_base) = if protocol.starts_with("guacamole_")
+    {
         let guac = &cfg.guacamole;
         if !guac.enabled || guac.json_secret_hex.trim().is_empty() {
             return Err(AppError::from(machina_core::LibvirtError::Invalid(
@@ -428,10 +455,11 @@ async fn create_session(
         }
         let guest_ip = plan.guest_ip.clone().unwrap_or_default();
         let name2 = name.clone();
-        let (vnc_host, vnc_port) = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
-            vnc::resolve_vnc_tcp(conn, &name2).map_err(machina_core::LibvirtError::from)
-        })
-        .await?;
+        let (vnc_host, vnc_port) =
+            spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+                vnc::resolve_vnc_tcp(conn, &name2).map_err(machina_core::LibvirtError::from)
+            })
+            .await?;
         let target = guac_target_for_protocol(
             &protocol,
             &vnc_host,
@@ -448,7 +476,11 @@ async fn create_session(
             username_storage.as_str()
         };
         let public = guac.public_vnc_host.trim();
-        let public_opt = if public.is_empty() { None } else { Some(public) };
+        let public_opt = if public.is_empty() {
+            None
+        } else {
+            Some(public)
+        };
         let params = GuacamoleBridgeParams {
             secret_hex: &guac.json_secret_hex,
             base_url: &guac.base_url,
@@ -460,15 +492,11 @@ async fn create_session(
             .await
             .map_err(|e| machina_core::LibvirtError::Invalid(e.to_string()))?;
         let base = guac.base_url.trim_end_matches('/').to_string();
-        let emergency = bridge.token.as_ref().map(|t| {
-            format!("{base}/#/?token={}", urlencoding_light(t))
-        });
-        (
-            "guacamole".to_string(),
-            bridge.token,
-            emergency,
-            base,
-        )
+        let emergency = bridge
+            .token
+            .as_ref()
+            .map(|t| format!("{base}/#/?token={}", urlencoding_light(t)));
+        ("guacamole".to_string(), bridge.token, emergency, base)
     } else {
         ("native".to_string(), None, None, String::new())
     };
@@ -495,7 +523,10 @@ async fn create_session(
         // Must include a path segment — `{*path}` does not match `/session/?token=…` (SPA fallback → 404).
         format!("{PROXY_PREFIX}/{session_id}/index.html{token_q}")
     } else {
-        format!("/vms/{}/consolehub?session={session_id}&native=1", urlencoding_light(&name))
+        format!(
+            "/vms/{}/consolehub?session={session_id}&native=1",
+            urlencoding_light(&name)
+        )
     };
 
     Ok(Json(ConsoleSessionResponse {
@@ -556,9 +587,9 @@ fn guac_target_for_protocol(
                 username: ssh_user.to_string(),
             })
         }
-        other => Err(AppError::from(machina_core::LibvirtError::Invalid(format!(
-            "unsupported Guacamole protocol: {other}"
-        )))),
+        other => Err(AppError::from(machina_core::LibvirtError::Invalid(
+            format!("unsupported Guacamole protocol: {other}"),
+        ))),
     }
 }
 
@@ -644,7 +675,10 @@ async fn guac_http_proxy_impl(
     let headers = out.headers_mut().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
     for (k, v) in resp.headers().iter() {
         let name = k.as_str();
-        if matches!(name, "transfer-encoding" | "connection" | "content-encoding") {
+        if matches!(
+            name,
+            "transfer-encoding" | "connection" | "content-encoding"
+        ) {
             continue;
         }
         if let Ok(val) = HeaderValue::from_bytes(v.as_bytes()) {

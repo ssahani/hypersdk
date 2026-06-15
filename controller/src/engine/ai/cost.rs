@@ -60,10 +60,14 @@ pub async fn analyze(pool: &PgPool) -> anyhow::Result<CostAnalysis> {
 
     let mut suggestions = Vec::new();
     if idle_vm_count > 0 {
-        suggestions.push(format!("Archive or remove {idle_vm_count} idle VM(s) stopped 30+ days."));
+        suggestions.push(format!(
+            "Archive or remove {idle_vm_count} idle VM(s) stopped 30+ days."
+        ));
     }
     if oversized_vm_count > 0 {
-        suggestions.push(format!("Right-size {oversized_vm_count} VM(s) using <35% allocated memory."));
+        suggestions.push(format!(
+            "Right-size {oversized_vm_count} VM(s) using <35% allocated memory."
+        ));
     }
     if snapshot_heavy_count > 5 {
         suggestions.push("Consolidate old snapshots to reduce storage cost.".into());
@@ -111,9 +115,15 @@ Estimated monthly USD,",
     );
     csv.push_str(&format!("{:.2}\n", analysis.estimated_monthly_usd));
     csv.push_str(&format!("VM count,{}\n", analysis.vm_count));
-    csv.push_str(&format!("Idle VMs (30d+ stopped),{}\n", analysis.idle_vm_count));
+    csv.push_str(&format!(
+        "Idle VMs (30d+ stopped),{}\n",
+        analysis.idle_vm_count
+    ));
     csv.push_str(&format!("Oversized VMs,{}\n", analysis.oversized_vm_count));
-    csv.push_str(&format!("Snapshot-heavy VMs,{}\n", analysis.snapshot_heavy_count));
+    csv.push_str(&format!(
+        "Snapshot-heavy VMs,{}\n",
+        analysis.snapshot_heavy_count
+    ));
     csv.push_str(&format!("vCPU rate USD/hr,{}\n", rates.0));
     csv.push_str(&format!("Memory rate USD/GiB/hr,{}\n\n", rates.1));
     csv.push_str("VM,vCPUs,Memory MiB,State,Est monthly USD\n");

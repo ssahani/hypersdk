@@ -14,10 +14,11 @@ pub async fn prometheus_metrics(State(state): State<AppState>) -> impl IntoRespo
         .fetch_one(&state.pool)
         .await
         .unwrap_or(0);
-    let running: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vms WHERE observed_state = 'running'")
-        .fetch_one(&state.pool)
-        .await
-        .unwrap_or(0);
+    let running: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM vms WHERE observed_state = 'running'")
+            .fetch_one(&state.pool)
+            .await
+            .unwrap_or(0);
     let tasks_pending: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM tasks WHERE status = 'pending'")
             .fetch_one(&state.pool)
@@ -69,12 +70,15 @@ pub async fn prometheus_metrics(State(state): State<AppState>) -> impl IntoRespo
              # HELP machina_vm_cpu_percent VM CPU percent (0 when unavailable)\n\
              # TYPE machina_vm_cpu_percent gauge\n\
              machina_vm_cpu_percent{{vm=\"{name}\",vm_id=\"{}\"}} {}\n",
-            row.vm_id,
-            row.memory_used_mib,
-            row.vm_id,
-            row.cpu_percent,
+            row.vm_id, row.memory_used_mib, row.vm_id, row.cpu_percent,
         ));
     }
     body.push_str(&crate::engine::observability::prometheus_slo_gauges(&state.pool).await);
-    ([(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4")], body)
+    (
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; version=0.0.4",
+        )],
+        body,
+    )
 }

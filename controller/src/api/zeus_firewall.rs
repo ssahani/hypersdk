@@ -8,7 +8,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::api::ApiError;
-use crate::auth::AuthUser;
+use crate::auth::{require_admin, require_operator, AuthUser};
 use crate::engine::ai::firewall as ai_firewall;
 use crate::engine::packetwolf_bridge;
 use crate::engine::zeus_firewall;
@@ -21,7 +21,9 @@ pub async fn status(State(state): State<AppState>) -> Json<serde_json::Value> {
     }))
 }
 
-pub async fn overview(State(state): State<AppState>) -> Result<Json<zeus_firewall::FirewallOverview>, ApiError> {
+pub async fn overview(
+    State(state): State<AppState>,
+) -> Result<Json<zeus_firewall::FirewallOverview>, ApiError> {
     zeus_firewall::overview(&state.pool, &state.config)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))
@@ -87,7 +89,10 @@ pub async fn plan_target(
     Path(id): Path<String>,
     Json(body): Json<PlanBody>,
 ) -> Result<Json<machina_core::FirewallPlanResult>, ApiError> {
-    let stealth = body.stealth_level.as_deref().map(machina_core::firewall::apply::stealth_level_from_str);
+    let stealth = body
+        .stealth_level
+        .as_deref()
+        .map(machina_core::firewall::apply::stealth_level_from_str);
     let req = FirewallPlanRequest {
         profile: body.profile,
         enable: body.enable,
@@ -107,7 +112,11 @@ pub async fn apply_target(
     Path(id): Path<String>,
     Json(body): Json<PlanBody>,
 ) -> Result<Json<machina_core::FirewallPlanResult>, ApiError> {
-    let stealth = body.stealth_level.as_deref().map(machina_core::firewall::apply::stealth_level_from_str);
+    require_operator(&actor)?;
+    let stealth = body
+        .stealth_level
+        .as_deref()
+        .map(machina_core::firewall::apply::stealth_level_from_str);
     let req = FirewallPlanRequest {
         profile: body.profile,
         enable: body.enable,
@@ -132,8 +141,10 @@ pub async fn list_profiles(
 
 pub async fn create_temporary_rule(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Json(body): Json<zeus_firewall::temporary::TemporaryRuleRequest>,
 ) -> Result<Json<zeus_firewall::temporary::TemporaryRule>, ApiError> {
+    require_operator(&actor)?;
     zeus_firewall::temporary::create_temporary_rule(&state.pool, body)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))
@@ -163,10 +174,17 @@ pub async fn lockdown(
     Path(id): Path<String>,
     Json(body): Json<LockdownBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    zeus_firewall::lockdown_target(&state.pool, &state.config, &id, body.capture, &actor.username)
-        .await
-        .map_err(|e| ApiError::bad_request(e.to_string()))
-        .map(Json)
+    require_admin(&actor)?;
+    zeus_firewall::lockdown_target(
+        &state.pool,
+        &state.config,
+        &id,
+        body.capture,
+        &actor.username,
+    )
+    .await
+    .map_err(|e| ApiError::bad_request(e.to_string()))
+    .map(Json)
 }
 
 #[derive(Debug, Deserialize)]
@@ -182,6 +200,7 @@ pub async fn apply_profile(
     Path(id): Path<String>,
     Json(body): Json<ProfileBody>,
 ) -> Result<Json<machina_core::FirewallPlanResult>, ApiError> {
+    require_operator(&actor)?;
     zeus_firewall::apply_profile(
         &state.pool,
         &state.config,
@@ -217,6 +236,7 @@ pub async fn rollback(
     Path(id): Path<String>,
     Json(body): Json<RollbackBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let host_id = Uuid::parse_str(&id).map_err(|e| ApiError::bad_request(e.to_string()))?;
     zeus_firewall::checkpoint::rollback_checkpoint(
         &state.pool,
@@ -357,9 +377,13 @@ pub async fn get_activity(
         if let Ok(act) = crate::agent_client::get_firewall_activity(&addr, hours).await {
             return Ok(Json(act));
         }
-        Ok(Json(serde_json::json!({ "events": [], "note": "activity unavailable" })))
+        Ok(Json(
+            serde_json::json!({ "events": [], "note": "activity unavailable" }),
+        ))
     } else {
-        Ok(Json(serde_json::json!({ "events": [], "note": "no agent" })))
+        Ok(Json(
+            serde_json::json!({ "events": [], "note": "no agent" }),
+        ))
     }
 }
 
@@ -373,10 +397,11 @@ async fn resolve_agent(state: &AppState, target_id: &str) -> anyhow::Result<Stri
         return Ok(state.config.default_agent_addr.clone());
     }
     let host_id = Uuid::parse_str(target_id)?;
-    let addr: String = sqlx::query_scalar("SELECT COALESCE(agent_grpc_addr, '') FROM hosts WHERE id = $1")
-        .bind(host_id)
-        .fetch_one(&state.pool)
-        .await?;
+    let addr: String =
+        sqlx::query_scalar("SELECT COALESCE(agent_grpc_addr, '') FROM hosts WHERE id = $1")
+            .bind(host_id)
+            .fetch_one(&state.pool)
+            .await?;
     if addr.is_empty() {
         anyhow::bail!("no agent");
     }
@@ -389,7 +414,9 @@ pub struct PolicyBody {
     pub spec_yaml: String,
 }
 
-pub async fn list_policies(State(state): State<AppState>) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+pub async fn list_policies(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
     let rows: Vec<(Uuid, String, String)> =
         sqlx::query_as("SELECT id, name, spec_yaml FROM firewall_policies ORDER BY name")
             .fetch_all(&state.pool)
@@ -422,6 +449,7 @@ pub async fn request_risky_change(
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<zeus_firewall::approvals::ApprovalRequest>,
 ) -> Result<Json<zeus_firewall::approvals::FirewallApproval>, ApiError> {
+    require_operator(&actor)?;
     zeus_firewall::request_approval(&state.pool, body, &actor.username)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))
@@ -449,10 +477,17 @@ pub async fn approve_change(
     Path(id): Path<Uuid>,
     Json(body): Json<zeus_firewall::approvals::ReviewBody>,
 ) -> Result<Json<zeus_firewall::approvals::ApprovalApplyResult>, ApiError> {
-    zeus_firewall::approve_and_apply(&state.pool, &state.config, id, &actor.username, body.note.as_deref())
-        .await
-        .map_err(|e| ApiError::bad_request(e.to_string()))
-        .map(Json)
+    require_admin(&actor)?;
+    zeus_firewall::approve_and_apply(
+        &state.pool,
+        &state.config,
+        id,
+        &actor.username,
+        body.note.as_deref(),
+    )
+    .await
+    .map_err(|e| ApiError::bad_request(e.to_string()))
+    .map(Json)
 }
 
 pub async fn reject_change(
@@ -461,6 +496,7 @@ pub async fn reject_change(
     Path(id): Path<Uuid>,
     Json(body): Json<zeus_firewall::approvals::ReviewBody>,
 ) -> Result<Json<zeus_firewall::approvals::FirewallApproval>, ApiError> {
+    require_operator(&actor)?;
     zeus_firewall::reject(&state.pool, id, &actor.username, body.note.as_deref())
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))
@@ -481,6 +517,7 @@ pub async fn sync_gitops(
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<zeus_firewall::gitops::GitOpsSyncRequest>,
 ) -> Result<Json<zeus_firewall::gitops::GitOpsSyncResult>, ApiError> {
+    require_admin(&actor)?;
     zeus_firewall::sync_policies(&state.pool, body, &actor.username)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))
@@ -499,13 +536,13 @@ pub struct K8sPlanBody {
     pub dry_run: bool,
 }
 
-pub async fn k8s_plan(
-    Json(body): Json<K8sPlanBody>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+pub async fn k8s_plan(Json(body): Json<K8sPlanBody>) -> Result<Json<serde_json::Value>, ApiError> {
     let manifests = zeus_firewall::k8s::compile_plan(&body.namespace, &body.profile)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
-    Ok(Json(serde_json::json!({ "manifests": manifests, "dry_run": body.dry_run })))
+    Ok(Json(
+        serde_json::json!({ "manifests": manifests, "dry_run": body.dry_run }),
+    ))
 }
 
 pub async fn k8s_apply(
@@ -513,6 +550,7 @@ pub async fn k8s_apply(
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<K8sPlanBody>,
 ) -> Result<Json<machina_core::FirewallPlanResult>, ApiError> {
+    require_operator(&actor)?;
     zeus_firewall::k8s::apply_plan(
         &state.pool,
         &body.namespace,
@@ -579,9 +617,10 @@ pub async fn compliance_export_pdf(
     State(state): State<AppState>,
     Path(kind): Path<String>,
 ) -> Result<axum::response::Response, ApiError> {
-    let bytes = zeus_firewall::compliance_pdf::export_compliance_pdf(&state.pool, &state.config, &kind)
-        .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let bytes =
+        zeus_firewall::compliance_pdf::export_compliance_pdf(&state.pool, &state.config, &kind)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(axum::response::Response::builder()
         .header("Content-Type", "application/pdf")
         .header(
@@ -592,9 +631,7 @@ pub async fn compliance_export_pdf(
         .unwrap())
 }
 
-pub async fn packetwolf_anomalies(
-    State(state): State<AppState>,
-) -> Json<serde_json::Value> {
+pub async fn packetwolf_anomalies(State(state): State<AppState>) -> Json<serde_json::Value> {
     Json(packetwolf_bridge::fetch_anomalies(&state.config).await)
 }
 
@@ -612,6 +649,7 @@ pub async fn baremetal_scan(
     Extension(actor): Extension<AuthUser>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let uid = uuid::Uuid::parse_str(&id).map_err(|e| ApiError::bad_request(e.to_string()))?;
     zeus_firewall::scan_exposure(&state.pool, uid, &actor.username)
         .await
@@ -711,6 +749,7 @@ pub async fn multisite_sync(
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<zeus_firewall::multisite::MultisiteSyncRequest>,
 ) -> Result<Json<zeus_firewall::multisite::MultisiteSyncResult>, ApiError> {
+    require_operator(&actor)?;
     zeus_firewall::multisite::cross_site_sync(&state.pool, &state.config, body, &actor.username)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))
@@ -760,6 +799,7 @@ pub async fn operator_execute(
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<zeus_firewall::operator::OperatorExecuteRequest>,
 ) -> Result<Json<zeus_firewall::operator::OperatorExecuteResult>, ApiError> {
+    require_operator(&actor)?;
     zeus_firewall::operator::execute_secure(&state.pool, &state.config, &body, &actor.username)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))
@@ -771,10 +811,16 @@ pub async fn operator_execute_batch(
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<zeus_firewall::operator::OperatorBatchExecuteRequest>,
 ) -> Result<Json<zeus_firewall::operator::OperatorBatchExecuteResult>, ApiError> {
-    zeus_firewall::operator::execute_secure_batch(&state.pool, &state.config, &body, &actor.username)
-        .await
-        .map_err(|e| ApiError::bad_request(e.to_string()))
-        .map(Json)
+    require_operator(&actor)?;
+    zeus_firewall::operator::execute_secure_batch(
+        &state.pool,
+        &state.config,
+        &body,
+        &actor.username,
+    )
+    .await
+    .map_err(|e| ApiError::bad_request(e.to_string()))
+    .map(Json)
 }
 
 pub async fn operator_thresholds() -> Json<zeus_firewall::operator::OperatorThresholds> {

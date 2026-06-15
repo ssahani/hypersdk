@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::api::tasks::TaskResponse;
 use crate::api::ApiError;
-use crate::auth::AuthUser;
+use crate::auth::{require_admin, AuthUser};
 use crate::engine::host_validate;
 use crate::state::AppState;
 use crate::tasks::enqueue::{enqueue_task, write_audit};
@@ -61,13 +61,15 @@ pub struct HostDetailRow {
     pub rack_u: Option<i32>,
 }
 
-const HOST_LIST_SQL: &str = "SELECT id, hostname, address, state, maintenance_mode, agent_grpc_addr, vm_count,
+const HOST_LIST_SQL: &str =
+    "SELECT id, hostname, address, state, maintenance_mode, agent_grpc_addr, vm_count,
          cpu_percent, memory_used_mib, memory_total_mib, fenced,
          COALESCE(validation_status, 'pending') AS validation_status,
          last_heartbeat_at,
          COALESCE(site, '') AS site, COALESCE(rack, '') AS rack, rack_u FROM hosts";
 
-const HOST_DETAIL_SQL: &str = "SELECT id, hostname, address, state, maintenance_mode, agent_grpc_addr,
+const HOST_DETAIL_SQL: &str =
+    "SELECT id, hostname, address, state, maintenance_mode, agent_grpc_addr,
          COALESCE(agent_console_addr, '127.0.0.1:50052') AS agent_console_addr,
          COALESCE(libvirt_uri, 'qemu:///system') AS libvirt_uri,
          COALESCE(agent_version, '') AS agent_version,
@@ -303,7 +305,8 @@ pub async fn join_host(
     .fetch_optional(&state.pool)
     .await?;
 
-    let (cluster_id,) = row.ok_or_else(|| ApiError::bad_request("invalid or expired join token"))?;
+    let (cluster_id,) =
+        row.ok_or_else(|| ApiError::bad_request("invalid or expired join token"))?;
     let id = Uuid::new_v4();
     let console_addr = req
         .agent_console_addr
@@ -338,13 +341,12 @@ pub async fn join_host(
         .execute(&state.pool)
         .await?;
 
-    let host_id: Uuid = sqlx::query_scalar(
-        "SELECT id FROM hosts WHERE cluster_id = $1 AND hostname = $2",
-    )
-    .bind(cluster_id)
-    .bind(&req.hostname)
-    .fetch_one(&state.pool)
-    .await?;
+    let host_id: Uuid =
+        sqlx::query_scalar("SELECT id FROM hosts WHERE cluster_id = $1 AND hostname = $2")
+            .bind(cluster_id)
+            .bind(&req.hostname)
+            .fetch_one(&state.pool)
+            .await?;
 
     link_baremetal_firewall_on_join(&state.pool, host_id, &req.hostname).await;
 
@@ -413,7 +415,9 @@ pub async fn host_maintenance(
     }))
 }
 
-pub async fn sync_all_hosts(State(state): State<AppState>) -> Result<Json<Vec<TaskResponse>>, ApiError> {
+pub async fn sync_all_hosts(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<TaskResponse>>, ApiError> {
     let ids: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM hosts ORDER BY hostname")
         .fetch_all(&state.pool)
         .await?;
@@ -545,7 +549,15 @@ pub async fn patch_host(
             .execute(&state.pool)
             .await?;
     }
-    write_audit(&state, &actor.username, "host.patch", "host", Some(id), serde_json::json!({})).await?;
+    write_audit(
+        &state,
+        &actor.username,
+        "host.patch",
+        "host",
+        Some(id),
+        serde_json::json!({}),
+    )
+    .await?;
     get_host_detail(State(state), Path(id)).await
 }
 
@@ -554,6 +566,7 @@ pub async fn delete_host(
     Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&actor)?;
     let vm_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vms WHERE host_id = $1")
         .bind(id)
         .fetch_one(&state.pool)
@@ -565,7 +578,15 @@ pub async fn delete_host(
         .bind(id)
         .execute(&state.pool)
         .await?;
-    write_audit(&state, &actor.username, "host.delete", "host", Some(id), serde_json::json!({})).await?;
+    write_audit(
+        &state,
+        &actor.username,
+        "host.delete",
+        "host",
+        Some(id),
+        serde_json::json!({}),
+    )
+    .await?;
     Ok(Json(serde_json::json!({ "deleted": true })))
 }
 

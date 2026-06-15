@@ -60,7 +60,9 @@ pub async fn sync_policies(
     if req.replace {
         let names: Vec<String> = req.policies.iter().map(|p| p.name.clone()).collect();
         if names.is_empty() {
-            let r = sqlx::query("DELETE FROM firewall_policies").execute(pool).await?;
+            let r = sqlx::query("DELETE FROM firewall_policies")
+                .execute(pool)
+                .await?;
             removed = r.rows_affected() as usize;
         } else {
             let r = sqlx::query("DELETE FROM firewall_policies WHERE NOT (name = ANY($1::text[]))")
@@ -87,14 +89,12 @@ pub async fn sync_policies(
             .execute(pool)
             .await?;
         } else {
-            sqlx::query(
-                "INSERT INTO firewall_policies (id, name, spec_yaml) VALUES ($1, $2, $3)",
-            )
-            .bind(Uuid::new_v4())
-            .bind(&policy.name)
-            .bind(&policy.spec_yaml)
-            .execute(pool)
-            .await?;
+            sqlx::query("INSERT INTO firewall_policies (id, name, spec_yaml) VALUES ($1, $2, $3)")
+                .bind(Uuid::new_v4())
+                .bind(&policy.name)
+                .bind(&policy.spec_yaml)
+                .execute(pool)
+                .await?;
         }
         upserted += 1;
     }

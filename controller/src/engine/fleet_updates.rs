@@ -50,7 +50,10 @@ fn has_pending_updates(pending: Option<u32>, summary: &Option<String>) -> bool {
         .unwrap_or(false)
 }
 
-pub async fn overview(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Result<FleetUpdatesOverview> {
+pub async fn overview(
+    pool: &PgPool,
+    cfg: &ControllerConfig,
+) -> anyhow::Result<FleetUpdatesOverview> {
     let recommended_agent = env!("CARGO_PKG_VERSION").to_string();
     let rows: Vec<(Uuid, String, String)> = sqlx::query_as(
         "SELECT id, hostname, COALESCE(agent_version, '') FROM hosts WHERE state = 'online' ORDER BY hostname LIMIT 8",

@@ -5,8 +5,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use machina_core::{
-    compile_metal_plan, gather_metal_inventory, scan_ipmi_exposure, FirewallPlanRequest, FirewallPlanResult,
-    MetalServerInput,
+    compile_metal_plan, gather_metal_inventory, scan_ipmi_exposure, FirewallPlanRequest,
+    FirewallPlanResult, MetalServerInput,
 };
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -102,14 +102,23 @@ pub async fn metal_overview(pool: &PgPool) -> anyhow::Result<BaremetalFirewallOv
         })
         .collect();
     Ok(BaremetalFirewallOverview {
-        summary: format!("{} bare-metal servers · {} critical · {} warnings", servers.len(), critical, warning),
+        summary: format!(
+            "{} bare-metal servers · {} critical · {} warnings",
+            servers.len(),
+            critical,
+            warning
+        ),
         servers,
         critical_count: critical,
         warning_count: warning,
     })
 }
 
-pub async fn scan_exposure(pool: &PgPool, id: Uuid, actor: &str) -> anyhow::Result<serde_json::Value> {
+pub async fn scan_exposure(
+    pool: &PgPool,
+    id: Uuid,
+    actor: &str,
+) -> anyhow::Result<serde_json::Value> {
     let row = load_row(pool, id).await?;
     let scan = scan_ipmi_exposure(&row.bmc_address, &row.bmc_type);
     let posture = serde_json::to_value(&scan)?;
@@ -158,7 +167,9 @@ pub async fn apply_metal(
     apply_req.dry_run = false;
 
     let inv = gather_metal_inventory(&row_to_input(&row));
-    let _ = super::checkpoint::save_checkpoint(pool, "bare_metal", id, "pre-apply", &inv, Some(actor)).await;
+    let _ =
+        super::checkpoint::save_checkpoint(pool, "bare_metal", id, "pre-apply", &inv, Some(actor))
+            .await;
 
     let result = compile_metal_plan(&row_to_input(&row), &apply_req)?;
 
@@ -204,7 +215,11 @@ pub async fn apply_metal(
     Ok(result)
 }
 
-pub async fn upsert_gitops_policy(pool: &PgPool, hostname: &str, profile: &str) -> anyhow::Result<()> {
+pub async fn upsert_gitops_policy(
+    pool: &PgPool,
+    hostname: &str,
+    profile: &str,
+) -> anyhow::Result<()> {
     let name = format!("metal-{hostname}");
     let spec_yaml = format!(
         "apiVersion: zeus.machina/v1\nkind: MachineFirewallPolicy\nmetadata:\n  name: {name}\nspec:\n  targetKind: bare_metal\n  profile: {profile}\n  scope: bmc+pxe\n"

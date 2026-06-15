@@ -6,10 +6,8 @@ use axum::Json;
 use uuid::Uuid;
 
 use crate::api::ApiError;
-use crate::auth::AuthUser;
-use crate::engine::network_overlay::{
-    self, CreateSegmentRequest, IpamAllocateRequest, SegmentRow,
-};
+use crate::auth::{require_operator, AuthUser};
+use crate::engine::network_overlay::{self, CreateSegmentRequest, IpamAllocateRequest, SegmentRow};
 use crate::state::AppState;
 
 pub async fn segments_overview(
@@ -23,9 +21,10 @@ pub async fn segments_overview(
 
 pub async fn create_segment(
     State(state): State<AppState>,
-    Extension(_actor): Extension<AuthUser>,
+    Extension(actor): Extension<AuthUser>,
     Json(body): Json<CreateSegmentRequest>,
 ) -> Result<Json<SegmentRow>, ApiError> {
+    require_operator(&actor)?;
     network_overlay::create_segment(&state.pool, &body)
         .await
         .map(Json)
@@ -73,9 +72,10 @@ pub async fn gitops_export(
 
 pub async fn emergency_unlock(
     State(state): State<AppState>,
-    Extension(_actor): Extension<AuthUser>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<network_overlay::EmergencyUnlockResult>, ApiError> {
+    require_operator(&actor)?;
     network_overlay::emergency_unlock(&state.pool, id)
         .await
         .map(Json)
@@ -84,10 +84,14 @@ pub async fn emergency_unlock(
 
 pub async fn bind_network_to_segment(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path((segment_id, network_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     network_overlay::bind_network(&state.pool, network_id, segment_id)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
-    Ok(Json(serde_json::json!({ "bound": true, "segment_id": segment_id, "network_id": network_id })))
+    Ok(Json(
+        serde_json::json!({ "bound": true, "segment_id": segment_id, "network_id": network_id }),
+    ))
 }

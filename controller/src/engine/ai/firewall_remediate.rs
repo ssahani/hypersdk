@@ -92,7 +92,10 @@ pub async fn propose(pool: &PgPool) -> anyhow::Result<FirewallRemediateProposal>
     let summary = if remediations.is_empty() {
         "Zeus Firewall — no critical host exposures.".into()
     } else {
-        format!("{} Zeus Firewall remediation(s) across fleet", remediations.len())
+        format!(
+            "{} Zeus Firewall remediation(s) across fleet",
+            remediations.len()
+        )
     };
 
     Ok(FirewallRemediateProposal {

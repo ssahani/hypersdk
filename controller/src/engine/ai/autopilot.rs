@@ -4,11 +4,11 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::engine::recommendations;
-use crate::tasks::enqueue::write_audit;
 use crate::api::ApiError;
 use crate::auth::AuthUser;
+use crate::engine::recommendations;
 use crate::state::AppState;
+use crate::tasks::enqueue::write_audit;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProposedAction {
@@ -53,7 +53,11 @@ pub async fn propose(pool: &PgPool, vm_id: Option<Uuid>) -> anyhow::Result<Autop
                 if let (Some(fix), Some(label)) = (issue.fix_action, issue.fix_label) {
                     if matches!(
                         fix.as_str(),
-                        "start_vm" | "create_backup" | "enable_ha" | "install_guest_tools" | "adopt_vm"
+                        "start_vm"
+                            | "create_backup"
+                            | "enable_ha"
+                            | "install_guest_tools"
+                            | "adopt_vm"
                     ) {
                         actions.push(ProposedAction {
                             id: format!("doctor-{}-{}", vid, issue.id),
@@ -98,9 +102,13 @@ pub async fn execute(
     body: &ExecuteBody,
 ) -> Result<ExecuteResult, ApiError> {
     crate::auth::require_operator(actor)?;
-    let settings = super::settings::get_ai_settings(&state.pool).await.map_err(|e| ApiError::internal(e.to_string()))?;
+    let settings = super::settings::get_ai_settings(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     if !autopilot_mode_allowed(&settings.mode) {
-        return Err(ApiError::bad_request("Autopilot actions require advisor, autopilot_preview, or autopilot mode"));
+        return Err(ApiError::bad_request(
+            "Autopilot actions require advisor, autopilot_preview, or autopilot mode",
+        ));
     }
 
     let mut task_ids = Vec::new();
@@ -112,11 +120,13 @@ pub async fn execute(
                 .and_then(|v| serde_json::from_value(v.clone()).ok())
                 .unwrap_or_default();
             for id_str in vm_ids.iter().take(10) {
-                let vm_id = Uuid::parse_str(id_str).map_err(|_| ApiError::bad_request("invalid vm_id"))?;
-                let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
-                    .bind(vm_id)
-                    .fetch_optional(&state.pool)
-                    .await?;
+                let vm_id =
+                    Uuid::parse_str(id_str).map_err(|_| ApiError::bad_request("invalid vm_id"))?;
+                let host_id: Option<Uuid> =
+                    sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+                        .bind(vm_id)
+                        .fetch_optional(&state.pool)
+                        .await?;
                 let backup_id = Uuid::new_v4();
                 sqlx::query(
                     "INSERT INTO backup_records (id, vm_id, backup_type, status) VALUES ($1, $2, 'full', 'pending')",
@@ -174,7 +184,8 @@ pub async fn execute(
                 vec![parse_vm_id(&body.object_ref)?.to_string()]
             };
             for id_str in vm_ids.iter().take(10) {
-                let vm_id = Uuid::parse_str(id_str).map_err(|_| ApiError::bad_request("invalid vm_id"))?;
+                let vm_id =
+                    Uuid::parse_str(id_str).map_err(|_| ApiError::bad_request("invalid vm_id"))?;
                 crate::engine::template::upsert_ha_policy(
                     &state.pool,
                     vm_id,
@@ -226,9 +237,10 @@ pub async fn execute(
             "Start queued".into()
         }
         "sync_hosts" => {
-            let hosts: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM hosts WHERE state = 'online'")
-                .fetch_all(&state.pool)
-                .await?;
+            let hosts: Vec<Uuid> =
+                sqlx::query_scalar("SELECT id FROM hosts WHERE state = 'online'")
+                    .fetch_all(&state.pool)
+                    .await?;
             for hid in hosts {
                 let tid = crate::tasks::enqueue::enqueue_task(
                     state,
@@ -243,7 +255,11 @@ pub async fn execute(
             }
             format!("Queued sync for {} host(s)", task_ids.len())
         }
-        other => return Err(ApiError::bad_request(format!("unsupported autopilot action: {other}"))),
+        other => {
+            return Err(ApiError::bad_request(format!(
+                "unsupported autopilot action: {other}"
+            )))
+        }
     };
 
     write_audit(
@@ -280,7 +296,12 @@ fn is_auto_safe(action: &ProposedAction) -> bool {
     let ty = action.action_type.as_str();
     low && matches!(
         ty,
-        "bulk_backup" | "create_backup" | "bulk_ha" | "enable_ha" | "install_guest_tools" | "start_vm"
+        "bulk_backup"
+            | "create_backup"
+            | "bulk_ha"
+            | "enable_ha"
+            | "install_guest_tools"
+            | "start_vm"
     )
 }
 

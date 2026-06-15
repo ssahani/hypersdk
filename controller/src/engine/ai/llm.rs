@@ -135,7 +135,11 @@ async fn openai_compatible_complete(
     }
     let resp = req.send().await?;
     if !resp.status().is_success() {
-        tracing::warn!("llm error ({}): {}", resolved.kind, resp.text().await.unwrap_or_default());
+        tracing::warn!(
+            "llm error ({}): {}",
+            resolved.kind,
+            resp.text().await.unwrap_or_default()
+        );
         return Ok(None);
     }
     let v: serde_json::Value = resp.json().await?;
@@ -153,7 +157,10 @@ async fn anthropic_complete(
     let url = if resolved.base_url.trim().is_empty() {
         "https://api.anthropic.com/v1/messages".to_string()
     } else {
-        format!("{}/v1/messages", resolved.base_url.trim().trim_end_matches('/'))
+        format!(
+            "{}/v1/messages",
+            resolved.base_url.trim().trim_end_matches('/')
+        )
     };
     let body = serde_json::json!({
         "model": resolved.model_id,
@@ -188,15 +195,14 @@ async fn google_complete(
     let model = resolved.model_id.clone();
     let url = if resolved.base_url.trim().is_empty() {
         format!(
-            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
-            model, resolved.api_key
+            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
+            model
         )
     } else {
         format!(
-            "{}/v1beta/models/{}:generateContent?key={}",
+            "{}/v1beta/models/{}:generateContent",
             resolved.base_url.trim().trim_end_matches('/'),
             model,
-            resolved.api_key
         )
     };
     let body = serde_json::json!({
@@ -205,7 +211,12 @@ async fn google_complete(
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(45))
         .build()?;
-    let resp = client.post(url).json(&body).send().await?;
+    let resp = client
+        .post(url)
+        .header("x-goog-api-key", &resolved.api_key)
+        .json(&body)
+        .send()
+        .await?;
     if !resp.status().is_success() {
         tracing::warn!("google error: {}", resp.text().await.unwrap_or_default());
         return Ok(None);

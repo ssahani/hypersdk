@@ -132,11 +132,7 @@ fn deterministic_insights(s: &GuestAiSnapshot, focus: Option<&str>) -> Determini
         insights.push(GuestInsightRow {
             title: "Guest agent active".into(),
             severity: "info".into(),
-            detail: format!(
-                "{} · {}",
-                s.os_pretty_name,
-                s.agent_version
-            ),
+            detail: format!("{} · {}", s.os_pretty_name, s.agent_version),
         });
     }
 

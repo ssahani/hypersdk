@@ -90,9 +90,11 @@ pub async fn forecast(pool: &PgPool) -> anyhow::Result<SreForecastReport> {
     }
 
     forecasts.sort_by(|a, b| {
-        b.severity
-            .cmp(&a.severity)
-            .then_with(|| a.hours_until_critical.partial_cmp(&b.hours_until_critical).unwrap_or(std::cmp::Ordering::Equal))
+        b.severity.cmp(&a.severity).then_with(|| {
+            a.hours_until_critical
+                .partial_cmp(&b.hours_until_critical)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     });
     forecasts.truncate(20);
 

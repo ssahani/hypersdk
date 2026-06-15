@@ -32,12 +32,11 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetShortcutsOverview> {
     .fetch_all(pool)
     .await?;
 
-    let runbook_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ops_runbook_catalog WHERE enabled = true",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0);
+    let runbook_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ops_runbook_catalog WHERE enabled = true")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
 
     let executions_24h: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM ops_runbook_executions WHERE created_at > NOW() - INTERVAL '24 hours'",

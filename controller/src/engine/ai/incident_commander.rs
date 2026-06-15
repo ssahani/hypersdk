@@ -159,12 +159,11 @@ pub async fn open_room(pool: &PgPool, incident_id: Uuid) -> anyhow::Result<Incid
         },
     };
 
-    let pending: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ai_actions WHERE status = 'pending'",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0);
+    let pending: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ai_actions WHERE status = 'pending'")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
 
     Ok(IncidentRoom {
         incident: ActiveIncident {

@@ -104,12 +104,11 @@ pub async fn assemble(
     };
 
     let host = if let Some(id) = host_id {
-        let row: Option<(String, String)> = sqlx::query_as(
-            "SELECT hostname, state FROM hosts WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
+        let row: Option<(String, String)> =
+            sqlx::query_as("SELECT hostname, state FROM hosts WHERE id = $1")
+                .bind(id)
+                .fetch_optional(pool)
+                .await?;
         let mut brief = row.map(|(hostname, state)| HostBrief {
             id: id.to_string(),
             hostname,

@@ -25,12 +25,7 @@ pub async fn network_canvas(
     let topology = build_topology(&state.pool, None).await?;
     let (pw_cfg, discovery) = packetwolf_bridge::resolved_config(&state.config).await;
 
-    let (
-        flows,
-        flow_stats,
-        anomalies,
-        network_pulse,
-    ) = tokio::join!(
+    let (flows, flow_stats, anomalies, network_pulse) = tokio::join!(
         packetwolf_bridge::fetch_fleet_flows(&pw_cfg, 40),
         packetwolf_bridge::fetch_fleet_flow_stats(&pw_cfg),
         packetwolf_bridge::fetch_anomalies(&pw_cfg),

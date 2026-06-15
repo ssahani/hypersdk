@@ -188,12 +188,11 @@ pub async fn build(pool: &PgPool, scope: &GraphScope) -> anyhow::Result<InfraGra
     }
 
     // VM ↔ network from spec_json bridges
-    let vms_spec: Vec<(Uuid, String, Option<serde_json::Value>)> = sqlx::query_as(
-        "SELECT id, name, spec_json FROM vms ORDER BY name LIMIT 300",
-    )
-    .fetch_all(pool)
-    .await
-    .unwrap_or_default();
+    let vms_spec: Vec<(Uuid, String, Option<serde_json::Value>)> =
+        sqlx::query_as("SELECT id, name, spec_json FROM vms ORDER BY name LIMIT 300")
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default();
     for (vm_id, _name, spec) in vms_spec {
         if let Some(spec) = spec {
             if let Some(nics) = spec.get("networks").and_then(|v| v.as_array()) {
@@ -238,13 +237,12 @@ pub async fn build(pool: &PgPool, scope: &GraphScope) -> anyhow::Result<InfraGra
             state: None,
             health_score: None,
         });
-        let vms: Vec<Uuid> = sqlx::query_scalar(
-            "SELECT vm_id FROM application_group_vms WHERE group_id = $1",
-        )
-        .bind(gid)
-        .fetch_all(pool)
-        .await
-        .unwrap_or_default();
+        let vms: Vec<Uuid> =
+            sqlx::query_scalar("SELECT vm_id FROM application_group_vms WHERE group_id = $1")
+                .bind(gid)
+                .fetch_all(pool)
+                .await
+                .unwrap_or_default();
         for vid in vms {
             edges.push(GraphEdge {
                 from: sid.clone(),
@@ -302,15 +300,18 @@ pub async fn build(pool: &PgPool, scope: &GraphScope) -> anyhow::Result<InfraGra
     // Health scores on hosts/vms from DNA/doctor heuristics
     for n in &mut nodes {
         if n.kind == "host" {
-            if let Ok(st) = sqlx::query_scalar::<_, String>(
-                "SELECT state FROM hosts WHERE id::text = $1",
-            )
-            .bind(&n.id)
-            .fetch_optional(pool)
-            .await
+            if let Ok(st) =
+                sqlx::query_scalar::<_, String>("SELECT state FROM hosts WHERE id::text = $1")
+                    .bind(&n.id)
+                    .fetch_optional(pool)
+                    .await
             {
                 n.state = st;
-                n.health_score = Some(if n.state.as_deref() == Some("online") { 85 } else { 40 });
+                n.health_score = Some(if n.state.as_deref() == Some("online") {
+                    85
+                } else {
+                    40
+                });
             }
         }
         if n.kind == "vm" {
@@ -362,7 +363,9 @@ pub async fn build(pool: &PgPool, scope: &GraphScope) -> anyhow::Result<InfraGra
     }
     if let Some(vid) = scope.vm_id {
         let vid_s = vid.to_string();
-        nodes.retain(|n| n.id == vid_s || n.kind == "bridge" || n.kind == "network" || n.kind == "host");
+        nodes.retain(|n| {
+            n.id == vid_s || n.kind == "bridge" || n.kind == "network" || n.kind == "host"
+        });
         let keep: std::collections::HashSet<String> = nodes.iter().map(|n| n.id.clone()).collect();
         edges.retain(|e| keep.contains(&e.from) || keep.contains(&e.to));
     }
@@ -393,9 +396,8 @@ pub async fn build_enriched(
 }
 
 fn profile_rules(profile: &str) -> Vec<machina_core::ZeusFirewallRule> {
-    let prof = machina_core::profile_by_name(profile).unwrap_or_else(|| {
-        machina_core::profile_by_name("Balanced").expect("Balanced profile")
-    });
+    let prof = machina_core::profile_by_name(profile)
+        .unwrap_or_else(|| machina_core::profile_by_name("Balanced").expect("Balanced profile"));
     prof.rules
         .iter()
         .enumerate()
@@ -442,7 +444,10 @@ pub async fn append_firewall_edges(
                 health_score: None,
             });
         }
-        if !edges.iter().any(|e| e.from == hid.to_string() && e.to == ft_id) {
+        if !edges
+            .iter()
+            .any(|e| e.from == hid.to_string() && e.to == ft_id)
+        {
             edges.push(GraphEdge {
                 from: hid.to_string(),
                 to: ft_id.clone(),
@@ -459,11 +464,7 @@ pub async fn append_firewall_edges(
             Ok(d) => d,
             Err(_) => continue,
         };
-        let profile = detail
-            .target
-            .profile
-            .as_deref()
-            .unwrap_or("Balanced");
+        let profile = detail.target.profile.as_deref().unwrap_or("Balanced");
         let rules = profile_rules(profile);
         let matrix = simulate_connectivity(&detail.inventory, &rules);
         for cell in matrix.blocks.iter().take(5) {
@@ -512,18 +513,11 @@ async fn firewall_path_blocker(
 ) -> Option<PathBlocker> {
     use machina_core::simulate_connectivity;
 
-    let detail = crate::engine::zeus_firewall::inventory::target_detail(
-        pool,
-        cfg,
-        &host_id.to_string(),
-    )
-    .await
-    .ok()?;
-    let profile = detail
-        .target
-        .profile
-        .as_deref()
-        .unwrap_or("Balanced");
+    let detail =
+        crate::engine::zeus_firewall::inventory::target_detail(pool, cfg, &host_id.to_string())
+            .await
+            .ok()?;
+    let profile = detail.target.profile.as_deref().unwrap_or("Balanced");
     let rules = profile_rules(profile);
     let matrix = simulate_connectivity(&detail.inventory, &rules);
     let probe_port = if port > 0 { port as u16 } else { 5432 };
@@ -534,7 +528,8 @@ async fn firewall_path_blocker(
                 "Zeus firewall blocks {}:{} — {}",
                 block.source, block.port, block.reason
             ),
-            remediation: "Add inbound allow rule or use app-tier profile on destination host.".into(),
+            remediation: "Add inbound allow rule or use app-tier profile on destination host."
+                .into(),
         });
     }
     if matrix.allows.iter().any(|c| c.port == probe_port) {
@@ -547,7 +542,10 @@ async fn firewall_path_blocker(
     })
 }
 
-async fn resolve_vm(pool: &PgPool, name: &str) -> anyhow::Result<Option<(Uuid, String, Option<Uuid>, String)>> {
+async fn resolve_vm(
+    pool: &PgPool,
+    name: &str,
+) -> anyhow::Result<Option<(Uuid, String, Option<Uuid>, String)>> {
     let row: Option<(Uuid, String, Option<Uuid>, String)> = sqlx::query_as(
         "SELECT id, name, host_id, observed_state FROM vms WHERE name ILIKE $1 LIMIT 1",
     )
@@ -636,7 +634,14 @@ pub async fn explain_path(
     }
 
     let same_host = a_host.is_some() && a_host == b_host;
-    let graph = build(pool, &GraphScope { host_id: None, vm_id: None }).await?;
+    let graph = build(
+        pool,
+        &GraphScope {
+            host_id: None,
+            vm_id: None,
+        },
+    )
+    .await?;
     let a_bridges: Vec<String> = graph
         .edges
         .iter()
@@ -832,10 +837,7 @@ pub async fn explain_object(pool: &PgPool, kind: &str, id: &str) -> anyhow::Resu
                 name,
                 purpose: project.clone().unwrap_or_else(|| "General workload".into()),
                 owner: project,
-                resources: vec![
-                    format!("{vcpu} vCPU"),
-                    format!("{mem} MiB RAM"),
-                ],
+                resources: vec![format!("{vcpu} vCPU"), format!("{mem} MiB RAM")],
                 risks,
                 health_score: Some(score),
                 health_label: Some(if score >= 80 { "Healthy" } else { "Attention" }.into()),
@@ -874,7 +876,14 @@ pub async fn explain_object(pool: &PgPool, kind: &str, id: &str) -> anyhow::Resu
 }
 
 pub async fn graph_at(pool: &PgPool, ts: DateTime<Utc>) -> anyhow::Result<GraphAtTime> {
-    let current = build(pool, &GraphScope { host_id: None, vm_id: None }).await?;
+    let current = build(
+        pool,
+        &GraphScope {
+            host_id: None,
+            vm_id: None,
+        },
+    )
+    .await?;
     let created: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM audit_logs WHERE action ILIKE '%create%' AND created_at <= $1",
     )
@@ -898,11 +907,10 @@ pub async fn graph_at(pool: &PgPool, ts: DateTime<Utc>) -> anyhow::Result<GraphA
     .fetch_all(pool)
     .await
     .unwrap_or_default();
-    let current_vm_names: Vec<String> =
-        sqlx::query_scalar("SELECT name FROM vms ORDER BY name")
-            .fetch_all(pool)
-            .await
-            .unwrap_or_default();
+    let current_vm_names: Vec<String> = sqlx::query_scalar("SELECT name FROM vms ORDER BY name")
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
     let added: Vec<String> = current_vm_names
         .iter()
         .filter(|n| !vm_names_at.contains(n))
@@ -915,7 +923,8 @@ pub async fn graph_at(pool: &PgPool, ts: DateTime<Utc>) -> anyhow::Result<GraphA
         .take(10)
         .cloned()
         .collect();
-    let node_delta = current.node_count as i64 - (current.node_count as i64 - added.len() as i64 + removed.len() as i64);
+    let node_delta = current.node_count as i64
+        - (current.node_count as i64 - added.len() as i64 + removed.len() as i64);
     Ok(GraphAtTime {
         timestamp: ts,
         nodes: current.nodes.clone(),

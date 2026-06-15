@@ -94,10 +94,7 @@ pub async fn scan(pool: &PgPool) -> anyhow::Result<SecurityReport> {
     })
 }
 
-fn explain_event_heuristic(
-    event: &serde_json::Value,
-    host_id: Option<&str>,
-) -> serde_json::Value {
+fn explain_event_heuristic(event: &serde_json::Value, host_id: Option<&str>) -> serde_json::Value {
     let kind = event
         .get("kind")
         .and_then(|v| v.as_str())
@@ -193,8 +190,14 @@ pub async fn attack_reconstruct(
         .take(12)
         .map(|ev| {
             let ts = ev.get("timestamp").and_then(|v| v.as_str()).unwrap_or("");
-            let summary = ev.get("summary").and_then(|v| v.as_str()).unwrap_or("event");
-            let sev = ev.get("severity").and_then(|v| v.as_str()).unwrap_or("info");
+            let summary = ev
+                .get("summary")
+                .and_then(|v| v.as_str())
+                .unwrap_or("event");
+            let sev = ev
+                .get("severity")
+                .and_then(|v| v.as_str())
+                .unwrap_or("info");
             format!("{ts} [{sev}] {summary}")
         })
         .collect();
@@ -349,14 +352,21 @@ pub async fn hunt_summary(
             format!(
                 "[{}] {}",
                 c.get("severity").and_then(|v| v.as_str()).unwrap_or("?"),
-                c.get("summary").and_then(|v| v.as_str()).unwrap_or("finding")
+                c.get("summary")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("finding")
             )
         })
         .collect();
     let event_lines: Vec<String> = events
         .iter()
         .take(8)
-        .map(|e| e.get("summary").and_then(|v| v.as_str()).unwrap_or("event").to_string())
+        .map(|e| {
+            e.get("summary")
+                .and_then(|v| v.as_str())
+                .unwrap_or("event")
+                .to_string()
+        })
         .collect();
     if let Ok(Some(llm)) = super::llm::complete_simple(
         pool,

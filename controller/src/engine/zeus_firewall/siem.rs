@@ -22,39 +22,49 @@ pub struct SiemEvent {
 }
 
 pub async fn export_timeline(pool: &PgPool, hours: i32) -> anyhow::Result<SiemFirewallExport> {
-    let rows: Vec<(String, uuid::Uuid, String, String, Option<String>, chrono::DateTime<chrono::Utc>, serde_json::Value)> =
-        sqlx::query_as(
-            "SELECT target_kind, target_id, kind, summary, actor, created_at, detail_json
+    let rows: Vec<(
+        String,
+        uuid::Uuid,
+        String,
+        String,
+        Option<String>,
+        chrono::DateTime<chrono::Utc>,
+        serde_json::Value,
+    )> = sqlx::query_as(
+        "SELECT target_kind, target_id, kind, summary, actor, created_at, detail_json
              FROM firewall_timeline
              WHERE created_at >= now() - make_interval(hours => $1)
              ORDER BY created_at DESC
              LIMIT 5000",
-        )
-        .bind(hours)
-        .fetch_all(pool)
-        .await?;
+    )
+    .bind(hours)
+    .fetch_all(pool)
+    .await?;
 
     let events: Vec<SiemEvent> = rows
         .into_iter()
-        .map(|(target_kind, target_id, kind, summary, actor, created_at, detail)| {
-            let mut detail = detail;
-            if target_kind == "bare_metal" {
-                if let Some(obj) = detail.as_object_mut() {
-                    obj.entry("tag".to_string()).or_insert(serde_json::json!("metal"));
-                } else {
-                    detail = serde_json::json!({ "tag": "metal", "raw": detail });
+        .map(
+            |(target_kind, target_id, kind, summary, actor, created_at, detail)| {
+                let mut detail = detail;
+                if target_kind == "bare_metal" {
+                    if let Some(obj) = detail.as_object_mut() {
+                        obj.entry("tag".to_string())
+                            .or_insert(serde_json::json!("metal"));
+                    } else {
+                        detail = serde_json::json!({ "tag": "metal", "raw": detail });
+                    }
                 }
-            }
-            SiemEvent {
-                target_kind,
-                target_id: target_id.to_string(),
-                kind,
-                summary,
-                actor,
-                created_at: created_at.to_rfc3339(),
-                detail,
-            }
-        })
+                SiemEvent {
+                    target_kind,
+                    target_id: target_id.to_string(),
+                    kind,
+                    summary,
+                    actor,
+                    created_at: created_at.to_rfc3339(),
+                    detail,
+                }
+            },
+        )
         .collect();
     let event_count = events.len();
     Ok(SiemFirewallExport {

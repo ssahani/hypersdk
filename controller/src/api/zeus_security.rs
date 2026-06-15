@@ -1,12 +1,14 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use axum::extract::{Path, Query, State};
+use axum::Extension;
 use axum::Json;
 use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::agent_client;
 use crate::api::ApiError;
+use crate::auth::{require_admin, require_operator, AuthUser};
 use crate::engine::ai::security as ai_security;
 use crate::engine::ai::security_graph;
 use crate::engine::packetwolf_bridge;
@@ -14,44 +16,72 @@ use crate::engine::packetwolf_local;
 use crate::engine::zeus_security;
 use crate::state::AppState;
 
-pub async fn status(State(state): State<AppState>) -> Json<zeus_security::ZeusSecurityStatus> {
-    Json(zeus_security::status(&state.config).await)
+pub async fn status(State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<zeus_security::ZeusSecurityStatus>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(zeus_security::status(&state.config).await))
 }
 
-pub async fn fleet_threat(State(state): State<AppState>) -> Result<Json<zeus_security::FleetThreatSummary>, ApiError> {
+pub async fn fleet_threat(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<zeus_security::FleetThreatSummary>, ApiError> {
+    require_operator(&actor)?;
     zeus_security::fleet_threat(&state.pool, &state.config)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
-pub async fn sensors(State(state): State<AppState>) -> Json<serde_json::Value> {
-    Json(packetwolf_bridge::sensors(&state.config).await)
+pub async fn sensors(State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(packetwolf_bridge::sensors(&state.config).await))
 }
 
-pub async fn asset_inventory(State(state): State<AppState>) -> Json<serde_json::Value> {
-    Json(packetwolf_bridge::asset_inventory(&state.config).await)
+pub async fn asset_inventory(State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(packetwolf_bridge::asset_inventory(&state.config).await))
 }
 
 pub async fn fleet_timeline(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Query(q): Query<HostQuery>,
-) -> Json<serde_json::Value> {
-    Json(zeus_security::fleet_timeline(&state.config, q.hours.unwrap_or(24)).await)
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(zeus_security::fleet_timeline(&state.config, q.hours.unwrap_or(24)).await))
 }
 
-pub async fn sync_alerts(State(state): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+pub async fn sync_alerts(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let n = zeus_security::sync_security_alerts(&state.pool, &state.config)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    Ok(Json(serde_json::json!({ "inserted": n, "summary": format!("Synced {n} security alert(s) to notification outbox") })))
+    Ok(Json(
+        serde_json::json!({ "inserted": n, "summary": format!("Synced {n} security alert(s) to notification outbox") }),
+    ))
 }
 
-pub async fn correlations(State(state): State<AppState>) -> Json<serde_json::Value> {
-    Json(packetwolf_bridge::correlations(&state.config).await)
+pub async fn correlations(State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(packetwolf_bridge::correlations(&state.config).await))
 }
 
-pub async fn security_graph(State(state): State<AppState>) -> Result<Json<security_graph::SecurityGraph>, ApiError> {
+pub async fn security_graph(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<security_graph::SecurityGraph>, ApiError> {
+    require_operator(&actor)?;
     security_graph::build_graph(&state.pool)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))
@@ -65,63 +95,82 @@ pub struct HostQuery {
 
 pub async fn host_summary(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<String>,
-) -> Json<serde_json::Value> {
-    Json(zeus_security::host_summary(&state.config, &id).await)
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(zeus_security::host_summary(&state.config, &id).await))
 }
 
 pub async fn host_processes(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<String>,
     Query(q): Query<HostQuery>,
-) -> Json<serde_json::Value> {
-    Json(zeus_security::host_resource(&state.config, &id, "processes", q.hours.unwrap_or(24)).await)
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(zeus_security::host_resource(&state.config, &id, "processes", q.hours.unwrap_or(24)).await))
 }
 
 pub async fn host_connections(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<String>,
     Query(q): Query<HostQuery>,
-) -> Json<serde_json::Value> {
-    Json(zeus_security::host_resource(&state.config, &id, "connections", q.hours.unwrap_or(24)).await)
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(
+        zeus_security::host_resource(&state.config, &id, "connections", q.hours.unwrap_or(24))
+            .await,
+    ))
 }
 
 pub async fn host_dns(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<String>,
     Query(q): Query<HostQuery>,
-) -> Json<serde_json::Value> {
-    Json(zeus_security::host_resource(&state.config, &id, "dns", q.hours.unwrap_or(24)).await)
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(zeus_security::host_resource(&state.config, &id, "dns", q.hours.unwrap_or(24)).await))
 }
 
 pub async fn host_files(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<String>,
     Query(q): Query<HostQuery>,
-) -> Json<serde_json::Value> {
-    Json(zeus_security::host_resource(&state.config, &id, "files", q.hours.unwrap_or(168)).await)
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(zeus_security::host_resource(&state.config, &id, "files", q.hours.unwrap_or(168)).await))
 }
 
 pub async fn host_ports(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<String>,
-) -> Json<serde_json::Value> {
-    Json(zeus_security::host_resource(&state.config, &id, "ports", 0).await)
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(zeus_security::host_resource(&state.config, &id, "ports", 0).await))
 }
 
 pub async fn host_containers(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<String>,
-) -> Json<serde_json::Value> {
-    Json(zeus_security::host_resource(&state.config, &id, "containers", 0).await)
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(zeus_security::host_resource(&state.config, &id, "containers", 0).await))
 }
 
 pub async fn host_timeline(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<String>,
     Query(q): Query<HostQuery>,
-) -> Json<serde_json::Value> {
-    Json(zeus_security::host_resource(&state.config, &id, "timeline", q.hours.unwrap_or(24)).await)
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(zeus_security::host_resource(&state.config, &id, "timeline", q.hours.unwrap_or(24)).await))
 }
 
 #[derive(Debug, Deserialize)]
@@ -131,13 +180,13 @@ pub struct ProcessGraphQuery {
 
 pub async fn host_process_graph(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<String>,
     Query(q): Query<ProcessGraphQuery>,
-) -> Json<serde_json::Value> {
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let pid_q = q.pid.map(|p| format!("?pid={p}")).unwrap_or_default();
-    Json(
-        packetwolf_bridge::host_fabric(&state.config, &id, "process-graph", &pid_q).await,
-    )
+    Ok(Json(packetwolf_bridge::host_fabric(&state.config, &id, "process-graph", &pid_q).await))
 }
 
 #[derive(Debug, Deserialize)]
@@ -148,17 +197,19 @@ pub struct SearchBody {
 
 pub async fn search(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Json(body): Json<SearchBody>,
-) -> Json<serde_json::Value> {
-    Json(
-        packetwolf_bridge::search(&state.config, &body.query, body.host_id.as_deref()).await,
-    )
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(packetwolf_bridge::search(&state.config, &body.query, body.host_id.as_deref()).await))
 }
 
 pub async fn install_tetragon(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&actor)?;
     use crate::tasks::enqueue::enqueue_task;
     use uuid::Uuid;
 
@@ -188,9 +239,11 @@ pub struct K8sTetragonBody {
 
 pub async fn install_k8s_tetragon(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(cluster_id): Path<String>,
     Json(body): Json<K8sTetragonBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&actor)?;
     use crate::tasks::enqueue::enqueue_task;
 
     let cluster = body.cluster_name.unwrap_or_else(|| cluster_id.clone());
@@ -222,32 +275,40 @@ pub struct K8sExportQuery {
 
 pub async fn k8s_export_status(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(cluster_id): Path<String>,
     Query(q): Query<K8sExportQuery>,
-) -> Json<crate::engine::packetwolf_k8s::K8sExportForwarderStatus> {
-    Json(crate::engine::packetwolf_k8s::export_forwarder_status(
+) -> Result<Json<crate::engine::packetwolf_k8s::K8sExportForwarderStatus>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(crate::engine::packetwolf_k8s::export_forwarder_status(
         &state.config,
         &cluster_id,
         q.namespace.as_deref().unwrap_or("kube-system"),
-    ))
+    )))
 }
 
-pub async fn fabric_health(State(state): State<AppState>) -> Json<serde_json::Value> {
-    Json(packetwolf_bridge::fabric_health(&state.config).await)
+pub async fn fabric_health(State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(packetwolf_bridge::fabric_health(&state.config).await))
 }
 
-pub async fn hunt_queries(State(state): State<AppState>) -> Json<serde_json::Value> {
-    Json(packetwolf_bridge::hunt_queries(&state.config).await)
+pub async fn hunt_queries(State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(packetwolf_bridge::hunt_queries(&state.config).await))
 }
 
 pub async fn run_hunt_query(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(query_id): Path<String>,
     Query(q): Query<HuntRunQuery>,
-) -> Json<serde_json::Value> {
-    Json(
-        packetwolf_bridge::run_hunt_query(&state.config, &query_id, q.host_id.as_deref()).await,
-    )
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(packetwolf_bridge::run_hunt_query(&state.config, &query_id, q.host_id.as_deref()).await))
 }
 
 #[derive(Debug, Deserialize)]
@@ -263,8 +324,10 @@ pub struct ExplainEventBody {
 
 pub async fn explain_event(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Json(body): Json<ExplainEventBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     ai_security::explain_event(&state.pool, &body.event, body.host_id.as_deref())
         .await
         .map_err(|e| ApiError::internal(e.to_string()))
@@ -279,8 +342,10 @@ pub struct AttackReconstructBody {
 
 pub async fn attack_reconstruct(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Json(body): Json<AttackReconstructBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let timeline = zeus_security::host_resource(
         &state.config,
         &body.host_id,
@@ -302,30 +367,36 @@ pub struct NlSearchBody {
 
 pub async fn nl_search(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Json(body): Json<NlSearchBody>,
-) -> Json<serde_json::Value> {
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let (translated, llm_powered) =
         ai_security::translate_nl_search_async(&state.pool, &body.query).await;
-    let results = packetwolf_bridge::search(
-        &state.config,
-        &translated,
-        body.host_id.as_deref(),
-    )
-    .await;
+    let results =
+        packetwolf_bridge::search(&state.config, &translated, body.host_id.as_deref()).await;
     let hits = results
         .get("hit_count")
         .and_then(|v| v.as_u64())
-        .or_else(|| results.get("results").and_then(|v| v.as_array()).map(|a| a.len() as u64))
+        .or_else(|| {
+            results
+                .get("results")
+                .and_then(|v| v.as_array())
+                .map(|a| a.len() as u64)
+        })
         .unwrap_or(0);
-    let backend = results.get("backend").and_then(|v| v.as_str()).unwrap_or("memory");
-    Json(serde_json::json!({
+    let backend = results
+        .get("backend")
+        .and_then(|v| v.as_str())
+        .unwrap_or("memory");
+    Ok(Json(serde_json::json!({
         "original_query": body.query,
         "search_query": translated,
         "results": results,
         "hit_count": hits,
         "search_backend": backend,
         "llm_powered": llm_powered
-    }))
+    })))
 }
 
 #[derive(Debug, Deserialize)]
@@ -335,8 +406,10 @@ pub struct HuntSummaryBody {
 
 pub async fn hunt_summary(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Json(body): Json<HuntSummaryBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let hours = body.hours.unwrap_or(48);
     let timeline = zeus_security::fleet_timeline(&state.config, hours).await;
     let correlations = packetwolf_bridge::correlations(&state.config).await;
@@ -346,12 +419,18 @@ pub async fn hunt_summary(
         .map(Json)
 }
 
-pub async fn enforcement_status(State(state): State<AppState>) -> Json<serde_json::Value> {
-    Json(packetwolf_bridge::enforcement_status(&state.config).await)
+pub async fn enforcement_status(State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(packetwolf_bridge::enforcement_status(&state.config).await))
 }
 
-pub async fn enforcement_policies(State(state): State<AppState>) -> Json<serde_json::Value> {
-    Json(packetwolf_bridge::enforcement_policies(&state.config).await)
+pub async fn enforcement_policies(State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(packetwolf_bridge::enforcement_policies(&state.config).await))
 }
 
 #[derive(Debug, Deserialize)]
@@ -367,8 +446,10 @@ pub struct CreateEnforcementPolicyBody {
 
 pub async fn create_enforcement_policy(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Json(body): Json<CreateEnforcementPolicyBody>,
-) -> Json<serde_json::Value> {
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&actor)?;
     let payload = serde_json::json!({
         "name": body.name,
         "kind": body.kind,
@@ -378,7 +459,7 @@ pub async fn create_enforcement_policy(
         "host_ids": body.host_ids.unwrap_or_default(),
         "description": body.description.unwrap_or_default(),
     });
-    Json(packetwolf_bridge::create_enforcement_policy(&state.config, payload).await)
+    Ok(Json(packetwolf_bridge::create_enforcement_policy(&state.config, payload).await))
 }
 
 #[derive(Debug, Deserialize)]
@@ -416,10 +497,13 @@ async fn enqueue_enforcement_bundle_sync(
 
 pub async fn apply_enforcement_policy(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(policy_id): Path<String>,
     Json(body): Json<ApplyEnforcementBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let pw = packetwolf_bridge::apply_enforcement_policy(&state.config, &policy_id, &body.host_ids).await;
+    require_admin(&actor)?;
+    let pw = packetwolf_bridge::apply_enforcement_policy(&state.config, &policy_id, &body.host_ids)
+        .await;
     let task_ids = enqueue_enforcement_bundle_sync(&state, &body.host_ids, &policy_id).await?;
     Ok(Json(serde_json::json!({
         "packetwolf": pw,
@@ -437,9 +521,11 @@ pub struct PatchEnforcementPolicyBody {
 
 pub async fn patch_enforcement_policy(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(policy_id): Path<String>,
     Json(body): Json<PatchEnforcementPolicyBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&actor)?;
     let payload = serde_json::json!({
         "enabled": body.enabled,
         "match": body.r#match,
@@ -469,8 +555,10 @@ pub async fn patch_enforcement_policy(
 
 pub async fn delete_enforcement_policy(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(policy_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&actor)?;
     let pw = packetwolf_bridge::delete_enforcement_policy(&state.config, &policy_id).await;
     let sync_hosts: Vec<String> = pw
         .get("removed_from_hosts")
@@ -495,18 +583,25 @@ pub async fn delete_enforcement_policy(
 
 pub async fn enforcement_policy_tetragon(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(policy_id): Path<String>,
-) -> Json<serde_json::Value> {
-    Json(packetwolf_bridge::enforcement_policy_tetragon(&state.config, &policy_id).await)
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(packetwolf_bridge::enforcement_policy_tetragon(&state.config, &policy_id).await))
 }
 
-pub async fn install_fleet_tetragon(State(state): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+pub async fn install_fleet_tetragon(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&actor)?;
     use crate::tasks::enqueue::enqueue_task;
 
-    let rows: Vec<(Uuid,)> = sqlx::query_as("SELECT id FROM hosts WHERE state = 'online' ORDER BY hostname")
-        .fetch_all(&state.pool)
-        .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let rows: Vec<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM hosts WHERE state = 'online' ORDER BY hostname")
+            .fetch_all(&state.pool)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut task_ids = Vec::new();
     for (host_uuid,) in &rows {
         let id = host_uuid.to_string();
@@ -533,7 +628,11 @@ pub async fn install_fleet_tetragon(State(state): State<AppState>) -> Result<Jso
     })))
 }
 
-pub async fn fleet_sensors(State(state): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+pub async fn fleet_sensors(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let pw = packetwolf_bridge::sensors(&state.config).await;
     let sensors = pw
         .get("sensors")
@@ -576,16 +675,20 @@ pub async fn fleet_sensors(State(state): State<AppState>) -> Result<Json<serde_j
 
 pub async fn host_enforcement(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<String>,
-) -> Json<serde_json::Value> {
-    Json(packetwolf_bridge::host_enforcement(&state.config, &id).await)
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(packetwolf_bridge::host_enforcement(&state.config, &id).await))
 }
 
 pub async fn agent_security_bundle(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<String>,
-) -> Json<serde_json::Value> {
-    Json(packetwolf_bridge::agent_bundle(&state.config, &id).await)
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(packetwolf_bridge::agent_bundle(&state.config, &id).await))
 }
 
 #[derive(Debug, Deserialize, serde::Serialize)]
@@ -595,9 +698,11 @@ pub struct IngestEventsBody {
 
 pub async fn ingest_tetragon_events(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<String>,
     Json(body): Json<IngestEventsBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&actor)?;
     let count = body.events.len();
     if count == 0 {
         return Ok(Json(serde_json::json!({ "ingested": 0, "host_id": id })));
@@ -618,7 +723,12 @@ pub async fn ingest_tetragon_events(
             .build()
             .map_err(|e| ApiError::internal(e.to_string()))?;
         let mut req = client.post(&url).json(&body);
-        if let Some(key) = state.config.packetwolf_api_key.as_deref().filter(|k| !k.is_empty()) {
+        if let Some(key) = state
+            .config
+            .packetwolf_api_key
+            .as_deref()
+            .filter(|k| !k.is_empty())
+        {
             req = req.header("Authorization", format!("Bearer {key}"));
         }
         let _ = req.send().await;
@@ -633,14 +743,17 @@ pub async fn ingest_tetragon_events(
 
 pub async fn host_fabric_status(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let host_uuid = Uuid::parse_str(&id).map_err(|e| ApiError::bad_request(e.to_string()))?;
-    let agent_addr: Option<String> = sqlx::query_scalar("SELECT agent_grpc_addr FROM hosts WHERE id = $1")
-        .bind(host_uuid)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let agent_addr: Option<String> =
+        sqlx::query_scalar("SELECT agent_grpc_addr FROM hosts WHERE id = $1")
+            .bind(host_uuid)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     let Some(addr) = agent_addr.filter(|a| !a.is_empty()) else {
         return Ok(Json(serde_json::json!({
             "host_id": id,

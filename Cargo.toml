@@ -46,3 +46,4 @@ http = "1"
 axum-server = { version = "0.7", features = ["tls-rustls"] }
 portable-pty = "0.9"
 uuid = { version = "1", features = ["v4", "serde"] }
+aes-gcm = "0.10"

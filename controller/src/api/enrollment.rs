@@ -29,7 +29,11 @@ pub async fn create_enrollment_token(
     Extension(actor): Extension<AuthUser>,
     Json(req): Json<CreateEnrollmentRequest>,
 ) -> Result<Json<EnrollmentTokenResponse>, ApiError> {
-    let ttl = if req.ttl_hours <= 0 { 24 } else { req.ttl_hours };
+    let ttl = if req.ttl_hours <= 0 {
+        24
+    } else {
+        req.ttl_hours
+    };
     let token = format!("join-{}", Uuid::new_v4());
     let expires = Utc::now() + Duration::hours(ttl);
     let cluster_id: Uuid = sqlx::query_scalar("SELECT id FROM clusters LIMIT 1")
@@ -69,7 +73,8 @@ pub async fn create_enrollment_token(
     }))
 }
 
-pub async fn install_script() -> Result<([(axum::http::header::HeaderName, &'static str); 1], String), ApiError> {
+pub async fn install_script(
+) -> Result<([(axum::http::header::HeaderName, &'static str); 1], String), ApiError> {
     Ok((
         [(axum::http::header::CONTENT_TYPE, "text/x-shellscript")],
         r#"#!/usr/bin/env bash
@@ -91,7 +96,8 @@ if command -v machina-agent >/dev/null 2>&1; then
 fi
 echo "machina-agent not found — install the agent package, then run:"
 echo "  machina-agent join --controller \"$CONTROLLER\" --token \"$TOKEN\""
-"#.into(),
+"#
+        .into(),
     ))
 }
 

@@ -1,9 +1,12 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use axum::extract::{Path, Query, State};
+use axum::Extension;
 use axum::Json;
 use serde::Serialize;
 use uuid::Uuid;
+
+use crate::auth::{require_operator, AuthUser};
 
 use crate::api::ApiError;
 use crate::state::AppState;
@@ -122,24 +125,26 @@ pub async fn cancel_task(
 
 pub async fn retry_task(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskResponse>, ApiError> {
-    let row: (String, serde_json::Value, Option<String>, Option<Uuid>, Option<Uuid>) = sqlx::query_as(
+    require_operator(&actor)?;
+    let row: (
+        String,
+        serde_json::Value,
+        Option<String>,
+        Option<Uuid>,
+        Option<Uuid>,
+    ) = sqlx::query_as(
         "SELECT operation, payload, resource_type, resource_id, host_id FROM tasks WHERE id = $1",
     )
     .bind(id)
     .fetch_one(&state.pool)
     .await?;
 
-    let new_id = crate::tasks::enqueue::enqueue_task(
-        &state,
-        &row.0,
-        row.1,
-        row.2.as_deref(),
-        row.3,
-        row.4,
-    )
-    .await?;
+    let new_id =
+        crate::tasks::enqueue::enqueue_task(&state, &row.0, row.1, row.2.as_deref(), row.3, row.4)
+            .await?;
 
     Ok(Json(TaskResponse {
         task_id: new_id.to_string(),

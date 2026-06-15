@@ -40,7 +40,7 @@ import {
   verifyAuditLog,
   type ObservabilitySettingsView,
 } from '../api/observability'
-import AdIntegrationPanel from '../components/AdIntegrationPanel'
+import IdentitySsoPanel from '../components/IdentitySsoPanel'
 import { getMetricsTraces, type HttpTraceSpan } from '../api/metrics'
 type Tab = 'roles' | 'tokens' | 'alerts' | 'webhooks' | 'schedules' | 'notifications' | 'snapshots'
 
@@ -408,13 +408,7 @@ export default function SettingsPage() {
         </section>
       )}
 
-      <section className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-4">
-        <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-          <Shield className="w-4 h-4 text-sky-400" />
-          Active Directory / LDAP
-        </h2>
-        <AdIntegrationPanel />
-      </section>
+      <IdentitySsoPanel />
 
       {obsSettings ? (
         <section className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-4">
@@ -905,8 +899,8 @@ export default function SettingsPage() {
                   <tr key={h.id} className="table-row-hover">
                     <td className={`px-6 py-3 text-sm font-mono truncate max-w-xs ${statusToneClass('info')}`}>{h.url}</td>
                     <td className="px-6 py-3 text-xs text-slate-400">{h.events.join(', ')}</td>
-                    <td className="px-6 py-3"><input type="checkbox" checked={h.enabled} onChange={e => { const next = [...webhooks]; next[i].enabled = e.target.checked; setWebhooks(next); saveWebhooks(next) }} /></td>
-                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = webhooks.filter((_, j) => j !== i); setWebhooks(next); saveWebhooks(next) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
+                    <td className="px-6 py-3"><input type="checkbox" checked={h.enabled} onChange={e => { const next = [...webhooks]; next[i].enabled = e.target.checked; setWebhooks(next); saveWebhooks(next).catch((e: unknown) => toast.error(formatUserError(e))) }} /></td>
+                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = webhooks.filter((_, j) => j !== i); setWebhooks(next); saveWebhooks(next).catch((e: unknown) => toast.error(formatUserError(e))) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
                   </tr>
                 ))}
                 {webhooks.length === 0 && <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-500">No webhooks configured. Add one to receive VM event notifications.</td></tr>}
@@ -944,9 +938,9 @@ export default function SettingsPage() {
                     <td className="px-6 py-3 font-medium">{s.vm_name}</td>
                     <td className="px-6 py-3 text-sm"><span className="px-2 py-0.5 bg-slate-700 rounded text-xs">{s.action}</span></td>
                     <td className="px-6 py-3 text-sm font-mono text-slate-400">{s.schedule}</td>
-                    <td className="px-6 py-3"><input type="checkbox" checked={s.enabled} onChange={e => { const next = [...schedules]; next[i].enabled = e.target.checked; setSchedules(next); saveSchedules(next) }} /></td>
+                    <td className="px-6 py-3"><input type="checkbox" checked={s.enabled} onChange={e => { const next = [...schedules]; next[i].enabled = e.target.checked; setSchedules(next); saveSchedules(next).catch((e: unknown) => toast.error(formatUserError(e))) }} /></td>
                     <td className="px-6 py-3 text-xs text-slate-500">{s.last_run || 'never'}</td>
-                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = schedules.filter((_, j) => j !== i); setSchedules(next); saveSchedules(next) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
+                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = schedules.filter((_, j) => j !== i); setSchedules(next); saveSchedules(next).catch((e: unknown) => toast.error(formatUserError(e))) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
                   </tr>
                 ))}
                 {schedules.length === 0 && <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">No scheduled actions. Add one to auto start/stop VMs at specific times.</td></tr>}
@@ -977,10 +971,10 @@ export default function SettingsPage() {
                   <tr key={ch.id} className="table-row-hover">
                     <td className="px-6 py-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${statusBadgeClasses(notificationChannelTone(ch.channel_type))}`}>{ch.channel_type}</span></td>
                     <td className="px-6 py-3 text-sm font-mono text-slate-400 truncate max-w-xs">{ch.config}</td>
-                    <td className="px-6 py-3"><input type="checkbox" checked={ch.enabled} onChange={e => { const next = [...notificationChannels]; next[i].enabled = e.target.checked; setNotificationChannels(next); saveNotificationChannels(next) }} /></td>
+                    <td className="px-6 py-3"><input type="checkbox" checked={ch.enabled} onChange={e => { const next = [...notificationChannels]; next[i].enabled = e.target.checked; setNotificationChannels(next); saveNotificationChannels(next).catch((e: unknown) => toast.error(formatUserError(e))) }} /></td>
                     <td className="px-6 py-3 text-right flex items-center justify-end gap-1">
                       <button onClick={async () => { try { await testNotification(ch); toast.success('Test sent') } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} className="p-1 hover:bg-blue-600/20 rounded" title="Send test"><Send className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
-                      <button onClick={() => { const next = notificationChannels.filter((_, j) => j !== i); setNotificationChannels(next); saveNotificationChannels(next) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
+                      <button onClick={() => { const next = notificationChannels.filter((_, j) => j !== i); setNotificationChannels(next); saveNotificationChannels(next).catch((e: unknown) => toast.error(formatUserError(e))) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
                     </td>
                   </tr>
                 ))}
@@ -1019,8 +1013,8 @@ export default function SettingsPage() {
                     <td className="px-6 py-3 text-sm">{s.interval_hours}h</td>
                     <td className="px-6 py-3 text-sm">{s.retain_count}</td>
                     <td className="px-6 py-3 text-xs text-slate-500">{s.last_run || 'never'}</td>
-                    <td className="px-6 py-3"><input type="checkbox" checked={s.enabled} onChange={e => { const next = [...snapshotSchedules]; next[i].enabled = e.target.checked; setSnapshotSchedules(next); saveSnapshotSchedules(next) }} /></td>
-                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = snapshotSchedules.filter((_, j) => j !== i); setSnapshotSchedules(next); saveSnapshotSchedules(next) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
+                    <td className="px-6 py-3"><input type="checkbox" checked={s.enabled} onChange={e => { const next = [...snapshotSchedules]; next[i].enabled = e.target.checked; setSnapshotSchedules(next); saveSnapshotSchedules(next).catch((e: unknown) => toast.error(formatUserError(e))) }} /></td>
+                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = snapshotSchedules.filter((_, j) => j !== i); setSnapshotSchedules(next); saveSnapshotSchedules(next).catch((e: unknown) => toast.error(formatUserError(e))) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
                   </tr>
                 ))}
                 {snapshotSchedules.length === 0 && <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">No snapshot schedules. Add one to automatically snapshot VMs at regular intervals.</td></tr>}

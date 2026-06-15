@@ -4,15 +4,14 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 pub async fn dispatch_webhooks(pool: &PgPool, event_kind: &str, payload: serde_json::Value) {
-    let rows: Vec<(Uuid, String, String, Vec<String>)> = match sqlx::query_as(
-        "SELECT id, url, secret, events FROM webhooks WHERE enabled = TRUE",
-    )
-    .fetch_all(pool)
-    .await
-    {
-        Ok(r) => r,
-        Err(_) => return,
-    };
+    let rows: Vec<(Uuid, String, String, Vec<String>)> =
+        match sqlx::query_as("SELECT id, url, secret, events FROM webhooks WHERE enabled = TRUE")
+            .fetch_all(pool)
+            .await
+        {
+            Ok(r) => r,
+            Err(_) => return,
+        };
 
     let body = serde_json::json!({
         "kind": event_kind,
@@ -37,14 +36,12 @@ pub async fn dispatch_webhooks(pool: &PgPool, event_kind: &str, payload: serde_j
         .await;
     }
 
-    let _ = sqlx::query(
-        "INSERT INTO notification_outbox (id, kind, payload) VALUES ($1, $2, $3)",
-    )
-    .bind(Uuid::new_v4())
-    .bind(event_kind)
-    .bind(&payload)
-    .execute(pool)
-    .await;
+    let _ = sqlx::query("INSERT INTO notification_outbox (id, kind, payload) VALUES ($1, $2, $3)")
+        .bind(Uuid::new_v4())
+        .bind(event_kind)
+        .bind(&payload)
+        .execute(pool)
+        .await;
 }
 
 pub fn event_matches(filter: &str, kind: &str) -> bool {

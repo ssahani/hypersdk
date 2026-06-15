@@ -26,12 +26,11 @@ pub struct IngestStats {
 }
 
 async fn watermark(pool: &PgPool, source: &str) -> anyhow::Result<DateTime<Utc>> {
-    let ts: DateTime<Utc> = sqlx::query_scalar(
-        "SELECT last_at FROM soc_ingest_watermarks WHERE source = $1",
-    )
-    .bind(source)
-    .fetch_one(pool)
-    .await?;
+    let ts: DateTime<Utc> =
+        sqlx::query_scalar("SELECT last_at FROM soc_ingest_watermarks WHERE source = $1")
+            .bind(source)
+            .fetch_one(pool)
+            .await?;
     Ok(ts)
 }
 
@@ -165,14 +164,21 @@ fn firewall_severity(kind: &str, detail: &Value) -> String {
 
 async fn ingest_audit_logs(pool: &PgPool) -> anyhow::Result<usize> {
     let since = watermark(pool, "audit_logs").await?;
-    let rows: Vec<(Uuid, String, String, Option<String>, Option<Uuid>, Value, DateTime<Utc>)> =
-        sqlx::query_as(
-            "SELECT id, actor, action, resource_type, resource_id, detail, created_at
+    let rows: Vec<(
+        Uuid,
+        String,
+        String,
+        Option<String>,
+        Option<Uuid>,
+        Value,
+        DateTime<Utc>,
+    )> = sqlx::query_as(
+        "SELECT id, actor, action, resource_type, resource_id, detail, created_at
              FROM audit_logs WHERE created_at > $1 ORDER BY created_at ASC LIMIT 2000",
-        )
-        .bind(since)
-        .fetch_all(pool)
-        .await?;
+    )
+    .bind(since)
+    .fetch_all(pool)
+    .await?;
 
     let mut n = 0usize;
     let mut max_ts = since;
@@ -227,14 +233,21 @@ fn audit_severity(action: &str) -> String {
 
 async fn ingest_platform_events(pool: &PgPool) -> anyhow::Result<usize> {
     let since = watermark(pool, "platform_events").await?;
-    let rows: Vec<(Uuid, String, Option<String>, Option<Uuid>, String, Value, DateTime<Utc>)> =
-        sqlx::query_as(
-            "SELECT id, kind, resource_type, resource_id, message, payload, created_at
+    let rows: Vec<(
+        Uuid,
+        String,
+        Option<String>,
+        Option<Uuid>,
+        String,
+        Value,
+        DateTime<Utc>,
+    )> = sqlx::query_as(
+        "SELECT id, kind, resource_type, resource_id, message, payload, created_at
              FROM events WHERE created_at > $1 ORDER BY created_at ASC LIMIT 1000",
-        )
-        .bind(since)
-        .fetch_all(pool)
-        .await?;
+    )
+    .bind(since)
+    .fetch_all(pool)
+    .await?;
 
     let mut n = 0usize;
     let mut max_ts = since;
@@ -310,9 +323,7 @@ async fn ingest_packetwolf(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Res
         let dedupe = format!(
             "pw:{}:{}",
             anomaly_type,
-            a.get("detected_at")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
+            a.get("detected_at").and_then(|v| v.as_str()).unwrap_or("")
         );
         let ecs = json!({
             "@timestamp": now.to_rfc3339(),

@@ -1,11 +1,13 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use axum::extract::{Path, State};
+use axum::Extension;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::api::ApiError;
+use crate::auth::{require_operator, AuthUser};
 use crate::state::AppState;
 use crate::tasks::enqueue::enqueue_task;
 
@@ -36,7 +38,9 @@ pub struct CreateApplicationBody {
 
 pub async fn list_applications(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<ApplicationGroupRow>>, ApiError> {
+    require_operator(&actor)?;
     let rows = sqlx::query_as::<_, ApplicationGroupRow>(
         "SELECT id, name, description, created_at FROM application_groups ORDER BY name",
     )
@@ -47,8 +51,10 @@ pub async fn list_applications(
 
 pub async fn get_application(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ApplicationGroupDetail>, ApiError> {
+    require_operator(&actor)?;
     let group = sqlx::query_as::<_, ApplicationGroupRow>(
         "SELECT id, name, description, created_at FROM application_groups WHERE id = $1",
     )
@@ -74,8 +80,10 @@ pub async fn get_application(
 
 pub async fn create_application(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Json(body): Json<CreateApplicationBody>,
 ) -> Result<Json<ApplicationGroupDetail>, ApiError> {
+    require_operator(&actor)?;
     let name = body.name.trim();
     machina_spec::validate_label(name).map_err(|e| ApiError::bad_request(e.to_string()))?;
     let cluster_id: Uuid = sqlx::query_scalar("SELECT id FROM clusters LIMIT 1")
@@ -98,7 +106,7 @@ pub async fn create_application(
             .execute(&state.pool)
             .await?;
     }
-    get_application(State(state), Path(id)).await
+    get_application(State(state), Extension(actor), Path(id)).await
 }
 
 #[derive(Debug, Deserialize)]
@@ -108,15 +116,16 @@ pub struct ApplicationActionBody {
 
 pub async fn run_application_action(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<ApplicationActionBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let vm_ids: Vec<Uuid> = sqlx::query_scalar(
-        "SELECT vm_id FROM application_group_vms WHERE group_id = $1",
-    )
-    .bind(id)
-    .fetch_all(&state.pool)
-    .await?;
+    require_operator(&actor)?;
+    let vm_ids: Vec<Uuid> =
+        sqlx::query_scalar("SELECT vm_id FROM application_group_vms WHERE group_id = $1")
+            .bind(id)
+            .fetch_all(&state.pool)
+            .await?;
     if vm_ids.is_empty() {
         return Err(ApiError::bad_request("application group has no VMs"));
     }
@@ -128,20 +137,21 @@ pub async fn run_application_action(
             .await?
             .flatten();
         let (op, payload) = match body.action.as_str() {
-            "start" => ("vm.power", serde_json::json!({ "vm_id": vm_id.to_string(), "action": "start" })),
-            "stop" => ("vm.power", serde_json::json!({ "vm_id": vm_id.to_string(), "action": "stop" })),
-            "backup" => ("vm.backup", serde_json::json!({ "vm_id": vm_id.to_string(), "backup_type": "full" })),
+            "start" => (
+                "vm.power",
+                serde_json::json!({ "vm_id": vm_id.to_string(), "action": "start" }),
+            ),
+            "stop" => (
+                "vm.power",
+                serde_json::json!({ "vm_id": vm_id.to_string(), "action": "stop" }),
+            ),
+            "backup" => (
+                "vm.backup",
+                serde_json::json!({ "vm_id": vm_id.to_string(), "backup_type": "full" }),
+            ),
             other => return Err(ApiError::bad_request(format!("unknown action: {other}"))),
         };
-        let task_id = enqueue_task(
-            &state,
-            op,
-            payload,
-            Some("vm"),
-            Some(vm_id),
-            host_id,
-        )
-        .await?;
+        let task_id = enqueue_task(&state, op, payload, Some("vm"), Some(vm_id), host_id).await?;
         task_ids.push(task_id.to_string());
     }
     Ok(Json(serde_json::json!({ "task_ids": task_ids })))

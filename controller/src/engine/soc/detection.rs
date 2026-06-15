@@ -145,7 +145,10 @@ fn event_matches(query: &Value, source: &str, severity: &str, ecs: &Value) -> bo
     }
 
     if let Some(cat) = m.get("category").and_then(|v| v.as_str()) {
-        let ds = ecs.get("event.dataset").and_then(|v| v.as_str()).unwrap_or("");
+        let ds = ecs
+            .get("event.dataset")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
         if cat == "firewall" && !ds.contains("firewall") {
             return false;
         }
@@ -200,7 +203,12 @@ async fn upsert_alert(
     Ok(Some(id))
 }
 
-async fn enqueue_notification(pool: &PgPool, title: &str, severity: &str, alert_id: Uuid) -> anyhow::Result<()> {
+async fn enqueue_notification(
+    pool: &PgPool,
+    title: &str,
+    severity: &str,
+    alert_id: Uuid,
+) -> anyhow::Result<()> {
     let payload = serde_json::json!({
         "title": title,
         "severity": severity,
@@ -216,7 +224,11 @@ async fn enqueue_notification(pool: &PgPool, title: &str, severity: &str, alert_
     Ok(())
 }
 
-pub async fn test_rule(pool: &PgPool, rule_id: Uuid, hours: i32) -> anyhow::Result<serde_json::Value> {
+pub async fn test_rule(
+    pool: &PgPool,
+    rule_id: Uuid,
+    hours: i32,
+) -> anyhow::Result<serde_json::Value> {
     let rule: RuleRow = sqlx::query_as(
         "SELECT id, name, severity, query_json, throttle_minutes FROM soc_detection_rules WHERE id = $1",
     )

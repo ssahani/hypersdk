@@ -40,16 +40,25 @@ pub struct PatchPromptBody {
 }
 
 pub async fn list_prompts(pool: &PgPool, user_id: &str) -> anyhow::Result<Vec<PromptRow>> {
-    let rows: Vec<(Uuid, String, String, String, String, String, serde_json::Value, String, DateTime<Utc>)> =
-        sqlx::query_as(
-            "SELECT id, scope, owner_id, team_id, title, body, tags, agent_id, created_at
+    let rows: Vec<(
+        Uuid,
+        String,
+        String,
+        String,
+        String,
+        String,
+        serde_json::Value,
+        String,
+        DateTime<Utc>,
+    )> = sqlx::query_as(
+        "SELECT id, scope, owner_id, team_id, title, body, tags, agent_id, created_at
              FROM ai_prompts
              WHERE scope = 'org' OR owner_id = $1 OR (scope = 'team' AND team_id <> '')
              ORDER BY created_at DESC LIMIT 200",
-        )
-        .bind(user_id)
-        .fetch_all(pool)
-        .await?;
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
     Ok(rows.into_iter().map(map_row).collect())
 }
 

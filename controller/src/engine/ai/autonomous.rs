@@ -161,8 +161,7 @@ pub async fn execute_approved_plan(
     actor: &crate::auth::AuthUser,
     body: &AutonomousExecuteBody,
 ) -> anyhow::Result<serde_json::Value> {
-    super::enterprise_zeus::require_zeus_execute(actor)
-        .map_err(|e| anyhow::anyhow!(e.message))?;
+    super::enterprise_zeus::require_zeus_execute(actor).map_err(|e| anyhow::anyhow!(e.message))?;
     let plan = plan(
         pool,
         cfg,
@@ -178,7 +177,10 @@ pub async fn execute_approved_plan(
         let created = super::actions::create_action(
             pool,
             &super::actions::CreateActionBody {
-                action_type: step.action_type.clone().unwrap_or_else(|| "execute_plan".into()),
+                action_type: step
+                    .action_type
+                    .clone()
+                    .unwrap_or_else(|| "execute_plan".into()),
                 label: step.title.clone(),
                 review: step.detail.clone(),
                 risk: "Review required".into(),

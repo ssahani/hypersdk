@@ -135,10 +135,17 @@ pub async fn register_vault_provider(
     if name.is_empty() {
         anyhow::bail!("name required");
     }
-    let provider_type = req.provider_type.clone().unwrap_or_else(|| "hashicorp".into());
+    let provider_type = req
+        .provider_type
+        .clone()
+        .unwrap_or_else(|| "hashicorp".into());
     let address = req.address.clone().unwrap_or_default();
     let namespace = req.namespace.clone().unwrap_or_else(|| "machina".into());
-    let status = if provider_type == "file" { "active" } else { "disconnected" };
+    let status = if provider_type == "file" {
+        "active"
+    } else {
+        "disconnected"
+    };
 
     let id = Uuid::new_v4();
     sqlx::query(
@@ -506,9 +513,7 @@ pub async fn mfa_compliance(pool: &PgPool) -> anyhow::Result<MfaComplianceReport
         required_roles: required.len(),
         compliant_users,
         non_compliant_users,
-        summary: format!(
-            "{compliant_users} compliant · {non_compliant_users} need enrollment"
-        ),
+        summary: format!("{compliant_users} compliant · {non_compliant_users} need enrollment"),
         users: rows,
     })
 }

@@ -72,7 +72,9 @@ impl ApiError {
         self
     }
 
-    pub fn migration_precheck_failed(checks: &[crate::engine::migrate_precheck::MigrateCheck]) -> Self {
+    pub fn migration_precheck_failed(
+        checks: &[crate::engine::migrate_precheck::MigrateCheck],
+    ) -> Self {
         let failed: Vec<_> = checks.iter().filter(|c| !c.passed).collect();
         let message = failed
             .iter()

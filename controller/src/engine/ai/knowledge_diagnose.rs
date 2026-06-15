@@ -25,14 +25,13 @@ pub async fn diagnose(pool: &PgPool, query: &str) -> anyhow::Result<KnowledgeDia
     let ql = q.to_lowercase();
     let pattern = format!("%{q}%");
 
-    let related_vm_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM vms WHERE name ILIKE $1 OR $2 = ANY(tags)",
-    )
-    .bind(&pattern)
-    .bind(q)
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0);
+    let related_vm_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM vms WHERE name ILIKE $1 OR $2 = ANY(tags)")
+            .bind(&pattern)
+            .bind(q)
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
 
     let failed_task_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM tasks WHERE status = 'failed' AND (operation ILIKE $1 OR created_at > NOW() - INTERVAL '7 days')",
@@ -51,12 +50,19 @@ pub async fn diagnose(pool: &PgPool, query: &str) -> anyhow::Result<KnowledgeDia
 
     let mut hypotheses = Vec::new();
 
-    if ql.contains("slow") || ql.contains("latency") || ql.contains("billing") || ql.contains("payment") {
+    if ql.contains("slow")
+        || ql.contains("latency")
+        || ql.contains("billing")
+        || ql.contains("payment")
+    {
         hypotheses.push(DiagnoseHypothesis {
             title: "Database or API saturation".into(),
             confidence: 0.78,
-            evidence: format!("{related_vm_count} matching VM(s); {failed_task_count} recent failed tasks"),
-            action: "Check VM metrics, storage pool free space, and network path to DB tier.".into(),
+            evidence: format!(
+                "{related_vm_count} matching VM(s); {failed_task_count} recent failed tasks"
+            ),
+            action: "Check VM metrics, storage pool free space, and network path to DB tier."
+                .into(),
         });
         if high_cpu_vms > 0 {
             hypotheses.push(DiagnoseHypothesis {

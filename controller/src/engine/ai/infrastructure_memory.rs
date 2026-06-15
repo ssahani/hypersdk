@@ -62,10 +62,18 @@ pub async fn recall(pool: &PgPool, limit: i64) -> anyhow::Result<InfrastructureM
 
     for (at, actor, action, detail) in rows {
         let lesson = match action.as_str() {
-            a if a.contains("fail") => "Review failed task logs before retry; check agent connectivity.",
-            a if a.contains("autopilot") => "Autopilot action audited — verify guardrails before expanding batch size.",
-            a if a.contains("migrate") => "Migration events affect placement — check DRS recommendations after.",
-            a if a.contains("delete") => "Destructive change recorded — ensure approval workflow was followed.",
+            a if a.contains("fail") => {
+                "Review failed task logs before retry; check agent connectivity."
+            }
+            a if a.contains("autopilot") => {
+                "Autopilot action audited — verify guardrails before expanding batch size."
+            }
+            a if a.contains("migrate") => {
+                "Migration events affect placement — check DRS recommendations after."
+            }
+            a if a.contains("delete") => {
+                "Destructive change recorded — ensure approval workflow was followed."
+            }
             _ => "Historical infrastructure change — correlate with Mission Control timeline.",
         };
         let summary = detail
@@ -107,7 +115,11 @@ pub struct SimilarIncidentsResult {
     pub summary: String,
 }
 
-pub async fn similar(pool: &PgPool, query: &str, limit: i64) -> anyhow::Result<SimilarIncidentsResult> {
+pub async fn similar(
+    pool: &PgPool,
+    query: &str,
+    limit: i64,
+) -> anyhow::Result<SimilarIncidentsResult> {
     let cap = limit.clamp(1, 20);
     let pattern = format!("%{}%", query.trim());
 
@@ -141,7 +153,10 @@ pub async fn similar(pool: &PgPool, query: &str, limit: i64) -> anyhow::Result<S
     let summary = if incidents.is_empty() {
         format!("No similar incidents for '{query}' in audit history.")
     } else {
-        format!("Found {} similar incident(s) for '{query}'.", incidents.len())
+        format!(
+            "Found {} similar incident(s) for '{query}'.",
+            incidents.len()
+        )
     };
 
     Ok(SimilarIncidentsResult {
@@ -207,7 +222,11 @@ pub async fn changes_before_outage(
 
     Ok(ChangeBeforeOutage {
         incident_id: incident_id.map(|id| id.to_string()),
-        summary: format!("{} change(s) in the {}h before incident.", changes.len(), hours_before),
+        summary: format!(
+            "{} change(s) in the {}h before incident.",
+            changes.len(),
+            hours_before
+        ),
         changes,
     })
 }

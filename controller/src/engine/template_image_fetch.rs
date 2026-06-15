@@ -39,12 +39,11 @@ pub async fn ensure_template_disk(
 }
 
 async fn host_address(pool: &PgPool, host_id: Uuid) -> anyhow::Result<String> {
-    let row: Option<(String, String)> = sqlx::query_as(
-        "SELECT hostname, address FROM hosts WHERE id = $1 AND state = 'online'",
-    )
-    .bind(host_id)
-    .fetch_optional(pool)
-    .await?;
+    let row: Option<(String, String)> =
+        sqlx::query_as("SELECT hostname, address FROM hosts WHERE id = $1 AND state = 'online'")
+            .bind(host_id)
+            .fetch_optional(pool)
+            .await?;
     let (hostname, address) = row.ok_or_else(|| anyhow::anyhow!("host not online"))?;
     let addr = if address.trim().is_empty() {
         hostname
@@ -133,7 +132,9 @@ pub async fn prefetch_missing_images(
             skipped += 1;
             continue;
         }
-        match ensure_template_disk(pool, host_id, &item.source_disk, &item.name, &item.version).await {
+        match ensure_template_disk(pool, host_id, &item.source_disk, &item.name, &item.version)
+            .await
+        {
             Ok(true) => fetched += 1,
             Ok(false) => skipped += 1,
             Err(e) => errors.push(format!("{}@{}: {e:#}", item.name, item.version)),

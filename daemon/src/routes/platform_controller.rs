@@ -89,24 +89,26 @@ async fn platform_controller_proxy(
         )))
     })?;
 
-    let status =
-        StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+    let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
     let mut out_headers = HeaderMap::new();
     if let Some(ct) = resp.headers().get(header::CONTENT_TYPE) {
         out_headers.insert(header::CONTENT_TYPE, ct.clone());
     }
     let bytes = resp.bytes().await.map_err(|e| {
-        AppError::from(LibvirtError::Internal(format!("read controller response: {e}")))
+        AppError::from(LibvirtError::Internal(format!(
+            "read controller response: {e}"
+        )))
     })?;
 
     Ok(Response::builder()
         .status(status)
         .body(Body::from(bytes))
-        .map_err(|e| {
-            AppError::from(LibvirtError::Internal(format!("response build: {e}")))
-        })?)
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("response build: {e}"))))?)
 }
 
 pub fn platform_controller_routes() -> Router<LibvirtManager> {
-    Router::new().route("/platform/controller/{*rest}", any(platform_controller_proxy))
+    Router::new().route(
+        "/platform/controller/{*rest}",
+        any(platform_controller_proxy),
+    )
 }

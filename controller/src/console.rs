@@ -30,12 +30,13 @@ pub async fn vm_console(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ConsoleInfo>, ApiError> {
-    let row: (String, Option<Uuid>) =
-        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
-            .bind(id)
-            .fetch_one(&state.pool)
-            .await?;
-    let host_id = row.1.ok_or_else(|| ApiError::bad_request("vm has no host"))?;
+    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await?;
+    let host_id = row
+        .1
+        .ok_or_else(|| ApiError::bad_request("vm has no host"))?;
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
     let info = agent_client::get_console(&mut client, &row.0).await.map_err(|e| {
@@ -102,18 +103,14 @@ pub async fn serial_ws_proxy(
     ws.on_upgrade(move |socket| proxy_to_agent_serial(socket, state, vm_id))
 }
 
-async fn vm_agent_target(
-    state: &AppState,
-    vm_id: Uuid,
-) -> Option<(String, String)> {
-    let row = sqlx::query_as::<_, (String, Option<Uuid>)>(
-        "SELECT name, host_id FROM vms WHERE id = $1",
-    )
-    .bind(vm_id)
-    .fetch_optional(&state.pool)
-    .await
-    .ok()
-    .flatten()?;
+async fn vm_agent_target(state: &AppState, vm_id: Uuid) -> Option<(String, String)> {
+    let row =
+        sqlx::query_as::<_, (String, Option<Uuid>)>("SELECT name, host_id FROM vms WHERE id = $1")
+            .bind(vm_id)
+            .fetch_optional(&state.pool)
+            .await
+            .ok()
+            .flatten()?;
 
     let (name, Some(host_id)) = row else {
         return None;

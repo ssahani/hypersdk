@@ -100,7 +100,7 @@ export default function ViewLensBar({
                   : 'px-2 py-0.5 rounded text-[11px] text-slate-500 hover:text-slate-300'
               }
             >
-              {p.replace('guacamole_', '').replace('_', ' ')}
+              {p.replace('guacamole_', '').replace(/_/g, ' ')}
             </button>
           ))}
         </div>

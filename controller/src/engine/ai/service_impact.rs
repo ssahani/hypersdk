@@ -19,16 +19,18 @@ pub struct ServiceImpactResult {
     pub recommendations: Vec<String>,
 }
 
-pub async fn simulate(pool: &PgPool, q: &ServiceImpactQuery) -> anyhow::Result<ServiceImpactResult> {
+pub async fn simulate(
+    pool: &PgPool,
+    q: &ServiceImpactQuery,
+) -> anyhow::Result<ServiceImpactResult> {
     let name = q.service.trim();
     let pattern = format!("%{name}%");
 
-    let group_id: Option<uuid::Uuid> = sqlx::query_scalar(
-        "SELECT id FROM application_groups WHERE name ILIKE $1 LIMIT 1",
-    )
-    .bind(&pattern)
-    .fetch_optional(pool)
-    .await?;
+    let group_id: Option<uuid::Uuid> =
+        sqlx::query_scalar("SELECT id FROM application_groups WHERE name ILIKE $1 LIMIT 1")
+            .bind(&pattern)
+            .fetch_optional(pool)
+            .await?;
 
     let mut affected_vms = Vec::new();
     let mut affected_hosts = Vec::new();
@@ -53,13 +55,12 @@ pub async fn simulate(pool: &PgPool, q: &ServiceImpactQuery) -> anyhow::Result<S
             }
         }
     } else {
-        let vms: Vec<String> = sqlx::query_scalar(
-            "SELECT name FROM vms WHERE name ILIKE $1 LIMIT 12",
-        )
-        .bind(&pattern)
-        .fetch_all(pool)
-        .await
-        .unwrap_or_default();
+        let vms: Vec<String> =
+            sqlx::query_scalar("SELECT name FROM vms WHERE name ILIKE $1 LIMIT 12")
+                .bind(&pattern)
+                .fetch_all(pool)
+                .await
+                .unwrap_or_default();
         affected_vms = vms;
     }
 

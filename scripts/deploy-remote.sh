@@ -62,6 +62,7 @@ usage() {
     cat <<'EOF'
 deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--install-only|--bins-only|--e2e|--e2e-libvirt-desktop|--platform|--cleanup|--prune-sources|--dry-run]
         [--skip-platform-e2e|--skip-daemon-e2e]
+        [--e2e-auth pam|ldap|oidc|auto]
         [--remote-build|--remote-check] [--bind ADDR] [--open-firewall|--disable-firewalld]
         [--with-guacamole] [--guacamole-port PORT] [--no-start] [--deps-only] [extra install.sh args...]
 
@@ -90,7 +91,7 @@ Examples:
   deploy-remote.sh 185.165.240.5 sus --quick    # HOST USER (auto-swapped)
   VSPASS=max deploy-remote.sh sus 185.165.240.5 --quick --e2e --platform
   VSPASS=max deploy-remote.sh sus 212.8.252.194 --platform --e2e --bind 0.0.0.0
-  deploy-remote.sh sus 212.8.252.194 --quick --platform --e2e --bind 0.0.0.0 --disable-firewalld
+  VSPASS=max deploy-remote.sh sus 212.8.252.194 --platform --e2e --e2e-auth ldap --bind 0.0.0.0 --disable-firewalld
   deploy-remote.sh sus@host --with-guacamole --bind 0.0.0.0 --open-firewall
   deploy-remote.sh sus 212.8.252.194 --install-only --platform --prune-sources
   deploy-remote.sh sus@host --remote-check    # fast compile smoke after rsync
@@ -101,6 +102,7 @@ Examples:
   deploy-remote.sh check    deploy-remote.sh check sus@host
 
 Env: DEPLOY_HOST DEPLOY_USER SSH_PORT SSHPASS REMOTE_DIR HEALTH_URL STRICT SYNC_ONLY
+     E2E_AUTH_MODE E2E_LDAP_USER E2E_LDAP_PASS (post-deploy --e2e login; default auto)
 
 After each rsync, the script runs sudo chown on the deploy tree so interrupted
 sudo builds cannot leave root-owned target/ (cargo EACCES on --quick).
@@ -288,6 +290,7 @@ SKIP_PLATFORM_E2E=false
 SKIP_DAEMON_E2E=false
 SKIP_LIVE_UX=false
 RUN_LIBVIRT_DESKTOP_E2E=false
+E2E_AUTH_MODE="${E2E_AUTH_MODE:-auto}"
 WITH_GUACAMOLE=false
 GUACAMOLE_PORT=8081
 
@@ -304,6 +307,7 @@ parse_flags() {
             --skip-platform-e2e) SKIP_PLATFORM_E2E=true; shift ;;
             --skip-daemon-e2e) SKIP_DAEMON_E2E=true; shift ;;
             --skip-live-ux) SKIP_LIVE_UX=true; shift ;;
+            --e2e-auth) E2E_AUTH_MODE="${2:?pam|ldap|oidc|auto}"; shift 2 ;;
             --with-guacamole) WITH_GUACAMOLE=true; shift ;;
             --guacamole-port) GUACAMOLE_PORT="${2:?}"; shift 2 ;;
             --cleanup) CLEANUP=true; shift ;;
@@ -673,7 +677,12 @@ tip "After first --quick, prune sources: add --prune-sources (keeps target/ + we
 tip "HOST USER also works: ./scripts/deploy-remote.sh ${HOST} ${USER} --install-only"
 
 if $RUN_E2E; then
-    if [[ -n "${VSPASS:-}" || -n "${SSHPASS:-}" ]]; then
+    if [[ -n "${VSPASS:-}" || -n "${SSHPASS:-}" || -n "${E2E_LDAP_PASS:-}" ]]; then
+        # shellcheck source=lib/e2e-auth.sh
+        source "${SCRIPT_DIR}/lib/e2e-auth.sh"
+        export E2E_AUTH_MODE
+        export E2E_USER="${USER}"
+        export E2E_PASSWORD="${VSPASS:-${SSHPASS:-}}"
         if $INSTALL_PLATFORM && ! $SKIP_PLATFORM_E2E; then
             deploy_ui_highlight "🧪 Post-deploy full E2E (daemon + platform proxy + controller)"
             info "Waiting for agent gRPC :50051 before install smoke…"
@@ -689,7 +698,9 @@ exit 1
             if $SKIP_DAEMON_E2E; then FULL_E2E_FLAGS+=(--skip-daemon-e2e); fi
             FULL_E2E_OK=true
             API_E2E_SUMMARY="not run"
-            if "${SCRIPT_DIR}/e2e-full-test-remote.sh" "$USER" "$HOST" "${FULL_E2E_FLAGS[@]}"; then
+            if env VSPASS="$E2E_PASSWORD" E2E_AUTH_MODE="$E2E_AUTH_MODE" \
+                E2E_LDAP_USER="${E2E_LDAP_USER:-}" E2E_LDAP_PASS="${E2E_LDAP_PASS:-}" \
+                "${SCRIPT_DIR}/e2e-full-test-remote.sh" "$USER" "$HOST" --auth "$E2E_AUTH_MODE" "${FULL_E2E_FLAGS[@]}"; then
                 deploy_ui_celebrate "Full E2E passed"
                 API_E2E_SUMMARY="passed"
             else
@@ -701,18 +712,17 @@ exit 1
             VM_E2E_SUMMARY="not run"
             if ! $SKIP_LIVE_UX; then
                 deploy_ui_highlight "🧪 Post-deploy live UX wiring (Playwright)"
-                LIVE_PW="${VSPASS:-${SSHPASS:-}}"
+                LIVE_PW="${VSPASS:-${SSHPASS:-${E2E_LDAP_PASS:-}}}"
                 LIVE_BASE="https://${HOST}:5092"
-                if PLAYWRIGHT_LIVE_URL="${LIVE_BASE}" PLAYWRIGHT_LIVE_USER="${USER}" PLAYWRIGHT_LIVE_PASS="${LIVE_PW}" \
-                    npm --prefix "${SCRIPT_DIR}/../web" run test:e2e:live-ux; then
+                e2e_export_playwright_live_env "$LIVE_BASE" "$USER" "$LIVE_PW"
+                if npm --prefix "${SCRIPT_DIR}/../web" run test:e2e:live-ux; then
                     deploy_ui_celebrate "Live UX wiring passed"
                 else
                     warn "Live UX wiring failed (deploy itself succeeded)"
                     LIVE_E2E_OK=false
                 fi
                 deploy_ui_highlight "🧪 Post-deploy live VM create/delete (Playwright)"
-                if PLAYWRIGHT_LIVE_URL="${LIVE_BASE}" PLAYWRIGHT_LIVE_USER="${USER}" PLAYWRIGHT_LIVE_PASS="${LIVE_PW}" \
-                    npm --prefix "${SCRIPT_DIR}/../web" run test:e2e -- --workers=1 --timeout=300000 \
+                if npm --prefix "${SCRIPT_DIR}/../web" run test:e2e -- --workers=1 --timeout=300000 \
                     e2e/platform-live-access.spec.ts \
                     e2e/platform-live-vm-create.spec.ts \
                     e2e/platform-live-machine-finder-delete.spec.ts \
@@ -759,7 +769,7 @@ exit 1
             warn "E2E skipped (--skip-daemon-e2e with --skip-platform-e2e or no platform install)"
         fi
     else
-        warn "E2E skipped: set VSPASS (or SSHPASS) for PAM login on :5092"
+        warn "E2E skipped: set VSPASS/SSHPASS (PAM) or E2E_LDAP_* (LDAP), and optional --e2e-auth pam|ldap|auto"
     fi
 fi
 printf '\n'

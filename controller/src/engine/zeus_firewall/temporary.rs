@@ -86,28 +86,37 @@ pub async fn list_temporary_rules(
     pool: &PgPool,
     target_id: Uuid,
 ) -> anyhow::Result<Vec<TemporaryRule>> {
-    let rows: Vec<(Uuid, String, i32, String, String, chrono::DateTime<Utc>, Option<String>)> =
-        sqlx::query_as(
-            "SELECT id, source_cidr, dest_port, protocol, reason, expires_at, owner
+    let rows: Vec<(
+        Uuid,
+        String,
+        i32,
+        String,
+        String,
+        chrono::DateTime<Utc>,
+        Option<String>,
+    )> = sqlx::query_as(
+        "SELECT id, source_cidr, dest_port, protocol, reason, expires_at, owner
              FROM firewall_temporary_rules
              WHERE target_id = $1 AND applied = true AND expires_at > now()
              ORDER BY expires_at",
-        )
-        .bind(target_id)
-        .fetch_all(pool)
-        .await?;
+    )
+    .bind(target_id)
+    .fetch_all(pool)
+    .await?;
 
     Ok(rows
         .into_iter()
-        .map(|(id, source_cidr, dest_port, protocol, reason, expires_at, owner)| TemporaryRule {
-            id,
-            source_cidr,
-            dest_port,
-            protocol,
-            reason,
-            expires_at: expires_at.to_rfc3339(),
-            owner,
-        })
+        .map(
+            |(id, source_cidr, dest_port, protocol, reason, expires_at, owner)| TemporaryRule {
+                id,
+                source_cidr,
+                dest_port,
+                protocol,
+                reason,
+                expires_at: expires_at.to_rfc3339(),
+                owner,
+            },
+        )
         .collect())
 }
 
@@ -126,17 +135,22 @@ pub async fn timeline(
     target_kind: &str,
     target_id: Uuid,
 ) -> anyhow::Result<Vec<serde_json::Value>> {
-    let rows: Vec<(String, String, serde_json::Value, Option<String>, chrono::DateTime<Utc>)> =
-        sqlx::query_as(
-            "SELECT kind, summary, detail_json, actor, created_at
+    let rows: Vec<(
+        String,
+        String,
+        serde_json::Value,
+        Option<String>,
+        chrono::DateTime<Utc>,
+    )> = sqlx::query_as(
+        "SELECT kind, summary, detail_json, actor, created_at
              FROM firewall_timeline
              WHERE target_kind = $1 AND target_id = $2
              ORDER BY created_at DESC LIMIT 100",
-        )
-        .bind(target_kind)
-        .bind(target_id)
-        .fetch_all(pool)
-        .await?;
+    )
+    .bind(target_kind)
+    .bind(target_id)
+    .fetch_all(pool)
+    .await?;
 
     Ok(rows
         .into_iter()

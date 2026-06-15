@@ -53,7 +53,8 @@ pub async fn suggest(
                 description: "Find the VM name in platform inventory.".into(),
                 scope: "operator".into(),
             }],
-            notes: "VM not found in platform inventory — connect control plane or sync hosts.".into(),
+            notes: "VM not found in platform inventory — connect control plane or sync hosts."
+                .into(),
         });
     };
 
@@ -75,7 +76,9 @@ pub async fn suggest(
         });
         suggestions.push(TerminalSuggestion {
             label: "Guest agent ping".into(),
-            command: format!("virsh qemu-agent-command {name} '{{\"execute\":\"guest-info\"}}' --pretty"),
+            command: format!(
+                "virsh qemu-agent-command {name} '{{\"execute\":\"guest-info\"}}' --pretty"
+            ),
             description: "Verify qemu-guest-agent responds.".into(),
             scope: "host".into(),
         });
@@ -108,7 +111,10 @@ pub async fn suggest(
             suggestions.push(TerminalSuggestion {
                 label: "Doctor follow-up".into(),
                 command: format!("open /platform/vms/{_id}?tab=doctor"),
-                description: format!("Health {}/100 — review Doctor fixes in Platform.", health.score_numeric),
+                description: format!(
+                    "Health {}/100 — review Doctor fixes in Platform.",
+                    health.score_numeric
+                ),
                 scope: "operator".into(),
             });
         }

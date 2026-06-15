@@ -90,7 +90,10 @@ pub async fn run_migrate_precheck(
             "Wait for host validation to pass or clear maintenance before migrating",
         ));
     } else {
-        checks.push(pass("dest_online", &format!("Host '{dest_name}' is online")));
+        checks.push(pass(
+            "dest_online",
+            &format!("Host '{dest_name}' is online"),
+        ));
     }
 
     if maint {
@@ -127,12 +130,11 @@ pub async fn run_migrate_precheck(
         checks.push(pass("dest_cpu", &format!("Destination CPU at {cpu:.0}%")));
     }
 
-    let dest_uri: Option<String> = sqlx::query_scalar(
-        "SELECT COALESCE(NULLIF(libvirt_uri, ''), '') FROM hosts WHERE id = $1",
-    )
-    .bind(dest_host_id)
-    .fetch_optional(pool)
-    .await?;
+    let dest_uri: Option<String> =
+        sqlx::query_scalar("SELECT COALESCE(NULLIF(libvirt_uri, ''), '') FROM hosts WHERE id = $1")
+            .bind(dest_host_id)
+            .fetch_optional(pool)
+            .await?;
 
     if dest_uri.as_deref().unwrap_or("").is_empty() {
         checks.push(fail(
@@ -161,11 +163,12 @@ pub async fn run_migrate_precheck(
     if let Ok((source_addr, dest_cpu, dest_lv)) =
         host_addrs_for_precheck(pool, source_host_id, dest_host_id).await
     {
-        let source_cpu: String = sqlx::query_scalar("SELECT COALESCE(cpu_model, '') FROM hosts WHERE id = $1")
-            .bind(source_host_id)
-            .fetch_one(pool)
-            .await
-            .unwrap_or_default();
+        let source_cpu: String =
+            sqlx::query_scalar("SELECT COALESCE(cpu_model, '') FROM hosts WHERE id = $1")
+                .bind(source_host_id)
+                .fetch_one(pool)
+                .await
+                .unwrap_or_default();
         let matrix: serde_json::Value = sqlx::query_scalar(
             "SELECT cpu_compat_matrix FROM clusters ORDER BY created_at LIMIT 1",
         )

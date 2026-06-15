@@ -44,7 +44,10 @@ pub async fn build(pool: &PgPool, body: &VmBuilderBody) -> anyhow::Result<VmBuil
     Ok(VmBuilderResult {
         summary: format!(
             "{} — {} vCPU, {} GiB RAM, ~${:.0}/mo (FinOps estimate)",
-            plan.label, plan.vcpus_per_vm, plan.memory_gib_per_vm, hourly * 730.0
+            plan.label,
+            plan.vcpus_per_vm,
+            plan.memory_gib_per_vm,
+            hourly * 730.0
         ),
         vm_name,
         vm_spec,

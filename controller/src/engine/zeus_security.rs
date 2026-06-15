@@ -34,7 +34,10 @@ pub struct FleetThreatSummary {
     pub security_graph_summary: String,
 }
 
-pub async fn fleet_threat(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Result<FleetThreatSummary> {
+pub async fn fleet_threat(
+    pool: &PgPool,
+    cfg: &ControllerConfig,
+) -> anyhow::Result<FleetThreatSummary> {
     let pw = packetwolf_bridge::fleet_threat_summary(cfg).await;
     let overview = zeus_firewall::overview(pool, cfg).await?;
     let graph = security_graph::build_graph(pool).await?;
@@ -98,7 +101,10 @@ pub async fn sync_security_alerts(pool: &PgPool, cfg: &ControllerConfig) -> anyh
             .and_then(|v| v.as_str())
             .is_some_and(|s| s == "critical" || s == "high")
     }) {
-        let summary = a.get("summary").and_then(|v| v.as_str()).unwrap_or("Security alert");
+        let summary = a
+            .get("summary")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Security alert");
         let host_id = a.get("host_id").and_then(|v| v.as_str()).unwrap_or("");
         if insert_security_alert(pool, summary, host_id, a).await? {
             inserted += 1;

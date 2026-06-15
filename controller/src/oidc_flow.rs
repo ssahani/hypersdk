@@ -123,7 +123,14 @@ pub async fn complete_login(
             .unwrap_or(info.sub)
     } else if let Some(ref id_token) = token.id_token {
         if let Some(jwks_uri) = discovery.jwks_uri.as_deref() {
-            match crate::oidc_jwt::validate_id_token(id_token, &cfg.issuer, &cfg.client_id, jwks_uri).await {
+            match crate::oidc_jwt::validate_id_token(
+                id_token,
+                &cfg.issuer,
+                &cfg.client_id,
+                jwks_uri,
+            )
+            .await
+            {
                 Ok(u) => u,
                 Err(e) => {
                     tracing::warn!("id_token JWKS validation failed: {e:#}; falling back to parse");
@@ -132,11 +139,13 @@ pub async fn complete_login(
                 }
             }
         } else {
-            crate::oidc_jwt::parse_id_token_unverified(id_token)
-                .unwrap_or_else(|| id_token.clone())
+            crate::oidc_jwt::parse_id_token_unverified(id_token).unwrap_or_else(|| id_token.clone())
         }
     } else {
-        format!("oidc-{}", &token.access_token.chars().take(8).collect::<String>())
+        format!(
+            "oidc-{}",
+            &token.access_token.chars().take(8).collect::<String>()
+        )
     };
 
     let role: String = match sqlx::query_scalar("SELECT role FROM users WHERE username = $1")

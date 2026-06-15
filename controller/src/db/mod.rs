@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-use sqlx::{PgPool, postgres::PgPoolOptions};
+use sqlx::{postgres::PgPoolOptions, PgPool};
 use uuid::Uuid;
 
 pub async fn connect(database_url: &str) -> anyhow::Result<PgPool> {
@@ -56,6 +56,7 @@ pub async fn migrate(pool: &PgPool) -> anyhow::Result<()> {
         "041_fleet_snapshot_schedules.sql",
         "042_marketplace_os_refresh.sql",
         "043_consolehub.sql",
+        "044_packetwolf_local.sql",
     ] {
         let sql = match name {
             "001_platform.sql" => include_str!("../../migrations/001_platform.sql"),
@@ -72,27 +73,43 @@ pub async fn migrate(pool: &PgPool) -> anyhow::Result<()> {
             "012_platform_batch17.sql" => include_str!("../../migrations/012_platform_batch17.sql"),
             "013_platform_batch24.sql" => include_str!("../../migrations/013_platform_batch24.sql"),
             "014_platform_batch30.sql" => include_str!("../../migrations/014_platform_batch30.sql"),
-            "015_platform_batch31_40.sql" => include_str!("../../migrations/015_platform_batch31_40.sql"),
+            "015_platform_batch31_40.sql" => {
+                include_str!("../../migrations/015_platform_batch31_40.sql")
+            }
             "016_platform_ai.sql" => include_str!("../../migrations/016_platform_ai.sql"),
             "017_ai_v5.sql" => include_str!("../../migrations/017_ai_v5.sql"),
             "018_ai_v8.sql" => include_str!("../../migrations/018_ai_v8.sql"),
             "019_baremetal.sql" => include_str!("../../migrations/019_baremetal.sql"),
             "020_zeus_firewall.sql" => include_str!("../../migrations/020_zeus_firewall.sql"),
-            "021_template_firewall.sql" => include_str!("../../migrations/021_template_firewall.sql"),
+            "021_template_firewall.sql" => {
+                include_str!("../../migrations/021_template_firewall.sql")
+            }
             "022_firewall_phase15.sql" => include_str!("../../migrations/022_firewall_phase15.sql"),
-            "023_firewall_phases16_25.sql" => include_str!("../../migrations/023_firewall_phases16_25.sql"),
-            "024_baremetal_firewall.sql" => include_str!("../../migrations/024_baremetal_firewall.sql"),
-            "025_multisite_firewall.sql" => include_str!("../../migrations/025_multisite_firewall.sql"),
+            "023_firewall_phases16_25.sql" => {
+                include_str!("../../migrations/023_firewall_phases16_25.sql")
+            }
+            "024_baremetal_firewall.sql" => {
+                include_str!("../../migrations/024_baremetal_firewall.sql")
+            }
+            "025_multisite_firewall.sql" => {
+                include_str!("../../migrations/025_multisite_firewall.sql")
+            }
             "026_network_overlays.sql" => include_str!("../../migrations/026_network_overlays.sql"),
             "027_platform_plugins.sql" => include_str!("../../migrations/027_platform_plugins.sql"),
             "028_storage_tiers.sql" => include_str!("../../migrations/028_storage_tiers.sql"),
-            "029_enterprise_security.sql" => include_str!("../../migrations/029_enterprise_security.sql"),
+            "029_enterprise_security.sql" => {
+                include_str!("../../migrations/029_enterprise_security.sql")
+            }
             "030_lldp_cache.sql" => include_str!("../../migrations/030_lldp_cache.sql"),
             "031_operations.sql" => include_str!("../../migrations/031_operations.sql"),
             "032_observability.sql" => include_str!("../../migrations/032_observability.sql"),
-            "033_enterprise_hardening.sql" => include_str!("../../migrations/033_enterprise_hardening.sql"),
+            "033_enterprise_hardening.sql" => {
+                include_str!("../../migrations/033_enterprise_hardening.sql")
+            }
             "034_host_geography.sql" => include_str!("../../migrations/034_host_geography.sql"),
-            "035_vm_inventory_reconcile.sql" => include_str!("../../migrations/035_vm_inventory_reconcile.sql"),
+            "035_vm_inventory_reconcile.sql" => {
+                include_str!("../../migrations/035_vm_inventory_reconcile.sql")
+            }
             "036_zeus_ai_redesign.sql" => include_str!("../../migrations/036_zeus_ai_redesign.sql"),
             "037_ai_infra_program.sql" => include_str!("../../migrations/037_ai_infra_program.sql"),
             "038_soc.sql" => include_str!("../../migrations/038_soc.sql"),

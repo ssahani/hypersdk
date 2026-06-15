@@ -44,14 +44,19 @@ pub struct FleetStorageOverview {
     pub smart_disks: Vec<FleetSmartDiskItem>,
 }
 
-pub async fn overview(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Result<FleetStorageOverview> {
-    let tiers = storage_tiers::tiers_overview(pool).await.unwrap_or_else(|e| {
-        tracing::warn!("fleet storage tiers rollup: {e}");
-        storage_tiers::TiersOverview {
-            tiers: vec![],
-            summary: "Storage tiers unavailable".into(),
-        }
-    });
+pub async fn overview(
+    pool: &PgPool,
+    cfg: &ControllerConfig,
+) -> anyhow::Result<FleetStorageOverview> {
+    let tiers = storage_tiers::tiers_overview(pool)
+        .await
+        .unwrap_or_else(|e| {
+            tracing::warn!("fleet storage tiers rollup: {e}");
+            storage_tiers::TiersOverview {
+                tiers: vec![],
+                summary: "Storage tiers unavailable".into(),
+            }
+        });
     let tier_name = |tid: Option<Uuid>| -> Option<String> {
         tid.and_then(|id| {
             tiers

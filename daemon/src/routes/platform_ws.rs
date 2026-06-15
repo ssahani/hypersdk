@@ -30,11 +30,7 @@ fn controller_ws_base() -> String {
     }
 }
 
-async fn relay_platform_ws(
-    socket: WebSocket,
-    upstream_path: String,
-    token: String,
-) {
+async fn relay_platform_ws(socket: WebSocket, upstream_path: String, token: String) {
     let url = format!("{upstream_path}?token={token}");
 
     let upstream = match connect_async(&url).await {

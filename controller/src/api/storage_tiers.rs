@@ -6,7 +6,7 @@ use axum::Json;
 use uuid::Uuid;
 
 use crate::api::ApiError;
-use crate::auth::AuthUser;
+use crate::auth::{require_operator, AuthUser};
 use crate::engine::storage_tiers::{self, UpsertBackupSlaRequest};
 use crate::state::AppState;
 
@@ -26,7 +26,9 @@ pub async fn bind_pool_tier(
     storage_tiers::bind_pool_tier(&state.pool, pool_id, tier_id)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
-    Ok(Json(serde_json::json!({ "bound": true, "pool_id": pool_id, "tier_id": tier_id })))
+    Ok(Json(
+        serde_json::json!({ "bound": true, "pool_id": pool_id, "tier_id": tier_id }),
+    ))
 }
 
 pub async fn backup_sla_overview(
@@ -40,10 +42,11 @@ pub async fn backup_sla_overview(
 
 pub async fn upsert_backup_sla(
     State(state): State<AppState>,
-    Extension(_actor): Extension<AuthUser>,
+    Extension(actor): Extension<AuthUser>,
     Path(pool_id): Path<Uuid>,
     Json(body): Json<UpsertBackupSlaRequest>,
 ) -> Result<Json<storage_tiers::BackupSlaRow>, ApiError> {
+    require_operator(&actor)?;
     storage_tiers::upsert_backup_sla(&state.pool, pool_id, &body)
         .await
         .map(Json)

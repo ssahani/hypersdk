@@ -11,8 +11,10 @@ use uuid::Uuid;
 
 use crate::api::ApiError;
 use crate::auth::{require_admin, require_operator, AuthUser};
+use crate::engine::soc::siem::{
+    elastic_bulk, forward_replay, qradar_rest, sentinel_dcr, splunk_hec,
+};
 use crate::engine::soc::{asm, detection, run_cycle};
-use crate::engine::soc::siem::{elastic_bulk, forward_replay, qradar_rest, sentinel_dcr, splunk_hec};
 use crate::state::AppState;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -245,11 +247,13 @@ pub async fn patch_rule(
 ) -> Result<Json<SocRuleRow>, ApiError> {
     require_admin(&actor)?;
     if let Some(enabled) = body.enabled {
-        sqlx::query("UPDATE soc_detection_rules SET enabled = $2, updated_at = NOW() WHERE id = $1")
-            .bind(id)
-            .bind(enabled)
-            .execute(&state.pool)
-            .await?;
+        sqlx::query(
+            "UPDATE soc_detection_rules SET enabled = $2, updated_at = NOW() WHERE id = $1",
+        )
+        .bind(id)
+        .bind(enabled)
+        .execute(&state.pool)
+        .await?;
     }
     if let Some(sev) = &body.severity {
         sqlx::query("UPDATE soc_detection_rules SET severity = $2, updated_at = NOW() WHERE id = $1 AND builtin = FALSE")
@@ -338,10 +342,11 @@ pub async fn put_splunk_integration(
         "host": body.host.unwrap_or_default(),
     });
     if body.token.is_empty() {
-        let existing: Value = sqlx::query_scalar("SELECT config_json FROM soc_integrations WHERE id = $1")
-            .bind(id)
-            .fetch_one(&state.pool)
-            .await?;
+        let existing: Value =
+            sqlx::query_scalar("SELECT config_json FROM soc_integrations WHERE id = $1")
+                .bind(id)
+                .fetch_one(&state.pool)
+                .await?;
         if let Some(t) = existing.get("token") {
             cfg["token"] = t.clone();
         }
@@ -429,11 +434,17 @@ pub async fn test_integration(
     require_admin(&actor)?;
     let row: IntegrationDbRow = fetch_integration_db(&state.pool, &integration_type).await?;
     let msg = match integration_type.as_str() {
-        "splunk_hec" => splunk_hec::test_connection(&row.config_json, &state.config.controller_id).await?,
+        "splunk_hec" => {
+            splunk_hec::test_connection(&row.config_json, &state.config.controller_id).await?
+        }
         "elastic_bulk" => elastic_bulk::test_connection(&row.config_json).await?,
         "sentinel_dcr" => sentinel_dcr::test_connection(&row.config_json).await?,
         "qradar_rest" => qradar_rest::test_connection(&row.config_json).await?,
-        other => return Err(ApiError::bad_request(format!("unknown integration: {other}"))),
+        other => {
+            return Err(ApiError::bad_request(format!(
+                "unknown integration: {other}"
+            )))
+        }
     };
     Ok(Json(serde_json::json!({ "ok": true, "message": msg })))
 }
@@ -444,10 +455,16 @@ pub async fn forward_replay_handler(
     Query(q): Query<ReplayQuery>,
 ) -> Result<Json<Value>, ApiError> {
     require_admin(&actor)?;
-    let n = forward_replay(&state.pool, q.hours.unwrap_or(24), &state.config.controller_id)
-        .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
-    Ok(Json(serde_json::json!({ "forwarded": n, "hours": q.hours.unwrap_or(24) })))
+    let n = forward_replay(
+        &state.pool,
+        q.hours.unwrap_or(24),
+        &state.config.controller_id,
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(
+        serde_json::json!({ "forwarded": n, "hours": q.hours.unwrap_or(24) }),
+    ))
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -789,7 +806,13 @@ fn merge_integration_config(existing: &Value, patch: &Value) -> Value {
     let Some(existing_obj) = existing.as_object() else {
         return out;
     };
-    for key in ["token", "api_key", "client_secret", "api_token", "bearer_token"] {
+    for key in [
+        "token",
+        "api_key",
+        "client_secret",
+        "api_token",
+        "bearer_token",
+    ] {
         let keep = patch_obj
             .get(key)
             .and_then(|v| v.as_str())
@@ -803,7 +826,10 @@ fn merge_integration_config(existing: &Value, patch: &Value) -> Value {
     out
 }
 
-async fn fetch_integration_db(pool: &PgPool, integration_type: &str) -> Result<IntegrationDbRow, ApiError> {
+async fn fetch_integration_db(
+    pool: &PgPool,
+    integration_type: &str,
+) -> Result<IntegrationDbRow, ApiError> {
     sqlx::query_as(
         "SELECT id, integration_type, name, enabled, config_json, last_success_at, last_error
          FROM soc_integrations WHERE integration_type = $1 AND name = 'default'",
@@ -829,8 +855,18 @@ fn integration_public_db(row: &IntegrationDbRow) -> IntegrationPublic {
 fn redact_integration_config(cfg: &Value) -> Value {
     let mut cfg = cfg.clone();
     if let Some(obj) = cfg.as_object_mut() {
-        for key in ["token", "api_key", "client_secret", "api_token", "bearer_token"] {
-            if obj.get(key).and_then(|v| v.as_str()).is_some_and(|s| !s.is_empty()) {
+        for key in [
+            "token",
+            "api_key",
+            "client_secret",
+            "api_token",
+            "bearer_token",
+        ] {
+            if obj
+                .get(key)
+                .and_then(|v| v.as_str())
+                .is_some_and(|s| !s.is_empty())
+            {
                 obj.insert(key.to_string(), serde_json::json!("••••••••"));
             }
         }
@@ -850,9 +886,10 @@ async fn fetch_playbook(pool: &PgPool, id: Uuid) -> Result<Json<PlaybookRow>, Ap
 }
 
 async fn load_soc_webhook_url(pool: &PgPool) -> String {
-    if let Ok(url) = sqlx::query_scalar::<_, String>("SELECT webhook_url FROM soc_settings WHERE id = 1")
-        .fetch_one(pool)
-        .await
+    if let Ok(url) =
+        sqlx::query_scalar::<_, String>("SELECT webhook_url FROM soc_settings WHERE id = 1")
+            .fetch_one(pool)
+            .await
     {
         let url = url.trim().to_string();
         if !url.is_empty() {
@@ -947,7 +984,11 @@ fn extract_mitre_tags(ecs: &Value) -> Vec<MitreTag> {
             name: name.to_string(),
         });
     }
-    if let Some(arr) = ecs.get("machina").and_then(|m| m.get("mitre")).and_then(|v| v.as_array()) {
+    if let Some(arr) = ecs
+        .get("machina")
+        .and_then(|m| m.get("mitre"))
+        .and_then(|v| v.as_array())
+    {
         for item in arr {
             if let Some(s) = item.as_str() {
                 out.push(MitreTag {
@@ -955,10 +996,7 @@ fn extract_mitre_tags(ecs: &Value) -> Vec<MitreTag> {
                     name: s.to_string(),
                 });
             } else if let Some(id) = item.get("id").and_then(|v| v.as_str()) {
-                let name = item
-                    .get("name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(id);
+                let name = item.get("name").and_then(|v| v.as_str()).unwrap_or(id);
                 out.push(MitreTag {
                     id: id.to_string(),
                     name: name.to_string(),
@@ -966,10 +1004,7 @@ fn extract_mitre_tags(ecs: &Value) -> Vec<MitreTag> {
             }
         }
     }
-    if let Some(tags) = ecs
-        .pointer("/rule/tags")
-        .and_then(|v| v.as_array())
-    {
+    if let Some(tags) = ecs.pointer("/rule/tags").and_then(|v| v.as_array()) {
         for tag in tags {
             if let Some(s) = tag.as_str() {
                 if s.starts_with("attack.") || s.contains("T") {

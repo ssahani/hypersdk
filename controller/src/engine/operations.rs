@@ -74,11 +74,10 @@ pub struct ExecuteRunbookRequest {
 pub async fn overview(pool: &PgPool) -> anyhow::Result<OperationsOverview> {
     ensure_showback_snapshots(pool).await?;
 
-    let runbook_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ops_runbook_catalog WHERE enabled = true",
-    )
-    .fetch_one(pool)
-    .await?;
+    let runbook_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ops_runbook_catalog WHERE enabled = true")
+            .fetch_one(pool)
+            .await?;
 
     let executions_24h: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM ops_runbook_executions WHERE created_at > NOW() - INTERVAL '24 hours'",
@@ -116,7 +115,10 @@ pub async fn list_catalog(pool: &PgPool) -> anyhow::Result<Vec<RunbookCatalogRow
     .map_err(|e| e.into())
 }
 
-pub async fn list_executions(pool: &PgPool, limit: i64) -> anyhow::Result<Vec<RunbookExecutionRow>> {
+pub async fn list_executions(
+    pool: &PgPool,
+    limit: i64,
+) -> anyhow::Result<Vec<RunbookExecutionRow>> {
     sqlx::query_as(
         "SELECT id, incident, status, steps_json, actor, summary, created_at
          FROM ops_runbook_executions ORDER BY created_at DESC LIMIT $1",
@@ -164,11 +166,16 @@ pub async fn execute_runbook(
         title,
         steps: rb.steps,
         commands: rb.commands,
-        summary: rb.summary.unwrap_or_else(|| format!("Runbook generated for {incident}")),
+        summary: rb
+            .summary
+            .unwrap_or_else(|| format!("Runbook generated for {incident}")),
     })
 }
 
-pub async fn showback_overview(pool: &PgPool, _cfg: &ControllerConfig) -> anyhow::Result<ShowbackOverview> {
+pub async fn showback_overview(
+    pool: &PgPool,
+    _cfg: &ControllerConfig,
+) -> anyhow::Result<ShowbackOverview> {
     ensure_showback_snapshots(pool).await?;
 
     let rows: Vec<(String, f64, String, i32)> = sqlx::query_as(

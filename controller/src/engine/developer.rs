@@ -78,12 +78,11 @@ pub async fn export_vm_bundle(
     agent_addr: &str,
     vm_id: uuid::Uuid,
 ) -> anyhow::Result<VmExportBundle> {
-    let row: (String, serde_json::Value) = sqlx::query_as(
-        "SELECT name, spec_json FROM vms WHERE id = $1",
-    )
-    .bind(vm_id)
-    .fetch_one(pool)
-    .await?;
+    let row: (String, serde_json::Value) =
+        sqlx::query_as("SELECT name, spec_json FROM vms WHERE id = $1")
+            .bind(vm_id)
+            .fetch_one(pool)
+            .await?;
     let (name, spec_val) = row;
     let vm: VirtualMachine = serde_json::from_value(spec_val)?;
     let vcpus = vm.total_vcpus();
@@ -100,7 +99,8 @@ pub async fn export_vm_bundle(
         .map(|c| {
             format!(
                 "#cloud-config\nusers:\n  - name: {}\n    ssh_authorized_keys:\n      - {}\n",
-                c.user, c.ssh_pubkey.as_deref().unwrap_or("")
+                c.user,
+                c.ssh_pubkey.as_deref().unwrap_or("")
             )
         })
         .unwrap_or_else(|| "#cloud-config\n# (no cloud-init in spec)\n".into());
@@ -147,7 +147,8 @@ pub async fn export_vm_bundle_zip(
     let mut buf = Vec::new();
     {
         let mut zip = ZipWriter::new(std::io::Cursor::new(&mut buf));
-        let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        let opts =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
         let manifest = serde_json::to_string_pretty(&bundle)?;
         let files: [(&str, &str); 5] = [
             ("terraform.tf", &bundle.terraform),

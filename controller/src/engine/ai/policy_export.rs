@@ -11,12 +11,11 @@ pub struct PolicyExport {
 }
 
 pub async fn export_policy_yaml(pool: &PgPool) -> anyhow::Result<PolicyExport> {
-    let rules: Vec<(String, bool, serde_json::Value)> = sqlx::query_as(
-        "SELECT name, enabled, rule_json FROM policy_rules ORDER BY name",
-    )
-    .fetch_all(pool)
-    .await
-    .unwrap_or_default();
+    let rules: Vec<(String, bool, serde_json::Value)> =
+        sqlx::query_as("SELECT name, enabled, rule_json FROM policy_rules ORDER BY name")
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default();
 
     let quotas: Vec<(String, i32, i32, i64, i64)> = sqlx::query_as(
         "SELECT project, max_vms, max_vcpu, max_memory_mib, max_storage_gib FROM project_quotas ORDER BY project",

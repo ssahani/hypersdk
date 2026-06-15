@@ -33,32 +33,29 @@ pub struct FleetFinderOverview {
 }
 
 pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetFinderOverview> {
-    let all: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vms").fetch_one(pool).await?;
-    let running: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM vms WHERE observed_state = 'running'",
-    )
-    .fetch_one(pool)
-    .await?;
+    let all: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vms")
+        .fetch_one(pool)
+        .await?;
+    let running: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM vms WHERE observed_state = 'running'")
+            .fetch_one(pool)
+            .await?;
     let stopped: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM vms WHERE observed_state NOT IN ('running', 'missing')",
     )
     .fetch_one(pool)
     .await?;
-    let missing: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM vms WHERE observed_state = 'missing'",
-    )
-    .fetch_one(pool)
-    .await?;
-    let discovered: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM vms WHERE managed = FALSE",
-    )
-    .fetch_one(pool)
-    .await?;
-    let untagged: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM vms WHERE tags IS NULL OR tags = '{}'",
-    )
-    .fetch_one(pool)
-    .await?;
+    let missing: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM vms WHERE observed_state = 'missing'")
+            .fetch_one(pool)
+            .await?;
+    let discovered: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vms WHERE managed = FALSE")
+        .fetch_one(pool)
+        .await?;
+    let untagged: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM vms WHERE tags IS NULL OR tags = '{}'")
+            .fetch_one(pool)
+            .await?;
     let high_cpu: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM vms v JOIN vm_metrics m ON m.vm_id = v.id WHERE m.cpu_percent > 85",
     )
@@ -84,12 +81,11 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetFinderOverview> {
     .fetch_one(pool)
     .await
     .unwrap_or(0);
-    let no_ip: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM vms WHERE guest_ip IS NULL OR guest_ip = ''",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0);
+    let no_ip: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM vms WHERE guest_ip IS NULL OR guest_ip = ''")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
     let guest_agent_missing: i64 = sqlx::query_scalar(
         r#"
         SELECT COUNT(*) FROM vms
@@ -136,24 +132,22 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetFinderOverview> {
     .fetch_one(pool)
     .await
     .unwrap_or(0);
-    let kubevirt_src: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM vms WHERE inventory_source = 'kubevirt'",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0);
+    let kubevirt_src: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM vms WHERE inventory_source = 'kubevirt'")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
     let vmware_src: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM vms WHERE inventory_source IN ('vmware', 'vsphere')",
     )
     .fetch_one(pool)
     .await
     .unwrap_or(0);
-    let openstack_src: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM vms WHERE inventory_source = 'openstack'",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0);
+    let openstack_src: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM vms WHERE inventory_source = 'openstack'")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
 
     let tag_rows: Vec<(String, i64)> = sqlx::query_as(
         r#"

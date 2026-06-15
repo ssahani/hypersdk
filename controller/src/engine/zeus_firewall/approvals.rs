@@ -42,9 +42,9 @@ pub async fn request_approval(
 ) -> anyhow::Result<FirewallApproval> {
     let target_id = Uuid::parse_str(&body.target_id)?;
     let id = Uuid::new_v4();
-    let plan_json = body.plan_json.unwrap_or_else(|| {
-        serde_json::json!({ "profile": body.profile, "dry_run": true })
-    });
+    let plan_json = body
+        .plan_json
+        .unwrap_or_else(|| serde_json::json!({ "profile": body.profile, "dry_run": true }));
 
     sqlx::query(
         "INSERT INTO firewall_approvals (id, target_kind, target_id, profile, plan_json, requested_by)

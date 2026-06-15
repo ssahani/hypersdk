@@ -66,7 +66,11 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetNetworkOverview> {
     Ok(FleetNetworkOverview {
         summary: format!(
             "{} · {} network(s) · {} segment(s) · {} IPAM pool(s) · {} host(s) online",
-            segments.summary, network_count, seg_items.len(), ipam_pool_count, hosts_online
+            segments.summary,
+            network_count,
+            seg_items.len(),
+            ipam_pool_count,
+            hosts_online
         ),
         network_count,
         segment_count: seg_items.len(),

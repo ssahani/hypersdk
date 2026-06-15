@@ -2,9 +2,9 @@
 // NSX-class overlay segments — IPAM, micro-segmentation compiler, GitOps export.
 
 use machina_core::{
-    compile_micro_segment_rules, compute_firewall_score, ip_from_cidr_offset, segment_micro_seg_grade,
-    simulate_connectivity, validate_cidr, ConnectivityMatrix, EastWestDefault, FirewallInventory,
-    FirewallPosture, SegmentTier,
+    compile_micro_segment_rules, compute_firewall_score, ip_from_cidr_offset,
+    segment_micro_seg_grade, simulate_connectivity, validate_cidr, ConnectivityMatrix,
+    EastWestDefault, FirewallInventory, FirewallPosture, SegmentTier,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -128,12 +128,11 @@ pub async fn segments_overview(pool: &PgPool) -> anyhow::Result<SegmentsOverview
 
     let mut segments = Vec::new();
     for row in rows {
-        let network_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM networks WHERE segment_id = $1",
-        )
-        .bind(row.id)
-        .fetch_one(pool)
-        .await?;
+        let network_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM networks WHERE segment_id = $1")
+                .bind(row.id)
+                .fetch_one(pool)
+                .await?;
 
         let vm_count: i64 = sqlx::query_scalar(
             "SELECT COUNT(DISTINCT nr.vm_id) FROM network_reservations nr
@@ -175,7 +174,10 @@ pub async fn segments_overview(pool: &PgPool) -> anyhow::Result<SegmentsOverview
     Ok(SegmentsOverview { segments, summary })
 }
 
-pub async fn create_segment(pool: &PgPool, req: &CreateSegmentRequest) -> anyhow::Result<SegmentRow> {
+pub async fn create_segment(
+    pool: &PgPool,
+    req: &CreateSegmentRequest,
+) -> anyhow::Result<SegmentRow> {
     validate_cidr(&req.cidr).map_err(|e| anyhow::anyhow!(e))?;
     if SegmentTier::parse(&req.tier).is_none() {
         anyhow::bail!("tier must be tier0 or tier1");
@@ -382,7 +384,10 @@ pub async fn export_gitops(pool: &PgPool) -> anyhow::Result<SegmentGitOpsExport>
     })
 }
 
-pub async fn emergency_unlock(pool: &PgPool, segment_id: Uuid) -> anyhow::Result<EmergencyUnlockResult> {
+pub async fn emergency_unlock(
+    pool: &PgPool,
+    segment_id: Uuid,
+) -> anyhow::Result<EmergencyUnlockResult> {
     let segment = fetch_segment(pool, segment_id).await?;
     let previous = segment.east_west_default.clone();
     sqlx::query("UPDATE network_segments SET east_west_default = 'allow' WHERE id = $1")
@@ -585,7 +590,8 @@ pub async fn lldp_topology_from_cache(pool: &PgPool) -> anyhow::Result<LldpTopol
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
     let mut warnings = Vec::new();
-    let mut switch_ids: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut switch_ids: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
 
     for (host_id, hostname, source, neighbors_json, summary) in rows {
         let neighbors: Vec<machina_core::libvirt::host_network::LldpNeighbor> =
@@ -604,7 +610,11 @@ pub async fn lldp_topology_from_cache(pool: &PgPool) -> anyhow::Result<LldpTopol
                     nodes.push(LldpTopologyNode {
                         kind: "switch".into(),
                         id: id.clone(),
-                        name: if name.is_empty() { "switch".into() } else { name },
+                        name: if name.is_empty() {
+                            "switch".into()
+                        } else {
+                            name
+                        },
                         state: Some(source.clone()),
                     });
                     id

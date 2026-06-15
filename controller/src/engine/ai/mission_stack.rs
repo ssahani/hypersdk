@@ -227,7 +227,10 @@ pub async fn execute_stack(
             vm_tasks.len()
         )
     } else {
-        format!("Enqueued {} GPU VM create task(s) for mission stack.", vm_tasks.len())
+        format!(
+            "Enqueued {} GPU VM create task(s) for mission stack.",
+            vm_tasks.len()
+        )
     };
 
     state.emit_event("ai.mission_stack", summary.clone());

@@ -82,7 +82,10 @@ pub async fn advise_gpu(pool: &PgPool, workload: &str) -> anyhow::Result<GpuPlac
         format!(
             "{} GPU-capable host(s) for '{workload}' — top: {}",
             gpu_count,
-            candidates.first().map(|c| c.hostname.as_str()).unwrap_or("—")
+            candidates
+                .first()
+                .map(|c| c.hostname.as_str())
+                .unwrap_or("—")
         )
     } else {
         format!(

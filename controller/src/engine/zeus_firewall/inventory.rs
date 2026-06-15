@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use machina_core::{
-    gather_firewall_inventory, builtin_profiles, FirewallInventory, FirewallPlanRequest,
+    builtin_profiles, gather_firewall_inventory, FirewallInventory, FirewallPlanRequest,
     FirewallPlanResult, OpenPort,
 };
 use serde::Serialize;
@@ -71,7 +71,8 @@ pub async fn overview(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Result<F
         ));
     } else {
         for (id, hostname, agent_addr, state) in hosts {
-            let (inv, reachable) = fetch_inventory(cfg, &agent_addr, &hostname, state == "online").await;
+            let (inv, reachable) =
+                fetch_inventory(cfg, &agent_addr, &hostname, state == "online").await;
             let risk = risk_label(&inv);
             if risk == "critical" {
                 critical += 1;
@@ -140,7 +141,10 @@ pub async fn target_detail(
             &inv,
             true,
         );
-        return Ok(FirewallTargetDetail { target, inventory: inv });
+        return Ok(FirewallTargetDetail {
+            target,
+            inventory: inv,
+        });
     }
 
     let id = Uuid::parse_str(target_id)?;
@@ -152,7 +156,8 @@ pub async fn target_detail(
     .await?
     {
         let (hostname, agent_addr, state) = row;
-        let (inv, reachable) = fetch_inventory(cfg, &agent_addr, &hostname, state == "online").await;
+        let (inv, reachable) =
+            fetch_inventory(cfg, &agent_addr, &hostname, state == "online").await;
         let target = summary_from_inventory(
             target_id.into(),
             "host".into(),
@@ -161,7 +166,10 @@ pub async fn target_detail(
             &inv,
             reachable,
         );
-        return Ok(FirewallTargetDetail { target, inventory: inv });
+        return Ok(FirewallTargetDetail {
+            target,
+            inventory: inv,
+        });
     }
 
     let row = super::metal::load_row(pool, id).await?;
@@ -174,7 +182,10 @@ pub async fn target_detail(
         &inv,
         false,
     );
-    Ok(FirewallTargetDetail { target, inventory: inv })
+    Ok(FirewallTargetDetail {
+        target,
+        inventory: inv,
+    })
 }
 
 pub async fn target_ports(
@@ -228,8 +239,7 @@ pub async fn plan_target(
     if let Some(addr) = resolve_agent(pool, cfg, target_id).await? {
         return agent_client::apply_firewall_plan(&addr, &req, req.dry_run).await;
     }
-    machina_core::compile_profile_plan(&hostname, &req)
-        .map_err(|e| anyhow::anyhow!(e.to_string()))
+    machina_core::compile_profile_plan(&hostname, &req).map_err(|e| anyhow::anyhow!(e.to_string()))
 }
 
 pub async fn apply_target(
@@ -371,15 +381,20 @@ pub fn risk_label(inv: &FirewallInventory) -> &'static str {
     }
 }
 
-async fn resolve_hostname(pool: &PgPool, cfg: &ControllerConfig, target_id: &str) -> anyhow::Result<String> {
+async fn resolve_hostname(
+    pool: &PgPool,
+    cfg: &ControllerConfig,
+    target_id: &str,
+) -> anyhow::Result<String> {
     if target_id == "local" {
         return Ok("localhost".into());
     }
     let id = Uuid::parse_str(target_id)?;
-    if let Some(hostname) = sqlx::query_scalar::<_, String>("SELECT hostname FROM hosts WHERE id = $1")
-        .bind(id)
-        .fetch_optional(pool)
-        .await?
+    if let Some(hostname) =
+        sqlx::query_scalar::<_, String>("SELECT hostname FROM hosts WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await?
     {
         return Ok(hostname);
     }
@@ -387,15 +402,20 @@ async fn resolve_hostname(pool: &PgPool, cfg: &ControllerConfig, target_id: &str
     Ok(row.hostname)
 }
 
-async fn resolve_agent(pool: &PgPool, cfg: &ControllerConfig, target_id: &str) -> anyhow::Result<Option<String>> {
+async fn resolve_agent(
+    pool: &PgPool,
+    cfg: &ControllerConfig,
+    target_id: &str,
+) -> anyhow::Result<Option<String>> {
     if target_id == "local" {
         return Ok(Some(cfg.default_agent_addr.clone()));
     }
     let host_id = Uuid::parse_str(target_id)?;
-    let addr: String = sqlx::query_scalar("SELECT COALESCE(agent_grpc_addr, '') FROM hosts WHERE id = $1")
-        .bind(host_id)
-        .fetch_one(pool)
-        .await?;
+    let addr: String =
+        sqlx::query_scalar("SELECT COALESCE(agent_grpc_addr, '') FROM hosts WHERE id = $1")
+            .bind(host_id)
+            .fetch_one(pool)
+            .await?;
     if addr.is_empty() {
         Ok(None)
     } else {

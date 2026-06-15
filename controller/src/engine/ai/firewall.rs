@@ -3,9 +3,9 @@
 use serde::Serialize;
 use sqlx::PgPool;
 
-use machina_core::FirewallPlanRequest;
 use crate::config::ControllerConfig;
 use crate::engine::zeus_firewall::inventory::{plan_target, target_detail};
+use machina_core::FirewallPlanRequest;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct FirewallExplainReport {
@@ -64,7 +64,10 @@ pub async fn explain_exposure(
     let risk = detail.target.risk.clone();
     let recommendation = if evidence.is_empty() {
         "No critical exposures detected".into()
-    } else if evidence.iter().any(|e| e.contains("5432") || e.contains("3306")) {
+    } else if evidence
+        .iter()
+        .any(|e| e.contains("5432") || e.contains("3306"))
+    {
         "Restrict database to application subnet only".into()
     } else {
         "Restrict SSH to admin subnet only".into()
@@ -113,7 +116,12 @@ pub async fn secure_machine_plan(
             action: "Create rollback checkpoint".into(),
         },
     ];
-    if detail.inventory.open_ports.iter().any(|p| p.port == 80 || p.port == 443) {
+    if detail
+        .inventory
+        .open_ports
+        .iter()
+        .any(|p| p.port == 80 || p.port == 443)
+    {
         steps.insert(
             1,
             SecurePlanStep {

@@ -50,7 +50,10 @@ pub async fn analyze(pool: &PgPool, q: &AnalyzeIncidentQuery) -> anyhow::Result<
     analyze_with_symptoms(pool, q, &[]).await
 }
 
-pub async fn analyze_post(pool: &PgPool, body: &AnalyzeIncidentBody) -> anyhow::Result<IncidentAnalysis> {
+pub async fn analyze_post(
+    pool: &PgPool,
+    body: &AnalyzeIncidentBody,
+) -> anyhow::Result<IncidentAnalysis> {
     let q = AnalyzeIncidentQuery {
         hours: body.hours,
         vm_id: body.vm_id,
@@ -83,7 +86,10 @@ async fn analyze_with_symptoms(
             at,
             source: "audit".into(),
             kind: action.clone(),
-            message: format!("{actor} — {action}{}", rt.map(|r| format!(" ({r})")).unwrap_or_default()),
+            message: format!(
+                "{actor} — {action}{}",
+                rt.map(|r| format!(" ({r})")).unwrap_or_default()
+            ),
             severity: audit_severity(&action),
         });
     }
@@ -137,7 +143,11 @@ async fn analyze_with_symptoms(
             source: "task".into(),
             kind: op.clone(),
             message: format!("{op} — {status}"),
-            severity: if status == "failed" { "high".into() } else { "low".into() },
+            severity: if status == "failed" {
+                "high".into()
+            } else {
+                "low".into()
+            },
         });
     }
 
@@ -148,7 +158,11 @@ async fn analyze_with_symptoms(
     let mut evidence = Vec::new();
     for e in &timeline {
         let msg = e.message.to_lowercase();
-        if msg.contains("carrier") || msg.contains("nic") || msg.contains("bridge") || msg.contains("eno") {
+        if msg.contains("carrier")
+            || msg.contains("nic")
+            || msg.contains("bridge")
+            || msg.contains("eno")
+        {
             evidence.push(format!("{}: {}", e.source, e.message));
         }
     }
@@ -176,12 +190,11 @@ async fn analyze_with_symptoms(
 
     // VM metrics spike
     if let Some(vid) = vm_id {
-        if let Ok(cpu) = sqlx::query_scalar::<_, f64>(
-            "SELECT cpu_percent FROM vm_metrics WHERE vm_id = $1",
-        )
-        .bind(vid)
-        .fetch_optional(pool)
-        .await
+        if let Ok(cpu) =
+            sqlx::query_scalar::<_, f64>("SELECT cpu_percent FROM vm_metrics WHERE vm_id = $1")
+                .bind(vid)
+                .fetch_optional(pool)
+                .await
         {
             if let Some(c) = cpu {
                 if c >= 95.0 {
@@ -290,7 +303,9 @@ fn infer_root_cause(
             || e.message.to_lowercase().contains("vm.start")
             || e.message.to_lowercase().contains("vm.stop")
     });
-    let failed_task = timeline.iter().any(|e| e.source == "task" && e.severity == "high");
+    let failed_task = timeline
+        .iter()
+        .any(|e| e.source == "task" && e.severity == "high");
 
     let nic_hit = evidence.iter().any(|e| {
         let el = e.to_lowercase();

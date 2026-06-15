@@ -123,9 +123,7 @@ pub async fn oidc_login(
     }))
 }
 
-pub async fn oidc_login_redirect(
-    State(state): State<AppState>,
-) -> Result<Redirect, ApiError> {
+pub async fn oidc_login_redirect(State(state): State<AppState>) -> Result<Redirect, ApiError> {
     let cfg = oidc_flow::load_config(&state.pool, &default_redirect(&state))
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
@@ -169,7 +167,10 @@ window.location.href = {web:?} + '/platform';
 }
 
 fn default_redirect(state: &AppState) -> String {
-    format!("{}/api/v1/auth/oidc/callback", state.config.public_base_url.trim_end_matches('/'))
+    format!(
+        "{}/api/v1/auth/oidc/callback",
+        state.config.public_base_url.trim_end_matches('/')
+    )
 }
 
 fn mask_secret(s: &str) -> String {

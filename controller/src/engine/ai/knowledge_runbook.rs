@@ -39,6 +39,8 @@ pub async fn from_query(pool: &PgPool, query: &str) -> anyhow::Result<KnowledgeR
         runbook_title: rb.title,
         steps: rb.steps,
         commands: rb.commands,
-        summary: rb.summary.unwrap_or_else(|| format!("Runbook for: {query}")),
+        summary: rb
+            .summary
+            .unwrap_or_else(|| format!("Runbook for: {query}")),
     })
 }

@@ -45,10 +45,9 @@ pub async fn check_template_readiness(
 
     let (source_disk, cloud_init) = row.ok_or_else(|| anyhow::anyhow!("template not found"))?;
 
-    let host_online: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM hosts WHERE state = 'online'")
-            .fetch_one(pool)
-            .await?;
+    let host_online: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM hosts WHERE state = 'online'")
+        .fetch_one(pool)
+        .await?;
 
     let disk_exists = disk_exists_on_hosts(pool, &source_disk).await;
     let auto_fetch = template_catalog::download_url_for(name, version).is_some();
@@ -90,7 +89,9 @@ pub async fn check_template_readiness(
 }
 
 /// Marketplace templates whose golden disk is absent on all online hosts.
-pub async fn list_missing_marketplace_images(pool: &PgPool) -> anyhow::Result<Vec<MissingTemplateImage>> {
+pub async fn list_missing_marketplace_images(
+    pool: &PgPool,
+) -> anyhow::Result<Vec<MissingTemplateImage>> {
     let rows: Vec<(String, String, String, String, Option<String>)> = sqlx::query_as(
         "SELECT name, version, source_disk, category, icon FROM templates WHERE marketplace = TRUE ORDER BY featured DESC, name",
     )

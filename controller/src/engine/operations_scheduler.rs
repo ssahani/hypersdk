@@ -51,7 +51,11 @@ async fn tick_triggers(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Result<
     Ok(())
 }
 
-async fn trigger_fired(pool: &PgPool, _cfg: &ControllerConfig, trigger: &str) -> anyhow::Result<bool> {
+async fn trigger_fired(
+    pool: &PgPool,
+    _cfg: &ControllerConfig,
+    trigger: &str,
+) -> anyhow::Result<bool> {
     if trigger == "host.state=offline" {
         let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM hosts WHERE state = 'offline'")
             .fetch_one(pool)

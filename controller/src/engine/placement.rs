@@ -28,20 +28,20 @@ pub struct PlacementRecommendationRow {
     pub score: f32,
 }
 
-pub async fn compute_recommendations(pool: &PgPool) -> anyhow::Result<Vec<PlacementRecommendationRow>> {
-    let threshold: f32 = sqlx::query_scalar(
-        "SELECT drs_cpu_threshold FROM clusters ORDER BY created_at LIMIT 1",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap_or(85.0);
+pub async fn compute_recommendations(
+    pool: &PgPool,
+) -> anyhow::Result<Vec<PlacementRecommendationRow>> {
+    let threshold: f32 =
+        sqlx::query_scalar("SELECT drs_cpu_threshold FROM clusters ORDER BY created_at LIMIT 1")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(85.0);
 
-    let placement_policy: String = sqlx::query_scalar(
-        "SELECT placement_policy FROM clusters ORDER BY created_at LIMIT 1",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap_or_else(|_| "balanced".into());
+    let placement_policy: String =
+        sqlx::query_scalar("SELECT placement_policy FROM clusters ORDER BY created_at LIMIT 1")
+            .fetch_one(pool)
+            .await
+            .unwrap_or_else(|_| "balanced".into());
 
     let hosts: Vec<HostLoad> = sqlx::query_as(
         "SELECT id, hostname, cpu_percent, memory_used_mib, memory_total_mib, vm_count,
@@ -80,7 +80,12 @@ pub async fn compute_recommendations(pool: &PgPool) -> anyhow::Result<Vec<Placem
                 continue;
             }
             let dest_mem_pct = pct(dest.memory_used_mib, dest.memory_total_mib);
-            let mut score = dest_score(&placement_policy, dest.cpu_percent, dest_mem_pct, dest.vm_count);
+            let mut score = dest_score(
+                &placement_policy,
+                dest.cpu_percent,
+                dest_mem_pct,
+                dest.vm_count,
+            );
             score += tag_affinity_score(&vm_tags, &dest.tags);
             if score <= 0.0 {
                 continue;
@@ -116,7 +121,11 @@ pub async fn compute_recommendations(pool: &PgPool) -> anyhow::Result<Vec<Placem
         let _ = memory_mib;
     }
 
-    out.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    out.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     Ok(out)
 }
 
@@ -197,12 +206,11 @@ pub async fn pick_host_for_vm(
     vm_tags: &[String],
     _memory_mib: i64,
 ) -> anyhow::Result<Uuid> {
-    let placement_policy: String = sqlx::query_scalar(
-        "SELECT placement_policy FROM clusters ORDER BY created_at LIMIT 1",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap_or_else(|_| "balanced".into());
+    let placement_policy: String =
+        sqlx::query_scalar("SELECT placement_policy FROM clusters ORDER BY created_at LIMIT 1")
+            .fetch_one(pool)
+            .await
+            .unwrap_or_else(|_| "balanced".into());
 
     let hosts: Vec<HostCandidate> = sqlx::query_as(
         "SELECT id, cpu_percent, memory_used_mib, memory_total_mib, vm_count,

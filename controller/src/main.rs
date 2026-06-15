@@ -7,9 +7,9 @@ use clap::Parser;
 use machina_controller::api;
 use machina_controller::config::ControllerConfig;
 use machina_controller::db;
-use machina_controller::state::AppState;
 use machina_controller::engine::{drs, ha, reconcile, scheduler, webhook_worker};
 use machina_controller::leader;
+use machina_controller::state::AppState;
 use machina_controller::sync;
 use machina_controller::tasks::bus::{FanoutTaskBus, InMemoryTaskBus, NatsTaskBus};
 use machina_controller::tasks::{nats_subscriber, worker};
@@ -18,7 +18,10 @@ use tower_http::trace::TraceLayer;
 use tracing::info;
 
 #[derive(Parser)]
-#[command(name = "machina-controller", about = "Machina central management controller")]
+#[command(
+    name = "machina-controller",
+    about = "Machina central management controller"
+)]
 struct Cli {
     #[arg(long, env = "MACHINA_CONTROLLER_HOST")]
     host: Option<String>,
@@ -29,6 +32,7 @@ struct Cli {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
+    machina_controller::engine::ai::crypto::init();
     let cli = Cli::parse();
     let mut config = ControllerConfig::default();
     if let Some(host) = cli.host {
@@ -46,7 +50,7 @@ async fn main() -> anyhow::Result<()> {
         tracing::warn!("PacketWolf local fabric hydrate: {e:#}");
     }
 
-  let (local_bus, rx) = InMemoryTaskBus::new();
+    let (local_bus, rx) = InMemoryTaskBus::new();
     let local_tx = local_bus.sender();
     let nats_bus = if let Some(url) = &config.nats_url {
         match NatsTaskBus::connect(url).await {
@@ -86,7 +90,10 @@ async fn main() -> anyhow::Result<()> {
         .layer(CorsLayer::permissive());
 
     let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;
-    info!("machina-controller listening on http://{addr} (id={})", config.controller_id);
+    info!(
+        "machina-controller listening on http://{addr} (id={})",
+        config.controller_id
+    );
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(
         listener,

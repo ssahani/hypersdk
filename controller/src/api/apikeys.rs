@@ -95,14 +95,16 @@ pub fn hash_token(token: &str) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-pub async fn authenticate_api_key(pool: &sqlx::PgPool, token: &str) -> anyhow::Result<Option<AuthUser>> {
+pub async fn authenticate_api_key(
+    pool: &sqlx::PgPool,
+    token: &str,
+) -> anyhow::Result<Option<AuthUser>> {
     let hash = hash_token(token);
-    let row: Option<(String, String)> = sqlx::query_as(
-        "SELECT name, role FROM api_keys WHERE key_hash = $1",
-    )
-    .bind(&hash)
-    .fetch_optional(pool)
-    .await?;
+    let row: Option<(String, String)> =
+        sqlx::query_as("SELECT name, role FROM api_keys WHERE key_hash = $1")
+            .bind(&hash)
+            .fetch_optional(pool)
+            .await?;
     if let Some((name, role)) = row {
         let _ = sqlx::query("UPDATE api_keys SET last_used_at = NOW() WHERE key_hash = $1")
             .bind(&hash)

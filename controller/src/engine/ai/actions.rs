@@ -127,13 +127,16 @@ pub async fn approve_and_execute(
     if action.status != "pending" {
         return Err(anyhow::anyhow!("Action already {}", action.status));
     }
-    sqlx::query(
+    let updated = sqlx::query(
         "UPDATE ai_actions SET status = 'approved', approved_by = $1 WHERE id = $2 AND status = 'pending'",
     )
     .bind(&actor.username)
     .bind(id)
     .execute(&state.pool)
     .await?;
+    if updated.rows_affected() == 0 {
+        return Err(anyhow::anyhow!("Action already approved or executed by another request"));
+    }
 
     let result = match action.action_type.as_str() {
         t if matches!(
@@ -188,11 +191,10 @@ pub async fn approve_and_execute(
                 .and_then(|v| v.as_str())
                 .and_then(|s| Uuid::parse_str(s).ok())
                 .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
-            let host_id: Option<Uuid> =
-                sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
-                    .bind(vm_id)
-                    .fetch_optional(&state.pool)
-                    .await?;
+            let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+                .bind(vm_id)
+                .fetch_optional(&state.pool)
+                .await?;
             let task_id = crate::tasks::enqueue::enqueue_task(
                 state,
                 "vm.power",
@@ -260,12 +262,11 @@ pub async fn reject(pool: &PgPool, id: Uuid, actor: &str) -> anyhow::Result<bool
 
 pub async fn approval_hub(pool: &PgPool) -> anyhow::Result<serde_json::Value> {
     let zeus = list_pending(pool).await?;
-    let firewall_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM firewall_approvals WHERE status = 'pending'",
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0);
+    let firewall_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM firewall_approvals WHERE status = 'pending'")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
     let autopilot = super::autopilot::propose(pool, None).await?;
     Ok(serde_json::json!({
         "zeus_actions": zeus,

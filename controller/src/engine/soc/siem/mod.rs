@@ -43,7 +43,11 @@ pub async fn forward_all_integrations(pool: &PgPool, controller_id: &str) -> any
     Ok(total)
 }
 
-pub async fn forward_replay(pool: &PgPool, hours: i32, controller_id: &str) -> anyhow::Result<usize> {
+pub async fn forward_replay(
+    pool: &PgPool,
+    hours: i32,
+    controller_id: &str,
+) -> anyhow::Result<usize> {
     let since = Utc::now() - chrono::Duration::hours(hours as i64);
     let _ = sqlx::query("DELETE FROM soc_event_exports WHERE exported_at < $1")
         .bind(since)
@@ -104,13 +108,11 @@ pub(crate) async fn integration_ok(pool: &PgPool, id: Uuid) -> anyhow::Result<()
 }
 
 pub(crate) async fn integration_err(pool: &PgPool, id: Uuid, err: &str) -> anyhow::Result<()> {
-    sqlx::query(
-        "UPDATE soc_integrations SET last_error = $2, updated_at = NOW() WHERE id = $1",
-    )
-    .bind(id)
-    .bind(err.chars().take(2000).collect::<String>())
-    .execute(pool)
-    .await?;
+    sqlx::query("UPDATE soc_integrations SET last_error = $2, updated_at = NOW() WHERE id = $1")
+        .bind(id)
+        .bind(err.chars().take(2000).collect::<String>())
+        .execute(pool)
+        .await?;
     Ok(())
 }
 

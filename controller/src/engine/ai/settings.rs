@@ -62,7 +62,10 @@ pub async fn get_ai_settings(pool: &PgPool) -> anyhow::Result<AiSettings> {
     })
 }
 
-pub async fn patch_ai_settings(pool: &PgPool, patch: &AiSettingsPatch) -> anyhow::Result<AiSettings> {
+pub async fn patch_ai_settings(
+    pool: &PgPool,
+    patch: &AiSettingsPatch,
+) -> anyhow::Result<AiSettings> {
     if let Some(v) = patch.enabled {
         sqlx::query("UPDATE clusters SET ai_enabled = $1")
             .bind(v)
@@ -120,7 +123,10 @@ pub async fn get_fleet_peer_urls(pool: &PgPool) -> anyhow::Result<Vec<String>> {
 }
 
 pub async fn autopilot_max_actions(pool: &PgPool) -> anyhow::Result<usize> {
-    Ok(get_ai_settings(pool).await?.autopilot_max_actions.clamp(1, 10) as usize)
+    Ok(get_ai_settings(pool)
+        .await?
+        .autopilot_max_actions
+        .clamp(1, 10) as usize)
 }
 
 pub async fn api_key(pool: &PgPool) -> anyhow::Result<Option<String>> {

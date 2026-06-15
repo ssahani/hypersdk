@@ -87,15 +87,17 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetBackupOverview> {
 
     let recent: Vec<FleetBackupEvent> = rows
         .into_iter()
-        .map(|(kind, id, vm_id, vm_name, label, status, created_at)| FleetBackupEvent {
-            kind,
-            id: id.to_string(),
-            vm_id: vm_id.to_string(),
-            vm_name,
-            label,
-            status,
-            created_at,
-        })
+        .map(
+            |(kind, id, vm_id, vm_name, label, status, created_at)| FleetBackupEvent {
+                kind,
+                id: id.to_string(),
+                vm_id: vm_id.to_string(),
+                vm_name,
+                label,
+                status,
+                created_at,
+            },
+        )
         .collect();
 
     Ok(FleetBackupOverview {

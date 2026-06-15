@@ -246,7 +246,10 @@ pub async fn execute_secure(
          VALUES ('host', $1, 'operator_secure', $2, $3, $4)",
     )
     .bind(host_id)
-    .bind(format!("Operator applied {} → {}", preview.hostname, profile))
+    .bind(format!(
+        "Operator applied {} → {}",
+        preview.hostname, profile
+    ))
     .bind(serde_json::json!({
         "profile": profile,
         "hostname": preview.hostname,

@@ -101,13 +101,12 @@ pub async fn run_vm_health_check(pool: &PgPool, vm_id: Uuid) -> anyhow::Result<V
         ));
     }
 
-    let ha: bool = sqlx::query_scalar(
-        "SELECT COALESCE(enabled, FALSE) FROM ha_policies WHERE vm_id = $1",
-    )
-    .bind(vm_id)
-    .fetch_optional(pool)
-    .await?
-    .unwrap_or(false);
+    let ha: bool =
+        sqlx::query_scalar("SELECT COALESCE(enabled, FALSE) FROM ha_policies WHERE vm_id = $1")
+            .bind(vm_id)
+            .fetch_optional(pool)
+            .await?
+            .unwrap_or(false);
 
     let is_prod = tags
         .iter()
@@ -149,13 +148,12 @@ pub async fn run_vm_health_check(pool: &PgPool, vm_id: Uuid) -> anyhow::Result<V
         ));
     }
 
-    let snap_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM snapshot_records WHERE vm_id = $1",
-    )
-        .bind(vm_id)
-        .fetch_one(pool)
-        .await
-        .unwrap_or(0);
+    let snap_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM snapshot_records WHERE vm_id = $1")
+            .bind(vm_id)
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
 
     total += 1;
     if snap_count <= 5 {
@@ -171,14 +169,13 @@ pub async fn run_vm_health_check(pool: &PgPool, vm_id: Uuid) -> anyhow::Result<V
         ));
     }
 
-    let cpu_pressure: Option<f32> = sqlx::query_scalar(
-        "SELECT cpu_percent FROM vm_metrics WHERE vm_id = $1",
-    )
-    .bind(vm_id)
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten();
+    let cpu_pressure: Option<f32> =
+        sqlx::query_scalar("SELECT cpu_percent FROM vm_metrics WHERE vm_id = $1")
+            .bind(vm_id)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten();
 
     if let Some(cpu) = cpu_pressure {
         total += 1;
@@ -215,8 +212,16 @@ pub async fn run_vm_health_check(pool: &PgPool, vm_id: Uuid) -> anyhow::Result<V
                         } else {
                             "not_installed".into()
                         };
-                        guest_ip = if gh.guest_ip.is_empty() { None } else { Some(gh.guest_ip.clone()) };
-                        guest_hostname = if gh.guest_hostname.is_empty() { None } else { Some(gh.guest_hostname.clone()) };
+                        guest_ip = if gh.guest_ip.is_empty() {
+                            None
+                        } else {
+                            Some(gh.guest_ip.clone())
+                        };
+                        guest_hostname = if gh.guest_hostname.is_empty() {
+                            None
+                        } else {
+                            Some(gh.guest_hostname.clone())
+                        };
                         if !gh.os_pretty_name.is_empty() {
                             os_family = Some(gh.os_pretty_name.clone());
                         }
@@ -304,9 +309,15 @@ async fn host_agent_addr(pool: &PgPool, host_id: Uuid) -> anyhow::Result<String>
 }
 
 pub async fn sync_guest_tools(pool: &PgPool, vm_id: Uuid, vm_name: &str, host_id: Uuid) {
-    let Ok(addr) = host_agent_addr(pool, host_id).await else { return };
-    let Ok(mut client) = agent_client::connect(&addr).await else { return };
-    let Ok(gh) = agent_client::get_guest_health(&mut client, vm_name).await else { return };
+    let Ok(addr) = host_agent_addr(pool, host_id).await else {
+        return;
+    };
+    let Ok(mut client) = agent_client::connect(&addr).await else {
+        return;
+    };
+    let Ok(gh) = agent_client::get_guest_health(&mut client, vm_name).await else {
+        return;
+    };
     let status = if gh.agent_reachable {
         if gh.healthy {
             "healthy"

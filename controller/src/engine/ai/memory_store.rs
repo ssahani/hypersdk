@@ -37,7 +37,10 @@ pub struct MemorySettingsPatch {
     pub retention_days: Option<i32>,
 }
 
-pub async fn patch_settings(pool: &PgPool, patch: &MemorySettingsPatch) -> anyhow::Result<MemorySettings> {
+pub async fn patch_settings(
+    pool: &PgPool,
+    patch: &MemorySettingsPatch,
+) -> anyhow::Result<MemorySettings> {
     if let Some(v) = patch.enabled {
         sqlx::query("UPDATE clusters SET zeus_memory_enabled = $1")
             .bind(v)
@@ -154,7 +157,10 @@ pub struct ConversationRow {
     pub updated_at: DateTime<Utc>,
 }
 
-pub async fn list_conversations(pool: &PgPool, user_id: &str) -> anyhow::Result<Vec<ConversationRow>> {
+pub async fn list_conversations(
+    pool: &PgPool,
+    user_id: &str,
+) -> anyhow::Result<Vec<ConversationRow>> {
     let rows: Vec<(Uuid, String, String, DateTime<Utc>)> = sqlx::query_as(
         "SELECT id, agent_id, summary, updated_at FROM ai_conversations WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 50",
     )

@@ -25,11 +25,10 @@ pub async fn vm_guest_ports(
     vm_id: &str,
 ) -> anyhow::Result<GuestPortReport> {
     let vm_uuid = Uuid::parse_str(vm_id).map_err(|e| anyhow::anyhow!("invalid vm id: {e}"))?;
-    let row: Option<(String, Uuid)> =
-        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
-            .bind(vm_uuid)
-            .fetch_optional(pool)
-            .await?;
+    let row: Option<(String, Uuid)> = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+        .bind(vm_uuid)
+        .fetch_optional(pool)
+        .await?;
     let (vm_name, host_id) = row.ok_or_else(|| anyhow::anyhow!("vm not found"))?;
     let agent_addr: String =
         sqlx::query_scalar("SELECT COALESCE(agent_grpc_addr, '') FROM hosts WHERE id = $1")
@@ -41,16 +40,17 @@ pub async fn vm_guest_ports(
     } else {
         agent_addr
     };
-    let (agent_reachable, ports) = match agent_client::get_guest_firewall_ports(&addr, &vm_name).await {
-        Ok(resp) => (
-            resp.agent_reachable,
-            guest_ports_to_open_ports(&vm_name, &resp.ports),
-        ),
-        Err(e) => {
-            tracing::warn!("guest firewall ports for {vm_name} via {addr}: {e}");
-            (false, Vec::new())
-        }
-    };
+    let (agent_reachable, ports) =
+        match agent_client::get_guest_firewall_ports(&addr, &vm_name).await {
+            Ok(resp) => (
+                resp.agent_reachable,
+                guest_ports_to_open_ports(&vm_name, &resp.ports),
+            ),
+            Err(e) => {
+                tracing::warn!("guest firewall ports for {vm_name} via {addr}: {e}");
+                (false, Vec::new())
+            }
+        };
     Ok(GuestPortReport {
         vm_id: vm_id.into(),
         vm_name,

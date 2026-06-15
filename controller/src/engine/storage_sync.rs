@@ -6,7 +6,11 @@ use uuid::Uuid;
 use crate::agent_client;
 
 /// Import libvirt storage pools from a host into the platform `storage_pools` table.
-pub async fn sync_host_storage(pool: &PgPool, host_id: Uuid, agent_addr: &str) -> anyhow::Result<usize> {
+pub async fn sync_host_storage(
+    pool: &PgPool,
+    host_id: Uuid,
+    agent_addr: &str,
+) -> anyhow::Result<usize> {
     let cluster_id: Uuid = sqlx::query_scalar("SELECT cluster_id FROM hosts WHERE id = $1")
         .bind(host_id)
         .fetch_one(pool)
@@ -20,7 +24,11 @@ pub async fn sync_host_storage(pool: &PgPool, host_id: Uuid, agent_addr: &str) -
         if sp.name.is_empty() {
             continue;
         }
-        let path = if sp.path.is_empty() { None } else { Some(sp.path) };
+        let path = if sp.path.is_empty() {
+            None
+        } else {
+            Some(sp.path)
+        };
         let capacity_gib = sp.capacity_gib.round() as i64;
         let used_gib = sp.used_gib.round() as i64;
         let backend = if sp.backend.is_empty() {

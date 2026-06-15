@@ -117,8 +117,16 @@ pub async fn doctor_disk(
         boot_score: boot.score,
         confidence: boot.confidence,
         summary: boot.summary.clone(),
-        blockers: boot.blockers.iter().map(|b| format!("{} — {}", b.title, b.message)).collect(),
-        warnings: boot.warnings.iter().map(|w| format!("{} — {}", w.title, w.message)).collect(),
+        blockers: boot
+            .blockers
+            .iter()
+            .map(|b| format!("{} — {}", b.title, b.message))
+            .collect(),
+        warnings: boot
+            .warnings
+            .iter()
+            .map(|w| format!("{} — {}", w.title, w.message))
+            .collect(),
         checks_passed,
         checks_total,
         root_cause,
@@ -216,7 +224,10 @@ pub async fn resolve_vm_disk_path(
         }
     }
 
-    anyhow::bail!("no disk image found for VM {name} — set vm_disks.path or place image in {}", disk_dir.display())
+    anyhow::bail!(
+        "no disk image found for VM {name} — set vm_disks.path or place image in {}",
+        disk_dir.display()
+    )
 }
 
 pub async fn submit_inspect_job(
@@ -259,7 +270,10 @@ pub async fn submit_inspect_job(
     submit_worker_job(cfg, job).await
 }
 
-pub async fn get_worker_job_status(cfg: &ControllerConfig, job_id: &str) -> anyhow::Result<serde_json::Value> {
+pub async fn get_worker_job_status(
+    cfg: &ControllerConfig,
+    job_id: &str,
+) -> anyhow::Result<serde_json::Value> {
     ensure_enabled(cfg)?;
     worker_get(cfg, &format!("/api/v1/jobs/{job_id}")).await
 }
@@ -283,9 +297,15 @@ fn resolve_image_path(image_path: &str) -> anyhow::Result<PathBuf> {
     Ok(path)
 }
 
-async fn submit_worker_job(cfg: &ControllerConfig, job: JobDocument) -> anyhow::Result<GuestkitJobSubmitResult> {
+async fn submit_worker_job(
+    cfg: &ControllerConfig,
+    job: JobDocument,
+) -> anyhow::Result<GuestkitJobSubmitResult> {
     let client = worker_client(cfg)?;
-    let url = format!("{}/api/v1/jobs", cfg.guestkit_worker_url.trim_end_matches('/'));
+    let url = format!(
+        "{}/api/v1/jobs",
+        cfg.guestkit_worker_url.trim_end_matches('/')
+    );
     // Worker JobSubmitRequest flattens JobDocument at the root (not under "job").
     let body = serde_json::to_value(&job)?;
     let resp = client.post(&url).json(&body).send().await?;
@@ -333,5 +353,9 @@ fn probe_worker_health(base_url: &str, insecure_tls: bool) -> bool {
     }
     let Ok(client) = b.build() else { return false };
     let url = format!("{}/api/v1/health", base_url.trim_end_matches('/'));
-    client.get(&url).send().map(|r| r.status().is_success()).unwrap_or(false)
+    client
+        .get(&url)
+        .send()
+        .map(|r| r.status().is_success())
+        .unwrap_or(false)
 }

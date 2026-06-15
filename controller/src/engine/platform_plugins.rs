@@ -131,7 +131,10 @@ fn default_author() -> String {
     "Community".into()
 }
 
-pub async fn publish_plugin(pool: &PgPool, req: &PluginPublishRequest) -> anyhow::Result<PluginRow> {
+pub async fn publish_plugin(
+    pool: &PgPool,
+    req: &PluginPublishRequest,
+) -> anyhow::Result<PluginRow> {
     machina_spec::validate_name(&req.slug).map_err(|e| anyhow::anyhow!(e.to_string()))?;
     let id = Uuid::new_v4();
     sqlx::query(

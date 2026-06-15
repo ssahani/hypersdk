@@ -33,13 +33,24 @@ pub struct EnvironmentResourcePlan {
 
 pub fn plan_environment(query: &str, vcpu_rate: f64, gib_rate: f64) -> EnvironmentResourcePlan {
     let ql = query.to_lowercase();
-    let gpu_required = ql.contains("gpu") || ql.contains("llama") || ql.contains("inference")
-        || ql.contains("cuda") || ql.contains("training");
+    let gpu_required = ql.contains("gpu")
+        || ql.contains("llama")
+        || ql.contains("inference")
+        || ql.contains("cuda")
+        || ql.contains("training");
 
-    let developers = extract_count(&ql, &["developer", "developers", "engineer", "engineers", "user", "users"])
-        .unwrap_or_else(|| {
-            if ql.contains("team") { 10 } else { 5 }
-        });
+    let developers = extract_count(
+        &ql,
+        &[
+            "developer",
+            "developers",
+            "engineer",
+            "engineers",
+            "user",
+            "users",
+        ],
+    )
+    .unwrap_or_else(|| if ql.contains("team") { 10 } else { 5 });
 
     let env_type = if ql.contains("prod") || ql.contains("production") {
         "production"
@@ -112,7 +123,9 @@ pub fn plan_environment(query: &str, vcpu_rate: f64, gib_rate: f64) -> Environme
     ];
 
     if gpu_required {
-        build_steps.push("GPU passthrough / KubeVirt GPU operator (preview — manual validation required)".into());
+        build_steps.push(
+            "GPU passthrough / KubeVirt GPU operator (preview — manual validation required)".into(),
+        );
         build_steps.push("Deploy inference stack via blueprint (coming soon)".into());
     } else {
         build_steps.push("Apply backup policy via blueprint".into());
@@ -287,10 +300,7 @@ pub async fn execute_environment(
 
         let vm_id = Uuid::new_v4();
         let mem_mib = plan.memory_gib_per_vm as i64 * 1024;
-        let tags: Vec<String> = vec![
-            "environment".into(),
-            plan.environment_type.clone(),
-        ];
+        let tags: Vec<String> = vec!["environment".into(), plan.environment_type.clone()];
         let spec_json = env_vm_spec(&name, plan.vcpus_per_vm, plan.memory_gib_per_vm);
 
         sqlx::query(

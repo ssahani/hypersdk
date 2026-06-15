@@ -485,7 +485,9 @@ pub fn download_url_for(name: &str, version: &str) -> Option<&'static str> {
 }
 
 pub fn download_url_for_ref(template_ref: &str) -> Option<&'static str> {
-    let (name, version) = template_ref.split_once('@').unwrap_or((template_ref, "1.0.0"));
+    let (name, version) = template_ref
+        .split_once('@')
+        .unwrap_or((template_ref, "1.0.0"));
     download_url_for(name, version)
 }
 

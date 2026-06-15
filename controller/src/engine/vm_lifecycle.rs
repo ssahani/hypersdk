@@ -37,7 +37,11 @@ pub async fn set_vm_phase(pool: &PgPool, vm_id: Uuid, phase: &str) -> anyhow::Re
     Ok(())
 }
 
-pub async fn set_vm_phase_clear_error(pool: &PgPool, vm_id: Uuid, phase: &str) -> anyhow::Result<()> {
+pub async fn set_vm_phase_clear_error(
+    pool: &PgPool,
+    vm_id: Uuid,
+    phase: &str,
+) -> anyhow::Result<()> {
     sqlx::query(
         "UPDATE vms SET lifecycle_phase = $1, last_error = '', updated_at = NOW() WHERE id = $2",
     )

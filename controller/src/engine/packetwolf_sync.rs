@@ -36,14 +36,8 @@ async fn persist_local_enrollment(
     host_id: &str,
     export_url: &str,
 ) -> anyhow::Result<()> {
-    packetwolf_local_db::upsert_sensor(
-        pool,
-        host_id,
-        "registered",
-        DEFAULT_TETRAGON_VERSION,
-        None,
-    )
-    .await?;
+    packetwolf_local_db::upsert_sensor(pool, host_id, "registered", DEFAULT_TETRAGON_VERSION, None)
+        .await?;
     let pending = pending_install_json(host_id, export_url);
     packetwolf_local_db::set_pending_tetragon(pool, host_id, &pending).await?;
     Ok(())
@@ -58,7 +52,10 @@ async fn apply_bundle(
 ) -> anyhow::Result<bool> {
     let bundle_json = serde_json::to_string(bundle)?;
     match agent_client::apply_security_bundle(agent_addr, &bundle_json, false).await {
-        Ok(result) if result.ok && (!result.tetragon_install_attempted || result.tetragon_service_active) => {
+        Ok(result)
+            if result.ok
+                && (!result.tetragon_install_attempted || result.tetragon_service_active) =>
+        {
             let _ = packetwolf_bridge::ack_agent_bundle(cfg, host_id).await;
             let _ = packetwolf_local_db::clear_pending_tetragon(pool, host_id).await;
             if result.tetragon_service_active {

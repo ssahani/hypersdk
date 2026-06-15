@@ -163,7 +163,10 @@ pub fn normalize_linux_audit(raw: serde_json::Value) -> serde_json::Value {
         .cloned()
         .unwrap_or_default();
     let avc = raw.get("avc_count").and_then(|v| v.as_u64()).unwrap_or(0);
-    let available = raw.get("available").and_then(|v| v.as_bool()).unwrap_or(!events.is_empty());
+    let available = raw
+        .get("available")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(!events.is_empty());
     serde_json::json!({
         "available": available,
         "auditd_active": available,
@@ -176,7 +179,10 @@ pub fn normalize_linux_audit(raw: serde_json::Value) -> serde_json::Value {
 }
 
 pub fn normalize_linux_package_updates(raw: serde_json::Value) -> serde_json::Value {
-    let packages = raw.get("packages").cloned().unwrap_or_else(|| serde_json::json!([]));
+    let packages = raw
+        .get("packages")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!([]));
     let pending = raw.get("pending_count").and_then(|v| v.as_u64());
     serde_json::json!({
         "backend": raw.get("backend"),
@@ -203,7 +209,8 @@ pub fn normalize_network_diagnostics(raw: serde_json::Value) -> serde_json::Valu
         .get("resolvectl_status")
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    let resolved_active = resolvectl.contains("Active: active") || resolvectl.contains("DNS Servers");
+    let resolved_active =
+        resolvectl.contains("Active: active") || resolvectl.contains("DNS Servers");
     let mut interfaces = Vec::new();
     if let Some(list) = raw.get("networkctl_list").and_then(|v| v.as_str()) {
         for line in list.lines().skip(1) {
@@ -221,15 +228,26 @@ pub fn normalize_network_diagnostics(raw: serde_json::Value) -> serde_json::Valu
     if let Some(obj) = out.as_object_mut() {
         obj.insert("networkd_active".into(), serde_json::json!(networkd_active));
         obj.insert("resolved_active".into(), serde_json::json!(resolved_active));
-        obj.insert("network_manager_active".into(), serde_json::json!(nm_active));
+        obj.insert(
+            "network_manager_active".into(),
+            serde_json::json!(nm_active),
+        );
         obj.insert("interfaces".into(), serde_json::Value::Array(interfaces));
         obj.insert(
             "summary".into(),
             serde_json::json!(format!(
                 "networkd {} · NetworkManager {} · resolved {}",
-                if networkd_active { "active" } else { "inactive" },
+                if networkd_active {
+                    "active"
+                } else {
+                    "inactive"
+                },
                 if nm_active { "active" } else { "inactive" },
-                if resolved_active { "active" } else { "inactive" }
+                if resolved_active {
+                    "active"
+                } else {
+                    "inactive"
+                }
             )),
         );
     }
@@ -271,12 +289,11 @@ pub async fn vm_guest_health(
     cfg: &ControllerConfig,
     vm_id: Uuid,
 ) -> anyhow::Result<VmGuestHealthReport> {
-    let row: (String, Uuid) =
-        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
-            .bind(vm_id)
-            .fetch_optional(pool)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("vm not found"))?;
+    let row: (String, Uuid) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+        .bind(vm_id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("vm not found"))?;
     let (vm_name, host_id) = row;
     let (_, addr) = resolve_agent_addr(pool, cfg, host_id).await?;
     let mut client = agent_client::connect(&addr).await?;
@@ -310,7 +327,9 @@ pub async fn vm_guest_health(
             .unwrap_or_default()
     };
     let guest_observability = if gh.agent_ping {
-        agent_client::get_guest_observability(&mut client, &vm_name).await.ok()
+        agent_client::get_guest_observability(&mut client, &vm_name)
+            .await
+            .ok()
     } else {
         None
     };
@@ -348,12 +367,11 @@ pub async fn vm_guest_agent_action(
     vm_id: Uuid,
     action: &str,
 ) -> anyhow::Result<serde_json::Value> {
-    let row: (String, Uuid) =
-        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
-            .bind(vm_id)
-            .fetch_optional(pool)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("vm not found"))?;
+    let row: (String, Uuid) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+        .bind(vm_id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("vm not found"))?;
     let (_, addr) = resolve_agent_addr(pool, cfg, row.1).await?;
     let mut client = agent_client::connect(&addr).await?;
     agent_client::guest_agent_action(&mut client, &row.0, action).await
@@ -364,12 +382,11 @@ pub async fn vm_guest_observability(
     cfg: &ControllerConfig,
     vm_id: Uuid,
 ) -> anyhow::Result<serde_json::Value> {
-    let row: (String, Uuid) =
-        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
-            .bind(vm_id)
-            .fetch_optional(pool)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("vm not found"))?;
+    let row: (String, Uuid) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+        .bind(vm_id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("vm not found"))?;
     let (_, addr) = resolve_agent_addr(pool, cfg, row.1).await?;
     let mut client = agent_client::connect(&addr).await?;
     agent_client::get_guest_observability(&mut client, &row.0).await
@@ -397,18 +414,20 @@ pub async fn vm_guest_services(
     vm_id: Uuid,
 ) -> anyhow::Result<VmGuestServicesReport> {
     let health = vm_guest_health(pool, cfg, vm_id).await?;
-    let ports = crate::engine::zeus_firewall::guest_ports::vm_guest_ports(
-        pool,
-        cfg,
-        &vm_id.to_string(),
-    )
-    .await
-    .ok();
+    let ports =
+        crate::engine::zeus_firewall::guest_ports::vm_guest_ports(pool, cfg, &vm_id.to_string())
+            .await
+            .ok();
     let mut services = Vec::new();
     if health.agent_reachable {
         services.push(VmGuestServiceRow {
             name: "guestkit-agent".into(),
-            status: if health.healthy { "running" } else { "degraded" }.into(),
+            status: if health.healthy {
+                "running"
+            } else {
+                "degraded"
+            }
+            .into(),
             detail: health.os_pretty_name.clone(),
         });
     }
@@ -467,8 +486,11 @@ pub async fn diagnose_host(
         .bind(host_id)
         .fetch_one(pool)
         .await?;
-    let q = query.unwrap_or("why is this host under pressure").to_string();
-    let mut diag = super::ai::knowledge_diagnose::diagnose(pool, &format!("{q} {hostname}")).await?;
+    let q = query
+        .unwrap_or("why is this host under pressure")
+        .to_string();
+    let mut diag =
+        super::ai::knowledge_diagnose::diagnose(pool, &format!("{q} {hostname}")).await?;
     let mut fix_actions = vec![
         OsDiagnoseAction {
             label: "Sync host inventory".into(),
@@ -494,12 +516,13 @@ pub async fn diagnose_host(
             .and_then(|v| v.as_f64())
             .unwrap_or(0.0);
         if io > 0.3 {
-            diag.hypotheses.push(super::ai::knowledge_diagnose::DiagnoseHypothesis {
-                title: "IO pressure on hypervisor".into(),
-                confidence: 0.82,
-                evidence: format!("PSI io some {:.0}%", io * 100.0),
-                action: "Check storage pool latency and running VM disk IOPS.".into(),
-            });
+            diag.hypotheses
+                .push(super::ai::knowledge_diagnose::DiagnoseHypothesis {
+                    title: "IO pressure on hypervisor".into(),
+                    confidence: 0.82,
+                    evidence: format!("PSI io some {:.0}%", io * 100.0),
+                    action: "Check storage pool latency and running VM disk IOPS.".into(),
+                });
             fix_actions.push(OsDiagnoseAction {
                 label: "Review storage pools".into(),
                 action: "nav.storage".into(),
@@ -535,8 +558,11 @@ pub async fn diagnose_vm(
     query: Option<&str>,
 ) -> anyhow::Result<VmOsDiagnoseReport> {
     let health = vm_guest_health(pool, cfg, vm_id).await?;
-    let q = query.unwrap_or("guest health and exposed ports").to_string();
-    let mut diag = super::ai::knowledge_diagnose::diagnose(pool, &format!("{} {}", q, health.vm_name)).await?;
+    let q = query
+        .unwrap_or("guest health and exposed ports")
+        .to_string();
+    let mut diag =
+        super::ai::knowledge_diagnose::diagnose(pool, &format!("{} {}", q, health.vm_name)).await?;
     if !health.agent_reachable {
         diag.hypotheses.insert(
             0,

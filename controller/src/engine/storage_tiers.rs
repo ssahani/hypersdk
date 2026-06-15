@@ -249,7 +249,13 @@ async fn ensure_sla_stubs(pool: &PgPool) -> anyhow::Result<()> {
             (24, 14)
         };
 
-        let grade = if rpo <= 4 { "A" } else if rpo <= 24 { "B" } else { "C" };
+        let grade = if rpo <= 4 {
+            "A"
+        } else if rpo <= 24 {
+            "B"
+        } else {
+            "C"
+        };
         sqlx::query(
             "INSERT INTO storage_backup_sla (id, pool_id, rpo_hours, rto_hours, retention_days, compliance_grade)
              VALUES ($1, $2, $3, 4, $4, $5)",
@@ -265,7 +271,10 @@ async fn ensure_sla_stubs(pool: &PgPool) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn snapshot_policy_for_pool(pool: &PgPool, pool_id: Uuid) -> anyhow::Result<serde_json::Value> {
+pub async fn snapshot_policy_for_pool(
+    pool: &PgPool,
+    pool_id: Uuid,
+) -> anyhow::Result<serde_json::Value> {
     let row: Option<(String, Option<String>, i32)> = sqlx::query_as(
         "SELECT p.name, t.name, COALESCE(t.snapshot_retention_days, 7)
          FROM storage_pools p

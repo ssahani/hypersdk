@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use super::crypto;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiProviderRow {
     pub id: Uuid,
@@ -104,9 +106,21 @@ pub async fn list_providers(pool: &PgPool) -> anyhow::Result<Vec<AiProviderRow>>
         .await?;
     Ok(rows
         .into_iter()
-        .map(|(id, name, kind, base_url, org_id, deployment_name, key, enabled, is_default)| {
-            row_from_db(id, name, kind, base_url, org_id, deployment_name, key, enabled, is_default)
-        })
+        .map(
+            |(id, name, kind, base_url, org_id, deployment_name, key, enabled, is_default)| {
+                row_from_db(
+                    id,
+                    name,
+                    kind,
+                    base_url,
+                    org_id,
+                    deployment_name,
+                    key,
+                    enabled,
+                    is_default,
+                )
+            },
+        )
         .collect())
 }
 
@@ -121,7 +135,17 @@ pub async fn get_provider(pool: &PgPool, id: Uuid) -> anyhow::Result<Option<AiPr
         .await?;
     Ok(row.map(
         |(id, name, kind, base_url, org_id, deployment_name, key, enabled, is_default)| {
-            row_from_db(id, name, kind, base_url, org_id, deployment_name, key, enabled, is_default)
+            row_from_db(
+                id,
+                name,
+                kind,
+                base_url,
+                org_id,
+                deployment_name,
+                key,
+                enabled,
+                is_default,
+            )
         },
     ))
 }
@@ -133,10 +157,14 @@ async fn clear_default(pool: &PgPool) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn create_provider(pool: &PgPool, body: &CreateProviderBody) -> anyhow::Result<AiProviderRow> {
+pub async fn create_provider(
+    pool: &PgPool,
+    body: &CreateProviderBody,
+) -> anyhow::Result<AiProviderRow> {
     if body.is_default {
         clear_default(pool).await?;
     }
+    let stored_key = crypto::store_api_key(body.api_key.trim())?;
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO ai_providers (name, kind, base_url, org_id, deployment_name, api_key_encrypted, is_default)
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
@@ -146,7 +174,7 @@ pub async fn create_provider(pool: &PgPool, body: &CreateProviderBody) -> anyhow
     .bind(body.base_url.trim())
     .bind(body.org_id.trim())
     .bind(body.deployment_name.trim())
-    .bind(body.api_key.trim())
+    .bind(stored_key)
     .bind(body.is_default)
     .fetch_one(pool)
     .await?;
@@ -228,8 +256,9 @@ pub async fn patch_provider(
             .await?;
     }
     if let Some(v) = &body.api_key {
+        let stored_key = crypto::store_api_key(v.trim())?;
         sqlx::query("UPDATE ai_providers SET api_key_encrypted = $1 WHERE id = $2")
-            .bind(v)
+            .bind(stored_key)
             .bind(id)
             .execute(pool)
             .await?;
@@ -271,14 +300,16 @@ pub async fn list_models(pool: &PgPool, provider_id: Uuid) -> anyhow::Result<Vec
     .await?;
     Ok(rows
         .into_iter()
-        .map(|(id, provider_id, model_id, display_name, context_window, enabled)| AiModelRow {
-            id,
-            provider_id,
-            model_id,
-            display_name,
-            context_window,
-            enabled,
-        })
+        .map(
+            |(id, provider_id, model_id, display_name, context_window, enabled)| AiModelRow {
+                id,
+                provider_id,
+                model_id,
+                display_name,
+                context_window,
+                enabled,
+            },
+        )
         .collect())
 }
 
@@ -301,7 +332,8 @@ pub async fn resolve_for_provider(
     provider_id: Option<Uuid>,
     model_id: Option<&str>,
 ) -> anyhow::Result<Option<ResolvedProvider>> {
-    let row: Option<(Uuid, String, String, String, String, String)> = if let Some(pid) = provider_id {
+    let row: Option<(Uuid, String, String, String, String, String)> = if let Some(pid) = provider_id
+    {
         sqlx::query_as(
             "SELECT id, kind, base_url, org_id, deployment_name, api_key_encrypted
              FROM ai_providers WHERE id = $1 AND enabled = TRUE",
@@ -319,12 +351,13 @@ pub async fn resolve_for_provider(
         .await?
     };
 
-    let Some((pid, kind, base_url, org_id, deployment_name, api_key)) = row else {
+    let Some((pid, kind, base_url, org_id, deployment_name, stored_key)) = row else {
         return legacy_resolve(pool).await;
     };
-    if api_key.is_empty() {
+    if stored_key.is_empty() {
         return Ok(None);
     }
+    let api_key = crypto::load_api_key(&stored_key)?;
 
     let model: String = if let Some(mid) = model_id.filter(|s| !s.is_empty()) {
         mid.to_string()
@@ -381,9 +414,10 @@ pub async fn resolve_local(pool: &PgPool) -> anyhow::Result<Option<ResolvedProvi
     )
     .fetch_optional(pool)
     .await?;
-    let Some((pid, kind, base_url, org_id, deployment_name, api_key)) = row else {
+    let Some((pid, kind, base_url, org_id, deployment_name, stored_key)) = row else {
         return Ok(None);
     };
+    let api_key = crypto::load_api_key(&stored_key)?;
     let model: String = sqlx::query_scalar(
         "SELECT model_id FROM ai_models WHERE provider_id = $1 AND enabled = TRUE ORDER BY display_name LIMIT 1",
     )

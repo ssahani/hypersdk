@@ -173,6 +173,51 @@ export default function AdIntegrationPanel({ compact }: Props) {
         </label>
       </div>
 
+      <div className={`grid gap-3 ${compact ? 'md:grid-cols-3' : 'md:grid-cols-1'}`}>
+        <label className="block text-xs text-slate-400">
+          Admin group substrings (comma-separated)
+          <input
+            className={`${inputClass} mt-1`}
+            placeholder="Domain Admins, Machina-Admins"
+            value={settings.admin_group_substrings.join(', ')}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                admin_group_substrings: e.target.value.trim() === '' ? [] : e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
+              })
+            }
+          />
+        </label>
+        <label className="block text-xs text-slate-400">
+          Operator group substrings (comma-separated)
+          <input
+            className={`${inputClass} mt-1`}
+            placeholder="Machina-Operators"
+            value={settings.operator_group_substrings.join(', ')}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                operator_group_substrings: e.target.value.trim() === '' ? [] : e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
+              })
+            }
+          />
+        </label>
+        <label className="block text-xs text-slate-400">
+          Read-only group substrings (comma-separated)
+          <input
+            className={`${inputClass} mt-1`}
+            placeholder="Domain Users"
+            value={settings.readonly_group_substrings.join(', ')}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                readonly_group_substrings: e.target.value.trim() === '' ? [] : e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
+              })
+            }
+          />
+        </label>
+      </div>
+
       <div className="rounded-lg border border-slate-700/60 p-3 space-y-2">
         <p className="text-xs font-medium text-slate-300 flex items-center gap-2">
           <PlugZap className="w-3.5 h-3.5" aria-hidden />

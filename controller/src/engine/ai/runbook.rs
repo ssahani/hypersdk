@@ -13,7 +13,11 @@ pub struct Runbook {
     pub summary: Option<String>,
 }
 
-pub async fn generate(pool: &PgPool, incident: &str, context: &serde_json::Value) -> anyhow::Result<Runbook> {
+pub async fn generate(
+    pool: &PgPool,
+    incident: &str,
+    context: &serde_json::Value,
+) -> anyhow::Result<Runbook> {
     let (title, steps, commands) = template(incident);
     let mut rb = Runbook {
         incident: incident.into(),
@@ -37,7 +41,13 @@ pub async fn generate(pool: &PgPool, incident: &str, context: &serde_json::Value
     Ok(rb)
 }
 
-fn template(incident: &str) -> (&'static str, &'static [&'static str], &'static [&'static str]) {
+fn template(
+    incident: &str,
+) -> (
+    &'static str,
+    &'static [&'static str],
+    &'static [&'static str],
+) {
     match incident {
         "backup_failed" => (
             "Backup failure",
@@ -70,7 +80,10 @@ fn template(incident: &str) -> (&'static str, &'static [&'static str], &'static 
                 "Sync host inventory after recovery",
                 "Evacuate VMs if host is fenced",
             ],
-            &["systemctl status machina-agent", "journalctl -u machina-agent -n 50"],
+            &[
+                "systemctl status machina-agent",
+                "journalctl -u machina-agent -n 50",
+            ],
         ),
         "firewall_drift" => (
             "Firewall drift remediation",
@@ -81,7 +94,10 @@ fn template(incident: &str) -> (&'static str, &'static [&'static str], &'static 
                 "Create rollback checkpoint before apply",
                 "Verify open ports after remediation",
             ],
-            &["curl -s localhost:8080/api/v1/zeus-firewall/targets", "firewall-cmd --list-all"],
+            &[
+                "curl -s localhost:8080/api/v1/zeus-firewall/targets",
+                "firewall-cmd --list-all",
+            ],
         ),
         "storage_full" => (
             "Storage pool capacity",

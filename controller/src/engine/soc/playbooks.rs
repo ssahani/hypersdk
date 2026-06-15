@@ -21,12 +21,11 @@ struct AlertRow {
 }
 
 pub async fn run_playbooks_for_alert(pool: &PgPool, alert_id: Uuid) -> anyhow::Result<()> {
-    let alert: AlertRow = sqlx::query_as(
-        "SELECT id, title, severity, rule_id FROM soc_alerts WHERE id = $1",
-    )
-    .bind(alert_id)
-    .fetch_one(pool)
-    .await?;
+    let alert: AlertRow =
+        sqlx::query_as("SELECT id, title, severity, rule_id FROM soc_alerts WHERE id = $1")
+            .bind(alert_id)
+            .fetch_one(pool)
+            .await?;
 
     let playbooks: Vec<PlaybookRow> = sqlx::query_as(
         "SELECT id, name, trigger_json, steps_json FROM soc_playbooks WHERE enabled = TRUE",
@@ -148,7 +147,11 @@ async fn execute_step(pool: &PgPool, step: &Value, alert: &AlertRow) -> anyhow::
 }
 
 async fn resolve_webhook_url(pool: &PgPool, step: &Value) -> anyhow::Result<String> {
-    if let Some(url) = step.get("url").and_then(|v| v.as_str()).filter(|s| !s.is_empty()) {
+    if let Some(url) = step
+        .get("url")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+    {
         return Ok(url.to_string());
     }
     if step
@@ -156,11 +159,10 @@ async fn resolve_webhook_url(pool: &PgPool, step: &Value) -> anyhow::Result<Stri
         .and_then(|v| v.as_str())
         .is_some()
     {
-        if let Ok(url) = sqlx::query_scalar::<_, String>(
-            "SELECT webhook_url FROM soc_settings WHERE id = 1",
-        )
-        .fetch_one(pool)
-        .await
+        if let Ok(url) =
+            sqlx::query_scalar::<_, String>("SELECT webhook_url FROM soc_settings WHERE id = 1")
+                .fetch_one(pool)
+                .await
         {
             let url = url.trim().to_string();
             if !url.is_empty() {

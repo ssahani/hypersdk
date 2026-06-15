@@ -75,7 +75,8 @@ fn tag_profile(tags: &[String]) -> GpuProfileKind {
         GpuProfileKind::Vgpu
     } else if joined.contains("cuda") {
         GpuProfileKind::Cuda
-    } else if joined.contains("gpu") || joined.contains("nvidia") || joined.contains("passthrough") {
+    } else if joined.contains("gpu") || joined.contains("nvidia") || joined.contains("passthrough")
+    {
         GpuProfileKind::Passthrough
     } else {
         GpuProfileKind::Unknown
@@ -98,7 +99,10 @@ fn model_hint(tags: &[String]) -> String {
     for t in tags {
         let tl = t.to_lowercase();
         if tl.starts_with("gpu:") || tl.starts_with("nvidia:") {
-            return t.split_once(':').map(|(_, m)| m.to_string()).unwrap_or_else(|| t.clone());
+            return t
+                .split_once(':')
+                .map(|(_, m)| m.to_string())
+                .unwrap_or_else(|| t.clone());
         }
         if tl.contains("a100") || tl.contains("h100") || tl.contains("l40") || tl.contains("rtx") {
             return t.clone();
@@ -191,15 +195,22 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetGpuOverview> {
             vm_count,
             gpu_vm_count,
             vgpu_slices: vgpu_slices_from_tags(&tags),
-            cuda_ready: profile == GpuProfileKind::Cuda || tags.iter().any(|t| t.to_lowercase().contains("cuda")),
+            cuda_ready: profile == GpuProfileKind::Cuda
+                || tags.iter().any(|t| t.to_lowercase().contains("cuda")),
         });
     }
 
     let gpu_host_count = hosts.len() as i64;
     let gpu_vm_count = gpu_vms.len() as i64;
     let cuda_ready_hosts = hosts.iter().filter(|h| h.cuda_ready).count() as i64;
-    let mig_hosts = hosts.iter().filter(|h| h.profile == GpuProfileKind::Mig).count() as i64;
-    let vgpu_hosts = hosts.iter().filter(|h| h.profile == GpuProfileKind::Vgpu).count() as i64;
+    let mig_hosts = hosts
+        .iter()
+        .filter(|h| h.profile == GpuProfileKind::Mig)
+        .count() as i64;
+    let vgpu_hosts = hosts
+        .iter()
+        .filter(|h| h.profile == GpuProfileKind::Vgpu)
+        .count() as i64;
 
     let mut profile_counts: std::collections::HashMap<GpuProfileKind, (i32, i32)> =
         std::collections::HashMap::new();

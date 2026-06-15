@@ -50,12 +50,11 @@ pub async fn search(pool: &PgPool, query: &str) -> anyhow::Result<KnowledgeSearc
         });
     }
 
-    let hosts: Vec<(uuid::Uuid, String, String)> = sqlx::query_as(
-        "SELECT id, hostname, state FROM hosts WHERE hostname ILIKE $1 LIMIT 8",
-    )
-    .bind(&pattern)
-    .fetch_all(pool)
-    .await?;
+    let hosts: Vec<(uuid::Uuid, String, String)> =
+        sqlx::query_as("SELECT id, hostname, state FROM hosts WHERE hostname ILIKE $1 LIMIT 8")
+            .bind(&pattern)
+            .fetch_all(pool)
+            .await?;
     for (id, name, state) in hosts {
         hits.push(KnowledgeHit {
             kind: "host".into(),
@@ -146,7 +145,11 @@ pub async fn search(pool: &PgPool, query: &str) -> anyhow::Result<KnowledgeSearc
         });
     }
 
-    hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    hits.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     hits.truncate(30);
 
     Ok(KnowledgeSearchResult {

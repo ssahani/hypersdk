@@ -20,10 +20,9 @@ pub struct CapacityPlan {
 }
 
 pub async fn plan(pool: &PgPool) -> anyhow::Result<CapacityPlan> {
-    let hosts_online: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM hosts WHERE state = 'online'")
-            .fetch_one(pool)
-            .await?;
+    let hosts_online: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM hosts WHERE state = 'online'")
+        .fetch_one(pool)
+        .await?;
     let mem: (i64, i64) = sqlx::query_as(
         "SELECT COALESCE(SUM(memory_total_mib), 0)::bigint, COALESCE(SUM(memory_used_mib), 0)::bigint FROM hosts WHERE state = 'online'",
     )
@@ -78,7 +77,9 @@ pub async fn plan(pool: &PgPool) -> anyhow::Result<CapacityPlan> {
     }
     if let Some(days) = storage_runway_days {
         if days < 30 {
-            recommendations.push(format!("Storage may reach capacity in ~{days} days at current growth."));
+            recommendations.push(format!(
+                "Storage may reach capacity in ~{days} days at current growth."
+            ));
         }
     }
 
@@ -102,15 +103,27 @@ pub async fn export_csv(pool: &PgPool) -> anyhow::Result<String> {
     let plan = plan(pool).await?;
     let mut csv = String::from("Machina Capacity Planner Export\nMetric,Value\n");
     csv.push_str(&format!("Hosts online,{}\n", plan.hosts_online));
-    csv.push_str(&format!("Memory headroom MiB,{}\n", plan.memory_headroom_mib));
+    csv.push_str(&format!(
+        "Memory headroom MiB,{}\n",
+        plan.memory_headroom_mib
+    ));
     csv.push_str(&format!("Avg CPU %,{:.1}\n", plan.avg_cpu_percent));
-    csv.push_str(&format!("CPU headroom %,{:.1}\n", plan.cpu_headroom_percent));
+    csv.push_str(&format!(
+        "CPU headroom %,{:.1}\n",
+        plan.cpu_headroom_percent
+    ));
     csv.push_str(&format!("Storage used GiB,{}\n", plan.storage_used_gib));
-    csv.push_str(&format!("Storage capacity GiB,{}\n", plan.storage_capacity_gib));
+    csv.push_str(&format!(
+        "Storage capacity GiB,{}\n",
+        plan.storage_capacity_gib
+    ));
     if let Some(days) = plan.storage_runway_days {
         csv.push_str(&format!("Storage runway days,{days}\n"));
     }
-    csv.push_str(&format!("Est small VMs addable,{}\n\n", plan.estimated_small_vms_addable));
+    csv.push_str(&format!(
+        "Est small VMs addable,{}\n\n",
+        plan.estimated_small_vms_addable
+    ));
     csv.push_str("Recommendation\n");
     for r in &plan.recommendations {
         csv.push_str(&format!("{}\n", csv_escape(r)));

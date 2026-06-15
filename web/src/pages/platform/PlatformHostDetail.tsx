@@ -65,6 +65,7 @@ import { toastQueuedOperation } from '../../utils/platformTaskToast'
 import HostCockpitPanels from '../../components/platform/HostCockpitPanels'
 import PlatformHostTerminalPanel from '../../components/platform/PlatformHostTerminalPanel'
 import HostPackageKitPanel from '../../components/platform/HostPackageKitPanel'
+import HostLibvirtOpsPanel from '../../components/platform/HostLibvirtOpsPanel'
 import { getHostCockpitInventory, type HostCockpitSystem } from '../../api/platformHostCockpit'
 
 function psiBar(label: string, pct: number) {
@@ -430,6 +431,11 @@ export default function PlatformHostDetailPage() {
                     )}
                   </div>
                 </MacSettingsGroup>
+                {id ? (
+                  <div className="p-3">
+                    <HostLibvirtOpsPanel hostId={id} online={host.state === 'online'} />
+                  </div>
+                ) : null}
                 <MacSettingsGroup title="Classic hypervisor tools">
                   <div className="p-3">
                     <p className="text-xs text-slate-500 mb-3 leading-relaxed">

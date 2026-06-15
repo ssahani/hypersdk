@@ -1,6 +1,9 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-use machina_core::{apply_k8s_plan, compile_k8s_policies, detect_k8s_backend, k8s_cluster_ready, FirewallPlanRequest};
+use machina_core::{
+    apply_k8s_plan, compile_k8s_policies, detect_k8s_backend, k8s_cluster_ready,
+    FirewallPlanRequest,
+};
 use serde::Serialize;
 use sqlx::PgPool;
 use uuid::Uuid;

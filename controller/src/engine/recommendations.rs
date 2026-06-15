@@ -60,11 +60,14 @@ pub async fn generate_recommendations(pool: &PgPool) -> anyhow::Result<Vec<Recom
             id: "enable-ha-critical".into(),
             impact: "Reliability".into(),
             title: format!("Enable HA on {} critical VM(s)", no_ha.len()),
-            why: "Running production VMs without HA will not auto-restart after host failure.".into(),
+            why: "Running production VMs without HA will not auto-restart after host failure."
+                .into(),
             risk: "Low".into(),
             action: "Configure HA restart policy".into(),
             fix_action: "bulk_ha".into(),
-            object_ref: Some(serde_json::json!({ "vm_ids": no_ha.iter().map(|(id, _)| id).collect::<Vec<_>>() })),
+            object_ref: Some(
+                serde_json::json!({ "vm_ids": no_ha.iter().map(|(id, _)| id).collect::<Vec<_>>() }),
+            ),
         });
     }
 
@@ -81,7 +84,8 @@ pub async fn generate_recommendations(pool: &PgPool) -> anyhow::Result<Vec<Recom
             id: "install-guest-tools".into(),
             impact: "High Impact".into(),
             title: format!("Install guest tools on {no_guest} running VM(s)"),
-            why: "Guest tools enable graceful shutdown, IP reporting, and app-consistent backups.".into(),
+            why: "Guest tools enable graceful shutdown, IP reporting, and app-consistent backups."
+                .into(),
             risk: "Low — install via cloud-init or package manager".into(),
             action: "Review VMs and install Zyvor Guest Tools".into(),
             fix_action: "open_vms".into(),

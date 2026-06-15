@@ -79,7 +79,10 @@ pub async fn scan(pool: &PgPool) -> anyhow::Result<ComplianceFrameworksReport> {
         id: "hipaa-backup".into(),
         framework: "HIPAA".into(),
         title: "Production backup coverage".into(),
-        passed: base.checks.iter().any(|c| c.id == "backup_coverage" && c.passed),
+        passed: base
+            .checks
+            .iter()
+            .any(|c| c.id == "backup_coverage" && c.passed),
         score: base
             .checks
             .iter()
@@ -93,7 +96,10 @@ pub async fn scan(pool: &PgPool) -> anyhow::Result<ComplianceFrameworksReport> {
         id: "soc2-ha".into(),
         framework: "SOC2".into(),
         title: "HA on production workloads".into(),
-        passed: base.checks.iter().any(|c| c.id == "ha_coverage" && c.passed),
+        passed: base
+            .checks
+            .iter()
+            .any(|c| c.id == "ha_coverage" && c.passed),
         score: base
             .checks
             .iter()

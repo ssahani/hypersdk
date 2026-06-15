@@ -93,7 +93,10 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetMissionOverview> {
         .await?;
 
     let hosts_total = rows.len() as i64;
-    let hosts_online = rows.iter().filter(|h| h.state == "online" && !h.maintenance_mode).count() as i64;
+    let hosts_online = rows
+        .iter()
+        .filter(|h| h.state == "online" && !h.maintenance_mode)
+        .count() as i64;
     let vm_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vms")
         .fetch_one(pool)
         .await?;

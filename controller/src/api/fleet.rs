@@ -1,27 +1,29 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use axum::extract::State;
+use axum::Extension;
 use axum::Json;
 
 use crate::api::ApiError;
-use crate::engine::fleet_desktop;
-use crate::engine::fleet_linux;
+use crate::auth::{require_admin, require_operator, AuthUser};
 use crate::engine::fleet_activity;
 use crate::engine::fleet_backups;
-use crate::engine::fleet_finder;
-use crate::engine::fleet_network;
-use crate::engine::fleet_storage;
 use crate::engine::fleet_console;
-use crate::engine::fleet_updates;
+use crate::engine::fleet_desktop;
+use crate::engine::fleet_dna;
+use crate::engine::fleet_finder;
+use crate::engine::fleet_general;
+use crate::engine::fleet_gpu;
 use crate::engine::fleet_keychain;
-use crate::engine::fleet_users;
+use crate::engine::fleet_linux;
+use crate::engine::fleet_maintenance_mission;
+use crate::engine::fleet_mission;
+use crate::engine::fleet_network;
 use crate::engine::fleet_shortcuts;
 use crate::engine::fleet_spaces;
-use crate::engine::fleet_general;
-use crate::engine::fleet_mission;
-use crate::engine::fleet_maintenance_mission;
-use crate::engine::fleet_dna;
-use crate::engine::fleet_gpu;
+use crate::engine::fleet_storage;
+use crate::engine::fleet_updates;
+use crate::engine::fleet_users;
 use crate::state::AppState;
 
 pub async fn desktop_overview(
@@ -193,8 +195,10 @@ pub struct FleetDiagnoseBody {
 
 pub async fn fleet_diagnose(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Json(body): Json<FleetDiagnoseBody>,
 ) -> Result<Json<fleet_linux::FleetDiagnoseReport>, ApiError> {
+    require_operator(&actor)?;
     fleet_linux::diagnose(&state.pool, &state.config, &body.query)
         .await
         .map(Json)

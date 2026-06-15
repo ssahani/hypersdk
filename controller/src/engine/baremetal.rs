@@ -72,7 +72,10 @@ pub async fn list_servers(pool: &PgPool) -> anyhow::Result<Vec<BaremetalServer>>
     Ok(rows)
 }
 
-pub async fn register(pool: &PgPool, body: &RegisterBaremetalBody) -> anyhow::Result<BaremetalServer> {
+pub async fn register(
+    pool: &PgPool,
+    body: &RegisterBaremetalBody,
+) -> anyhow::Result<BaremetalServer> {
     let id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO baremetal_servers
@@ -93,7 +96,12 @@ pub async fn register(pool: &PgPool, body: &RegisterBaremetalBody) -> anyhow::Re
     .execute(pool)
     .await?;
 
-    let _ = crate::engine::zeus_firewall::metal::upsert_gitops_policy(pool, body.hostname.trim(), &body.firewall_profile).await;
+    let _ = crate::engine::zeus_firewall::metal::upsert_gitops_policy(
+        pool,
+        body.hostname.trim(),
+        &body.firewall_profile,
+    )
+    .await;
 
     sqlx::query_as::<_, BaremetalServer>(
         "SELECT id, hostname, bmc_address, bmc_type, state, cpu_cores, memory_mib,
@@ -111,10 +119,11 @@ pub async fn link_host_firewall_profile(
     baremetal_id: Uuid,
     host_id: Uuid,
 ) -> anyhow::Result<()> {
-    let profile: String = sqlx::query_scalar("SELECT firewall_profile FROM baremetal_servers WHERE id = $1")
-        .bind(baremetal_id)
-        .fetch_one(pool)
-        .await?;
+    let profile: String =
+        sqlx::query_scalar("SELECT firewall_profile FROM baremetal_servers WHERE id = $1")
+            .bind(baremetal_id)
+            .fetch_one(pool)
+            .await?;
     sqlx::query("UPDATE hosts SET baremetal_origin_id = $1, notes = COALESCE(notes, '') || $2 WHERE id = $3")
         .bind(baremetal_id)
         .bind(format!("\n[zeus] metal profile {profile} (policy stub until agent apply)"))
@@ -241,9 +250,15 @@ pub async fn provision_preview(pool: &PgPool, id: Uuid) -> anyhow::Result<Bareme
     .ok_or_else(|| anyhow::anyhow!("server not found"))?;
 
     let steps = vec![
-        format!("PXE boot {} via BMC {} (VLAN {})", row.hostname, row.bmc_address, row.pxe_vlan),
+        format!(
+            "PXE boot {} via BMC {} (VLAN {})",
+            row.hostname, row.bmc_address, row.pxe_vlan
+        ),
         "Match hardware profile to image catalog (Ubuntu 24.04 / RHEL 9)".into(),
-        format!("Apply Zeus profile {} on provisioning network", row.firewall_profile),
+        format!(
+            "Apply Zeus profile {} on provisioning network",
+            row.firewall_profile
+        ),
         "Register host in Machina fleet after first boot".into(),
     ];
 

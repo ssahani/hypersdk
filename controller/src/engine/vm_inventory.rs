@@ -22,7 +22,10 @@ struct VmInventoryRow {
     managed: bool,
 }
 
-pub async fn cluster_inventory_policy(pool: &PgPool, cluster_id: Uuid) -> anyhow::Result<ClusterInventoryPolicy> {
+pub async fn cluster_inventory_policy(
+    pool: &PgPool,
+    cluster_id: Uuid,
+) -> anyhow::Result<ClusterInventoryPolicy> {
     let row = sqlx::query_as::<_, ClusterInventoryPolicy>(
         "SELECT inventory_prune_unmanaged, inventory_mark_managed_missing FROM clusters WHERE id = $1",
     )
@@ -62,7 +65,10 @@ pub async fn reconcile_libvirt_host(
                 .await?;
             state.emit_event(
                 "vm.removed",
-                format!("Discovered VM '{}' removed — absent from hypervisor", row.name),
+                format!(
+                    "Discovered VM '{}' removed — absent from hypervisor",
+                    row.name
+                ),
             );
         } else if row.managed && policy.inventory_mark_managed_missing {
             sqlx::query(

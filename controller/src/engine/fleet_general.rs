@@ -47,11 +47,10 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetGeneralOverview> {
     let vm_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vms")
         .fetch_one(pool)
         .await?;
-    let active_tasks: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM tasks WHERE status IN ('pending', 'running')",
-    )
-    .fetch_one(pool)
-    .await?;
+    let active_tasks: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM tasks WHERE status IN ('pending', 'running')")
+            .fetch_one(pool)
+            .await?;
 
     let wallpaper_options = vec![
         FleetGeneralWallpaperOption {

@@ -15,13 +15,7 @@ pub fn is_local_hypervisor_address(address: &str) -> bool {
 }
 
 pub async fn remote_file_exists(address: &str, path: &str) -> bool {
-    let output = match run_remote(
-        address,
-        Duration::from_secs(6),
-        &["test", "-f", path],
-    )
-    .await
-    {
+    let output = match run_remote(address, Duration::from_secs(6), &["test", "-f", path]).await {
         Ok(o) => o,
         Err(_) => return false,
     };

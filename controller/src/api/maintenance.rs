@@ -1,11 +1,13 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use axum::extract::{Path, State};
+use axum::Extension;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::api::ApiError;
+use crate::auth::{require_admin, require_operator, AuthUser};
 use crate::state::AppState;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -37,7 +39,9 @@ fn default_true() -> bool {
 
 pub async fn list_schedules(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<MaintenanceScheduleRow>>, ApiError> {
+    require_operator(&actor)?;
     let rows = sqlx::query_as::<_, MaintenanceScheduleRow>(
         "SELECT id, host_id, action, evacuate, run_at, status FROM maintenance_schedules
          ORDER BY run_at DESC LIMIT 100",
@@ -49,8 +53,10 @@ pub async fn list_schedules(
 
 pub async fn create_schedule(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Json(body): Json<CreateScheduleBody>,
 ) -> Result<Json<MaintenanceScheduleRow>, ApiError> {
+    require_operator(&actor)?;
     let id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO maintenance_schedules (id, host_id, action, evacuate, run_at)
@@ -74,8 +80,10 @@ pub async fn create_schedule(
 
 pub async fn delete_schedule(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     sqlx::query("DELETE FROM maintenance_schedules WHERE id = $1 AND status = 'pending'")
         .bind(id)
         .execute(&state.pool)
@@ -85,8 +93,10 @@ pub async fn delete_schedule(
 
 pub async fn fence_host_manual(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(host_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&actor)?;
     let ok = crate::engine::drs::fence_host(&state, host_id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;

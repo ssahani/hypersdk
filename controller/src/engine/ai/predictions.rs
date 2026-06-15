@@ -112,7 +112,10 @@ pub async fn unified(pool: &PgPool) -> anyhow::Result<PredictionsReport> {
         format!(
             "{} prediction(s) — top: {}",
             predictions.len(),
-            predictions.first().map(|p| p.message.as_str()).unwrap_or("")
+            predictions
+                .first()
+                .map(|p| p.message.as_str())
+                .unwrap_or("")
         )
     };
 

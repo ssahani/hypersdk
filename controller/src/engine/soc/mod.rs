@@ -23,7 +23,11 @@ pub struct CycleStats {
     pub forwarded: usize,
 }
 
-pub async fn run_cycle(pool: &PgPool, cfg: &ControllerConfig, controller_id: &str) -> anyhow::Result<CycleStats> {
+pub async fn run_cycle(
+    pool: &PgPool,
+    cfg: &ControllerConfig,
+    controller_id: &str,
+) -> anyhow::Result<CycleStats> {
     let ingest = ingest_recent(pool, cfg).await?;
     let alerts_fired = run_detection(pool).await?;
     let forwarded = forward_all_integrations(pool, controller_id).await?;

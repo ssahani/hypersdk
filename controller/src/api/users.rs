@@ -33,14 +33,15 @@ fn default_role() -> String {
 fn validate_username(username: &str) -> Result<String, ApiError> {
     let username = username.trim();
     if username.is_empty() {
-        return Err(
-            ApiError::bad_request("username is required")
-                .with_code("invalid_request")
-                .with_remediation("Enter a non-empty username (letters, numbers, dash, underscore)."),
-        );
+        return Err(ApiError::bad_request("username is required")
+            .with_code("invalid_request")
+            .with_remediation("Enter a non-empty username (letters, numbers, dash, underscore)."));
     }
     if username.len() > 64 {
-        return Err(ApiError::bad_request("username must be at most 64 characters").with_code("invalid_request"));
+        return Err(
+            ApiError::bad_request("username must be at most 64 characters")
+                .with_code("invalid_request"),
+        );
     }
     if !username
         .chars()
@@ -168,11 +169,9 @@ pub async fn delete_user(
         .fetch_one(&state.pool)
         .await?;
     if row.0 == actor.username {
-        return Err(
-            ApiError::bad_request("cannot delete your own account")
-                .with_code("invalid_request")
-                .with_remediation("Sign in as another admin or delete a different user."),
-        );
+        return Err(ApiError::bad_request("cannot delete your own account")
+            .with_code("invalid_request")
+            .with_remediation("Sign in as another admin or delete a different user."));
     }
     sqlx::query("DELETE FROM users WHERE id = $1")
         .bind(id)
@@ -205,12 +204,11 @@ pub async fn me(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let row: Option<UserRow> = sqlx::query_as(
-        "SELECT id, username, role, created_at FROM users WHERE username = $1",
-    )
-    .bind(&actor.username)
-    .fetch_optional(&state.pool)
-    .await?;
+    let row: Option<UserRow> =
+        sqlx::query_as("SELECT id, username, role, created_at FROM users WHERE username = $1")
+            .bind(&actor.username)
+            .fetch_optional(&state.pool)
+            .await?;
     if let Some(row) = row {
         return Ok(Json(serde_json::json!({
             "id": row.id,

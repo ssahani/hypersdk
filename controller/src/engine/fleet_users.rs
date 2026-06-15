@@ -37,17 +37,15 @@ pub struct FleetUsersOverview {
 }
 
 pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetUsersOverview> {
-    let user_rows: Vec<(Uuid, String, String)> = sqlx::query_as(
-        "SELECT id, username, role FROM users ORDER BY username LIMIT 32",
-    )
-    .fetch_all(pool)
-    .await?;
+    let user_rows: Vec<(Uuid, String, String)> =
+        sqlx::query_as("SELECT id, username, role FROM users ORDER BY username LIMIT 32")
+            .fetch_all(pool)
+            .await?;
 
-    let role_counts: Vec<(String, i64)> = sqlx::query_as(
-        "SELECT role, COUNT(*)::bigint FROM users GROUP BY role ORDER BY role",
-    )
-    .fetch_all(pool)
-    .await?;
+    let role_counts: Vec<(String, i64)> =
+        sqlx::query_as("SELECT role, COUNT(*)::bigint FROM users GROUP BY role ORDER BY role")
+            .fetch_all(pool)
+            .await?;
 
     let mut admin_count = 0usize;
     let mut operator_count = 0usize;
