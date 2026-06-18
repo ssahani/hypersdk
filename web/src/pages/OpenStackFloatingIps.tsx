@@ -103,6 +103,7 @@ function OpenStackFloatingIpsContent() {
         <h2 className="text-sm font-medium text-slate-300">Associate to instance</h2>
         <div className="flex flex-wrap gap-3 items-end">
           <select value={assocFip} onChange={(e) => setAssocFip(e.target.value)}
+            aria-label="Floating IP"
             className="min-w-[10rem] px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700">
             <option value="">FIP…</option>
             {fips.filter((f) => !f.instance_id).map((f) => (
@@ -110,6 +111,7 @@ function OpenStackFloatingIpsContent() {
             ))}
           </select>
           <select value={assocInst} onChange={(e) => setAssocInst(e.target.value)}
+            aria-label="Instance"
             className="min-w-[10rem] px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700">
             <option value="">Instance…</option>
             {instances.map((i) => (

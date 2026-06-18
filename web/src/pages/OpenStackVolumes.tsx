@@ -187,6 +187,7 @@ function OpenStackVolumesContent() {
         <h2 className="text-sm font-medium text-slate-300">Create volume from Glance image</h2>
         <div className="flex flex-wrap gap-3 items-end">
           <select value={fromImageId} onChange={(e) => setFromImageId(e.target.value)}
+            aria-label="Glance image"
             className="min-w-[14rem] px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm">
             <option value="">Image…</option>
             {images.map((img) => (
@@ -218,6 +219,7 @@ function OpenStackVolumesContent() {
         <h2 className="text-sm font-medium text-slate-300">Clone volume</h2>
         <div className="flex flex-wrap gap-3 items-end">
           <select value={cloneSrcId} onChange={(e) => setCloneSrcId(e.target.value)}
+            aria-label="Source volume"
             className="min-w-[14rem] px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm">
             <option value="">Source volume…</option>
             {volumes.map((vol) => (
@@ -240,6 +242,7 @@ function OpenStackVolumesContent() {
         <h2 className="text-sm font-medium text-slate-300">Volume transfer</h2>
         <div className="flex flex-wrap gap-3 items-end">
           <select value={xferVolId} onChange={(e) => setXferVolId(e.target.value)}
+            aria-label="Volume to transfer"
             className="min-w-[12rem] px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm">
             <option value="">Volume…</option>
             {volumes.filter((v) => !v.server_id).map((vol) => (

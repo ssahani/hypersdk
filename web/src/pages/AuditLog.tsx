@@ -6,7 +6,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { getAuditLog, exportAuditNdjson, AuditEvent } from '../api/extras'
 import { useTranslation } from 'react-i18next'
 import { useToastContext } from '../contexts/ToastContext'
-import { FileText, RefreshCw, Search, CheckCircle, XCircle, Download } from 'lucide-react'
+import { FileText, RefreshCw, Search, CheckCircle, XCircle, Download, X } from 'lucide-react'
 import { downloadJSON, downloadCSV } from '../utils/export'
 import { formatUserError } from '../utils/apiError'
 import { statusToneClass } from '../utils/semanticColors'
@@ -80,31 +80,52 @@ export default function AuditLogPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
+            aria-label="Filter by action"
             placeholder="Action contains…"
             value={actionInp}
             onChange={(e) => setActionInp(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+            className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 ${actionInp ? 'pr-8' : 'pr-4'}`}
           />
+          {actionInp && (
+            <button type="button" aria-label="Clear action filter" onClick={() => setActionInp('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
+            aria-label="Filter by actor"
             placeholder="Actor contains…"
             value={actorInp}
             onChange={(e) => setActorInp(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+            className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 ${actorInp ? 'pr-8' : 'pr-4'}`}
           />
+          {actorInp && (
+            <button type="button" aria-label="Clear actor filter" onClick={() => setActorInp('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
+            aria-label="Search all fields"
             placeholder="Any field (action, target, result, actor)…"
             value={qInp}
             onChange={(e) => setQInp(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+            className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 ${qInp ? 'pr-8' : 'pr-4'}`}
           />
+          {qInp && (
+            <button type="button" aria-label="Clear search" onClick={() => setQInp('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
       <p className="text-xs text-slate-500">Filters reload after a short pause (debounced).</p>
