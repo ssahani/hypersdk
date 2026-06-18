@@ -115,7 +115,7 @@ LINES="$(wc -l < "$TMP" | tr -d ' ')"
 [ "$LINES" -gt 0 ] || exit 0
 
 python3 - "$TMP" "$EXPORT_URL" "$HOST_ID" <<'PY'
-import json, ssl, sys, urllib.request
+import json, ssl, sys, urllib.request, os
 path, url, host_id = sys.argv[1:4]
 events = []
 for line in open(path, encoding="utf-8", errors="replace"):
@@ -129,10 +129,14 @@ for line in open(path, encoding="utf-8", errors="replace"):
 if not events:
     sys.exit(0)
 payload = json.dumps({{"events": events}}).encode()
+headers = {{"Content-Type": "application/json"}}
+ingest_key = os.environ.get("MACHINA_INGEST_KEY", "")
+if ingest_key:
+    headers["X-Machina-Ingest-Key"] = ingest_key
 req = urllib.request.Request(
     f"{{url.rstrip('/')}}/{{host_id}}",
     data=payload,
-    headers={{"Content-Type": "application/json"}},
+    headers=headers,
     method="POST",
 )
 ctx = None
@@ -156,6 +160,7 @@ Requires=tetragon.service
 
 [Service]
 Type=oneshot
+EnvironmentFile=-/etc/default/machina-platform
 Environment=MACHINA_HOST_ID=$HOST_ID
 ExecStart=$INSTALL_ROOT/export-to-packetwolf.sh
 EOF

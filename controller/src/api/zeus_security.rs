@@ -1,8 +1,11 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use axum::extract::{Path, Query, State};
+use axum::http::HeaderMap;
 use axum::Extension;
 use axum::Json;
+use axum::extract::ConnectInfo;
+use std::net::SocketAddr;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -729,10 +732,18 @@ pub struct IngestEventsBody {
 pub async fn ingest_tetragon_events(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Path(id): Path<String>,
     Json(body): Json<IngestEventsBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_admin(&actor)?;
+    let local_ingest = crate::engine::packetwolf_ingest::ingest_authorized(
+        &headers,
+        Some(&addr.to_string()),
+    );
+    if !local_ingest {
+        require_admin(&actor)?;
+    }
     let count = body.events.len();
     if count == 0 {
         return Ok(Json(serde_json::json!({ "ingested": 0, "host_id": id })));
@@ -741,33 +752,19 @@ pub async fn ingest_tetragon_events(
     packetwolf_local::record_events(&id, count);
     let _ = crate::engine::packetwolf_local_db::touch_sensor_events(&state.pool, &id, count).await;
 
-    if packetwolf_bridge::fabric_api_available(&state.config) {
-        let url = format!(
-            "{}/{}",
-            state.config.packetwolf_base_url.trim_end_matches('/'),
-            format!("api/v1/ingest/{id}")
-        );
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(10))
-            .danger_accept_invalid_certs(state.config.packetwolf_insecure_tls)
-            .build()
-            .map_err(|e| ApiError::internal(e.to_string()))?;
-        let mut req = client.post(&url).json(&body);
-        if let Some(key) = state
-            .config
-            .packetwolf_api_key
-            .as_deref()
-            .filter(|k| !k.is_empty())
-        {
-            req = req.header("Authorization", format!("Bearer {key}"));
-        }
-        let _ = req.send().await;
-    }
+    let relay = crate::engine::packetwolf_ingest::relay_tetragon_batch(
+        &state.config,
+        &id,
+        &serde_json::json!({ "events": body.events }),
+    )
+    .await;
 
     Ok(Json(serde_json::json!({
         "ingested": count,
         "host_id": id,
-        "source": "machina-controller"
+        "source": "machina-controller",
+        "sensor_status": "healthy",
+        "relay": relay,
     })))
 }
 

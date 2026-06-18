@@ -222,6 +222,17 @@ merge_packetwolf_bridge_env() {
   ok "PacketWolf bridge env merged (RCA + zeus-firewall anomalies)"
 }
 
+ensure_ingest_key_env() {
+  local file="/etc/default/machina-platform"
+  if grep -q '^MACHINA_INGEST_KEY=' "$file" 2>/dev/null; then
+    return 0
+  fi
+  local key
+  key="$(openssl rand -hex 16 2>/dev/null || echo "machina-ingest-dev")"
+  ensure_platform_env_var MACHINA_INGEST_KEY "$key"
+  ok "Generated MACHINA_INGEST_KEY for Tetragon export → controller ingest"
+}
+
 write_platform_env() {
   step "Platform configuration"
   local ip pub
@@ -239,6 +250,7 @@ write_platform_env() {
       || echo 'MACHINA_SKIP_AUTH=1' >>/etc/default/machina-platform
   fi
   merge_packetwolf_bridge_env || true
+  ensure_ingest_key_env || true
   ensure_daemon_platform_proxy_env
   chmod 600 /etc/default/machina-platform
   ok "Config -> /etc/default/machina-platform (public URL: $pub)"
@@ -319,6 +331,7 @@ wait_for_health() {
 if $MERGE_PACKETWOLF_ONLY; then
   step "Merge PacketWolf bridge env"
   merge_packetwolf_bridge_env || true
+  ensure_ingest_key_env || true
   ok "PacketWolf env merged into /etc/default/machina-platform"
   exit 0
 fi

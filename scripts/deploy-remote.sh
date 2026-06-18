@@ -294,6 +294,7 @@ RUN_LIBVIRT_DESKTOP_E2E=false
 E2E_AUTH_MODE="${E2E_AUTH_MODE:-auto}"
 WITH_GUACAMOLE=false
 WITH_PACKETWOLF=false
+PACKETWOLF_E2E=false
 GUACAMOLE_PORT=8081
 
 parse_flags() {
@@ -312,6 +313,7 @@ parse_flags() {
             --e2e-auth) E2E_AUTH_MODE="${2:?pam|ldap|oidc|auto}"; shift 2 ;;
             --with-guacamole) WITH_GUACAMOLE=true; shift ;;
             --with-packetwolf) WITH_PACKETWOLF=true; shift ;;
+            --packetwolf-e2e) PACKETWOLF_E2E=true; shift ;;
             --guacamole-port) GUACAMOLE_PORT="${2:?}"; shift 2 ;;
             --cleanup) CLEANUP=true; shift ;;
             --open-firewall) OPEN_FW=true; shift ;;
@@ -425,6 +427,7 @@ if $INSTALL_ONLY; then MODE_LABEL="Install-only — copy existing binaries, no c
 if $INSTALL_PLATFORM; then MODE_LABEL+=" + platform (PostgreSQL, controller :5093, agent)"; fi
 if $WITH_GUACAMOLE; then MODE_LABEL+=" + Guacamole (Docker :${GUACAMOLE_PORT})"; fi
 if $WITH_PACKETWOLF; then MODE_LABEL+=" + PacketWolf (../packetwolf :9443)"; fi
+if $PACKETWOLF_E2E; then MODE_LABEL+=" + PacketWolf E2E tiers"; fi
 if $PRUNE_SOURCES; then MODE_LABEL+=" + prune sources after install"; fi
 
 TOTAL_STEPS=4
@@ -781,6 +784,21 @@ exit 1
                 --overall "$OVERALL" || true
             if [[ "$STRICT" == "1" ]] && { ! $FULL_E2E_OK || ! $LIVE_E2E_OK; }; then
                 die "STRICT=1: post-deploy E2E failed (API=${API_E2E_SUMMARY}, live=${LIVE_E2E_OK}, vm=${VM_E2E_SUMMARY})"
+            fi
+            if $WITH_PACKETWOLF || $PACKETWOLF_E2E; then
+                deploy_ui_highlight "🐺 Post-deploy PacketWolf integration E2E"
+                PW_E2E_OK=true
+                if PACKETWOLF_VERIFY_API_KEY="${PACKETWOLF_VERIFY_API_KEY:-${PACKETWOLF_ADMIN_API_KEY:-Admin@321}}" \
+                    PACKETWOLF_TEST_TIERS="${PACKETWOLF_TEST_TIERS:-zeus,runtime}" \
+                    "${SCRIPT_DIR}/e2e-packetwolf-remote.sh" "$USER" "$HOST"; then
+                    deploy_ui_celebrate "PacketWolf E2E passed"
+                else
+                    warn "PacketWolf E2E failed (deploy itself succeeded)"
+                    PW_E2E_OK=false
+                fi
+                if [[ "$STRICT" == "1" ]] && ! $PW_E2E_OK; then
+                    die "STRICT=1: PacketWolf E2E failed"
+                fi
             fi
         elif ! $SKIP_DAEMON_E2E; then
             deploy_ui_highlight "🧪 Post-deploy E2E (daemon :5092)"

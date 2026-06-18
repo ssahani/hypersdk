@@ -72,11 +72,14 @@ pub async fn touch_sensor_events(pool: &PgPool, host_id: &str, count: usize) -> 
         return Ok(());
     }
     sqlx::query(
-        "UPDATE packetwolf_local_sensors
-         SET status = 'healthy', last_event_at = NOW()
-         WHERE host_id = $1",
+        "INSERT INTO packetwolf_local_sensors (host_id, status, tetragon_version, registered_at, last_event_at)
+         VALUES ($1, 'healthy', $2, NOW(), NOW())
+         ON CONFLICT (host_id) DO UPDATE SET
+           status = 'healthy',
+           last_event_at = NOW()",
     )
     .bind(host_id)
+    .bind(packetwolf_local::DEFAULT_TETRAGON_VERSION)
     .execute(pool)
     .await?;
     Ok(())

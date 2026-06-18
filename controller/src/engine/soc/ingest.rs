@@ -320,19 +320,33 @@ async fn ingest_packetwolf(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Res
             .get("anomaly_type")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown");
-        let dedupe = format!(
-            "pw:{}:{}",
-            anomaly_type,
-            a.get("detected_at").and_then(|v| v.as_str()).unwrap_or("")
-        );
+        let anomaly_id = a
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let dedupe = if !anomaly_id.is_empty() {
+            format!("pw:id:{anomaly_id}")
+        } else {
+            format!(
+                "pw:{}:{}",
+                anomaly_type,
+                a.get("detected_at").and_then(|v| v.as_str()).unwrap_or("")
+            )
+        };
+        let source_ns = a.get("source_namespace").and_then(|v| v.as_str());
+        let source_pod = a.get("source_pod").and_then(|v| v.as_str());
         let ecs = json!({
-            "@timestamp": now.to_rfc3339(),
+            "@timestamp": a.get("detected_at").and_then(|v| v.as_str()).unwrap_or(&now.to_rfc3339()),
             "event.dataset": "machina.packetwolf",
             "event.category": ["intrusion_detection"],
             "event.kind": "alert",
             "event.severity": severity_to_ecs(severity),
             "message": summary,
             "machina.packetwolf.anomaly_type": anomaly_type,
+            "machina.packetwolf.anomaly_id": anomaly_id,
+            "kubernetes.namespace": source_ns,
+            "kubernetes.pod.name": source_pod,
+            "source.ip": a.get("source_ip"),
         });
         if insert_event(
             pool,
