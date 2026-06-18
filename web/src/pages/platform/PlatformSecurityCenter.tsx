@@ -188,8 +188,8 @@ export default function PlatformSecurityCenter() {
       {fabricHealth && (fabricHealth.issues?.length ?? 0) > 0 && (
         <MacGlassPanel title="Fabric health" subtitle={fabricHealth.summary ?? fabricHealth.status}>
           <ul className="text-sm text-slate-300 space-y-1">
-            {fabricHealth.issues?.slice(0, 5).map((issue, i) => (
-              <li key={i} className={statusToneClass('warn')}>
+            {fabricHealth.issues?.slice(0, 5).map((issue) => (
+              <li key={`${String(issue.host_id ?? '')}-${issue.summary}`} className={statusToneClass('warn')}>
                 {issue.summary}
                 {issue.host_id ? (
                   <>
@@ -295,8 +295,8 @@ export default function PlatformSecurityCenter() {
               <p className="text-sm text-slate-500">No critical security events in the current window.</p>
             ) : (
               <ul className="space-y-2">
-                {critical.slice(0, 8).map((ev, i) => (
-                  <li key={i} className={`text-sm flex flex-wrap items-center justify-between gap-2 ${statusToneClass('error')}`}>
+                {critical.slice(0, 8).map((ev) => (
+                  <li key={`${String(ev.host_id ?? '')}-${String(ev.kind ?? '')}-${String(ev.summary ?? '')}`} className={`text-sm flex flex-wrap items-center justify-between gap-2 ${statusToneClass('error')}`}>
                     <span>{String(ev.summary ?? ev.kind ?? 'event')}</span>
                     <EbpfActionMenu
                       hostId={ev.host_id ? String(ev.host_id) : undefined}

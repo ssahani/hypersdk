@@ -577,7 +577,7 @@ spec:
                       const row = asRecord(item) ?? {}
                       const meta = asRecord(row.metadata) ?? {}
                       return (
-                        <tr key={i} className="border-b border-slate-800/60">
+                        <tr key={String(row.reason ?? row.type ?? i)} className="border-b border-slate-800/60">
                           <td className="px-2 py-1 text-slate-400">{String(row.type ?? '—')}</td>
                           <td className="px-2 py-1 text-slate-300">{String(row.reason ?? '—')}</td>
                           <td className="px-2 py-1 text-slate-500">{String(row.message ?? meta.name ?? '—')}</td>

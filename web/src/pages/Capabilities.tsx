@@ -136,8 +136,8 @@ export default function CapabilitiesPage() {
               <table className="w-full">
                 <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">OS Type</th><th className="px-6 py-3">Architecture</th><th className="px-6 py-3">Machines</th></tr></thead>
                 <tbody className="divide-y divide-slate-700/50">
-                  {capabilities.guests.map((g, i) => (
-                    <tr key={i} className="hover:bg-slate-700/50">
+                  {capabilities.guests.map((g) => (
+                    <tr key={`${g.os_type}-${g.arch}`} className="hover:bg-slate-700/50">
                       <td className="px-6 py-3 text-sm font-medium">{g.os_type}</td>
                       <td className="px-6 py-3 text-sm">{g.arch}</td>
                       <td className="px-6 py-3 text-sm text-slate-400">{g.machines.slice(0, 5).join(', ')}{g.machines.length > 5 ? ` (+${g.machines.length - 5} more)` : ''}</td>

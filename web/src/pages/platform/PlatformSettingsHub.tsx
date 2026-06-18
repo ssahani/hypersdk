@@ -403,7 +403,7 @@ export default function PlatformSettingsHub() {
                   {asArray(asRecord(selectedBundle.manifest_json)?.artifacts).slice(0, 6).map((item, i) => {
                     const row = asRecord(item)
                     return (
-                      <div key={i} className="rounded-lg border border-white/[0.06] bg-slate-950/30 px-3 py-2 sm:col-span-2">
+                      <div key={String(row?.path ?? row?.name ?? i)} className="rounded-lg border border-white/[0.06] bg-slate-950/30 px-3 py-2 sm:col-span-2">
                         <dt className="text-xs text-slate-500">Artifact</dt>
                         <dd className="text-slate-200 mt-0.5 text-xs">{String(row?.path ?? row?.name ?? JSON.stringify(item))}</dd>
                       </div>

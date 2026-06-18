@@ -214,9 +214,9 @@ export default function PlatformMachineSecurity() {
           ports.length === 0 ? (
             <p className="text-sm text-slate-500 p-3">No open ports reported.</p>
           ) : (
-            ports.map((p, i) => (
+            ports.map((p) => (
               <MacListRow
-                key={i}
+                key={`${p.port}-${p.protocol}`}
                 title={`${p.port} ${p.service ?? p.protocol}`}
                 subtitle={[p.process, p.user, p.bind].filter(Boolean).map(String).join(' · ')}
               />
@@ -333,7 +333,7 @@ export default function PlatformMachineSecurity() {
       {tab === 'events' && timeline.length > 0 && (
         <MacGlassPanel title="Security timeline" subtitle="Flight recorder">
           {timeline.slice(0, 15).map((e, i) => (
-            <MacListRow key={i} title={eventRow(e)} subtitle={String(e.timestamp ?? '')} />
+            <MacListRow key={String(e.timestamp ?? i)} title={eventRow(e)} subtitle={String(e.timestamp ?? '')} />
           ))}
         </MacGlassPanel>
       )}

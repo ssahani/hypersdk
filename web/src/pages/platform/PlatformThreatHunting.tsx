@@ -281,8 +281,8 @@ export default function PlatformThreatHunting() {
         )}
         {searchHits.length > 0 && (
           <ul className="mt-2 space-y-1">
-            {searchHits.map((h, i) => (
-              <li key={i} className="text-sm text-slate-300 flex flex-wrap items-center gap-2 justify-between">
+            {searchHits.map((h) => (
+              <li key={`${h.host_id}-${h.summary}`} className="text-sm text-slate-300 flex flex-wrap items-center gap-2 justify-between">
                 <span>{h.summary}</span>
                 <EbpfActionMenu
                   hostId={h.host_id}
@@ -302,10 +302,10 @@ export default function PlatformThreatHunting() {
       {correlations.length > 0 && (
         <MacGlassPanel title="Threat correlations" subtitle="Rule engine findings">
           <ul className="text-sm text-slate-300 space-y-2">
-            {correlations.map((c, i) => {
+            {correlations.map((c) => {
               const enforce = correlationKindToEnforce(String(c.kind ?? ''))
               return (
-                <li key={i} className="flex flex-wrap items-center justify-between gap-2">
+                <li key={`${String(c.host_id ?? '')}-${String(c.kind ?? '')}-${String(c.summary ?? '')}`} className="flex flex-wrap items-center justify-between gap-2">
                   <span>
                     <span className={statusToneClass(riskTone(String(c.severity)))}>{String(c.severity)}</span>
                     {' · '}
