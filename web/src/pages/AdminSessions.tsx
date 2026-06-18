@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { RefreshCw, Trash2, Users } from 'lucide-react'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { useAuth } from '../contexts/AuthContext'
 import { useToastContext } from '../contexts/ToastContext'
 import { listAdminSessions, revokeAdminSession, AdminSessionsResponse } from '../api/adminSessions'
@@ -19,6 +20,7 @@ export default function AdminSessionsPage() {
   const toast = useToastContext()
   const [data, setData] = useState<AdminSessionsResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [revokeTarget, setRevokeTarget] = useState<{ sessionId: string; username: string; isCurrent: boolean } | null>(null)
 
   const load = useCallback(async () => {
     if (!isRoot) return
@@ -113,19 +115,7 @@ export default function AdminSessionsPage() {
                     title={s.is_current ? 'Ends this browser session (you will need to sign in again)' : 'Revoke session'}
                     aria-label="Revoke session"
                     onClick={async () => {
-                      if (!window.confirm(`Revoke session for ${s.username}?${s.is_current ? ' You will be signed out.' : ''}`)) return
-                      try {
-                        await revokeAdminSession(s.session_id)
-                        toast.success('Session revoked')
-                        if (s.is_current) {
-                          await apiLogout()
-                          window.location.href = '/'
-                          return
-                        }
-                        await load()
-                      } catch (e: unknown) {
-                        toast.error(formatUserError(e))
-                      }
+                      setRevokeTarget({ sessionId: s.session_id, username: s.username, isCurrent: Boolean(s.is_current) })
                     }}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -137,6 +127,35 @@ export default function AdminSessionsPage() {
         </table>
       </div>
       )}
+      <ConfirmDialog
+        open={revokeTarget !== null}
+        title={revokeTarget?.isCurrent ? 'End this session' : 'Revoke session'}
+        message={
+          revokeTarget?.isCurrent
+            ? 'End your own browser session? You will be signed out immediately.'
+            : `Revoke the session for "${revokeTarget?.username}"? They will be signed out immediately.`
+        }
+        confirmLabel="Revoke"
+        variant="danger"
+        onCancel={() => setRevokeTarget(null)}
+        onConfirm={async () => {
+          const t = revokeTarget
+          setRevokeTarget(null)
+          if (!t) return
+          try {
+            await revokeAdminSession(t.sessionId)
+            if (t.isCurrent) {
+              await apiLogout()
+              window.location.href = '/login'
+              return
+            }
+            toast.success(`Session for "${t.username}" revoked`)
+            void load()
+          } catch (e: unknown) {
+            toast.error(formatUserError(e))
+          }
+        }}
+      />
     </PageLayout>
   )
 }

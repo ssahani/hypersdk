@@ -173,6 +173,28 @@ export default function MachineFinderPage() {
         onConfirm={() => void handleBatchDelete()}
         onCancel={() => setBatchDeleteOpen(false)}
       />
+      <ConfirmDialog
+        open={state.confirmPrune}
+        title="Remove missing VM records"
+        message={`Remove ${state.filteredVms.length} missing VM record(s) from inventory? This cannot be undone.`}
+        confirmLabel="Remove records"
+        variant="danger"
+        onCancel={() => state.setConfirmPrune(false)}
+        onConfirm={() => { state.setConfirmPrune(false); void state.doPruneMissing() }}
+      />
+      <ConfirmDialog
+        open={state.deleteVmTarget !== null}
+        title="Delete VM"
+        message={`Delete ${state.deleteVmTarget?.name}? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onCancel={() => state.setDeleteVmTarget(null)}
+        onConfirm={() => {
+          const vm = state.deleteVmTarget
+          state.setDeleteVmTarget(null)
+          if (vm) void state.doVmDeleteAction(vm)
+        }}
+      />
     </PageLayout>
   )
 }

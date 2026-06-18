@@ -100,6 +100,8 @@ export default function PlatformStorage() {
   const [volumeSaving, setVolumeSaving] = useState(false)
   const [confirmVolume, setConfirmVolume] = useState<{ poolId: string; volName: string; poolName: string } | null>(null)
   const [confirmPoolId, setConfirmPoolId] = useState<string | null>(null)
+  const [resizePool, setResizePool] = useState<{ id: string; name: string; currentGib: number } | null>(null)
+  const [resizePoolInput, setResizePoolInput] = useState('')
 
   const tierName = (id?: string | null) => tiers.find((t) => t.id === id)?.name ?? null
 
@@ -657,16 +659,9 @@ export default function PlatformStorage() {
                     <button
                       type="button"
                       className="btn-secondary text-xs w-full"
-                      onClick={async () => {
-                        const next = window.prompt('Capacity (GiB)', String(p.capacity_gib || 100))
-                        if (!next) return
-                        try {
-                          await patchStoragePool(p.id, { capacity_gib: Number(next) })
-                          toast.success('Pool updated')
-                          await load(false)
-                        } catch (e: unknown) {
-                          toast.error(formatUserError(e))
-                        }
+                      onClick={() => {
+                        setResizePoolInput(String(p.capacity_gib || 100))
+                        setResizePool({ id: p.id, name: p.name, currentGib: p.capacity_gib || 100 })
                       }}
                     >
                       Edit capacity
@@ -841,6 +836,59 @@ export default function PlatformStorage() {
           finally { setConfirmPoolId(null) }
         }}
       />
+      {resizePool && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setResizePool(null)}>
+          <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-slate-700/50">
+              <span className="text-lg font-semibold">Edit pool capacity</span>
+              <p className="text-sm text-slate-400 mt-1">Pool: {resizePool.name}</p>
+            </div>
+            <div className="p-5 space-y-3">
+              <label className="block text-sm text-slate-400">Capacity (GiB)</label>
+              <input
+                type="number"
+                min={1}
+                className="input-field w-full"
+                value={resizePoolInput}
+                onChange={(e) => setResizePoolInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const n = Number(resizePoolInput)
+                    if (!n || n < 1) return
+                    const id = resizePool.id
+                    setResizePool(null)
+                    void patchStoragePool(id, { capacity_gib: n })
+                      .then(() => { toast.success('Pool updated'); void load(false) })
+                      .catch((err: unknown) => toast.error(formatUserError(err)))
+                  } else if (e.key === 'Escape') {
+                    setResizePool(null)
+                  }
+                }}
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-3 px-5 pb-5">
+              <button type="button" onClick={() => setResizePool(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
+              <button
+                type="button"
+                disabled={!resizePoolInput || Number(resizePoolInput) < 1}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition disabled:opacity-40 disabled:cursor-not-allowed"
+                onClick={() => {
+                  const n = Number(resizePoolInput)
+                  if (!n || n < 1) return
+                  const id = resizePool.id
+                  setResizePool(null)
+                  void patchStoragePool(id, { capacity_gib: n })
+                    .then(() => { toast.success('Pool updated'); void load(false) })
+                    .catch((err: unknown) => toast.error(formatUserError(err)))
+                }}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </PlatformPageChrome>
   )
 }

@@ -3,6 +3,7 @@
 // https://zyvor.dev · info@zyvor.dev
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { Link } from 'react-router'
 import { Boxes, Copy, ExternalLink, Monitor, Network, Play, RefreshCw, RotateCw, Square, Terminal, Trash2 } from 'lucide-react'
 import VNCViewer from '../components/VNCViewer'
@@ -68,6 +69,7 @@ export default function K8sWorkloadsPage() {
   const [kubevirtVmCrs, setKubevirtVmCrs] = useState<K8sKubeVirtVM[]>([])
   const [kubevirtCrBusy, setKubevirtCrBusy] = useState(false)
   const [kubevirtVmBusy, setKubevirtVmBusy] = useState<string | null>(null)
+  const [deleteKubevirtTarget, setDeleteKubevirtTarget] = useState<{ namespace: string; name: string } | null>(null)
   const [showKubevirtCreate, setShowKubevirtCreate] = useState(false)
   const [kubevirtCreateYaml, setKubevirtCreateYaml] = useState(`apiVersion: kubevirt.io/v1
 kind: VirtualMachine
@@ -223,20 +225,9 @@ spec:
     }
   }, [ctxTrim, load, toast])
 
-  const deleteKubevirtVm = useCallback(async (namespace: string, name: string) => {
-    if (!window.confirm(`Delete KubeVirt VirtualMachine ${namespace}/${name}?`)) return
-    const key = `delete:${namespace}/${name}`
-    setKubevirtVmBusy(key)
-    try {
-      await deleteK8sKubevirtVm(namespace, name, ctxTrim || undefined)
-      toast.success(`Deleted ${namespace}/${name}`)
-      await load(true)
-    } catch (e: unknown) {
-      toast.error(formatUserError(e))
-    } finally {
-      setKubevirtVmBusy(null)
-    }
-  }, [ctxTrim, load, toast])
+  const deleteKubevirtVm = useCallback((namespace: string, name: string) => {
+    setDeleteKubevirtTarget({ namespace, name })
+  }, [])
 
   const applyKubevirtYaml = useCallback(async () => {
     setKubevirtVmBusy('create')
@@ -992,6 +983,30 @@ spec:
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={deleteKubevirtTarget !== null}
+        title="Delete KubeVirt VM"
+        message={deleteKubevirtTarget ? `Delete VirtualMachine ${deleteKubevirtTarget.namespace}/${deleteKubevirtTarget.name}? This cannot be undone.` : ''}
+        confirmLabel="Delete"
+        variant="danger"
+        onCancel={() => setDeleteKubevirtTarget(null)}
+        onConfirm={async () => {
+          const t = deleteKubevirtTarget
+          setDeleteKubevirtTarget(null)
+          if (!t) return
+          const key = `delete:${t.namespace}/${t.name}`
+          setKubevirtVmBusy(key)
+          try {
+            await deleteK8sKubevirtVm(t.namespace, t.name, ctxTrim || undefined)
+            toast.success(`Deleted ${t.namespace}/${t.name}`)
+            await load(true)
+          } catch (e: unknown) {
+            toast.error(formatUserError(e))
+          } finally {
+            setKubevirtVmBusy(null)
+          }
+        }}
+      />
     </PageLayout>
   )
 }

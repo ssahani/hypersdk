@@ -3,6 +3,7 @@
 // https://zyvor.dev · info@zyvor.dev
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { Link } from 'react-router'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import CollapsibleCodeBlock from '../components/CollapsibleCodeBlock'
@@ -307,6 +308,8 @@ export default function K8sOverviewPage() {
   const [bootstrapSkipKv, setBootstrapSkipKv] = useState(false)
   const [bootstrapInstallMetrics, setBootstrapInstallMetrics] = useState(true)
   const [bootstrapBusy, setBootstrapBusy] = useState<ClusterBootstrapPhase | null>(null)
+  const [k3sConfirmOp, setK3sConfirmOp] = useState<'install' | 'uninstall' | null>(null)
+  const [bootstrapConfirmPhase, setBootstrapConfirmPhase] = useState<ClusterBootstrapPhase | null>(null)
   const [bootstrapLastLog, setBootstrapLastLog] = useState('')
   const [liveNodesCount, setLiveNodesCount] = useState<number | null>(null)
 
@@ -433,11 +436,11 @@ export default function K8sOverviewPage() {
     }
   }, [ctxTrim, toast])
 
-  const runHostK3sInstall = useCallback(async () => {
-    const ok = window.confirm(
-      'Install k3s on this machine using https://get.k3s.io ? This runs as root on the Machina daemon host.',
-    )
-    if (!ok) return
+  const runHostK3sInstall = useCallback(() => {
+    setK3sConfirmOp('install')
+  }, [])
+
+  const doRunHostK3sInstall = useCallback(async () => {
     setK3sBusy('install')
     try {
       const exec = k3sInstallExec.trim()
@@ -458,11 +461,11 @@ export default function K8sOverviewPage() {
     }
   }, [k3sInstallExec, k3sInstallVersion, load, toast])
 
-  const runHostK3sUninstall = useCallback(async () => {
-    const ok = window.confirm(
-      'Remove k3s from this host using the upstream uninstall script? This destroys the local cluster and runs as root.',
-    )
-    if (!ok) return
+  const runHostK3sUninstall = useCallback(() => {
+    setK3sConfirmOp('uninstall')
+  }, [])
+
+  const doRunHostK3sUninstall = useCallback(async () => {
     setK3sBusy('uninstall')
     try {
       const result = await postK8sK3sUninstall({ role: 'auto' })
@@ -481,13 +484,14 @@ export default function K8sOverviewPage() {
   const hostSetupBusy = k3sBusy !== null || bootstrapBusy !== null
 
   const runClusterBootstrap = useCallback(
+    (phase: ClusterBootstrapPhase) => {
+      setBootstrapConfirmPhase(phase)
+    },
+    [],
+  )
+
+  const doRunClusterBootstrap = useCallback(
     async (phase: ClusterBootstrapPhase) => {
-      const ok = window.confirm(
-        phase === 'full'
-          ? 'Run the full install-k3s-cilium.sh pipeline on this host (can take 30+ minutes: k3s → Cilium → metrics → KubeVirt/CDI)?'
-          : `Run bootstrap phase "${phase}" on the Machina daemon host? Later phases assume earlier steps already succeeded.`,
-      )
-      if (!ok) return
       setBootstrapBusy(phase)
       try {
         const ip = bootstrapServerIp.trim()
@@ -1623,6 +1627,41 @@ export default function K8sOverviewPage() {
           <code className={`text-xs break-all ${statusToneClass('ok')}`}>{lastCommand}</code>
         </div>
       )}
+      <ConfirmDialog
+        open={k3sConfirmOp === 'install'}
+        title="Install k3s"
+        message="Install k3s on this machine using https://get.k3s.io? This runs as root on the Machina daemon host."
+        confirmLabel="Install"
+        variant="warning"
+        onCancel={() => setK3sConfirmOp(null)}
+        onConfirm={() => { setK3sConfirmOp(null); void doRunHostK3sInstall() }}
+      />
+      <ConfirmDialog
+        open={k3sConfirmOp === 'uninstall'}
+        title="Remove k3s"
+        message="Remove k3s from this host using the upstream uninstall script? This destroys the local cluster and runs as root."
+        confirmLabel="Uninstall"
+        variant="danger"
+        onCancel={() => setK3sConfirmOp(null)}
+        onConfirm={() => { setK3sConfirmOp(null); void doRunHostK3sUninstall() }}
+      />
+      <ConfirmDialog
+        open={bootstrapConfirmPhase !== null}
+        title={bootstrapConfirmPhase === 'full' ? 'Run full cluster bootstrap' : `Run bootstrap phase "${bootstrapConfirmPhase}"`}
+        message={
+          bootstrapConfirmPhase === 'full'
+            ? 'Run the full install-k3s-cilium.sh pipeline on this host (can take 30+ minutes: k3s → Cilium → metrics → KubeVirt/CDI)?'
+            : `Run bootstrap phase "${bootstrapConfirmPhase}" on the Machina daemon host? Later phases assume earlier steps already succeeded.`
+        }
+        confirmLabel="Run"
+        variant="warning"
+        onCancel={() => setBootstrapConfirmPhase(null)}
+        onConfirm={() => {
+          const phase = bootstrapConfirmPhase
+          setBootstrapConfirmPhase(null)
+          if (phase) void doRunClusterBootstrap(phase)
+        }}
+      />
     </PageLayout>
   )
 }

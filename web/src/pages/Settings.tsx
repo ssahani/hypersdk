@@ -3,6 +3,7 @@
 // https://zyvor.dev · info@zyvor.dev
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { Link } from 'react-router'
 import {
   listRoles, setRole, listTokens, createToken, deleteToken,
@@ -84,6 +85,7 @@ export default function SettingsPage() {
   const [newOsUsername, setNewOsUsername] = useState('')
   const [newOsPassword, setNewOsPassword] = useState('')
   const [deleteOsUsername, setDeleteOsUsername] = useState('')
+  const [confirmDeleteOsUser, setConfirmDeleteOsUser] = useState(false)
   const [addOsUserToLibvirt, setAddOsUserToLibvirt] = useState(true)
   const [openstackStatus, setOpenstackStatus] = useState<OpenStackConnectionStatus | null>(null)
   const [integrations, setIntegrations] = useState<IntegrationsStatus | null>(null)
@@ -777,17 +779,10 @@ export default function SettingsPage() {
                         <input value={deleteOsUsername} onChange={e => setDeleteOsUsername(e.target.value)} className="input-field flex-1" placeholder="Username to remove" autoComplete="off" />
                         <button
                           type="button"
-                          onClick={async () => {
+                          onClick={() => {
                             const u = deleteOsUsername.trim()
                             if (!u) { toast.error('Username required'); return }
-                            if (!window.confirm(`Permanently delete UNIX user "${u}" and home data?`)) return
-                            try {
-                              await deleteOsUser(u)
-                              toast.success(`System user '${u}' removed`)
-                              setDeleteOsUsername('')
-                            } catch (e: unknown) {
-                              toast.error(formatUserError(e))
-                            }
+                            setConfirmDeleteOsUser(true)
                           }}
                           className="px-4 py-2 bg-red-600/90 hover:bg-red-600 rounded-lg text-sm transition whitespace-nowrap"
                         >
@@ -1024,6 +1019,25 @@ export default function SettingsPage() {
           <p className="text-xs text-slate-500">Snapshots are taken automatically at the configured interval. Old snapshots beyond the retain count are pruned.</p>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmDeleteOsUser}
+        title="Delete UNIX user"
+        message={`Permanently delete UNIX user "${deleteOsUsername.trim()}" and remove their home directory? This cannot be undone.`}
+        confirmLabel="Delete user"
+        variant="danger"
+        onCancel={() => setConfirmDeleteOsUser(false)}
+        onConfirm={async () => {
+          setConfirmDeleteOsUser(false)
+          const u = deleteOsUsername.trim()
+          try {
+            await deleteOsUser(u)
+            toast.success(`System user '${u}' removed`)
+            setDeleteOsUsername('')
+          } catch (e: unknown) {
+            toast.error(formatUserError(e))
+          }
+        }}
+      />
     </PageLayout>
   )
 }

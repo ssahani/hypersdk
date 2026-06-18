@@ -25,6 +25,7 @@ import {
   ArrowRight, Monitor, Wifi, Cable, X, Sliders, Copy, Check, Search, Route,
 } from 'lucide-react'
 import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
+import ConfirmDialog from '../components/ConfirmDialog'
 import PageLayout from '../components/PageLayout'
 import { formatUserError } from '../utils/apiError'
 import { statusBgClass, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
@@ -86,6 +87,7 @@ export default function HostNetworkingPage() {
   const [routeDev, setRouteDev] = useState('')
   const [routeTableStr, setRouteTableStr] = useState('')
   const [routeBusy, setRouteBusy] = useState(false)
+  const [confirmRoute, setConfirmRoute] = useState(false)
   const [ifaceDiag, setIfaceDiag] = useState<Record<string, string>>({})
   const [ifaceDiagLoading, setIfaceDiagLoading] = useState<string | null>(null)
   const [ifaceFilter, setIfaceFilter] = useState('')
@@ -185,20 +187,16 @@ export default function HostNetworkingPage() {
     } finally { setLoading(false) }
   }, [toast])
 
-  const applyKernelRoute = useCallback(async () => {
+  const applyKernelRoute = useCallback(() => {
     const dest = routeDest.trim()
     if (!dest) {
       toast.error('Enter a destination (CIDR or "default").')
       return
     }
-    const verb = routeOp === 'add' ? 'Add' : 'Delete'
-    if (
-      !window.confirm(
-        `${verb} this ${routeFamily} route to "${dest}"? Incorrect static routes can break host or guest networking.`,
-      )
-    ) {
-      return
-    }
+    setConfirmRoute(true)
+  }, [routeDest, toast])
+
+  const doApplyKernelRoute = useCallback(async () => {
     let table: number | undefined
     const ts = routeTableStr.trim()
     if (ts !== '') {
@@ -209,6 +207,7 @@ export default function HostNetworkingPage() {
       }
       table = t
     }
+    const dest = routeDest.trim()
     const via = routeVia.trim()
     const dev = routeDev.trim()
     setRouteBusy(true)
@@ -1030,6 +1029,15 @@ export default function HostNetworkingPage() {
           )}
         </div>
       )}
+      <ConfirmDialog
+        open={confirmRoute}
+        title={routeOp === 'add' ? `Add ${routeFamily} route` : `Delete ${routeFamily} route`}
+        message={`${routeOp === 'add' ? 'Add' : 'Delete'} this ${routeFamily} route to "${routeDest.trim()}"? Incorrect static routes can break host or guest networking.`}
+        confirmLabel={routeOp === 'add' ? 'Add route' : 'Delete route'}
+        variant="warning"
+        onCancel={() => setConfirmRoute(false)}
+        onConfirm={() => { setConfirmRoute(false); void doApplyKernelRoute() }}
+      />
     </PageLayout>
   )
 }

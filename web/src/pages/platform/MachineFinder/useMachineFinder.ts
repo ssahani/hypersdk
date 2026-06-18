@@ -90,6 +90,8 @@ export function useMachineFinder() {
   const [batchPowerBusy, setBatchPowerBusy] = useState(false)
   const [sshVm, setSshVm] = useState<PlatformVm | null>(null)
   const [pruneBusy, setPruneBusy] = useState(false)
+  const [confirmPrune, setConfirmPrune] = useState(false)
+  const [deleteVmTarget, setDeleteVmTarget] = useState<PlatformVm | null>(null)
   const [fleetGuestReport, setFleetGuestReport] = useState<FleetGuestQueryReport | null>(null)
   const [fleetGuestBusy, setFleetGuestBusy] = useState(false)
   const deleteTaskToastRef = useRef<string | null>(null)
@@ -412,8 +414,11 @@ export function useMachineFinder() {
     setMigrateModal({ vm, destId: hostId, destName: host.hostname })
   }
 
-  const pruneMissing = async () => {
-    if (!window.confirm(`Remove ${filteredVms.length} missing VM record(s) from inventory? This cannot be undone.`)) return
+  const pruneMissing = () => {
+    setConfirmPrune(true)
+  }
+
+  const doPruneMissing = async () => {
     setPruneBusy(true)
     try {
       purgeVmShortcuts(filteredVms.map((v) => v.name))
@@ -452,8 +457,7 @@ export function useMachineFinder() {
       toast.error('Batch snapshot applies to libvirt VMs only')
       return
     }
-    const name = window.prompt('Snapshot name prefix', `batch-${Date.now()}`)?.trim()
-    if (!name) return
+    const name = `batch-${Date.now()}`
     setBatchPowerBusy(true)
     try {
       const blocked: string[] = []
@@ -595,8 +599,7 @@ export function useMachineFinder() {
       toast.error('Snapshots apply to libvirt VMs only')
       return
     }
-    const name = window.prompt('Snapshot name', `snap-${Date.now()}`)?.trim()
-    if (!name) return
+    const name = `snap-${Date.now()}`
     try {
       const r = await createVmSnapshot(vm.id, name)
       toastQueuedOperation(toast, `Snapshot ${vm.name}`, r.task_id, tier)
@@ -606,12 +609,15 @@ export function useMachineFinder() {
     }
   }
 
-  const vmDeleteAction = async (vm: PlatformVm) => {
+  const vmDeleteAction = (vm: PlatformVm) => {
     if (vm.inventory_source === 'kubevirt') {
       toast.error('KubeVirt guests must be deleted from the cluster')
       return
     }
-    if (!window.confirm(`Delete ${vm.name}? This cannot be undone.`)) return
+    setDeleteVmTarget(vm)
+  }
+
+  const doVmDeleteAction = async (vm: PlatformVm) => {
     try {
       await queuePlatformVmDelete(vm, toast, tier)
       if (selectedVmId === vm.id) setSelectedVmId(null)
@@ -699,6 +705,12 @@ export function useMachineFinder() {
     sshVm,
     setSshVm,
     pruneBusy,
+    confirmPrune,
+    setConfirmPrune,
+    deleteVmTarget,
+    setDeleteVmTarget,
+    doPruneMissing,
+    doVmDeleteAction,
     fleetGuestReport,
     setFleetGuestReport,
     fleetGuestBusy,

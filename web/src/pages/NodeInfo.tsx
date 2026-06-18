@@ -3,6 +3,7 @@
 // https://zyvor.dev · info@zyvor.dev
 
 import { useEffect, useState, useCallback } from 'react'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { Link } from 'react-router'
 import { getNodeInfo, getHealth, NodeInfo, HealthStatus } from '../api/node'
 import {
@@ -194,6 +195,8 @@ export default function NodeInfoPage() {
   const [timezoneInput, setTimezoneInput] = useState('')
   const [sessionRole, setSessionRole] = useState<SessionRole | null>(null)
   const [killBusyPid, setKillBusyPid] = useState<number | null>(null)
+  const [pkgConfirmOp, setPkgConfirmOp] = useState<'upgrade' | 'autoremove' | 'remove' | null>(null)
+  const [killConfirm, setKillConfirm] = useState<{ process: HostProcess; signal: 'TERM' | 'KILL' } | null>(null)
   const [libvirtBoot, setLibvirtBoot] = useState<LibvirtBootStatus | null>(null)
   const [libvirtBootBusy, setLibvirtBootBusy] = useState(false)
   const [hardwareInventory, setHardwareInventory] = useState<HardwareInventoryReport | null>(null)
@@ -284,15 +287,12 @@ export default function NodeInfoPage() {
     return [...new Set(parts)]
   }
 
-  const runPackageUpgrade = useCallback(async () => {
+  const runPackageUpgrade = useCallback(() => {
     if (!pkgUpdates || pkgUpdates.backend === 'unknown') return
-    if (
-      !window.confirm(
-        'Run a full system package upgrade on this host? This uses your distro package manager (apt, dnf, …), can take a long time, and may restart services. Continue?',
-      )
-    ) {
-      return
-    }
+    setPkgConfirmOp('upgrade')
+  }, [pkgUpdates])
+
+  const doRunPackageUpgrade = useCallback(async () => {
     setPkgMutBusy(true)
     setPkgActionResult(null)
     try {
@@ -310,7 +310,7 @@ export default function NodeInfoPage() {
     } finally {
       setPkgMutBusy(false)
     }
-  }, [pkgUpdates, toast])
+  }, [toast])
 
   const runPackageUpgradeDryRun = useCallback(async () => {
     if (!pkgUpdates || pkgUpdates.backend === 'unknown') return
@@ -328,18 +328,15 @@ export default function NodeInfoPage() {
     }
   }, [pkgUpdates, toast])
 
-  const runPackageAutoremove = useCallback(async () => {
+  const runPackageAutoremove = useCallback(() => {
     if (!pkgUpdates || pkgUpdates.backend !== 'apt') {
       toast.error('Autoremove is only available when the package backend is apt.')
       return
     }
-    if (
-      !window.confirm(
-        'Run apt autoremove on this host? This removes packages that were installed only as dependencies and are no longer needed.',
-      )
-    ) {
-      return
-    }
+    setPkgConfirmOp('autoremove')
+  }, [pkgUpdates, toast])
+
+  const doRunPackageAutoremove = useCallback(async () => {
     setPkgMutBusy(true)
     setPkgActionResult(null)
     try {
@@ -357,7 +354,7 @@ export default function NodeInfoPage() {
     } finally {
       setPkgMutBusy(false)
     }
-  }, [pkgUpdates, toast])
+  }, [toast])
 
   const runPackageInstall = useCallback(async () => {
     if (!pkgUpdates || pkgUpdates.backend === 'unknown') return
@@ -385,20 +382,18 @@ export default function NodeInfoPage() {
     }
   }, [pkgInstallInput, pkgUpdates, toast])
 
-  const runPackageRemove = useCallback(async () => {
+  const runPackageRemove = useCallback(() => {
     if (!pkgUpdates || pkgUpdates.backend === 'unknown') return
     const pkgs = parsePackageList(pkgRemoveInput)
     if (pkgs.length === 0) {
       toast.error('Enter at least one package name to remove.')
       return
     }
-    if (
-      !window.confirm(
-        `Remove these packages from the host? This may break dependent software: ${pkgs.join(', ')}`,
-      )
-    ) {
-      return
-    }
+    setPkgConfirmOp('remove')
+  }, [pkgRemoveInput, pkgUpdates, toast])
+
+  const doRunPackageRemove = useCallback(async () => {
+    const pkgs = parsePackageList(pkgRemoveInput)
     setPkgMutBusy(true)
     setPkgActionResult(null)
     try {
@@ -416,7 +411,7 @@ export default function NodeInfoPage() {
     } finally {
       setPkgMutBusy(false)
     }
-  }, [pkgRemoveInput, pkgRemovePurge, pkgUpdates, toast])
+  }, [pkgRemoveInput, pkgRemovePurge, toast])
 
   const measureNetRates = useCallback(async () => {
     setNetRatesLoading(true)
@@ -431,13 +426,15 @@ export default function NodeInfoPage() {
   }, [rateSampleMs, toast])
 
   const killHostProcess = useCallback(
-    async (p: HostProcess, signal: 'TERM' | 'KILL') => {
+    (p: HostProcess, signal: 'TERM' | 'KILL') => {
       if (!canKillHostProcess) return
-      const warn =
-        signal === 'KILL'
-          ? `Force-kill PID ${p.pid} (${p.command}) with SIGKILL? The application cannot catch this signal.`
-          : `Send SIGTERM to PID ${p.pid} (${p.command})? The process should exit gracefully if it handles the signal.`
-      if (!window.confirm(warn)) return
+      setKillConfirm({ process: p, signal })
+    },
+    [canKillHostProcess],
+  )
+
+  const doKillHostProcess = useCallback(
+    async (p: HostProcess, signal: 'TERM' | 'KILL') => {
       setKillBusyPid(p.pid)
       try {
         await postHostKillProcess(p.pid, { signal })
@@ -460,7 +457,7 @@ export default function NodeInfoPage() {
         setKillBusyPid(null)
       }
     },
-    [canKillHostProcess, toast],
+    [toast],
   )
 
   const enableLibvirtBootUnit = useCallback(async () => {
@@ -1658,6 +1655,50 @@ export default function NodeInfoPage() {
       </div>
       </>
       )}
+      <ConfirmDialog
+        open={pkgConfirmOp === 'upgrade'}
+        title="Run system package upgrade"
+        message="Run a full system package upgrade on this host? This uses your distro package manager (apt, dnf, …), can take a long time, and may restart services."
+        confirmLabel="Upgrade"
+        variant="warning"
+        onCancel={() => setPkgConfirmOp(null)}
+        onConfirm={() => { setPkgConfirmOp(null); void doRunPackageUpgrade() }}
+      />
+      <ConfirmDialog
+        open={pkgConfirmOp === 'autoremove'}
+        title="Run apt autoremove"
+        message="Remove packages that were installed only as dependencies and are no longer needed?"
+        confirmLabel="Autoremove"
+        variant="warning"
+        onCancel={() => setPkgConfirmOp(null)}
+        onConfirm={() => { setPkgConfirmOp(null); void doRunPackageAutoremove() }}
+      />
+      <ConfirmDialog
+        open={pkgConfirmOp === 'remove'}
+        title="Remove packages"
+        message={`Remove these packages from the host? This may break dependent software: ${pkgRemoveInput}`}
+        confirmLabel={pkgRemovePurge ? 'Purge' : 'Remove'}
+        variant="danger"
+        onCancel={() => setPkgConfirmOp(null)}
+        onConfirm={() => { setPkgConfirmOp(null); void doRunPackageRemove() }}
+      />
+      <ConfirmDialog
+        open={killConfirm !== null}
+        title={killConfirm?.signal === 'KILL' ? 'Force-kill process' : 'Terminate process'}
+        message={
+          killConfirm?.signal === 'KILL'
+            ? `Force-kill PID ${killConfirm.process.pid} (${killConfirm.process.command}) with SIGKILL? The application cannot catch this signal.`
+            : `Send SIGTERM to PID ${killConfirm?.process.pid} (${killConfirm?.process.command})? The process should exit gracefully if it handles the signal.`
+        }
+        confirmLabel={killConfirm?.signal === 'KILL' ? 'Force kill' : 'Terminate'}
+        variant="danger"
+        onCancel={() => setKillConfirm(null)}
+        onConfirm={() => {
+          const k = killConfirm
+          setKillConfirm(null)
+          if (k) void doKillHostProcess(k.process, k.signal)
+        }}
+      />
     </PageLayout>
   )
 }
