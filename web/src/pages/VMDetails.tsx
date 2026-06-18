@@ -2906,7 +2906,7 @@ export default function VMDetailsPage() {
             <DialogBox title="Tune network interface" icon={<Sliders className={`w-5 h-5 ${statusToneClass('warn')}`} />} onClose={() => setDialog(null)} onConfirm={handleNicTune} confirmLabel="Apply">
               <p className="text-xs text-slate-500 mb-2 font-mono">{tuneMac}</p>
               <label className="block text-sm text-slate-400 mb-1">Model</label>
-              <select value={tuneNicModel} onChange={(e) => setTuneNicModel(e.target.value)} className="input-field">
+              <select aria-label="NIC model" value={tuneNicModel} onChange={(e) => setTuneNicModel(e.target.value)} className="input-field">
                 <option value="virtio">virtio</option>
                 <option value="e1000">e1000</option>
                 <option value="e1000e">e1000e</option>
@@ -2921,7 +2921,7 @@ export default function VMDetailsPage() {
           {dialog === 'firmware' && (
             <DialogBox title="Guest firmware" icon={<Settings className="w-5 h-5 text-orange-400" />} onClose={() => setDialog(null)} onConfirm={handleFirmwareSet} confirmLabel="Apply">
               <p className={`text-xs mb-2 ${statusToneClass('warn')}`}>Changing firmware can make a guest unbootable if disk layout/OS does not match. Prefer shutoff VMs.</p>
-              <select value={fwChoice} onChange={(e) => setFwChoice(e.target.value as 'bios' | 'uefi')} className="input-field">
+              <select aria-label="Firmware type" value={fwChoice} onChange={(e) => setFwChoice(e.target.value as 'bios' | 'uefi')} className="input-field">
                 <option value="bios">BIOS (SeaBIOS)</option>
                 <option value="uefi">UEFI (OVMF)</option>
               </select>
@@ -2931,13 +2931,13 @@ export default function VMDetailsPage() {
           {dialog === 'watchdog' && (
             <DialogBox title="Attach watchdog" icon={<Settings className={`w-5 h-5 ${statusToneClass('error')}`} />} onClose={() => setDialog(null)} onConfirm={handleWatchdogAttach} confirmLabel="Attach">
               <label className="block text-sm text-slate-400 mb-1">Model</label>
-              <select value={wdModel} onChange={(e) => setWdModel(e.target.value)} className="input-field">
+              <select aria-label="Watchdog model" value={wdModel} onChange={(e) => setWdModel(e.target.value)} className="input-field">
                 <option value="i6300esb">i6300esb</option>
                 <option value="ib700">ib700</option>
                 <option value="diag288">diag288</option>
               </select>
               <label className="block text-sm text-slate-400 mb-1 mt-3">Action</label>
-              <select value={wdAction} onChange={(e) => setWdAction(e.target.value)} className="input-field">
+              <select aria-label="Watchdog action" value={wdAction} onChange={(e) => setWdAction(e.target.value)} className="input-field">
                 <option value="reset">reset</option>
                 <option value="shutdown">shutdown</option>
                 <option value="poweroff">poweroff</option>
@@ -2950,7 +2950,7 @@ export default function VMDetailsPage() {
 
           {dialog === 'sound' && (
             <DialogBox title="Attach sound" icon={<Settings className="w-5 h-5 text-cyan-400" />} onClose={() => setDialog(null)} onConfirm={handleSoundAttach} confirmLabel="Attach">
-              <select value={sndModel} onChange={(e) => setSndModel(e.target.value)} className="input-field">
+              <select aria-label="Sound model" value={sndModel} onChange={(e) => setSndModel(e.target.value)} className="input-field">
                 <option value="ich6">ich6 (Intel HD Audio)</option>
                 <option value="ich9">ich9</option>
                 <option value="ac97">ac97</option>
@@ -2968,7 +2968,7 @@ export default function VMDetailsPage() {
 
           {dialog === 'video' && (
             <DialogBox title="Video model" icon={<Monitor className="w-5 h-5 text-purple-400" />} onClose={() => setDialog(null)} onConfirm={handleVideoSet} confirmLabel="Apply">
-              <select value={vidModel} onChange={(e) => setVidModel(e.target.value)} className="input-field">
+              <select aria-label="Video model" value={vidModel} onChange={(e) => setVidModel(e.target.value)} className="input-field">
                 <option value="qxl">qxl (SPICE)</option>
                 <option value="virtio">virtio</option>
                 <option value="vga">vga</option>
