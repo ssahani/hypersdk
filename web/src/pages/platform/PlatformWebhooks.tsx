@@ -148,7 +148,7 @@ export default function PlatformWebhooks({ embedded }: { embedded?: boolean } = 
           }
         >
           <div className="flex flex-wrap items-center gap-3 mb-3">
-            <select className="input text-sm w-auto" value={deliveryFilter} onChange={(e) => setDeliveryFilter(e.target.value)}>
+            <select className="input text-sm w-auto" aria-label="Filter by delivery status" value={deliveryFilter} onChange={(e) => setDeliveryFilter(e.target.value)}>
               <option value="">All statuses</option>
               <option value="pending">Pending</option>
               <option value="delivered">Delivered</option>

@@ -327,7 +327,7 @@ export default function PlatformRuntimeEnforcement() {
         <div className="p-3 space-y-3">
           <input className="input text-sm w-full" placeholder="Policy name" value={name} onChange={(e) => setName(e.target.value)} />
           <div className="flex flex-wrap gap-2">
-            <select className="input text-sm" value={kind} onChange={(e) => setKind(e.target.value)}>
+            <select className="input text-sm" aria-label="Policy kind" value={kind} onChange={(e) => setKind(e.target.value)}>
               {KINDS.map((k) => (
                 <option key={k.id} value={k.id}>{k.label}</option>
               ))}

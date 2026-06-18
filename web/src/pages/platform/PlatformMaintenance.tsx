@@ -502,7 +502,7 @@ export default function PlatformMaintenance() {
       {tab === 'schedules' && !pageLoading && (
         <>
           <div className="card p-4 grid gap-3 md:grid-cols-4">
-            <select className="input" value={hostId} onChange={(e) => setHostId(e.target.value)}>
+            <select className="input" aria-label="Host" value={hostId} onChange={(e) => setHostId(e.target.value)}>
               {hosts.map((h) => <option key={h.id} value={h.id}>{h.hostname}</option>)}
             </select>
             <input className="input md:col-span-2" type="datetime-local" value={runAt} onChange={(e) => setRunAt(e.target.value)} />

@@ -61,7 +61,7 @@ export default function DevicesPage() {
       icon={<Usb className="w-6 h-6" />}
       actions={
         <>
-          <select value={capFilter} onChange={(e) => setCapFilter(e.target.value)} className="px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm">
+          <select value={capFilter} onChange={(e) => setCapFilter(e.target.value)} aria-label="Filter by capability type" className="px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm">
             <option value="">All types</option>
             {capTypes.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
