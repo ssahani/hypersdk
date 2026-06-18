@@ -37,8 +37,7 @@ set -euo pipefail
 cd ${REMOTE_DIR:-~/.deployment/machina}
 if systemctl cat packetwolf-api.service &>/dev/null; then
   :
-elif /usr/local/bin/kubectl --kubeconfig=/etc/packetwolf/k3s.yaml get svc -A 2>/dev/null | grep -q packetwolf-api \
-  || kubectl --kubeconfig=/etc/packetwolf/k3s.yaml get svc -A 2>/dev/null | grep -q packetwolf-api; then
+elif sudo /usr/local/bin/kubectl --kubeconfig=/etc/packetwolf/k3s.yaml get svc -A 2>/dev/null | grep -q packetwolf-api; then
   echo 'PacketWolf in-cluster — bridging via k8s port-forward on :9191'
 else
   echo 'No host packetwolf-api.service or in-cluster packetwolf-api svc' >&2
