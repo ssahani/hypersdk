@@ -264,7 +264,7 @@ export default function LogsPage() {
           {entries.length === 0 ? (
             <div className="text-center text-slate-500 py-12">No log entries found.</div>
           ) : (
-            <table className="w-full">
+            <table className="w-full" aria-label="System logs">
               <thead className="sticky top-0 bg-slate-800 z-10">
                 <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
                   <th className="text-left px-3 py-2 whitespace-nowrap">Timestamp</th>

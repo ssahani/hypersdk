@@ -257,6 +257,7 @@ export default function VMList() {
             <select
               value={tagFilter}
               onChange={(e) => setTagFilter(e.target.value)}
+              aria-label="Filter by tag"
               className="bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm py-2 px-3 focus:outline-none focus:border-blue-500 text-slate-300"
             >
               <option value="">All tags</option>
@@ -292,7 +293,7 @@ export default function VMList() {
         />
       ) : viewMode === 'table' ? (
         <div className="card overflow-hidden">
-          <table className="w-full">
+          <table className="w-full" aria-label="Virtual machines">
             <thead>
               <tr className="border-b border-slate-700/50 text-left text-sm text-slate-400">
                 <th className="px-3 py-3 w-8">

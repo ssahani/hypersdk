@@ -247,7 +247,7 @@ function OpenStackInstancesContent() {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-700/80">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm" aria-label="OpenStack instances">
           <thead className="bg-slate-900/80 text-slate-400 text-left">
             <tr>
               <th className="px-4 py-3 font-medium">Name</th>

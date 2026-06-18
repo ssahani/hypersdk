@@ -136,7 +136,7 @@ export default function AuditLogPage() {
         </div>
       ) : (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden overflow-x-auto">
-          <table className="w-full min-w-[56rem]">
+          <table className="w-full min-w-[56rem]" aria-label="Audit log">
             <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Time</th><th className="px-6 py-3">Action</th><th className="px-6 py-3">Target</th><th className="px-6 py-3">Actor</th><th className="px-6 py-3">Result</th></tr></thead>
             <tbody className="divide-y divide-slate-700/30">
               {events.map((e) => (

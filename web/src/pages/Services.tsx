@@ -96,7 +96,7 @@ export default function ServicesPage() {
       ) : (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" aria-label="System services">
               <thead>
                 <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
                   <th className="text-left px-4 py-3">Service</th>
