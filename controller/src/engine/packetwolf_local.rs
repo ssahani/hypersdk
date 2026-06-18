@@ -231,7 +231,11 @@ pub fn ack_agent_bundle(host_id: &str) -> Value {
     })
 }
 
-pub fn fabric_health(cfg: &ControllerConfig, packetwolf_reachable: bool) -> Value {
+pub fn fabric_health(
+    cfg: &ControllerConfig,
+    packetwolf_reachable: bool,
+    production_network_api: bool,
+) -> Value {
     let sensors = list_sensors();
     let healthy = sensors
         .iter()
@@ -250,13 +254,21 @@ pub fn fabric_health(cfg: &ControllerConfig, packetwolf_reachable: bool) -> Valu
             "summary": "No Tetragon sensors enrolled — install sensors on hosts or K8s clusters",
         }));
     }
-    issues.push(json!({
-        "severity": "info",
-        "kind": "fabric_api_fallback",
-        "summary": "Production PacketWolf lacks dev fabric routes — sensor registry handled by Machina controller",
-    }));
+    if production_network_api {
+        issues.push(json!({
+            "severity": "info",
+            "kind": "production_network_api",
+            "summary": "Production PacketWolf network API connected — anomalies, threats, and flows live; Tetragon enrollment via Machina controller",
+        }));
+    } else {
+        issues.push(json!({
+            "severity": "info",
+            "kind": "fabric_api_fallback",
+            "summary": "Production PacketWolf lacks dev fabric routes — sensor registry handled by Machina controller",
+        }));
+    }
     let status = if packetwolf_reachable {
-        if sensors.is_empty() {
+        if sensors.is_empty() && !production_network_api {
             "degraded"
         } else {
             "healthy"
@@ -264,17 +276,35 @@ pub fn fabric_health(cfg: &ControllerConfig, packetwolf_reachable: bool) -> Valu
     } else {
         "offline"
     };
+    let summary = if production_network_api {
+        format!(
+            "{} sensor(s) · PacketWolf {} · production network API + Machina Tetragon fabric",
+            sensors.len(),
+            if packetwolf_reachable {
+                "reachable"
+            } else {
+                "unreachable"
+            }
+        )
+    } else {
+        format!(
+            "{} sensor(s) · PacketWolf {} · Machina local fabric fallback",
+            sensors.len(),
+            if packetwolf_reachable {
+                "reachable"
+            } else {
+                "unreachable"
+            }
+        )
+    };
     json!({
         "status": status,
         "sensors_total": sensors.len(),
         "sensors_healthy": healthy,
         "issues": issues,
-        "summary": format!(
-            "{} sensor(s) · PacketWolf {} · Machina local fabric fallback",
-            sensors.len(),
-            if packetwolf_reachable { "reachable" } else { "unreachable" }
-        ),
+        "summary": summary,
         "packetwolf_base_url": cfg.packetwolf_base_url,
+        "api_mode": if production_network_api { "production_network" } else { "local_fabric" },
         "source": "machina-controller",
     })
 }

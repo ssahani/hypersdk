@@ -103,6 +103,7 @@ pub async fn sync_security_alerts(pool: &PgPool, cfg: &ControllerConfig) -> anyh
     }) {
         let summary = a
             .get("summary")
+            .or_else(|| a.get("description"))
             .and_then(|v| v.as_str())
             .unwrap_or("Security alert");
         let host_id = a.get("host_id").and_then(|v| v.as_str()).unwrap_or("");

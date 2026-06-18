@@ -17,6 +17,7 @@ PUBLIC_URL=""
 # shellcheck source=lib/disable-firewalld.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/disable-firewalld.sh"
 SKIP_AUTH="${MACHINA_SKIP_AUTH:-1}"
+MERGE_PACKETWOLF_ONLY=false
 
 info()  { echo "ℹ️  $*"; }
 ok()    { echo "✅ $*"; }
@@ -45,6 +46,7 @@ while [[ $# -gt 0 ]]; do
     --disable-firewalld) DISABLE_FIREWALL=true; shift ;;
     --public-url) PUBLIC_URL="${2:?}"; shift 2 ;;
     --require-auth) SKIP_AUTH=0; shift ;;
+    --merge-packetwolf-env) MERGE_PACKETWOLF_ONLY=true; shift ;;
     -h|--help) usage ;;
     *) warn "Unknown arg: $1"; shift ;;
   esac
@@ -313,6 +315,13 @@ wait_for_health() {
   journalctl -u machina-agent --no-pager -n 20 2>/dev/null || true
   fail "Controller not healthy at http://127.0.0.1:5093/api/v1/health"
 }
+
+if $MERGE_PACKETWOLF_ONLY; then
+  step "Merge PacketWolf bridge env"
+  merge_packetwolf_bridge_env || true
+  ok "PacketWolf env merged into /etc/default/machina-platform"
+  exit 0
+fi
 
 detect_os
 install_postgresql

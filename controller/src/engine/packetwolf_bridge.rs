@@ -111,6 +111,7 @@ fn auth_headers(
 ) -> reqwest::blocking::RequestBuilder {
     if let Some(key) = cfg.packetwolf_api_key.as_deref().filter(|k| !k.is_empty()) {
         req.header("Authorization", format!("Bearer {key}"))
+            .header("X-Api-Key", key)
     } else {
         req
     }
@@ -141,8 +142,23 @@ fn is_fabric_sensors_json(value: &Value) -> bool {
     value.get("sensors").map(|v| v.is_array()).unwrap_or(false)
 }
 
-pub fn fabric_api_available(cfg: &ControllerConfig) -> bool {
+fn is_production_anomalies_json(value: &Value) -> bool {
+    value.get("anomalies").map(|v| v.is_array()).unwrap_or(false)
+}
+
+/// Dev fabric (machina/packetwolf Python service): sensors, hunt, enforcement, ingest.
+pub fn dev_fabric_api_available(cfg: &ControllerConfig) -> bool {
     get_json(cfg, "/api/v1/sensors").is_some_and(|v| is_fabric_sensors_json(&v))
+}
+
+/// Production PacketWolf (Rust web-api): network intelligence, anomalies, runtime enforcement.
+pub fn production_network_api_available(cfg: &ControllerConfig) -> bool {
+    get_json(cfg, "/api/v1/anomalies?limit=1")
+        .is_some_and(|v| is_production_anomalies_json(&v))
+}
+
+pub fn fabric_api_available(cfg: &ControllerConfig) -> bool {
+    dev_fabric_api_available(cfg)
 }
 
 fn get_json(cfg: &ControllerConfig, path: &str) -> Option<Value> {
@@ -503,7 +519,59 @@ pub async fn fetch_network_pulse_bundle(cfg: &ControllerConfig) -> serde_json::V
 }
 
 pub async fn fleet_threat_summary(cfg: &ControllerConfig) -> serde_json::Value {
+    if dev_fabric_api_available(cfg) {
+        return fabric_get(cfg, "/api/v1/fleet/threat-summary").await;
+    }
+    if production_network_api_available(cfg) {
+        return synthesize_production_fleet_threat(cfg).await;
+    }
     fabric_get(cfg, "/api/v1/fleet/threat-summary").await
+}
+
+async fn synthesize_production_fleet_threat(cfg: &ControllerConfig) -> serde_json::Value {
+    let threats = fabric_get(cfg, "/api/v1/network/threats").await;
+    let anomalies = fabric_get(cfg, "/api/v1/anomalies?limit=25").await;
+    let critical_count = threats
+        .pointer("/meta/stats/critical")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let total_threats = threats
+        .pointer("/meta/stats/total")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let fleet_threat_score = if total_threats == 0 {
+        0.0
+    } else {
+        ((critical_count as f64 / total_threats as f64) * 100.0).min(100.0)
+    };
+    let critical_events: Vec<Value> = anomalies
+        .get("anomalies")
+        .and_then(|v| v.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter(|a| {
+                    a.get("severity")
+                        .and_then(|v| v.as_str())
+                        .is_some_and(|s| s == "critical" || s == "high")
+                })
+                .take(10)
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
+    serde_json::json!({
+        "fleet_threat_score": fleet_threat_score,
+        "critical_events": critical_events,
+        "threats": threats,
+        "anomalies_total": anomalies
+            .get("anomalies")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0),
+        "source": "packetwolf-production",
+        "api_mode": "production_network",
+    })
 }
 
 pub async fn host_fabric(
@@ -521,23 +589,36 @@ pub async fn search(
     query: &str,
     host_id: Option<&str>,
 ) -> serde_json::Value {
-    let body = serde_json::json!({
-        "query": query,
-        "host_id": host_id,
-        "limit": 50
-    });
-    fabric_post(cfg, "/api/v1/search", body).await
+    let body = if production_network_api_available(cfg) && !dev_fabric_api_available(cfg) {
+        serde_json::json!({
+            "query": query,
+            "limit": 50
+        })
+    } else {
+        serde_json::json!({
+            "query": query,
+            "host_id": host_id,
+            "limit": 50
+        })
+    };
+    let path = if production_network_api_available(cfg) && !dev_fabric_api_available(cfg) {
+        "/api/v1/network/search"
+    } else {
+        "/api/v1/search"
+    };
+    fabric_post(cfg, path, body).await
 }
 
 pub async fn fabric_health(cfg: &ControllerConfig) -> serde_json::Value {
     let cfg = cfg.clone();
     tokio::task::spawn_blocking(move || {
-        if fabric_api_available(&cfg) {
+        if dev_fabric_api_available(&cfg) {
             get_json(&cfg, "/api/v1/fabric/health").unwrap_or_else(|| serde_json::json!({}))
         } else {
             let (reachable, _) =
                 fetch_health(&cfg.packetwolf_base_url, cfg.packetwolf_insecure_tls);
-            packetwolf_local::fabric_health(&cfg, reachable)
+            let production = production_network_api_available(&cfg);
+            packetwolf_local::fabric_health(&cfg, reachable, production)
         }
     })
     .await
@@ -611,23 +692,39 @@ pub async fn asset_inventory(cfg: &ControllerConfig) -> serde_json::Value {
 }
 
 pub async fn fleet_timeline(cfg: &ControllerConfig, hours: u32) -> serde_json::Value {
-    fabric_get(
-        cfg,
-        &format!("/api/v1/fleet/timeline?hours={hours}&limit=200"),
-    )
-    .await
+    if production_network_api_available(cfg) && !dev_fabric_api_available(cfg) {
+        fabric_get(cfg, "/api/v1/network/timeline?limit=200").await
+    } else {
+        fabric_get(
+            cfg,
+            &format!("/api/v1/fleet/timeline?hours={hours}&limit=200"),
+        )
+        .await
+    }
 }
 
 pub async fn correlations(cfg: &ControllerConfig) -> serde_json::Value {
-    fabric_get(cfg, "/api/v1/correlations").await
+    if production_network_api_available(cfg) && !dev_fabric_api_available(cfg) {
+        fabric_get(cfg, "/api/v1/network/threat-threads").await
+    } else {
+        fabric_get(cfg, "/api/v1/correlations").await
+    }
 }
 
 pub async fn enforcement_status(cfg: &ControllerConfig) -> serde_json::Value {
-    fabric_get(cfg, "/api/v1/enforcement/status").await
+    if production_network_api_available(cfg) && !dev_fabric_api_available(cfg) {
+        fabric_get(cfg, "/api/v1/runtime/enforcement/status").await
+    } else {
+        fabric_get(cfg, "/api/v1/enforcement/status").await
+    }
 }
 
 pub async fn enforcement_policies(cfg: &ControllerConfig) -> serde_json::Value {
-    fabric_get(cfg, "/api/v1/enforcement/policies").await
+    if production_network_api_available(cfg) && !dev_fabric_api_available(cfg) {
+        fabric_get(cfg, "/api/v1/runtime/enforcement/rules").await
+    } else {
+        fabric_get(cfg, "/api/v1/enforcement/policies").await
+    }
 }
 
 pub async fn create_enforcement_policy(
@@ -757,5 +854,11 @@ mod tests {
         assert!(is_fabric_sensors_json(&serde_json::json!({"sensors": []})));
         assert!(!is_fabric_sensors_json(&serde_json::json!({"html": true})));
         assert!(!is_fabric_sensors_json(&serde_json::json!({})));
+    }
+
+    #[test]
+    fn production_anomalies_json_detection() {
+        assert!(is_production_anomalies_json(&serde_json::json!({"anomalies": []})));
+        assert!(!is_production_anomalies_json(&serde_json::json!({"sensors": []})));
     }
 }
