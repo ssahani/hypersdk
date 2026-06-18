@@ -436,7 +436,7 @@ export default function HostNetworkingPage() {
                 const from = nodes.find(n => n.id === e.from)
                 const to = nodes.find(n => n.id === e.to)
                 if (!from || !to) return null
-                return <line key={i} x1={from.x + 60} y1={from.y + 20} x2={to.x - 60} y2={to.y + 20} stroke="#334155" strokeWidth="2" strokeDasharray="6 3" />
+                return <line key={`${e.from}-${e.to}`} x1={from.x + 60} y1={from.y + 20} x2={to.x - 60} y2={to.y + 20} stroke="#334155" strokeWidth="2" strokeDasharray="6 3" />
               })}
 
               {/* Nodes */}
