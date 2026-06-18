@@ -87,9 +87,9 @@ export default function PlatformFleetSnapshots() {
       <OperatingSurfaceLayout testId="platform-fleet-snapshots-page">
       <MacGlassPanel title="New schedule">
         <div className="grid gap-3 md:grid-cols-2 max-w-2xl">
-          <input className="input text-sm" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-          <input className="input text-sm" placeholder="Project (optional)" value={project} onChange={(e) => setProject(e.target.value)} />
-          <input className="input text-sm md:col-span-2" placeholder="Tag filter (optional)" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} />
+          <input className="input text-sm" aria-label="Schedule name" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+          <input className="input text-sm" aria-label="Project" placeholder="Project (optional)" value={project} onChange={(e) => setProject(e.target.value)} />
+          <input className="input text-sm md:col-span-2" aria-label="Tag filter" placeholder="Tag filter (optional)" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} />
           <label className="flex items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" checked={diskOnly} onChange={(e) => setDiskOnly(e.target.checked)} /> Disk-only snapshot
           </label>

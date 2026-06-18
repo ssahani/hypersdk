@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { getJournalBoots, getJournalLogs, JournalBootEntry, JournalEntry } from '../api/extras'
-import { RefreshCw, Search } from 'lucide-react'
+import { RefreshCw, Search, X } from 'lucide-react'
 import PageLayout from '../components/PageLayout'
 import { formatUserError } from '../utils/apiError'
 import { journalPriorityTone, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
@@ -151,22 +151,36 @@ export default function LogsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           <input
             type="text"
+            aria-label="Filter by unit"
             placeholder="Filter by unit (e.g. sshd, machina-daemon)"
             value={unit}
             onChange={e => setUnit(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
+            className={`w-full pl-10 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)] ${unit ? 'pr-8' : 'pr-4'}`}
           />
+          {unit && (
+            <button type="button" aria-label="Clear unit filter" onClick={() => setUnit('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         <div className="relative flex-1 min-w-[220px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           <input
             type="text"
+            aria-label="Search log messages"
             placeholder="Search log messages (like --grep)"
             value={grep}
             onChange={e => setGrep(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
+            className={`w-full pl-10 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)] ${grep ? 'pr-8' : 'pr-4'}`}
           />
+          {grep && (
+            <button type="button" aria-label="Clear message filter" onClick={() => setGrep('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         <select
