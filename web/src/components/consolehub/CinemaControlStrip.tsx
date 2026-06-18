@@ -275,6 +275,7 @@ export default function CinemaControlStrip({
                 <p className="text-[10px] text-amber-200/80">Connect the display console to enable paste into the VM.</p>
               ) : null}
               <textarea
+                aria-label="Clipboard text to send to VM"
                 className="w-full min-h-[4.5rem] rounded border border-white/10 bg-black/40 px-2 py-1.5 text-xs text-slate-100 font-mono resize-y"
                 value={localDraft}
                 onChange={(e) => setLocalDraft(e.target.value)}

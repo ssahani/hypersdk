@@ -603,7 +603,7 @@ spec:
           <div className="space-y-2">
             <div className="text-sm font-medium text-slate-300">kubectl apply (YAML)</div>
             <label className="flex items-center gap-2 text-xs text-slate-400"><input type="checkbox" checked={applyDry} onChange={(e) => setApplyDry(e.target.checked)} /> Server dry-run</label>
-            <textarea className="w-full min-h-[120px] bg-slate-900 border border-slate-600 rounded p-2 text-xs font-mono text-slate-200" value={applyYaml} onChange={(e) => setApplyYaml(e.target.value)} placeholder="apiVersion: v1&#10;kind: ConfigMap&#10;..." />
+            <textarea aria-label="kubectl apply YAML" className="w-full min-h-[120px] bg-slate-900 border border-slate-600 rounded p-2 text-xs font-mono text-slate-200" value={applyYaml} onChange={(e) => setApplyYaml(e.target.value)} placeholder="apiVersion: v1&#10;kind: ConfigMap&#10;..." />
             <button type="button" className={`text-xs px-3 py-1.5 rounded-lg border ${statusBadgeClasses('warn')} border-[color-mix(in_srgb,var(--machina-status-warn)_40%,transparent)]`} onClick={() => {
               void postK8sApply(applyYaml, applyDry, ctxTrim).then((r) => setApplyOut(r)).catch((e: unknown) => setApplyOut(formatUserError(e)))
             }}>Apply</button>
@@ -720,6 +720,7 @@ spec:
           {showKubevirtCreate && (
             <div className="mt-3 space-y-2">
               <textarea
+                aria-label="KubeVirt VirtualMachine YAML"
                 value={kubevirtCreateYaml}
                 onChange={(e) => setKubevirtCreateYaml(e.target.value)}
                 rows={12}

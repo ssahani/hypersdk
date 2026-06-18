@@ -664,6 +664,7 @@ function OpenStackCreateInstanceContent() {
           <div>
             <label className="block text-sm text-slate-400 mb-1">Cloud-init user_data (optional)</label>
             <textarea
+              aria-label="Cloud-init user data"
               value={userData}
               onChange={(e) => setUserData(e.target.value)}
               rows={4}

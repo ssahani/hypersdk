@@ -252,6 +252,7 @@ function OpenStackMigrationsContent() {
             <div>
               <label className="block text-xs text-slate-500 mb-1">JSON body (sent as-is)</label>
               <textarea
+                aria-label="JSON body"
                 value={submitJson}
                 onChange={(e) => setSubmitJson(e.target.value)}
                 rows={6}

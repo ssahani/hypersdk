@@ -451,6 +451,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
           <Tags className="w-4 h-4 text-sky-400" /> Metadata
         </h2>
         <textarea
+          aria-label="Instance metadata (key=value, one per line)"
           value={metadataText}
           onChange={(e) => setMetadataText(e.target.value)}
           rows={4}

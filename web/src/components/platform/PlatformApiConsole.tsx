@@ -295,6 +295,7 @@ export default function PlatformApiConsole() {
               )}
               {selected.method !== 'GET' && selected.method !== 'DELETE' && selected.transport !== 'websocket' && (
                 <textarea
+                  aria-label="Request body"
                   className="input text-xs font-mono min-h-[8rem] w-full"
                   value={body}
                   onChange={(e) => setBody(e.target.value)}

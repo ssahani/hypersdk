@@ -157,6 +157,7 @@ export default function NWFiltersPage() {
             <div className="p-5 flex-1 flex flex-col gap-4 overflow-auto">
               <label className="text-sm text-slate-400">Filter XML Definition</label>
               <textarea
+                aria-label="Filter XML definition"
                 value={newFilterXml}
                 onChange={(e) => setNewFilterXml(e.target.value)}
                 rows={12}

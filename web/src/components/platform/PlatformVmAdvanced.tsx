@@ -304,6 +304,7 @@ export default function PlatformVmAdvanced({
 
       <MacGlassPanel title="Domain XML" subtitle={`Edit persistent definition for ${vmName}`}>
         <textarea
+          aria-label="Domain XML"
           className="input w-full font-mono text-xs min-h-[16rem]"
           value={domainXml}
           onChange={(e) => setDomainXml(e.target.value)}

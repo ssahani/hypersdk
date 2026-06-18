@@ -255,6 +255,7 @@ export default function VmEditHardwareDrawer({
                     {id === 'xml' && (
                       <>
                         <textarea
+                          aria-label="Domain XML"
                           className="input w-full font-mono text-xs min-h-[12rem]"
                           value={xmlDraft || domainXml}
                           onChange={(e) => setXmlDraft(e.target.value)}

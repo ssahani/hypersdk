@@ -74,7 +74,7 @@ function OpenStackKeypairsContent() {
             Create / import
           </button>
         </div>
-        <textarea value={publicKey} onChange={(e) => setPublicKey(e.target.value)} rows={3}
+        <textarea aria-label="SSH public key" value={publicKey} onChange={(e) => setPublicKey(e.target.value)} rows={3}
           placeholder="Optional: paste public key (ssh-rsa AAAA...). Leave empty to let Nova generate."
           className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono" />
       </div>

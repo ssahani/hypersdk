@@ -71,10 +71,10 @@ function OpenStackHeatContent() {
         <h2 className="text-sm font-medium text-slate-300 flex items-center gap-2"><Plus className="w-4 h-4" /> Create stack</h2>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Stack name"
           className="w-full max-w-md px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
-        <textarea value={template} onChange={(e) => setTemplate(e.target.value)} rows={8}
+        <textarea aria-label="Heat template" value={template} onChange={(e) => setTemplate(e.target.value)} rows={8}
           className="w-full font-mono text-xs px-3 py-2 rounded-lg bg-slate-900 border border-slate-700" />
         <label className="block text-xs text-slate-500">Parameters (JSON)</label>
-        <textarea value={parametersJson} onChange={(e) => setParametersJson(e.target.value)} rows={3}
+        <textarea aria-label="Stack parameters (JSON)" value={parametersJson} onChange={(e) => setParametersJson(e.target.value)} rows={3}
           className="w-full font-mono text-xs px-3 py-2 rounded-lg bg-slate-900 border border-slate-700" />
         <div className="flex flex-wrap gap-3 items-center">
           <input type="file" accept=".yaml,.yml,.json,.template" className="text-sm text-slate-400"
