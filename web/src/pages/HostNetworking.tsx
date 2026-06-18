@@ -501,7 +501,7 @@ export default function HostNetworkingPage() {
                     <div className={`w-2.5 h-2.5 rounded-full ${statusBgClass(br.state === 'up' ? 'ok' : 'neutral')}`} />
                     <span className="font-semibold">{br.name}</span>
                   </div>
-                  {!br.name.startsWith('virbr') && <button onClick={() => handleDeleteBridge(br.name)} className="p-1 hover:bg-red-600/20 rounded" title="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>}
+                  {!br.name.startsWith('virbr') && <button onClick={() => handleDeleteBridge(br.name)} className="p-1 hover:bg-red-600/20 rounded" title="Delete" aria-label="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>}
                 </div>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between text-slate-400"><span>MAC</span><span className="font-mono text-xs">{br.mac}</span></div>

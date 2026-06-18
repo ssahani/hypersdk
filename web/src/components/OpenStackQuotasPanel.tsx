@@ -46,7 +46,7 @@ function QuotaTable({
                 {onEdit && (
                   <td className="px-3 py-2">
                     {r.key && r.service && r.max >= 0 && (
-                      <button type="button" title="Edit limit" className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-sky-400"
+                      <button type="button" title="Edit limit" aria-label="Edit limit" className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-sky-400"
                         onClick={() => onEdit(r)}>
                         <Pencil className="w-3.5 h-3.5" />
                       </button>

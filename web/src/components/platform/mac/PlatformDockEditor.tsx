@@ -68,7 +68,7 @@ export default function PlatformDockEditor({ open, onClose }: PlatformDockEditor
             <h2 id="dock-editor-title" className="text-lg font-semibold text-white">Customize Dock</h2>
             <p className="text-sm text-white/50">Reorder pinned apps — synced with Finder favorites.</p>
           </div>
-          <button type="button" onClick={onClose} className="mac-menubar-icon-btn" title="Close">
+          <button type="button" onClick={onClose} className="mac-menubar-icon-btn" title="Close" aria-label="Close">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -80,13 +80,13 @@ export default function PlatformDockEditor({ open, onClose }: PlatformDockEditor
               <li key={item.path} className="flex items-center gap-2 rounded-lg border border-white/[0.08] px-2 py-1.5">
                 <GripVertical className="h-4 w-4 text-white/30 shrink-0" />
                 <span className="flex-1 text-sm text-white truncate">{item.label}</span>
-                <button type="button" className="mac-menubar-icon-btn" onClick={() => move(idx, -1)} disabled={idx === 0} title="Move up">
+                <button type="button" className="mac-menubar-icon-btn" onClick={() => move(idx, -1)} disabled={idx === 0} title="Move up" aria-label="Move up">
                   <ChevronUp className="h-4 w-4" />
                 </button>
-                <button type="button" className="mac-menubar-icon-btn" onClick={() => move(idx, 1)} disabled={idx === paths.length - 1} title="Move down">
+                <button type="button" className="mac-menubar-icon-btn" onClick={() => move(idx, 1)} disabled={idx === paths.length - 1} title="Move down" aria-label="Move down">
                   <ChevronDown className="h-4 w-4" />
                 </button>
-                <button type="button" className="mac-menubar-icon-btn text-rose-300" onClick={() => remove(item.path)} title="Remove">
+                <button type="button" className="mac-menubar-icon-btn text-rose-300" onClick={() => remove(item.path)} title="Remove" aria-label="Remove">
                   <Trash2 className="h-4 w-4" />
                 </button>
               </li>

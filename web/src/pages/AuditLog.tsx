@@ -64,8 +64,8 @@ export default function AuditLogPage() {
           <button type="button" onClick={() => void fetchLog()} className="px-3 py-1.5 text-xs rounded-lg border border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center gap-1.5">
             <RefreshCw className="w-3.5 h-3.5" /> Refresh now
           </button>
-          <button type="button" onClick={() => downloadJSON(events, 'audit-log.json')} className="p-2 hover:bg-slate-700 rounded-lg transition" title="Export JSON"><Download className="w-4 h-4" /></button>
-          <button type="button" onClick={() => downloadCSV(events as unknown as Record<string, unknown>[], 'audit-log.csv')} className="p-2 hover:bg-slate-700 rounded-lg transition" title="Export CSV"><Download className={`w-4 h-4 ${statusToneClass('ok')}`} /></button>
+          <button type="button" onClick={() => downloadJSON(events, 'audit-log.json')} className="p-2 hover:bg-slate-700 rounded-lg transition" title="Export JSON" aria-label="Export JSON"><Download className="w-4 h-4" /></button>
+          <button type="button" onClick={() => downloadCSV(events as unknown as Record<string, unknown>[], 'audit-log.csv')} className="p-2 hover:bg-slate-700 rounded-lg transition" title="Export CSV" aria-label="Export CSV"><Download className={`w-4 h-4 ${statusToneClass('ok')}`} /></button>
           <button type="button" onClick={() => void exportAuditNdjson()} className="px-3 py-1.5 text-xs rounded-lg border border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-200" title={t('audit.exportNdjson')}>
             {t('audit.exportNdjson')}
           </button>

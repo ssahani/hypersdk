@@ -314,6 +314,7 @@ export default function DiskImagesPage() {
             onClick={() => void load()}
             className="p-2 hover:bg-slate-700 rounded transition"
             title="Refresh"
+            aria-label="Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>

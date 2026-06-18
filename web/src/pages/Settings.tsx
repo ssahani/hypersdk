@@ -969,7 +969,7 @@ export default function SettingsPage() {
                     <td className="px-6 py-3 text-sm font-mono text-slate-400 truncate max-w-xs">{ch.config}</td>
                     <td className="px-6 py-3"><input type="checkbox" checked={ch.enabled} onChange={e => { const next = [...notificationChannels]; next[i].enabled = e.target.checked; setNotificationChannels(next); saveNotificationChannels(next).catch((e: unknown) => toast.error(formatUserError(e))) }} /></td>
                     <td className="px-6 py-3 text-right flex items-center justify-end gap-1">
-                      <button onClick={async () => { try { await testNotification(ch); toast.success('Test sent') } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} className="p-1 hover:bg-blue-600/20 rounded" title="Send test"><Send className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
+                      <button onClick={async () => { try { await testNotification(ch); toast.success('Test sent') } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} className="p-1 hover:bg-blue-600/20 rounded" title="Send test" aria-label="Send test"><Send className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
                       <button onClick={() => { const next = notificationChannels.filter((_, j) => j !== i); setNotificationChannels(next); saveNotificationChannels(next).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Remove channel" title="Remove channel" className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
                     </td>
                   </tr>

@@ -563,16 +563,16 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2 shrink-0">
                   {vm.state === 'running' && (
                     <>
-                      <Link to={vmConsoleRoute(vm.name, vm.libvirt_connection)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Console">
+                      <Link to={vmConsoleRoute(vm.name, vm.libvirt_connection)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Console" aria-label="Console">
                         <Terminal className="w-3.5 h-3.5 text-slate-400" />
                       </Link>
-                      <button onClick={() => vmAction(vm, shutdownVM, 'Shutdown')} className="p-1.5 hover:bg-yellow-600/20 rounded transition" title="Shutdown">
+                      <button onClick={() => vmAction(vm, shutdownVM, 'Shutdown')} className="p-1.5 hover:bg-yellow-600/20 rounded transition" title="Shutdown" aria-label="Shutdown">
                         <Power className={`w-3.5 h-3.5 ${statusToneClass('warn')}`} />
                       </button>
                     </>
                   )}
                   {vm.state === 'shutoff' && (
-                    <button onClick={() => vmAction(vm, startVM, 'Start')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start">
+                    <button onClick={() => vmAction(vm, startVM, 'Start')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start" aria-label="Start">
                       <Play className={`w-3.5 h-3.5 ${statusToneClass('ok')}`} />
                     </button>
                   )}

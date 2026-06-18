@@ -108,8 +108,8 @@ export default function MachineFinderTableLens({ state }: Props) {
                 <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
                   {running && libvirt && (
                     <div className="inline-flex gap-1 justify-end">
-                      <Link to={cinemaHubPath(v.id)} className="btn-secondary text-xs py-1 px-2" title="Open Cinema"><Monitor className="w-3.5 h-3.5" /></Link>
-                      <button type="button" className="btn-secondary text-xs py-1 px-2" title="SSH" onClick={() => setSshVm(v)}><Terminal className="w-3.5 h-3.5" /></button>
+                      <Link to={cinemaHubPath(v.id)} className="btn-secondary text-xs py-1 px-2" title="Open Cinema" aria-label="Open Cinema"><Monitor className="w-3.5 h-3.5" /></Link>
+                      <button type="button" className="btn-secondary text-xs py-1 px-2" title="SSH" aria-label="SSH" onClick={() => setSshVm(v)}><Terminal className="w-3.5 h-3.5" /></button>
                       {(displayGuestIp(v)) && (
                         <button
                           type="button"
