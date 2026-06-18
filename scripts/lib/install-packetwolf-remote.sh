@@ -34,15 +34,18 @@ install_packetwolf_on_remote() {
     info "Re-merge PacketWolf bridge env into machina-controller"
     ssh_r_bash "$remote" "
 set -euo pipefail
+cd ${REMOTE_DIR:-~/.deployment/machina}
 if systemctl cat packetwolf-api.service &>/dev/null; then
-  cd ${REMOTE_DIR:-~/.deployment/machina}
-  sudo bash scripts/install-platform.sh --merge-packetwolf-env
-  sudo systemctl restart machina-controller
-  echo 'machina-controller restarted with PacketWolf env'
+  :
+elif kubectl --kubeconfig=/etc/packetwolf/k3s.yaml get svc -A 2>/dev/null | grep -q packetwolf-api; then
+  echo 'PacketWolf in-cluster — bridging via k8s port-forward on :9191'
 else
-  echo 'packetwolf-api.service not found after deploy' >&2
+  echo 'No host packetwolf-api.service or in-cluster packetwolf-api svc' >&2
   exit 1
 fi
+sudo bash scripts/install-platform.sh --merge-packetwolf-env
+sudo systemctl restart machina-controller
+echo 'machina-controller restarted with PacketWolf env'
 " || {
         warn "PacketWolf env merge failed"
         return 1

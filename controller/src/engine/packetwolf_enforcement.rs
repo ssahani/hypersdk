@@ -135,7 +135,18 @@ pub async fn enforcement_policies(cfg: &ControllerConfig) -> Value {
         let raw = fabric_get(cfg, "/api/v1/runtime/enforcement/rules").await;
         return normalize_production_policies(&raw);
     }
-    fabric_get(cfg, "/api/v1/enforcement/policies").await
+    let raw = fabric_get(cfg, "/api/v1/enforcement/policies").await;
+    if raw.get("policies").and_then(|v| v.as_array()).is_some() {
+        return raw;
+    }
+    if production_network_api_available(cfg) {
+        let tc = fabric_get(cfg, "/api/v1/runtime/enforcement/rules").await;
+        return normalize_production_policies(&tc);
+    }
+    json!({
+        "policies": packetwolf_local::list_enforcement_policies(),
+        "api_mode": "local_fabric",
+    })
 }
 
 pub async fn create_enforcement_policy(cfg: &ControllerConfig, body: Value) -> Value {
