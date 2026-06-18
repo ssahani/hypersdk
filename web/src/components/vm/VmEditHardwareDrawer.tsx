@@ -130,6 +130,9 @@ export default function VmEditHardwareDrawer({
       <button type="button" className="fixed inset-0 z-[85] bg-black/50 backdrop-blur-sm" aria-label="Close Edit Hardware" onClick={onClose} />
       <aside
         className="fixed top-0 right-0 z-[90] h-full w-full max-w-lg bg-slate-950/98 border-l border-white/10 shadow-2xl flex flex-col overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Edit hardware"
         data-testid="vm-edit-hardware-drawer"
       >
         <header className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">

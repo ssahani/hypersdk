@@ -281,6 +281,7 @@ export default function KubeVirtExposeServiceModal({ vm, services, onClose, onCo
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
       <div
         role="dialog"
+        aria-modal="true"
         aria-labelledby="expose-title"
         className="w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col rounded-xl border border-slate-600 bg-slate-900 shadow-xl"
       >

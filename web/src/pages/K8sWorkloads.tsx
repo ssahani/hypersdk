@@ -957,7 +957,7 @@ spec:
       )}
 
       {liveKubeVirt && (
-        <div className="fixed inset-0 z-[80] flex flex-col bg-slate-950/95 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[80] flex flex-col bg-slate-950/95 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="KubeVirt console">
           <div className="flex items-center justify-between px-4 py-2 border-b border-slate-700 bg-slate-900 shrink-0">
             <span className="text-sm text-slate-200">
               KubeVirt {liveKubeVirt.kind === 'vnc' ? 'VNC' : 'serial console'} — {liveKubeVirt.namespace}/{liveKubeVirt.name}

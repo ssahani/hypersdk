@@ -91,6 +91,9 @@ export default function VmKubevirtHardwareDrawer({ open, onClose, vmId, vmName, 
       <button type="button" className="fixed inset-0 z-[75] bg-black/40 backdrop-blur-sm" aria-label="Close Hardware" onClick={onClose} />
       <aside
         className="fixed top-0 right-0 z-[80] h-full w-full max-w-md bg-slate-950/95 border-l border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200"
+        role="dialog"
+        aria-modal="true"
+        aria-label="KubeVirt hardware"
         data-testid="vm-kubevirt-hardware-drawer"
       >
         <header className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">

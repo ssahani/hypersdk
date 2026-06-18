@@ -156,6 +156,9 @@ export default function VmHostDeviceAttachDrawer({
       />
       <aside
         className="fixed top-0 right-0 z-[95] h-full w-full max-w-lg bg-slate-950/98 border-l border-white/10 shadow-2xl flex flex-col overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Attach host device"
         data-testid="vm-hostdev-attach-drawer"
       >
         <header className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">

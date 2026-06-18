@@ -61,6 +61,9 @@ export default function ConsoleCommandPalette({ open, onClose, actions }: Props)
       <button type="button" className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm" aria-label="Close" onClick={onClose} />
       <div
         className="fixed top-[15%] left-1/2 -translate-x-1/2 z-[95] w-[min(92vw,32rem)] rounded-xl border border-white/10 bg-slate-950/95 shadow-2xl overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Console command palette"
         data-testid="console-command-palette"
       >
         <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10">

@@ -62,7 +62,7 @@ export default function PlatformDockEditor({ open, onClose }: PlatformDockEditor
   return (
     <div className="fixed inset-0 z-[400] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-hidden />
-      <div className="mac-menu-panel relative w-full max-w-md p-5 space-y-4" role="dialog" aria-labelledby="dock-editor-title">
+      <div className="mac-menu-panel relative w-full max-w-md p-5 space-y-4" role="dialog" aria-modal="true" aria-labelledby="dock-editor-title">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 id="dock-editor-title" className="text-lg font-semibold text-white">Customize Dock</h2>
