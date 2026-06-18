@@ -399,7 +399,7 @@ export default function PlatformMigration() {
                         <p className="text-blue-200/90">Firewall: {vm.advisor.firewall_migration_summary}</p>
                       )}
                       {vm.advisor.risks.length > 0 && (
-                        <ul className={`list-disc pl-4 ${statusToneClass('warn')}`}>{vm.advisor.risks.slice(0, 3).map((r, i) => <li key={i}>{r}</li>)}</ul>
+                        <ul className={`list-disc pl-4 ${statusToneClass('warn')}`}>{vm.advisor.risks.slice(0, 3).map((r) => <li key={r}>{r}</li>)}</ul>
                       )}
                     </div>
                   )}

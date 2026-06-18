@@ -718,7 +718,7 @@ export default function HostNetworkingPage() {
 
           {sysctlData && (
             <ul className={`text-xs space-y-1 list-disc list-inside rounded-lg px-4 py-3 ${statusSurfaceClasses('warn')}`}>
-              {sysctlData.notes.map((n, i) => <li key={i}>{n}</li>)}
+              {sysctlData.notes.map((n) => <li key={n}>{n}</li>)}
             </ul>
           )}
 

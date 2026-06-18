@@ -205,8 +205,8 @@ export default function PlatformThreatHunting() {
             </p>
             {huntSummary.actions.length > 0 && (
               <ul className="text-xs text-slate-500 list-disc pl-5 space-y-1">
-                {huntSummary.actions.map((a, i) => (
-                  <li key={i}>{a}</li>
+                {huntSummary.actions.map((a) => (
+                  <li key={a}>{a}</li>
                 ))}
               </ul>
             )}
@@ -333,8 +333,8 @@ export default function PlatformThreatHunting() {
           action={<LlmBadge powered={attackLlm} />}
         >
           <ol className="list-decimal pl-5 text-sm text-slate-300 space-y-1">
-            {attackChain.map((s, i) => (
-              <li key={i}>{s}</li>
+            {attackChain.map((s) => (
+              <li key={s}>{s}</li>
             ))}
           </ol>
         </MacGlassPanel>

@@ -323,8 +323,8 @@ export default function PlatformMachineSecurity() {
       {attackChain && attackChain.length > 0 && (
         <MacGlassPanel title="Attack reconstruction" subtitle="AI timeline analysis">
           <ol className="list-decimal pl-5 text-sm text-slate-300 space-y-1">
-            {attackChain.map((s, i) => (
-              <li key={i}>{s}</li>
+            {attackChain.map((s) => (
+              <li key={s}>{s}</li>
             ))}
           </ol>
         </MacGlassPanel>

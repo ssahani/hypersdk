@@ -500,8 +500,8 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
               </div>
               {cap.planner_recommendations && cap.planner_recommendations.length > 0 && (
                 <ul className="mt-3 text-xs text-slate-400 space-y-1">
-                  {cap.planner_recommendations.map((r, i) => (
-                    <li key={i}>• {r}</li>
+                  {cap.planner_recommendations.map((r) => (
+                    <li key={r}>• {r}</li>
                   ))}
                 </ul>
               )}
@@ -615,7 +615,7 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
             <p>{cost.snapshot_heavy_count} snapshot-heavy</p>
           </div>
           {cost.suggestions.length > 0 && (
-            <ul className="mt-3 text-xs text-slate-400 space-y-1">{cost.suggestions.map((s, i) => <li key={i}>• {s}</li>)}</ul>
+            <ul className="mt-3 text-xs text-slate-400 space-y-1">{cost.suggestions.map((s) => <li key={s}>• {s}</li>)}</ul>
           )}
           <div className="flex flex-wrap gap-2 mt-3">
             <a className="btn-secondary text-xs" href={getAiCostExportUrl()} download data-testid="reports-cost-export-url">
@@ -699,7 +699,7 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
             {aiCap.storage_runway_days != null && <p>Storage runway: <span className="text-slate-200">{aiCap.storage_runway_days} days</span></p>}
           </div>
           {aiCap.recommendations.length > 0 && (
-            <ul className="mt-3 text-xs text-slate-400 space-y-1">{aiCap.recommendations.map((r, i) => <li key={i}>• {r}</li>)}</ul>
+            <ul className="mt-3 text-xs text-slate-400 space-y-1">{aiCap.recommendations.map((r) => <li key={r}>• {r}</li>)}</ul>
           )}
           <div className="flex flex-wrap gap-2 mt-3">
             <a className="btn-secondary text-xs" href={getAiCapacityExportUrl()} download data-testid="reports-capacity-export-url">

@@ -737,8 +737,8 @@ export default function K8sOverviewPage() {
               </p>
               {(clusterInventory?.cluster_health_notes?.length ?? 0) > 0 && (
                 <ul className="text-[11px] text-slate-400 list-disc pl-5 space-y-0.5">
-                  {clusterInventory?.cluster_health_notes?.map((note, i) => (
-                    <li key={i}>{note}</li>
+                  {clusterInventory?.cluster_health_notes?.map((note) => (
+                    <li key={note}>{note}</li>
                   ))}
                 </ul>
               )}
@@ -899,8 +899,8 @@ export default function K8sOverviewPage() {
               )}
               {(clusterInventory.upgrade_insights?.upgrade_warnings?.length ?? 0) > 0 && (
                 <ul className={`text-[11px] list-disc pl-5 space-y-1 ${statusToneClass('warn')}`}>
-                  {clusterInventory.upgrade_insights?.upgrade_warnings?.map((w, i) => (
-                    <li key={i}>{w}</li>
+                  {clusterInventory.upgrade_insights?.upgrade_warnings?.map((w) => (
+                    <li key={w}>{w}</li>
                   ))}
                 </ul>
               )}
@@ -910,8 +910,8 @@ export default function K8sOverviewPage() {
                     Suggested upgrade order (generic)
                   </summary>
                   <ol className="list-decimal pl-8 pr-3 pb-3 text-[11px] text-slate-400 space-y-1">
-                    {clusterInventory.upgrade_insights?.suggested_upgrade_order?.map((line, i) => (
-                      <li key={i}>{line}</li>
+                    {clusterInventory.upgrade_insights?.suggested_upgrade_order?.map((line) => (
+                      <li key={line}>{line}</li>
                     ))}
                   </ol>
                 </details>
@@ -1111,8 +1111,8 @@ export default function K8sOverviewPage() {
                   <div>
                     <div className="text-[11px] text-slate-500 mb-1">Operator-style alerts</div>
                     <ul className={`text-[11px] list-disc pl-5 space-y-1 ${statusToneClass('warn')}`}>
-                      {clusterInventory.extended?.operator_alerts?.map((a, i) => (
-                        <li key={i}>{a}</li>
+                      {clusterInventory.extended?.operator_alerts?.map((a) => (
+                        <li key={a}>{a}</li>
                       ))}
                     </ul>
                   </div>
@@ -1347,8 +1347,8 @@ export default function K8sOverviewPage() {
             <div>
               <div className="text-xs text-slate-500 mb-1">Detection hints</div>
               <ul className="text-xs text-slate-400 list-disc pl-5 space-y-0.5">
-                {environment.cluster_distribution_hints.map((h, i) => (
-                  <li key={i}>{h}</li>
+                {environment.cluster_distribution_hints.map((h) => (
+                  <li key={h}>{h}</li>
                 ))}
               </ul>
             </div>

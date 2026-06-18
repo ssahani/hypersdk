@@ -309,8 +309,8 @@ export default function KubeVirtExposeServiceModal({ vm, services, onClose, onCo
 
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
           <div className={`rounded-lg px-3 py-2 text-xs space-y-1 ${statusSurfaceClasses('warn')}`}>
-            {warnings.map((t, i) => (
-              <p key={i}>{t}</p>
+            {warnings.map((t) => (
+              <p key={t}>{t}</p>
             ))}
           </div>
 

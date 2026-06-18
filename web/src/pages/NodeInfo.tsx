@@ -953,8 +953,8 @@ export default function NodeInfoPage() {
 
           {hardwareInventory.consistency_notes.length > 0 && (
             <div className={`rounded-lg px-4 py-3 text-sm space-y-1 ${statusSurfaceClasses('warn')}`}>
-              {hardwareInventory.consistency_notes.map((note, i) => (
-                <p key={i}>{note}</p>
+              {hardwareInventory.consistency_notes.map((note) => (
+                <p key={note}>{note}</p>
               ))}
             </div>
           )}

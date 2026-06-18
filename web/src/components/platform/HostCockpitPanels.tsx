@@ -221,8 +221,8 @@ function SystemSection({
       {data.journal_recent.length > 0 && (
         <MacGlassPanel title="Journal errors (1h)" subtitle={`${data.journal_errors_1h} total`}>
           <ul className="max-h-32 overflow-y-auto text-xs text-slate-500 space-y-1 font-mono">
-            {data.journal_recent.map((line, i) => (
-              <li key={i}>{line}</li>
+            {data.journal_recent.map((line) => (
+              <li key={line}>{line}</li>
             ))}
           </ul>
         </MacGlassPanel>
