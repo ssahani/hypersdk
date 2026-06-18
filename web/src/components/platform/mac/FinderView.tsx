@@ -114,6 +114,7 @@ export default function FinderView({
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/40" />
           <input
             type="search"
+            aria-label={searchPlaceholder || 'Search'}
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder={searchPlaceholder}

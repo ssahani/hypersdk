@@ -328,6 +328,7 @@ export default function KubeVirtExposeServiceModal({ vm, services, onClose, onCo
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">Service type</label>
               <select
+                aria-label="Service type"
                 value={svcType}
                 onChange={(e) => setSvcType(e.target.value as ServiceType)}
                 className="w-full bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white"
@@ -394,6 +395,7 @@ export default function KubeVirtExposeServiceModal({ vm, services, onClose, onCo
                       </td>
                       <td className="px-2 py-2">
                         <select
+                          aria-label="Protocol"
                           value={r.protocol}
                           onChange={(e) => updateRow(r.id, { protocol: e.target.value as 'TCP' | 'UDP' })}
                           className="w-full min-w-[4.5rem] bg-slate-950 border border-slate-600 rounded px-2 py-1 text-xs"

@@ -150,6 +150,7 @@ export default function OpenStackImageUploadModal({
                 className="input-field text-sm"
               />
               <select
+                aria-label="Visibility"
                 value={visibility}
                 onChange={(e) => setVisibility(e.target.value)}
                 className="input-field text-sm"

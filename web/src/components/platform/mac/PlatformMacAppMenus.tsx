@@ -209,6 +209,7 @@ export default function PlatformMacAppMenus() {
       >
         <input
           type="search"
+          aria-label="Zeus search"
           value={zeusQuery}
           onChange={(e) => setZeusQuery(e.target.value)}
           placeholder={ZEUS_SEARCH_PLACEHOLDER}

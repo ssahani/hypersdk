@@ -211,7 +211,7 @@ export default function LibvirtOpenStackPushModal({
               )}
               <div className="grid gap-2 sm:grid-cols-2">
                 <input className="input-field" placeholder="Glance name" value={glanceName} onChange={(e) => setGlanceName(e.target.value)} />
-                <select className="input-field" value={visibility} onChange={(e) => setVisibility(e.target.value)}>
+                <select className="input-field" aria-label="Visibility" value={visibility} onChange={(e) => setVisibility(e.target.value)}>
                   <option value="private">private</option>
                   <option value="shared">shared</option>
                   <option value="public">public</option>

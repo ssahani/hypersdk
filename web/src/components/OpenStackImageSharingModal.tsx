@@ -123,6 +123,7 @@ export default function OpenStackImageSharingModal({ image, onClose }: Props) {
             <h3 className="text-xs font-medium text-slate-500 uppercase mb-2">Visibility</h3>
             <div className="flex flex-wrap gap-2 items-center">
               <select
+                aria-label="Visibility"
                 value={visibility}
                 onChange={(e) => setVisibility(e.target.value)}
                 className="px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-sm"

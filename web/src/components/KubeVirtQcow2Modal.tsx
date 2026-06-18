@@ -203,6 +203,7 @@ function GuestOsFields({
     <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 p-3 space-y-3">
       <FieldLabel>Guest OS</FieldLabel>
       <select
+        aria-label="Guest OS"
         value={guestOs}
         onChange={(e) => setGuestOs(e.target.value as 'auto' | 'linux' | 'windows')}
         className="input-field w-full max-w-xs"
