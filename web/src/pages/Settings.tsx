@@ -231,6 +231,7 @@ export default function SettingsPage() {
               <select
                 value={cloudPick || openstackStatus.cloud_name}
                 onChange={(e) => setCloudPick(e.target.value)}
+                aria-label="Session cloud"
                 className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm min-w-[10rem]"
               >
                 {openstackClouds.map((c) => (

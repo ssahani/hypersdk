@@ -72,6 +72,7 @@ function OpenStackLoadBalancersContent() {
         <div>
           <label className="block text-xs text-slate-500 mb-1">VIP subnet</label>
           <select value={subnetId} onChange={(e) => setSubnetId(e.target.value)}
+            aria-label="VIP subnet"
             className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm min-w-[14rem]">
             <option value="">Select subnet…</option>
             {subnets.map((s) => (
