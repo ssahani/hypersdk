@@ -202,7 +202,7 @@ export default function StoragePoolDetail() {
         </div>
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           {volumes.length === 0 ? (
-            <div className="p-8 text-center text-slate-500">No volumes in this pool</div>
+            <EmptyState title="No volumes" description="This pool is empty. Create a volume to get started." />
           ) : (
             <table className="w-full">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Name</th><th className="px-6 py-3">Type</th><th className="px-6 py-3">Capacity</th><th className="px-6 py-3">Used</th><th className="px-6 py-3 hidden lg:table-cell">Path</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>

@@ -84,7 +84,7 @@ export default function ConsolePage() {
           setMode('serial')
         }
       })
-      .catch((e) => console.error('Failed to load console info:', e))
+      .catch((e) => toast.error(`Console unavailable: ${formatUserError(e)}`))
   }, [name, conn])
 
   if (!name) return null

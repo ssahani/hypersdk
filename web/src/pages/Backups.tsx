@@ -309,7 +309,7 @@ export default function BackupsPage() {
       {/* Backup list */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
         {backups.length === 0 ? (
-          <div className="p-8 text-center text-slate-500">No backups found. Create one to get started.</div>
+          <EmptyState title="No backups" description="Create a backup to protect your VMs. Backups are stored at the configured target path." />
         ) : (
           <table className="w-full">
             <thead>

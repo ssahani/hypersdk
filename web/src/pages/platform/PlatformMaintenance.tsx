@@ -337,7 +337,7 @@ export default function PlatformMaintenance() {
                               setPreviewSummary(r.summary ?? 'Preview complete')
                               toast.success('Package upgrade preview ready')
                             })
-                            .catch((e: unknown) => toast.error(formatUserError(e)))
+                            .catch((e: unknown) => { setPreviewSummary(null); toast.error(formatUserError(e)) })
                             .finally(() => setUpgradeBusy(false))
                         }}
                       >

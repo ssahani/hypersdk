@@ -8,9 +8,11 @@ import { libvirtErrorHints } from '../utils/libvirtHints'
 import { useEffect, useState, useCallback } from 'react'
 import { listServices, serviceAction, SystemdService } from '../api/extras'
 import PageLayout from '../components/PageLayout'
+import { useToastContext } from '../contexts/ToastContext'
 import { Search, RefreshCw, Play, Square, RotateCcw, ToggleLeft, ToggleRight } from 'lucide-react'
 
 export default function ServicesPage() {
+  const toast = useToastContext()
   const [services, setServices] = useState<SystemdService[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -36,9 +38,11 @@ export default function ServicesPage() {
     setActing(`${name}:${action}`)
     try {
       await serviceAction(name, action)
+      const verb = action === 'start' ? 'Started' : action === 'stop' ? 'Stopped' : action === 'restart' ? 'Restarted' : action === 'enable' ? 'Enabled' : action === 'disable' ? 'Disabled' : action === 'enable_now' ? 'Enabled and started' : 'Action applied'
+      toast.success(`${verb}: ${name}`)
       setTimeout(load, 1000)
     } catch (e) {
-      console.error(`Failed to ${action} ${name}:`, e)
+      toast.error(formatUserError(e))
     } finally {
       setActing(null)
     }

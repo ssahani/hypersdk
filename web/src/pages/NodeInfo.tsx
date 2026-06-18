@@ -193,6 +193,8 @@ export default function NodeInfoPage() {
   const [editingTimezone, setEditingTimezone] = useState(false)
   const [hostnameInput, setHostnameInput] = useState('')
   const [timezoneInput, setTimezoneInput] = useState('')
+  const [savingHostname, setSavingHostname] = useState(false)
+  const [savingTimezone, setSavingTimezone] = useState(false)
   const [sessionRole, setSessionRole] = useState<SessionRole | null>(null)
   const [killBusyPid, setKillBusyPid] = useState<number | null>(null)
   const [pkgConfirmOp, setPkgConfirmOp] = useState<'upgrade' | 'autoremove' | 'remove' | null>(null)
@@ -613,11 +615,25 @@ export default function NodeInfoPage() {
                   className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--machina-status-info)]"
                   autoFocus
                 />
-                <button onClick={async () => {
-                  try { await setHostname(hostnameInput); load() } catch (e) { console.error(e) }
-                  setEditingHostname(false)
-                }} className={`p-1 rounded hover:bg-green-500/20 ${statusToneClass('ok')}`}><Check className="w-4 h-4" /></button>
-                <button onClick={() => setEditingHostname(false)} className={`p-1 rounded hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)] ${statusToneClass('error')}`}><X className="w-4 h-4" /></button>
+                <button
+                  disabled={savingHostname}
+                  onClick={async () => {
+                    setSavingHostname(true)
+                    try {
+                      await setHostname(hostnameInput)
+                      toast.success('Hostname updated')
+                      setEditingHostname(false)
+                      load()
+                    } catch (e) {
+                      toast.error(formatUserError(e))
+                    } finally {
+                      setSavingHostname(false)
+                    }
+                  }}
+                  className={`p-1 rounded hover:bg-green-500/20 disabled:opacity-40 ${statusToneClass('ok')}`}
+                  aria-label="Save hostname"
+                ><Check className="w-4 h-4" /></button>
+                <button onClick={() => setEditingHostname(false)} className={`p-1 rounded hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)] ${statusToneClass('error')}`} aria-label="Cancel"><X className="w-4 h-4" /></button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -640,11 +656,25 @@ export default function NodeInfoPage() {
                   className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--machina-status-info)]"
                   autoFocus
                 />
-                <button onClick={async () => {
-                  try { await setTimezone(timezoneInput); load() } catch (e) { console.error(e) }
-                  setEditingTimezone(false)
-                }} className={`p-1 rounded hover:bg-green-500/20 ${statusToneClass('ok')}`}><Check className="w-4 h-4" /></button>
-                <button onClick={() => setEditingTimezone(false)} className={`p-1 rounded hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)] ${statusToneClass('error')}`}><X className="w-4 h-4" /></button>
+                <button
+                  disabled={savingTimezone}
+                  onClick={async () => {
+                    setSavingTimezone(true)
+                    try {
+                      await setTimezone(timezoneInput)
+                      toast.success('Timezone updated')
+                      setEditingTimezone(false)
+                      load()
+                    } catch (e) {
+                      toast.error(formatUserError(e))
+                    } finally {
+                      setSavingTimezone(false)
+                    }
+                  }}
+                  className={`p-1 rounded hover:bg-green-500/20 disabled:opacity-40 ${statusToneClass('ok')}`}
+                  aria-label="Save timezone"
+                ><Check className="w-4 h-4" /></button>
+                <button onClick={() => setEditingTimezone(false)} className={`p-1 rounded hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)] ${statusToneClass('error')}`} aria-label="Cancel"><X className="w-4 h-4" /></button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
