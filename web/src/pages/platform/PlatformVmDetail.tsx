@@ -1926,7 +1926,7 @@ export default function PlatformVmDetail() {
                 <label className="flex items-center gap-2">
                   <input type="checkbox" checked={snapQuiesce} onChange={(e) => setSnapQuiesce(e.target.checked)} /> Guest quiesce
                 </label>
-                <select className="input text-xs max-w-[140px]" value={snapStorageMode} onChange={(e) => setSnapStorageMode(e.target.value)}>
+                <select aria-label="Snapshot storage mode" className="input text-xs max-w-[140px]" value={snapStorageMode} onChange={(e) => setSnapStorageMode(e.target.value)}>
                   <option value="">Storage: auto</option>
                   <option value="internal">Internal</option>
                   <option value="external">External</option>
@@ -2187,7 +2187,7 @@ export default function PlatformVmDetail() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <h3 className="font-semibold mb-2 flex items-center gap-2 text-sm"><MoveRight className="w-4 h-4" /> Live migrate</h3>
-                    <select className="input w-full mb-2" value={destHost} onChange={(e) => setDestHost(e.target.value)}>
+                    <select aria-label="Destination host" className="input w-full mb-2" value={destHost} onChange={(e) => setDestHost(e.target.value)}>
                       {hosts.map((h) => <option key={h.id} value={h.id}>{h.hostname}</option>)}
                     </select>
                     <div className="flex flex-wrap gap-3 mb-2 text-xs text-slate-400">
@@ -2289,8 +2289,8 @@ export default function PlatformVmDetail() {
                   </div>
                   <div>
                     <h3 className="font-semibold mb-2 flex items-center gap-2 text-sm"><Copy className="w-4 h-4" /> Clone</h3>
-                    <input className="input w-full mb-2" placeholder="new-vm-name" value={cloneName} onChange={(e) => setCloneName(e.target.value)} />
-                    <select className="input w-full mb-2 text-sm" value={cloneMode} onChange={(e) => setCloneMode(e.target.value as 'linked' | 'full')}>
+                    <input aria-label="Clone name" className="input w-full mb-2" placeholder="new-vm-name" value={cloneName} onChange={(e) => setCloneName(e.target.value)} />
+                    <select aria-label="Clone mode" className="input w-full mb-2 text-sm" value={cloneMode} onChange={(e) => setCloneMode(e.target.value as 'linked' | 'full')}>
                       <option value="linked">Linked clone (thin)</option>
                       <option value="full">Full clone (independent disk)</option>
                     </select>
