@@ -245,9 +245,9 @@ export default function PlatformContent() {
 
       <MacSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Submit image" subtitle="Path must exist on a hypervisor — approval required for production.">
         <div className="space-y-3">
-          <input className="input w-full" placeholder="name" value={name} onChange={(e) => setName(e.target.value)} />
-          <input className="input w-full" placeholder="host path" value={path} onChange={(e) => setPath(e.target.value)} />
-          <input className="input w-full" placeholder="description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} />
+          <input className="input w-full" aria-label="Image name" placeholder="name" value={name} onChange={(e) => setName(e.target.value)} />
+          <input className="input w-full" aria-label="Host path" placeholder="host path" value={path} onChange={(e) => setPath(e.target.value)} />
+          <input className="input w-full" aria-label="Description" placeholder="description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} />
           <button type="button" className="btn-primary w-full" onClick={async () => { await add(); setSheetOpen(false) }}>Submit for approval</button>
         </div>
       </MacSheet>

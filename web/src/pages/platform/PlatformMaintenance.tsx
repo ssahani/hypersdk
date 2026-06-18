@@ -505,7 +505,7 @@ export default function PlatformMaintenance() {
             <select className="input" aria-label="Host" value={hostId} onChange={(e) => setHostId(e.target.value)}>
               {hosts.map((h) => <option key={h.id} value={h.id}>{h.hostname}</option>)}
             </select>
-            <input className="input md:col-span-2" type="datetime-local" value={runAt} onChange={(e) => setRunAt(e.target.value)} />
+            <input className="input md:col-span-2" type="datetime-local" aria-label="Scheduled date/time" value={runAt} onChange={(e) => setRunAt(e.target.value)} />
             <button
               type="button"
               className="btn-primary w-fit flex items-center gap-2"

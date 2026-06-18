@@ -175,8 +175,8 @@ export default function PlatformZeusSettings({ embedded }: { embedded?: boolean 
 
       <MacGlassPanel title="Prompt library" subtitle="Infrastructure, security, Kubernetes, runbooks, SOPs">
         <div className="grid gap-2 mb-3">
-          <input className="input" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
-          <textarea className="input min-h-24" placeholder="Prompt body" value={body} onChange={(e) => setBody(e.target.value)} />
+          <input className="input" aria-label="Prompt title" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <textarea className="input min-h-24" aria-label="Prompt body" placeholder="Prompt body" value={body} onChange={(e) => setBody(e.target.value)} />
           <button type="button" className="btn-primary w-fit" onClick={async () => {
             try {
               await createAiPrompt({ scope: 'personal', title, body, tags: ['infrastructure'] })
@@ -192,10 +192,10 @@ export default function PlatformZeusSettings({ embedded }: { embedded?: boolean 
             <li key={p.id} className="border border-white/[0.06] rounded-lg p-2">
               {editingId === p.id ? (
                 <div className="space-y-2">
-                  <input className="input text-sm" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
-                  <textarea className="input min-h-20 text-sm" value={editBody} onChange={(e) => setEditBody(e.target.value)} />
-                  <input className="input text-sm" placeholder="tags (comma-separated)" value={editTags} onChange={(e) => setEditTags(e.target.value)} />
-                  <input className="input text-sm" placeholder="agent_id" value={editAgent} onChange={(e) => setEditAgent(e.target.value)} />
+                  <input className="input text-sm" aria-label="Edit prompt title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                  <textarea className="input min-h-20 text-sm" aria-label="Edit prompt body" value={editBody} onChange={(e) => setEditBody(e.target.value)} />
+                  <input className="input text-sm" aria-label="Tags" placeholder="tags (comma-separated)" value={editTags} onChange={(e) => setEditTags(e.target.value)} />
+                  <input className="input text-sm" aria-label="Agent ID" placeholder="agent_id" value={editAgent} onChange={(e) => setEditAgent(e.target.value)} />
                   <div className="flex gap-2">
                     <button type="button" className="btn-primary text-xs" onClick={async () => {
                       try {

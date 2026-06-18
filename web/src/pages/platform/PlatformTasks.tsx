@@ -160,7 +160,7 @@ export default function PlatformTasks() {
           { id: 'failed', label: 'Failed' },
         ]}
       />
-      <input className="input max-w-xs" placeholder="Filter by operation" value={opFilter} onChange={(e) => setOpFilter(e.target.value)} />
+      <input className="input max-w-xs" aria-label="Filter by operation" placeholder="Filter by operation" value={opFilter} onChange={(e) => setOpFilter(e.target.value)} />
       {rows.length === 0 && !error ? (
         <PlatformEmptyState title="No tasks" subtitle="Operations like VM create, migrate, and backup appear here." />
       ) : (

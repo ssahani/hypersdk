@@ -102,7 +102,7 @@ export default function PlatformTopology() {
       )}
       <MacGlassPanel title="Similar incidents" subtitle="GET /api/v1/ai/memory/similar">
         <div className="flex flex-wrap gap-2 mb-3">
-          <input className="input text-sm flex-1 min-w-[12rem]" value={incidentQuery} onChange={(e) => setIncidentQuery(e.target.value)} />
+          <input className="input text-sm flex-1 min-w-[12rem]" aria-label="Incident search query" value={incidentQuery} onChange={(e) => setIncidentQuery(e.target.value)} />
           <button
             type="button"
             className="btn-secondary text-xs"

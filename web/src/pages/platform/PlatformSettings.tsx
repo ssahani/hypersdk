@@ -174,7 +174,7 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
         </SettingsBlock>
       )}
       <SettingsBlock embedded={embedded} title="Cluster">
-        <input className="input" value={clusterName} onChange={(e) => setClusterName(e.target.value)} />
+        <input className="input" aria-label="Cluster name" value={clusterName} onChange={(e) => setClusterName(e.target.value)} />
         <button type="button" className="btn-secondary" onClick={async () => {
           try { await patchCluster({ name: clusterName }); toast.success('Cluster updated'); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
         }}>Save cluster name</button>
@@ -313,7 +313,7 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
         }}>Save AI settings</button>
       </SettingsBlock>
       <SettingsBlock embedded={embedded} title="CPU compatibility matrix">
-        <textarea className="input font-mono text-xs min-h-32" value={cpuJson} onChange={(e) => setCpuJson(e.target.value)} />
+        <textarea className="input font-mono text-xs min-h-32" aria-label="CPU compatibility matrix" value={cpuJson} onChange={(e) => setCpuJson(e.target.value)} />
         <button type="button" className="btn-secondary" onClick={async () => {
           try {
             const rules = JSON.parse(cpuJson) as CpuCompatRule[]
