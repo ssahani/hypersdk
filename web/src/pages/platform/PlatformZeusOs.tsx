@@ -464,11 +464,11 @@ export default function PlatformZeusOs() {
         <div className="space-y-4">
           <MacGlassPanel title="Bare metal servers" subtitle="Redfish / IPMI inventory + Zeus Firewall policy">
             <div className="flex flex-wrap gap-2 mb-3">
-              <input className="input text-sm" placeholder="hostname" value={bmcHost} onChange={(e) => setBmcHost(e.target.value)} />
-              <input className="input text-sm" placeholder="BMC address" value={bmcAddr} onChange={(e) => setBmcAddr(e.target.value)} />
-              <input className="input text-sm w-24" placeholder="BMC VLAN" value={bmcVlan} onChange={(e) => setBmcVlan(e.target.value)} />
-              <input className="input text-sm w-24" placeholder="PXE VLAN" value={pxeVlan} onChange={(e) => setPxeVlan(e.target.value)} />
-              <select className="input text-sm" value={metalProfile} onChange={(e) => setMetalProfile(e.target.value)}>
+              <input className="input text-sm" aria-label="Hostname" placeholder="hostname" value={bmcHost} onChange={(e) => setBmcHost(e.target.value)} />
+              <input className="input text-sm" aria-label="BMC address" placeholder="BMC address" value={bmcAddr} onChange={(e) => setBmcAddr(e.target.value)} />
+              <input className="input text-sm w-24" aria-label="BMC VLAN" placeholder="BMC VLAN" value={bmcVlan} onChange={(e) => setBmcVlan(e.target.value)} />
+              <input className="input text-sm w-24" aria-label="PXE VLAN" placeholder="PXE VLAN" value={pxeVlan} onChange={(e) => setPxeVlan(e.target.value)} />
+              <select className="input text-sm" aria-label="Bare metal profile" value={metalProfile} onChange={(e) => setMetalProfile(e.target.value)}>
                 <option value="BareMetalBmc">BareMetal BMC</option>
                 <option value="BareMetalPxe">BareMetal PXE</option>
                 <option value="BareMetalRedfish">BareMetal Redfish</option>

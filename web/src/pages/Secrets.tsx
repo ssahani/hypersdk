@@ -96,8 +96,14 @@ export default function SecretsPage() {
     >
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input type="text" placeholder="Search secrets..." value={search} onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500" />
+        <input type="text" aria-label="Search secrets" placeholder="Search secrets..." value={search} onChange={(e) => setSearch(e.target.value)}
+          className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 ${search ? 'pr-8' : 'pr-4'}`} />
+        {search && (
+          <button type="button" aria-label="Clear search" onClick={() => setSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {loading ? (

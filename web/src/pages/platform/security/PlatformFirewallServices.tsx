@@ -84,6 +84,7 @@ export default function PlatformFirewallServices() {
       <div className="flex flex-wrap gap-2 mb-4">
         <input
           className="input text-sm max-w-xs"
+          aria-label="Filter firewall services"
           placeholder="Filter by name, port, or host…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}

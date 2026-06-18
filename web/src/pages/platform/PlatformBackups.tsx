@@ -138,7 +138,7 @@ export default function PlatformBackups() {
           <Camera className="w-3.5 h-3.5" /> Fleet snapshot schedules
         </Link>
       </p>
-      <div className="flex flex-wrap gap-2 border-b border-white/[0.06] pb-1">
+      <div role="tablist" className="flex flex-wrap gap-2 border-b border-white/[0.06] pb-1">
         {([
           ['timeline', 'Timeline', Archive],
           ['destinations', 'Destinations', Database],
@@ -146,6 +146,9 @@ export default function PlatformBackups() {
           <button
             key={id}
             type="button"
+            role="tab"
+            aria-selected={tab === id}
+            tabIndex={tab === id ? 0 : -1}
             onClick={() => setSearchParams(id === 'timeline' ? {} : { tab: id })}
             className={`px-4 py-2 text-sm rounded-t-lg flex items-center gap-2 transition ${
               tab === id ? 'bg-slate-800/80 text-orange-300 border-b-2 border-orange-400' : 'text-slate-400 hover:text-slate-200'

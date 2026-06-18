@@ -325,7 +325,7 @@ export default function PlatformRuntimeEnforcement() {
 
       <MacGlassPanel title="Create policy" subtitle="Generates Tetragon TracingPolicy on apply">
         <div className="p-3 space-y-3">
-          <input className="input text-sm w-full" placeholder="Policy name" value={name} onChange={(e) => setName(e.target.value)} />
+          <input className="input text-sm w-full" aria-label="Policy name" placeholder="Policy name" value={name} onChange={(e) => setName(e.target.value)} />
           <div className="flex flex-wrap gap-2">
             <select className="input text-sm" aria-label="Policy kind" value={kind} onChange={(e) => setKind(e.target.value)}>
               {KINDS.map((k) => (
@@ -334,6 +334,7 @@ export default function PlatformRuntimeEnforcement() {
             </select>
             <input
               className="input text-sm flex-1 min-w-[12rem]"
+              aria-label="Match pattern"
               placeholder={matchPlaceholder(kind)}
               value={match}
               onChange={(e) => setMatch(e.target.value)}
