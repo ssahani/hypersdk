@@ -2216,7 +2216,7 @@ export default function VMDetailsPage() {
             <div className="flex flex-wrap gap-3 items-end">
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Disk target</label>
-                <select value={blockDisk} onChange={(e) => setBlockDisk(e.target.value)} className="input-field min-w-[120px]">
+                <select aria-label="Disk target" value={blockDisk} onChange={(e) => setBlockDisk(e.target.value)} className="input-field min-w-[120px]">
                   <option value="">Select…</option>
                   {vm.disks.filter((d) => d.device === 'disk').map((d) => (
                     <option key={d.target} value={d.target}>{d.target}</option>
@@ -2398,7 +2398,7 @@ export default function VMDetailsPage() {
           <div className="px-6 py-3 border-b border-slate-700/50 flex items-center justify-between">
             <span className="text-sm text-slate-400">QEMU Log ({`/var/log/libvirt/qemu/${vm.name}.log`})</span>
             <div className="flex items-center gap-3">
-              <select value={logsLines} onChange={(e) => setLogsLines(parseInt(e.target.value))} className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300">
+              <select aria-label="Log lines" value={logsLines} onChange={(e) => setLogsLines(parseInt(e.target.value))} className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300">
                 <option value={500}>500 lines</option>
                 <option value={1000}>1000 lines</option>
                 <option value={2000}>2000 lines</option>
@@ -2636,6 +2636,7 @@ export default function VMDetailsPage() {
                             <div className="min-w-[160px]">
                               <label className="block text-xs text-slate-500 mb-1">Snapshot</label>
                               <select
+                                aria-label="Snapshot mode"
                                 value={d.snapshot || ''}
                                 onChange={(e) => {
                                   const v = e.target.value
@@ -2856,7 +2857,7 @@ export default function VMDetailsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm text-slate-400 mb-1">Bus</label>
-                  <select value={tuneBus} onChange={(e) => setTuneBus(e.target.value)} className="input-field">
+                  <select aria-label="Bus" value={tuneBus} onChange={(e) => setTuneBus(e.target.value)} className="input-field">
                     <option value="">no change</option>
                     <option value="virtio">virtio</option>
                     <option value="sata">sata</option>
@@ -2866,7 +2867,7 @@ export default function VMDetailsPage() {
                 </div>
                 <div>
                   <label className="block text-sm text-slate-400 mb-1">Cache</label>
-                  <select value={tuneCache} onChange={(e) => setTuneCache(e.target.value)} className="input-field">
+                  <select aria-label="Cache" value={tuneCache} onChange={(e) => setTuneCache(e.target.value)} className="input-field">
                     <option value="">no change</option>
                     <option value="none">none</option>
                     <option value="writethrough">writethrough</option>
@@ -2875,7 +2876,7 @@ export default function VMDetailsPage() {
                 </div>
                 <div>
                   <label className="block text-sm text-slate-400 mb-1">Discard</label>
-                  <select value={tuneDiscard} onChange={(e) => setTuneDiscard(e.target.value)} className="input-field">
+                  <select aria-label="Discard" value={tuneDiscard} onChange={(e) => setTuneDiscard(e.target.value)} className="input-field">
                     <option value="">no change</option>
                     <option value="unmap">unmap</option>
                     <option value="ignore">ignore</option>
@@ -2883,7 +2884,7 @@ export default function VMDetailsPage() {
                 </div>
                 <div>
                   <label className="block text-sm text-slate-400 mb-1">Read-only</label>
-                  <select value={tuneRo} onChange={(e) => setTuneRo(e.target.value)} className="input-field">
+                  <select aria-label="Read-only" value={tuneRo} onChange={(e) => setTuneRo(e.target.value)} className="input-field">
                     <option value="">no change</option>
                     <option value="true">yes</option>
                     <option value="false">no</option>
@@ -2891,7 +2892,7 @@ export default function VMDetailsPage() {
                 </div>
                 <div>
                   <label className="block text-sm text-slate-400 mb-1">Shareable</label>
-                  <select value={tuneShare} onChange={(e) => setTuneShare(e.target.value)} className="input-field">
+                  <select aria-label="Shareable" value={tuneShare} onChange={(e) => setTuneShare(e.target.value)} className="input-field">
                     <option value="">no change</option>
                     <option value="true">yes</option>
                     <option value="false">no</option>
