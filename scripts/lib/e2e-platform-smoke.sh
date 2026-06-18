@@ -657,6 +657,24 @@ except Exception:
   fi
   e2e_platform_smoke_get "/api/v1/zeus-firewall/packetwolf/anomalies" "GET /api/v1/zeus-firewall/packetwolf/anomalies" || true
 
+  e2e_platform_hdr "PLATFORM SMOKE: ZEUS SECURITY + PACKETWOLF FABRIC"
+  e2e_platform_smoke_get "/api/v1/zeus-security/status" "GET /api/v1/zeus-security/status" || true
+  e2e_platform_smoke_get "/api/v1/zeus-security/fabric/health" "GET /api/v1/zeus-security/fabric/health" || true
+  e2e_platform_smoke_get "/api/v1/zeus-security/fleet/threat" "GET /api/v1/zeus-security/fleet/threat" || true
+  e2e_platform_smoke_get "/api/v1/zeus-security/fleet/sensors" "GET /api/v1/zeus-security/fleet/sensors" || true
+  e2e_platform_smoke_get "/api/v1/zeus-security/fleet/timeline?hours=24" "GET /api/v1/zeus-security/fleet/timeline" || true
+  canvas="$(e2e_platform_curl "${E2E_PLATFORM_BASE}/api/v1/network-canvas")"
+  if echo "$canvas" | grep -q '"packetwolf"' && echo "$canvas" | grep -q '"network_pulse"'; then
+    e2e_platform_ok "GET /api/v1/network-canvas (PacketWolf pulse bundle)"
+  else
+    e2e_platform_fail "GET /api/v1/network-canvas — missing packetwolf/network_pulse"
+  fi
+  if echo "$canvas" | grep -q '"service_map"'; then
+    e2e_platform_ok "GET /api/v1/network-canvas includes service_map"
+  else
+    e2e_platform_fail "GET /api/v1/network-canvas — missing service_map"
+  fi
+
   e2e_platform_hdr "PLATFORM SMOKE: ZEUS FIREWALL MAC UX (AI-372–391)"
   e2e_platform_smoke_get "/api/v1/cluster/settings" "GET /api/v1/cluster/settings (Settings hub)" || true
   e2e_platform_smoke_get "/api/v1/ai/zeus/summary" "GET /api/v1/ai/zeus/summary (Control Center strip)" || true
