@@ -204,8 +204,8 @@ export default function VMList() {
       onErrorDismiss={() => setLoadError(null)}
       actions={
         <>
-          <button onClick={() => downloadJSON(filtered, 'vms.json')} className="p-2 hover:bg-slate-700 rounded transition" title="Export JSON"><Download className="w-4 h-4" /></button>
-          <button onClick={() => downloadCSV(filtered as unknown as Record<string, unknown>[], 'vms.csv')} className="p-2 hover:bg-slate-700 rounded transition" title="Export CSV"><Download className={`w-4 h-4 ${statusToneClass('ok')}`} /></button>
+          <button onClick={() => downloadJSON(filtered, 'vms.json')} className="p-2 hover:bg-slate-700 rounded transition" title="Export JSON" aria-label="Export JSON"><Download className="w-4 h-4" /></button>
+          <button onClick={() => downloadCSV(filtered as unknown as Record<string, unknown>[], 'vms.csv')} className="p-2 hover:bg-slate-700 rounded transition" title="Export CSV" aria-label="Export CSV"><Download className={`w-4 h-4 ${statusToneClass('ok')}`} /></button>
           <ChoiceCardGrid className="max-w-[220px] sm:max-w-[240px] [&_button]:min-h-0">
             <ChoiceCard
               compact
@@ -335,10 +335,10 @@ export default function VMList() {
                     <div className="flex items-center justify-end gap-1">
                       {vm.state === 'running' && (
                         <>
-                          <Link to={vmConsoleRoute(vm.name, vm.libvirt_connection)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="VNC console">
+                          <Link to={vmConsoleRoute(vm.name, vm.libvirt_connection)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="VNC console" aria-label="VNC console">
                             <Monitor className="w-4 h-4 text-slate-300" />
                           </Link>
-                          <button type="button" onClick={() => setSshVm(vm)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="SSH">
+                          <button type="button" onClick={() => setSshVm(vm)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="SSH" aria-label="SSH">
                             <Terminal className="w-4 h-4 text-slate-300" />
                           </button>
                           {vm.guest_ip && (
@@ -347,6 +347,7 @@ export default function VMList() {
                               onClick={() => { void navigator.clipboard.writeText(vm.guest_ip!); toast.success('Guest IP copied') }}
                               className="p-1.5 hover:bg-slate-600/30 rounded transition"
                               title="Copy guest IP"
+                              aria-label="Copy guest IP"
                             >
                               <Copy className="w-4 h-4 text-slate-300" />
                             </button>
@@ -354,29 +355,29 @@ export default function VMList() {
                         </>
                       )}
                       {vm.state === 'shutoff' && (
-                        <button onClick={() => action(vm, startVM, 'Start')} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-ok)_25%,transparent)]`} title="Start">
+                        <button onClick={() => action(vm, startVM, 'Start')} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-ok)_25%,transparent)]`} title="Start" aria-label="Start">
                           <Play className={`w-4 h-4 ${statusToneClass('ok')}`} />
                         </button>
                       )}
                       {vm.state === 'running' && (
                         <>
-                          <button onClick={() => action(vm, shutdownVM, 'Shutdown')} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-warn)_25%,transparent)]`} title="Shutdown">
+                          <button onClick={() => action(vm, shutdownVM, 'Shutdown')} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-warn)_25%,transparent)]`} title="Shutdown" aria-label="Shutdown">
                             <Power className={`w-4 h-4 ${statusToneClass('warn')}`} />
                           </button>
-                          <button onClick={() => action(vm, stopVM, 'Stop')} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)]`} title="Force Stop">
+                          <button onClick={() => action(vm, stopVM, 'Stop')} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)]`} title="Force Stop" aria-label="Force Stop">
                             <Square className={`w-4 h-4 ${statusToneClass('error')}`} />
                           </button>
-                          <button onClick={() => action(vm, pauseVM, 'Pause')} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-info)_25%,transparent)]`} title="Pause">
+                          <button onClick={() => action(vm, pauseVM, 'Pause')} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-info)_25%,transparent)]`} title="Pause" aria-label="Pause">
                             <Pause className={`w-4 h-4 ${statusToneClass('info')}`} />
                           </button>
                         </>
                       )}
                       {vm.state === 'paused' && (
-                        <button onClick={() => action(vm, resumeVM, 'Resume')} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-ok)_25%,transparent)]`} title="Resume">
+                        <button onClick={() => action(vm, resumeVM, 'Resume')} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-ok)_25%,transparent)]`} title="Resume" aria-label="Resume">
                           <RotateCcw className={`w-4 h-4 ${statusToneClass('ok')}`} />
                         </button>
                       )}
-                      <button onClick={() => setDeleteTarget({ name: vm.name, libvirt_connection: vm.libvirt_connection })} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)]`} title="Delete">
+                      <button onClick={() => setDeleteTarget({ name: vm.name, libvirt_connection: vm.libvirt_connection })} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)]`} title="Delete" aria-label="Delete">
                         <Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} />
                       </button>
                     </div>
