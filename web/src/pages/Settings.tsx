@@ -702,7 +702,7 @@ export default function SettingsPage() {
             <button type="button" onClick={async () => { if (!newRoleUser) return; try { await setRole(newRoleUser, newRoleVal); toast.success('Role set'); setNewRoleUser(''); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} aria-label="Set role" title="Set role" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
           </div>
           <div className="card overflow-x-auto max-w-full">
-            <table className="w-full min-w-[28rem]">
+            <table className="w-full min-w-[28rem]" aria-label="User roles">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">User</th><th className="px-6 py-3">Role</th><th className="px-6 py-3">Permissions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {roles.map(r => (
@@ -821,7 +821,7 @@ export default function SettingsPage() {
             </div>
           )}
           <div className="card overflow-x-auto max-w-full">
-            <table className="w-full min-w-[36rem]">
+            <table className="w-full min-w-[36rem]" aria-label="API tokens">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Name</th><th className="px-6 py-3">Token</th><th className="px-6 py-3">User</th><th className="px-6 py-3">Role</th><th className="px-6 py-3">Created</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {tokens.map(t => (
@@ -847,7 +847,7 @@ export default function SettingsPage() {
         <div className="space-y-4">
           <h3 className="text-sm font-semibold text-slate-300">Alert Rules</h3>
           <div className="card overflow-x-auto max-w-full">
-            <table className="w-full min-w-[32rem]">
+            <table className="w-full min-w-[32rem]" aria-label="Alert rules">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Rule</th><th className="px-6 py-3">Condition</th><th className="px-6 py-3">Threshold</th><th className="px-6 py-3">Enabled</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {alertRules.map((r, i) => (
@@ -888,7 +888,7 @@ export default function SettingsPage() {
             <button type="button" onClick={() => { if (!newWebhookUrl) return; const next = [...webhooks, { id: `wh-${Date.now()}`, url: newWebhookUrl, events: ['*'], enabled: true }]; setWebhooks(next); setNewWebhookUrl(''); saveWebhooks(next).then(() => toast.success('Webhook added')).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Add webhook" title="Add webhook" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
           </div>
           <div className="card overflow-x-auto max-w-full">
-            <table className="w-full min-w-[28rem]">
+            <table className="w-full min-w-[28rem]" aria-label="Webhook endpoints">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">URL</th><th className="px-6 py-3">Events</th><th className="px-6 py-3">Enabled</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {webhooks.map((h, i) => (
@@ -926,7 +926,7 @@ export default function SettingsPage() {
             <button type="button" onClick={() => { if (!newSchedVm) return; const next = [...schedules, { id: `sched-${Date.now()}`, vm_name: newSchedVm, action: newSchedAction, schedule: `daily ${newSchedTime}`, enabled: true, last_run: '' }]; setSchedules(next); saveSchedules(next).then(() => toast.success('Schedule added')).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Add schedule" title="Add schedule" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
           </div>
           <div className="card overflow-x-auto max-w-full">
-            <table className="w-full min-w-[40rem]">
+            <table className="w-full min-w-[40rem]" aria-label="VM schedules">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">VM</th><th className="px-6 py-3">Action</th><th className="px-6 py-3">Schedule</th><th className="px-6 py-3">Enabled</th><th className="px-6 py-3">Last Run</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {schedules.map((s, i) => (
@@ -960,7 +960,7 @@ export default function SettingsPage() {
             <button onClick={() => { if (!newNotifConfig) return; const next = [...notificationChannels, { id: `notif-${Date.now()}`, channel_type: newNotifType, config: newNotifConfig, enabled: true }]; setNotificationChannels(next); setNewNotifConfig(''); saveNotificationChannels(next).then(() => toast.success('Channel added')).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Add channel" title="Add channel" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
           </div>
           <div className="card overflow-x-auto max-w-full">
-            <table className="w-full min-w-[28rem]">
+            <table className="w-full min-w-[28rem]" aria-label="Notification channels">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Type</th><th className="px-6 py-3">Config</th><th className="px-6 py-3">Enabled</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {notificationChannels.map((ch, i) => (
@@ -1000,7 +1000,7 @@ export default function SettingsPage() {
             <button onClick={() => { if (!newSnapVm) return; const next = [...snapshotSchedules, { id: `snap-${Date.now()}`, vm_name: newSnapVm, interval_hours: parseInt(newSnapInterval) || 24, retain_count: parseInt(newSnapRetain) || 5, enabled: true, last_run: '' }]; setSnapshotSchedules(next); setNewSnapVm(''); saveSnapshotSchedules(next).then(() => toast.success('Snapshot schedule added')).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Add snapshot schedule" title="Add snapshot schedule" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
           </div>
           <div className="card overflow-x-auto max-w-full">
-            <table className="w-full min-w-[36rem]">
+            <table className="w-full min-w-[36rem]" aria-label="Snapshot schedules">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">VM</th><th className="px-6 py-3">Interval</th><th className="px-6 py-3">Retain</th><th className="px-6 py-3">Last Run</th><th className="px-6 py-3">Enabled</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {snapshotSchedules.map((s, i) => (
