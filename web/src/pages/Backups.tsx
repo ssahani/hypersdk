@@ -311,7 +311,7 @@ export default function BackupsPage() {
         {backups.length === 0 ? (
           <EmptyState title="No backups" description="Create a backup to protect your VMs. Backups are stored at the configured target path." />
         ) : (
-          <table className="w-full">
+          <table className="w-full" aria-label="Backup jobs">
             <thead>
               <tr className="border-b border-slate-700/50 text-left text-sm text-slate-400">
                 <th className="px-4 py-3">Backup ID</th>

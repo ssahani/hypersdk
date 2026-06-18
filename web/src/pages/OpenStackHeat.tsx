@@ -118,7 +118,7 @@ function OpenStackHeatContent() {
         <EmptyState title="No Heat stacks" description="Heat may be unreachable or no stacks in this project." />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-700">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" aria-label="Heat stacks">
             <thead className="bg-slate-900/80 text-slate-400 text-left">
               <tr>
                 <th className="px-3 py-2">Name</th>

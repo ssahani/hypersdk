@@ -100,7 +100,7 @@ function OpenStackLoadBalancersContent() {
         <EmptyState title="No load balancers" description="Octavia may be unreachable or no LBs in this project." />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-700">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" aria-label="Load balancers">
             <thead className="bg-slate-900/80 text-slate-400 text-left">
               <tr>
                 <th className="px-3 py-2">Name</th>

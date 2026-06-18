@@ -539,7 +539,7 @@ function OpenStackCreateInstanceContent() {
             <p className="text-sm text-slate-500">No flavors returned from Nova.</p>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-700">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm" aria-label="Flavors">
                 <thead className="bg-slate-900 text-slate-400 text-left">
                   <tr>
                     <th className="px-3 py-2" />

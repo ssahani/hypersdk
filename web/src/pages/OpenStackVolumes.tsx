@@ -386,7 +386,7 @@ function OpenStackVolumesContent() {
         <>
           <div className="rounded-xl border border-slate-700 overflow-hidden">
             <div className="px-3 py-2 bg-slate-900 text-xs text-slate-500 uppercase">Volumes</div>
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" aria-label="OpenStack volumes">
               <thead className="bg-slate-900/80 text-slate-400 text-left">
                 <tr>
                   <th className="px-3 py-2">Name</th>
@@ -512,7 +512,7 @@ function OpenStackVolumesContent() {
                 <span>Snapshots</span>
                 <Link to="/openstack/volume-snapshots" className="text-sky-400 hover:underline normal-case">View all</Link>
               </div>
-              <table className="w-full text-sm">
+              <table className="w-full text-sm" aria-label="Volume snapshots">
                 <thead className="bg-slate-900/80 text-slate-400 text-left">
                   <tr>
                     <th className="px-3 py-2">Name</th>

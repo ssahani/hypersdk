@@ -129,7 +129,7 @@ function OpenStackIdentityContent() {
           <EmptyState title="No projects" description="Insufficient scope or empty catalog." />
         ) : (
           <div className="overflow-x-auto rounded-xl border border-slate-700">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" aria-label="Projects">
               <thead className="bg-slate-900/80 text-slate-400 text-left">
                 <tr><th className="px-3 py-2">Name</th><th className="px-3 py-2">ID</th><th className="px-3 py-2">Enabled</th></tr>
               </thead>
@@ -151,7 +151,7 @@ function OpenStackIdentityContent() {
         <EmptyState title="No users" description="Insufficient scope or empty catalog." />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-700">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" aria-label="Users">
             <thead className="bg-slate-900/80 text-slate-400 text-left">
               <tr><th className="px-3 py-2">Name</th><th className="px-3 py-2">Email</th><th className="px-3 py-2">Enabled</th></tr>
             </thead>
