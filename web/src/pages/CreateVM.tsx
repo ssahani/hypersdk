@@ -943,6 +943,7 @@ export default function CreateVMPage() {
                 <label className="block text-sm text-slate-400">RHEL-family offline image token (POST /guest-images/rhel-url)</label>
                 <input
                   type="password"
+                  autoComplete="off"
                   value={rhelAccessToken}
                   onChange={(e) => setRhelAccessToken(e.target.value)}
                   className="input-field font-mono text-xs"

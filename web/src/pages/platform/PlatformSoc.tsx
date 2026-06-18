@@ -598,6 +598,7 @@ export default function PlatformSoc() {
                 <input
                   className="input w-full mt-1 text-sm"
                   type="password"
+                  autoComplete="off"
                   value={splunkToken}
                   onChange={(e) => setSplunkToken(e.target.value)}
                   placeholder="••••••••"
@@ -654,7 +655,7 @@ export default function PlatformSoc() {
               </label>
               <label className="block text-sm">
                 <span className="text-slate-400 text-xs">API key (leave blank to keep)</span>
-                <input className="input w-full mt-1 text-sm" type="password" value={elasticKey} onChange={(e) => setElasticKey(e.target.value)} placeholder="••••••••" />
+                <input className="input w-full mt-1 text-sm" type="password" autoComplete="off" value={elasticKey} onChange={(e) => setElasticKey(e.target.value)} placeholder="••••••••" />
               </label>
               <label className="block text-sm">
                 <span className="text-slate-400 text-xs">Index</span>
@@ -700,7 +701,7 @@ export default function PlatformSoc() {
               </label>
               <label className="block text-sm">
                 <span className="text-slate-400 text-xs">Client secret (leave blank to keep)</span>
-                <input className="input w-full mt-1 text-sm" type="password" value={sentinelSecret} onChange={(e) => setSentinelSecret(e.target.value)} placeholder="••••••••" />
+                <input className="input w-full mt-1 text-sm" type="password" autoComplete="off" value={sentinelSecret} onChange={(e) => setSentinelSecret(e.target.value)} placeholder="••••••••" />
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={sentinelEnabled} onChange={(e) => setSentinelEnabled(e.target.checked)} />
@@ -726,7 +727,7 @@ export default function PlatformSoc() {
               </label>
               <label className="block text-sm">
                 <span className="text-slate-400 text-xs">API token (leave blank to keep)</span>
-                <input className="input w-full mt-1 text-sm" type="password" value={qradarToken} onChange={(e) => setQradarToken(e.target.value)} placeholder="••••••••" />
+                <input className="input w-full mt-1 text-sm" type="password" autoComplete="off" value={qradarToken} onChange={(e) => setQradarToken(e.target.value)} placeholder="••••••••" />
               </label>
               <label className="block text-sm">
                 <span className="text-slate-400 text-xs">Log source ID</span>

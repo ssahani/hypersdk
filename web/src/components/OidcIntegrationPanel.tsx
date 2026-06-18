@@ -120,6 +120,7 @@ export default function OidcIntegrationPanel({ compact }: Props) {
           <input
             className="input mt-1 w-full"
             type="password"
+            autoComplete="off"
             value={clientSecret}
             onChange={(e) => setClientSecret(e.target.value)}
             placeholder={settings.client_secret_set ? 'Leave blank to keep' : 'Required for confidential clients'}

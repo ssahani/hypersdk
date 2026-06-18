@@ -142,7 +142,7 @@ export default function PlatformAiProviders({ embedded }: { embedded?: boolean }
           </select>
           <input className="input md:col-span-2" placeholder="Base URL (optional — Ollama/vLLM/Azure)" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
           <input className="input" placeholder="Default model" value={modelId} onChange={(e) => setModelId(e.target.value)} />
-          <input className="input" type="password" placeholder="API key" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+          <input className="input" type="password" autoComplete="off" placeholder="API key" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
         </div>
         <button
           type="button"

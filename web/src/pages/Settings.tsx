@@ -530,6 +530,7 @@ export default function SettingsPage() {
               <input
                 className="input-field w-full mt-1"
                 type="password"
+                autoComplete="off"
                 value={otlpAuthInput}
                 placeholder={obsSettings.otlp.authorization_set ? 'Leave blank to keep' : 'Bearer …'}
                 onChange={(e) => setOtlpAuthInput(e.target.value)}
@@ -561,6 +562,7 @@ export default function SettingsPage() {
               <input
                 className="input-field w-full mt-1"
                 type="password"
+                autoComplete="off"
                 value={remoteWriteAuthInput}
                 placeholder="Bearer …"
                 onChange={(e) => setRemoteWriteAuthInput(e.target.value)}

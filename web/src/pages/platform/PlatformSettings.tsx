@@ -142,7 +142,7 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
         </p>
         <div className="grid gap-2 md:grid-cols-2 mt-2">
           <input className="input" aria-label="Basic auth user" placeholder="Basic auth user" value={controllerUser} onChange={(e) => setControllerUser(e.target.value)} />
-          <input className="input" type="password" aria-label="Basic auth password" placeholder="Basic auth password" value={controllerPass} onChange={(e) => setControllerPass(e.target.value)} />
+          <input className="input" type="password" autoComplete="off" aria-label="Basic auth password" placeholder="Basic auth password" value={controllerPass} onChange={(e) => setControllerPass(e.target.value)} />
         </div>
         <button
           type="button"
@@ -197,7 +197,7 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
         <label className="flex items-center gap-2 text-sm text-slate-200"><input type="checkbox" checked={oidc.enabled} onChange={(e) => setOidc({ ...oidc, enabled: e.target.checked })} /> Enable OIDC</label>
         <input className="input" aria-label="Issuer URL" placeholder="issuer URL" value={oidc.issuer} onChange={(e) => setOidc({ ...oidc, issuer: e.target.value })} />
         <input className="input" aria-label="Client ID" placeholder="client id" value={oidc.client_id} onChange={(e) => setOidc({ ...oidc, client_id: e.target.value })} />
-        <input className="input" type="password" aria-label="Client secret" placeholder="client secret" value={oidc.client_secret} onChange={(e) => setOidc({ ...oidc, client_secret: e.target.value })} />
+        <input className="input" type="password" autoComplete="off" aria-label="Client secret" placeholder="client secret" value={oidc.client_secret} onChange={(e) => setOidc({ ...oidc, client_secret: e.target.value })} />
         <input className="input" aria-label="Redirect URI" placeholder="redirect URI (optional)" value={oidc.redirect_uri} onChange={(e) => setOidc({ ...oidc, redirect_uri: e.target.value })} />
         <div className="flex gap-2 flex-wrap">
           <button type="button" className="btn-secondary" onClick={async () => {
@@ -291,7 +291,7 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
           <option value="anthropic">Anthropic</option>
         </select>
         <input className="input" aria-label="AI model" placeholder="Model (e.g. gpt-4o-mini)" value={ai.model} onChange={(e) => setAi({ ...ai, model: e.target.value })} />
-        <input className="input" type="password" aria-label="API key" placeholder={ai.api_key_configured ? 'API key configured — enter to replace' : 'API key'} value={aiKey} onChange={(e) => setAiKey(e.target.value)} />
+        <input className="input" type="password" autoComplete="off" aria-label="API key" placeholder={ai.api_key_configured ? 'API key configured — enter to replace' : 'API key'} value={aiKey} onChange={(e) => setAiKey(e.target.value)} />
         <button type="button" className="btn-secondary" onClick={async () => {
           try {
             const body: Partial<AiSettings & { api_key?: string }> = {

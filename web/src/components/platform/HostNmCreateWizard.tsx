@@ -106,7 +106,7 @@ export default function HostNmCreateWizard({ hostId, classic = false, onRefresh 
       {kind === 'wifi' && (
         <div className="grid gap-2">
           <input className="input text-xs" value={wifiSsid} onChange={(e) => setWifiSsid(e.target.value)} placeholder="SSID" />
-          <input className="input text-xs" value={wifiPassword} onChange={(e) => setWifiPassword(e.target.value)} placeholder="Password (optional)" type="password" />
+          <input className="input text-xs" value={wifiPassword} onChange={(e) => setWifiPassword(e.target.value)} placeholder="Password (optional)" type="password" autoComplete="off" />
           <button type="button" className="btn-secondary text-xs" disabled={busy} onClick={() => void runAction('cockpit.nm.create_wifi', { ssid: wifiSsid, password: wifiPassword })}>
             Connect Wi-Fi
           </button>

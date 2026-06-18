@@ -104,7 +104,7 @@ function OpenStackIdentityContent() {
         <div className="rounded-xl border border-slate-700 p-4 flex flex-wrap gap-2 items-center">
           <input value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="Username"
             className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
-          <input type="password" value={userPassword} onChange={(e) => setUserPassword(e.target.value)} placeholder="Password"
+          <input type="password" autoComplete="new-password" value={userPassword} onChange={(e) => setUserPassword(e.target.value)} placeholder="Password"
             className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
           <button type="button" className="px-3 py-1.5 rounded-lg bg-amber-700 text-white text-sm inline-flex items-center gap-1"
             onClick={async () => {

@@ -450,7 +450,7 @@ export default function PlatformTemplates() {
                 </label>
                 <label className="block text-sm">
                   <span className="text-slate-400">Password (optional)</span>
-                  <input type="password" className="input w-full mt-1" value={cloudPass} onChange={(e) => setCloudPass(e.target.value)} />
+                  <input type="password" autoComplete="new-password" className="input w-full mt-1" value={cloudPass} onChange={(e) => setCloudPass(e.target.value)} />
                 </label>
                 <label className="block text-sm">
                   <span className="text-slate-400">SSH public key (optional)</span>

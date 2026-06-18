@@ -165,6 +165,7 @@ export default function AdIntegrationPanel({ compact }: Props) {
           Service bind password
           <input
             type="password"
+            autoComplete="off"
             className={`${inputClass} mt-1`}
             placeholder={settings.bind_password_set ? '•••••••• (unchanged)' : 'Optional'}
             value={bindPassword}
@@ -230,7 +231,7 @@ export default function AdIntegrationPanel({ compact }: Props) {
           </label>
           <label className="text-xs text-slate-400">
             Password
-            <input type="password" className={`${inputClass} mt-1`} value={testPass} onChange={(e) => setTestPass(e.target.value)} />
+            <input type="password" autoComplete="current-password" className={`${inputClass} mt-1`} value={testPass} onChange={(e) => setTestPass(e.target.value)} />
           </label>
           <button type="button" className="btn-secondary text-sm" disabled={testing || !testUser || !testPass} onClick={() => void testBind()}>
             {testing ? 'Testing…' : 'Test LDAP'}

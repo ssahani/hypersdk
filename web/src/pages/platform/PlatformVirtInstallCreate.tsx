@@ -414,11 +414,11 @@ export default function PlatformVirtInstallCreate() {
                 Use virt-install --unattended (when supported on hypervisor)
               </label>
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-xs text-slate-500">Admin password<input type="password" className="input w-full text-sm mt-1" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} /></label>
+                <label className="text-xs text-slate-500">Admin password<input type="password" autoComplete="new-password" className="input w-full text-sm mt-1" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} /></label>
                 <label className="text-xs text-slate-500">User login<input className="input w-full text-sm mt-1" value={userLogin} onChange={(e) => setUserLogin(e.target.value)} /></label>
-                <label className="text-xs text-slate-500">User password<input type="password" className="input w-full text-sm mt-1" value={userPassword} onChange={(e) => setUserPassword(e.target.value)} /></label>
+                <label className="text-xs text-slate-500">User password<input type="password" autoComplete="new-password" className="input w-full text-sm mt-1" value={userPassword} onChange={(e) => setUserPassword(e.target.value)} /></label>
                 <label className="text-xs text-slate-500">Cloud-init user<input className="input w-full text-sm mt-1" value={cloudInitUser} onChange={(e) => setCloudInitUser(e.target.value)} /></label>
-                <label className="text-xs text-slate-500">Cloud-init password<input type="password" className="input w-full text-sm mt-1" value={cloudInitPassword} onChange={(e) => setCloudInitPassword(e.target.value)} /></label>
+                <label className="text-xs text-slate-500">Cloud-init password<input type="password" autoComplete="new-password" className="input w-full text-sm mt-1" value={cloudInitPassword} onChange={(e) => setCloudInitPassword(e.target.value)} /></label>
               </div>
               <label className="text-xs text-slate-500 block mt-3">SSH public key</label>
               <textarea className="input w-full text-sm font-mono mt-1 min-h-[4rem]" value={cloudInitSshKey} onChange={(e) => setCloudInitSshKey(e.target.value)} />
