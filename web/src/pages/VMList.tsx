@@ -435,7 +435,7 @@ export default function VMList() {
                   <button onClick={() => action(vm, resumeVM, 'Resume')} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-ok)_25%,transparent)]`} title="Resume"><RotateCcw className={`w-4 h-4 ${statusToneClass('ok')}`} /></button>
                 )}
                 <div className="flex-1" />
-                <button onClick={() => setDeleteTarget({ name: vm.name, libvirt_connection: vm.libvirt_connection })} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)]`} title="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
+                <button onClick={() => setDeleteTarget({ name: vm.name, libvirt_connection: vm.libvirt_connection })} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)]`} title="Delete" aria-label="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
               </div>
             </div>
           ))}

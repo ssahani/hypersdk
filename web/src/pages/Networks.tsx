@@ -195,10 +195,10 @@ export default function NetworksPage() {
                 </td>
                 <td className="px-6 py-3">
                   <div className="flex items-center justify-end gap-1">
-                    <button type="button" onClick={() => void openEditXml(net)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Edit XML"><Pencil className="w-4 h-4 text-slate-300" /></button>
-                    {!net.active && <button onClick={() => action(net.name, startNetwork, 'Start network')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start"><Play className={`w-4 h-4 ${statusToneClass('ok')}`} /></button>}
-                    {net.active && <button onClick={() => action(net.name, stopNetwork, 'Stop network')} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Stop"><Square className={`w-4 h-4 ${statusToneClass('error')}`} /></button>}
-                    <button onClick={() => setDeleteTarget(net.name)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
+                    <button type="button" onClick={() => void openEditXml(net)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Edit XML" aria-label="Edit XML"><Pencil className="w-4 h-4 text-slate-300" /></button>
+                    {!net.active && <button onClick={() => action(net.name, startNetwork, 'Start network')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start" aria-label="Start"><Play className={`w-4 h-4 ${statusToneClass('ok')}`} /></button>}
+                    {net.active && <button onClick={() => action(net.name, stopNetwork, 'Stop network')} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Stop" aria-label="Stop"><Square className={`w-4 h-4 ${statusToneClass('error')}`} /></button>}
+                    <button onClick={() => setDeleteTarget(net.name)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete" aria-label="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
                   </div>
                 </td>
               </tr>

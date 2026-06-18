@@ -122,8 +122,8 @@ export default function NWFiltersPage() {
                   <td className="px-6 py-3 text-xs font-mono text-slate-500 hidden md:table-cell">{f.uuid}</td>
                   <td className="px-6 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => showXml(f.name)} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="View XML"><Code className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
-                      <button onClick={() => setDeleteTarget(f.name)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
+                      <button onClick={() => showXml(f.name)} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="View XML" aria-label="View XML"><Code className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
+                      <button onClick={() => setDeleteTarget(f.name)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete" aria-label="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
                     </div>
                   </td>
                 </tr>
