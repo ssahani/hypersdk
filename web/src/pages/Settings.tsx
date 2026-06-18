@@ -692,7 +692,7 @@ export default function SettingsPage() {
       {tab === 'roles' && (
         <div className="space-y-4">
           <div className="flex flex-col gap-2 min-w-0 sm:flex-row sm:flex-wrap sm:items-center">
-            <input value={newRoleUser} onChange={e => setNewRoleUser(e.target.value)} className="input-field flex-1 min-w-0 sm:min-w-[12rem]" placeholder="Username" />
+            <input value={newRoleUser} onChange={e => setNewRoleUser(e.target.value)} aria-label="Username" className="input-field flex-1 min-w-0 sm:min-w-[12rem]" placeholder="Username" />
             <select value={newRoleVal} onChange={e => setNewRoleVal(e.target.value)} aria-label="Role" className="input-field w-full sm:w-40 shrink-0">
               <option value="admin">Admin</option>
               <option value="operator">Operator</option>
@@ -748,8 +748,8 @@ export default function SettingsPage() {
                         Add to <code className="text-xs bg-slate-900/80 px-1 rounded">{osUserCap.libvirtGroupName ?? 'libvirt'}</code> group (libvirt / qemu system URI)
                       </label>
                       <div className="flex flex-col sm:flex-row gap-2">
-                        <input value={newOsUsername} onChange={e => setNewOsUsername(e.target.value)} className="input-field flex-1" placeholder="New username" autoComplete="off" />
-                        <input value={newOsPassword} onChange={e => setNewOsPassword(e.target.value)} type="password" className="input-field flex-1" placeholder="Initial password" autoComplete="new-password" />
+                        <input value={newOsUsername} onChange={e => setNewOsUsername(e.target.value)} aria-label="New username" className="input-field flex-1" placeholder="New username" autoComplete="off" />
+                        <input value={newOsPassword} onChange={e => setNewOsPassword(e.target.value)} type="password" aria-label="Initial password" className="input-field flex-1" placeholder="Initial password" autoComplete="new-password" />
                         <button
                           type="button"
                           onClick={async () => {
@@ -776,7 +776,7 @@ export default function SettingsPage() {
                     <div className="pt-3 border-t border-slate-700/40 space-y-2">
                       <p className="text-xs text-slate-500">Delete a UNIX account and remove its home directory. You cannot remove the account you are signed in as.</p>
                       <div className="flex flex-col sm:flex-row gap-2">
-                        <input value={deleteOsUsername} onChange={e => setDeleteOsUsername(e.target.value)} className="input-field flex-1" placeholder="Username to remove" autoComplete="off" />
+                        <input value={deleteOsUsername} onChange={e => setDeleteOsUsername(e.target.value)} aria-label="Username to remove" className="input-field flex-1" placeholder="Username to remove" autoComplete="off" />
                         <button
                           type="button"
                           onClick={() => {
@@ -804,8 +804,8 @@ export default function SettingsPage() {
       {tab === 'tokens' && (
         <div className="space-y-4">
           <div className="flex flex-col gap-2 min-w-0 sm:flex-row sm:flex-wrap sm:items-center">
-            <input value={newTokenName} onChange={e => setNewTokenName(e.target.value)} className="input-field flex-1 min-w-0" placeholder="Token name" />
-            <input value={newTokenUser} onChange={e => setNewTokenUser(e.target.value)} className="input-field w-full sm:w-32 shrink-0" placeholder="User" />
+            <input value={newTokenName} onChange={e => setNewTokenName(e.target.value)} aria-label="Token name" className="input-field flex-1 min-w-0" placeholder="Token name" />
+            <input value={newTokenUser} onChange={e => setNewTokenUser(e.target.value)} aria-label="Token user" className="input-field w-full sm:w-32 shrink-0" placeholder="User" />
             <select value={newTokenRole} onChange={e => setNewTokenRole(e.target.value)} aria-label="Token role" className="input-field w-full sm:w-32 shrink-0">
               <option value="admin">Admin</option>
               <option value="operator">Operator</option>
@@ -995,7 +995,7 @@ export default function SettingsPage() {
               <option value="12">Every 12h</option>
               <option value="24">Every 24h</option>
             </select>
-            <input type="number" value={newSnapRetain} onChange={e => setNewSnapRetain(e.target.value)} className="input-field w-24" placeholder="Retain" min="1" max="100" />
+            <input type="number" value={newSnapRetain} onChange={e => setNewSnapRetain(e.target.value)} aria-label="Retain count" className="input-field w-24" placeholder="Retain" min="1" max="100" />
             <button onClick={() => { if (!newSnapVm) return; const next = [...snapshotSchedules, { id: `snap-${Date.now()}`, vm_name: newSnapVm, interval_hours: parseInt(newSnapInterval) || 24, retain_count: parseInt(newSnapRetain) || 5, enabled: true, last_run: '' }]; setSnapshotSchedules(next); setNewSnapVm(''); saveSnapshotSchedules(next).then(() => toast.success('Snapshot schedule added')).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Add snapshot schedule" title="Add snapshot schedule" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
           </div>
           <div className="card overflow-x-auto max-w-full">
