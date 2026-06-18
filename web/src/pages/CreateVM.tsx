@@ -821,6 +821,7 @@ export default function CreateVMPage() {
               <div>
                 <label className="block text-sm text-slate-400 mb-1">Recently discovered ISOs</label>
                 <select
+                  aria-label="Recently discovered ISOs"
                   value=""
                   onChange={(e) => e.target.value && setIso(e.target.value)}
                   className="input-field"
