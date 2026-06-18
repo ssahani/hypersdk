@@ -570,6 +570,7 @@ export default function K8sOverviewPage() {
             </>
           )}
           <select
+            aria-label="kubectl context"
             value={context}
             onChange={(e) => setContext(e.target.value)}
             className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 max-w-[18rem]"
