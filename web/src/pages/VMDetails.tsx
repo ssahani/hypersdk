@@ -3423,6 +3423,12 @@ function EditableRow({ label, value, onEdit }: { label: string; value: string | 
 }
 
 function DialogOverlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onClose])
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in" role="dialog" aria-modal="true" onClick={onClose}>
       {children}
@@ -3444,7 +3450,11 @@ function DialogBox({ title, icon, onClose, onConfirm, confirmLabel, children, co
     ? 'bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed'
     : 'bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed'
   return (
-    <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+    <form
+      className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-fade-in"
+      onClick={(e) => e.stopPropagation()}
+      onSubmit={(e) => { e.preventDefault(); if (!confirmDisabled) onConfirm() }}
+    >
       <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
         <span className="text-lg font-semibold flex items-center gap-2">{icon} {title}</span>
         <button type="button" onClick={onClose} className="p-1 hover:bg-slate-700 rounded transition" aria-label="Close"><X className="w-4 h-4 text-slate-400" /></button>
@@ -3452,8 +3462,8 @@ function DialogBox({ title, icon, onClose, onConfirm, confirmLabel, children, co
       <div className="p-5 space-y-1">{children}</div>
       <div className="flex justify-end gap-3 px-5 pb-5">
         <button type="button" onClick={onClose} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
-        <button type="button" onClick={onConfirm} disabled={confirmDisabled} className={`px-4 py-2 rounded-lg text-sm text-white font-medium transition ${confirmClass}`}>{confirmLabel}</button>
+        <button type="submit" disabled={confirmDisabled} className={`px-4 py-2 rounded-lg text-sm text-white font-medium transition ${confirmClass}`}>{confirmLabel}</button>
       </div>
-    </div>
+    </form>
   )
 }
