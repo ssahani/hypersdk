@@ -590,6 +590,36 @@ pub async fn enforcement_policy_tetragon(
     Ok(Json(packetwolf_bridge::enforcement_policy_tetragon(&state.config, &policy_id).await))
 }
 
+pub async fn attach_enforcement(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&actor)?;
+    Ok(Json(
+        crate::engine::packetwolf_enforcement::attach_enforcement(&state.config).await,
+    ))
+}
+
+pub async fn sync_enforcement(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&actor)?;
+    Ok(Json(
+        crate::engine::packetwolf_enforcement::sync_enforcement(&state.config).await,
+    ))
+}
+
+pub async fn detach_enforcement(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&actor)?;
+    Ok(Json(
+        crate::engine::packetwolf_enforcement::detach_enforcement(&state.config).await,
+    ))
+}
+
 pub async fn install_fleet_tetragon(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,

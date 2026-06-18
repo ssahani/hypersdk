@@ -663,6 +663,13 @@ except Exception:
   e2e_platform_smoke_get "/api/v1/zeus-security/fleet/threat" "GET /api/v1/zeus-security/fleet/threat" || true
   e2e_platform_smoke_get "/api/v1/zeus-security/fleet/sensors" "GET /api/v1/zeus-security/fleet/sensors" || true
   e2e_platform_smoke_get "/api/v1/zeus-security/fleet/timeline?hours=24" "GET /api/v1/zeus-security/fleet/timeline" || true
+  e2e_platform_smoke_get "/api/v1/zeus-security/enforcement/status" "GET /api/v1/zeus-security/enforcement/status" || true
+  enf="$(e2e_platform_curl "${E2E_PLATFORM_BASE}/api/v1/zeus-security/enforcement/policies")"
+  if echo "$enf" | grep -q '"policies"'; then
+    e2e_platform_ok "GET /api/v1/zeus-security/enforcement/policies (normalized)"
+  else
+    e2e_platform_fail "GET /api/v1/zeus-security/enforcement/policies — missing policies array"
+  fi
   canvas="$(e2e_platform_curl "${E2E_PLATFORM_BASE}/api/v1/network-canvas")"
   if echo "$canvas" | grep -q '"packetwolf"' && echo "$canvas" | grep -q '"network_pulse"'; then
     e2e_platform_ok "GET /api/v1/network-canvas (PacketWolf pulse bundle)"

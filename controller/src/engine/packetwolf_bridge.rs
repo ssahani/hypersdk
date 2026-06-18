@@ -217,6 +217,20 @@ fn delete_json(cfg: &ControllerConfig, path: &str) -> Option<Value> {
         .and_then(|r| r.json().ok())
 }
 
+fn put_json(cfg: &ControllerConfig, path: &str, body: Value) -> Option<Value> {
+    if !cfg.packetwolf_enabled {
+        return None;
+    }
+    let Ok(client) = build_client(cfg.packetwolf_insecure_tls, 15) else {
+        return None;
+    };
+    let url = format!("{}{}", cfg.packetwolf_base_url.trim_end_matches('/'), path);
+    auth_headers(cfg, client.put(&url).json(&body))
+        .send()
+        .ok()
+        .and_then(|r| r.json().ok())
+}
+
 pub async fn fabric_get(cfg: &ControllerConfig, path: &str) -> Value {
     let cfg = cfg.clone();
     let path = path.to_string();
@@ -252,6 +266,16 @@ pub async fn fabric_delete(cfg: &ControllerConfig, path: &str) -> Value {
     let path = path.to_string();
     tokio::task::spawn_blocking(move || {
         delete_json(&cfg, &path).unwrap_or_else(|| serde_json::json!({"ok": false}))
+    })
+    .await
+    .unwrap_or_else(|_| serde_json::json!({"ok": false}))
+}
+
+pub async fn fabric_put(cfg: &ControllerConfig, path: &str, body: Value) -> Value {
+    let cfg = cfg.clone();
+    let path = path.to_string();
+    tokio::task::spawn_blocking(move || {
+        put_json(&cfg, &path, body).unwrap_or_else(|| serde_json::json!({"ok": false}))
     })
     .await
     .unwrap_or_else(|_| serde_json::json!({"ok": false}))
@@ -712,26 +736,18 @@ pub async fn correlations(cfg: &ControllerConfig) -> serde_json::Value {
 }
 
 pub async fn enforcement_status(cfg: &ControllerConfig) -> serde_json::Value {
-    if production_network_api_available(cfg) && !dev_fabric_api_available(cfg) {
-        fabric_get(cfg, "/api/v1/runtime/enforcement/status").await
-    } else {
-        fabric_get(cfg, "/api/v1/enforcement/status").await
-    }
+    crate::engine::packetwolf_enforcement::enforcement_status(cfg).await
 }
 
 pub async fn enforcement_policies(cfg: &ControllerConfig) -> serde_json::Value {
-    if production_network_api_available(cfg) && !dev_fabric_api_available(cfg) {
-        fabric_get(cfg, "/api/v1/runtime/enforcement/rules").await
-    } else {
-        fabric_get(cfg, "/api/v1/enforcement/policies").await
-    }
+    crate::engine::packetwolf_enforcement::enforcement_policies(cfg).await
 }
 
 pub async fn create_enforcement_policy(
     cfg: &ControllerConfig,
     body: serde_json::Value,
 ) -> serde_json::Value {
-    fabric_post(cfg, "/api/v1/enforcement/policies", body).await
+    crate::engine::packetwolf_enforcement::create_enforcement_policy(cfg, body).await
 }
 
 pub async fn apply_enforcement_policy(
@@ -739,13 +755,7 @@ pub async fn apply_enforcement_policy(
     policy_id: &str,
     host_ids: &[String],
 ) -> serde_json::Value {
-    let body = serde_json::json!({ "host_ids": host_ids });
-    fabric_post(
-        cfg,
-        &format!("/api/v1/enforcement/policies/{policy_id}/apply"),
-        body,
-    )
-    .await
+    crate::engine::packetwolf_enforcement::apply_enforcement_policy(cfg, policy_id, host_ids).await
 }
 
 pub async fn patch_enforcement_policy(
@@ -753,24 +763,15 @@ pub async fn patch_enforcement_policy(
     policy_id: &str,
     body: Value,
 ) -> Value {
-    fabric_patch(
-        cfg,
-        &format!("/api/v1/enforcement/policies/{policy_id}"),
-        body,
-    )
-    .await
+    crate::engine::packetwolf_enforcement::patch_enforcement_policy(cfg, policy_id, body).await
 }
 
 pub async fn delete_enforcement_policy(cfg: &ControllerConfig, policy_id: &str) -> Value {
-    fabric_delete(cfg, &format!("/api/v1/enforcement/policies/{policy_id}")).await
+    crate::engine::packetwolf_enforcement::delete_enforcement_policy(cfg, policy_id).await
 }
 
 pub async fn enforcement_policy_tetragon(cfg: &ControllerConfig, policy_id: &str) -> Value {
-    fabric_get(
-        cfg,
-        &format!("/api/v1/enforcement/policies/{policy_id}/tetragon"),
-    )
-    .await
+    crate::engine::packetwolf_enforcement::enforcement_policy_tetragon(cfg, policy_id).await
 }
 
 pub async fn host_enforcement(cfg: &ControllerConfig, host_id: &str) -> serde_json::Value {
