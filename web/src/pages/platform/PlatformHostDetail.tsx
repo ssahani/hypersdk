@@ -516,8 +516,8 @@ export default function PlatformHostDetailPage() {
                 )}
                 {lldp?.neighbors && lldp.neighbors.length > 0 && (
                   <MacGlassPanel title={`LLDP (${lldp.source})`}>
-                    {lldp.neighbors.slice(0, 10).map((n, i) => (
-                      <MacListRow key={i} title={n.system_name || n.chassis_id || 'neighbor'} subtitle={`${n.local_interface} → ${n.port_id || n.port_description}`} />
+                    {lldp.neighbors.slice(0, 10).map((n) => (
+                      <MacListRow key={n.local_interface ?? n.chassis_id ?? n.system_name} title={n.system_name || n.chassis_id || 'neighbor'} subtitle={`${n.local_interface} → ${n.port_id || n.port_description}`} />
                     ))}
                   </MacGlassPanel>
                 )}
@@ -822,7 +822,7 @@ export default function PlatformHostDetailPage() {
                     {(audit.events ?? []).length > 0 && (
                       <ul className="mt-3 space-y-1 font-mono text-[10px] text-slate-500">
                         {audit.events!.slice(0, 20).map((ev, i) => (
-                          <li key={i} className="border-b border-white/[0.04] pb-1">{String(ev.summary ?? ev.message ?? JSON.stringify(ev))}</li>
+                          <li key={String(ev.summary ?? ev.message ?? i)} className="border-b border-white/[0.04] pb-1">{String(ev.summary ?? ev.message ?? JSON.stringify(ev))}</li>
                         ))}
                       </ul>
                     )}
