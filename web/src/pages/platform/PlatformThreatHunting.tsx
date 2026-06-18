@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import EbpfActionMenu, { correlationKindToEnforce } from '../../components/platform/EbpfActionMenu'
-import { Bot, Search, Sparkles } from 'lucide-react'
+import { Bot, Search, Sparkles, X } from 'lucide-react'
 import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import SecurityTimelinePanel from '../../components/platform/SecurityTimelinePanel'
@@ -240,13 +240,22 @@ export default function PlatformThreatHunting() {
 
       <MacGlassPanel title="Natural language search" subtitle="LLM query translation + PacketWolf index">
         <div className="flex flex-wrap gap-2">
-          <input
-            className="input text-sm flex-1 min-w-[14rem]"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Find every sudo event last week"
-            onKeyDown={(e) => e.key === 'Enter' && void nlSecuritySearch(query).then(applySearchResponse).catch((err: unknown) => setError(formatUserError(err)))}
-          />
+          <div className="relative flex-1 min-w-[14rem]">
+            <input
+              className={`input text-sm w-full ${query ? 'pr-8' : ''}`}
+              aria-label="Security search query"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Find every sudo event last week"
+              onKeyDown={(e) => e.key === 'Enter' && void nlSecuritySearch(query).then(applySearchResponse).catch((err: unknown) => setError(formatUserError(err)))}
+            />
+            {query && (
+              <button type="button" aria-label="Clear query" onClick={() => setQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
           <button
             type="button"
             className="btn-secondary text-sm"
