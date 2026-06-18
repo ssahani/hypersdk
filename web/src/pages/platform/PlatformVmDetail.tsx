@@ -1,9 +1,10 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield, ExternalLink, Monitor, Pause, Power, Server, Loader2, Network, ToggleLeft, ToggleRight, FolderOpen, Cpu } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import GuestToolsStrip from '../../components/platform/GuestToolsStrip'
 import GuestAgentDiagnosticsPanel, {
   GuestAgentHeaderPill,
@@ -275,6 +276,9 @@ export default function PlatformVmDetail() {
   const [sshDialogOpen, setSshDialogOpen] = useState(false)
   const [portForwardRules, setPortForwardRules] = useState<VmPortForwardRule[]>([])
   const [consolePlan, setConsolePlan] = useState<ConsoleHubPlan | null>(null)
+  const [vmConfirmOp, setVmConfirmOp] = useState<'delete' | 'delete_kubevirt' | 'remove_stale' | 'retire' | null>(null)
+  const [snapConfirmMsg, setSnapConfirmMsg] = useState<{ message: string; action: string } | null>(null)
+  const snapActionRef = useRef<(() => Promise<void>) | null>(null)
 
   const migrationDisks = useMemo(
     () => (libvirtDetails?.disks ?? []).filter((d) => d.device === 'disk' && d.source),
@@ -646,7 +650,11 @@ export default function PlatformVmDetail() {
         toast.error(pre.message || `${action} blocked`)
         return
       }
-      if (pre.message && !window.confirm(`${pre.message}\n\nContinue with ${action}?`)) return
+      if (pre.message) {
+        snapActionRef.current = async () => act(label, run)
+        setSnapConfirmMsg({ message: pre.message, action })
+        return
+      }
       await act(label, run)
     } catch (e: unknown) {
       toast.error(formatUserError(e))
@@ -844,10 +852,7 @@ export default function PlatformVmDetail() {
             spotlightPrefill={spotlightPrefill}
             onSsh={() => setSshDialogOpen(true)}
             onOpenHardware={() => setHardwareDrawerOpen(true)}
-            onDelete={() => {
-              if (!window.confirm('Delete this VM permanently?')) return
-              void queueVmDelete('Delete queued')
-            }}
+            onDelete={() => setVmConfirmOp('delete')}
             onPopout={!isPopout ? () => openCenterPopout(`/platform/vms/${id}`) : undefined}
             act={act}
             power={{
@@ -937,10 +942,7 @@ export default function PlatformVmDetail() {
                 <button
                   type="button"
                   className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-red-500/15 text-red-200 border border-red-500/35 hover:bg-red-500/25"
-                  onClick={() => {
-                    if (!window.confirm(`Delete KubeVirt VM ${vm.k8s_namespace ?? 'default'}/${vm.name}?`)) return
-                    void act('Delete requested', () => deleteK8sKubevirtVm(vm.k8s_namespace ?? 'default', vm.name))
-                  }}
+                  onClick={() => setVmConfirmOp('delete_kubevirt')}
                 >
                   <Trash2 className="w-3.5 h-3.5" /> Delete CR
                 </button>
@@ -1028,10 +1030,7 @@ export default function PlatformVmDetail() {
               <button
                 type="button"
                 className="btn-danger text-sm"
-                onClick={() => {
-                  if (!window.confirm('Remove this stale VM record from the platform?')) return
-                  void queueVmDelete('Stale VM removed')
-                }}
+                onClick={() => setVmConfirmOp('remove_stale')}
               >
                 <Trash2 className="w-4 h-4" /> Remove stale record
               </button>
@@ -2308,10 +2307,7 @@ export default function PlatformVmDetail() {
                     type="button"
                     className="btn-secondary text-sm"
                     disabled={vm.lifecycle_phase === 'retired'}
-                    onClick={() => {
-                      if (!window.confirm('Retire this VM? It will be stopped and cannot be started until restored manually.')) return
-                      void act('VM retired', () => retirePlatformVm(id, true))
-                    }}
+                    onClick={() => setVmConfirmOp('retire')}
                   >
                     Retire VM
                   </button>
@@ -2487,6 +2483,55 @@ export default function PlatformVmDetail() {
           )}
         </>
       )}
+      <ConfirmDialog
+        open={vmConfirmOp === 'delete'}
+        title="Delete VM Permanently"
+        message="Delete this VM permanently? All disks and configuration will be removed. This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onCancel={() => setVmConfirmOp(null)}
+        onConfirm={() => { setVmConfirmOp(null); void queueVmDelete('Delete queued') }}
+      />
+      <ConfirmDialog
+        open={vmConfirmOp === 'delete_kubevirt'}
+        title="Delete KubeVirt VM"
+        message={`Delete KubeVirt VirtualMachine ${vm?.k8s_namespace ?? 'default'}/${vm?.name ?? ''}? The CR will be removed from the cluster.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onCancel={() => setVmConfirmOp(null)}
+        onConfirm={() => { setVmConfirmOp(null); if (vm) void act('Delete requested', () => deleteK8sKubevirtVm(vm.k8s_namespace ?? 'default', vm.name)) }}
+      />
+      <ConfirmDialog
+        open={vmConfirmOp === 'remove_stale'}
+        title="Remove Stale VM Record"
+        message="Remove this stale VM record from the platform? The VM no longer exists in the hypervisor inventory."
+        confirmLabel="Remove"
+        variant="danger"
+        onCancel={() => setVmConfirmOp(null)}
+        onConfirm={() => { setVmConfirmOp(null); void queueVmDelete('Stale VM removed') }}
+      />
+      <ConfirmDialog
+        open={vmConfirmOp === 'retire'}
+        title="Retire VM"
+        message="Retire this VM? It will be stopped and cannot be started until restored manually."
+        confirmLabel="Retire"
+        variant="warning"
+        onCancel={() => setVmConfirmOp(null)}
+        onConfirm={() => { setVmConfirmOp(null); if (id) void act('VM retired', () => retirePlatformVm(id, true)) }}
+      />
+      <ConfirmDialog
+        open={snapConfirmMsg !== null}
+        title={`Confirm ${snapConfirmMsg?.action ?? 'Action'}`}
+        message={`${snapConfirmMsg?.message ?? ''}\n\nContinue with ${snapConfirmMsg?.action ?? 'this action'}?`}
+        confirmLabel="Continue"
+        variant="warning"
+        onCancel={() => { setSnapConfirmMsg(null); snapActionRef.current = null }}
+        onConfirm={async () => {
+          setSnapConfirmMsg(null)
+          if (snapActionRef.current) await snapActionRef.current()
+          snapActionRef.current = null
+        }}
+      />
     </PageLayout>
   )
 }

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import { Link } from 'react-router'
 import { useToastContext } from '../../contexts/ToastContext'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
@@ -85,6 +86,7 @@ export default function PlatformZeusOs() {
   const [capacitySummary, setCapacitySummary] = useState<string | null>(null)
   const [rebalancePreview, setRebalancePreview] = useState<string | null>(null)
   const [rebalanceExecuteBusy, setRebalanceExecuteBusy] = useState(false)
+  const [confirmRebalanceExecute, setConfirmRebalanceExecute] = useState(false)
   const [rebalanceTaskIds, setRebalanceTaskIds] = useState<string[]>([])
   const [frameworksSummary, setFrameworksSummary] = useState<string | null>(null)
   const [gpuSummary, setGpuSummary] = useState<string | null>(null)
@@ -198,6 +200,26 @@ export default function PlatformZeusOs() {
     if (tab === 'services') void loadServices()
     if (tab === 'baremetal') void loadBaremetal()
   }, [tab, loadFleet, loadSecurity, loadServices, loadBaremetal])
+
+  const doExecuteRebalance = async () => {
+    setConfirmRebalanceExecute(false)
+    const n = rebalance?.moves.length ?? 0
+    setRebalanceExecuteBusy(true)
+    try {
+      const r = await executeFleetRebalance(false, n)
+      setRebalancePreview(r.summary)
+      setRebalanceTaskIds(r.task_ids ?? [])
+      if (r.task_ids?.length) {
+        toastQueuedOperation(toast, `Rebalance queued (${r.task_ids.length} moves)`, r.task_ids[0], tier)
+      } else {
+        toast.success(r.summary)
+      }
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setRebalanceExecuteBusy(false)
+    }
+  }
 
   const runKnowledge = async () => {
     try {
@@ -360,25 +382,7 @@ export default function PlatformZeusOs() {
                     type="button"
                     className="btn-primary text-xs"
                     disabled={rebalanceExecuteBusy}
-                    onClick={async () => {
-                      const n = rebalance.moves.length
-                      if (!window.confirm(`Queue up to ${n} live migration${n === 1 ? '' : 's'}?`)) return
-                      setRebalanceExecuteBusy(true)
-                      try {
-                        const r = await executeFleetRebalance(false, n)
-                        setRebalancePreview(r.summary)
-                        setRebalanceTaskIds(r.task_ids ?? [])
-                        if (r.task_ids?.length) {
-                          toastQueuedOperation(toast, `Rebalance queued (${r.task_ids.length} moves)`, r.task_ids[0], tier)
-                        } else {
-                          toast.success(r.summary)
-                        }
-                      } catch (e: unknown) {
-                        toast.error(formatUserError(e))
-                      } finally {
-                        setRebalanceExecuteBusy(false)
-                      }
-                    }}
+                    onClick={() => setConfirmRebalanceExecute(true)}
                   >
                     {rebalanceExecuteBusy ? 'Queuing…' : 'Execute moves'}
                   </button>
@@ -538,6 +542,15 @@ export default function PlatformZeusOs() {
           </MacGlassPanel>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmRebalanceExecute}
+        title="Execute Fleet Rebalance"
+        message={`Queue up to ${rebalance?.moves.length ?? 0} live migration${(rebalance?.moves.length ?? 0) === 1 ? '' : 's'}? VMs will be live-migrated to more balanced hosts.`}
+        confirmLabel="Execute"
+        variant="warning"
+        onCancel={() => setConfirmRebalanceExecute(false)}
+        onConfirm={() => void doExecuteRebalance()}
+      />
     </PlatformPageChrome>
   )
 }

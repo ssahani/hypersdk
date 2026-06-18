@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import { Link, useNavigate } from 'react-router'
 import { ArrowRightLeft, CheckCircle2, AlertTriangle, XCircle, ExternalLink, Play, Loader2 } from 'lucide-react'
 import { MacGlassPanel, MacListRow } from '../../components/platform/mac/PlatformMacUi'
@@ -62,6 +63,7 @@ export default function PlatformMigration() {
   const [jobStatus, setJobStatus] = useState<string | null>(null)
   const [planSummary, setPlanSummary] = useState<string | null>(null)
   const [jobPolling, setJobPolling] = useState(false)
+  const [confirmMigration, setConfirmMigration] = useState<{ vm: ScanVm; force: boolean } | null>(null)
   const [gkJobs, setGkJobs] = useState<GuestkitJobRow[]>([])
   const [gkCaps, setGkCaps] = useState<string | null>(null)
   const [hsProxyPath, setHsProxyPath] = useState('/providers')
@@ -97,8 +99,8 @@ export default function PlatformMigration() {
   const migrateVm = async (vm: ScanVm, force = false) => {
     if (!hypersdk || vm.name.startsWith('(')) return
     if (!force && vm.status === 'check' && vm.advisor?.risks?.length) {
-      const risks = vm.advisor.risks.slice(0, 5).join('\n• ')
-      if (!window.confirm(`Migration advisor warnings:\n• ${risks}\n\nContinue anyway?`)) return
+      setConfirmMigration({ vm, force: true })
+      return
     }
     setMigrating(vm.name)
     try {
@@ -431,6 +433,19 @@ export default function PlatformMigration() {
       </section>
       </>
       )}
+      <ConfirmDialog
+        open={confirmMigration !== null}
+        title="Migration Advisor Warnings"
+        message={`Migration advisor warnings:\n• ${(confirmMigration?.vm.advisor?.risks ?? []).slice(0, 5).join('\n• ')}\n\nContinue anyway?`}
+        confirmLabel="Continue"
+        variant="warning"
+        onCancel={() => setConfirmMigration(null)}
+        onConfirm={() => {
+          const m = confirmMigration
+          setConfirmMigration(null)
+          if (m) void migrateVm(m.vm, true)
+        }}
+      />
     </PlatformPageChrome>
   )
 }

@@ -265,7 +265,6 @@ export default function PlatformStorage() {
   }
 
   const removeVolume = async (poolId: string, volName: string) => {
-    if (!window.confirm(`Delete volume ${volName}?`)) return
     setVolumesLoading(poolId)
     try {
       await deleteStoragePoolVolume(poolId, volName)

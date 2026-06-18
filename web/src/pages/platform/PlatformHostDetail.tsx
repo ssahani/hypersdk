@@ -138,6 +138,9 @@ export default function PlatformHostDetailPage() {
   const [linuxOpsBusy, setLinuxOpsBusy] = useState(false)
   const [linuxSystemCockpit, setLinuxSystemCockpit] = useState<HostCockpitSystem | null>(null)
   const [showFenceConfirm, setShowFenceConfirm] = useState(false)
+  const [confirmRemoveHost, setConfirmRemoveHost] = useState(false)
+  const [confirmApplyUpgrade, setConfirmApplyUpgrade] = useState(false)
+  const [confirmRebootHost, setConfirmRebootHost] = useState(false)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -414,17 +417,7 @@ export default function PlatformHostDetailPage() {
                       type="button"
                       className="btn-danger text-sm"
                       disabled={opsBusy || (host.vm_count ?? 0) > 0}
-                      onClick={() => {
-                        if (!window.confirm(`Remove host ${host.hostname} from the fleet?`)) return
-                        setOpsBusy(true)
-                        void deleteHost(id)
-                          .then(() => {
-                            toast.success('Host removed')
-                            navigate('/platform/hosts')
-                          })
-                          .catch((e: unknown) => toast.error(formatUserError(e)))
-                          .finally(() => setOpsBusy(false))
-                      }}
+                      onClick={() => setConfirmRemoveHost(true)}
                     >
                       Remove host
                     </button>
@@ -690,14 +683,7 @@ export default function PlatformHostDetailPage() {
                             className="btn-secondary text-xs"
                             disabled={linuxOpsBusy || !host?.maintenance_mode}
                             title={host?.maintenance_mode ? undefined : 'Enter maintenance mode first'}
-                            onClick={() => {
-                              if (!id || !window.confirm('Apply all pending package upgrades on this host?')) return
-                              setLinuxOpsBusy(true)
-                              void applyHostPackageUpgrade(id)
-                                .then((r) => toastQueuedOperation(toast, r.summary, r.task_id, tier))
-                                .catch((e: unknown) => toast.error(formatUserError(e)))
-                                .finally(() => setLinuxOpsBusy(false))
-                            }}
+                            onClick={() => { if (id) setConfirmApplyUpgrade(true) }}
                           >
                             Apply upgrade
                           </button>
@@ -706,14 +692,7 @@ export default function PlatformHostDetailPage() {
                               type="button"
                               className="btn-secondary text-xs"
                               disabled={linuxOpsBusy || !host?.maintenance_mode}
-                              onClick={() => {
-                                if (!id || !window.confirm('Reboot this hypervisor now?')) return
-                                setLinuxOpsBusy(true)
-                                void rebootHostLinux(id)
-                                  .then((r) => toastQueuedOperation(toast, r.summary, r.task_id, tier))
-                                  .catch((e: unknown) => toast.error(formatUserError(e)))
-                                  .finally(() => setLinuxOpsBusy(false))
-                              }}
+                              onClick={() => { if (id) setConfirmRebootHost(true) }}
                             >
                               Reboot host
                             </button>
@@ -837,6 +816,54 @@ export default function PlatformHostDetailPage() {
             )}
         </>
       )}
+    <ConfirmDialog
+      open={confirmRemoveHost}
+      title="Remove Host from Fleet"
+      message={`Remove host "${host?.hostname}" from fleet inventory? VMs must be evacuated first.`}
+      confirmLabel="Remove"
+      variant="danger"
+      onCancel={() => setConfirmRemoveHost(false)}
+      onConfirm={() => {
+        setConfirmRemoveHost(false)
+        setOpsBusy(true)
+        void deleteHost(id!)
+          .then(() => { toast.success('Host removed'); navigate('/platform/hosts') })
+          .catch((e: unknown) => toast.error(formatUserError(e)))
+          .finally(() => setOpsBusy(false))
+      }}
+    />
+    <ConfirmDialog
+      open={confirmApplyUpgrade}
+      title="Apply Package Upgrades"
+      message="Apply all pending package upgrades on this host? This may restart services."
+      confirmLabel="Apply"
+      variant="warning"
+      onCancel={() => setConfirmApplyUpgrade(false)}
+      onConfirm={() => {
+        setConfirmApplyUpgrade(false)
+        setLinuxOpsBusy(true)
+        void applyHostPackageUpgrade(id!)
+          .then((r) => toastQueuedOperation(toast, r.summary, r.task_id, tier))
+          .catch((e: unknown) => toast.error(formatUserError(e)))
+          .finally(() => setLinuxOpsBusy(false))
+      }}
+    />
+    <ConfirmDialog
+      open={confirmRebootHost}
+      title="Reboot Hypervisor"
+      message="Reboot this hypervisor now? Running VMs will be suspended or terminated depending on their configuration."
+      confirmLabel="Reboot"
+      variant="danger"
+      onCancel={() => setConfirmRebootHost(false)}
+      onConfirm={() => {
+        setConfirmRebootHost(false)
+        setLinuxOpsBusy(true)
+        void rebootHostLinux(id!)
+          .then((r) => toastQueuedOperation(toast, r.summary, r.task_id, tier))
+          .catch((e: unknown) => toast.error(formatUserError(e)))
+          .finally(() => setLinuxOpsBusy(false))
+      }}
+    />
     <ConfirmDialog
       open={showFenceConfirm}
       title="Fence Host"

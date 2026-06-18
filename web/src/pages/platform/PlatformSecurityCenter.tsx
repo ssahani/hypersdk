@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import { Link } from 'react-router'
 import { AlertTriangle, Radar, Shield, ShieldAlert } from 'lucide-react'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
@@ -77,6 +78,7 @@ export default function PlatformSecurityCenter() {
   const [sensorMatrix, setSensorMatrix] = useState<FleetSensorRow[]>([])
   const [sensorRegistry, setSensorRegistry] = useState<Array<Record<string, unknown>>>([])
   const [fleetEnrollBusy, setFleetEnrollBusy] = useState(false)
+  const [confirmEnrollTetragon, setConfirmEnrollTetragon] = useState(false)
   const [timeline, setTimeline] = useState<SecurityEvent[]>([])
   const [fabricHealth, setFabricHealth] = useState<FabricHealth | null>(null)
   const [nlQuery, setNlQuery] = useState('')
@@ -132,7 +134,11 @@ export default function PlatformSecurityCenter() {
   const unhealthySensors = sensorMatrix.filter((r) => r.tetragon_status !== 'healthy' && r.host_state === 'online')
 
   const enrollFleetTetragon = () => {
-    if (!window.confirm(`Enroll Tetragon on all online hosts (${unhealthySensors.length || 'fleet'} sensor gap)?`)) return
+    setConfirmEnrollTetragon(true)
+  }
+
+  const doEnrollFleetTetragon = () => {
+    setConfirmEnrollTetragon(false)
     setFleetEnrollBusy(true)
     void installFleetTetragon()
       .then((r) => toast.success(r.summary))
@@ -368,6 +374,15 @@ export default function PlatformSecurityCenter() {
 
         </>
       )}
+      <ConfirmDialog
+        open={confirmEnrollTetragon}
+        title="Enroll Fleet Tetragon"
+        message={`Enroll Tetragon on all online hosts (${unhealthySensors.length || 'fleet'} sensor gap)? Agents will be installed and TracingPolicies applied.`}
+        confirmLabel="Enroll"
+        variant="warning"
+        onCancel={() => setConfirmEnrollTetragon(false)}
+        onConfirm={doEnrollFleetTetragon}
+      />
     </PlatformPageChrome>
   )
 }

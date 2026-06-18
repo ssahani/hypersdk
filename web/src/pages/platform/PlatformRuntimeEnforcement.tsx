@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useSearchParams } from 'react-router'
 import { Eye, Shield, ShieldBan, Server, Ban, Trash2 } from 'lucide-react'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import {
   MacGlassPanel,
   MacListRow,
@@ -65,6 +66,7 @@ export default function PlatformRuntimeEnforcement() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewYaml, setPreviewYaml] = useState('')
   const [previewTitle, setPreviewTitle] = useState('')
+  const [confirmDeletePolicyId, setConfirmDeletePolicyId] = useState<string | null>(null)
 
   const onlineHosts = useMemo(
     () => hosts.filter((h) => h.state === 'online'),
@@ -143,7 +145,11 @@ export default function PlatformRuntimeEnforcement() {
   }
 
   const removePolicy = (policyId: string) => {
-    if (!window.confirm('Delete this enforcement policy? Agents will remove the TracingPolicy on next sync.')) return
+    setConfirmDeletePolicyId(policyId)
+  }
+
+  const doDeletePolicy = (policyId: string) => {
+    setConfirmDeletePolicyId(null)
     void deleteEnforcementPolicy(policyId)
       .then((r) => {
         notifyTasks(r.summary, r.task_ids)
@@ -357,6 +363,15 @@ export default function PlatformRuntimeEnforcement() {
           {previewYaml}
         </pre>
       </MacSheet>
+      <ConfirmDialog
+        open={confirmDeletePolicyId !== null}
+        title="Delete Enforcement Policy"
+        message="Delete this enforcement policy? Agents will remove the TracingPolicy on next sync."
+        confirmLabel="Delete"
+        variant="danger"
+        onCancel={() => setConfirmDeletePolicyId(null)}
+        onConfirm={() => { if (confirmDeletePolicyId) doDeletePolicy(confirmDeletePolicyId) }}
+      />
     </PlatformPageChrome>
   )
 }

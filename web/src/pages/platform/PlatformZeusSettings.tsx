@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import { Link } from 'react-router'
 import { Sparkles } from 'lucide-react'
 import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
@@ -46,6 +47,8 @@ export default function PlatformZeusSettings({ embedded }: { embedded?: boolean 
   const [editTags, setEditTags] = useState('')
   const [editAgent, setEditAgent] = useState('auto')
   const [purging, setPurging] = useState(false)
+  const [confirmPurgeAll, setConfirmPurgeAll] = useState(false)
+  const [confirmPurgeMine, setConfirmPurgeMine] = useState(false)
 
   const load = useCallback(async () => {
     setPrompts(await listAiPrompts().catch(() => []))
@@ -155,15 +158,7 @@ export default function PlatformZeusSettings({ embedded }: { embedded?: boolean 
             type="button"
             className="btn-danger text-xs"
             disabled={purging}
-            onClick={async () => {
-              if (!window.confirm('Purge all infrastructure memory entries? This cannot be undone.')) return
-              setPurging(true)
-              try {
-                const r = await purgeMemory('all')
-                toast.success(`Purged ${r.deleted} memory entries`)
-              } catch (e: unknown) { toast.error(formatUserError(e)) }
-              finally { setPurging(false) }
-            }}
+            onClick={() => setConfirmPurgeAll(true)}
           >
             {purging ? 'Purging…' : 'Purge all memory'}
           </button>
@@ -171,15 +166,7 @@ export default function PlatformZeusSettings({ embedded }: { embedded?: boolean 
             type="button"
             className="btn-secondary text-xs"
             disabled={purging}
-            onClick={async () => {
-              if (!window.confirm('Purge your personal memory entries?')) return
-              setPurging(true)
-              try {
-                const r = await purgeMemory('user')
-                toast.success(`Purged ${r.deleted} entries`)
-              } catch (e: unknown) { toast.error(formatUserError(e)) }
-              finally { setPurging(false) }
-            }}
+            onClick={() => setConfirmPurgeMine(true)}
           >
             Purge my memory
           </button>
@@ -266,6 +253,40 @@ export default function PlatformZeusSettings({ embedded }: { embedded?: boolean 
           ))}
         </div>
       </MacGlassPanel>
+      <ConfirmDialog
+        open={confirmPurgeAll}
+        title="Purge All Infrastructure Memory"
+        message="Purge all infrastructure memory entries? Persisted incidents and lessons from RCA will be permanently deleted. This cannot be undone."
+        confirmLabel="Purge all"
+        variant="danger"
+        onCancel={() => setConfirmPurgeAll(false)}
+        onConfirm={async () => {
+          setConfirmPurgeAll(false)
+          setPurging(true)
+          try {
+            const r = await purgeMemory('all')
+            toast.success(`Purged ${r.deleted} memory entries`)
+          } catch (e: unknown) { toast.error(formatUserError(e)) }
+          finally { setPurging(false) }
+        }}
+      />
+      <ConfirmDialog
+        open={confirmPurgeMine}
+        title="Purge My Memory Entries"
+        message="Purge your personal memory entries? This cannot be undone."
+        confirmLabel="Purge mine"
+        variant="danger"
+        onCancel={() => setConfirmPurgeMine(false)}
+        onConfirm={async () => {
+          setConfirmPurgeMine(false)
+          setPurging(true)
+          try {
+            const r = await purgeMemory('user')
+            toast.success(`Purged ${r.deleted} entries`)
+          } catch (e: unknown) { toast.error(formatUserError(e)) }
+          finally { setPurging(false) }
+        }}
+      />
     </PlatformPageChrome>
   )
 }
