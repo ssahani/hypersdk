@@ -350,7 +350,7 @@ export default function KubeVirtExposeServiceModal({ vm, services, onClose, onCo
               </button>
             </div>
             <div className="overflow-x-auto rounded-lg border border-slate-700">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm" aria-label="Exposed services">
                 <thead>
                   <tr className="text-left text-xs text-slate-500 uppercase tracking-wider border-b border-slate-700 bg-slate-950/80">
                     <th className="px-3 py-2">Name</th>

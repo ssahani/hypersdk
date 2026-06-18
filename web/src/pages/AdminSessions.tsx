@@ -88,7 +88,7 @@ export default function AdminSessionsPage() {
         <EmptyState title="No active sessions" description="No browser sessions are currently tracked by the daemon." />
       ) : (
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm" aria-label="Active sessions">
           <thead>
             <tr className="border-b border-slate-700/50 text-left text-slate-400">
               <th className="px-4 py-3">Session id</th>

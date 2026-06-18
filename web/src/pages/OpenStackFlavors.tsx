@@ -111,7 +111,7 @@ function OpenStackFlavorsContent() {
         <Loader2 className="w-8 h-8 animate-spin text-sky-400" />
       ) : (
         <div className="rounded-xl border border-slate-700 overflow-hidden">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" aria-label="Flavors">
             <thead className="bg-slate-900/80 text-slate-400 text-left">
               <tr>
                 <th className="px-3 py-2">Name</th>

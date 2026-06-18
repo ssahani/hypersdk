@@ -133,7 +133,7 @@ export default function CapabilitiesPage() {
               <h3 className="text-lg font-semibold">Guest Architectures</h3>
             </div>
             {capabilities.guests.length === 0 ? <div className="p-8 text-center text-slate-500">No guest capabilities.</div> : (
-              <table className="w-full">
+              <table className="w-full" aria-label="Guest architectures">
                 <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">OS Type</th><th className="px-6 py-3">Architecture</th><th className="px-6 py-3">Machines</th></tr></thead>
                 <tbody className="divide-y divide-slate-700/50">
                   {capabilities.guests.map((g) => (

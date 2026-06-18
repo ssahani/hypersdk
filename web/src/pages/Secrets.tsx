@@ -125,7 +125,7 @@ export default function SecretsPage() {
         />
       ) : (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-          <table className="w-full">
+          <table className="w-full" aria-label="libvirt secrets">
             <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400">
               <th className="px-6 py-3">UUID</th><th className="px-6 py-3 hidden md:table-cell">Usage Type</th><th className="px-6 py-3 hidden md:table-cell">Usage ID</th><th className="px-6 py-3 text-right">Actions</th>
             </tr></thead>

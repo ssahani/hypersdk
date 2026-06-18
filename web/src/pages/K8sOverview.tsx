@@ -925,7 +925,7 @@ export default function K8sOverviewPage() {
                 etcd placement (inferred from pods — not Raft membership API)
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-xs">
+                <table className="w-full text-xs" aria-label="etcd pods">
                   <thead>
                     <tr className="text-left text-slate-500 border-b border-slate-700/40">
                       <th className="px-3 py-2">Pod</th>
@@ -959,7 +959,7 @@ export default function K8sOverviewPage() {
                 Control plane static pods ({clusterInventory.control_plane_stack_pods?.length})
               </summary>
               <div className="overflow-x-auto border-t border-slate-700/40">
-                <table className="w-full text-xs">
+                <table className="w-full text-xs" aria-label="Control plane pods">
                   <thead>
                     <tr className="text-left text-slate-500 border-b border-slate-700/40">
                       <th className="px-3 py-2">Component</th>
@@ -1009,7 +1009,7 @@ export default function K8sOverviewPage() {
                   <div>
                     <div className="text-[11px] text-slate-500 mb-2">ValidatingWebhookConfiguration (summary)</div>
                     <div className="overflow-x-auto rounded-lg border border-slate-700/40">
-                      <table className="w-full text-xs">
+                      <table className="w-full text-xs" aria-label="Validating webhook configurations">
                         <thead>
                           <tr className="text-left text-slate-500 border-b border-slate-700/40">
                             <th className="px-3 py-2">Name</th>
@@ -1032,7 +1032,7 @@ export default function K8sOverviewPage() {
                   <div>
                     <div className="text-[11px] text-slate-500 mb-2">MutatingWebhookConfiguration (summary)</div>
                     <div className="overflow-x-auto rounded-lg border border-slate-700/40">
-                      <table className="w-full text-xs">
+                      <table className="w-full text-xs" aria-label="Mutating webhook configurations">
                         <thead>
                           <tr className="text-left text-slate-500 border-b border-slate-700/40">
                             <th className="px-3 py-2">Name</th>
@@ -1055,7 +1055,7 @@ export default function K8sOverviewPage() {
                   <div>
                     <div className="text-[11px] text-slate-500 mb-2">Notable addon DaemonSets</div>
                     <div className="overflow-x-auto rounded-lg border border-slate-700/40">
-                      <table className="w-full text-xs">
+                      <table className="w-full text-xs" aria-label="Addon DaemonSets">
                         <thead>
                           <tr className="text-left text-slate-500 border-b border-slate-700/40">
                             <th className="px-3 py-2">Namespace</th>
@@ -1147,7 +1147,7 @@ export default function K8sOverviewPage() {
                   </div>
                   <div className="text-[11px] text-slate-400">{invHist.entries.length} snapshot(s)</div>
                   <div className="overflow-x-auto rounded-lg border border-slate-700/50">
-                    <table className="w-full text-[11px] text-left">
+                    <table className="w-full text-[11px] text-left" aria-label="Node inventory snapshots">
                       <thead className="text-slate-500 border-b border-slate-700/50">
                         <tr>
                           <th className="px-3 py-2">Snapshot</th>
@@ -1463,7 +1463,7 @@ export default function K8sOverviewPage() {
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" aria-label="Cluster nodes">
             <thead>
               <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
                 <th className="text-left px-4 py-3">Node</th>

@@ -180,7 +180,7 @@ export default function NetworksPage() {
         />
       ) : (
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-        <table className="w-full">
+        <table className="w-full" aria-label="Virtual networks">
           <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Name</th><th className="px-6 py-3">Active</th><th className="px-6 py-3 hidden md:table-cell">Bridge</th><th className="px-6 py-3 hidden md:table-cell">Autostart</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
           <tbody className="divide-y divide-slate-700/50">
             {networks.map((net) => (
@@ -212,7 +212,7 @@ export default function NetworksPage() {
       {leases.length > 0 && (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           <div className="px-6 py-3 border-b border-slate-700/50"><h2 className="text-sm font-semibold text-slate-300">DHCP Leases</h2></div>
-          <table className="w-full">
+          <table className="w-full" aria-label="DHCP leases">
             <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-6 py-2">Network</th><th className="px-6 py-2">IP Address</th><th className="px-6 py-2">MAC</th><th className="px-6 py-2">Hostname</th><th className="px-6 py-2">Expires</th></tr></thead>
             <tbody className="divide-y divide-slate-700/50 text-sm">
               {leases.map((l) => (

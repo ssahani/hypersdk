@@ -123,7 +123,7 @@ function OpenStackIdentityProjectDetailContent() {
             }}>Grant</button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" aria-label="Project role assignments">
             <thead className="text-slate-400 text-left">
               <tr><th className="py-1">User</th><th className="py-1">Role</th><th /></tr>
             </thead>

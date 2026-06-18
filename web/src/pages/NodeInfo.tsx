@@ -107,7 +107,7 @@ function HostProcessTableBlock({
         </span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm" aria-label="Running processes">
           <thead>
             <tr className="text-left text-slate-400 border-b border-slate-700/50">
               <th className="px-6 py-3 font-medium">PID</th>
@@ -1021,7 +1021,7 @@ export default function NodeInfoPage() {
             <div>
               <h4 className="text-sm font-medium text-slate-300 mb-2">NUMA (sysfs)</h4>
               <div className="overflow-x-auto rounded-lg border border-slate-700/40">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm" aria-label="NUMA topology">
                   <thead>
                     <tr className="text-left text-slate-400 border-b border-slate-700/50">
                       <th className="px-4 py-2">Node</th>
@@ -1092,7 +1092,7 @@ export default function NodeInfoPage() {
             </p>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-slate-700/40">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm" aria-label="Hardware inventory history">
                 <thead>
                   <tr className="text-left text-slate-400 border-b border-slate-700/50">
                     <th className="px-4 py-2 whitespace-nowrap">Collected (UTC)</th>
@@ -1164,7 +1164,7 @@ export default function NodeInfoPage() {
             <span className="text-xs text-slate-500">Per mount from the hypervisor (same idea as Cockpit Storage)</span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" aria-label="Filesystem mounts">
               <thead>
                 <tr className="text-left text-slate-400 border-b border-slate-700/50">
                   <th className="px-6 py-3 font-medium">Mounted on</th>
@@ -1373,7 +1373,7 @@ export default function NodeInfoPage() {
             <div className="pt-2 border-t border-slate-700/50">
               <div className="text-slate-500 text-xs mb-2">Block devices (/proc/diskstats)</div>
               <div className="overflow-x-auto">
-                <table className="w-full text-xs">
+                <table className="w-full text-xs" aria-label="Block device I/O">
                   <thead>
                     <tr className="text-slate-400 text-left">
                       <th className="py-1 pr-3">Device</th>
@@ -1456,7 +1456,7 @@ export default function NodeInfoPage() {
           {(linuxObs.vm_cgroups?.length ?? 0) > 0 && (
             <div className="pt-2 border-t border-slate-700/50 text-sm overflow-x-auto">
               <div className="text-slate-500 text-xs mb-2">VM cgroups (machine-qemu)</div>
-              <table className="w-full text-xs">
+              <table className="w-full text-xs" aria-label="VM cgroups">
                 <thead>
                   <tr className="text-slate-500 text-left">
                     <th className="pr-3 pb-1">VM</th>
@@ -1512,7 +1512,7 @@ export default function NodeInfoPage() {
             <span className="text-xs text-slate-500">From /proc/net/dev — same counters on Ubuntu, Fedora, Arch, …</span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" aria-label="Network I/O counters">
               <thead>
                 <tr className="text-left text-slate-400 border-b border-slate-700/50">
                   <th className="px-6 py-3 font-medium">Interface</th>
@@ -1570,7 +1570,7 @@ export default function NodeInfoPage() {
         {netRates && netRates.interfaces.length > 0 && (
           <div className="overflow-x-auto">
             <p className="text-xs text-slate-500 px-6 pt-3">Averaged over {netRates.sample_interval_ms} ms</p>
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" aria-label="Network interface rates">
               <thead>
                 <tr className="text-left text-slate-400 border-b border-slate-700/50">
                   <th className="px-6 py-3 font-medium">Interface</th>
@@ -1612,7 +1612,7 @@ export default function NodeInfoPage() {
             </label>
           </div>
           <div className="overflow-x-auto max-h-80 overflow-y-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" aria-label="System users">
               <thead className="sticky top-0 bg-slate-800 z-10">
                 <tr className="text-left text-slate-400 border-b border-slate-700/50">
                   <th className="px-6 py-3 font-medium">User</th>
@@ -1645,7 +1645,7 @@ export default function NodeInfoPage() {
             <p className="text-xs text-slate-500 mt-1">Truncated list from getent/file; large LDAP domains may be incomplete.</p>
           </div>
           <div className="overflow-x-auto max-h-72 overflow-y-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" aria-label="System groups">
               <thead className="sticky top-0 bg-slate-800 z-10">
                 <tr className="text-left text-slate-400 border-b border-slate-700/50">
                   <th className="px-6 py-3 font-medium">Group</th>

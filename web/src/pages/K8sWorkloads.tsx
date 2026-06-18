@@ -396,7 +396,7 @@ spec:
           <h2 className="text-lg font-semibold">Deployments</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" aria-label="Deployments">
             <thead>
               <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
                 <th className="text-left px-4 py-3">Name</th>
@@ -475,7 +475,7 @@ spec:
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-700/50 text-lg font-semibold">StatefulSets</div>
           <div className="overflow-x-auto max-h-72 overflow-y-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" aria-label="StatefulSets">
               <thead><tr className="text-slate-400 text-xs border-b border-slate-700/50"><th className="text-left px-3 py-2">Name</th><th className="text-left px-3 py-2">NS</th><th className="text-right px-3 py-2">Action</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {statefulsets.map((d) => {
@@ -497,7 +497,7 @@ spec:
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-700/50 text-lg font-semibold">DaemonSets</div>
           <div className="overflow-x-auto max-h-72 overflow-y-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" aria-label="DaemonSets">
               <thead><tr className="text-slate-400 text-xs border-b border-slate-700/50"><th className="text-left px-3 py-2">Name</th><th className="text-left px-3 py-2">NS</th><th className="text-right px-3 py-2">Action</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {daemonsets.map((d) => {
@@ -521,7 +521,7 @@ spec:
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-700/50 text-lg font-semibold">Jobs</div>
         <div className="overflow-x-auto max-h-56 overflow-y-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" aria-label="Jobs">
             <thead><tr className="text-slate-400 text-xs border-b border-slate-700/50"><th className="text-left px-3 py-2">Name</th><th className="text-left px-3 py-2">NS</th><th className="text-right px-3 py-2">Action</th></tr></thead>
             <tbody className="divide-y divide-slate-700/30">
               {jobs.map((j) => {
@@ -561,7 +561,7 @@ spec:
             }}>Load events</button>
             {eventsItems.length > 0 ? (
               <div className="overflow-x-auto rounded border border-slate-700">
-                <table className="w-full text-xs text-left">
+                <table className="w-full text-xs text-left" aria-label="Kubernetes events">
                   <thead className="text-slate-500 border-b border-slate-700">
                     <tr><th className="px-2 py-1">Type</th><th className="px-2 py-1">Reason</th><th className="px-2 py-1">Message</th></tr>
                   </thead>
@@ -738,7 +738,7 @@ spec:
           )}
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[72rem]">
+          <table className="w-full text-sm min-w-[72rem]" aria-label="Services">
             <thead>
               <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
                 <th className="text-left px-4 py-3">Name</th>
@@ -895,7 +895,7 @@ spec:
           <h2 className="text-lg font-semibold">Pods</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" aria-label="Pods">
             <thead>
               <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
                 <th className="text-left px-4 py-3">Name</th>

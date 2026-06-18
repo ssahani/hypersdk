@@ -1529,7 +1529,7 @@ export default function VMDetailsPage() {
                 <InfoRow label="Guest hostname" value={guestObs.hostname} />
               )}
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm" aria-label="Filesystem mounts">
                   <thead>
                     <tr className="text-left text-slate-400 border-b border-slate-700/50">
                       <th className="py-2 pr-4 font-medium">Mount</th>
@@ -1699,7 +1699,7 @@ export default function VMDetailsPage() {
             <button onClick={() => openDialog('attach-disk')} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Attach Disk</button>
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-            <table className="w-full">
+            <table className="w-full" aria-label="Disk devices">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Target</th><th className="px-6 py-3">Bus</th><th className="px-6 py-3">Cache</th><th className="px-6 py-3">Device</th><th className="px-6 py-3">Driver</th><th className="px-6 py-3">Source</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {vm.disks.map((d) => (
@@ -1826,7 +1826,7 @@ export default function VMDetailsPage() {
             <button onClick={() => { setNicNetwork(networks[0]?.name || 'default'); setDialog('attach-nic') }} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Add NIC</button>
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-            <table className="w-full">
+            <table className="w-full" aria-label="Network interfaces">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">MAC Address</th><th className="px-6 py-3">Source</th><th className="px-6 py-3">Model</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {vm.interfaces.map((iface) => (
@@ -1875,7 +1875,7 @@ export default function VMDetailsPage() {
             {snapshots.length === 0 ? (
               <div className="p-8 text-center text-slate-500">No snapshots. Create one to save the current VM state.</div>
             ) : (
-              <table className="w-full">
+              <table className="w-full" aria-label="VM snapshots">
                 <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Snapshot</th><th className="px-6 py-3">State</th><th className="px-6 py-3">Created</th><th className="px-6 py-3">Current</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
                 <tbody className="divide-y divide-slate-700/30">
                   <SnapshotTableRows
@@ -1986,7 +1986,7 @@ export default function VMDetailsPage() {
                 </div>
               </div>
               <div className="bg-slate-900/40 rounded-lg border border-slate-700/40 overflow-hidden">
-                <table className="w-full">
+                <table className="w-full" aria-label="virtio-fs shares">
                   <thead>
                     <tr className="border-b border-slate-700/50 text-left text-xs text-slate-500">
                       <th className="px-5 py-2">Mount tag</th>
@@ -2059,7 +2059,7 @@ export default function VMDetailsPage() {
               </button>
             </div>
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-              <table className="w-full">
+              <table className="w-full" aria-label="USB devices">
                 <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-6 py-2">Bus</th><th className="px-6 py-2">Device</th><th className="px-6 py-2">ID</th><th className="px-6 py-2">Description</th><th className="px-6 py-2 text-right">Actions</th></tr></thead>
                 <tbody className="divide-y divide-slate-700/30 text-sm">
                   {usbDevices.map((d) => (
@@ -2091,7 +2091,7 @@ export default function VMDetailsPage() {
           <div className="space-y-4">
             <h3 className="text-lg font-semibold flex items-center gap-2"><Monitor className="w-5 h-5 text-purple-400" /> PCI Devices</h3>
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-              <table className="w-full">
+              <table className="w-full" aria-label="PCI devices">
                 <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-6 py-2">Slot</th><th className="px-6 py-2">Class</th><th className="px-6 py-2">Vendor</th><th className="px-6 py-2">Device</th><th className="px-6 py-2">IOMMU Group</th></tr></thead>
                 <tbody className="divide-y divide-slate-700/30 text-sm">
                   {pciDevices.map((d) => (
@@ -2119,7 +2119,7 @@ export default function VMDetailsPage() {
                 {iommuGroups.map((g) => (
                   <div key={g.group_id} className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
                     <div className="px-5 py-2.5 bg-slate-800/80 border-b border-slate-700/50 text-sm font-medium text-orange-400">Group {g.group_id} ({g.devices.length} device{g.devices.length !== 1 ? 's' : ''})</div>
-                    <table className="w-full">
+                    <table className="w-full" aria-label="IOMMU group devices">
                       <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-5 py-2">BDF</th><th className="px-5 py-2">Vendor</th><th className="px-5 py-2">Device</th></tr></thead>
                       <tbody className="divide-y divide-slate-700/30 text-sm">
                         {g.devices.map((d) => (

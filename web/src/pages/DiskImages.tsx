@@ -568,7 +568,7 @@ export default function DiskImagesPage() {
         />
       ) : (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-          <table className="w-full">
+          <table className="w-full" aria-label="Disk images">
             <thead>
               <tr className="border-b border-slate-700/50 text-left text-xs text-slate-400 uppercase tracking-wide">
                 <th className="px-5 py-3">Name</th>

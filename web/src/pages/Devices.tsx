@@ -80,7 +80,7 @@ export default function DevicesPage() {
         />
       ) : (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-          <table className="w-full">
+          <table className="w-full" aria-label="Host devices">
             <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Name</th><th className="px-6 py-3">Capability</th><th className="px-6 py-3 hidden md:table-cell">Driver</th><th className="px-6 py-3 hidden md:table-cell">Parent</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
             <tbody className="divide-y divide-slate-700/50">
               {filtered.map((dev) => (
