@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import { Link } from 'react-router'
 import { AlertTriangle, Clock, HardDrive, Layers, Loader2, Plus, RefreshCw, Shield } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
@@ -97,6 +98,8 @@ export default function PlatformStorage() {
   const [volumeCapacityGb, setVolumeCapacityGb] = useState(10)
   const [volumeFormat, setVolumeFormat] = useState('qcow2')
   const [volumeSaving, setVolumeSaving] = useState(false)
+  const [confirmVolume, setConfirmVolume] = useState<{ poolId: string; volName: string; poolName: string } | null>(null)
+  const [confirmPoolId, setConfirmPoolId] = useState<string | null>(null)
 
   const tierName = (id?: string | null) => tiers.find((t) => t.id === id)?.name ?? null
 
@@ -616,7 +619,7 @@ export default function PlatformStorage() {
                                     className="btn-danger text-[10px]"
                                     disabled={volumesLoading === p.id}
                                     data-testid={`pool-volume-delete-${p.name}-${v.name}`}
-                                    onClick={() => void removeVolume(p.id, v.name)}
+                                    onClick={() => setConfirmVolume({ poolId: p.id, volName: v.name, poolName: p.name })}
                                   >
                                     Delete
                                   </button>
@@ -669,10 +672,7 @@ export default function PlatformStorage() {
                     >
                       Edit capacity
                     </button>
-                    <button type="button" className="btn-danger text-xs w-full" onClick={async () => {
-                      if (!window.confirm(`Remove pool ${p.name} from the hypervisor and inventory?`)) return
-                      try { await deleteStoragePool(p.id); toast.success('Pool removed'); await load(false) } catch (e: unknown) { toast.error(formatUserError(e)) }
-                    }}>Remove from host & inventory</button>
+                    <button type="button" className="btn-danger text-xs w-full" onClick={() => setConfirmPoolId(p.id)}>Remove from host & inventory</button>
                   </article>
                 )
               })}
@@ -815,6 +815,33 @@ export default function PlatformStorage() {
         </div>
       </MacSheet>
       {tab === 'disks' && <FleetSettingsPane kind="storage" />}
+      <ConfirmDialog
+        open={confirmVolume !== null}
+        title="Delete Volume"
+        message={`Permanently delete volume "${confirmVolume?.volName}" from pool "${confirmVolume?.poolName}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onCancel={() => setConfirmVolume(null)}
+        onConfirm={async () => {
+          if (!confirmVolume) return
+          try { await removeVolume(confirmVolume.poolId, confirmVolume.volName) }
+          catch (e: unknown) { toast.error(formatUserError(e)) }
+          finally { setConfirmVolume(null) }
+        }}
+      />
+      <ConfirmDialog
+        open={confirmPoolId !== null}
+        title="Remove Storage Pool"
+        message={`Remove pool "${rows.find((p) => p.id === confirmPoolId)?.name}" from the hypervisor and inventory? This cannot be undone.`}
+        confirmLabel="Remove"
+        variant="danger"
+        onCancel={() => setConfirmPoolId(null)}
+        onConfirm={async () => {
+          try { await deleteStoragePool(confirmPoolId!); toast.success('Pool removed'); await load(false) }
+          catch (e: unknown) { toast.error(formatUserError(e)) }
+          finally { setConfirmPoolId(null) }
+        }}
+      />
     </PlatformPageChrome>
   )
 }

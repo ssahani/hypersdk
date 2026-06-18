@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import { Camera, Plus, Trash2 } from 'lucide-react'
 import OperatingSurfaceLayout from '../../components/platform/OperatingSurfaceLayout'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
@@ -26,6 +27,7 @@ export default function PlatformFleetSnapshots() {
   const [diskOnly, setDiskOnly] = useState(true)
   const [quiesce, setQuiesce] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -62,7 +64,6 @@ export default function PlatformFleetSnapshots() {
   }
 
   const remove = async (id: string) => {
-    if (!window.confirm('Delete this schedule?')) return
     try {
       await deleteFleetSnapshotSchedule(id)
       toast.success('Schedule deleted')
@@ -117,7 +118,7 @@ export default function PlatformFleetSnapshots() {
                 title={s.name}
                 subtitle={`${s.project || 'all projects'} · tag=${s.tag_filter || '*'} · disk_only=${s.disk_only} · quiesce=${s.quiesce}`}
                 badge={
-                  <button type="button" className="btn-secondary text-xs p-1.5" aria-label="Delete" onClick={() => void remove(s.id)}>
+                  <button type="button" className="btn-secondary text-xs p-1.5" aria-label="Delete" onClick={() => setConfirmDeleteId(s.id)}>
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 }
@@ -127,6 +128,18 @@ export default function PlatformFleetSnapshots() {
         )}
       </MacGlassPanel>
       </OperatingSurfaceLayout>
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        title="Delete Snapshot Schedule"
+        message={`Delete schedule "${rows.find((s) => s.id === confirmDeleteId)?.name}"? Future fleet snapshots will no longer run on this schedule.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onCancel={() => setConfirmDeleteId(null)}
+        onConfirm={async () => {
+          await remove(confirmDeleteId!)
+          setConfirmDeleteId(null)
+        }}
+      />
     </PlatformPageChrome>
   )
 }

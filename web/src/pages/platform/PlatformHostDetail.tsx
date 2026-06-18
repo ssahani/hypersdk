@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import { Link, useNavigate, useParams, useLocation, useSearchParams } from 'react-router'
 import { ArrowLeft, ExternalLink, Network, Shield, Server, Activity, FileWarning, Bot, Cpu } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
@@ -136,6 +137,7 @@ export default function PlatformHostDetailPage() {
   const [upgradePreview, setUpgradePreview] = useState<string | null>(null)
   const [linuxOpsBusy, setLinuxOpsBusy] = useState(false)
   const [linuxSystemCockpit, setLinuxSystemCockpit] = useState<HostCockpitSystem | null>(null)
+  const [showFenceConfirm, setShowFenceConfirm] = useState(false)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -329,7 +331,7 @@ export default function PlatformHostDetailPage() {
                     </button>
                     <button type="button" className="btn-secondary text-sm" onClick={() => void enqueueValidateHost(id).then(() => { toast.success('Validation queued'); return load() })}>Queue validate</button>
                     <button type="button" className="btn-secondary text-sm" onClick={() => void hostMaintenance(id, 'enter').then(() => toast.success('Maintenance'))}>Maintenance</button>
-                    <button type="button" className="btn-danger text-sm" onClick={() => void fenceHost(id).then(() => { toast.success('Fence invoked'); return load() })}>Fence</button>
+                    <button type="button" className="btn-danger text-sm" onClick={() => setShowFenceConfirm(true)}>Fence</button>
                   </div>
                 </MacSettingsGroup>
                 {healthChecks && (
@@ -835,6 +837,18 @@ export default function PlatformHostDetailPage() {
             )}
         </>
       )}
+    <ConfirmDialog
+      open={showFenceConfirm}
+      title="Fence Host"
+      message={`Fence host "${host?.hostname}"? This will forcibly cut power or reset the machine, terminating all running VMs immediately. Only use in an emergency.`}
+      confirmLabel="Fence"
+      variant="danger"
+      onCancel={() => setShowFenceConfirm(false)}
+      onConfirm={() => {
+        setShowFenceConfirm(false)
+        void fenceHost(id!).then(() => { toast.success('Fence invoked'); return load() }).catch((e: unknown) => toast.error(formatUserError(e)))
+      }}
+    />
     </PageLayout>
   )
 }
