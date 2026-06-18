@@ -231,7 +231,7 @@ export default function StoragePage() {
                 </div>
                 <div>
                   <label className="block text-sm text-slate-400 mb-1">Format</label>
-                  <select value={newVolFormat} onChange={(e) => setNewVolFormat(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm">
+                  <select aria-label="Volume format" value={newVolFormat} onChange={(e) => setNewVolFormat(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm">
                     <option value="qcow2">qcow2</option>
                     <option value="raw">raw</option>
                     <option value="qcow">qcow</option>
@@ -326,7 +326,7 @@ export default function StoragePage() {
               </div>
               <div>
                 <label className="block text-sm text-slate-400 mb-1">Type</label>
-                <select value={newPoolType} onChange={(e) => setNewPoolType(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm">
+                <select aria-label="Pool type" value={newPoolType} onChange={(e) => setNewPoolType(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm">
                   <option value="dir">dir</option>
                   <option value="fs">fs</option>
                   <option value="netfs">netfs</option>

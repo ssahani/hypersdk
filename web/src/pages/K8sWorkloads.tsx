@@ -311,6 +311,7 @@ spec:
         <div className="hidden md:block" />
         <div className="flex flex-wrap items-center gap-2">
           <select
+            aria-label="kubectl context"
             value={context}
             onChange={(e) => setContext(e.target.value)}
             className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 max-w-[18rem]"
@@ -334,6 +335,7 @@ spec:
             Refresh contexts
           </button>
           <select
+            aria-label="Namespace"
             value={namespace}
             onChange={(e) => setNamespace(e.target.value)}
             className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm"
@@ -648,7 +650,7 @@ spec:
           <div className="space-y-2">
             <div className="text-sm font-medium text-slate-300">API list explorer</div>
             <div className="flex flex-wrap gap-2">
-              <select className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs" value={explorerKind} onChange={(e) => setExplorerKind(e.target.value)}>
+              <select aria-label="Resource kind" className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs" value={explorerKind} onChange={(e) => setExplorerKind(e.target.value)}>
                 <option value="ingresses">Ingresses</option>
                 <option value="cronjobs">CronJobs</option>
                 <option value="pvcs">PVCs</option>

@@ -137,6 +137,7 @@ export default function LogsPage() {
         </button>
 
         <select
+          aria-label="Priority"
           value={priority}
           onChange={e => setPriority(e.target.value)}
           className="bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
@@ -184,6 +185,7 @@ export default function LogsPage() {
         </div>
 
         <select
+          aria-label="Boot"
           value={boot}
           onChange={e => setBoot(e.target.value)}
           className="bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
@@ -233,6 +235,7 @@ export default function LogsPage() {
         />
 
         <select
+          aria-label="Line count"
           value={lineCount}
           onChange={e => setLineCount(Number(e.target.value))}
           className="bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
