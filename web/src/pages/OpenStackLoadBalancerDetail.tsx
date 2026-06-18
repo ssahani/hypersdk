@@ -178,7 +178,7 @@ function OpenStackLoadBalancerDetailContent() {
         <div className="flex flex-wrap gap-2">
           <input value={poolName} onChange={(e) => setPoolName(e.target.value)} placeholder="Pool name"
             className="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-sm" />
-          <select value={poolListenerId} onChange={(e) => setPoolListenerId(e.target.value)}
+          <select aria-label="Listener" value={poolListenerId} onChange={(e) => setPoolListenerId(e.target.value)}
             className="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-sm">
             <option value="">Listener…</option>
             {listeners.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -252,7 +252,7 @@ function OpenStackLoadBalancerDetailContent() {
       <section className="rounded-xl border border-slate-700 p-4 space-y-3">
         <h2 className="text-sm font-medium text-slate-300">Add member / health monitor</h2>
         <div className="flex flex-wrap gap-2 items-center">
-          <select value={memberPoolId} onChange={(e) => setMemberPoolId(e.target.value)}
+          <select aria-label="Pool (add member)" value={memberPoolId} onChange={(e) => setMemberPoolId(e.target.value)}
             className="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-sm">
             <option value="">Pool…</option>
             {pools.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -275,7 +275,7 @@ function OpenStackLoadBalancerDetailContent() {
             }}>Add member</button>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
-          <select value={monitorPoolId} onChange={(e) => setMonitorPoolId(e.target.value)}
+          <select aria-label="Pool (health monitor)" value={monitorPoolId} onChange={(e) => setMonitorPoolId(e.target.value)}
             className="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-sm">
             <option value="">Pool…</option>
             {pools.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}

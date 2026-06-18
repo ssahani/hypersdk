@@ -1546,6 +1546,7 @@ export default function NodeInfoPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <select
+              aria-label="Throughput sample window"
               value={rateSampleMs}
               onChange={(e) => setRateSampleMs(Number(e.target.value))}
               disabled={netRatesLoading}

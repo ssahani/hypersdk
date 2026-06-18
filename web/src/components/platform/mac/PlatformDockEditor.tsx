@@ -95,7 +95,7 @@ export default function PlatformDockEditor({ open, onClose }: PlatformDockEditor
         </ul>
 
         <div className="flex gap-2">
-          <select className="input flex-1 text-sm" value={addPath} onChange={(e) => setAddPath(e.target.value)}>
+          <select className="input flex-1 text-sm" aria-label="Add app to dock" value={addPath} onChange={(e) => setAddPath(e.target.value)}>
             <option value="">Add app…</option>
             {available.map((item) => (
               <option key={item.path} value={item.path}>{item.label}</option>

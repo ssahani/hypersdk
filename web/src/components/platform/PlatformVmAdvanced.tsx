@@ -145,7 +145,7 @@ export default function PlatformVmAdvanced({
           <div className="space-y-2">
             <p className="text-xs text-slate-500">Disk cache / bus</p>
             <input className="input w-full" placeholder="target vda" value={diskTuneTarget} onChange={(e) => setDiskTuneTarget(e.target.value)} />
-            <select className="input w-full" value={diskCache} onChange={(e) => setDiskCache(e.target.value)}>
+            <select className="input w-full" aria-label="Disk cache mode" value={diskCache} onChange={(e) => setDiskCache(e.target.value)}>
               <option value="none">none</option>
               <option value="writethrough">writethrough</option>
               <option value="writeback">writeback</option>

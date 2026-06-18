@@ -80,7 +80,7 @@ export default function HostNmCreateWizard({ hostId, classic = false, onRefresh 
       {kind === 'team' && (
         <div className="grid gap-2 sm:grid-cols-2">
           <input className="input text-xs" value={teamName} onChange={(e) => setTeamName(e.target.value)} placeholder="team0" />
-          <select className="input text-xs" value={teamRunner} onChange={(e) => setTeamRunner(e.target.value)}>
+          <select className="input text-xs" aria-label="Team runner mode" value={teamRunner} onChange={(e) => setTeamRunner(e.target.value)}>
             <option value="loadbalance">loadbalance</option>
             <option value="roundrobin">roundrobin</option>
             <option value="activebackup">activebackup</option>

@@ -238,6 +238,7 @@ export default function BackupsPage() {
             <div>
               <label className="block text-sm text-slate-400 mb-1">VM (leave empty for all)</label>
               <select
+                aria-label="VM (leave empty for all)"
                 value={vmName}
                 onChange={(e) => setVmName(e.target.value)}
                 className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"

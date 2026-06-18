@@ -204,6 +204,7 @@ export default function SocPlaybookEditor({
                 <li key={i} className="border border-white/10 rounded-lg p-2 space-y-2">
                   <div className="flex gap-2 items-center">
                     <select
+                      aria-label="Step type"
                       className="input text-sm flex-1"
                       value={step.type}
                       onChange={(e) => {

@@ -98,12 +98,12 @@ function OpenStackIdentityProjectDetailContent() {
       <section className="rounded-xl border border-slate-700 p-4 space-y-3">
         <h2 className="text-sm font-medium text-slate-300">Role assignments</h2>
         <div className="flex flex-wrap gap-2">
-          <select value={grantUserId} onChange={(e) => setGrantUserId(e.target.value)}
+          <select aria-label="User" value={grantUserId} onChange={(e) => setGrantUserId(e.target.value)}
             className="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-sm">
             <option value="">User…</option>
             {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
-          <select value={grantRoleId} onChange={(e) => setGrantRoleId(e.target.value)}
+          <select aria-label="Role" value={grantRoleId} onChange={(e) => setGrantRoleId(e.target.value)}
             className="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-sm">
             <option value="">Role…</option>
             {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
