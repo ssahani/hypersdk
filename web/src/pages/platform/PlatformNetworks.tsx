@@ -450,6 +450,7 @@ export default function PlatformNetworks() {
                   {segments.length > 0 && (
                     <div className="flex flex-wrap gap-2 items-center">
                       <select
+                        aria-label="Segment"
                         className="input text-xs flex-1 min-w-[8rem]"
                         value={bindDraft[n.id] ?? n.segment_id ?? ''}
                         onChange={(e) => setBindDraft((d) => ({ ...d, [n.id]: e.target.value }))}

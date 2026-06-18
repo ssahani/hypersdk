@@ -484,6 +484,7 @@ export default function PlatformStorage() {
                     {tiers.length > 0 && (
                       <div className="flex gap-2">
                         <select
+                          aria-label="Storage tier"
                           className="input text-xs flex-1"
                           value={bindDraft[p.id] ?? p.tier_id ?? ''}
                           onChange={(e) => setBindDraft((d) => ({ ...d, [p.id]: e.target.value }))}

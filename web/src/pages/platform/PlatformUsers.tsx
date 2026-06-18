@@ -225,6 +225,7 @@ export default function PlatformUsers({ embedded }: { embedded?: boolean } = {})
                   <td className="p-3 font-medium text-slate-200">{u.username}</td>
                   <td className="p-3">
                     <select
+                      aria-label="User role"
                       className="input text-xs capitalize w-full max-w-[160px]"
                       value={u.role}
                       onChange={async (e) => {
