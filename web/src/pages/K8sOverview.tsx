@@ -1409,6 +1409,7 @@ export default function K8sOverviewPage() {
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="text-slate-500">Filters</span>
             <select
+              aria-label="Filter by plane"
               value={filterPlane}
               onChange={(e) => setFilterPlane(e.target.value)}
               className="bg-slate-900 border border-slate-600 rounded-md px-2 py-1.5 text-slate-200"
@@ -1420,6 +1421,7 @@ export default function K8sOverviewPage() {
               <option value="unknown">Unknown</option>
             </select>
             <select
+              aria-label="Filter by readiness"
               value={filterReady}
               onChange={(e) => {
                 const v = e.target.value
@@ -1432,6 +1434,7 @@ export default function K8sOverviewPage() {
               <option value="not_ready">Not ready</option>
             </select>
             <select
+              aria-label="Filter by zone"
               value={filterZone}
               onChange={(e) => setFilterZone(e.target.value)}
               className="bg-slate-900 border border-slate-600 rounded-md px-2 py-1.5 text-slate-200 max-w-[12rem]"
@@ -1444,6 +1447,7 @@ export default function K8sOverviewPage() {
               ))}
             </select>
             <select
+              aria-label="Filter by instance type"
               value={filterInstance}
               onChange={(e) => setFilterInstance(e.target.value)}
               className="bg-slate-900 border border-slate-600 rounded-md px-2 py-1.5 text-slate-200 max-w-[14rem]"
