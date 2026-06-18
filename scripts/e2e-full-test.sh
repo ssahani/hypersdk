@@ -186,6 +186,8 @@ if [[ "$SKIP_UI_PROXY" -eq 0 ]]; then
 fi
 
 # Phase 5: platform controller
+PLATFORM_FAIL_BASE=$E2E_FAIL
+PLATFORM_PASS_BASE=$E2E_PASS
 if [[ "$SKIP_PLATFORM_SMOKE" -eq 0 || "$SKIP_PLATFORM_LIFECYCLE" -eq 0 ]]; then
   e2e_hdr "PHASE 5: PLATFORM CONTROLLER"
 fi
@@ -203,9 +205,17 @@ if [[ "$SKIP_PLATFORM_LIFECYCLE" -eq 0 ]]; then
 fi
 
 if [[ "$SKIP_PLATFORM_SMOKE" -eq 0 || "$SKIP_PLATFORM_LIFECYCLE" -eq 0 ]]; then
-  if ! e2e_platform_summary; then
+  platform_new_fail=$((E2E_FAIL - PLATFORM_FAIL_BASE))
+  platform_new_pass=$((E2E_PASS - PLATFORM_PASS_BASE))
+  echo ""
+  echo "══════════════════════════════════════════"
+  echo "  Platform E2E: ${platform_new_pass} passed, ${platform_new_fail} failed"
+  echo "══════════════════════════════════════════"
+  if [[ "$platform_new_fail" -gt 0 ]]; then
+    echo "❌ ${platform_new_fail} platform test(s) FAILED"
     phase_fail "platform controller"
   else
+    echo "✅ All platform tests passed"
     phase_ok "platform controller"
   fi
 fi

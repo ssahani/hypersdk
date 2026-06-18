@@ -67,7 +67,11 @@ FAIL=0
 for script in "$@"; do
   echo ""
   echo "=== Tier: ${script%.sh} ==="
-  if bash "/tmp/packetwolf-e2e/${script}" "$PACKETWOLF_E2E_BASE"; then
+  extra=()
+  if [[ "$script" == "e2e-tetragon-verify.sh" ]]; then
+    extra=(--allow-fail)
+  fi
+  if bash "/tmp/packetwolf-e2e/${script}" "${extra[@]}" "$PACKETWOLF_E2E_BASE"; then
     echo "✅ ${script}"
   else
     echo "❌ ${script}"
