@@ -693,7 +693,7 @@ export default function SettingsPage() {
         <div className="space-y-4">
           <div className="flex flex-col gap-2 min-w-0 sm:flex-row sm:flex-wrap sm:items-center">
             <input value={newRoleUser} onChange={e => setNewRoleUser(e.target.value)} className="input-field flex-1 min-w-0 sm:min-w-[12rem]" placeholder="Username" />
-            <select value={newRoleVal} onChange={e => setNewRoleVal(e.target.value)} className="input-field w-full sm:w-40 shrink-0">
+            <select value={newRoleVal} onChange={e => setNewRoleVal(e.target.value)} aria-label="Role" className="input-field w-full sm:w-40 shrink-0">
               <option value="admin">Admin</option>
               <option value="operator">Operator</option>
               <option value="readonly">Read-only</option>
@@ -806,7 +806,7 @@ export default function SettingsPage() {
           <div className="flex flex-col gap-2 min-w-0 sm:flex-row sm:flex-wrap sm:items-center">
             <input value={newTokenName} onChange={e => setNewTokenName(e.target.value)} className="input-field flex-1 min-w-0" placeholder="Token name" />
             <input value={newTokenUser} onChange={e => setNewTokenUser(e.target.value)} className="input-field w-full sm:w-32 shrink-0" placeholder="User" />
-            <select value={newTokenRole} onChange={e => setNewTokenRole(e.target.value)} className="input-field w-full sm:w-32 shrink-0">
+            <select value={newTokenRole} onChange={e => setNewTokenRole(e.target.value)} aria-label="Token role" className="input-field w-full sm:w-32 shrink-0">
               <option value="admin">Admin</option>
               <option value="operator">Operator</option>
               <option value="readonly">Read-only</option>
@@ -910,11 +910,11 @@ export default function SettingsPage() {
       {tab === 'schedules' && (
         <div className="space-y-4">
           <div className="flex flex-col gap-2 min-w-0 sm:flex-row sm:flex-wrap sm:items-center">
-            <select value={newSchedVm} onChange={e => setNewSchedVm(e.target.value)} className="input-field flex-1 min-w-0">
+            <select value={newSchedVm} onChange={e => setNewSchedVm(e.target.value)} aria-label="VM" className="input-field flex-1 min-w-0">
               <option value="">Select VM...</option>
               {vms.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
             </select>
-            <select value={newSchedAction} onChange={e => setNewSchedAction(e.target.value)} className="input-field w-full shrink-0 sm:w-32">
+            <select value={newSchedAction} onChange={e => setNewSchedAction(e.target.value)} aria-label="Action" className="input-field w-full shrink-0 sm:w-32">
               <option value="start">Start</option>
               <option value="shutdown">Shutdown</option>
               <option value="stop">Force Stop</option>
@@ -949,7 +949,7 @@ export default function SettingsPage() {
       {tab === 'notifications' && (
         <div className="space-y-4">
           <div className="flex items-center gap-2 flex-wrap">
-            <select value={newNotifType} onChange={e => setNewNotifType(e.target.value)} className="input-field w-36">
+            <select value={newNotifType} onChange={e => setNewNotifType(e.target.value)} aria-label="Channel type" className="input-field w-36">
               <option value="slack">Slack</option>
               <option value="email">Email</option>
               <option value="telegram">Telegram</option>
@@ -985,11 +985,11 @@ export default function SettingsPage() {
       {tab === 'snapshots' && (
         <div className="space-y-4">
           <div className="flex items-center gap-2 flex-wrap">
-            <select value={newSnapVm} onChange={e => setNewSnapVm(e.target.value)} className="input-field flex-1">
+            <select value={newSnapVm} onChange={e => setNewSnapVm(e.target.value)} aria-label="VM" className="input-field flex-1">
               <option value="">Select VM...</option>
               {vms.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
             </select>
-            <select value={newSnapInterval} onChange={e => setNewSnapInterval(e.target.value)} className="input-field w-28">
+            <select value={newSnapInterval} onChange={e => setNewSnapInterval(e.target.value)} aria-label="Interval" className="input-field w-28">
               <option value="1">Every 1h</option>
               <option value="4">Every 4h</option>
               <option value="12">Every 12h</option>
