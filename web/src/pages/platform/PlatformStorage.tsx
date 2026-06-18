@@ -681,7 +681,7 @@ export default function PlatformStorage() {
             <p className="text-sm text-slate-400">No tiers — run migration 028 to seed defaults.</p>
           ) : (
             <div className="overflow-x-auto -mx-2">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm" aria-label="Storage tiers">
                 <thead>
                   <tr className="text-left text-slate-500 border-b border-white/[0.06]">
                     <th className="py-2 px-2">Name</th>
@@ -718,7 +718,7 @@ export default function PlatformStorage() {
             <p className="text-sm text-slate-400">No SLA policies — import pools first.</p>
           ) : (
             <div className="overflow-x-auto -mx-2">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm" aria-label="Backup SLA policies">
                 <thead>
                   <tr className="text-left text-slate-500 border-b border-white/[0.06]">
                     <th className="py-2 px-2">Pool</th>

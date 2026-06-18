@@ -531,7 +531,7 @@ export default function PlatformNetworks() {
               />
             ) : (
               <div className="overflow-x-auto -mx-2">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm" aria-label="Network segments">
                   <thead>
                     <tr className="text-left text-slate-500 border-b border-white/[0.06]">
                       <th className="py-2 px-2">Name</th>
@@ -615,7 +615,7 @@ export default function PlatformNetworks() {
             />
           ) : (
             <div className="overflow-x-auto -mx-2">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm" aria-label="IPAM pools">
                 <thead>
                   <tr className="text-left text-slate-500 border-b border-white/[0.06]">
                     <th className="py-2 px-2">Segment</th>

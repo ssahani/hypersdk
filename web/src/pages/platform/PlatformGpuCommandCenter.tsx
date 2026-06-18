@@ -174,7 +174,7 @@ export default function PlatformGpuCommandCenter() {
 
             <MacGlassPanel title="GPU hosts" subtitle="Site, rack, profile, and VM occupancy">
               <div className="overflow-x-auto -mt-2">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm" aria-label="GPU hosts">
                   <thead>
                     <tr className="text-left text-slate-500 border-b border-white/[0.06]">
                       <th className="py-2 pr-2">Host</th>

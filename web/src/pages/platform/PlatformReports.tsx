@@ -313,7 +313,7 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
               </div>
             )}
             <div className="overflow-x-auto mt-4">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm" aria-label="Project costs">
                 <thead>
                   <tr className="text-left text-slate-500 border-b border-white/[0.06]">
                     <th className="py-2 pr-2">Project</th>
@@ -415,7 +415,7 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
                   </ul>
                 )}
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
+                  <table className="w-full text-xs" aria-label="VM migration readiness">
                     <thead>
                       <tr className="text-left text-slate-500">
                         <th className="py-1 pr-2">VM</th>

@@ -121,7 +121,7 @@ export default function PlatformDeveloper() {
               OpenAPI spec: <a className={`hover:underline ${hubLinkClasses()}`} href={overview.openapi_url}>{overview.openapi_url}</a>
             </p>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
+              <table className="w-full text-sm text-left" aria-label="API resources">
                 <thead className="text-xs text-slate-500 border-b border-slate-700">
                   <tr>
                     <th className="py-2 pr-4">Resource</th>

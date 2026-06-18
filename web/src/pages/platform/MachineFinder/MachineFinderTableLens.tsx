@@ -45,7 +45,7 @@ export default function MachineFinderTableLens({ state }: Props) {
 
   return (
     <div className="card overflow-x-auto" data-testid="machine-finder-table">
-      <table className="w-full text-sm">
+      <table className="w-full text-sm" aria-label="Virtual machines">
         <thead>
           <tr className="text-left text-slate-400 border-b border-white/[0.04]">
             <th className="p-3 w-10">

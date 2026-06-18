@@ -249,7 +249,7 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
           {mfa.users.length === 0 ? (
             <p className="text-sm text-slate-500">No roles require MFA yet — enable in Settings → Security.</p>
           ) : (
-            <table className="w-full text-sm text-left">
+            <table className="w-full text-sm text-left" aria-label="MFA-required users">
               <thead className="text-xs text-slate-500 border-b border-slate-700">
                 <tr>
                   <th className="py-2 pr-4">User</th>
@@ -324,7 +324,7 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
               Save policy
             </button>
           </div>
-          <table className="w-full text-sm text-left">
+          <table className="w-full text-sm text-left" aria-label="Tenant isolation policies">
             <thead className="text-xs text-slate-500 border-b border-slate-700">
               <tr>
                 <th className="py-2 pr-4">Project</th>

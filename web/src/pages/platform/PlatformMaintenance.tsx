@@ -538,7 +538,7 @@ export default function PlatformMaintenance() {
             />
           ) : (
           <div className="card overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" aria-label="Maintenance schedules">
               <thead><tr className="text-slate-400 border-b border-slate-800"><th className="p-3 text-left">Host</th><th className="p-3">Action</th><th className="p-3">Run at</th><th className="p-3">Status</th><th className="p-3" /></tr></thead>
               <tbody>{rows.map((s) => (
                 <tr key={s.id} className="border-b border-slate-900">
