@@ -215,8 +215,8 @@ export default function NetworksPage() {
           <table className="w-full">
             <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-6 py-2">Network</th><th className="px-6 py-2">IP Address</th><th className="px-6 py-2">MAC</th><th className="px-6 py-2">Hostname</th><th className="px-6 py-2">Expires</th></tr></thead>
             <tbody className="divide-y divide-slate-700/50 text-sm">
-              {leases.map((l, i) => (
-                <tr key={i} className="table-row-hover">
+              {leases.map((l) => (
+                <tr key={`${l.mac}-${l.ip}`} className="table-row-hover">
                   <td className="px-6 py-2 text-slate-400">{l.network}</td>
                   <td className={`px-6 py-2 font-mono ${statusToneClass('info')}`}>{l.ip}</td>
                   <td className="px-6 py-2 font-mono text-xs text-slate-400">{l.mac}</td>

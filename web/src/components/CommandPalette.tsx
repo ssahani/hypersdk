@@ -199,7 +199,9 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
 
   // Focus input when opened
   useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 50)
+    if (!open) return
+    const id = setTimeout(() => inputRef.current?.focus(), 50)
+    return () => clearTimeout(id)
   }, [open])
 
   const platformConnected = Boolean(info?.control_plane?.proxy_url)

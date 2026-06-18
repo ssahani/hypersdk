@@ -1153,7 +1153,7 @@ export default function K8sOverviewPage() {
                         {asArray(invHist.entries).slice(0, 12).map((entry, i) => {
                           const row = asRecord(entry) ?? {}
                           return (
-                            <tr key={i} className="border-b border-slate-800/60">
+                            <tr key={String(row.id ?? row.name ?? i)} className="border-b border-slate-800/60">
                               <td className="px-3 py-2 text-slate-300">{String(row.id ?? row.name ?? i + 1)}</td>
                               <td className="px-3 py-2 text-slate-500">{String(row.timestamp ?? row.created_at ?? '—')}</td>
                             </tr>

@@ -118,8 +118,8 @@ export default function AuditLogPage() {
           <table className="w-full min-w-[56rem]">
             <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Time</th><th className="px-6 py-3">Action</th><th className="px-6 py-3">Target</th><th className="px-6 py-3">Actor</th><th className="px-6 py-3">Result</th></tr></thead>
             <tbody className="divide-y divide-slate-700/30">
-              {events.map((e, i) => (
-                <tr key={i} className="table-row-hover">
+              {events.map((e) => (
+                <tr key={`${e.timestamp}-${e.action}-${e.target}`} className="table-row-hover">
                   <td className="px-6 py-2 text-xs text-slate-400 font-mono whitespace-nowrap">{e.timestamp}</td>
                   <td className="px-6 py-2 text-sm font-medium">{e.action}</td>
                   <td className="px-6 py-2 text-sm text-slate-300">{e.target}</td>

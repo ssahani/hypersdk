@@ -1378,7 +1378,7 @@ export default function VMDetailsPage() {
               <p className="text-xs text-slate-500">
                 Rows merge libvirt DHCP <strong className="text-slate-400">lease</strong>, kernel <strong className="text-slate-400">ARP</strong>, then QEMU guest <strong className="text-slate-400">agent</strong>; first hit wins per address. When libvirt exposes DHCP leases, machina adds hostname/expiry; PTR (reverse DNS) is resolved on the hypervisor when possible.
               </p>
-              {guestIps.map((ip, i) => {
+              {guestIps.map((ip) => {
                 const { xmlGateway, heuristicGateway } = guestIpv4GatewayHints(
                   ip,
                   vm,
@@ -1391,7 +1391,7 @@ export default function VMDetailsPage() {
                       : `DHCP expires in ~${Math.max(1, Math.round(ip.lease_seconds_remaining / 60))} min`
                     : null
                 return (
-                  <div key={i} className="py-3 border-b border-slate-700/30 space-y-2">
+                  <div key={ip.address} className="py-3 border-b border-slate-700/30 space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <span className={`text-sm font-medium ${statusToneClass('info')}`}>
@@ -1702,8 +1702,8 @@ export default function VMDetailsPage() {
             <table className="w-full">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Target</th><th className="px-6 py-3">Bus</th><th className="px-6 py-3">Cache</th><th className="px-6 py-3">Device</th><th className="px-6 py-3">Driver</th><th className="px-6 py-3">Source</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
-                {vm.disks.map((d, i) => (
-                  <tr key={i} className="table-row-hover">
+                {vm.disks.map((d) => (
+                  <tr key={d.target} className="table-row-hover">
                     <td className="px-6 py-3 font-mono text-sm">{d.target}</td>
                     <td className="px-6 py-3 text-sm text-slate-400">{d.bus || '—'}</td>
                     <td className="px-6 py-3 text-sm text-slate-400">{d.cache || '—'}</td>
@@ -1829,8 +1829,8 @@ export default function VMDetailsPage() {
             <table className="w-full">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">MAC Address</th><th className="px-6 py-3">Source</th><th className="px-6 py-3">Model</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
-                {vm.interfaces.map((iface, i) => (
-                  <tr key={i} className="table-row-hover">
+                {vm.interfaces.map((iface) => (
+                  <tr key={iface.mac_address} className="table-row-hover">
                     <td className="px-6 py-3 font-mono text-sm">{iface.mac_address}</td>
                     <td className="px-6 py-3 text-sm">{iface.source}</td>
                     <td className="px-6 py-3 text-sm">{iface.model}</td>
@@ -2062,8 +2062,8 @@ export default function VMDetailsPage() {
               <table className="w-full">
                 <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-6 py-2">Bus</th><th className="px-6 py-2">Device</th><th className="px-6 py-2">ID</th><th className="px-6 py-2">Description</th><th className="px-6 py-2 text-right">Actions</th></tr></thead>
                 <tbody className="divide-y divide-slate-700/30 text-sm">
-                  {usbDevices.map((d, i) => (
-                    <tr key={i} className="table-row-hover">
+                  {usbDevices.map((d) => (
+                    <tr key={`${d.vendor_id}:${d.product_id}`} className="table-row-hover">
                       <td className="px-6 py-2 font-mono text-xs">{d.bus}</td>
                       <td className="px-6 py-2 font-mono text-xs">{d.device}</td>
                       <td className={`px-6 py-2 font-mono ${statusToneClass('info')}`}>{d.vendor_id}:{d.product_id}</td>
@@ -2094,8 +2094,8 @@ export default function VMDetailsPage() {
               <table className="w-full">
                 <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-6 py-2">Slot</th><th className="px-6 py-2">Class</th><th className="px-6 py-2">Vendor</th><th className="px-6 py-2">Device</th><th className="px-6 py-2">IOMMU Group</th></tr></thead>
                 <tbody className="divide-y divide-slate-700/30 text-sm">
-                  {pciDevices.map((d, i) => (
-                    <tr key={i} className="table-row-hover">
+                  {pciDevices.map((d) => (
+                    <tr key={d.slot} className="table-row-hover">
                       <td className={`px-6 py-2 font-mono text-xs ${statusToneClass('info')}`}>{d.slot}</td>
                       <td className="px-6 py-2 text-slate-300">{d.class}</td>
                       <td className="px-6 py-2 text-slate-300">{d.vendor}</td>
@@ -2122,8 +2122,8 @@ export default function VMDetailsPage() {
                     <table className="w-full">
                       <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-5 py-2">BDF</th><th className="px-5 py-2">Vendor</th><th className="px-5 py-2">Device</th></tr></thead>
                       <tbody className="divide-y divide-slate-700/30 text-sm">
-                        {g.devices.map((d, i) => (
-                          <tr key={i} className="table-row-hover">
+                        {g.devices.map((d) => (
+                          <tr key={d.bdf} className="table-row-hover">
                             <td className={`px-5 py-2 font-mono text-xs ${statusToneClass('info')}`}>{d.bdf}</td>
                             <td className="px-5 py-2 text-slate-300">{d.vendor || '-'}</td>
                             <td className="px-5 py-2 text-slate-300">{d.device_name || '-'}</td>
@@ -2684,7 +2684,7 @@ export default function VMDetailsPage() {
               <p className="text-sm text-slate-400 mb-3">Drag to reorder boot devices. VM must be restarted for changes to take effect.</p>
               <div className="space-y-2">
                 {bootDevices.map((dev, i) => (
-                  <div key={i} className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2">
+                  <div key={dev} className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2">
                     <span className="text-xs text-slate-500 w-4">{i + 1}.</span>
                     <span className="flex-1 text-sm font-medium">{dev}</span>
                     <button onClick={() => moveBootDevice(i, -1)} disabled={i === 0} className="p-0.5 hover:bg-slate-700 rounded disabled:opacity-30" aria-label="Move up"><ChevronUp className="w-4 h-4" /></button>
@@ -2709,8 +2709,8 @@ export default function VMDetailsPage() {
               {cdromDisks.length > 0 && (
                 <div className="mb-4 p-3 bg-slate-900 rounded-lg border border-slate-700">
                   <span className="text-xs text-slate-500 block mb-2">Current CD-ROM devices:</span>
-                  {cdromDisks.map((d, i) => (
-                    <div key={i} className="flex items-center justify-between py-1">
+                  {cdromDisks.map((d) => (
+                    <div key={d.target} className="flex items-center justify-between py-1">
                       <span className="text-sm"><span className={`font-mono ${statusToneClass('info')}`}>{d.target}</span> {d.source ? <span className="text-slate-400 text-xs ml-2">{d.source.split('/').pop()}</span> : <span className="text-slate-500 text-xs ml-2">(empty)</span>}</span>
                       {d.source && <button onClick={() => { if (name) { ejectCdrom(name, d.target, conn).then(() => { toast.success('CD-ROM ejected'); setDialog(null); load() }).catch((e: unknown) => toast.error(`Eject failed: ${formatUserError(e)}`)) } }} className={`px-2 py-0.5 rounded text-xs transition ${statusBadgeClasses('error')}`}>Eject</button>}
                     </div>

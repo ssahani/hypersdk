@@ -433,7 +433,7 @@ export default function BackupsPage() {
                 <>
                   <div className="flex justify-between"><span className="text-slate-400">Failed</span><span className={statusToneClass('error')}>{verifyResult.files_failed}</span></div>
                   <div className={`mt-2 bg-slate-900 rounded p-2 text-xs font-mono max-h-32 overflow-y-auto ${statusToneClass('error')} opacity-80`}>
-                    {verifyResult.failed_files.map((f, i) => <div key={i}>{f}</div>)}
+                    {verifyResult.failed_files.map((f) => <div key={f}>{f}</div>)}
                   </div>
                 </>
               )}

@@ -274,8 +274,8 @@ export default function LogsPage() {
                 </tr>
               </thead>
               <tbody>
-                {entries.map((entry, i) => (
-                  <tr key={i} className={`border-b border-slate-700/10 ${priorityBg(entry.priority)}`}>
+                {entries.map((entry) => (
+                  <tr key={`${entry.timestamp}-${entry.unit}`} className={`border-b border-slate-700/10 ${priorityBg(entry.priority)}`}>
                     <td className="px-3 py-1.5 text-slate-500 whitespace-nowrap">{entry.timestamp}</td>
                     <td className={`px-3 py-1.5 font-semibold ${priorityColor(entry.priority)}`}>{entry.priority}</td>
                     <td className={`px-3 py-1.5 whitespace-nowrap ${statusToneClass('info')}`}>{entry.unit}</td>

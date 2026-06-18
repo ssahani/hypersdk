@@ -145,12 +145,12 @@ export default function Dashboard() {
   const [showRebootConfirm, setShowRebootConfirm] = useState(false)
 
   const handleHostShutdown = async () => {
-    try { await hostShutdown() } catch (e) { console.error('Shutdown failed:', e) }
+    try { await hostShutdown() } catch (e: unknown) { toast.error(`Host shutdown failed: ${formatUserError(e)}`) }
     setShowShutdownConfirm(false)
   }
 
   const handleHostReboot = async () => {
-    try { await hostReboot() } catch (e) { console.error('Reboot failed:', e) }
+    try { await hostReboot() } catch (e: unknown) { toast.error(`Host reboot failed: ${formatUserError(e)}`) }
     setShowRebootConfirm(false)
   }
 
@@ -596,8 +596,8 @@ export default function Dashboard() {
             </h2>
           </div>
           <div className="divide-y divide-slate-700/30 max-h-64 overflow-y-auto">
-            {events.map((ev, i) => (
-              <div key={i} className="px-6 py-2.5 flex items-center justify-between text-sm gap-3">
+            {events.map((ev) => (
+              <div key={`${ev.timestamp}-${ev.name}-${ev.event}`} className="px-6 py-2.5 flex items-center justify-between text-sm gap-3">
                 <div className="flex items-center gap-2 min-w-0">
                   {ev.event === 'state_change' && <ArrowRight className={`w-3.5 h-3.5 shrink-0 ${statusToneClass('info')}`} />}
                   {ev.event === 'vm_added' && <Plus className={`w-3.5 h-3.5 shrink-0 ${statusToneClass('ok')}`} />}

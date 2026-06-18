@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield, ExternalLink, Monitor, Pause, Power, Server, Loader2, Network, ToggleLeft, ToggleRight, FolderOpen, Cpu } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
@@ -275,6 +275,11 @@ export default function PlatformVmDetail() {
   const [sshDialogOpen, setSshDialogOpen] = useState(false)
   const [portForwardRules, setPortForwardRules] = useState<VmPortForwardRule[]>([])
   const [consolePlan, setConsolePlan] = useState<ConsoleHubPlan | null>(null)
+
+  const migrationDisks = useMemo(
+    () => (libvirtDetails?.disks ?? []).filter((d) => d.device === 'disk' && d.source),
+    [libvirtDetails],
+  )
 
   const canBrowseHost = sessionRole === 'admin'
 
@@ -2220,9 +2225,9 @@ export default function PlatformVmDetail() {
                           onChange={(e) => setMigrateDisksUri(e.target.value)}
                         />
                       </label>
-                      {(libvirtDetails?.disks ?? []).filter((d) => d.device === 'disk' && d.source).length > 0 ? (
+                      {migrationDisks.length > 0 ? (
                         <div className="sm:col-span-2 flex flex-wrap gap-2">
-                          {(libvirtDetails?.disks ?? []).filter((d) => d.device === 'disk' && d.source).map((d) => (
+                          {migrationDisks.map((d) => (
                             <button
                               key={d.target}
                               type="button"
