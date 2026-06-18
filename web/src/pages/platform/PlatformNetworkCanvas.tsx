@@ -209,7 +209,7 @@ export default function PlatformNetworkCanvas() {
                 const title = threat.title ?? threat.kind ?? 'Threat'
                 const detail = threat.summary ?? threat.description
                 return (
-                <li key={i} className="border-b border-white/[0.04] pb-2 space-y-1">
+                <li key={`${String(threat.host_id ?? '')}-${String(threat.kind ?? title)}-${i}`} className="border-b border-white/[0.04] pb-2 space-y-1">
                   <span className={statusToneClass(threat.severity === 'critical' ? 'error' : 'warn')}>{title}</span>
                   {detail && <p className="text-slate-500 mt-0.5">{detail}</p>}
                   <EbpfActionMenu
