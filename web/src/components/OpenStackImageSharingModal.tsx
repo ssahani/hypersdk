@@ -56,15 +56,17 @@ export default function OpenStackImageSharingModal({ image, onClose }: Props) {
           <h2 className="font-semibold text-slate-100 truncate pr-2">
             Image sharing · {image.name || image.id.slice(0, 8)}
           </h2>
-          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-slate-800 text-slate-400">
-            <X className="w-5 h-5" />
+          <button type="button" onClick={onClose} aria-label="Close" className="p-1 rounded hover:bg-slate-800 text-slate-400">
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
         <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
           <div>
             <h3 className="text-xs font-medium text-slate-500 uppercase mb-2">Project members</h3>
             {loading ? (
-              <Loader2 className="w-5 h-5 animate-spin text-sky-400" />
+              <div role="status" aria-label="Loading members">
+                <Loader2 className="w-5 h-5 animate-spin text-sky-400" aria-hidden="true" />
+              </div>
             ) : members.length === 0 ? (
               <p className="text-sm text-slate-500">No members (private image).</p>
             ) : (
@@ -94,6 +96,7 @@ export default function OpenStackImageSharingModal({ image, onClose }: Props) {
             )}
             <div className="flex gap-2 mt-2">
               <input
+                aria-label="Project ID to add as member"
                 value={memberId}
                 onChange={(e) => setMemberId(e.target.value)}
                 placeholder="Project ID (member)"
@@ -153,12 +156,14 @@ export default function OpenStackImageSharingModal({ image, onClose }: Props) {
             <h3 className="text-xs font-medium text-slate-500 uppercase mb-2">Metadata property</h3>
             <div className="flex flex-wrap gap-2">
               <input
+                aria-label="Metadata key"
                 value={metaKey}
                 onChange={(e) => setMetaKey(e.target.value)}
                 placeholder="key"
                 className="px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-sm font-mono w-28"
               />
               <input
+                aria-label="Metadata value"
                 value={metaValue}
                 onChange={(e) => setMetaValue(e.target.value)}
                 placeholder="value"

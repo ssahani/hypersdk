@@ -194,9 +194,9 @@ function OpenStackVolumesContent() {
               <option key={img.id} value={img.id}>{img.name}</option>
             ))}
           </select>
-          <input value={fromImageName} onChange={(e) => setFromImageName(e.target.value)} placeholder="Volume name"
+          <input aria-label="Volume name" value={fromImageName} onChange={(e) => setFromImageName(e.target.value)} placeholder="Volume name"
             className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
-          <input value={fromImageSize} onChange={(e) => setFromImageSize(e.target.value)} placeholder="Size GB (opt)"
+          <input aria-label="Size in GB" value={fromImageSize} onChange={(e) => setFromImageSize(e.target.value)} placeholder="Size GB (opt)"
             className="w-28 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
           <button type="button" disabled={!fromImageId}
             className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-sm disabled:opacity-40"
@@ -226,7 +226,7 @@ function OpenStackVolumesContent() {
               <option key={vol.id} value={vol.id}>{vol.name || vol.id.slice(0, 8)}</option>
             ))}
           </select>
-          <input value={cloneName} onChange={(e) => setCloneName(e.target.value)} placeholder="New name"
+          <input aria-label="Clone name" value={cloneName} onChange={(e) => setCloneName(e.target.value)} placeholder="New name"
             className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
           <button type="button" disabled={!cloneSrcId} className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-sm disabled:opacity-40"
             onClick={async () => {
@@ -249,7 +249,7 @@ function OpenStackVolumesContent() {
               <option key={vol.id} value={vol.id}>{vol.name || vol.id.slice(0, 8)}</option>
             ))}
           </select>
-          <input value={xferName} onChange={(e) => setXferName(e.target.value)} placeholder="Transfer name"
+          <input aria-label="Transfer name" value={xferName} onChange={(e) => setXferName(e.target.value)} placeholder="Transfer name"
             className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
           <button type="button" disabled={!xferVolId || !xferName.trim()}
             className="px-3 py-1.5 rounded-lg bg-sky-600 text-white text-sm disabled:opacity-40"
@@ -262,9 +262,9 @@ function OpenStackVolumesContent() {
             }}>Create transfer</button>
         </div>
         <div className="flex flex-wrap gap-3 items-end border-t border-slate-800 pt-3">
-          <input value={xferAcceptId} onChange={(e) => setXferAcceptId(e.target.value)} placeholder="Transfer id"
+          <input aria-label="Transfer ID" value={xferAcceptId} onChange={(e) => setXferAcceptId(e.target.value)} placeholder="Transfer id"
             className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm font-mono" />
-          <input value={xferAuthKey} onChange={(e) => setXferAuthKey(e.target.value)} placeholder="Auth key"
+          <input aria-label="Auth key" value={xferAuthKey} onChange={(e) => setXferAuthKey(e.target.value)} placeholder="Auth key"
             className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm font-mono" />
           <button type="button" disabled={!xferAcceptId || !xferAuthKey}
             className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm disabled:opacity-40"

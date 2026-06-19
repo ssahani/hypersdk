@@ -610,6 +610,7 @@ export default function NodeInfoPage() {
               <div className="flex items-center gap-2">
                 <input
                   type="text"
+                  aria-label="Hostname"
                   value={hostnameInput}
                   onChange={e => setHostnameInput(e.target.value)}
                   className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--machina-status-info)]"
@@ -650,6 +651,7 @@ export default function NodeInfoPage() {
               <div className="flex items-center gap-2">
                 <input
                   type="text"
+                  aria-label="Timezone"
                   value={timezoneInput}
                   onChange={e => setTimezoneInput(e.target.value)}
                   placeholder="e.g. America/New_York"

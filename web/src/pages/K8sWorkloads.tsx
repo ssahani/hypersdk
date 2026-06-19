@@ -430,6 +430,7 @@ spec:
                     <td className="px-4 py-3">
                       <input
                         type="number"
+                        aria-label="Replica count"
                         min={0}
                         value={scale}
                         onChange={(e) => setScaleValue((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
@@ -614,9 +615,9 @@ spec:
           <div className="space-y-2">
             <div className="text-sm font-medium text-slate-300">kubectl auth can-i</div>
             <div className="flex flex-wrap gap-2 items-end">
-              <input className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs w-24" value={caniVerb} onChange={(e) => setCaniVerb(e.target.value)} placeholder="verb" />
-              <input className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs flex-1 min-w-[8rem]" value={caniRes} onChange={(e) => setCaniRes(e.target.value)} placeholder="resource" />
-              <input className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs w-28" value={caniNs} onChange={(e) => setCaniNs(e.target.value)} placeholder="-n (opt)" />
+              <input aria-label="kubectl verb" className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs w-24" value={caniVerb} onChange={(e) => setCaniVerb(e.target.value)} placeholder="verb" />
+              <input aria-label="kubectl resource" className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs flex-1 min-w-[8rem]" value={caniRes} onChange={(e) => setCaniRes(e.target.value)} placeholder="resource" />
+              <input aria-label="kubectl namespace" className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs w-28" value={caniNs} onChange={(e) => setCaniNs(e.target.value)} placeholder="-n (opt)" />
               <button type="button" className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600" onClick={() => {
                 void postK8sAuthCanI({ verb: caniVerb.trim(), resource: caniRes.trim(), namespace: caniNs.trim() || undefined, context: ctxTrim }).then((r) => setCaniOut(r.stdout.trim() || JSON.stringify(r))).catch((e: unknown) => setCaniOut(formatUserError(e)))
               }}>Check</button>

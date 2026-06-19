@@ -863,6 +863,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
             <input
               ref={inputRef}
               type="text"
+              aria-label={spotlight ? 'Zeus — search or ask' : 'Search command palette'}
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder={spotlight ? 'Zeus — search or ask…' : 'Search or type > import networks…'}

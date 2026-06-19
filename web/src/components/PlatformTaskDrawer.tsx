@@ -62,8 +62,8 @@ export default function PlatformTaskDrawer({ open, onClose }: PlatformTaskDrawer
             <button type="button" className="btn-secondary p-2" onClick={() => void load()} disabled={loading}>
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
-            <button type="button" className="btn-secondary p-2" onClick={onClose}>
-              <X className="w-4 h-4" />
+            <button type="button" className="btn-secondary p-2" onClick={onClose} aria-label="Close">
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </div>

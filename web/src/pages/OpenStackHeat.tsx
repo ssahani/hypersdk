@@ -83,7 +83,7 @@ function OpenStackHeatContent() {
               if (!f) return
               void f.text().then(setTemplate).catch(() => toast.error('Could not read template file'))
             }} />
-          <input value={timeoutMins} onChange={(e) => setTimeoutMins(e.target.value)} placeholder="Timeout (min, optional)"
+          <input aria-label="Timeout in minutes (optional)" value={timeoutMins} onChange={(e) => setTimeoutMins(e.target.value)} placeholder="Timeout (min, optional)"
             className="w-40 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
         </div>
         <button type="button" className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-sm"

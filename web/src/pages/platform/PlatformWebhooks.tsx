@@ -96,7 +96,7 @@ export default function PlatformWebhooks({ embedded }: { embedded?: boolean } = 
 
         <MacGlassPanel title="Add webhook endpoint" subtitle="Subscribe to vm.create, vm.delete, and ha.recover events.">
           <div className="flex flex-col sm:flex-row gap-3">
-            <input className="input flex-1" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com/hook" />
+            <input aria-label="Webhook URL" className="input flex-1" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com/hook" />
             <button type="button" className="btn-primary flex items-center gap-2 shrink-0" onClick={async () => {
               try { await createWebhook({ url, events: ['vm.create', 'vm.delete', 'ha.recover'] }); toast.success('Webhook added'); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
             }}><Plus className="w-4 h-4" /> Add endpoint</button>

@@ -318,7 +318,7 @@ export default function PlatformVirtInstallCreate() {
                 <input className="input w-full text-sm font-mono" value={extraArgs} onChange={(e) => setExtraArgs(e.target.value)} placeholder="inst.ks=…" />
                 <div className="rounded-lg border border-white/[0.06] p-3 space-y-2">
                   <p className="text-xs text-slate-500">RHEL image URL (RHSM offline token)</p>
-                  <input className="input w-full text-sm" value={rhelToken} onChange={(e) => setRhelToken(e.target.value)} placeholder="offline access token" />
+                  <input aria-label="RHEL offline access token" className="input w-full text-sm" value={rhelToken} onChange={(e) => setRhelToken(e.target.value)} placeholder="offline access token" />
                   <button
                     type="button"
                     className="btn-secondary text-xs"
@@ -371,7 +371,7 @@ export default function PlatformVirtInstallCreate() {
         {step === 1 && (
           <div className="space-y-4">
             <MacGlassPanel title="VM name">
-              <input className="input w-full text-sm" value={vmName} onChange={(e) => setVmName(e.target.value)} />
+              <input aria-label="VM name" className="input w-full text-sm" value={vmName} onChange={(e) => setVmName(e.target.value)} />
             </MacGlassPanel>
             <MacGlassPanel title="Root disk source">
               <div className="grid gap-2 sm:grid-cols-2 mb-3">
@@ -392,14 +392,14 @@ export default function PlatformVirtInstallCreate() {
                 ))}
               </div>
               {storageMode === 'existing' && (
-                <input className="input w-full text-sm font-mono" value={existingDisk} onChange={(e) => setExistingDisk(e.target.value)} placeholder="/var/lib/libvirt/images/disk.qcow2" />
+                <input aria-label="Existing disk path" className="input w-full text-sm font-mono" value={existingDisk} onChange={(e) => setExistingDisk(e.target.value)} placeholder="/var/lib/libvirt/images/disk.qcow2" />
               )}
               {storageMode === 'volume' && (
                 <div className="grid gap-2 sm:grid-cols-2">
                   <select className="input text-sm" value={diskPool} onChange={(e) => setDiskPool(e.target.value)}>
                     {pools.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
                   </select>
-                  <input className="input text-sm" value={diskVol} onChange={(e) => setDiskVol(e.target.value)} placeholder="volume name" />
+                  <input aria-label="Volume name" className="input text-sm" value={diskVol} onChange={(e) => setDiskVol(e.target.value)} placeholder="volume name" />
                 </div>
               )}
               {storageMode === 'backing' && (

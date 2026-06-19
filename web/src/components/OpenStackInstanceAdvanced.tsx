@@ -567,7 +567,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
           </Link>
         </h2>
         <div className="flex flex-wrap gap-2 items-end mb-2">
-          <input value={sgName} onChange={(e) => setSgName(e.target.value)} placeholder="group name"
+          <input aria-label="Security group name" value={sgName} onChange={(e) => setSgName(e.target.value)} placeholder="group name"
             className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
           <button type="button" disabled={!sgName.trim()}
             onClick={() => run(() => addOpenStackSecurityGroup(inst.id, sgName.trim()), 'Security group added')}

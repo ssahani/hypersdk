@@ -104,7 +104,7 @@ export default function CommandCenterPanel({
             <h2 className="font-semibold text-slate-100">Ops Shelf</h2>
             <p className="text-xs text-slate-500">VM Intelligence · {vmName}</p>
           </div>
-          <button type="button" onClick={onClose} className="p-1.5 rounded hover:bg-white/10 text-slate-400"><X className="w-5 h-5" /></button>
+          <button type="button" onClick={onClose} aria-label="Close" className="p-1.5 rounded hover:bg-white/10 text-slate-400"><X className="w-5 h-5" aria-hidden="true" /></button>
         </header>
         <div className="flex gap-1 px-3 py-2 border-b border-white/5 shrink-0 overflow-x-auto">
           {TABS.map((t) => (
@@ -187,6 +187,7 @@ export default function CommandCenterPanel({
                   <p className="text-[11px] text-amber-200/70">Starts a recorded, audited session when JIT approval is blocked.</p>
                   <input
                     type="text"
+                    aria-label="Break-glass reason"
                     className="input w-full text-xs"
                     placeholder="Reason (required for audit)"
                     value={breakGlassReason}

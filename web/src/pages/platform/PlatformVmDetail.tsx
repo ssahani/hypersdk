@@ -1518,6 +1518,7 @@ export default function PlatformVmDetail() {
                       ) : null}
                       <div className="flex gap-2">
                         <input
+                          aria-label="ISO path"
                           className="input flex-1 min-w-0 font-mono text-xs"
                           value={isoPath}
                           onChange={(e) => setIsoPath(e.target.value)}
@@ -1895,7 +1896,7 @@ export default function PlatformVmDetail() {
                   </ul>
                 </div>
               )}
-              <input className="input w-full max-w-xs" value={snapName} onChange={(e) => setSnapName(e.target.value)} placeholder="snap-01" />
+              <input aria-label="Snapshot name" className="input w-full max-w-xs" value={snapName} onChange={(e) => setSnapName(e.target.value)} placeholder="snap-01" />
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
@@ -2094,6 +2095,7 @@ export default function PlatformVmDetail() {
                   <p className="text-xs text-slate-500 mb-2">Libvirt domain rename (guest must be shut off).</p>
                   <div className="flex flex-wrap gap-2">
                     <input
+                      aria-label="New VM name"
                       className="input flex-1 min-w-[12rem]"
                       value={renameDraft || vm.name}
                       onChange={(e) => setRenameDraft(e.target.value)}
@@ -2359,8 +2361,8 @@ export default function PlatformVmDetail() {
               </MacGlassPanel>
               {vm.inventory_source !== 'kubevirt' && (
                 <MacGlassPanel title="Publish golden template">
-                  <input className="input w-full mb-2 text-sm" placeholder="template-name" value={publishTplName} onChange={(e) => setPublishTplName(e.target.value)} />
-                  <input className="input w-full mb-2 text-sm" placeholder="version" value={publishTplVersion} onChange={(e) => setPublishTplVersion(e.target.value)} />
+                  <input aria-label="Template name" className="input w-full mb-2 text-sm" placeholder="template-name" value={publishTplName} onChange={(e) => setPublishTplName(e.target.value)} />
+                  <input aria-label="Template version" className="input w-full mb-2 text-sm" placeholder="version" value={publishTplVersion} onChange={(e) => setPublishTplVersion(e.target.value)} />
                   <button
                     type="button"
                     className="btn-secondary text-sm"

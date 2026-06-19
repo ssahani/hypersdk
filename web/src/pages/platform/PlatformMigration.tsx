@@ -289,7 +289,7 @@ export default function PlatformMigration() {
       {hypersdk && status?.reachable && (
         <MacGlassPanel title="HyperSDK proxy explorer" subtitle="Provider-specific API paths via HyperSDK proxy.">
           <div className="flex flex-wrap gap-2 items-end mb-3">
-            <input className="input text-sm flex-1 min-w-[12rem]" value={hsProxyPath} onChange={(e) => setHsProxyPath(e.target.value)} placeholder="/providers" />
+            <input aria-label="HyperSDK proxy path" className="input text-sm flex-1 min-w-[12rem]" value={hsProxyPath} onChange={(e) => setHsProxyPath(e.target.value)} placeholder="/providers" />
             <button
               type="button"
               className="btn-secondary text-xs"

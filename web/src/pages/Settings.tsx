@@ -560,6 +560,7 @@ export default function SettingsPage() {
                   : ''}
               </label>
               <input
+                aria-label="Remote write authorization"
                 className="input-field w-full mt-1"
                 type="password"
                 autoComplete="off"
@@ -856,7 +857,7 @@ export default function SettingsPage() {
                   <tr key={r.id} className="table-row-hover">
                     <td className="px-6 py-3 font-medium">{r.name}</td>
                     <td className="px-6 py-3 text-sm font-mono text-slate-400">{r.condition}</td>
-                    <td className="px-6 py-3"><input type="number" value={r.threshold} onChange={e => { const next = [...alertRules]; next[i].threshold = parseFloat(e.target.value) || 0; setAlertRules(next) }} className="input-field w-20" /></td>
+                    <td className="px-6 py-3"><input aria-label="Alert rule threshold" type="number" value={r.threshold} onChange={e => { const next = [...alertRules]; next[i].threshold = parseFloat(e.target.value) || 0; setAlertRules(next) }} className="input-field w-20" /></td>
                     <td className="px-6 py-3"><input type="checkbox" checked={r.enabled} onChange={e => { const next = [...alertRules]; next[i].enabled = e.target.checked; setAlertRules(next) }} /></td>
                   </tr>
                 ))}

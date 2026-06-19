@@ -219,6 +219,7 @@ export default function PlatformThreatHunting() {
       <MacGlassPanel title="Structured SIEM search" subtitle="POST /api/v1/zeus-security/search — direct OpenSearch query">
         <div className="flex flex-wrap gap-2">
           <input
+            aria-label="Structured SIEM query"
             className="input text-sm flex-1 min-w-[14rem] font-mono"
             value={structuredQuery}
             onChange={(e) => setStructuredQuery(e.target.value)}

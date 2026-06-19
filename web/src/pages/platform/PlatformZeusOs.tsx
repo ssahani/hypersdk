@@ -328,7 +328,7 @@ export default function PlatformZeusOs() {
           )}
           <MacGlassPanel title="Fleet AI diagnose" subtitle="NL diagnosis across Zeus + Linux health">
             <div className="flex flex-wrap gap-2 mb-2">
-              <input className="input text-sm flex-1 min-w-[12rem]" value={fleetDiagnoseQuery} onChange={(e) => setFleetDiagnoseQuery(e.target.value)} />
+              <input aria-label="Fleet diagnose query" className="input text-sm flex-1 min-w-[12rem]" value={fleetDiagnoseQuery} onChange={(e) => setFleetDiagnoseQuery(e.target.value)} />
               <button
                 type="button"
                 className="btn-secondary text-xs"
@@ -436,7 +436,7 @@ export default function PlatformZeusOs() {
       {tab === 'knowledge' && (
         <MacGlassPanel title="Infrastructure knowledge engine" subtitle="Global search + NL diagnose">
           <div className="flex gap-2">
-            <input className="input flex-1 text-sm" value={knowledgeQuery} onChange={(e) => setKnowledgeQuery(e.target.value)} />
+            <input aria-label="Infrastructure knowledge search query" className="input flex-1 text-sm" value={knowledgeQuery} onChange={(e) => setKnowledgeQuery(e.target.value)} />
             <button type="button" className="btn-primary text-xs" onClick={() => void runKnowledge()}>Search</button>
           </div>
           {diagnosisSummary && <p className={`text-xs mt-2 ${statusToneClass('warn')}`}>Diagnosis: {diagnosisSummary}</p>}

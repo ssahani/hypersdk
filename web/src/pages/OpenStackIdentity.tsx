@@ -83,7 +83,7 @@ function OpenStackIdentityContent() {
 
       {tab === 'projects' && (
         <div className="rounded-xl border border-slate-700 p-4 flex flex-wrap gap-2 items-center">
-          <input value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="New project name"
+          <input aria-label="New project name" value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="New project name"
             className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
           <button type="button" className="px-3 py-1.5 rounded-lg bg-amber-700 text-white text-sm inline-flex items-center gap-1"
             onClick={async () => {
@@ -102,9 +102,9 @@ function OpenStackIdentityContent() {
 
       {tab === 'users' && (
         <div className="rounded-xl border border-slate-700 p-4 flex flex-wrap gap-2 items-center">
-          <input value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="Username"
+          <input aria-label="Username" value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="Username"
             className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
-          <input type="password" autoComplete="new-password" value={userPassword} onChange={(e) => setUserPassword(e.target.value)} placeholder="Password"
+          <input type="password" aria-label="Password" autoComplete="new-password" value={userPassword} onChange={(e) => setUserPassword(e.target.value)} placeholder="Password"
             className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
           <button type="button" className="px-3 py-1.5 rounded-lg bg-amber-700 text-white text-sm inline-flex items-center gap-1"
             onClick={async () => {

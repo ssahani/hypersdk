@@ -368,6 +368,7 @@ export default function KubeVirtExposeServiceModal({ vm, services, onClose, onCo
                     <tr key={r.id} className="bg-slate-900/50">
                       <td className="px-2 py-2">
                         <input
+                          aria-label="Port name"
                           value={r.name}
                           onChange={(e) => updateRow(r.id, { name: e.target.value })}
                           className="w-full min-w-[5rem] bg-slate-950 border border-slate-600 rounded px-2 py-1 text-xs font-mono text-slate-100"
@@ -375,6 +376,7 @@ export default function KubeVirtExposeServiceModal({ vm, services, onClose, onCo
                       </td>
                       <td className="px-2 py-2">
                         <input
+                          aria-label="Service port"
                           type="number"
                           min={1}
                           max={65535}
@@ -385,6 +387,7 @@ export default function KubeVirtExposeServiceModal({ vm, services, onClose, onCo
                       </td>
                       <td className="px-2 py-2">
                         <input
+                          aria-label="Target port"
                           type="number"
                           min={1}
                           max={65535}
@@ -407,6 +410,7 @@ export default function KubeVirtExposeServiceModal({ vm, services, onClose, onCo
                       {svcType === 'NodePort' && (
                         <td className="px-2 py-2">
                           <input
+                            aria-label="Node port (optional)"
                             type="number"
                             min={1}
                             max={65535}

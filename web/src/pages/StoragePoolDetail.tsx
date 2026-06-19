@@ -183,6 +183,11 @@ export default function StoragePoolDetail() {
           </div>
           <div className="w-full bg-slate-700 rounded-full h-3">
             <div
+              role="progressbar"
+              aria-label="Storage usage"
+              aria-valuenow={Math.round(Math.min(usagePct, 100))}
+              aria-valuemin={0}
+              aria-valuemax={100}
               className={`h-3 rounded-full transition-all ${statusBgClass(utilizationTone(usagePct))}`}
               style={{ width: `${Math.min(usagePct, 100)}%` }}
             />

@@ -85,7 +85,7 @@ export default function HostPackageKitPanel({ hostId, updates, maintenanceMode, 
         </div>
 
         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-          <input className="input text-xs" value={installPkg} onChange={(e) => setInstallPkg(e.target.value)} placeholder="Install package name" />
+          <input aria-label="Install package name" className="input text-xs" value={installPkg} onChange={(e) => setInstallPkg(e.target.value)} placeholder="Install package name" />
           <button
             type="button"
             className="btn-secondary text-xs"
@@ -101,7 +101,7 @@ export default function HostPackageKitPanel({ hostId, updates, maintenanceMode, 
         </div>
 
         <div className="grid gap-2 sm:grid-cols-[1fr_auto] items-center">
-          <input className="input text-xs" value={removePkg} onChange={(e) => setRemovePkg(e.target.value)} placeholder="Remove package name" />
+          <input aria-label="Remove package name" className="input text-xs" value={removePkg} onChange={(e) => setRemovePkg(e.target.value)} placeholder="Remove package name" />
           <div className="flex items-center gap-2">
             <label className="text-xs text-slate-500 inline-flex items-center gap-1">
               <input type="checkbox" checked={purge} onChange={(e) => setPurge(e.target.checked)} /> Purge

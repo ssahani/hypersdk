@@ -367,6 +367,7 @@ export default function PlatformSettingsHub() {
             <p className="text-xs text-slate-500 mb-2">Simulated sovereign export manifests — no live bundle runner.</p>
             <div className="flex gap-2 mb-3">
               <input
+                aria-label="Air-gap bundle name"
                 className="input flex-1 text-sm"
                 value={bundleName}
                 disabled={bundleCreating}

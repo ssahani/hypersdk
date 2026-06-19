@@ -37,7 +37,7 @@ export default function VmNetworkDrawer({
             <h2 className="font-semibold text-slate-100">Network</h2>
             <p className="text-xs text-slate-500">{vmName}</p>
           </div>
-          <button type="button" onClick={onClose} className="p-1.5 rounded hover:bg-white/10 text-slate-400"><X className="w-5 h-5" /></button>
+          <button type="button" onClick={onClose} aria-label="Close" className="p-1.5 rounded hover:bg-white/10 text-slate-400"><X className="w-5 h-5" aria-hidden="true" /></button>
         </header>
         <div className="flex-1 overflow-y-auto p-4">
           {guestIp ? (

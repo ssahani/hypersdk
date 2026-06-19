@@ -1334,6 +1334,7 @@ export default function CreateVMPage() {
         <div className="flex gap-2">
           <input
             type="text"
+            aria-label="Cloud-init ISO path on hypervisor"
             value={cloudInitIso}
             onChange={(e) => setCloudInitIso(e.target.value)}
             className="input-field flex-1 font-mono text-sm"

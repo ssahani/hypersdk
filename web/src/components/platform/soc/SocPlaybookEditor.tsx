@@ -240,6 +240,7 @@ export default function SocPlaybookEditor({
                       </label>
                       {!step.useGlobalWebhook && (
                         <input
+                          aria-label="Webhook URL"
                           className="input w-full text-sm"
                           placeholder="https://..."
                           value={step.url}

@@ -1185,7 +1185,7 @@ export default function VMDetailsPage() {
               </span>
             ))}
             <form className="inline-flex items-center gap-1" onSubmit={async (e) => { e.preventDefault(); const tag = newTag.trim(); if (!tag || vmTags.includes(tag)) return; const next = [...vmTags, tag]; try { await apiSetVmTags(vm.name, next); setVmTags(next); setNewTag('') } catch (e: unknown) { toast.error(formatUserError(e)) } }}>
-              <input type="text" value={newTag} onChange={(e) => setNewTag(e.target.value)} placeholder="+ tag" className="w-16 px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-xs focus:outline-none focus:border-blue-500 text-slate-300" />
+              <input type="text" aria-label="Add tag" value={newTag} onChange={(e) => setNewTag(e.target.value)} placeholder="+ tag" className="w-16 px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-xs focus:outline-none focus:border-blue-500 text-slate-300" />
             </form>
           </div>
         </div>
@@ -2290,7 +2290,7 @@ export default function VMDetailsPage() {
             <h3 className="text-lg font-semibold">PCI passthrough (VFIO)</h3>
             <p className="text-xs text-slate-400">BDF like <code className="text-slate-300">0000:03:00.0</code>. Detach the node device from the host first when required.</p>
             <div className="flex flex-wrap gap-2 items-end">
-              <input value={pciBdf} onChange={(e) => setPciBdf(e.target.value)} placeholder="0000:03:00.0" className="input-field flex-1 min-w-[200px]" />
+              <input aria-label="PCI BDF address" value={pciBdf} onChange={(e) => setPciBdf(e.target.value)} placeholder="0000:03:00.0" className="input-field flex-1 min-w-[200px]" />
               <button
                 type="button"
                 disabled={!canUsbPci}
@@ -2336,7 +2336,7 @@ export default function VMDetailsPage() {
             <h3 className="text-lg font-semibold">Host node device</h3>
             <p className="text-xs text-slate-400">Name from <strong className="text-slate-300">Devices</strong> page or <code className="text-slate-300">pci_0000_03_00_0</code> style libvirt id.</p>
             <div className="flex flex-wrap gap-2 items-end">
-              <input value={nodedevName} onChange={(e) => setNodedevName(e.target.value)} placeholder="pci_0000_03_00_0" className="input-field flex-1 min-w-[220px]" />
+              <input aria-label="Host node device name" value={nodedevName} onChange={(e) => setNodedevName(e.target.value)} placeholder="pci_0000_03_00_0" className="input-field flex-1 min-w-[220px]" />
               <button
                 type="button"
                 disabled={!canUsbPci}

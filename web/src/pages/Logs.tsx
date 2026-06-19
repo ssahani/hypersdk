@@ -202,6 +202,7 @@ export default function LogsPage() {
 
         <input
           type="text"
+          aria-label="Since"
           placeholder='Since (e.g. "1 hour ago" or 2026-04-20 10:00:00)'
           value={since}
           onChange={e => setSince(e.target.value)}
@@ -210,6 +211,7 @@ export default function LogsPage() {
 
         <input
           type="text"
+          aria-label="Until"
           placeholder='Until (e.g. "now" or 2026-04-27 13:00:00)'
           value={until}
           onChange={e => setUntil(e.target.value)}
@@ -218,6 +220,7 @@ export default function LogsPage() {
 
         <input
           type="number"
+          aria-label="UID filter"
           min={0}
           placeholder="UID"
           value={uid}
@@ -227,6 +230,7 @@ export default function LogsPage() {
 
         <input
           type="number"
+          aria-label="PID filter"
           min={0}
           placeholder="PID"
           value={pid}

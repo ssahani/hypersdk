@@ -474,6 +474,7 @@ function OpenStackCreateInstanceContent() {
                 <p className="text-sm text-slate-500">No volume snapshots. Create one from the Volumes page.</p>
               ) : (
                 <select
+                  aria-label="Cinder snapshot"
                   value={bootSnapshotId}
                   onChange={(e) => setBootSnapshotId(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100"
@@ -611,6 +612,7 @@ function OpenStackCreateInstanceContent() {
           <div>
             <label className="block text-sm text-slate-400 mb-1">Server group (optional)</label>
             <select
+              aria-label="Server group"
               value={serverGroupId}
               onChange={(e) => setServerGroupId(e.target.value)}
               className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100"
@@ -629,6 +631,7 @@ function OpenStackCreateInstanceContent() {
               <p className={`text-xs mb-1 ${statusToneClass('warn')}`}>Keypairs unavailable: {catalogErrors.keypairs}</p>
             )}
             <select
+              aria-label="SSH key pair"
               value={keyName}
               onChange={(e) => setKeyName(e.target.value)}
               className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100"

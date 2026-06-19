@@ -242,6 +242,7 @@ function OverrideFields(props: {
       <div className="grid gap-2 sm:grid-cols-2">
         <input
           type="text"
+          aria-label="Namespace"
           placeholder="namespace"
           value={props.namespace}
           onChange={(e) => props.setNamespace(e.target.value)}
@@ -249,6 +250,7 @@ function OverrideFields(props: {
         />
         <input
           type="text"
+          aria-label="Kubernetes VM name"
           placeholder="K8s VM name"
           value={props.k8sName}
           onChange={(e) => props.setK8sName(e.target.value)}
@@ -256,6 +258,7 @@ function OverrideFields(props: {
         />
         <input
           type="number"
+          aria-label="vCPUs"
           min={1}
           placeholder="vCPUs"
           value={props.vcpus}
@@ -264,6 +267,7 @@ function OverrideFields(props: {
         />
         <input
           type="number"
+          aria-label="Memory (MB)"
           min={512}
           step={512}
           placeholder="Memory MB"
@@ -286,8 +290,8 @@ function OverrideFields(props: {
 
 function Spinner() {
   return (
-    <div className="flex justify-center py-8">
-      <Loader2 className="w-6 h-6 animate-spin text-violet-400" />
+    <div role="status" aria-label="Loading" className="flex justify-center py-8">
+      <Loader2 className="w-6 h-6 animate-spin text-violet-400" aria-hidden="true" />
     </div>
   )
 }

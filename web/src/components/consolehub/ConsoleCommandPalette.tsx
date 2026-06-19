@@ -70,6 +70,7 @@ export default function ConsoleCommandPalette({ open, onClose, actions }: Props)
           <Search className="w-4 h-4 text-slate-500" />
           <input
             ref={inputRef}
+            aria-label="Search commands"
             className="flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
             placeholder="What do you want to do?"
             value={query}

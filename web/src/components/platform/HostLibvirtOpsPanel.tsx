@@ -77,8 +77,8 @@ export default function HostLibvirtOpsPanel({ hostId, online = true }: Props) {
   return (
     <MacGlassPanel title="Host libvirt ops" subtitle="Storage pools and virtual networks via agent libvirt RPC">
       {loading ? (
-        <div className="flex items-center gap-2 text-sm text-slate-400 py-4">
-          <Loader2 className="w-4 h-4 animate-spin" />
+        <div role="status" className="flex items-center gap-2 text-sm text-slate-400 py-4">
+          <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
           Loading host libvirt inventory…
         </div>
       ) : (
@@ -86,7 +86,7 @@ export default function HostLibvirtOpsPanel({ hostId, online = true }: Props) {
           <div>
             <p className="text-xs text-slate-500 mb-2">Storage pools</p>
             <div className="flex flex-wrap gap-2 items-center">
-              <select className="input text-sm min-w-[10rem]" value={selectedPool} onChange={(e) => setSelectedPool(e.target.value)}>
+              <select aria-label="Storage pool" className="input text-sm min-w-[10rem]" value={selectedPool} onChange={(e) => setSelectedPool(e.target.value)}>
                 {pools.map((p) => (
                   <option key={p.name} value={p.name}>
                     {p.name}{p.active === false ? ' (stopped)' : ''}
@@ -129,12 +129,14 @@ export default function HostLibvirtOpsPanel({ hostId, online = true }: Props) {
             </div>
             <div className="flex flex-wrap gap-2 items-center mt-2">
               <input
+                aria-label="Volume name"
                 className="input text-sm w-32"
                 placeholder="volume name"
                 value={volumeName}
                 onChange={(e) => setVolumeName(e.target.value)}
               />
               <input
+                aria-label="Volume size in GiB"
                 className="input text-sm w-20"
                 type="number"
                 min={1}
@@ -162,7 +164,7 @@ export default function HostLibvirtOpsPanel({ hostId, online = true }: Props) {
           <div>
             <p className="text-xs text-slate-500 mb-2">Virtual networks</p>
             <div className="flex flex-wrap gap-2 items-center">
-              <select className="input text-sm min-w-[10rem]" value={selectedNetwork} onChange={(e) => setSelectedNetwork(e.target.value)}>
+              <select aria-label="Virtual network" className="input text-sm min-w-[10rem]" value={selectedNetwork} onChange={(e) => setSelectedNetwork(e.target.value)}>
                 {networks.map((n) => (
                   <option key={n.name} value={n.name}>
                     {n.name}{n.active === false ? ' (inactive)' : ''}

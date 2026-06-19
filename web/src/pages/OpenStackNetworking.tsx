@@ -347,6 +347,7 @@ function OpenStackNetworkingContent() {
             </select>
           </div>
           <input
+            aria-label="Port name (optional)"
             value={portName}
             onChange={(e) => setPortName(e.target.value)}
             placeholder="Port name (optional)"

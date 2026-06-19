@@ -133,8 +133,8 @@ export default function OpenStackQuotasPanel({ compact }: Props) {
       </div>
       <p className="text-xs text-slate-500 mb-3">Requires admin role on the cloud. Click the pencil to edit a limit.</p>
       {loading && (
-        <div className="flex items-center gap-2 text-sm text-slate-500 py-4">
-          <Loader2 className="w-4 h-4 animate-spin text-sky-400" />
+        <div role="status" className="flex items-center gap-2 text-sm text-slate-500 py-4">
+          <Loader2 className="w-4 h-4 animate-spin text-sky-400" aria-hidden="true" />
           Loading quotas…
         </div>
       )}

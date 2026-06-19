@@ -324,6 +324,7 @@ export default function PlatformSecurityCenter() {
           <MacGlassPanel title="Zeus security search" subtitle="Natural language event search">
             <div className="flex flex-wrap gap-2 mb-2">
               <input
+                aria-label="Zeus security search query"
                 className="input text-sm flex-1 min-w-[14rem]"
                 placeholder="Show every process that opened port 8080 last week"
                 value={nlQuery}
