@@ -228,6 +228,7 @@ pub async fn upsert_gitops_policy(
         "INSERT INTO firewall_policies (id, name, spec_yaml) VALUES (?, ?, ?)
          ON CONFLICT (name) DO UPDATE SET spec_yaml = EXCLUDED.spec_yaml, updated_at = datetime('now')",
     )
+    .bind(Uuid::new_v4())
     .bind(&name)
     .bind(&spec_yaml)
     .execute(pool)

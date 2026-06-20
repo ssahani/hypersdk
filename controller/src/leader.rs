@@ -47,6 +47,7 @@ async fn renew_lease(pool: &SqlitePool, holder_id: &str) -> anyhow::Result<bool>
          RETURNING TRUE",
     )
     .bind(holder_id)
+    .bind(holder_id)
     .fetch_optional(pool)
     .await?
     .unwrap_or(false);

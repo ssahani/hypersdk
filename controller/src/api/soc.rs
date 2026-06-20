@@ -175,15 +175,15 @@ pub async fn patch_alert(
     require_operator(&actor)?;
     if let Some(status) = &body.status {
         sqlx::query("UPDATE soc_alerts SET status = ?, updated_at = datetime('now') WHERE id = ?")
-            .bind(id)
             .bind(status)
+            .bind(id)
             .execute(&state.pool)
             .await?;
     }
     if let Some(assignee) = &body.assigned_to {
         sqlx::query("UPDATE soc_alerts SET assigned_to = ?, updated_at = datetime('now') WHERE id = ?")
-            .bind(id)
             .bind(assignee)
+            .bind(id)
             .execute(&state.pool)
             .await?;
     }
@@ -354,9 +354,9 @@ pub async fn put_splunk_integration(
     sqlx::query(
         "UPDATE soc_integrations SET config_json = ?, enabled = ?, updated_at = datetime('now') WHERE id = ?",
     )
-    .bind(id)
     .bind(cfg)
     .bind(body.enabled.unwrap_or(true))
+    .bind(id)
     .execute(&state.pool)
     .await?;
     let row = fetch_integration_db(&state.pool, "splunk_hec").await?;

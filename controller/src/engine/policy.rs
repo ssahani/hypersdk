@@ -52,6 +52,10 @@ async fn check_project_quota(
          FROM project_quotas q WHERE q.project = ?",
     )
     .bind(project)
+    .bind(project)
+    .bind(project)
+    .bind(project)
+    .bind(project)
     .fetch_optional(pool)
     .await
     .ok()
