@@ -57,7 +57,6 @@ impl AppState {
         tokio::spawn(async move {
             let _ = sqlx::query("INSERT INTO events (id, kind, message) VALUES (?, ?, ?)")
                 .bind(uuid::Uuid::new_v4())
-    .bind(uuid::Uuid::new_v4())
                 .bind(&kind)
                 .bind(&msg_db)
                 .execute(&pool)

@@ -4,7 +4,7 @@
 -- clusters
 -- ============================================================
 CREATE TABLE IF NOT EXISTS clusters (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     name TEXT NOT NULL UNIQUE,
     ha_enabled INTEGER NOT NULL DEFAULT 0,
     placement_policy TEXT NOT NULL DEFAULT 'balanced',
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS clusters (
 -- users
 -- ============================================================
 CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     username TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'viewer',
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS enrollment_tokens (
 -- baremetal_servers (must precede hosts due to FK)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS baremetal_servers (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     hostname TEXT NOT NULL,
     bmc_address TEXT NOT NULL DEFAULT '',
     bmc_type TEXT NOT NULL DEFAULT 'redfish',
@@ -104,7 +104,7 @@ CREATE INDEX IF NOT EXISTS idx_baremetal_servers_hostname ON baremetal_servers(h
 -- hosts
 -- ============================================================
 CREATE TABLE IF NOT EXISTS hosts (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     cluster_id TEXT REFERENCES clusters(id),
     hostname TEXT NOT NULL,
     address TEXT NOT NULL DEFAULT '',
@@ -157,7 +157,7 @@ CREATE INDEX IF NOT EXISTS idx_hosts_site_rack ON hosts(site, rack);
 -- vms
 -- ============================================================
 CREATE TABLE IF NOT EXISTS vms (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     cluster_id TEXT REFERENCES clusters(id),
     host_id TEXT REFERENCES hosts(id),
     name TEXT NOT NULL,
@@ -209,7 +209,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_vms_kubevirt_name
 -- vm_disks
 -- ============================================================
 CREATE TABLE IF NOT EXISTS vm_disks (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     vm_id TEXT NOT NULL REFERENCES vms(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     size_gib INTEGER NOT NULL,
@@ -221,7 +221,7 @@ CREATE TABLE IF NOT EXISTS vm_disks (
 -- templates
 -- ============================================================
 CREATE TABLE IF NOT EXISTS templates (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     name TEXT NOT NULL,
     version TEXT NOT NULL,
     source_disk TEXT NOT NULL,
@@ -253,7 +253,7 @@ CREATE INDEX IF NOT EXISTS idx_templates_approval ON templates(approval_status);
 -- tasks
 -- ============================================================
 CREATE TABLE IF NOT EXISTS tasks (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     operation TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
     progress INTEGER NOT NULL DEFAULT 0,
@@ -274,7 +274,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_operation ON tasks(operation);
 -- task_steps
 -- ============================================================
 CREATE TABLE IF NOT EXISTS task_steps (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
@@ -286,7 +286,7 @@ CREATE TABLE IF NOT EXISTS task_steps (
 -- events
 -- ============================================================
 CREATE TABLE IF NOT EXISTS events (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     kind TEXT NOT NULL,
     resource_type TEXT,
     resource_id TEXT,
@@ -302,7 +302,7 @@ CREATE INDEX IF NOT EXISTS idx_events_kind ON events(kind);
 -- audit_logs
 -- ============================================================
 CREATE TABLE IF NOT EXISTS audit_logs (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     actor TEXT NOT NULL,
     action TEXT NOT NULL,
     resource_type TEXT,
@@ -318,7 +318,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_logs(actor);
 -- ha_policies
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ha_policies (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     vm_id TEXT NOT NULL REFERENCES vms(id) ON DELETE CASCADE,
     enabled INTEGER NOT NULL DEFAULT 0,
     restart_attempts INTEGER NOT NULL DEFAULT 3,
@@ -331,7 +331,7 @@ CREATE TABLE IF NOT EXISTS ha_policies (
 -- migration_jobs
 -- ============================================================
 CREATE TABLE IF NOT EXISTS migration_jobs (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     vm_id TEXT NOT NULL REFERENCES vms(id),
     source_host_id TEXT NOT NULL REFERENCES hosts(id),
     dest_host_id TEXT NOT NULL REFERENCES hosts(id),
@@ -347,7 +347,7 @@ CREATE TABLE IF NOT EXISTS migration_jobs (
 -- maintenance_windows
 -- ============================================================
 CREATE TABLE IF NOT EXISTS maintenance_windows (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     host_id TEXT NOT NULL REFERENCES hosts(id),
     action TEXT NOT NULL DEFAULT 'enter',
     evacuate INTEGER NOT NULL DEFAULT 1,
@@ -359,7 +359,7 @@ CREATE TABLE IF NOT EXISTS maintenance_windows (
 -- storage_pools  (tier_id FK added after storage_tiers is defined)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS storage_pools (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     cluster_id TEXT REFERENCES clusters(id),
     name TEXT NOT NULL,
     storage_class TEXT NOT NULL DEFAULT 'silver',
@@ -378,7 +378,7 @@ CREATE INDEX IF NOT EXISTS idx_storage_pools_tier ON storage_pools(tier_id);
 -- networks  (segment_id FK added after network_segments is defined)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS networks (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     cluster_id TEXT REFERENCES clusters(id),
     name TEXT NOT NULL,
     backend TEXT NOT NULL DEFAULT 'linux-bridge',
@@ -395,7 +395,7 @@ CREATE INDEX IF NOT EXISTS idx_networks_segment ON networks(segment_id);
 -- ha_events
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ha_events (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     vm_id TEXT REFERENCES vms(id) ON DELETE SET NULL,
     host_id TEXT REFERENCES hosts(id) ON DELETE SET NULL,
     action TEXT NOT NULL,
@@ -409,7 +409,7 @@ CREATE INDEX IF NOT EXISTS idx_ha_events_created ON ha_events(created_at DESC);
 -- placement_recommendations
 -- ============================================================
 CREATE TABLE IF NOT EXISTS placement_recommendations (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     vm_id TEXT NOT NULL REFERENCES vms(id) ON DELETE CASCADE,
     from_host_id TEXT NOT NULL REFERENCES hosts(id),
     to_host_id TEXT NOT NULL REFERENCES hosts(id),
@@ -425,7 +425,7 @@ CREATE INDEX IF NOT EXISTS idx_placement_open ON placement_recommendations(statu
 -- fence_events
 -- ============================================================
 CREATE TABLE IF NOT EXISTS fence_events (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     host_id TEXT NOT NULL REFERENCES hosts(id),
     action TEXT NOT NULL,
     command TEXT,
@@ -438,7 +438,7 @@ CREATE TABLE IF NOT EXISTS fence_events (
 -- snapshot_records
 -- ============================================================
 CREATE TABLE IF NOT EXISTS snapshot_records (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     vm_id TEXT NOT NULL REFERENCES vms(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
@@ -454,7 +454,7 @@ CREATE INDEX IF NOT EXISTS idx_snapshot_vm ON snapshot_records(vm_id);
 -- backup_records
 -- ============================================================
 CREATE TABLE IF NOT EXISTS backup_records (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     vm_id TEXT NOT NULL REFERENCES vms(id) ON DELETE CASCADE,
     backup_type TEXT NOT NULL DEFAULT 'full',
     status TEXT NOT NULL DEFAULT 'pending',
@@ -472,7 +472,7 @@ CREATE INDEX IF NOT EXISTS idx_backup_vm ON backup_records(vm_id);
 -- api_keys
 -- ============================================================
 CREATE TABLE IF NOT EXISTS api_keys (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     name TEXT NOT NULL,
     key_hash TEXT NOT NULL UNIQUE,
     role TEXT NOT NULL DEFAULT 'operator',
@@ -486,7 +486,7 @@ CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
 -- webhooks
 -- ============================================================
 CREATE TABLE IF NOT EXISTS webhooks (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     url TEXT NOT NULL,
     events TEXT NOT NULL DEFAULT '{}',
     secret TEXT NOT NULL DEFAULT '',
@@ -498,7 +498,7 @@ CREATE TABLE IF NOT EXISTS webhooks (
 -- maintenance_schedules
 -- ============================================================
 CREATE TABLE IF NOT EXISTS maintenance_schedules (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     host_id TEXT NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
     action TEXT NOT NULL DEFAULT 'enter',
     evacuate INTEGER NOT NULL DEFAULT 1,
@@ -513,7 +513,7 @@ CREATE INDEX IF NOT EXISTS idx_maintenance_sched_run ON maintenance_schedules(ru
 -- notification_outbox
 -- ============================================================
 CREATE TABLE IF NOT EXISTS notification_outbox (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     kind TEXT NOT NULL,
     payload TEXT NOT NULL DEFAULT '{}',
     delivered INTEGER NOT NULL DEFAULT 0,
@@ -550,7 +550,7 @@ ON CONFLICT (id) DO NOTHING;
 -- webhook_deliveries
 -- ============================================================
 CREATE TABLE IF NOT EXISTS webhook_deliveries (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     webhook_id TEXT,
     url TEXT NOT NULL,
     secret TEXT NOT NULL DEFAULT '',
@@ -571,7 +571,7 @@ CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_pending
 -- policy_rules
 -- ============================================================
 CREATE TABLE IF NOT EXISTS policy_rules (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     name TEXT NOT NULL UNIQUE,
     enabled INTEGER NOT NULL DEFAULT 1,
     rule_json TEXT NOT NULL DEFAULT '{}',
@@ -599,7 +599,7 @@ CREATE TABLE IF NOT EXISTS project_quotas (
 -- backup_targets
 -- ============================================================
 CREATE TABLE IF NOT EXISTS backup_targets (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     name TEXT NOT NULL UNIQUE,
     kind TEXT NOT NULL DEFAULT 'local',
     config_json TEXT NOT NULL DEFAULT '{}',
@@ -622,7 +622,7 @@ CREATE TABLE IF NOT EXISTS vm_metrics (
 -- content_images
 -- ============================================================
 CREATE TABLE IF NOT EXISTS content_images (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     cluster_id TEXT NOT NULL REFERENCES clusters(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     kind TEXT NOT NULL DEFAULT 'iso',
@@ -649,7 +649,7 @@ CREATE INDEX IF NOT EXISTS idx_content_images_status ON content_images(status);
 -- network_reservations  (pool_id FK added after network_ipam_pools is defined)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS network_reservations (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     network_id TEXT NOT NULL REFERENCES networks(id) ON DELETE CASCADE,
     vm_id TEXT REFERENCES vms(id) ON DELETE SET NULL,
     mac_address TEXT,
@@ -663,7 +663,7 @@ CREATE TABLE IF NOT EXISTS network_reservations (
 -- application_groups
 -- ============================================================
 CREATE TABLE IF NOT EXISTS application_groups (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     cluster_id TEXT NOT NULL REFERENCES clusters(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
@@ -684,7 +684,7 @@ CREATE TABLE IF NOT EXISTS application_group_vms (
 -- blueprints
 -- ============================================================
 CREATE TABLE IF NOT EXISTS blueprints (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     cluster_id TEXT NOT NULL REFERENCES clusters(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
@@ -700,7 +700,7 @@ CREATE INDEX IF NOT EXISTS idx_blueprints_cluster ON blueprints(cluster_id);
 -- firewall_profiles
 -- ============================================================
 CREATE TABLE IF NOT EXISTS firewall_profiles (
-    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16) DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
     name TEXT NOT NULL UNIQUE,
     display_name TEXT NOT NULL,
     spec_json TEXT NOT NULL DEFAULT '{}',
@@ -726,7 +726,7 @@ ON CONFLICT (name) DO NOTHING;
 -- firewall_posture_snapshots
 -- ============================================================
 CREATE TABLE IF NOT EXISTS firewall_posture_snapshots (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     target_kind TEXT NOT NULL,
     target_id TEXT NOT NULL,
     checksum TEXT NOT NULL,
@@ -740,7 +740,7 @@ CREATE INDEX IF NOT EXISTS idx_fw_posture_target ON firewall_posture_snapshots(t
 -- firewall_checkpoints
 -- ============================================================
 CREATE TABLE IF NOT EXISTS firewall_checkpoints (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     target_kind TEXT NOT NULL,
     target_id TEXT NOT NULL,
     label TEXT NOT NULL DEFAULT 'rollback',
@@ -753,7 +753,7 @@ CREATE TABLE IF NOT EXISTS firewall_checkpoints (
 -- firewall_temporary_rules
 -- ============================================================
 CREATE TABLE IF NOT EXISTS firewall_temporary_rules (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     target_kind TEXT NOT NULL,
     target_id TEXT NOT NULL,
     source_cidr TEXT NOT NULL,
@@ -773,7 +773,7 @@ CREATE INDEX IF NOT EXISTS idx_fw_temp_expiry ON firewall_temporary_rules(expire
 -- firewall_timeline
 -- ============================================================
 CREATE TABLE IF NOT EXISTS firewall_timeline (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     target_kind TEXT NOT NULL,
     target_id TEXT NOT NULL,
     kind TEXT NOT NULL,
@@ -789,7 +789,7 @@ CREATE INDEX IF NOT EXISTS idx_fw_timeline_target ON firewall_timeline(target_ki
 -- firewall_policies
 -- ============================================================
 CREATE TABLE IF NOT EXISTS firewall_policies (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     name TEXT NOT NULL UNIQUE,
     spec_yaml TEXT NOT NULL,
     workspace_id TEXT,
@@ -801,7 +801,7 @@ CREATE TABLE IF NOT EXISTS firewall_policies (
 -- firewall_approvals
 -- ============================================================
 CREATE TABLE IF NOT EXISTS firewall_approvals (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     target_kind TEXT NOT NULL DEFAULT 'host',
     target_id TEXT NOT NULL,
     profile TEXT,
@@ -821,7 +821,7 @@ CREATE INDEX IF NOT EXISTS idx_fw_approvals_target ON firewall_approvals(target_
 -- firewall_policy_sync_log
 -- ============================================================
 CREATE TABLE IF NOT EXISTS firewall_policy_sync_log (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     direction TEXT NOT NULL,
     policy_count INTEGER NOT NULL DEFAULT 0,
     actor TEXT,
@@ -833,7 +833,7 @@ CREATE TABLE IF NOT EXISTS firewall_policy_sync_log (
 -- firewall_k8s_apply_log
 -- ============================================================
 CREATE TABLE IF NOT EXISTS firewall_k8s_apply_log (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     namespace TEXT NOT NULL,
     profile TEXT NOT NULL,
     backend TEXT NOT NULL,
@@ -846,7 +846,7 @@ CREATE TABLE IF NOT EXISTS firewall_k8s_apply_log (
 -- firewall_cloud_snapshots
 -- ============================================================
 CREATE TABLE IF NOT EXISTS firewall_cloud_snapshots (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     provider TEXT NOT NULL,
     summary TEXT NOT NULL,
     inventory_json TEXT NOT NULL DEFAULT '{}',
@@ -859,7 +859,7 @@ CREATE INDEX IF NOT EXISTS idx_fw_cloud_provider ON firewall_cloud_snapshots(pro
 -- firewall_connectivity_runs
 -- ============================================================
 CREATE TABLE IF NOT EXISTS firewall_connectivity_runs (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     target_id TEXT NOT NULL,
     profile TEXT NOT NULL,
     matrix_json TEXT NOT NULL DEFAULT '{}',
@@ -870,7 +870,7 @@ CREATE TABLE IF NOT EXISTS firewall_connectivity_runs (
 -- firewall_policy_reconcile_log
 -- ============================================================
 CREATE TABLE IF NOT EXISTS firewall_policy_reconcile_log (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     policies_synced INTEGER NOT NULL DEFAULT 0,
     detail_json TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -880,7 +880,7 @@ CREATE TABLE IF NOT EXISTS firewall_policy_reconcile_log (
 -- firewall_sites
 -- ============================================================
 CREATE TABLE IF NOT EXISTS firewall_sites (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     name TEXT NOT NULL UNIQUE,
     region TEXT NOT NULL DEFAULT 'local',
     role TEXT NOT NULL DEFAULT 'primary',
@@ -903,7 +903,7 @@ ON CONFLICT (name) DO NOTHING;
 -- firewall_site_policies
 -- ============================================================
 CREATE TABLE IF NOT EXISTS firewall_site_policies (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     site_id TEXT NOT NULL REFERENCES firewall_sites(id) ON DELETE CASCADE,
     policy_name TEXT NOT NULL,
     profile TEXT NOT NULL DEFAULT 'ProductionServer',
@@ -921,7 +921,7 @@ CREATE INDEX IF NOT EXISTS idx_fw_site_policies_site ON firewall_site_policies(s
 -- firewall_site_drift
 -- ============================================================
 CREATE TABLE IF NOT EXISTS firewall_site_drift (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     site_id TEXT NOT NULL REFERENCES firewall_sites(id) ON DELETE CASCADE,
     peer_site_id TEXT REFERENCES firewall_sites(id) ON DELETE SET NULL,
     drift_json TEXT NOT NULL DEFAULT '{}',
@@ -934,7 +934,7 @@ CREATE INDEX IF NOT EXISTS idx_fw_site_drift_site ON firewall_site_drift(site_id
 -- firewall_site_timeline
 -- ============================================================
 CREATE TABLE IF NOT EXISTS firewall_site_timeline (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     site_id TEXT NOT NULL REFERENCES firewall_sites(id) ON DELETE CASCADE,
     kind TEXT NOT NULL,
     detail_json TEXT NOT NULL DEFAULT '{}',
@@ -946,7 +946,7 @@ CREATE TABLE IF NOT EXISTS firewall_site_timeline (
 -- network_segments
 -- ============================================================
 CREATE TABLE IF NOT EXISTS network_segments (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     name TEXT NOT NULL UNIQUE,
     tier TEXT NOT NULL DEFAULT 'tier1',
     cidr TEXT NOT NULL,
@@ -960,7 +960,7 @@ CREATE TABLE IF NOT EXISTS network_segments (
 -- network_ipam_pools
 -- ============================================================
 CREATE TABLE IF NOT EXISTS network_ipam_pools (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     segment_id TEXT NOT NULL REFERENCES network_segments(id) ON DELETE CASCADE,
     cidr TEXT NOT NULL,
     gateway TEXT,
@@ -987,7 +987,7 @@ ON CONFLICT (id) DO NOTHING;
 -- platform_plugins
 -- ============================================================
 CREATE TABLE IF NOT EXISTS platform_plugins (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     slug TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     category TEXT NOT NULL DEFAULT 'integration',
@@ -1019,7 +1019,7 @@ ON CONFLICT (slug) DO NOTHING;
 -- storage_tiers
 -- ============================================================
 CREATE TABLE IF NOT EXISTS storage_tiers (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     name TEXT NOT NULL UNIQUE,
     tier_class TEXT NOT NULL DEFAULT 'silver',
     iops_tier TEXT NOT NULL DEFAULT 'standard',
@@ -1041,7 +1041,7 @@ ON CONFLICT (name) DO NOTHING;
 -- storage_backup_sla
 -- ============================================================
 CREATE TABLE IF NOT EXISTS storage_backup_sla (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     pool_id TEXT NOT NULL REFERENCES storage_pools(id) ON DELETE CASCADE,
     rpo_hours INTEGER NOT NULL DEFAULT 24,
     rto_hours INTEGER NOT NULL DEFAULT 4,
@@ -1056,7 +1056,7 @@ CREATE TABLE IF NOT EXISTS storage_backup_sla (
 -- vault_providers
 -- ============================================================
 CREATE TABLE IF NOT EXISTS vault_providers (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     name TEXT NOT NULL UNIQUE,
     provider_type TEXT NOT NULL DEFAULT 'hashicorp',
     address TEXT NOT NULL DEFAULT '',
@@ -1076,7 +1076,7 @@ ON CONFLICT (name) DO NOTHING;
 -- mfa_policies
 -- ============================================================
 CREATE TABLE IF NOT EXISTS mfa_policies (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     role_name TEXT NOT NULL UNIQUE,
     method TEXT NOT NULL DEFAULT 'webauthn',
     required INTEGER NOT NULL DEFAULT 0,
@@ -1095,7 +1095,7 @@ ON CONFLICT (role_name) DO NOTHING;
 -- air_gap_bundles
 -- ============================================================
 CREATE TABLE IF NOT EXISTS air_gap_bundles (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     name TEXT NOT NULL,
     checksum TEXT NOT NULL DEFAULT '',
     manifest_json TEXT NOT NULL DEFAULT '{}',
@@ -1123,7 +1123,7 @@ CREATE INDEX IF NOT EXISTS idx_host_lldp_cache_fetched ON host_lldp_cache(fetche
 -- ops_runbook_catalog
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ops_runbook_catalog (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     incident TEXT NOT NULL UNIQUE,
     title TEXT NOT NULL,
     category TEXT NOT NULL DEFAULT 'incident',
@@ -1148,7 +1148,7 @@ ON CONFLICT (incident) DO NOTHING;
 -- ops_runbook_executions
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ops_runbook_executions (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     incident TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'completed',
     steps_json TEXT NOT NULL DEFAULT '[]',
@@ -1163,7 +1163,7 @@ CREATE INDEX IF NOT EXISTS idx_ops_runbook_exec_created ON ops_runbook_execution
 -- ops_showback_snapshots
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ops_showback_snapshots (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     project_name TEXT NOT NULL,
     cost_usd REAL NOT NULL DEFAULT 0,
     compliance_grade TEXT NOT NULL DEFAULT 'B',
@@ -1177,7 +1177,7 @@ CREATE INDEX IF NOT EXISTS idx_ops_showback_project ON ops_showback_snapshots(pr
 -- slo_policies
 -- ============================================================
 CREATE TABLE IF NOT EXISTS slo_policies (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     name TEXT NOT NULL UNIQUE,
     target TEXT NOT NULL,
     objective_pct REAL NOT NULL DEFAULT 99.9,
@@ -1197,7 +1197,7 @@ ON CONFLICT (name) DO NOTHING;
 -- api_trace_spans
 -- ============================================================
 CREATE TABLE IF NOT EXISTS api_trace_spans (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     method TEXT NOT NULL,
     path TEXT NOT NULL,
     status_code INTEGER NOT NULL,
@@ -1212,7 +1212,7 @@ CREATE INDEX IF NOT EXISTS idx_api_trace_path ON api_trace_spans(path, recorded_
 -- vault_sync_runs
 -- ============================================================
 CREATE TABLE IF NOT EXISTS vault_sync_runs (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     provider_id TEXT NOT NULL REFERENCES vault_providers(id) ON DELETE CASCADE,
     status TEXT NOT NULL,
     message TEXT NOT NULL DEFAULT '',
@@ -1225,7 +1225,7 @@ CREATE INDEX IF NOT EXISTS idx_vault_sync_runs_provider ON vault_sync_runs(provi
 -- mfa_enrollments
 -- ============================================================
 CREATE TABLE IF NOT EXISTS mfa_enrollments (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     username TEXT NOT NULL UNIQUE,
     method TEXT NOT NULL DEFAULT 'webauthn',
     enrolled_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -1235,7 +1235,7 @@ CREATE TABLE IF NOT EXISTS mfa_enrollments (
 -- fips_crypto_profiles
 -- ============================================================
 CREATE TABLE IF NOT EXISTS fips_crypto_profiles (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     name TEXT NOT NULL UNIQUE,
     tls_min_version TEXT NOT NULL DEFAULT '1.2',
     fips_mode TEXT NOT NULL DEFAULT 'disabled',
@@ -1253,7 +1253,7 @@ ON CONFLICT (name) DO NOTHING;
 -- tenant_isolation_policies
 -- ============================================================
 CREATE TABLE IF NOT EXISTS tenant_isolation_policies (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     project_name TEXT NOT NULL UNIQUE,
     network_isolation TEXT NOT NULL DEFAULT 'shared',
     max_vms INTEGER NOT NULL DEFAULT 0,
@@ -1272,7 +1272,7 @@ ON CONFLICT (project_name) DO NOTHING;
 -- ai_providers
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ai_providers (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     name TEXT NOT NULL,
     kind TEXT NOT NULL DEFAULT 'openai',
     base_url TEXT NOT NULL DEFAULT '',
@@ -1288,7 +1288,7 @@ CREATE TABLE IF NOT EXISTS ai_providers (
 -- ai_models
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ai_models (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     provider_id TEXT NOT NULL REFERENCES ai_providers(id) ON DELETE CASCADE,
     model_id TEXT NOT NULL,
     display_name TEXT NOT NULL DEFAULT '',
@@ -1314,7 +1314,7 @@ CREATE TABLE IF NOT EXISTS ai_user_preferences (
 -- ai_routing_rules
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ai_routing_rules (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     task_class TEXT NOT NULL UNIQUE,
     provider_id TEXT REFERENCES ai_providers(id) ON DELETE SET NULL,
     model_id TEXT REFERENCES ai_models(id) ON DELETE SET NULL,
@@ -1335,7 +1335,7 @@ ON CONFLICT (task_class) DO NOTHING;
 -- ai_prompts
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ai_prompts (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     scope TEXT NOT NULL DEFAULT 'personal',
     owner_id TEXT NOT NULL DEFAULT '',
     team_id TEXT NOT NULL DEFAULT '',
@@ -1353,7 +1353,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_prompts_owner ON ai_prompts(owner_id);
 -- ai_memory_entries
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ai_memory_entries (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     scope TEXT NOT NULL DEFAULT 'user',
     subject_kind TEXT NOT NULL DEFAULT 'conversation',
     subject_id TEXT NOT NULL DEFAULT '',
@@ -1371,7 +1371,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_memory_owner ON ai_memory_entries(owner_id);
 -- ai_conversations
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ai_conversations (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     user_id TEXT NOT NULL,
     project_id TEXT NOT NULL DEFAULT '',
     agent_id TEXT NOT NULL DEFAULT 'auto',
@@ -1384,7 +1384,7 @@ CREATE TABLE IF NOT EXISTS ai_conversations (
 -- ai_actions
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ai_actions (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     source TEXT NOT NULL DEFAULT 'zeus',
     action_type TEXT NOT NULL,
     label TEXT NOT NULL,
@@ -1428,7 +1428,7 @@ ON CONFLICT (slug) DO NOTHING;
 -- ai_incidents
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ai_incidents (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     title TEXT NOT NULL,
     summary TEXT NOT NULL DEFAULT '',
     severity TEXT NOT NULL DEFAULT 'medium',
@@ -1449,7 +1449,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_incidents_created ON ai_incidents(created_at D
 -- soc_events
 -- ============================================================
 CREATE TABLE IF NOT EXISTS soc_events (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     occurred_at TEXT NOT NULL,
     source TEXT NOT NULL,
     category TEXT NOT NULL DEFAULT 'security',
@@ -1474,7 +1474,7 @@ CREATE INDEX IF NOT EXISTS idx_soc_events_source ON soc_events(source, occurred_
 -- soc_detection_rules
 -- ============================================================
 CREATE TABLE IF NOT EXISTS soc_detection_rules (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     name TEXT NOT NULL UNIQUE,
     description TEXT NOT NULL DEFAULT '',
     enabled INTEGER NOT NULL DEFAULT 1,
@@ -1506,7 +1506,7 @@ ON CONFLICT (name) DO NOTHING;
 -- soc_alerts
 -- ============================================================
 CREATE TABLE IF NOT EXISTS soc_alerts (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     rule_id TEXT REFERENCES soc_detection_rules(id) ON DELETE SET NULL,
     title TEXT NOT NULL,
     severity TEXT NOT NULL DEFAULT 'medium',
@@ -1530,7 +1530,7 @@ CREATE INDEX IF NOT EXISTS idx_soc_alerts_status ON soc_alerts(status, last_seen
 -- soc_integrations
 -- ============================================================
 CREATE TABLE IF NOT EXISTS soc_integrations (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     integration_type TEXT NOT NULL,
     name TEXT NOT NULL,
     enabled INTEGER NOT NULL DEFAULT 0,
@@ -1596,7 +1596,7 @@ ON CONFLICT (source) DO NOTHING;
 -- soc_saved_hunts
 -- ============================================================
 CREATE TABLE IF NOT EXISTS soc_saved_hunts (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     name TEXT NOT NULL,
     query_text TEXT NOT NULL,
     schedule_cron TEXT,
@@ -1610,7 +1610,7 @@ CREATE TABLE IF NOT EXISTS soc_saved_hunts (
 -- soc_playbooks
 -- ============================================================
 CREATE TABLE IF NOT EXISTS soc_playbooks (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     name TEXT NOT NULL UNIQUE,
     description TEXT NOT NULL DEFAULT '',
     enabled INTEGER NOT NULL DEFAULT 1,
@@ -1632,7 +1632,7 @@ ON CONFLICT (name) DO NOTHING;
 -- soc_playbook_runs
 -- ============================================================
 CREATE TABLE IF NOT EXISTS soc_playbook_runs (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     playbook_id TEXT NOT NULL REFERENCES soc_playbooks(id) ON DELETE CASCADE,
     alert_id TEXT REFERENCES soc_alerts(id) ON DELETE SET NULL,
     status TEXT NOT NULL DEFAULT 'running',
@@ -1660,7 +1660,7 @@ ON CONFLICT (id) DO NOTHING;
 -- fleet_snapshot_schedules
 -- ============================================================
 CREATE TABLE IF NOT EXISTS fleet_snapshot_schedules (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     name TEXT NOT NULL,
     cron_expr TEXT NOT NULL DEFAULT '0 2 * * *',
     project TEXT NOT NULL DEFAULT '',
@@ -1679,7 +1679,7 @@ CREATE INDEX IF NOT EXISTS idx_fleet_snapshot_schedules_enabled ON fleet_snapsho
 -- console_sessions
 -- ============================================================
 CREATE TABLE IF NOT EXISTS console_sessions (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     vm_id TEXT NOT NULL REFERENCES vms(id) ON DELETE CASCADE,
     host_id TEXT REFERENCES hosts(id) ON DELETE SET NULL,
     actor TEXT NOT NULL DEFAULT '',
@@ -1706,7 +1706,7 @@ CREATE INDEX IF NOT EXISTS idx_console_sessions_actor ON console_sessions(actor,
 -- console_access_requests
 -- ============================================================
 CREATE TABLE IF NOT EXISTS console_access_requests (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
     vm_id TEXT NOT NULL REFERENCES vms(id) ON DELETE CASCADE,
     requester TEXT NOT NULL,
     requester_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,

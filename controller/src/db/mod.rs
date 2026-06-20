@@ -22,10 +22,7 @@ pub async fn connect(database_url: &str) -> anyhow::Result<SqlitePool> {
 }
 
 pub async fn migrate(pool: &SqlitePool) -> anyhow::Result<()> {
-    let sql = include_str!("../../migrations/000_sqlite_schema.sql");
-    for stmt in sql.split(';').map(str::trim).filter(|s| !s.is_empty()) {
-        let _ = sqlx::query(stmt).execute(pool).await;
-    }
+    sqlx::migrate!("migrations").run(pool).await?;
     Ok(())
 }
 
