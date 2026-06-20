@@ -22,7 +22,7 @@ pub async fn connect(database_url: &str) -> anyhow::Result<SqlitePool> {
 }
 
 pub async fn migrate(pool: &SqlitePool) -> anyhow::Result<()> {
-    sqlx::migrate!("migrations").run(pool).await?;
+    sqlx::migrate!().run(pool).await?;
     Ok(())
 }
 
