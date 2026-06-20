@@ -91,7 +91,7 @@ pub async fn run_blueprint(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
-    let row: (serde_json::Value, Vec<Uuid>) =
+    let row: (serde_json::Value, sqlx::types::Json<Vec<Uuid>>) =
         sqlx::query_as("SELECT actions, vm_ids FROM blueprints WHERE id = ?")
             .bind(id)
             .fetch_optional(&state.pool)
@@ -100,7 +100,7 @@ pub async fn run_blueprint(
 
     let actions: Vec<String> = serde_json::from_value(row.0).unwrap_or_default();
     let mut task_ids = Vec::new();
-    for vm_id in &row.1 {
+    for vm_id in row.1.iter() {
         let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
             .bind(vm_id)
             .fetch_optional(&state.pool)

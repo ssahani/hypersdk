@@ -16,7 +16,7 @@ pub async fn tiers_overview(
     storage_tiers::tiers_overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn bind_pool_tier(
@@ -37,7 +37,7 @@ pub async fn backup_sla_overview(
     storage_tiers::backup_sla_overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn upsert_backup_sla(

@@ -126,7 +126,7 @@ pub async fn discover_networks(
     require_operator(&actor)?;
     let imported = crate::engine::network_sync::discover_all_online(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let rows = sqlx::query_as::<_, NetworkRow>(
         "SELECT id, name, backend, vlan_id, bridge, segment_id FROM networks ORDER BY name",
     )
@@ -231,17 +231,17 @@ async fn invoke_network_on_host(
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     crate::agent_client::host_libvirt_invoke(
         &mut client,
         action,
         &serde_json::json!({ "name": network_name }),
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))
+    .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn activate_network(
@@ -282,17 +282,17 @@ pub async fn live_networks(
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let nets = crate::agent_client::host_libvirt_query(
         &mut client,
         "networks.list",
         &serde_json::json!({}),
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(
         serde_json::json!({ "host_id": host_id, "networks": nets }),
     ))

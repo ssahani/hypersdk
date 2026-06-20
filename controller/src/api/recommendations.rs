@@ -12,6 +12,6 @@ pub async fn list_recommendations(
 ) -> Result<Json<Vec<recommendations::Recommendation>>, ApiError> {
     let rows = recommendations::generate_recommendations(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(rows))
 }

@@ -23,13 +23,13 @@ async fn host_cockpit_query(
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     crate::agent_client::host_libvirt_query(&mut client, action, &serde_json::json!({}))
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn host_cockpit_inventory(
@@ -78,12 +78,12 @@ pub async fn host_cockpit_action(
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, id)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let result = crate::agent_client::host_libvirt_invoke(&mut client, &body.action, &body.payload)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(result))
 }

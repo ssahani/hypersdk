@@ -4,7 +4,7 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 pub async fn dispatch_webhooks(pool: &SqlitePool, event_kind: &str, payload: serde_json::Value) {
-    let rows: Vec<(Uuid, String, String, Vec<String>)> =
+    let rows: Vec<(Uuid, String, String, sqlx::types::Json<Vec<String>>)> =
         match sqlx::query_as("SELECT id, url, secret, events FROM webhooks WHERE enabled = TRUE")
             .fetch_all(pool)
             .await

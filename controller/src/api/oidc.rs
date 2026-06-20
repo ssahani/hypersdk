@@ -54,7 +54,7 @@ pub async fn get_oidc_settings(
 ) -> Result<Json<OidcSettings>, ApiError> {
     let cfg = oidc_flow::load_config(&state.pool, &default_redirect(&state))
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(OidcSettings {
         enabled: cfg.enabled,
         issuer: cfg.issuer,
@@ -110,13 +110,13 @@ pub async fn oidc_login(
 ) -> Result<Json<OidcLoginResponse>, ApiError> {
     let cfg = oidc_flow::load_config(&state.pool, &default_redirect(&state))
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     if !cfg.enabled {
         return Err(ApiError::bad_request("OIDC is not enabled"));
     }
     let (csrf, url) = oidc_flow::begin_login(&state.pool, &cfg)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(OidcLoginResponse {
         authorize_url: url,
         state: csrf,
@@ -126,13 +126,13 @@ pub async fn oidc_login(
 pub async fn oidc_login_redirect(State(state): State<AppState>) -> Result<Redirect, ApiError> {
     let cfg = oidc_flow::load_config(&state.pool, &default_redirect(&state))
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     if !cfg.enabled {
         return Err(ApiError::bad_request("OIDC is not enabled"));
     }
     let (_csrf, url) = oidc_flow::begin_login(&state.pool, &cfg)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Redirect::temporary(&url))
 }
 
@@ -142,7 +142,7 @@ pub async fn oidc_callback(
 ) -> Result<axum::response::Response, ApiError> {
     let cfg = oidc_flow::load_config(&state.pool, &default_redirect(&state))
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let (username, role, token) = oidc_flow::complete_login(
         &state.pool,
         &cfg,

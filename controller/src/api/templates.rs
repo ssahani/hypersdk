@@ -151,10 +151,10 @@ pub async fn seed_templates(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let inserted = crate::engine::template_catalog::seed_default_templates(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let pruned = crate::engine::template_catalog::prune_stale_marketplace_templates(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let rows = sqlx::query_as::<_, TemplateRow>(&format!(
         "{TEMPLATE_SELECT} WHERE marketplace = TRUE ORDER BY featured DESC, category, name, version"
     ))
@@ -262,10 +262,10 @@ pub async fn list_missing_template_images(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let _ = crate::engine::template_catalog::ensure_default_templates(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let missing = crate::engine::template_readiness::list_missing_marketplace_images(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let auto_fetch_count = missing.iter().filter(|m| m.auto_fetch).count();
     Ok(Json(serde_json::json!({
         "missing": missing,
@@ -316,7 +316,7 @@ async fn run_git_template_sync(pool: &sqlx::SqlitePool) -> Result<usize, ApiErro
         .map_err(|_| ApiError::bad_request("MACHINA_TEMPLATES_GIT_DIR not set"))?;
     crate::engine::template_git::sync_templates_from_git(pool, std::path::Path::new(&dir))
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn sync_git_templates(

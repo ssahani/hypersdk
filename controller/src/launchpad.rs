@@ -79,7 +79,7 @@ async fn launchpad_proxy(
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .build()
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     let body_bytes = axum::body::to_bytes(body, 8 * 1024 * 1024)
         .await

@@ -641,10 +641,10 @@ pub async fn consolehub_plan(
     let agent_addr = host_agent_grpc(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let agent_plan = agent_client::get_console_access_plan(&mut client, &vm_name)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let spec_vm: Option<VirtualMachine> =
         sqlx::query_scalar("SELECT spec_json FROM vms WHERE id = ?")
             .bind(id)
@@ -816,10 +816,10 @@ pub async fn create_session(
     let agent_addr = host_agent_grpc(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let agent_plan = agent_client::get_console_access_plan(&mut client, &vm_name)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     let protocol = body
         .protocol
@@ -896,7 +896,7 @@ pub async fn create_session(
         };
         let bridge = bridge_from_plan(vm_name.clone(), target, &params)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
         let emergency = bridge.token.as_ref().map(|t| {
             format!(
                 "{}/#/?token={}",
@@ -946,7 +946,7 @@ pub async fn create_session(
     .map_err(|e| {
         let sessions = state.console_sessions.clone();
         tokio::spawn(async move { sessions.remove(session_id).await });
-        ApiErrorernal(e.to_string())
+        ApiError::internal(e.to_string())
     })?;
 
     sqlx::query(
@@ -1304,11 +1304,11 @@ pub async fn upload_session_replay(
     if let Some(parent) = path.parent() {
         tokio::fs::create_dir_all(parent)
             .await
-            .map_err(|e| ApiErrorernal(format!("create recording dir: {e}")))?;
+            .map_err(|e| ApiError::internal(format!("create recording dir: {e}")))?;
     }
     tokio::fs::write(&path, &bytes)
         .await
-        .map_err(|e| ApiErrorernal(format!("write replay: {e}")))?;
+        .map_err(|e| ApiError::internal(format!("write replay: {e}")))?;
 
     let path_str = path.to_string_lossy().into_owned();
     sqlx::query("UPDATE console_sessions SET recording_path = ? WHERE id = ?")
@@ -1345,7 +1345,7 @@ pub async fn get_session_replay(
     }
     let bytes = tokio::fs::read(path)
         .await
-        .map_err(|e| ApiErrorernal(format!("read replay: {e}")))?;
+        .map_err(|e| ApiError::internal(format!("read replay: {e}")))?;
     Ok(Response::builder()
         .status(StatusCode::OK)
         .header(
@@ -1358,7 +1358,7 @@ pub async fn get_session_replay(
                 .unwrap_or_else(|_| HeaderValue::from_static("inline")),
         )
         .body(Body::from(bytes))
-        .map_err(|e| ApiErrorernal(format!("build response: {e}")))?)
+        .map_err(|e| ApiError::internal(format!("build response: {e}")))?)
 }
 
 #[derive(Debug, Deserialize)]

@@ -134,7 +134,7 @@ pub fn plan_environment(query: &str, vcpu_rate: f64, gib_rate: f64) -> Environme
     let mut spotlight_intents = Vec::new();
     for i in 0..vm_count.min(5) {
         let name = format!("{env_type}-dev-{:02}", i + 1);
-        spotlight_intents.push(superent_routerent(
+        spotlight_intents.push(super::intent_router::intent(
             &format!("env-vm-{i}"),
             &format!("Create VM {name}"),
             &format!("{vcpus} vCPU, {mem_gib} GiB — part of {label}"),
@@ -254,7 +254,7 @@ pub async fn execute_environment(
     )
     .fetch_one(&state.pool)
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
 
     let plan = plan_environment(&body.query, rates.0, rates.1);
     if plan.gpu_required {
@@ -280,7 +280,7 @@ pub async fn execute_environment(
             .bind(host_id)
             .fetch_one(&state.pool)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
 
         if body.dry_run {
             vm_tasks.push(EnvironmentVmTask {
@@ -296,7 +296,7 @@ pub async fn execute_environment(
         let cluster_id: Uuid = sqlx::query_scalar("SELECT id FROM clusters LIMIT 1")
             .fetch_one(&state.pool)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
 
         let vm_id = Uuid::new_v4();
         let mem_mib = plan.memory_gib_per_vm as i64 * 1024;
@@ -318,7 +318,7 @@ pub async fn execute_environment(
         .bind(&tags_json)
         .execute(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
         sqlx::query(
             "INSERT INTO vm_disks (id, vm_id, name, size_gib, storage_class) VALUES (?, ?, 'root', 80, 'silver')",
@@ -327,7 +327,7 @@ pub async fn execute_environment(
         .bind(vm_id)
         .execute(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
         let task_id = enqueue_task(
             state,

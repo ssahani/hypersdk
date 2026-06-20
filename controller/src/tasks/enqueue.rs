@@ -37,7 +37,7 @@ pub async fn enqueue_task(
         .task_bus
         .publish("machina.tasks", &msg)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(task_id)
 }
 

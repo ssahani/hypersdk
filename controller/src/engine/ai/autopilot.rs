@@ -104,7 +104,7 @@ pub async fn execute(
     crate::auth::require_operator(actor)?;
     let settings = super::settings::get_ai_settings(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     if !autopilot_mode_allowed(&settings.mode) {
         return Err(ApiError::bad_request(
             "Autopilot actions require advisor, autopilot_preview, or autopilot mode",
@@ -196,7 +196,7 @@ pub async fn execute(
                     false,
                 )
                 .await
-                .map_err(|e| ApiErrorernal(e.to_string()))?;
+                .map_err(|e| ApiError::internal(e.to_string()))?;
             }
             format!("HA enabled on {} VM(s)", vm_ids.len().min(10))
         }
@@ -321,7 +321,7 @@ pub async fn run_safe_batch(
     crate::auth::require_operator(actor)?;
     let settings = super::settings::get_ai_settings(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     if settings.mode != "autopilot" {
         return Err(ApiError::bad_request(
             "Autopilot run requires ai_mode=autopilot (full mode with guardrails)",
@@ -330,7 +330,7 @@ pub async fn run_safe_batch(
 
     let proposal = propose(&state.pool, vm_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let cap = max_actions.clamp(1, 10);
     let all = proposal.actions;
     let skipped_count = all.iter().filter(|a| !is_auto_safe(a)).count();

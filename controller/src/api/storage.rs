@@ -49,7 +49,7 @@ pub async fn discover_storage_pools(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let imported = crate::engine::storage_sync::discover_all_online(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let rows = sqlx::query_as::<_, StoragePoolRow>(
         "SELECT id, name, storage_class, backend, path, capacity_gib, used_gib, tier_id
          FROM storage_pools ORDER BY name",
@@ -241,17 +241,17 @@ async fn invoke_pool_on_host(
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     crate::agent_client::host_libvirt_invoke(
         &mut client,
         action,
         &serde_json::json!({ "name": pool_name }),
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))
+    .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn activate_storage_pool(
@@ -266,17 +266,17 @@ pub async fn activate_storage_pool(
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let result = crate::agent_client::host_libvirt_invoke(
         &mut client,
         "storage.pool.start",
         &serde_json::json!({ "name": name }),
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     let _ = crate::engine::storage_sync::sync_host_storage(&state.pool, host_id, &agent_addr).await;
     state.emit_event("storage.pool", format!("Activated storage pool {name}"));
     Ok(Json(result))
@@ -307,7 +307,7 @@ pub async fn refresh_storage_pool(
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     let _ = crate::engine::storage_sync::sync_host_storage(&state.pool, host_id, &agent_addr).await;
     Ok(Json(result))
 }
@@ -320,17 +320,17 @@ pub async fn live_storage_pools(
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let pools = crate::agent_client::host_libvirt_query(
         &mut client,
         "storage.pools.list",
         &serde_json::json!({}),
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(
         serde_json::json!({ "host_id": host_id, "pools": pools }),
     ))
@@ -346,10 +346,10 @@ async fn invoke_pool_action(
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut body = payload;
     if let Some(obj) = body.as_object_mut() {
         obj.insert(
@@ -359,7 +359,7 @@ async fn invoke_pool_action(
     }
     crate::agent_client::host_libvirt_invoke(&mut client, action, &body)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn list_storage_pool_volumes(
@@ -372,17 +372,17 @@ pub async fn list_storage_pool_volumes(
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let volumes = crate::agent_client::host_libvirt_query(
         &mut client,
         "storage.volumes.list",
         &serde_json::json!({ "pool": name }),
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(
         serde_json::json!({ "pool": name, "volumes": volumes }),
     ))

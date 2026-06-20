@@ -131,7 +131,7 @@ fn vgpu_slices_from_tags(tags: &[String]) -> i32 {
 }
 
 pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetGpuOverview> {
-    let host_rows: Vec<(Uuid, String, String, String, String, i32, Vec<String>)> = sqlx::query_as(
+    let host_rows: Vec<(Uuid, String, String, String, String, i32, sqlx::types::Json<Vec<String>>)> = sqlx::query_as(
         "SELECT id, hostname, state, COALESCE(site, ''), COALESCE(rack, ''), vm_count,
                 COALESCE(tags, '[]') AS tags
          FROM hosts ORDER BY hostname",
@@ -139,7 +139,7 @@ pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetGpuOverview> {
     .fetch_all(pool)
     .await?;
 
-    let vm_rows: Vec<(Uuid, String, Option<Uuid>, String, Vec<String>)> = sqlx::query_as(
+    let vm_rows: Vec<(Uuid, String, Option<Uuid>, String, sqlx::types::Json<Vec<String>>)> = sqlx::query_as(
         "SELECT id, name, host_id, observed_state, COALESCE(tags, '[]') AS tags FROM vms ORDER BY name",
     )
     .fetch_all(pool)
@@ -152,7 +152,7 @@ pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetGpuOverview> {
 
     let mut gpu_vms = Vec::new();
     for (vm_id, name, host_id, state, tags) in &vm_rows {
-        if !gpu_capable(tags) {
+        if !gpu_capable(&**tags) {
             continue;
         }
         gpu_vms.push(GpuVmItem {
@@ -161,8 +161,8 @@ pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetGpuOverview> {
             host_id: host_id.map(|h| h.to_string()),
             hostname: host_id.and_then(|h| host_names.get(&h).cloned()),
             observed_state: state.clone(),
-            profile: tag_profile(tags),
-            tags: tags.clone(),
+            profile: tag_profile(&**tags),
+            tags: (**tags).clone(),
         });
     }
 
@@ -176,11 +176,11 @@ pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetGpuOverview> {
 
     let mut hosts = Vec::new();
     for (id, hostname, state, site, rack, vm_count, tags) in host_rows {
-        let capable = gpu_capable(&tags);
+        let capable = gpu_capable(&*tags);
         if !capable {
             continue;
         }
-        let profile = tag_profile(&tags);
+        let profile = tag_profile(&*tags);
         let hid = id.to_string();
         let gpu_vm_count = gpu_vm_by_host.get(&hid).copied().unwrap_or(0);
         hosts.push(GpuHostItem {
@@ -191,10 +191,10 @@ pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetGpuOverview> {
             state,
             gpu_capable: capable,
             profile: profile.clone(),
-            model_hint: model_hint(&tags),
+            model_hint: model_hint(&*tags),
             vm_count,
             gpu_vm_count,
-            vgpu_slices: vgpu_slices_from_tags(&tags),
+            vgpu_slices: vgpu_slices_from_tags(&*tags),
             cuda_ready: profile == GpuProfileKind::Cuda
                 || tags.iter().any(|t| t.to_lowercase().contains("cuda")),
         });

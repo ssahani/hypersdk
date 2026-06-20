@@ -137,7 +137,7 @@ pub async fn execute_stack(
     )
     .fetch_one(&state.pool)
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
 
     let plan = plan_mission_stack(&body.query, rates.0, rates.1);
     let mut vm_tasks = Vec::new();
@@ -156,7 +156,7 @@ pub async fn execute_stack(
             .bind(host_id)
             .fetch_one(&state.pool)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
 
         if body.dry_run {
             vm_tasks.push(StackVmTask {
@@ -172,7 +172,7 @@ pub async fn execute_stack(
         let cluster_id: Uuid = sqlx::query_scalar("SELECT id FROM clusters LIMIT 1")
             .fetch_one(&state.pool)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
 
         let vm_id = Uuid::new_v4();
         let spec_json = gpu_vm_spec(&name);
@@ -191,7 +191,7 @@ pub async fn execute_stack(
         .bind(&tags_json)
         .execute(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
         sqlx::query(
             "INSERT INTO vm_disks (id, vm_id, name, size_gib, storage_class) VALUES (?, ?, 'root', 100, 'silver')",
@@ -200,7 +200,7 @@ pub async fn execute_stack(
         .bind(vm_id)
         .execute(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
         let task_id = enqueue_task(
             state,

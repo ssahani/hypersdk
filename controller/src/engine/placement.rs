@@ -13,7 +13,7 @@ struct HostLoad {
     memory_used_mib: i64,
     memory_total_mib: i64,
     vm_count: i32,
-    tags: Vec<String>,
+    tags: sqlx::types::Json<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -55,7 +55,7 @@ pub async fn compute_recommendations(
         return Ok(Vec::new());
     }
 
-    let vms: Vec<(Uuid, String, Uuid, i64, Vec<String>)> = sqlx::query_as(
+    let vms: Vec<(Uuid, String, Uuid, i64, sqlx::types::Json<Vec<String>>)> = sqlx::query_as(
         "SELECT v.id, v.name, v.host_id, v.memory_mib, COALESCE(v.tags, '[]') AS tags FROM vms v
          JOIN hosts h ON h.id = v.host_id
          WHERE v.desired_state = 'running' AND h.state = 'online'",
@@ -86,7 +86,7 @@ pub async fn compute_recommendations(
                 dest_mem_pct,
                 dest.vm_count,
             );
-            score += tag_affinity_score(&vm_tags, &dest.tags);
+            score += tag_affinity_score(&*vm_tags, &*dest.tags);
             if score <= 0.0 {
                 continue;
             }
@@ -198,7 +198,7 @@ struct HostCandidate {
     memory_used_mib: i64,
     memory_total_mib: i64,
     vm_count: i32,
-    tags: Vec<String>,
+    tags: sqlx::types::Json<Vec<String>>,
 }
 
 pub async fn pick_host_for_vm(
@@ -231,7 +231,7 @@ pub async fn pick_host_for_vm(
         if score <= 0.0 {
             continue;
         }
-        score += tag_affinity_score(vm_tags, &h.tags);
+        score += tag_affinity_score(vm_tags, &*h.tags);
         if best.map(|(_, s)| score > s).unwrap_or(true) {
             best = Some((h.id, score));
         }

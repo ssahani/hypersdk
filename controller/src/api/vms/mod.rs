@@ -228,7 +228,7 @@ pub async fn create_vm(
     };
 
     let vm_id = Uuid::new_v4();
-    let spec_json = serde_json::to_value(&body.vm).map_err(|e| ApiErrorernal(e.to_string()))?;
+    let spec_json = serde_json::to_value(&body.vm).map_err(|e| ApiError::internal(e.to_string()))?;
 
     sqlx::query(
         "INSERT INTO vms (id, cluster_id, host_id, name, project, spec_json, desired_state, lifecycle_phase, vcpus, memory_mib, tags)
@@ -278,7 +278,7 @@ pub async fn create_vm(
             body.vm.spec.ha.anti_affinity.is_some(),
         )
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     }
 
     let task_id = enqueue_task(
@@ -696,7 +696,7 @@ pub async fn migrate_precheck(
 ) -> Result<Json<crate::engine::migrate_precheck::MigratePrecheckResult>, ApiError> {
     let result = run_migrate_precheck(&state.pool, id, body.dest_host_id, body.live)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(result))
 }
 
@@ -808,13 +808,13 @@ pub async fn get_vm_domain_xml(
         .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let xml = crate::agent_client::get_domain_xml(&mut client, &row.0)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(serde_json::json!({ "xml": xml })))
 }
 
@@ -1386,13 +1386,13 @@ pub async fn get_vm_libvirt_details(
         .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let details = crate::agent_client::get_vm_details(&mut client, &row.0)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(details))
 }
 
@@ -1416,10 +1416,10 @@ pub async fn get_vm_hardware_summary(
         .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let result = crate::agent_client::vm_libvirt_query(
         &mut client,
         &row.0,
@@ -1427,9 +1427,9 @@ pub async fn get_vm_hardware_summary(
         &serde_json::json!({}),
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     let summary: machina_core::libvirt::hardware_summary::VmHardwareSummaryReport =
-        serde_json::from_value(result).map_err(|e| ApiErrorernal(e.to_string()))?;
+        serde_json::from_value(result).map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(summary))
 }
 
@@ -1453,10 +1453,10 @@ pub async fn get_vm_hardware_compat(
         .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let result = crate::agent_client::vm_libvirt_query(
         &mut client,
         &row.0,
@@ -1464,9 +1464,9 @@ pub async fn get_vm_hardware_compat(
         &serde_json::json!({}),
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     let report: machina_core::libvirt::hardware_summary::HardwareCompatReport =
-        serde_json::from_value(result).map_err(|e| ApiErrorernal(e.to_string()))?;
+        serde_json::from_value(result).map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(report))
 }
 
@@ -1490,10 +1490,10 @@ pub async fn get_vm_domain_caps(
         .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let result = crate::agent_client::vm_libvirt_query(
         &mut client,
         &row.0,
@@ -1501,9 +1501,9 @@ pub async fn get_vm_domain_caps(
         &serde_json::json!({}),
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     let report: machina_core::libvirt::hardware_summary::DomainCapabilitiesReport =
-        serde_json::from_value(result).map_err(|e| ApiErrorernal(e.to_string()))?;
+        serde_json::from_value(result).map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(report))
 }
 
@@ -1527,10 +1527,10 @@ pub async fn get_vm_pending_config(
         .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let result = crate::agent_client::vm_libvirt_query(
         &mut client,
         &row.0,
@@ -1538,9 +1538,9 @@ pub async fn get_vm_pending_config(
         &serde_json::json!({}),
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     let cfg: machina_core::libvirt::pending_config::PendingConfig =
-        serde_json::from_value(result).map_err(|e| ApiErrorernal(e.to_string()))?;
+        serde_json::from_value(result).map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(cfg))
 }
 
@@ -1730,13 +1730,13 @@ pub async fn get_vm_viewer_vv(
         .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let plan = crate::agent_client::get_console_access_plan(&mut client, &row.0)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let console_type = if plan.console_type.is_empty() {
         "vnc".to_string()
     } else {
@@ -1787,10 +1787,10 @@ pub async fn get_vm_qemu_logs(
     let (name, host_id) = crate::api::vm_row::vm_agent_row_libvirt(&state, id).await?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let lines = q.lines.unwrap_or(500).min(5000);
     let result = crate::agent_client::vm_libvirt_query(
         &mut client,
@@ -1799,7 +1799,7 @@ pub async fn get_vm_qemu_logs(
         &serde_json::json!({ "lines": lines }),
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(result))
 }
 
@@ -1834,10 +1834,10 @@ pub async fn rename_platform_vm(
         .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     crate::agent_client::vm_libvirt_invoke(
         &mut client,
         &row.0,
@@ -1845,7 +1845,7 @@ pub async fn rename_platform_vm(
         &serde_json::json!({ "new_name": new_name }),
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     sqlx::query("UPDATE vms SET name = ?, updated_at = datetime('now') WHERE id = ?")
         .bind(new_name)
         .bind(id)
@@ -1862,13 +1862,13 @@ pub async fn inject_vm_nmi(
     let (name, host_id) = crate::api::vm_row::vm_agent_row_libvirt(&state, id).await?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     crate::agent_client::vm_libvirt_invoke(&mut client, &name, "domain.nmi", &serde_json::json!({}))
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     state.emit_event("vm.nmi", format!("NMI injected into VM {name}"));
     Ok(Json(serde_json::json!({ "status": "nmi_injected" })))
 }
@@ -2101,13 +2101,13 @@ pub async fn publish_vm_template(
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let xml = crate::agent_client::get_domain_xml(&mut client, &row.0)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let source_disk = machina_core::libvirt::template_apply::primary_disk_path_from_xml(&xml)
         .and_then(|p| p.to_str().map(|s| s.to_string()))
         .filter(|s| !s.is_empty())

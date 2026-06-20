@@ -16,7 +16,7 @@ pub async fn segments_overview(
     network_overlay::segments_overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn create_segment(
@@ -38,7 +38,7 @@ pub async fn segment_connectivity(
     network_overlay::segment_connectivity(&state.pool, id)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn ipam_allocate(
@@ -58,7 +58,7 @@ pub async fn ipam_pools(
     network_overlay::list_ipam_pools(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn gitops_export(
@@ -67,7 +67,7 @@ pub async fn gitops_export(
     network_overlay::export_gitops(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn emergency_unlock(
@@ -79,7 +79,7 @@ pub async fn emergency_unlock(
     network_overlay::emergency_unlock(&state.pool, id)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn bind_network_to_segment(

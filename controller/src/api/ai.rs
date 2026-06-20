@@ -29,7 +29,7 @@ pub async fn get_settings(
     require_operator(&actor)?;
     ai::settings::get_ai_settings(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -41,7 +41,7 @@ pub async fn patch_settings(
     crate::auth::require_admin(&actor)?;
     ai::settings::patch_ai_settings(&state.pool, &body)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -54,7 +54,7 @@ pub async fn spotlight(
     let online: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM hosts WHERE state = 'online'")
         .fetch_one(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     let q = body.query.trim();
     let mut hits = Vec::new();
@@ -91,7 +91,7 @@ pub async fn jarvis_landing(
     let online: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM hosts WHERE state = 'online'")
         .fetch_one(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let missing = crate::engine::template_readiness::list_missing_marketplace_images(&state.pool)
         .await
         .unwrap_or_default();
@@ -124,7 +124,7 @@ pub async fn copilot_chat(
         body.vm_ids,
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))
+    .map_err(|e| ApiError::internal(e.to_string()))
     .map(Json)
 }
 
@@ -217,7 +217,7 @@ pub async fn explain(
     require_operator(&actor)?;
     let text = ai::explain_screen(&state.pool, &body.screen, &body.object_ref)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(serde_json::json!({ "explanation": text })))
 }
 
@@ -236,7 +236,7 @@ pub async fn runbook(
     require_operator(&actor)?;
     ai::runbook::generate(&state.pool, &body.incident, &body.context)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -260,7 +260,7 @@ pub async fn cost_guardian(
     require_operator(&actor)?;
     ai::cost::analyze(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -271,7 +271,7 @@ pub async fn capacity_planner(
     require_operator(&actor)?;
     ai::capacity::plan(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -282,7 +282,7 @@ pub async fn security_sentinel(
     require_operator(&actor)?;
     ai::security::scan(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -300,7 +300,7 @@ pub async fn policy_export(
     require_operator(&actor)?;
     ai::policy_export::export_policy_yaml(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -318,7 +318,7 @@ pub async fn network_explain(
         body.port,
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))
+    .map_err(|e| ApiError::internal(e.to_string()))
     .map(Json)
 }
 
@@ -444,7 +444,7 @@ pub async fn autopilot_propose(
     require_operator(&actor)?;
     ai::autopilot::propose(&state.pool, q.vm_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -466,7 +466,7 @@ pub async fn compliance_report(
     require_operator(&actor)?;
     ai::compliance::generate(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -477,7 +477,7 @@ pub async fn compliance_export_html(
     require_operator(&actor)?;
     let report = ai::compliance::generate(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(axum::response::Html(ai::compliance::report_to_html(
         &report,
     )))
@@ -490,7 +490,7 @@ pub async fn compliance_export_pdf(
     require_operator(&actor)?;
     let report = ai::compliance::generate(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let bytes = ai::compliance::report_to_pdf(&report);
     Ok(axum::response::Response::builder()
         .header(http::header::CONTENT_TYPE, "application/pdf")
@@ -499,7 +499,7 @@ pub async fn compliance_export_pdf(
             "attachment; filename=\"machina-compliance-report.pdf\"",
         )
         .body(axum::body::Body::from(bytes))
-        .map_err(|e| ApiErrorernal(e.to_string()))?)
+        .map_err(|e| ApiError::internal(e.to_string()))?)
 }
 
 #[derive(Debug, Deserialize)]
@@ -516,7 +516,7 @@ pub async fn terminal_suggest(
     require_operator(&actor)?;
     ai::terminal::suggest(&state.pool, body.vm_id, body.vm_name.as_deref())
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -540,7 +540,7 @@ pub async fn autopilot_run(
     require_operator(&actor)?;
     let settings = ai::settings::get_ai_settings(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let cap = settings.autopilot_max_actions.clamp(1, 10) as usize;
     let max = if body.max_actions == default_max_actions() {
         cap
@@ -570,7 +570,7 @@ pub async fn autopilot_history(
     require_operator(&actor)?;
     ai::autopilot::list_history(&state.pool, q.limit)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -581,7 +581,7 @@ pub async fn capacity_export_csv(
     require_operator(&actor)?;
     let csv = ai::capacity::export_csv(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(axum::response::Response::builder()
         .header(http::header::CONTENT_TYPE, "text/csv; charset=utf-8")
         .header(
@@ -589,7 +589,7 @@ pub async fn capacity_export_csv(
             "attachment; filename=\"machina-capacity-planner.csv\"",
         )
         .body(axum::body::Body::from(csv))
-        .map_err(|e| ApiErrorernal(e.to_string()))?)
+        .map_err(|e| ApiError::internal(e.to_string()))?)
 }
 
 pub async fn cost_export_csv(
@@ -599,7 +599,7 @@ pub async fn cost_export_csv(
     require_operator(&actor)?;
     let csv = ai::cost::export_csv(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(axum::response::Response::builder()
         .header(http::header::CONTENT_TYPE, "text/csv; charset=utf-8")
         .header(
@@ -607,7 +607,7 @@ pub async fn cost_export_csv(
             "attachment; filename=\"machina-cost-guardian.csv\"",
         )
         .body(axum::body::Body::from(csv))
-        .map_err(|e| ApiErrorernal(e.to_string()))?)
+        .map_err(|e| ApiError::internal(e.to_string()))?)
 }
 
 pub async fn fleet_summary(
@@ -617,7 +617,7 @@ pub async fn fleet_summary(
     require_operator(&actor)?;
     ai::fleet_summary::summarize(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -628,7 +628,7 @@ pub async fn fleet_local(
     require_operator(&actor)?;
     ai::fleet_summary::local_export(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -639,7 +639,7 @@ pub async fn twin_graph(
     require_operator(&actor)?;
     ai::digital_twin::build_graph(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -663,7 +663,7 @@ pub async fn analyze_incident(
     require_operator(&actor)?;
     let mut result = ai::root_cause::analyze(&state.pool, &q)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let pw = crate::engine::packetwolf_bridge::fetch_anomalies(&state.config).await;
     if pw
         .get("anomalies")
@@ -688,7 +688,7 @@ pub async fn vm_builder(
     require_operator(&actor)?;
     ai::vm_builder::build(&state.pool, &body)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -703,7 +703,7 @@ pub async fn intent_environment(
     )
     .fetch_one(&state.pool)
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(ai::environment_intent::plan_environment(
         &body.query,
         rates.0,
@@ -729,7 +729,7 @@ pub async fn sre_forecast(
     require_operator(&actor)?;
     ai::sre_predict::forecast(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -740,7 +740,7 @@ pub async fn sre_remediate(
     require_operator(&actor)?;
     ai::sre_remediate::propose(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -751,7 +751,7 @@ pub async fn compliance_remediate(
     require_operator(&actor)?;
     ai::compliance_remediate::propose(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -762,7 +762,7 @@ pub async fn zeus_summary(
     require_operator(&actor)?;
     ai::zeus_summary::summarize(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -773,7 +773,7 @@ pub async fn fleet_power_optimize(
     require_operator(&actor)?;
     ai::fleet_power::optimize(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -784,7 +784,7 @@ pub async fn fleet_heatmap(
     require_operator(&actor)?;
     ai::fleet_heatmap::heatmap(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -806,7 +806,7 @@ pub async fn fleet_rebalance_propose(
     require_operator(&actor)?;
     ai::fleet_rebalance::propose(&state.pool, q.max_moves)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -828,7 +828,7 @@ pub async fn cost_attribution(
     require_operator(&actor)?;
     ai::cost_attribution::attribute(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -839,7 +839,7 @@ pub async fn compliance_frameworks(
     require_operator(&actor)?;
     ai::compliance_frameworks::scan(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -850,7 +850,7 @@ pub async fn security_graph(
     require_operator(&actor)?;
     ai::security_graph::build_graph(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -879,7 +879,7 @@ pub async fn knowledge_search(
     require_operator(&actor)?;
     ai::knowledge_search::search(&state.pool, &body.query)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -890,7 +890,7 @@ pub async fn service_graph(
     require_operator(&actor)?;
     ai::service_graph::build(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -912,7 +912,7 @@ pub async fn infrastructure_memory(
     require_operator(&actor)?;
     ai::infrastructure_memory::recall(&state.pool, q.limit)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -932,7 +932,7 @@ pub async fn mission_stack(
     )
     .fetch_one(&state.pool)
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(ai::mission_stack::plan_mission_stack(
         &body.query,
         rates.0,
@@ -958,7 +958,7 @@ pub async fn cost_attribution_export_csv(
     require_operator(&actor)?;
     let csv = ai::cost_attribution::export_csv(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(axum::response::Response::builder()
         .header(http::header::CONTENT_TYPE, "text/csv; charset=utf-8")
         .header(
@@ -966,7 +966,7 @@ pub async fn cost_attribution_export_csv(
             "attachment; filename=\"machina-cost-attribution.csv\"",
         )
         .body(axum::body::Body::from(csv))
-        .map_err(|e| ApiErrorernal(e.to_string()))?)
+        .map_err(|e| ApiError::internal(e.to_string()))?)
 }
 
 #[derive(Debug, Deserialize)]
@@ -987,7 +987,7 @@ pub async fn fleet_gpu_placement(
     require_operator(&actor)?;
     ai::fleet_placement::advise_gpu(&state.pool, &q.workload)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -999,7 +999,7 @@ pub async fn knowledge_diagnose(
     require_operator(&actor)?;
     ai::knowledge_diagnose::diagnose(&state.pool, &body.query)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1030,7 +1030,7 @@ pub async fn memory_similar(
     require_operator(&actor)?;
     ai::infrastructure_memory::similar(&state.pool, &q.q, q.limit)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1041,7 +1041,7 @@ pub async fn remediate_hub(
     require_operator(&actor)?;
     ai::remediate_hub::hub(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1053,7 +1053,7 @@ pub async fn knowledge_runbook(
     require_operator(&actor)?;
     ai::knowledge_runbook::from_query(&state.pool, &body.query)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1064,7 +1064,7 @@ pub async fn cost_budget(
     require_operator(&actor)?;
     ai::cost_budget::analyze(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1075,7 +1075,7 @@ pub async fn mission_stack_status(
     require_operator(&actor)?;
     ai::mission_stack_status::status(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1088,7 +1088,7 @@ pub async fn list_ai_providers(
     require_operator(&actor)?;
     ai::providers::list_providers(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1100,7 +1100,7 @@ pub async fn create_ai_provider(
     crate::auth::require_admin(&actor)?;
     ai::providers::create_provider(&state.pool, &body)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1113,7 +1113,7 @@ pub async fn patch_ai_provider(
     crate::auth::require_admin(&actor)?;
     ai::providers::patch_provider(&state.pool, id, &body)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1125,7 +1125,7 @@ pub async fn delete_ai_provider(
     crate::auth::require_admin(&actor)?;
     let ok = ai::providers::delete_provider(&state.pool, id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(serde_json::json!({ "deleted": ok })))
 }
 
@@ -1137,7 +1137,7 @@ pub async fn list_ai_provider_models(
     require_operator(&actor)?;
     ai::providers::list_models(&state.pool, id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1149,7 +1149,7 @@ pub async fn test_ai_provider(
     crate::auth::require_admin(&actor)?;
     ai::providers::test_provider(&state.pool, id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1160,7 +1160,7 @@ pub async fn list_routing_rules(
     require_operator(&actor)?;
     ai::routing::list_rules(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1173,7 +1173,7 @@ pub async fn patch_routing_rule(
     crate::auth::require_admin(&actor)?;
     ai::routing::patch_rule(&state.pool, &task_class, &body)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1193,7 +1193,7 @@ pub async fn zeus_chat(
     require_operator(&actor)?;
     ai::agents::chat(&state.pool, &state.config, &body, Some(&actor.username))
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1204,7 +1204,7 @@ pub async fn list_ai_prompts(
     require_operator(&actor)?;
     ai::prompts::list_prompts(&state.pool, &actor.username)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1216,7 +1216,7 @@ pub async fn create_ai_prompt(
     require_operator(&actor)?;
     ai::prompts::create_prompt(&state.pool, &actor.username, &body)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1230,7 +1230,7 @@ pub async fn patch_ai_prompt(
     let _ = actor;
     ai::prompts::patch_prompt(&state.pool, id, &body)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1243,7 +1243,7 @@ pub async fn delete_ai_prompt(
     let _ = actor;
     let ok = ai::prompts::delete_prompt(&state.pool, id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(serde_json::json!({ "deleted": ok })))
 }
 
@@ -1254,7 +1254,7 @@ pub async fn get_memory_settings(
     require_operator(&actor)?;
     ai::memory_store::get_settings(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1266,7 +1266,7 @@ pub async fn patch_memory_settings(
     crate::auth::require_admin(&actor)?;
     ai::memory_store::patch_settings(&state.pool, &body)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1283,7 +1283,7 @@ pub async fn purge_memory(
     crate::auth::require_admin(&actor)?;
     let deleted = ai::memory_store::purge(&state.pool, &q.scope, Some(&actor.username))
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(serde_json::json!({ "deleted": deleted })))
 }
 
@@ -1295,7 +1295,7 @@ pub async fn fleet_guest_query(
     require_operator(&actor)?;
     ai::fleet_guest_query::execute(&state.pool, &state.config, &body)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1307,7 +1307,7 @@ pub async fn migration_readiness_report(
     require_operator(&actor)?;
     ai::migration_readiness::generate(&state.pool, &state.config, &body)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1318,7 +1318,7 @@ pub async fn zeus_approval_hub(
     require_operator(&actor)?;
     ai::actions::approval_hub(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1330,7 +1330,7 @@ pub async fn create_zeus_action(
     require_operator(&actor)?;
     ai::actions::create_action(&state.pool, &body, &actor.username)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1342,7 +1342,7 @@ pub async fn execute_zeus_action(
     require_operator(&actor)?;
     ai::actions::approve_and_execute(&state, id, &actor)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1354,7 +1354,7 @@ pub async fn reject_zeus_action(
     require_operator(&actor)?;
     let ok = ai::actions::reject(&state.pool, id, &actor.username)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(serde_json::json!({ "rejected": ok })))
 }
 
@@ -1365,7 +1365,7 @@ pub async fn list_agent_marketplace(
     require_operator(&actor)?;
     ai::agent_marketplace::list_agents(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1377,7 +1377,7 @@ pub async fn install_agent_marketplace(
     crate::auth::require_admin(&actor)?;
     ai::agent_marketplace::install(&state.pool, &slug)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1389,7 +1389,7 @@ pub async fn uninstall_agent_marketplace(
     crate::auth::require_admin(&actor)?;
     ai::agent_marketplace::uninstall(&state.pool, &slug)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1400,7 +1400,7 @@ pub async fn zeus_enterprise_overview(
     require_operator(&actor)?;
     ai::enterprise_zeus::overview(&state.pool, &actor.username)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1413,10 +1413,10 @@ pub async fn patch_zeus_enterprise_overview(
     ai::enterprise_zeus::require_zeus_admin(&actor)?;
     ai::enterprise_zeus::patch(&state.pool, &body)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     ai::enterprise_zeus::overview(&state.pool, &actor.username)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1428,7 +1428,7 @@ pub async fn zeus_autonomous_plan(
     require_operator(&actor)?;
     ai::autonomous::plan(&state.pool, &state.config, &body)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1440,7 +1440,7 @@ pub async fn zeus_autonomous_execute(
     require_operator(&actor)?;
     ai::autonomous::execute_approved_plan(&state.pool, &state.config, &state, &actor, &body)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1467,7 +1467,7 @@ pub async fn infra_graph(
         },
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))
+    .map_err(|e| ApiError::internal(e.to_string()))
     .map(Json)
 }
 
@@ -1491,7 +1491,7 @@ pub async fn infra_graph_query(
     require_operator(&actor)?;
     ai::infra_graph::query(&state.pool, &body)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1518,7 +1518,7 @@ pub async fn infra_graph_at(
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
     ai::infra_graph::graph_at(&state.pool, parsed)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1543,7 +1543,7 @@ pub async fn timeline_replay(
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
     ai::infra_graph::timeline_replay(&state.pool, from, to, q.resource.as_deref())
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1555,7 +1555,7 @@ pub async fn analyze_incident_post(
     require_operator(&actor)?;
     let mut result = ai::root_cause::analyze_post(&state.pool, &body)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let pw = crate::engine::packetwolf_bridge::fetch_anomalies(&state.config).await;
     if pw
         .get("anomalies")
@@ -1612,7 +1612,7 @@ pub async fn predictions_unified(
     require_operator(&actor)?;
     let report = ai::predictions::unified(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(report))
 }
 
@@ -1624,7 +1624,7 @@ pub async fn incidents_active(
     let _ = ai::incident_commander::correlate_and_open(&state.pool).await;
     ai::incident_commander::list_active(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1635,7 +1635,7 @@ pub async fn rightsizing_report(
     require_operator(&actor)?;
     ai::predictions::rightsizing_report(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -1659,7 +1659,7 @@ pub async fn incident_ack(
     require_operator(&actor)?;
     ai::incident_commander::ack(&state.pool, id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(serde_json::json!({ "acknowledged": true })))
 }
 
@@ -1706,6 +1706,6 @@ pub async fn memory_changes_before(
     require_operator(&actor)?;
     ai::infrastructure_memory::changes_before_outage(&state.pool, q.incident_id, q.hours_before)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }

@@ -15,7 +15,7 @@ pub async fn plugins_overview(
     platform_plugins::marketplace_overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn install_plugin(

@@ -25,7 +25,7 @@ pub async fn overview(
     operations::overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn list_runbooks(
@@ -34,7 +34,7 @@ pub async fn list_runbooks(
     operations::list_catalog(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn list_executions(
@@ -44,7 +44,7 @@ pub async fn list_executions(
     operations::list_executions(&state.pool, q.limit)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn execute_runbook(
@@ -65,5 +65,5 @@ pub async fn showback_overview(
     operations::showback_overview(&state.pool, &state.config)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }

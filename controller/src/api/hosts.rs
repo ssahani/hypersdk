@@ -135,10 +135,10 @@ pub async fn get_host_gpus(
         .await?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let resp = crate::agent_client::list_host_gpus(&mut client)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let devices: Vec<serde_json::Value> = resp
         .devices
         .into_iter()

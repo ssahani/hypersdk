@@ -52,10 +52,10 @@ pub async fn query_vm_libvirt(
     let (name, host_id) = vm_agent_row(&state, id).await?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut payload = serde_json::json!({});
     if let Some(disk) = q.disk {
         payload["disk"] = serde_json::Value::String(disk);
@@ -83,7 +83,7 @@ pub async fn query_vm_libvirt(
     }
     let result = crate::agent_client::vm_libvirt_query(&mut client, &name, &q.action, &payload)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(result))
 }
 
@@ -95,14 +95,14 @@ pub async fn invoke_vm_libvirt(
     let (name, host_id) = vm_agent_row(&state, id).await?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let result =
         crate::agent_client::vm_libvirt_invoke(&mut client, &name, &body.action, &body.payload)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     state.emit_event(
         "vm.libvirt",
         format!("VM {name} libvirt action {}", body.action),
@@ -123,10 +123,10 @@ pub async fn put_vm_domain_xml(
     let (name, host_id) = vm_agent_row(&state, id).await?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let result = crate::agent_client::vm_libvirt_invoke(
         &mut client,
         &name,
@@ -134,7 +134,7 @@ pub async fn put_vm_domain_xml(
         &serde_json::json!({ "xml": body.xml }),
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     state.emit_event("vm.xml", format!("Updated domain XML for {name}"));
     Ok(Json(result))
 }
@@ -160,17 +160,17 @@ pub async fn invoke_host_libvirt(
 ) -> Result<Json<Value>, ApiError> {
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let result = crate::agent_client::host_libvirt_invoke(
         &mut client,
         &body.action,
         &body.payload,
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     state.emit_event(
         "host.libvirt",
         format!("Host {host_id} libvirt action {}", body.action),
@@ -185,10 +185,10 @@ pub async fn query_host_libvirt(
 ) -> Result<Json<Value>, ApiError> {
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut payload = serde_json::json!({});
     if let Some(url) = q.url.filter(|s| !s.trim().is_empty()) {
         payload["url"] = serde_json::Value::String(url);
@@ -199,6 +199,6 @@ pub async fn query_host_libvirt(
         &payload,
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(result))
 }

@@ -30,7 +30,7 @@ pub async fn sync_inventory(
             .ok_or_else(|| ApiError::bad_request("no cluster configured"))?;
     crate::engine::kubevirt_inventory::sync_cluster(&state, cluster_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(KubeVirtSyncResponse {
         synced: true,
         cluster_id: cluster_id.to_string(),

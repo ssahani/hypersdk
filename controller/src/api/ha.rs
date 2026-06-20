@@ -22,7 +22,7 @@ pub async fn get_ha_status(
 ) -> Result<Json<HaStatusResponse>, ApiError> {
     let (status, events) = crate::engine::ha::ha_status(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(HaStatusResponse { status, events }))
 }
 
@@ -52,7 +52,7 @@ pub async fn get_vm_ha_policy(
 ) -> Result<Json<HaPolicyRow>, ApiError> {
     let policy = get_ha_policy(&state.pool, id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?
+        .map_err(|e| ApiError::internal(e.to_string()))?
         .unwrap_or(HaPolicyRow {
             enabled: false,
             restart_attempts: 3,
@@ -84,7 +84,7 @@ pub async fn set_vm_ha_policy(
         body.anti_affinity,
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(serde_json::json!({
         "vm_id": id,
         "enabled": body.enabled,

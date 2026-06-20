@@ -302,7 +302,7 @@ pub async fn test_rule(
     require_operator(&actor)?;
     detection::test_rule(&state.pool, id, q.hours.unwrap_or(24))
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -313,7 +313,7 @@ pub async fn asm_summary(
     require_operator(&actor)?;
     asm::build_asm_summary(&state.pool, &state.config)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -461,7 +461,7 @@ pub async fn forward_replay_handler(
         &state.config.controller_id,
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(
         serde_json::json!({ "forwarded": n, "hours": q.hours.unwrap_or(24) }),
     ))
@@ -597,7 +597,7 @@ pub async fn run_ingest_cycle(
     require_admin(&actor)?;
     run_cycle(&state.pool, &state.config, &state.config.controller_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
@@ -650,7 +650,7 @@ pub async fn create_playbook(
         if e.to_string().contains("unique") {
             ApiError::bad_request("playbook name already exists")
         } else {
-            ApiErrorernal(e.to_string())
+            ApiError::internal(e.to_string())
         }
     })?;
     fetch_playbook(&state.pool, id).await
@@ -1024,5 +1024,5 @@ async fn splunk_integration_id(pool: &SqlitePool) -> Result<Uuid, ApiError> {
     sqlx::query_scalar("SELECT id FROM soc_integrations WHERE integration_type = 'splunk_hec' AND name = 'default'")
         .fetch_one(pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }

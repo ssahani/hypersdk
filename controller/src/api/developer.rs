@@ -37,10 +37,10 @@ pub async fn export_vm_iac(
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     let bundle = developer::export_vm_bundle(&state.pool, &agent_addr, vm_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(bundle))
 }
 
@@ -60,10 +60,10 @@ pub async fn export_vm_iac_zip(
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     let (vm_name, bytes) = developer::export_vm_bundle_zip(&state.pool, &agent_addr, vm_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let disposition = format!("attachment; filename=\"{vm_name}-iac.zip\"");
     Ok((
         StatusCode::OK,

@@ -19,7 +19,7 @@ pub async fn overview(
     enterprise_security::overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn list_vault_providers(
@@ -28,7 +28,7 @@ pub async fn list_vault_providers(
     enterprise_security::list_vault_providers(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn register_vault_provider(
@@ -49,7 +49,7 @@ pub async fn list_mfa_policies(
     enterprise_security::list_mfa_policies(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn upsert_mfa_policy(
@@ -71,7 +71,7 @@ pub async fn list_air_gap_bundles(
     enterprise_security::list_air_gap_bundles(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn create_air_gap_bundle(
@@ -116,7 +116,7 @@ pub async fn sync_all_vault_providers(
     enterprise_security::sync_all_vault_providers(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn mfa_compliance(
@@ -125,7 +125,7 @@ pub async fn mfa_compliance(
     enterprise_security::mfa_compliance(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn fips_matrix(
@@ -134,7 +134,7 @@ pub async fn fips_matrix(
     enterprise_security::fips_matrix(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn tenant_isolation_overview(
@@ -143,7 +143,7 @@ pub async fn tenant_isolation_overview(
     enterprise_security::tenant_isolation_overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn upsert_tenant_policy(

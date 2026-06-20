@@ -59,7 +59,7 @@ async fn vm_host_agent(state: &AppState, vm_id: Uuid) -> Result<(String, String)
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
             .await
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok((row.3.unwrap_or_default(), agent_addr))
 }
 
@@ -74,7 +74,7 @@ pub async fn list_vm_port_forwards(
     }
     let rules = crate::agent_client::list_port_forwards(&agent_addr)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let filtered: Vec<_> = rules
         .into_iter()
         .filter(|r| r.vm_ip == guest_ip)
@@ -105,7 +105,7 @@ pub async fn create_vm_port_forward(
         &body.description,
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
@@ -129,7 +129,7 @@ pub async fn delete_vm_port_forward(
         body.vm_port,
     )
     .await
-    .map_err(|e| ApiErrorernal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
@@ -188,16 +188,16 @@ pub async fn upsert_vm_port_forward_template(
             }
             o.get_mut("machina").and_then(|v| v.as_object_mut())
         })
-        .ok_or_else(|| ApiErrorernal("Invalid VM spec"))?;
+        .ok_or_else(|| ApiError::internal("Invalid VM spec"))?;
     machina.insert(
         "port_forward_templates".into(),
-        serde_json::to_value(&templates).map_err(|e| ApiErrorernal(e.to_string()))?,
+        serde_json::to_value(&templates).map_err(|e| ApiError::internal(e.to_string()))?,
     );
     sqlx::query("UPDATE vms SET spec_json = ?, updated_at = datetime('now') WHERE id = ?")
         .bind(&spec)
         .bind(id)
         .execute(&state.pool)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(templates))
 }

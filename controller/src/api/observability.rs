@@ -23,7 +23,7 @@ pub async fn overview(
     observability::overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }
 
 pub async fn list_traces(
@@ -33,5 +33,5 @@ pub async fn list_traces(
     observability::list_traces(&state.pool, q.limit)
         .await
         .map(Json)
-        .map_err(|e| ApiErrorernal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }

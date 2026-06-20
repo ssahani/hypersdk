@@ -99,6 +99,6 @@ pub async fn fence_host_manual(
     require_admin(&actor)?;
     let ok = crate::engine::drs::fence_host(&state, host_id)
         .await
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(serde_json::json!({ "fenced": ok })))
 }

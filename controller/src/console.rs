@@ -50,10 +50,10 @@ pub async fn vm_console(
                 "Platform → Hosts → Sync all, then open the VM from Platform → VMs (running guests only).",
             )
         } else if msg.contains("socket is closed") {
-            ApiErrorernal("Host agent lost its libvirt connection")
+            ApiError::internal("Host agent lost its libvirt connection")
                 .with_remediation("On the host: sudo systemctl restart libvirtd machina-agent")
         } else {
-            ApiErrorernal(msg)
+            ApiError::internal(msg)
         }
     })?;
     let ws_token = state.ws_tokens.issue(id).await;

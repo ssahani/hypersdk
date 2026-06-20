@@ -107,7 +107,7 @@ pub async fn create_user(
     let role = validate_role(&body.role)?;
     let id = Uuid::new_v4();
     let hash = bcrypt::hash(&body.password, bcrypt::DEFAULT_COST)
-        .map_err(|e| ApiErrorernal(e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     sqlx::query("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)")
         .bind(id)
         .bind(&username)
@@ -142,7 +142,7 @@ pub async fn patch_user(
     if let Some(pass) = &body.password {
         validate_password(pass)?;
         let hash = bcrypt::hash(pass, bcrypt::DEFAULT_COST)
-            .map_err(|e| ApiErrorernal(e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
         sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?")
             .bind(hash)
             .bind(id)
