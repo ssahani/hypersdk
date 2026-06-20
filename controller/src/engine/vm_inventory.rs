@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::state::AppState;
@@ -23,11 +23,11 @@ struct VmInventoryRow {
 }
 
 pub async fn cluster_inventory_policy(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cluster_id: Uuid,
 ) -> anyhow::Result<ClusterInventoryPolicy> {
     let row = sqlx::query_as::<_, ClusterInventoryPolicy>(
-        "SELECT inventory_prune_unmanaged, inventory_mark_managed_missing FROM clusters WHERE id = $1",
+        "SELECT inventory_prune_unmanaged, inventory_mark_managed_missing FROM clusters WHERE id = ?",
     )
     .bind(cluster_id)
     .fetch_optional(pool)
@@ -48,7 +48,7 @@ pub async fn reconcile_libvirt_host(
     let policy = cluster_inventory_policy(&state.pool, cluster_id).await?;
     let rows: Vec<VmInventoryRow> = sqlx::query_as(
         "SELECT id, name, managed FROM vms
-         WHERE host_id = $1 AND inventory_source = 'libvirt'",
+         WHERE host_id = ? AND inventory_source = 'libvirt'",
     )
     .bind(host_id)
     .fetch_all(&state.pool)
@@ -59,7 +59,7 @@ pub async fn reconcile_libvirt_host(
             continue;
         }
         if !row.managed && policy.inventory_prune_unmanaged {
-            sqlx::query("DELETE FROM vms WHERE id = $1")
+            sqlx::query("DELETE FROM vms WHERE id = ?")
                 .bind(row.id)
                 .execute(&state.pool)
                 .await?;
@@ -72,7 +72,7 @@ pub async fn reconcile_libvirt_host(
             );
         } else if row.managed && policy.inventory_mark_managed_missing {
             sqlx::query(
-                "UPDATE vms SET observed_state = 'missing', last_error = $1, updated_at = NOW() WHERE id = $2",
+                "UPDATE vms SET observed_state = 'missing', last_error = ?, updated_at = datetime('now') WHERE id = ?",
             )
             .bind(DOMAIN_MISSING)
             .bind(row.id)

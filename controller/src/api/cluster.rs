@@ -4,7 +4,7 @@ use axum::extract::{Path, State};
 use axum::Extension;
 use axum::Json;
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::auth::{require_admin, AuthUser};
 use crate::engine::drs::{self, ClusterSettings, ClusterSettingsPatch};
@@ -55,7 +55,7 @@ pub async fn get_settings(
 ) -> Result<Json<ClusterSettings>, ApiError> {
     let settings = drs::get_cluster_settings(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     Ok(Json(settings))
 }
 
@@ -67,14 +67,14 @@ pub async fn patch_settings(
     require_admin(&actor)?;
     drs::update_cluster_settings(&state.pool, &body)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let settings = drs::get_cluster_settings(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     Ok(Json(settings))
 }
 
-async fn build_cluster_summary(pool: &PgPool) -> Result<ClusterSummary, ApiError> {
+async fn build_cluster_summary(pool: &SqlitePool) -> Result<ClusterSummary, ApiError> {
     let row: (uuid::Uuid, String) =
         sqlx::query_as("SELECT id, name FROM clusters ORDER BY created_at LIMIT 1")
             .fetch_one(pool)
@@ -95,7 +95,7 @@ async fn build_cluster_summary(pool: &PgPool) -> Result<ClusterSummary, ApiError
             .await?;
     let settings = drs::get_cluster_settings(pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     Ok(ClusterSummary {
         id: row.0.to_string(),
         name: row.1,
@@ -119,7 +119,7 @@ pub async fn patch_cluster(
 ) -> Result<Json<ClusterSummary>, ApiError> {
     crate::auth::require_admin(&actor)?;
     if let Some(name) = &body.name {
-        sqlx::query("UPDATE clusters SET name = $1")
+        sqlx::query("UPDATE clusters SET name = ?")
             .bind(name)
             .execute(&state.pool)
             .await?;

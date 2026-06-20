@@ -33,7 +33,7 @@ pub async fn fleet_threat(
     require_operator(&actor)?;
     zeus_security::fleet_threat(&state.pool, &state.config)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -67,7 +67,7 @@ pub async fn sync_alerts(
     require_operator(&actor)?;
     let n = zeus_security::sync_security_alerts(&state.pool, &state.config)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     Ok(Json(
         serde_json::json!({ "inserted": n, "summary": format!("Synced {n} security alert(s) to notification outbox") }),
     ))
@@ -87,7 +87,7 @@ pub async fn security_graph(
     require_operator(&actor)?;
     security_graph::build_graph(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -333,7 +333,7 @@ pub async fn explain_event(
     require_operator(&actor)?;
     ai_security::explain_event(&state.pool, &body.event, body.host_id.as_deref())
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -358,7 +358,7 @@ pub async fn attack_reconstruct(
     .await;
     ai_security::attack_reconstruct(&state.pool, &timeline)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -418,7 +418,7 @@ pub async fn hunt_summary(
     let correlations = packetwolf_bridge::correlations(&state.config).await;
     ai_security::hunt_summary(&state.pool, &correlations, &timeline)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -634,7 +634,7 @@ pub async fn install_fleet_tetragon(
         sqlx::query_as("SELECT id FROM hosts WHERE state = 'online' ORDER BY hostname")
             .fetch_all(&state.pool)
             .await
-            .map_err(|e| ApiError::internal(e.to_string()))?;
+            .map_err(|e| ApiErrorernal(e.to_string()))?;
     let mut task_ids = Vec::new();
     for (host_uuid,) in &rows {
         let id = host_uuid.to_string();
@@ -676,7 +676,7 @@ pub async fn fleet_sensors(
         sqlx::query_as("SELECT id, hostname, state FROM hosts ORDER BY hostname")
             .fetch_all(&state.pool)
             .await
-            .map_err(|e| ApiError::internal(e.to_string()))?;
+            .map_err(|e| ApiErrorernal(e.to_string()))?;
     let sensor_by_host: std::collections::HashMap<String, serde_json::Value> = sensors
         .iter()
         .filter_map(|s| {
@@ -776,11 +776,11 @@ pub async fn host_fabric_status(
     require_operator(&actor)?;
     let host_uuid = Uuid::parse_str(&id).map_err(|e| ApiError::bad_request(e.to_string()))?;
     let agent_addr: Option<String> =
-        sqlx::query_scalar("SELECT agent_grpc_addr FROM hosts WHERE id = $1")
+        sqlx::query_scalar("SELECT agent_grpc_addr FROM hosts WHERE id = ?")
             .bind(host_uuid)
             .fetch_optional(&state.pool)
             .await
-            .map_err(|e| ApiError::internal(e.to_string()))?;
+            .map_err(|e| ApiErrorernal(e.to_string()))?;
     let Some(addr) = agent_addr.filter(|a| !a.is_empty()) else {
         return Ok(Json(serde_json::json!({
             "host_id": id,

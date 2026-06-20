@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::config::ControllerConfig;
@@ -47,7 +47,7 @@ pub struct VmBrief {
 }
 
 pub async fn assemble(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     vm_id: Option<Uuid>,
     host_id: Option<Uuid>,
@@ -87,7 +87,7 @@ pub async fn assemble(
 
     let vm = if let Some(id) = vm_id {
         sqlx::query_as::<_, (Uuid, String, String, i32, i64)>(
-            "SELECT id, name, observed_state, vcpus, memory_mib FROM vms WHERE id = $1",
+            "SELECT id, name, observed_state, vcpus, memory_mib FROM vms WHERE id = ?",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -105,7 +105,7 @@ pub async fn assemble(
 
     let host = if let Some(id) = host_id {
         let row: Option<(String, String)> =
-            sqlx::query_as("SELECT hostname, state FROM hosts WHERE id = $1")
+            sqlx::query_as("SELECT hostname, state FROM hosts WHERE id = ?")
                 .bind(id)
                 .fetch_optional(pool)
                 .await?;

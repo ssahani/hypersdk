@@ -2,7 +2,7 @@
 // Finder smart folders + tag index (Phase 39).
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SmartFolder {
@@ -32,7 +32,7 @@ pub struct FleetFinderOverview {
     pub projects: Vec<ProjectFolder>,
 }
 
-pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetFinderOverview> {
+pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetFinderOverview> {
     let all: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vms")
         .fetch_one(pool)
         .await?;
@@ -53,7 +53,7 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetFinderOverview> {
         .fetch_one(pool)
         .await?;
     let untagged: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM vms WHERE tags IS NULL OR tags = '{}'")
+        sqlx::query_scalar("SELECT COUNT(*) FROM vms WHERE tags IS NULL OR tags = '[]' OR tags = ''")
             .fetch_one(pool)
             .await?;
     let high_cpu: i64 = sqlx::query_scalar(
@@ -68,7 +68,7 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetFinderOverview> {
         WHERE NOT EXISTS (
             SELECT 1 FROM backup_records b
             WHERE b.vm_id = v.id AND b.status = 'completed'
-              AND b.created_at > NOW() - INTERVAL '7 days'
+              AND b.created_at > datetime('now', '-7 days')
         )
         "#,
     )
@@ -114,7 +114,7 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetFinderOverview> {
         WHERE NOT EXISTS (
             SELECT 1 FROM backup_records b
             WHERE b.vm_id = v.id AND b.status = 'completed'
-              AND b.created_at > NOW() - INTERVAL '7 days'
+              AND b.created_at > datetime('now', '-7 days')
         )
         OR (v.guest_ip IS NULL OR v.guest_ip = '')
         OR (COALESCE(v.inventory_source, 'libvirt') != 'kubevirt'
@@ -150,14 +150,11 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetFinderOverview> {
             .unwrap_or(0);
 
     let tag_rows: Vec<(String, i64)> = sqlx::query_as(
-        r#"
-        SELECT tag, COUNT(*)::bigint FROM (
-            SELECT unnest(tags) AS tag FROM vms WHERE tags IS NOT NULL AND tags != '{}'
-        ) t
-        GROUP BY tag
-        ORDER BY COUNT(*) DESC, tag
-        LIMIT 40
-        "#,
+        "SELECT j.value AS tag, COUNT(*) FROM vms, json_each(COALESCE(tags,'[]')) j
+         WHERE tags IS NOT NULL AND tags != '[]' AND tags != ''
+         GROUP BY j.value
+         ORDER BY COUNT(*) DESC, j.value
+         LIMIT 40",
     )
     .fetch_all(pool)
     .await
@@ -165,7 +162,7 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetFinderOverview> {
 
     let project_rows: Vec<(String, i64)> = sqlx::query_as(
         r#"
-        SELECT project, COUNT(*)::bigint FROM vms
+        SELECT project, COUNT(*) FROM vms
         WHERE project IS NOT NULL AND project != ''
         GROUP BY project
         ORDER BY COUNT(*) DESC, project

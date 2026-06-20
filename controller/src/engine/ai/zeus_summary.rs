@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 #[derive(Debug, Serialize)]
 pub struct ZeusOsSummary {
@@ -21,7 +21,7 @@ pub struct ZeusOsSummary {
     pub highlights: Vec<String>,
 }
 
-pub async fn summarize(pool: &PgPool) -> anyhow::Result<ZeusOsSummary> {
+pub async fn summarize(pool: &SqlitePool) -> anyhow::Result<ZeusOsSummary> {
     let hosts_online: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM hosts WHERE state = 'online'")
         .fetch_one(pool)
         .await?;
@@ -44,7 +44,7 @@ pub async fn summarize(pool: &PgPool) -> anyhow::Result<ZeusOsSummary> {
 
     let firewall_drift_hosts: i64 = sqlx::query_scalar(
         "SELECT COUNT(DISTINCT target_id) FROM firewall_timeline
-         WHERE kind = 'drift' AND created_at > NOW() - INTERVAL '7 days'",
+         WHERE kind = 'drift' AND created_at > datetime('now', '-7 days')",
     )
     .fetch_one(pool)
     .await

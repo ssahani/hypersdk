@@ -3,7 +3,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::engine::enterprise_security;
@@ -30,7 +30,7 @@ pub struct FleetKeychainOverview {
     pub entries: Vec<FleetKeychainEntry>,
 }
 
-pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetKeychainOverview> {
+pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetKeychainOverview> {
     let sec = enterprise_security::overview(pool).await?;
     let vaults = enterprise_security::list_vault_providers(pool).await?;
     let mfa = enterprise_security::list_mfa_policies(pool).await?;

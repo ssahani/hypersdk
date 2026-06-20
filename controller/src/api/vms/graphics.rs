@@ -15,10 +15,10 @@ pub async fn convert_vm_spice_to_vnc(
     let (name, host_id) = crate::api::vm_row::vm_agent_row_libvirt(&state, id).await?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let result = crate::agent_client::vm_libvirt_invoke(
         &mut client,
         &name,
@@ -26,7 +26,7 @@ pub async fn convert_vm_spice_to_vnc(
         &serde_json::json!({}),
     )
     .await
-    .map_err(|e| ApiError::internal(e.to_string()))?;
+    .map_err(|e| ApiErrorernal(e.to_string()))?;
     state.emit_event("vm.graphics", format!("SPICE→VNC conversion for VM {name}"));
     Ok(Json(result))
 }
@@ -51,10 +51,10 @@ pub async fn add_vm_graphics(
         .unwrap_or("127.0.0.1");
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let result = crate::agent_client::vm_libvirt_invoke(
         &mut client,
         &name,
@@ -65,7 +65,7 @@ pub async fn add_vm_graphics(
         }),
     )
     .await
-    .map_err(|e| ApiError::internal(e.to_string()))?;
+    .map_err(|e| ApiErrorernal(e.to_string()))?;
     state.emit_event(
         "vm.graphics",
         format!("Added {} graphics for VM {name} (listen={listen})", body.graphics_type.trim()),
@@ -81,10 +81,10 @@ pub async fn remove_vm_graphics(
     let (name, host_id) = crate::api::vm_row::vm_agent_row_libvirt(&state, id).await?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let result = crate::agent_client::vm_libvirt_invoke(
         &mut client,
         &name,
@@ -92,7 +92,7 @@ pub async fn remove_vm_graphics(
         &serde_json::json!({ "graphics_type": body.graphics_type.trim() }),
     )
     .await
-    .map_err(|e| ApiError::internal(e.to_string()))?;
+    .map_err(|e| ApiErrorernal(e.to_string()))?;
     state.emit_event(
         "vm.graphics",
         format!("Removed {} graphics from VM {name}", body.graphics_type.trim()),

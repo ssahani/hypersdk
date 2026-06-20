@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::config::ControllerConfig;
 use crate::engine::zeus_firewall::inventory::{plan_target, target_detail};
@@ -32,7 +32,7 @@ pub struct SecurePlanReport {
 }
 
 pub async fn explain_exposure(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     target_id: &str,
     question: Option<&str>,
@@ -85,7 +85,7 @@ pub async fn explain_exposure(
 }
 
 pub async fn secure_machine_plan(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     target_id: &str,
 ) -> anyhow::Result<SecurePlanReport> {
@@ -140,7 +140,7 @@ pub async fn secure_machine_plan(
 }
 
 pub async fn simulate_plan(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     target_id: &str,
     profile: &str,
@@ -195,7 +195,7 @@ pub async fn simulate_plan(
 }
 
 pub async fn compliance_report(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     report_kind: &str,
 ) -> anyhow::Result<serde_json::Value> {

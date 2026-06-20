@@ -3,10 +3,10 @@
 use crate::config::ControllerConfig;
 use crate::engine::ai::compliance::simple_text_pdf;
 use crate::engine::ai::firewall::compliance_report;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 pub async fn export_compliance_pdf(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     kind: &str,
 ) -> anyhow::Result<Vec<u8>> {

@@ -55,7 +55,7 @@ pub async fn finops_report(
             .fetch_one(&state.pool)
             .await?;
     let totals: (i64, i64) = sqlx::query_as(
-        "SELECT COALESCE(SUM(vcpus), 0)::bigint, COALESCE(SUM(memory_mib), 0)::bigint FROM vms",
+        "SELECT COALESCE(SUM(vcpus), 0), COALESCE(SUM(memory_mib), 0) FROM vms",
     )
     .fetch_one(&state.pool)
     .await?;
@@ -92,12 +92,12 @@ pub async fn capacity_report(
             .fetch_one(&state.pool)
             .await?;
     let mem: (i64, i64) = sqlx::query_as(
-        "SELECT COALESCE(SUM(memory_total_mib), 0)::bigint, COALESCE(SUM(memory_used_mib), 0)::bigint FROM hosts WHERE state = 'online'",
+        "SELECT COALESCE(SUM(memory_total_mib), 0), COALESCE(SUM(memory_used_mib), 0) FROM hosts WHERE state = 'online'",
     )
     .fetch_one(&state.pool)
     .await?;
     let avg_cpu: f32 = sqlx::query_scalar(
-        "SELECT COALESCE(AVG(cpu_percent)::double precision, 0)::real FROM hosts WHERE state = 'online'",
+        "SELECT COALESCE(AVG(cpu_percent)::double precision, 0) FROM hosts WHERE state = 'online'",
     )
     .fetch_one(&state.pool)
     .await?;

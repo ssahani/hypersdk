@@ -37,8 +37,10 @@ machina_elapsed_fmt() {
 }
 
 machina_print_success() {
-    local host="$1" elapsed="$2" user="$3"
-    deploy_ui_success "$host" "$elapsed" "./scripts/deploy remote ${user}@${host} --quick"
+    local host="$1" elapsed="$2" user="$3" extra_flags="${4:-}"
+    local cmd="./scripts/deploy remote ${user}@${host} --quick"
+    [[ -n "$extra_flags" ]] && cmd+=" ${extra_flags}"
+    deploy_ui_success "$host" "$elapsed" "$cmd"
 }
 
 machina_info()  { deploy_ui_info "$@"; }

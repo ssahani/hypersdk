@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use super::host_shell;
 use super::template_catalog;
@@ -31,12 +31,12 @@ pub struct MissingTemplateImage {
 }
 
 pub async fn check_template_readiness(
-    pool: &PgPool,
+    pool: &SqlitePool,
     name: &str,
     version: &str,
 ) -> anyhow::Result<TemplateReadiness> {
     let row: Option<(String, bool)> = sqlx::query_as(
-        "SELECT source_disk, cloud_init FROM templates WHERE name = $1 AND version = $2",
+        "SELECT source_disk, cloud_init FROM templates WHERE name = ? AND version = ?",
     )
     .bind(name)
     .bind(version)
@@ -90,7 +90,7 @@ pub async fn check_template_readiness(
 
 /// Marketplace templates whose golden disk is absent on all online hosts.
 pub async fn list_missing_marketplace_images(
-    pool: &PgPool,
+    pool: &SqlitePool,
 ) -> anyhow::Result<Vec<MissingTemplateImage>> {
     let rows: Vec<(String, String, String, String, Option<String>)> = sqlx::query_as(
         "SELECT name, version, source_disk, category, icon FROM templates WHERE marketplace = TRUE ORDER BY featured DESC, name",
@@ -124,7 +124,7 @@ pub async fn disk_exists_at(path: &str) -> bool {
     Path::new(path).is_file()
 }
 
-pub async fn disk_exists_on_hosts(pool: &PgPool, path: &str) -> bool {
+pub async fn disk_exists_on_hosts(pool: &SqlitePool, path: &str) -> bool {
     if disk_exists_at(path).await {
         return true;
     }

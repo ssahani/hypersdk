@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
@@ -20,7 +20,7 @@ pub struct SreForecastReport {
     pub forecasts: Vec<ResourceExhaustionForecast>,
 }
 
-pub async fn forecast(pool: &PgPool) -> anyhow::Result<SreForecastReport> {
+pub async fn forecast(pool: &SqlitePool) -> anyhow::Result<SreForecastReport> {
     let rows: Vec<(Uuid, String, i64, i64, f64)> = sqlx::query_as(
         "SELECT v.id, v.name, v.memory_mib, m.memory_used_mib, m.cpu_percent
          FROM vms v

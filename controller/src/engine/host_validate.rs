@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::agent_client;
@@ -21,11 +21,11 @@ pub struct HostValidationReport {
     pub checks: Vec<ValidationCheck>,
 }
 
-pub async fn validate_host(pool: &PgPool, host_id: Uuid) -> anyhow::Result<HostValidationReport> {
+pub async fn validate_host(pool: &SqlitePool, host_id: Uuid) -> anyhow::Result<HostValidationReport> {
     let mut checks = Vec::new();
 
     let row: Option<(String, String, String)> =
-        sqlx::query_as("SELECT hostname, agent_grpc_addr, libvirt_uri FROM hosts WHERE id = $1")
+        sqlx::query_as("SELECT hostname, agent_grpc_addr, libvirt_uri FROM hosts WHERE id = ?")
             .bind(host_id)
             .fetch_optional(pool)
             .await?;
@@ -139,7 +139,7 @@ pub async fn validate_host(pool: &PgPool, host_id: Uuid) -> anyhow::Result<HostV
 }
 
 pub async fn persist_validation(
-    pool: &PgPool,
+    pool: &SqlitePool,
     host_id: Uuid,
     report: &HostValidationReport,
 ) -> anyhow::Result<()> {
@@ -150,8 +150,8 @@ pub async fn persist_validation(
         "pending_validation"
     };
     sqlx::query(
-        "UPDATE hosts SET validation_status = $1, validation_report = $2, state = $3, updated_at = NOW()
-         WHERE id = $4",
+        "UPDATE hosts SET validation_status = ?, validation_report = ?, state = ?, updated_at = datetime('now')
+         WHERE id = ?",
     )
     .bind(status)
     .bind(serde_json::to_value(&report.checks)?)

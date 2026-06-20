@@ -131,7 +131,7 @@ impl ApiError {
 
 impl From<anyhow::Error> for ApiError {
     fn from(e: anyhow::Error) -> Self {
-        Self::internal(e.to_string())
+        Selfernal(e.to_string())
     }
 }
 
@@ -148,7 +148,7 @@ impl From<sqlx::Error> for ApiError {
                 );
             }
         }
-        Self::internal(e.to_string())
+        Selfernal(e.to_string())
     }
 }
 

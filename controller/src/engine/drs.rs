@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::agent_client;
@@ -11,7 +11,7 @@ use crate::tasks::enqueue::enqueue_task;
 
 pub fn spawn(state: AppState) {
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(120));
+        let mut interval = tokio::timeerval(Duration::from_secs(120));
         loop {
             interval.tick().await;
             if !state.leader.is_leader() {
@@ -55,7 +55,7 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
             continue;
         }
 
-        let source_host: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+        let source_host: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
             .bind(vm_id)
             .fetch_one(&state.pool)
             .await?;
@@ -83,7 +83,7 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn get_cluster_settings(pool: &PgPool) -> anyhow::Result<ClusterSettings> {
+pub async fn get_cluster_settings(pool: &SqlitePool) -> anyhow::Result<ClusterSettings> {
     Ok(sqlx::query_as(
         "SELECT drs_auto_migrate, drs_cpu_threshold, ha_enabled, placement_policy,
                 inventory_sync_interval_secs, require_vm_delete_approval,
@@ -95,69 +95,69 @@ pub async fn get_cluster_settings(pool: &PgPool) -> anyhow::Result<ClusterSettin
     .await?)
 }
 
-pub async fn get_inventory_sync_interval_secs(pool: &PgPool) -> anyhow::Result<i32> {
+pub async fn get_inventory_sync_interval_secs(pool: &SqlitePool) -> anyhow::Result<i32> {
     sqlx::query_scalar(
         "SELECT inventory_sync_interval_secs FROM clusters ORDER BY created_at LIMIT 1",
     )
     .fetch_one(pool)
     .await
-    .map_err(Into::into)
+    .map_err(Intoo)
 }
 
 pub async fn update_cluster_settings(
-    pool: &PgPool,
+    pool: &SqlitePool,
     settings: &ClusterSettingsPatch,
 ) -> anyhow::Result<()> {
     if let Some(v) = settings.drs_auto_migrate {
-        sqlx::query("UPDATE clusters SET drs_auto_migrate = $1")
+        sqlx::query("UPDATE clusters SET drs_auto_migrate = ?")
             .bind(v)
             .execute(pool)
             .await?;
     }
     if let Some(v) = settings.drs_cpu_threshold {
-        sqlx::query("UPDATE clusters SET drs_cpu_threshold = $1")
+        sqlx::query("UPDATE clusters SET drs_cpu_threshold = ?")
             .bind(v)
             .execute(pool)
             .await?;
     }
     if let Some(v) = settings.ha_enabled {
-        sqlx::query("UPDATE clusters SET ha_enabled = $1")
+        sqlx::query("UPDATE clusters SET ha_enabled = ?")
             .bind(v)
             .execute(pool)
             .await?;
     }
     if let Some(v) = &settings.placement_policy {
-        sqlx::query("UPDATE clusters SET placement_policy = $1")
+        sqlx::query("UPDATE clusters SET placement_policy = ?")
             .bind(v)
             .execute(pool)
             .await?;
     }
     if let Some(v) = settings.inventory_sync_interval_secs {
-        sqlx::query("UPDATE clusters SET inventory_sync_interval_secs = $1")
+        sqlx::query("UPDATE clusters SET inventory_sync_interval_secs = ?")
             .bind(v.clamp(0, 86400))
             .execute(pool)
             .await?;
     }
     if let Some(v) = settings.require_vm_delete_approval {
-        sqlx::query("UPDATE clusters SET require_vm_delete_approval = $1")
+        sqlx::query("UPDATE clusters SET require_vm_delete_approval = ?")
             .bind(v)
             .execute(pool)
             .await?;
     }
     if let Some(v) = settings.firewall_approval_sla_hours {
-        sqlx::query("UPDATE clusters SET firewall_approval_sla_hours = $1")
+        sqlx::query("UPDATE clusters SET firewall_approval_sla_hours = ?")
             .bind(v.clamp(1, 720))
             .execute(pool)
             .await?;
     }
     if let Some(v) = settings.finops_vcpu_hour_usd {
-        sqlx::query("UPDATE clusters SET finops_vcpu_hour_usd = $1")
+        sqlx::query("UPDATE clusters SET finops_vcpu_hour_usd = ?")
             .bind(v)
             .execute(pool)
             .await?;
     }
     if let Some(v) = settings.finops_gib_hour_usd {
-        sqlx::query("UPDATE clusters SET finops_gib_hour_usd = $1")
+        sqlx::query("UPDATE clusters SET finops_gib_hour_usd = ?")
             .bind(v)
             .execute(pool)
             .await?;
@@ -194,7 +194,7 @@ pub struct ClusterSettingsPatch {
 pub async fn fence_host(state: &AppState, host_id: Uuid) -> anyhow::Result<bool> {
     let row: (String, String, String, String, String, String) = sqlx::query_as(
         "SELECT hostname, agent_grpc_addr, COALESCE(fence_method, 'shell'), COALESCE(ipmi_address, ''),
-                COALESCE(ipmi_username, ''), COALESCE(ipmi_password, '') FROM hosts WHERE id = $1",
+                COALESCE(ipmi_username, ''), COALESCE(ipmi_password, '') FROM hosts WHERE id = ?",
     )
     .bind(host_id)
     .fetch_one(&state.pool)
@@ -223,7 +223,7 @@ pub async fn fence_host(state: &AppState, host_id: Uuid) -> anyhow::Result<bool>
 
     sqlx::query(
         "INSERT INTO fence_events (id, host_id, action, command, success, message)
-         VALUES ($1, $2, $3, $4, $5, $6)",
+         VALUES (?, ?, ?, ?, ?, ?)",
     )
     .bind(Uuid::new_v4())
     .bind(host_id)
@@ -243,7 +243,7 @@ pub async fn fence_host(state: &AppState, host_id: Uuid) -> anyhow::Result<bool>
     .await?;
 
     if resp.ok {
-        sqlx::query("UPDATE hosts SET fenced = TRUE WHERE id = $1")
+        sqlx::query("UPDATE hosts SET fenced = TRUE WHERE id = ?")
             .bind(host_id)
             .execute(&state.pool)
             .await?;

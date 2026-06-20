@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 #[derive(Debug, Serialize)]
 pub struct FrameworkControl {
@@ -29,7 +29,7 @@ pub struct ComplianceFrameworksReport {
     pub summary: String,
 }
 
-pub async fn scan(pool: &PgPool) -> anyhow::Result<ComplianceFrameworksReport> {
+pub async fn scan(pool: &SqlitePool) -> anyhow::Result<ComplianceFrameworksReport> {
     let base = super::compliance::generate(pool).await?;
     let security = super::security::scan(pool).await?;
 

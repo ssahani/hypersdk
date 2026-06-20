@@ -5,7 +5,7 @@
 use std::path::Path;
 
 use serde::Deserialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -32,7 +32,7 @@ fn default_category() -> String {
 }
 
 /// Scan `dir/*.json` and upsert into `templates` with `git_ref` set.
-pub async fn sync_templates_from_git(pool: &PgPool, dir: &Path) -> anyhow::Result<usize> {
+pub async fn sync_templates_from_git(pool: &SqlitePool, dir: &Path) -> anyhow::Result<usize> {
     let mut synced = 0usize;
     if !dir.is_dir() {
         anyhow::bail!("templates git dir not found: {}", dir.display());
@@ -55,7 +55,7 @@ pub async fn sync_templates_from_git(pool: &PgPool, dir: &Path) -> anyhow::Resul
         };
         sqlx::query(
             "INSERT INTO templates (id, name, version, source_disk, cloud_init, os_family, category, workload, description, featured, marketplace, git_ref, approval_status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, FALSE, TRUE, $10, 'approved')
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE, TRUE, ?, 'approved')
              ON CONFLICT (name, version) DO UPDATE SET
                source_disk = EXCLUDED.source_disk,
                workload = EXCLUDED.workload,

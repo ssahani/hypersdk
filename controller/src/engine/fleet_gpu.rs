@@ -2,7 +2,7 @@
 // GPU Command Center rollup — host tags + VM inventory (Phase 54 v1).
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq, Hash)]
@@ -130,17 +130,17 @@ fn vgpu_slices_from_tags(tags: &[String]) -> i32 {
     }
 }
 
-pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetGpuOverview> {
+pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetGpuOverview> {
     let host_rows: Vec<(Uuid, String, String, String, String, i32, Vec<String>)> = sqlx::query_as(
         "SELECT id, hostname, state, COALESCE(site, ''), COALESCE(rack, ''), vm_count,
-                COALESCE(tags, '{}') AS tags
+                COALESCE(tags, '[]') AS tags
          FROM hosts ORDER BY hostname",
     )
     .fetch_all(pool)
     .await?;
 
     let vm_rows: Vec<(Uuid, String, Option<Uuid>, String, Vec<String>)> = sqlx::query_as(
-        "SELECT id, name, host_id, observed_state, COALESCE(tags, '{}') AS tags FROM vms ORDER BY name",
+        "SELECT id, name, host_id, observed_state, COALESCE(tags, '[]') AS tags FROM vms ORDER BY name",
     )
     .fetch_all(pool)
     .await?;

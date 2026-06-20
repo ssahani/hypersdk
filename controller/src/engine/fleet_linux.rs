@@ -2,7 +2,7 @@
 // Fleet Linux health rollup (Phase 36).
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::config::ControllerConfig;
@@ -29,7 +29,7 @@ pub struct FleetLinuxHealthOverview {
 }
 
 pub async fn overview(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
 ) -> anyhow::Result<FleetLinuxHealthOverview> {
     let rows: Vec<(Uuid, String)> = sqlx::query_as(
@@ -117,7 +117,7 @@ pub struct FleetDiagnoseReport {
 }
 
 pub async fn diagnose(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     query: &str,
 ) -> anyhow::Result<FleetDiagnoseReport> {

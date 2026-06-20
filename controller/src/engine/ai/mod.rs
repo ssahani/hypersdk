@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 pub mod actions;
@@ -37,7 +37,7 @@ pub struct CopilotResponse {
 use crate::config::ControllerConfig;
 
 pub async fn copilot_chat(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     message: &str,
     vm_id: Option<Uuid>,
@@ -81,7 +81,7 @@ pub struct CopilotBase {
 }
 
 pub async fn build_copilot_base(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     message: &str,
     vm_id: Option<Uuid>,
@@ -140,7 +140,7 @@ pub async fn build_copilot_base(
                 }
             }
         } else if let Ok(Some((id, name))) = sqlx::query_as::<_, (Uuid, String)>(
-            "SELECT id, name FROM vms WHERE name ILIKE $1 LIMIT 1",
+            "SELECT id, name FROM vms WHERE name LIKE ? LIMIT 1",
         )
         .bind(format!(
             "%{}%",
@@ -354,7 +354,7 @@ pub fn chunk_text(text: &str, chunk_size: usize) -> Vec<String> {
 }
 
 pub async fn explain_screen(
-    pool: &PgPool,
+    pool: &SqlitePool,
     screen: &str,
     object_ref: &serde_json::Value,
 ) -> anyhow::Result<String> {

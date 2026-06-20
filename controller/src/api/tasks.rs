@@ -51,7 +51,7 @@ pub async fn list_tasks(
         (Some(status), Some(op)) if !status.is_empty() && !op.is_empty() => {
             sqlx::query_as::<_, TaskRow>(
                 "SELECT id, operation, status, progress, message, created_at
-                 FROM tasks WHERE status = $1 AND operation LIKE $2 ORDER BY created_at DESC LIMIT $3",
+                 FROM tasks WHERE status = ? AND operation LIKE ? ORDER BY created_at DESC LIMIT ?",
             )
             .bind(status)
             .bind(format!("%{op}%"))
@@ -62,7 +62,7 @@ pub async fn list_tasks(
         (Some(status), _) if !status.is_empty() => {
             sqlx::query_as::<_, TaskRow>(
                 "SELECT id, operation, status, progress, message, created_at
-                 FROM tasks WHERE status = $1 ORDER BY created_at DESC LIMIT $2",
+                 FROM tasks WHERE status = ? ORDER BY created_at DESC LIMIT ?",
             )
             .bind(status)
             .bind(limit)
@@ -72,7 +72,7 @@ pub async fn list_tasks(
         (_, Some(op)) if !op.is_empty() => {
             sqlx::query_as::<_, TaskRow>(
                 "SELECT id, operation, status, progress, message, created_at
-                 FROM tasks WHERE operation LIKE $1 ORDER BY created_at DESC LIMIT $2",
+                 FROM tasks WHERE operation LIKE ? ORDER BY created_at DESC LIMIT ?",
             )
             .bind(format!("%{op}%"))
             .bind(limit)
@@ -82,7 +82,7 @@ pub async fn list_tasks(
         _ => {
             sqlx::query_as::<_, TaskRow>(
                 "SELECT id, operation, status, progress, message, created_at
-                 FROM tasks ORDER BY created_at DESC LIMIT $1",
+                 FROM tasks ORDER BY created_at DESC LIMIT ?",
             )
             .bind(limit)
             .fetch_all(&state.pool)
@@ -98,7 +98,7 @@ pub async fn get_task(
 ) -> Result<Json<TaskRow>, ApiError> {
     let row = sqlx::query_as::<_, TaskRow>(
         "SELECT id, operation, status, progress, message, created_at
-         FROM tasks WHERE id = $1",
+         FROM tasks WHERE id = ?",
     )
     .bind(id)
     .fetch_one(&state.pool)
@@ -111,8 +111,8 @@ pub async fn cancel_task(
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskRow>, ApiError> {
     let updated = sqlx::query(
-        "UPDATE tasks SET status = 'cancelled', message = 'cancelled by operator', updated_at = NOW()
-         WHERE id = $1 AND status = 'pending'",
+        "UPDATE tasks SET status = 'cancelled', message = 'cancelled by operator', updated_at = datetime('now')
+         WHERE id = ? AND status = 'pending'",
     )
     .bind(id)
     .execute(&state.pool)
@@ -136,7 +136,7 @@ pub async fn retry_task(
         Option<Uuid>,
         Option<Uuid>,
     ) = sqlx::query_as(
-        "SELECT operation, payload, resource_type, resource_id, host_id FROM tasks WHERE id = $1",
+        "SELECT operation, payload, resource_type, resource_id, host_id FROM tasks WHERE id = ?",
     )
     .bind(id)
     .fetch_one(&state.pool)

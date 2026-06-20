@@ -63,7 +63,7 @@ pub async fn create_network(
     let id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO networks (id, cluster_id, name, backend, vlan_id, bridge, segment_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(id)
     .bind(cluster_id)
@@ -78,7 +78,7 @@ pub async fn create_network(
     if let Some(seg_id) = body.segment_id {
         if let Some(prof) = body.firewall_profile.as_deref() {
             sqlx::query(
-                "UPDATE network_segments SET firewall_profile = COALESCE($1, firewall_profile) WHERE id = $2",
+                "UPDATE network_segments SET firewall_profile = COALESCE(?, firewall_profile) WHERE id = ?",
             )
             .bind(prof)
             .bind(seg_id)
@@ -88,7 +88,7 @@ pub async fn create_network(
     }
 
     let row = sqlx::query_as::<_, NetworkRow>(
-        "SELECT id, name, backend, vlan_id, bridge, segment_id FROM networks WHERE id = $1",
+        "SELECT id, name, backend, vlan_id, bridge, segment_id FROM networks WHERE id = ?",
     )
     .bind(id)
     .fetch_one(&state.pool)
@@ -126,7 +126,7 @@ pub async fn discover_networks(
     require_operator(&actor)?;
     let imported = crate::engine::network_sync::discover_all_online(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let rows = sqlx::query_as::<_, NetworkRow>(
         "SELECT id, name, backend, vlan_id, bridge, segment_id FROM networks ORDER BY name",
     )
@@ -153,14 +153,14 @@ pub async fn patch_network(
 ) -> Result<Json<NetworkRow>, ApiError> {
     require_operator(&actor)?;
     if let Some(v) = body.vlan_id {
-        sqlx::query("UPDATE networks SET vlan_id = $1 WHERE id = $2")
+        sqlx::query("UPDATE networks SET vlan_id = ? WHERE id = ?")
             .bind(v)
             .bind(id)
             .execute(&state.pool)
             .await?;
     }
     if let Some(v) = &body.bridge {
-        sqlx::query("UPDATE networks SET bridge = $1 WHERE id = $2")
+        sqlx::query("UPDATE networks SET bridge = ? WHERE id = ?")
             .bind(v)
             .bind(id)
             .execute(&state.pool)
@@ -172,7 +172,7 @@ pub async fn patch_network(
             .map_err(|e| ApiError::bad_request(e.to_string()))?;
     }
     let row = sqlx::query_as::<_, NetworkRow>(
-        "SELECT id, name, backend, vlan_id, bridge, segment_id FROM networks WHERE id = $1",
+        "SELECT id, name, backend, vlan_id, bridge, segment_id FROM networks WHERE id = ?",
     )
     .bind(id)
     .fetch_one(&state.pool)
@@ -192,7 +192,7 @@ pub async fn delete_network(
         let host_id = resolve_online_host(&state.pool, q.host_id).await?;
         let _ = invoke_network_on_host(&state, host_id, "network.delete", &name).await;
     }
-    sqlx::query("DELETE FROM networks WHERE id = $1")
+    sqlx::query("DELETE FROM networks WHERE id = ?")
         .bind(id)
         .execute(&state.pool)
         .await?;
@@ -204,15 +204,15 @@ pub struct NetworkHostQuery {
     pub host_id: Option<Uuid>,
 }
 
-async fn network_name(pool: &sqlx::PgPool, id: Uuid) -> Result<String, ApiError> {
-    sqlx::query_scalar("SELECT name FROM networks WHERE id = $1")
+async fn network_name(pool: &sqlx::SqlitePool, id: Uuid) -> Result<String, ApiError> {
+    sqlx::query_scalar("SELECT name FROM networks WHERE id = ?")
         .bind(id)
         .fetch_optional(pool)
         .await?
         .ok_or_else(|| ApiError::bad_request("network not found"))
 }
 
-async fn resolve_online_host(pool: &sqlx::PgPool, host_id: Option<Uuid>) -> Result<Uuid, ApiError> {
+async fn resolve_online_host(pool: &sqlx::SqlitePool, host_id: Option<Uuid>) -> Result<Uuid, ApiError> {
     if let Some(h) = host_id {
         return Ok(h);
     }
@@ -231,17 +231,17 @@ async fn invoke_network_on_host(
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
             .await
-            .map_err(|e| ApiError::internal(e.to_string()))?;
+            .map_err(|e| ApiErrorernal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     crate::agent_client::host_libvirt_invoke(
         &mut client,
         action,
         &serde_json::json!({ "name": network_name }),
     )
     .await
-    .map_err(|e| ApiError::internal(e.to_string()))
+    .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn activate_network(
@@ -282,17 +282,17 @@ pub async fn live_networks(
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
             .await
-            .map_err(|e| ApiError::internal(e.to_string()))?;
+            .map_err(|e| ApiErrorernal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let nets = crate::agent_client::host_libvirt_query(
         &mut client,
         "networks.list",
         &serde_json::json!({}),
     )
     .await
-    .map_err(|e| ApiError::internal(e.to_string()))?;
+    .map_err(|e| ApiErrorernal(e.to_string()))?;
     Ok(Json(
         serde_json::json!({ "host_id": host_id, "networks": nets }),
     ))

@@ -5,7 +5,7 @@
 use std::path::Path;
 use std::time::Duration;
 
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use super::host_shell;
@@ -15,7 +15,7 @@ use super::template_readiness;
 const FETCH_TIMEOUT_SECS: u64 = 3600;
 
 pub async fn ensure_template_disk(
-    pool: &PgPool,
+    pool: &SqlitePool,
     host_id: Uuid,
     dest_path: &str,
     template_name: &str,
@@ -38,9 +38,9 @@ pub async fn ensure_template_disk(
     Ok(true)
 }
 
-async fn host_address(pool: &PgPool, host_id: Uuid) -> anyhow::Result<String> {
+async fn host_address(pool: &SqlitePool, host_id: Uuid) -> anyhow::Result<String> {
     let row: Option<(String, String)> =
-        sqlx::query_as("SELECT hostname, address FROM hosts WHERE id = $1 AND state = 'online'")
+        sqlx::query_as("SELECT hostname, address FROM hosts WHERE id = ? AND state = 'online'")
             .bind(host_id)
             .fetch_optional(pool)
             .await?;
@@ -107,7 +107,7 @@ chmod 644 '{dest}'
 
 /// Download all missing auto-fetch marketplace images onto one online host.
 pub async fn prefetch_missing_images(
-    pool: &PgPool,
+    pool: &SqlitePool,
     host_id: Option<Uuid>,
 ) -> anyhow::Result<(usize, usize, Vec<String>)> {
     let host_id = match host_id {

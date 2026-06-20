@@ -36,7 +36,7 @@ pub async fn list_events(
     let rows = if let Some(kind) = q.kind.filter(|k| !k.is_empty()) {
         sqlx::query_as::<_, EventRow>(
             "SELECT id, kind, message, created_at FROM events
-             WHERE kind LIKE $1 ORDER BY created_at DESC LIMIT $2",
+             WHERE kind LIKE ? ORDER BY created_at DESC LIMIT ?",
         )
         .bind(format!("%{kind}%"))
         .bind(limit)
@@ -44,7 +44,7 @@ pub async fn list_events(
         .await?
     } else {
         sqlx::query_as::<_, EventRow>(
-            "SELECT id, kind, message, created_at FROM events ORDER BY created_at DESC LIMIT $1",
+            "SELECT id, kind, message, created_at FROM events ORDER BY created_at DESC LIMIT ?",
         )
         .bind(limit)
         .fetch_all(&state.pool)

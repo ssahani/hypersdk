@@ -2,7 +2,7 @@
 
 use machina_spec::PlacementRecommendation;
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(Debug, sqlx::FromRow)]
@@ -29,7 +29,7 @@ pub struct PlacementRecommendationRow {
 }
 
 pub async fn compute_recommendations(
-    pool: &PgPool,
+    pool: &SqlitePool,
 ) -> anyhow::Result<Vec<PlacementRecommendationRow>> {
     let threshold: f32 =
         sqlx::query_scalar("SELECT drs_cpu_threshold FROM clusters ORDER BY created_at LIMIT 1")
@@ -45,7 +45,7 @@ pub async fn compute_recommendations(
 
     let hosts: Vec<HostLoad> = sqlx::query_as(
         "SELECT id, hostname, cpu_percent, memory_used_mib, memory_total_mib, vm_count,
-                COALESCE(tags, '{}') AS tags
+                COALESCE(tags, '[]') AS tags
          FROM hosts WHERE state = 'online' AND maintenance_mode = FALSE",
     )
     .fetch_all(pool)
@@ -56,7 +56,7 @@ pub async fn compute_recommendations(
     }
 
     let vms: Vec<(Uuid, String, Uuid, i64, Vec<String>)> = sqlx::query_as(
-        "SELECT v.id, v.name, v.host_id, v.memory_mib, COALESCE(v.tags, '{}') AS tags FROM vms v
+        "SELECT v.id, v.name, v.host_id, v.memory_mib, COALESCE(v.tags, '[]') AS tags FROM vms v
          JOIN hosts h ON h.id = v.host_id
          WHERE v.desired_state = 'running' AND h.state = 'online'",
     )
@@ -130,7 +130,7 @@ pub async fn compute_recommendations(
 }
 
 pub async fn persist_recommendations(
-    pool: &PgPool,
+    pool: &SqlitePool,
     rows: &[PlacementRecommendationRow],
 ) -> anyhow::Result<()> {
     sqlx::query("UPDATE placement_recommendations SET status = 'superseded' WHERE status = 'open'")
@@ -140,7 +140,7 @@ pub async fn persist_recommendations(
     for row in rows.iter().take(50) {
         sqlx::query(
             "INSERT INTO placement_recommendations (id, vm_id, from_host_id, to_host_id, reason, score)
-             VALUES ($1, $2, $3, $4, $5, $6)",
+             VALUES (?, ?, ?, ?, ?, ?)",
         )
         .bind(Uuid::new_v4())
         .bind(Uuid::parse_str(&row.vm_id)?)
@@ -202,7 +202,7 @@ struct HostCandidate {
 }
 
 pub async fn pick_host_for_vm(
-    pool: &PgPool,
+    pool: &SqlitePool,
     vm_tags: &[String],
     _memory_mib: i64,
 ) -> anyhow::Result<Uuid> {
@@ -214,7 +214,7 @@ pub async fn pick_host_for_vm(
 
     let hosts: Vec<HostCandidate> = sqlx::query_as(
         "SELECT id, cpu_percent, memory_used_mib, memory_total_mib, vm_count,
-                COALESCE(tags, '{}') AS tags
+                COALESCE(tags, '[]') AS tags
          FROM hosts WHERE state = 'online' AND maintenance_mode = FALSE",
     )
     .fetch_all(pool)

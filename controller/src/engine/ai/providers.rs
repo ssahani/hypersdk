@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use super::crypto;
@@ -96,7 +96,7 @@ fn row_from_db(
     }
 }
 
-pub async fn list_providers(pool: &PgPool) -> anyhow::Result<Vec<AiProviderRow>> {
+pub async fn list_providers(pool: &SqlitePool) -> anyhow::Result<Vec<AiProviderRow>> {
     let rows: Vec<(Uuid, String, String, String, String, String, String, bool, bool)> =
         sqlx::query_as(
             "SELECT id, name, kind, base_url, org_id, deployment_name, api_key_encrypted, enabled, is_default
@@ -124,11 +124,11 @@ pub async fn list_providers(pool: &PgPool) -> anyhow::Result<Vec<AiProviderRow>>
         .collect())
 }
 
-pub async fn get_provider(pool: &PgPool, id: Uuid) -> anyhow::Result<Option<AiProviderRow>> {
+pub async fn get_provider(pool: &SqlitePool, id: Uuid) -> anyhow::Result<Option<AiProviderRow>> {
     let row: Option<(Uuid, String, String, String, String, String, String, bool, bool)> =
         sqlx::query_as(
             "SELECT id, name, kind, base_url, org_id, deployment_name, api_key_encrypted, enabled, is_default
-             FROM ai_providers WHERE id = $1",
+             FROM ai_providers WHERE id = ?",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -150,7 +150,7 @@ pub async fn get_provider(pool: &PgPool, id: Uuid) -> anyhow::Result<Option<AiPr
     ))
 }
 
-async fn clear_default(pool: &PgPool) -> anyhow::Result<()> {
+async fn clear_default(pool: &SqlitePool) -> anyhow::Result<()> {
     sqlx::query("UPDATE ai_providers SET is_default = FALSE WHERE is_default = TRUE")
         .execute(pool)
         .await?;
@@ -158,7 +158,7 @@ async fn clear_default(pool: &PgPool) -> anyhow::Result<()> {
 }
 
 pub async fn create_provider(
-    pool: &PgPool,
+    pool: &SqlitePool,
     body: &CreateProviderBody,
 ) -> anyhow::Result<AiProviderRow> {
     if body.is_default {
@@ -167,7 +167,7 @@ pub async fn create_provider(
     let stored_key = crypto::store_api_key(body.api_key.trim())?;
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO ai_providers (name, kind, base_url, org_id, deployment_name, api_key_encrypted, is_default)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+         VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
     )
     .bind(body.name.trim())
     .bind(body.kind.trim())
@@ -187,7 +187,7 @@ pub async fn create_provider(
         };
         sqlx::query(
             "INSERT INTO ai_models (provider_id, model_id, display_name, context_window)
-             VALUES ($1, $2, $3, $4) ON CONFLICT (provider_id, model_id) DO NOTHING",
+             VALUES (?, ?, ?, ?) ON CONFLICT (provider_id, model_id) DO NOTHING",
         )
         .bind(id)
         .bind(m.model_id.trim())
@@ -200,7 +200,7 @@ pub async fn create_provider(
     if body.models.is_empty() {
         sqlx::query(
             "INSERT INTO ai_models (provider_id, model_id, display_name)
-             VALUES ($1, 'gpt-4o-mini', 'gpt-4o-mini') ON CONFLICT DO NOTHING",
+             VALUES (?, 'gpt-4o-mini', 'gpt-4o-mini') ON CONFLICT DO NOTHING",
         )
         .bind(id)
         .execute(pool)
@@ -213,7 +213,7 @@ pub async fn create_provider(
 }
 
 pub async fn patch_provider(
-    pool: &PgPool,
+    pool: &SqlitePool,
     id: Uuid,
     body: &PatchProviderBody,
 ) -> anyhow::Result<AiProviderRow> {
@@ -221,35 +221,35 @@ pub async fn patch_provider(
         clear_default(pool).await?;
     }
     if let Some(v) = &body.name {
-        sqlx::query("UPDATE ai_providers SET name = $1 WHERE id = $2")
+        sqlx::query("UPDATE ai_providers SET name = ? WHERE id = ?")
             .bind(v)
             .bind(id)
             .execute(pool)
             .await?;
     }
     if let Some(v) = &body.kind {
-        sqlx::query("UPDATE ai_providers SET kind = $1 WHERE id = $2")
+        sqlx::query("UPDATE ai_providers SET kind = ? WHERE id = ?")
             .bind(v)
             .bind(id)
             .execute(pool)
             .await?;
     }
     if let Some(v) = &body.base_url {
-        sqlx::query("UPDATE ai_providers SET base_url = $1 WHERE id = $2")
+        sqlx::query("UPDATE ai_providers SET base_url = ? WHERE id = ?")
             .bind(v)
             .bind(id)
             .execute(pool)
             .await?;
     }
     if let Some(v) = &body.org_id {
-        sqlx::query("UPDATE ai_providers SET org_id = $1 WHERE id = $2")
+        sqlx::query("UPDATE ai_providers SET org_id = ? WHERE id = ?")
             .bind(v)
             .bind(id)
             .execute(pool)
             .await?;
     }
     if let Some(v) = &body.deployment_name {
-        sqlx::query("UPDATE ai_providers SET deployment_name = $1 WHERE id = $2")
+        sqlx::query("UPDATE ai_providers SET deployment_name = ? WHERE id = ?")
             .bind(v)
             .bind(id)
             .execute(pool)
@@ -257,21 +257,21 @@ pub async fn patch_provider(
     }
     if let Some(v) = &body.api_key {
         let stored_key = crypto::store_api_key(v.trim())?;
-        sqlx::query("UPDATE ai_providers SET api_key_encrypted = $1 WHERE id = $2")
+        sqlx::query("UPDATE ai_providers SET api_key_encrypted = ? WHERE id = ?")
             .bind(stored_key)
             .bind(id)
             .execute(pool)
             .await?;
     }
     if let Some(v) = body.enabled {
-        sqlx::query("UPDATE ai_providers SET enabled = $1 WHERE id = $2")
+        sqlx::query("UPDATE ai_providers SET enabled = ? WHERE id = ?")
             .bind(v)
             .bind(id)
             .execute(pool)
             .await?;
     }
     if let Some(v) = body.is_default {
-        sqlx::query("UPDATE ai_providers SET is_default = $1 WHERE id = $2")
+        sqlx::query("UPDATE ai_providers SET is_default = ? WHERE id = ?")
             .bind(v)
             .bind(id)
             .execute(pool)
@@ -282,18 +282,18 @@ pub async fn patch_provider(
         .ok_or_else(|| anyhow::anyhow!("provider not found"))
 }
 
-pub async fn delete_provider(pool: &PgPool, id: Uuid) -> anyhow::Result<bool> {
-    let r = sqlx::query("DELETE FROM ai_providers WHERE id = $1")
+pub async fn delete_provider(pool: &SqlitePool, id: Uuid) -> anyhow::Result<bool> {
+    let r = sqlx::query("DELETE FROM ai_providers WHERE id = ?")
         .bind(id)
         .execute(pool)
         .await?;
     Ok(r.rows_affected() > 0)
 }
 
-pub async fn list_models(pool: &PgPool, provider_id: Uuid) -> anyhow::Result<Vec<AiModelRow>> {
+pub async fn list_models(pool: &SqlitePool, provider_id: Uuid) -> anyhow::Result<Vec<AiModelRow>> {
     let rows: Vec<(Uuid, Uuid, String, String, i32, bool)> = sqlx::query_as(
         "SELECT id, provider_id, model_id, display_name, context_window, enabled
-         FROM ai_models WHERE provider_id = $1 ORDER BY display_name",
+         FROM ai_models WHERE provider_id = ? ORDER BY display_name",
     )
     .bind(provider_id)
     .fetch_all(pool)
@@ -323,12 +323,12 @@ pub struct ResolvedProvider {
     pub model_id: String,
 }
 
-pub async fn resolve_default(pool: &PgPool) -> anyhow::Result<Option<ResolvedProvider>> {
+pub async fn resolve_default(pool: &SqlitePool) -> anyhow::Result<Option<ResolvedProvider>> {
     resolve_for_provider(pool, None, None).await
 }
 
 pub async fn resolve_for_provider(
-    pool: &PgPool,
+    pool: &SqlitePool,
     provider_id: Option<Uuid>,
     model_id: Option<&str>,
 ) -> anyhow::Result<Option<ResolvedProvider>> {
@@ -336,7 +336,7 @@ pub async fn resolve_for_provider(
     {
         sqlx::query_as(
             "SELECT id, kind, base_url, org_id, deployment_name, api_key_encrypted
-             FROM ai_providers WHERE id = $1 AND enabled = TRUE",
+             FROM ai_providers WHERE id = ? AND enabled = TRUE",
         )
         .bind(pid)
         .fetch_optional(pool)
@@ -363,7 +363,7 @@ pub async fn resolve_for_provider(
         mid.to_string()
     } else {
         sqlx::query_scalar(
-            "SELECT model_id FROM ai_models WHERE provider_id = $1 AND enabled = TRUE ORDER BY display_name LIMIT 1",
+            "SELECT model_id FROM ai_models WHERE provider_id = ? AND enabled = TRUE ORDER BY display_name LIMIT 1",
         )
         .bind(pid)
         .fetch_optional(pool)
@@ -382,7 +382,7 @@ pub async fn resolve_for_provider(
     }))
 }
 
-async fn legacy_resolve(pool: &PgPool) -> anyhow::Result<Option<ResolvedProvider>> {
+async fn legacy_resolve(pool: &SqlitePool) -> anyhow::Result<Option<ResolvedProvider>> {
     let row: Option<(String, String, String)> = sqlx::query_as(
         "SELECT ai_provider, ai_model, COALESCE(ai_api_key, '') FROM clusters ORDER BY created_at LIMIT 1",
     )
@@ -405,7 +405,7 @@ async fn legacy_resolve(pool: &PgPool) -> anyhow::Result<Option<ResolvedProvider
     }))
 }
 
-pub async fn resolve_local(pool: &PgPool) -> anyhow::Result<Option<ResolvedProvider>> {
+pub async fn resolve_local(pool: &SqlitePool) -> anyhow::Result<Option<ResolvedProvider>> {
     let row: Option<(Uuid, String, String, String, String, String)> = sqlx::query_as(
         "SELECT id, kind, base_url, org_id, deployment_name, api_key_encrypted
          FROM ai_providers
@@ -419,7 +419,7 @@ pub async fn resolve_local(pool: &PgPool) -> anyhow::Result<Option<ResolvedProvi
     };
     let api_key = crypto::load_api_key(&stored_key)?;
     let model: String = sqlx::query_scalar(
-        "SELECT model_id FROM ai_models WHERE provider_id = $1 AND enabled = TRUE ORDER BY display_name LIMIT 1",
+        "SELECT model_id FROM ai_models WHERE provider_id = ? AND enabled = TRUE ORDER BY display_name LIMIT 1",
     )
     .bind(pid)
     .fetch_optional(pool)
@@ -436,7 +436,7 @@ pub async fn resolve_local(pool: &PgPool) -> anyhow::Result<Option<ResolvedProvi
     }))
 }
 
-pub async fn test_provider(pool: &PgPool, id: Uuid) -> anyhow::Result<serde_json::Value> {
+pub async fn test_provider(pool: &SqlitePool, id: Uuid) -> anyhow::Result<serde_json::Value> {
     let resolved = resolve_for_provider(pool, Some(id), None)
         .await?
         .ok_or_else(|| anyhow::anyhow!("Provider not configured or disabled"))?;

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 #[derive(Debug, Serialize)]
 pub struct SiemFirewallExport {
@@ -21,7 +21,7 @@ pub struct SiemEvent {
     pub detail: serde_json::Value,
 }
 
-pub async fn export_timeline(pool: &PgPool, hours: i32) -> anyhow::Result<SiemFirewallExport> {
+pub async fn export_timeline(pool: &SqlitePool, hours: i32) -> anyhow::Result<SiemFirewallExport> {
     let rows: Vec<(
         String,
         uuid::Uuid,
@@ -33,7 +33,7 @@ pub async fn export_timeline(pool: &PgPool, hours: i32) -> anyhow::Result<SiemFi
     )> = sqlx::query_as(
         "SELECT target_kind, target_id, kind, summary, actor, created_at, detail_json
              FROM firewall_timeline
-             WHERE created_at >= now() - make_interval(hours => $1)
+             WHERE created_at >= now() - make_interval(hours => ?)
              ORDER BY created_at DESC
              LIMIT 5000",
     )

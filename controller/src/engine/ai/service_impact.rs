@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 #[derive(Debug, Deserialize)]
 pub struct ServiceImpactQuery {
@@ -20,14 +20,14 @@ pub struct ServiceImpactResult {
 }
 
 pub async fn simulate(
-    pool: &PgPool,
+    pool: &SqlitePool,
     q: &ServiceImpactQuery,
 ) -> anyhow::Result<ServiceImpactResult> {
     let name = q.service.trim();
     let pattern = format!("%{name}%");
 
     let group_id: Option<uuid::Uuid> =
-        sqlx::query_scalar("SELECT id FROM application_groups WHERE name ILIKE $1 LIMIT 1")
+        sqlx::query_scalar("SELECT id FROM application_groups WHERE name LIKE ? LIMIT 1")
             .bind(&pattern)
             .fetch_optional(pool)
             .await?;
@@ -40,7 +40,7 @@ pub async fn simulate(
             "SELECT v.name, h.hostname FROM application_group_vms agv
              JOIN vms v ON v.id = agv.vm_id
              LEFT JOIN hosts h ON h.id = v.host_id
-             WHERE agv.group_id = $1",
+             WHERE agv.group_id = ?",
         )
         .bind(gid)
         .fetch_all(pool)
@@ -56,7 +56,7 @@ pub async fn simulate(
         }
     } else {
         let vms: Vec<String> =
-            sqlx::query_scalar("SELECT name FROM vms WHERE name ILIKE $1 LIMIT 12")
+            sqlx::query_scalar("SELECT name FROM vms WHERE name LIKE ? LIMIT 12")
                 .bind(&pattern)
                 .fetch_all(pool)
                 .await

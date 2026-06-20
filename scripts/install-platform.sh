@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/install-platform.sh — PostgreSQL + machina-controller + machina-agent on a KVM host.
+# scripts/install-platform.sh — machina-controller + machina-agent on a KVM host.
 #
 # Run after machina-daemon install/build (expects target/release binaries in repo root):
 #   sudo bash scripts/install-platform.sh [--bind ADDR] [--open-firewall] [--public-url URL]
@@ -31,7 +31,7 @@ usage() {
   cat <<'EOF'
 install-platform.sh [--bind ADDR] [--open-firewall|--disable-firewalld] [--public-url URL] [--require-auth]
 
-Installs PostgreSQL, machina-controller (:5093), and machina-agent (:50051).
+Installs machina-controller (:5093) and machina-agent (:50051).
 Requires root and pre-built target/release/{machina-controller,machina-agent}.
 
 Env: MACHINA_SKIP_AUTH=0 to disable dev auth bypass in /etc/default/machina-platform
@@ -92,95 +92,6 @@ primary_ipv4() {
   fi
   [[ -z "$ip" ]] && ip=$(hostname -I 2>/dev/null | awk '{print $1}')
   if [[ -n "$ip" && "$ip" != "127.0.0.1" ]]; then echo "$ip"; else echo "127.0.0.1"; fi
-}
-
-install_postgresql() {
-  step "PostgreSQL"
-  case "$OS_FAMILY" in
-    fedora|rhel)
-      log_cmd $PKG_MANAGER install -y postgresql-server postgresql postgresql-contrib || fail "postgresql install failed — see $LOG_FILE"
-      if [[ ! -d /var/lib/pgsql/data/base ]] && [[ ! -d /var/lib/pgsql/data/global ]]; then
-        if command -v postgresql-setup &>/dev/null; then
-          log_cmd postgresql-setup --initdb || fail "postgresql-setup failed"
-        elif command -v postgresql-new-systemd-unit &>/dev/null; then
-          log_cmd postgresql-new-systemd-unit --initdb || true
-        fi
-      fi
-      PG_SERVICE=postgresql
-      PG_USER=postgres
-      ;;
-    debian)
-      export DEBIAN_FRONTEND=noninteractive
-      log_cmd $PKG_MANAGER install -y postgresql postgresql-contrib || fail "postgresql install failed"
-      PG_SERVICE="postgresql"
-      PG_USER=postgres
-      ;;
-    suse)
-      log_cmd $PKG_MANAGER install -y postgresql postgresql-server || fail "postgresql install failed"
-      PG_SERVICE=postgresql
-      PG_USER=postgres
-      ;;
-    arch)
-      log_cmd pacman -S --noconfirm postgresql || fail "postgresql install failed"
-      if [[ ! -d /var/lib/postgres/data/base ]]; then
-        install -d -o postgres -g postgres /var/lib/postgres/data
-        sudo -u postgres initdb -D /var/lib/postgres/data >>"$LOG_FILE" 2>&1 || fail "initdb failed"
-      fi
-      PG_SERVICE=postgresql
-      PG_USER=postgres
-      ;;
-  esac
-
-  systemctl enable "$PG_SERVICE" >>"$LOG_FILE" 2>&1 || true
-  systemctl start "$PG_SERVICE" >>"$LOG_FILE" 2>&1 || fail "Failed to start $PG_SERVICE"
-
-  configure_pg_hba() {
-    local pg_hba="$1"
-    [[ -f "$pg_hba" ]] || return 0
-    cp -a "$pg_hba" "${pg_hba}.machina.bak"
-    local auth_method="scram-sha-256"
-    if sudo -u "$PG_USER" psql -tAc "SHOW password_encryption" 2>/dev/null | grep -q md5; then
-      auth_method="md5"
-    fi
-    # Prefer password auth for local TCP (ident/peer blocks app users).
-    sed -i -E "s/^(host[[:space:]]+all[[:space:]]+all[[:space:]]+127\\.0\\.0\\.1\\/32[[:space:]]+)ident/\\1${auth_method}/" "$pg_hba"
-    sed -i -E "s/^(host[[:space:]]+all[[:space:]]+all[[:space:]]+127\\.0\\.0\\.1\\/32[[:space:]]+)scram-sha-256/\\1${auth_method}/" "$pg_hba"
-    sed -i -E "s/^(host[[:space:]]+all[[:space:]]+all[[:space:]]+::1\\/128[[:space:]]+)ident/\\1${auth_method}/" "$pg_hba"
-    if ! grep -qE '^host[[:space:]]+machina[[:space:]]+machina[[:space:]]+127\.0\.0\.1/32' "$pg_hba"; then
-      sed -i "/^host[[:space:]]\\+all[[:space:]]\\+all[[:space:]]\\+127\\.0\\.0\\.1\\/32/ i host    machina    machina    127.0.0.1/32    ${auth_method}" "$pg_hba"
-    else
-      sed -i -E "s/^(host[[:space:]]+machina[[:space:]]+machina[[:space:]]+127\\.0\\.0\\.1\\/32[[:space:]]+).*/\\1${auth_method}/" "$pg_hba"
-    fi
-    systemctl restart "$PG_SERVICE" >>"$LOG_FILE" 2>&1 || true
-  }
-
-  local pg_hba=""
-  for candidate in /var/lib/pgsql/data/pg_hba.conf /etc/postgresql/*/main/pg_hba.conf /var/lib/postgres/data/pg_hba.conf; do
-    [[ -f "$candidate" ]] && pg_hba="$candidate" && break
-  done
-  [[ -n "$pg_hba" ]] && configure_pg_hba "$pg_hba"
-
-  sudo -u "$PG_USER" psql -v ON_ERROR_STOP=1 -tc "SELECT 1 FROM pg_roles WHERE rolname='machina'" | grep -q 1 \
-    || sudo -u "$PG_USER" psql -v ON_ERROR_STOP=1 -c "CREATE USER machina WITH PASSWORD 'machina';" >>"$LOG_FILE" 2>&1
-  sudo -u "$PG_USER" psql -v ON_ERROR_STOP=1 -c "ALTER USER machina WITH PASSWORD 'machina';" >>"$LOG_FILE" 2>&1 || true
-  sudo -u "$PG_USER" psql -v ON_ERROR_STOP=1 -tc "SELECT 1 FROM pg_database WHERE datname='machina'" | grep -q 1 \
-    || sudo -u "$PG_USER" psql -v ON_ERROR_STOP=1 -c "CREATE DATABASE machina OWNER machina;" >>"$LOG_FILE" 2>&1
-  ensure_machina_db_ownership
-  ok "PostgreSQL ready (machina@machina DB)"
-}
-
-ensure_machina_db_ownership() {
-  # Migrations run as machina; tables created manually as postgres break ALTER/GRANT.
-  sudo -u "$PG_USER" psql -v ON_ERROR_STOP=1 -d machina >>"$LOG_FILE" 2>&1 <<'EOSQL' || true
-DO $$
-DECLARE r RECORD;
-BEGIN
-  FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public'
-  LOOP EXECUTE format('ALTER TABLE public.%I OWNER TO machina', r.tablename); END LOOP;
-  FOR r IN SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public'
-  LOOP EXECUTE format('ALTER SEQUENCE public.%I OWNER TO machina', r.sequence_name); END LOOP;
-END $$;
-EOSQL
 }
 
 install_binaries() {
@@ -366,9 +277,14 @@ open_firewall_port() {
 
 start_services() {
   step "Start platform services"
+  mkdir -p /var/lib/machina
+
   systemctl enable machina-agent machina-controller >>"$LOG_FILE" 2>&1
+  # Clear any previous failure/burst-limit state so systemd starts fresh
+  systemctl reset-failed machina-agent machina-controller >>"$LOG_FILE" 2>&1 || true
   systemctl restart machina-agent >>"$LOG_FILE" 2>&1 || fail "machina-agent failed — journalctl -u machina-agent"
   sleep 1
+  systemctl reset-failed machina-controller >>"$LOG_FILE" 2>&1 || true
   systemctl restart machina-controller >>"$LOG_FILE" 2>&1 || fail "machina-controller failed — journalctl -u machina-controller"
 
   # Ensure bootstrap host points at local agent.
@@ -406,7 +322,6 @@ if $MERGE_PACKETWOLF_ONLY; then
 fi
 
 detect_os
-install_postgresql
 install_binaries
 write_platform_env
 install_systemd_units

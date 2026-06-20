@@ -6,7 +6,7 @@ use super::{detection, forward_all_integrations, ingest};
 
 pub fn spawn(state: AppState) {
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(120));
+        let mut interval = tokio::timeerval(std::time::Duration::from_secs(120));
         loop {
             interval.tick().await;
             if !state.leader.is_leader() {

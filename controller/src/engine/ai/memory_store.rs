@@ -2,7 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -13,7 +13,7 @@ pub struct MemorySettings {
     pub retention_days: i32,
 }
 
-pub async fn get_settings(pool: &PgPool) -> anyhow::Result<MemorySettings> {
+pub async fn get_settings(pool: &SqlitePool) -> anyhow::Result<MemorySettings> {
     let row: (bool, bool, bool, i32) = sqlx::query_as(
         "SELECT COALESCE(zeus_memory_enabled, TRUE), COALESCE(zeus_memory_team_scope, FALSE),
                 COALESCE(zeus_memory_project_scope, TRUE), COALESCE(zeus_memory_retention_days, 90)
@@ -38,29 +38,29 @@ pub struct MemorySettingsPatch {
 }
 
 pub async fn patch_settings(
-    pool: &PgPool,
+    pool: &SqlitePool,
     patch: &MemorySettingsPatch,
 ) -> anyhow::Result<MemorySettings> {
     if let Some(v) = patch.enabled {
-        sqlx::query("UPDATE clusters SET zeus_memory_enabled = $1")
+        sqlx::query("UPDATE clusters SET zeus_memory_enabled = ?")
             .bind(v)
             .execute(pool)
             .await?;
     }
     if let Some(v) = patch.team_scope {
-        sqlx::query("UPDATE clusters SET zeus_memory_team_scope = $1")
+        sqlx::query("UPDATE clusters SET zeus_memory_team_scope = ?")
             .bind(v)
             .execute(pool)
             .await?;
     }
     if let Some(v) = patch.project_scope {
-        sqlx::query("UPDATE clusters SET zeus_memory_project_scope = $1")
+        sqlx::query("UPDATE clusters SET zeus_memory_project_scope = ?")
             .bind(v)
             .execute(pool)
             .await?;
     }
     if let Some(v) = patch.retention_days {
-        sqlx::query("UPDATE clusters SET zeus_memory_retention_days = $1")
+        sqlx::query("UPDATE clusters SET zeus_memory_retention_days = ?")
             .bind(v.clamp(1, 3650))
             .execute(pool)
             .await?;
@@ -69,7 +69,7 @@ pub async fn patch_settings(
 }
 
 pub async fn recall_for_user(
-    pool: &PgPool,
+    pool: &SqlitePool,
     user_id: Option<&str>,
     limit: i64,
 ) -> anyhow::Result<Vec<String>> {
@@ -82,8 +82,8 @@ pub async fn recall_for_user(
     let rows: Vec<String> = if uid.is_empty() {
         sqlx::query_scalar(
             "SELECT summary FROM ai_memory_entries
-             WHERE expires_at IS NULL OR expires_at > NOW()
-             ORDER BY created_at DESC LIMIT $1",
+             WHERE expires_at IS NULL OR expires_at > datetime('now')
+             ORDER BY created_at DESC LIMIT ?",
         )
         .bind(cap)
         .fetch_all(pool)
@@ -91,8 +91,8 @@ pub async fn recall_for_user(
     } else {
         sqlx::query_scalar(
             "SELECT summary FROM ai_memory_entries
-             WHERE owner_id = $1 AND (expires_at IS NULL OR expires_at > NOW())
-             ORDER BY created_at DESC LIMIT $2",
+             WHERE owner_id = ? AND (expires_at IS NULL OR expires_at > datetime('now'))
+             ORDER BY created_at DESC LIMIT ?",
         )
         .bind(uid)
         .bind(cap)
@@ -103,7 +103,7 @@ pub async fn recall_for_user(
 }
 
 pub async fn remember(
-    pool: &PgPool,
+    pool: &SqlitePool,
     owner_id: &str,
     subject_kind: &str,
     subject_id: &str,
@@ -117,7 +117,7 @@ pub async fn remember(
     let retention = settings.retention_days.max(1) as i64;
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO ai_memory_entries (scope, owner_id, project_id, subject_kind, subject_id, summary, expires_at)
-         VALUES ('user', $1, $2, $3, $4, $5, NOW() + ($6 || ' days')::interval)
+         VALUES ('user', ?, ?, ?, ?, ?, datetime('now') + (? || ' days')erval)
          RETURNING id",
     )
     .bind(owner_id)
@@ -131,14 +131,14 @@ pub async fn remember(
     Ok(id)
 }
 
-pub async fn purge(pool: &PgPool, scope: &str, owner_id: Option<&str>) -> anyhow::Result<u64> {
+pub async fn purge(pool: &SqlitePool, scope: &str, owner_id: Option<&str>) -> anyhow::Result<u64> {
     let deleted = if scope == "all" {
         sqlx::query("DELETE FROM ai_memory_entries")
             .execute(pool)
             .await?
             .rows_affected()
     } else if let Some(uid) = owner_id {
-        sqlx::query("DELETE FROM ai_memory_entries WHERE owner_id = $1")
+        sqlx::query("DELETE FROM ai_memory_entries WHERE owner_id = ?")
             .bind(uid)
             .execute(pool)
             .await?
@@ -158,11 +158,11 @@ pub struct ConversationRow {
 }
 
 pub async fn list_conversations(
-    pool: &PgPool,
+    pool: &SqlitePool,
     user_id: &str,
 ) -> anyhow::Result<Vec<ConversationRow>> {
     let rows: Vec<(Uuid, String, String, DateTime<Utc>)> = sqlx::query_as(
-        "SELECT id, agent_id, summary, updated_at FROM ai_conversations WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 50",
+        "SELECT id, agent_id, summary, updated_at FROM ai_conversations WHERE user_id = ? ORDER BY updated_at DESC LIMIT 50",
     )
     .bind(user_id)
     .fetch_all(pool)
@@ -179,14 +179,14 @@ pub async fn list_conversations(
 }
 
 pub async fn upsert_conversation_summary(
-    pool: &PgPool,
+    pool: &SqlitePool,
     user_id: &str,
     agent_id: &str,
     summary: &str,
 ) -> anyhow::Result<()> {
     sqlx::query(
         "INSERT INTO ai_conversations (user_id, agent_id, summary, updated_at)
-         VALUES ($1, $2, $3, NOW())
+         VALUES (?, ?, ?, datetime('now'))
          ON CONFLICT DO NOTHING",
     )
     .bind(user_id)

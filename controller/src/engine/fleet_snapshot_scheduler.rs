@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::state::AppState;
@@ -8,7 +8,7 @@ use crate::tasks::enqueue::enqueue_task;
 
 pub fn spawn(state: AppState) {
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+        let mut interval = tokio::timeerval(std::time::Duration::from_secs(300));
         loop {
             interval.tick().await;
             if let Err(e) = tick(&state).await {
@@ -23,7 +23,7 @@ async fn tick(state: &AppState) -> anyhow::Result<()> {
         "SELECT id, name, project, tag_filter, disk_only, quiesce, retain_count
          FROM fleet_snapshot_schedules
          WHERE enabled = TRUE
-           AND (last_run_at IS NULL OR last_run_at < NOW() - INTERVAL '23 hours')",
+           AND (last_run_at IS NULL OR last_run_at < datetime('now', '-23 hours'))",
     )
     .fetch_all(&state.pool)
     .await?;
@@ -39,7 +39,7 @@ async fn tick(state: &AppState) -> anyhow::Result<()> {
             quiesce,
         )
         .await?;
-        sqlx::query("UPDATE fleet_snapshot_schedules SET last_run_at = NOW() WHERE id = $1")
+        sqlx::query("UPDATE fleet_snapshot_schedules SET last_run_at = datetime('now') WHERE id = ?")
             .bind(sched_id)
             .execute(&state.pool)
             .await?;
@@ -48,7 +48,7 @@ async fn tick(state: &AppState) -> anyhow::Result<()> {
 }
 
 async fn enqueue_snapshots_for_schedule(
-    pool: &PgPool,
+    pool: &SqlitePool,
     app: &AppState,
     _sched_id: Uuid,
     project: &str,
@@ -61,7 +61,7 @@ async fn enqueue_snapshots_for_schedule(
             "SELECT id, name, host_id FROM vms
              WHERE managed = TRUE AND COALESCE(inventory_source, 'libvirt') = 'libvirt'
                AND lifecycle_phase NOT IN ('retired', 'deleting')
-               AND project = $1 AND $2 = ANY(tags)",
+               AND project = ? AND EXISTS (SELECT 1 FROM json_each(COALESCE(tags,'[]')) WHERE value = ?)",
         )
         .bind(project)
         .bind(tag_filter)
@@ -72,7 +72,7 @@ async fn enqueue_snapshots_for_schedule(
             "SELECT id, name, host_id FROM vms
              WHERE managed = TRUE AND COALESCE(inventory_source, 'libvirt') = 'libvirt'
                AND lifecycle_phase NOT IN ('retired', 'deleting')
-               AND project = $1",
+               AND project = ?",
         )
         .bind(project)
         .fetch_all(pool)
@@ -92,7 +92,7 @@ async fn enqueue_snapshots_for_schedule(
         let snap_name = format!("fleet-{stamp}");
         let record_id = Uuid::new_v4();
         sqlx::query(
-            "INSERT INTO snapshot_records (id, vm_id, name, status) VALUES ($1, $2, $3, 'pending')",
+            "INSERT INTO snapshot_records (id, vm_id, name, status) VALUES (?, ?, ?, 'pending')",
         )
         .bind(record_id)
         .bind(vm_id)

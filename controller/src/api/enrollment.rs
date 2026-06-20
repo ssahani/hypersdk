@@ -41,7 +41,7 @@ pub async fn create_enrollment_token(
         .await?;
 
     sqlx::query(
-        "INSERT INTO enrollment_tokens (token, cluster_id, expires_at) VALUES ($1, $2, $3)",
+        "INSERT INTO enrollment_tokens (token, cluster_id, expires_at) VALUES (?, ?, ?)",
     )
     .bind(&token)
     .bind(cluster_id)
@@ -56,7 +56,7 @@ pub async fn create_enrollment_token(
 
     sqlx::query(
         "INSERT INTO audit_logs (id, actor, action, resource_type, detail)
-         VALUES ($1, $2, $3, $4, $5)",
+         VALUES (?, ?, ?, ?, ?)",
     )
     .bind(Uuid::new_v4())
     .bind(&actor.username)
@@ -82,9 +82,9 @@ set -euo pipefail
 CONTROLLER=""
 TOKEN=""
 while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --controller) CONTROLLER="$2"; shift 2 ;;
-    --token) TOKEN="$2"; shift 2 ;;
+  case "?" in
+    --controller) CONTROLLER="?"; shift 2 ;;
+    --token) TOKEN="?"; shift 2 ;;
     *) shift ;;
   esac
 done
@@ -125,7 +125,7 @@ pub async fn revoke_enrollment_token(
     State(state): State<AppState>,
     Path(token): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    sqlx::query("DELETE FROM enrollment_tokens WHERE token = $1 AND used_at IS NULL")
+    sqlx::query("DELETE FROM enrollment_tokens WHERE token = ? AND used_at IS NULL")
         .bind(&token)
         .execute(&state.pool)
         .await?;

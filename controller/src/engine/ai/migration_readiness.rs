@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::config::ControllerConfig;
@@ -53,7 +53,7 @@ pub struct MigrationReadinessReport {
 }
 
 pub async fn generate(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     req: &MigrationReadinessRequest,
 ) -> anyhow::Result<MigrationReadinessReport> {
@@ -68,9 +68,10 @@ pub async fn generate(
     };
 
     let provider = req.provider.as_deref().unwrap_or("vmware");
+    let vm_ids_json = serde_json::to_string(&vm_ids.iter().map(|u| u.to_string()).collect::<Vec<_>>()).unwrap_or_default();
     let meta: Vec<(Uuid, String, String)> =
-        sqlx::query_as("SELECT id, name, observed_state FROM vms WHERE id = ANY($1::uuid[])")
-            .bind(&vm_ids)
+        sqlx::query_as("SELECT id, name, observed_state FROM vms WHERE id IN (SELECT value FROM json_each(?))")
+            .bind(&vm_ids_json)
             .fetch_all(pool)
             .await?;
 

@@ -3,7 +3,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use super::digital_twin::{DigitalTwinGraph, TwinEdge, TwinNode};
@@ -137,7 +137,7 @@ fn node_key(kind: &str, id: &str) -> String {
     format!("{kind}:{id}")
 }
 
-pub async fn build(pool: &PgPool, scope: &GraphScope) -> anyhow::Result<InfraGraph> {
+pub async fn build(pool: &SqlitePool, scope: &GraphScope) -> anyhow::Result<InfraGraph> {
     let twin = super::digital_twin::build_graph(pool).await?;
     let mut nodes: Vec<GraphNode> = twin
         .nodes
@@ -238,7 +238,7 @@ pub async fn build(pool: &PgPool, scope: &GraphScope) -> anyhow::Result<InfraGra
             health_score: None,
         });
         let vms: Vec<Uuid> =
-            sqlx::query_scalar("SELECT vm_id FROM application_group_vms WHERE group_id = $1")
+            sqlx::query_scalar("SELECT vm_id FROM application_group_vms WHERE group_id = ?")
                 .bind(gid)
                 .fetch_all(pool)
                 .await
@@ -301,7 +301,7 @@ pub async fn build(pool: &PgPool, scope: &GraphScope) -> anyhow::Result<InfraGra
     for n in &mut nodes {
         if n.kind == "host" {
             if let Ok(st) =
-                sqlx::query_scalar::<_, String>("SELECT state FROM hosts WHERE id::text = $1")
+                sqlx::query_scalar::<_, String>("SELECT state FROM hosts WHERE id = ?")
                     .bind(&n.id)
                     .fetch_optional(pool)
                     .await
@@ -317,7 +317,7 @@ pub async fn build(pool: &PgPool, scope: &GraphScope) -> anyhow::Result<InfraGra
         if n.kind == "vm" {
             if let Ok((st, mem, used)) = sqlx::query_as::<_, (String, i64, Option<i64>)>(
                 "SELECT v.observed_state, v.memory_mib, m.memory_used_mib FROM vms v
-                 LEFT JOIN vm_metrics m ON m.vm_id = v.id WHERE v.id::text = $1",
+                 LEFT JOIN vm_metrics m ON m.vm_id = v.id WHERE v.id = ?",
             )
             .bind(&n.id)
             .fetch_one(pool)
@@ -382,7 +382,7 @@ pub async fn build(pool: &PgPool, scope: &GraphScope) -> anyhow::Result<InfraGra
 
 /// Build unified graph including Zeus Firewall connectivity matrix edges.
 pub async fn build_enriched(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &crate::config::ControllerConfig,
     scope: &GraphScope,
 ) -> anyhow::Result<InfraGraph> {
@@ -419,7 +419,7 @@ fn profile_rules(profile: &str) -> Vec<machina_core::ZeusFirewallRule> {
 }
 
 pub async fn append_firewall_edges(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &crate::config::ControllerConfig,
     nodes: &mut Vec<GraphNode>,
     edges: &mut Vec<GraphEdge>,
@@ -506,7 +506,7 @@ pub async fn append_firewall_edges(
 }
 
 async fn firewall_path_blocker(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &crate::config::ControllerConfig,
     host_id: Uuid,
     port: i32,
@@ -543,11 +543,11 @@ async fn firewall_path_blocker(
 }
 
 async fn resolve_vm(
-    pool: &PgPool,
+    pool: &SqlitePool,
     name: &str,
 ) -> anyhow::Result<Option<(Uuid, String, Option<Uuid>, String)>> {
     let row: Option<(Uuid, String, Option<Uuid>, String)> = sqlx::query_as(
-        "SELECT id, name, host_id, observed_state FROM vms WHERE name ILIKE $1 LIMIT 1",
+        "SELECT id, name, host_id, observed_state FROM vms WHERE name LIKE ? LIMIT 1",
     )
     .bind(name)
     .fetch_optional(pool)
@@ -556,7 +556,7 @@ async fn resolve_vm(
 }
 
 pub async fn explain_path(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &crate::config::ControllerConfig,
     req: &PathRequest,
 ) -> anyhow::Result<PathResult> {
@@ -602,7 +602,7 @@ pub async fn explain_path(
     }
     if let Some(h) = a_host {
         let host_state: Option<String> =
-            sqlx::query_scalar("SELECT state FROM hosts WHERE id = $1")
+            sqlx::query_scalar("SELECT state FROM hosts WHERE id = ?")
                 .bind(h)
                 .fetch_optional(pool)
                 .await?;
@@ -681,8 +681,8 @@ pub async fn explain_path(
     // Recent network/firewall audit
     let recent: Option<(String,)> = sqlx::query_as(
         "SELECT action FROM audit_logs
-         WHERE created_at > NOW() - interval '4 hours'
-           AND (action ILIKE '%network%' OR action ILIKE '%firewall%')
+         WHERE created_at > datetime('now') - interval '4 hours'
+           AND (action LIKE '%network%' OR action LIKE '%firewall%')
          ORDER BY created_at DESC LIMIT 1",
     )
     .fetch_optional(pool)
@@ -734,7 +734,7 @@ pub async fn explain_path(
     })
 }
 
-pub async fn query(pool: &PgPool, req: &GraphQueryRequest) -> anyhow::Result<GraphQueryResult> {
+pub async fn query(pool: &SqlitePool, req: &GraphQueryRequest) -> anyhow::Result<GraphQueryResult> {
     let q = req.query.to_lowercase();
     let mut hits = Vec::new();
     let mut filters = Vec::new();
@@ -743,7 +743,7 @@ pub async fn query(pool: &PgPool, req: &GraphQueryRequest) -> anyhow::Result<Gra
         filters.push("os_family/ubuntu".into());
         let rows: Vec<(Uuid, String, i64, String)> = sqlx::query_as(
             "SELECT id, name, memory_mib, COALESCE(os_family, 'linux') FROM vms
-             WHERE name ILIKE '%ubuntu%' OR os_family ILIKE '%ubuntu%' OR tags::text ILIKE '%ubuntu%'
+             WHERE name LIKE '%ubuntu%' OR os_family LIKE '%ubuntu%' OR tags LIKE '%ubuntu%'
              ORDER BY name LIMIT 50",
         )
         .fetch_all(pool)
@@ -768,7 +768,7 @@ pub async fn query(pool: &PgPool, req: &GraphQueryRequest) -> anyhow::Result<Gra
             2048
         };
         let rows: Vec<(Uuid, String, i64)> = sqlx::query_as(
-            "SELECT id, name, memory_mib FROM vms WHERE memory_mib > $1 ORDER BY memory_mib DESC LIMIT 50",
+            "SELECT id, name, memory_mib FROM vms WHERE memory_mib > ? ORDER BY memory_mib DESC LIMIT 50",
         )
         .bind(min_mib)
         .fetch_all(pool)
@@ -787,7 +787,7 @@ pub async fn query(pool: &PgPool, req: &GraphQueryRequest) -> anyhow::Result<Gra
 
     if hits.is_empty() {
         let rows: Vec<(Uuid, String, String)> = sqlx::query_as(
-            "SELECT id, name, observed_state FROM vms WHERE name ILIKE $1 ORDER BY name LIMIT 20",
+            "SELECT id, name, observed_state FROM vms WHERE name LIKE ? ORDER BY name LIMIT 20",
         )
         .bind(format!("%{}%", req.query.trim()))
         .fetch_all(pool)
@@ -809,13 +809,13 @@ pub async fn query(pool: &PgPool, req: &GraphQueryRequest) -> anyhow::Result<Gra
     })
 }
 
-pub async fn explain_object(pool: &PgPool, kind: &str, id: &str) -> anyhow::Result<ObjectExplain> {
+pub async fn explain_object(pool: &SqlitePool, kind: &str, id: &str) -> anyhow::Result<ObjectExplain> {
     match kind {
         "vm" => {
             let row: Option<(String, Option<String>, i64, i32, String, Option<String>)> =
                 sqlx::query_as(
-                    "SELECT v.name, v.project, v.memory_mib, v.vcpus, v.observed_state, v.tags::text
-                     FROM vms v WHERE v.id::text = $1 OR v.name = $1",
+                    "SELECT v.name, v.project, v.memory_mib, v.vcpus, v.observed_state, v.tags
+                     FROM vms v WHERE v.id = ? OR v.name = ?",
                 )
                 .bind(id)
                 .fetch_optional(pool)
@@ -846,7 +846,7 @@ pub async fn explain_object(pool: &PgPool, kind: &str, id: &str) -> anyhow::Resu
         }
         "host" => {
             let row: Option<(String, String, i64)> = sqlx::query_as(
-                "SELECT hostname, state, vm_count FROM hosts WHERE id::text = $1 OR hostname = $1",
+                "SELECT hostname, state, vm_count FROM hosts WHERE id = ? OR hostname = ?",
             )
             .bind(id)
             .fetch_optional(pool)
@@ -875,7 +875,7 @@ pub async fn explain_object(pool: &PgPool, kind: &str, id: &str) -> anyhow::Resu
     }
 }
 
-pub async fn graph_at(pool: &PgPool, ts: DateTime<Utc>) -> anyhow::Result<GraphAtTime> {
+pub async fn graph_at(pool: &SqlitePool, ts: DateTime<Utc>) -> anyhow::Result<GraphAtTime> {
     let current = build(
         pool,
         &GraphScope {
@@ -885,14 +885,14 @@ pub async fn graph_at(pool: &PgPool, ts: DateTime<Utc>) -> anyhow::Result<GraphA
     )
     .await?;
     let created: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM audit_logs WHERE action ILIKE '%create%' AND created_at <= $1",
+        "SELECT COUNT(*) FROM audit_logs WHERE action LIKE '%create%' AND created_at <= ?",
     )
     .bind(ts)
     .fetch_one(pool)
     .await
     .unwrap_or(0);
     let deleted: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM audit_logs WHERE action ILIKE '%delete%' AND created_at <= $1",
+        "SELECT COUNT(*) FROM audit_logs WHERE action LIKE '%delete%' AND created_at <= ?",
     )
     .bind(ts)
     .fetch_one(pool)
@@ -900,7 +900,7 @@ pub async fn graph_at(pool: &PgPool, ts: DateTime<Utc>) -> anyhow::Result<GraphA
     .unwrap_or(0);
     let vm_names_at: Vec<String> = sqlx::query_scalar(
         "SELECT DISTINCT COALESCE(detail->>'name', resource_id) FROM audit_logs
-         WHERE action ILIKE '%vm%' AND action ILIKE '%create%' AND created_at <= $1
+         WHERE action LIKE '%vm%' AND action LIKE '%create%' AND created_at <= ?
          ORDER BY 1 LIMIT 50",
     )
     .bind(ts)
@@ -940,7 +940,7 @@ pub async fn graph_at(pool: &PgPool, ts: DateTime<Utc>) -> anyhow::Result<GraphA
 }
 
 pub async fn timeline_replay(
-    pool: &PgPool,
+    pool: &SqlitePool,
     from: DateTime<Utc>,
     to: DateTime<Utc>,
     resource: Option<&str>,
@@ -948,7 +948,7 @@ pub async fn timeline_replay(
     let mut entries = Vec::new();
     let audits: Vec<(DateTime<Utc>, String, String, Option<String>)> = sqlx::query_as(
         "SELECT created_at, actor, action, resource_type FROM audit_logs
-         WHERE created_at BETWEEN $1 AND $2 ORDER BY created_at ASC LIMIT 200",
+         WHERE created_at BETWEEN ? AND ? ORDER BY created_at ASC LIMIT 200",
     )
     .bind(from)
     .bind(to)
@@ -969,7 +969,7 @@ pub async fn timeline_replay(
     }
     let events: Vec<(DateTime<Utc>, String, String)> = sqlx::query_as(
         "SELECT created_at, kind, message FROM events
-         WHERE created_at BETWEEN $1 AND $2 ORDER BY created_at ASC LIMIT 100",
+         WHERE created_at BETWEEN ? AND ? ORDER BY created_at ASC LIMIT 100",
     )
     .bind(from)
     .bind(to)

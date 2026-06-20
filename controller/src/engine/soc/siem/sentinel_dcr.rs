@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde_json::json;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use super::{
     fetch_unexported_events, integration_err, integration_ok, mark_exported, EventRow,
@@ -9,7 +9,7 @@ use super::{
 };
 
 pub async fn forward(
-    pool: &PgPool,
+    pool: &SqlitePool,
     integ: &IntegrationRow,
     controller_id: &str,
 ) -> anyhow::Result<usize> {

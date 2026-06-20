@@ -9,7 +9,7 @@ use crate::tasks::enqueue::enqueue_task;
 
 pub fn spawn(state: AppState) {
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(60));
+        let mut interval = tokio::timeerval(Duration::from_secs(60));
         loop {
             interval.tick().await;
             if !state.leader.is_leader() {
@@ -25,7 +25,7 @@ pub fn spawn(state: AppState) {
 async fn run_due(state: &AppState) -> anyhow::Result<()> {
     let due: Vec<(Uuid, Uuid, String, bool)> = sqlx::query_as(
         "SELECT id, host_id, action, evacuate FROM maintenance_schedules
-         WHERE status = 'pending' AND run_at <= NOW()",
+         WHERE status = 'pending' AND run_at <= datetime('now')",
     )
     .fetch_all(&state.pool)
     .await?;
@@ -44,7 +44,7 @@ async fn run_due(state: &AppState) -> anyhow::Result<()> {
             Some(host_id),
         )
         .await;
-        sqlx::query("UPDATE maintenance_schedules SET status = 'queued' WHERE id = $1")
+        sqlx::query("UPDATE maintenance_schedules SET status = 'queued' WHERE id = ?")
             .bind(id)
             .execute(&state.pool)
             .await?;

@@ -56,24 +56,24 @@ pub async fn list_vm_timeline(
                    CASE WHEN b.status = 'completed' THEN 'Backup successful'
                         ELSE 'Backup ' || b.status END AS label,
                    b.status, b.created_at
-            FROM backup_records b WHERE b.vm_id = $1
+            FROM backup_records b WHERE b.vm_id = ?
             UNION ALL
             SELECT 'snapshot' AS kind, s.id,
                    'Snapshot: ' || s.name AS label,
                    s.status, s.created_at
-            FROM snapshot_records s WHERE s.vm_id = $1
+            FROM snapshot_records s WHERE s.vm_id = ?
             UNION ALL
             SELECT 'console' AS kind, c.id,
                    'Console ' || c.protocol || ' (' || c.backend || ')' AS label,
                    CASE WHEN c.ended_at IS NULL THEN 'active' ELSE 'ended' END AS status,
                    c.started_at AS created_at
-            FROM console_sessions c WHERE c.vm_id = $1
+            FROM console_sessions c WHERE c.vm_id = ?
             UNION ALL
             SELECT 'lifecycle' AS kind, v.id,
                    'VM ' || COALESCE(v.observed_state, v.desired_state, 'unknown') AS label,
                    COALESCE(v.observed_state, v.desired_state, 'unknown') AS status,
                    COALESCE(v.updated_at, v.created_at) AS created_at
-            FROM vms v WHERE v.id = $1
+            FROM vms v WHERE v.id = ?
         ) t
         ORDER BY created_at DESC
         LIMIT 50
@@ -91,7 +91,7 @@ pub async fn list_vm_snapshots(
 ) -> Result<Json<Vec<SnapshotRow>>, ApiError> {
     let rows = sqlx::query_as::<_, SnapshotRow>(
         "SELECT id, vm_id, name, status, message, COALESCE(snapshot_path, '') AS snapshot_path, created_at
-         FROM snapshot_records WHERE vm_id = $1 ORDER BY created_at DESC",
+         FROM snapshot_records WHERE vm_id = ? ORDER BY created_at DESC",
     )
     .bind(vm_id)
     .fetch_all(&state.pool)
@@ -107,14 +107,14 @@ pub async fn create_vm_snapshot(
 ) -> Result<Json<TaskResponse>, ApiError> {
     require_operator(&actor)?;
     machina_spec::validate_name(&body.name).map_err(|e| ApiError::bad_request(e.to_string()))?;
-    let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+    let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
         .bind(vm_id)
         .fetch_one(&state.pool)
         .await?;
 
     let id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO snapshot_records (id, vm_id, name, status) VALUES ($1, $2, $3, 'pending')",
+        "INSERT INTO snapshot_records (id, vm_id, name, status) VALUES (?, ?, ?, 'pending')",
     )
     .bind(id)
     .bind(vm_id)
@@ -151,7 +151,7 @@ pub async fn delete_vm_snapshot(
     State(state): State<AppState>,
     Path((vm_id, name)): Path<(Uuid, String)>,
 ) -> Result<Json<TaskResponse>, ApiError> {
-    let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+    let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
         .bind(vm_id)
         .fetch_one(&state.pool)
         .await?;
@@ -182,7 +182,7 @@ pub async fn revert_vm_snapshot(
     Path((vm_id, name)): Path<(Uuid, String)>,
 ) -> Result<Json<TaskResponse>, ApiError> {
     require_operator(&actor)?;
-    let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+    let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
         .bind(vm_id)
         .fetch_one(&state.pool)
         .await?;
@@ -232,7 +232,7 @@ pub async fn clone_vm_snapshot(
     machina_spec::validate_name(&body.new_name)
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
 
-    let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+    let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
         .bind(vm_id)
         .fetch_one(&state.pool)
         .await?;

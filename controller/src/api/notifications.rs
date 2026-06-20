@@ -38,7 +38,7 @@ pub async fn list_notifications(
     let rows = if q.undelivered {
         sqlx::query_as::<_, NotificationRow>(
             "SELECT id, kind, payload, delivered, created_at, delivered_at
-             FROM notification_outbox WHERE delivered = FALSE ORDER BY created_at DESC LIMIT $1",
+             FROM notification_outbox WHERE delivered = FALSE ORDER BY created_at DESC LIMIT ?",
         )
         .bind(limit)
         .fetch_all(&state.pool)
@@ -46,7 +46,7 @@ pub async fn list_notifications(
     } else {
         sqlx::query_as::<_, NotificationRow>(
             "SELECT id, kind, payload, delivered, created_at, delivered_at
-             FROM notification_outbox ORDER BY created_at DESC LIMIT $1",
+             FROM notification_outbox ORDER BY created_at DESC LIMIT ?",
         )
         .bind(limit)
         .fetch_all(&state.pool)
@@ -60,7 +60,7 @@ pub async fn mark_notification_delivered(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     sqlx::query(
-        "UPDATE notification_outbox SET delivered = TRUE, delivered_at = NOW() WHERE id = $1",
+        "UPDATE notification_outbox SET delivered = TRUE, delivered_at = datetime('now') WHERE id = ?",
     )
     .bind(id)
     .execute(&state.pool)

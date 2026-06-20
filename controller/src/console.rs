@@ -30,7 +30,7 @@ pub async fn vm_console(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ConsoleInfo>, ApiError> {
-    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(id)
         .fetch_one(&state.pool)
         .await?;
@@ -50,10 +50,10 @@ pub async fn vm_console(
                 "Platform → Hosts → Sync all, then open the VM from Platform → VMs (running guests only).",
             )
         } else if msg.contains("socket is closed") {
-            ApiError::internal("Host agent lost its libvirt connection")
+            ApiErrorernal("Host agent lost its libvirt connection")
                 .with_remediation("On the host: sudo systemctl restart libvirtd machina-agent")
         } else {
-            ApiError::internal(msg)
+            ApiErrorernal(msg)
         }
     })?;
     let ws_token = state.ws_tokens.issue(id).await;
@@ -69,7 +69,7 @@ pub async fn issue_ws_token(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let _exists: Uuid = sqlx::query_scalar("SELECT id FROM vms WHERE id = $1")
+    let _exists: Uuid = sqlx::query_scalar("SELECT id FROM vms WHERE id = ?")
         .bind(id)
         .fetch_one(&state.pool)
         .await?;
@@ -105,7 +105,7 @@ pub async fn serial_ws_proxy(
 
 async fn vm_agent_target(state: &AppState, vm_id: Uuid) -> Option<(String, String)> {
     let row =
-        sqlx::query_as::<_, (String, Option<Uuid>)>("SELECT name, host_id FROM vms WHERE id = $1")
+        sqlx::query_as::<_, (String, Option<Uuid>)>("SELECT name, host_id FROM vms WHERE id = ?")
             .bind(vm_id)
             .fetch_optional(&state.pool)
             .await
@@ -250,17 +250,17 @@ async fn proxy_to_agent_serial(socket: WebSocket, state: AppState, vm_id: Uuid) 
     }
 }
 
-async fn host_agent_addr(pool: &sqlx::PgPool, host_id: Uuid) -> Result<String, ApiError> {
-    let addr: String = sqlx::query_scalar("SELECT agent_grpc_addr FROM hosts WHERE id = $1")
+async fn host_agent_addr(pool: &sqlx::SqlitePool, host_id: Uuid) -> Result<String, ApiError> {
+    let addr: String = sqlx::query_scalar("SELECT agent_grpc_addr FROM hosts WHERE id = ?")
         .bind(host_id)
         .fetch_one(pool)
         .await?;
     Ok(addr)
 }
 
-async fn host_console_addr(pool: &sqlx::PgPool, host_id: Uuid) -> Result<String, ApiError> {
+async fn host_console_addr(pool: &sqlx::SqlitePool, host_id: Uuid) -> Result<String, ApiError> {
     let addr: String = sqlx::query_scalar(
-        "SELECT COALESCE(NULLIF(agent_console_addr, ''), agent_grpc_addr) FROM hosts WHERE id = $1",
+        "SELECT COALESCE(NULLIF(agent_console_addr, ''), agent_grpc_addr) FROM hosts WHERE id = ?",
     )
     .bind(host_id)
     .fetch_one(pool)

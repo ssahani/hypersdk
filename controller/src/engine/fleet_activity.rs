@@ -2,7 +2,7 @@
 // Fleet Activity Monitor aggregator (Phase 37).
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::config::ControllerConfig;
@@ -44,7 +44,7 @@ pub struct FleetActivityOverview {
 }
 
 pub async fn overview(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
 ) -> anyhow::Result<FleetActivityOverview> {
     let running_vms: i64 =

@@ -2,7 +2,7 @@
 // Fleet Software Update rollup (Phase 43).
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::config::ControllerConfig;
@@ -51,7 +51,7 @@ fn has_pending_updates(pending: Option<u32>, summary: &Option<String>) -> bool {
 }
 
 pub async fn overview(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
 ) -> anyhow::Result<FleetUpdatesOverview> {
     let recommended_agent = env!("CARGO_PKG_VERSION").to_string();

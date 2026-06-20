@@ -17,7 +17,7 @@ pub async fn list_servers(
     require_operator(&actor)?;
     baremetal::list_servers(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 

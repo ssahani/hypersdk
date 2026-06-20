@@ -6,7 +6,7 @@ use axum::Json;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::api::ApiError;
@@ -121,7 +121,7 @@ pub async fn list_events(
     let limit = q.limit.unwrap_or(100).clamp(1, 500);
     let rows = sqlx::query_as::<_, SocEventRow>(
         "SELECT id, occurred_at, source, category, severity, host_id, vm_id, actor, summary
-         FROM soc_events ORDER BY occurred_at DESC LIMIT $1",
+         FROM soc_events ORDER BY occurred_at DESC LIMIT ?",
     )
     .bind(limit)
     .fetch_all(&state.pool)
@@ -139,7 +139,7 @@ pub async fn list_alerts(
     let rows = if let Some(status) = q.status.filter(|s| !s.is_empty()) {
         sqlx::query_as::<_, SocAlertRow>(
             "SELECT id, rule_id, title, severity, status, assigned_to, first_seen, last_seen, event_count
-             FROM soc_alerts WHERE status = $1 ORDER BY last_seen DESC LIMIT $2",
+             FROM soc_alerts WHERE status = ? ORDER BY last_seen DESC LIMIT ?",
         )
         .bind(status)
         .bind(limit)
@@ -148,7 +148,7 @@ pub async fn list_alerts(
     } else {
         sqlx::query_as::<_, SocAlertRow>(
             "SELECT id, rule_id, title, severity, status, assigned_to, first_seen, last_seen, event_count
-             FROM soc_alerts ORDER BY last_seen DESC LIMIT $1",
+             FROM soc_alerts ORDER BY last_seen DESC LIMIT ?",
         )
         .bind(limit)
         .fetch_all(&state.pool)
@@ -174,14 +174,14 @@ pub async fn patch_alert(
 ) -> Result<Json<SocAlertRow>, ApiError> {
     require_operator(&actor)?;
     if let Some(status) = &body.status {
-        sqlx::query("UPDATE soc_alerts SET status = $2, updated_at = NOW() WHERE id = $1")
+        sqlx::query("UPDATE soc_alerts SET status = ?, updated_at = datetime('now') WHERE id = ?")
             .bind(id)
             .bind(status)
             .execute(&state.pool)
             .await?;
     }
     if let Some(assignee) = &body.assigned_to {
-        sqlx::query("UPDATE soc_alerts SET assigned_to = $2, updated_at = NOW() WHERE id = $1")
+        sqlx::query("UPDATE soc_alerts SET assigned_to = ?, updated_at = datetime('now') WHERE id = ?")
             .bind(id)
             .bind(assignee)
             .execute(&state.pool)
@@ -190,10 +190,10 @@ pub async fn patch_alert(
     fetch_alert(&state.pool, id).await
 }
 
-async fn fetch_alert(pool: &PgPool, id: Uuid) -> Result<Json<SocAlertRow>, ApiError> {
+async fn fetch_alert(pool: &SqlitePool, id: Uuid) -> Result<Json<SocAlertRow>, ApiError> {
     let row = sqlx::query_as::<_, SocAlertRow>(
         "SELECT id, rule_id, title, severity, status, assigned_to, first_seen, last_seen, event_count
-         FROM soc_alerts WHERE id = $1",
+         FROM soc_alerts WHERE id = ?",
     )
     .bind(id)
     .fetch_one(pool)
@@ -225,7 +225,7 @@ pub async fn create_rule(
     let id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO soc_detection_rules (id, name, description, enabled, severity, query_json, throttle_minutes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(id)
     .bind(&body.name)
@@ -248,7 +248,7 @@ pub async fn patch_rule(
     require_admin(&actor)?;
     if let Some(enabled) = body.enabled {
         sqlx::query(
-            "UPDATE soc_detection_rules SET enabled = $2, updated_at = NOW() WHERE id = $1",
+            "UPDATE soc_detection_rules SET enabled = ?, updated_at = datetime('now') WHERE id = ?",
         )
         .bind(id)
         .bind(enabled)
@@ -256,14 +256,14 @@ pub async fn patch_rule(
         .await?;
     }
     if let Some(sev) = &body.severity {
-        sqlx::query("UPDATE soc_detection_rules SET severity = $2, updated_at = NOW() WHERE id = $1 AND builtin = FALSE")
+        sqlx::query("UPDATE soc_detection_rules SET severity = ?, updated_at = datetime('now') WHERE id = ? AND builtin = FALSE")
             .bind(id)
             .bind(sev)
             .execute(&state.pool)
             .await?;
     }
     if let Some(q) = &body.query_json {
-        sqlx::query("UPDATE soc_detection_rules SET query_json = $2, updated_at = NOW() WHERE id = $1 AND builtin = FALSE")
+        sqlx::query("UPDATE soc_detection_rules SET query_json = ?, updated_at = datetime('now') WHERE id = ? AND builtin = FALSE")
             .bind(id)
             .bind(q)
             .execute(&state.pool)
@@ -271,7 +271,7 @@ pub async fn patch_rule(
     }
     if let Some(t) = body.throttle_minutes {
         sqlx::query(
-            "UPDATE soc_detection_rules SET throttle_minutes = $2, updated_at = NOW() WHERE id = $1 AND builtin = FALSE",
+            "UPDATE soc_detection_rules SET throttle_minutes = ?, updated_at = datetime('now') WHERE id = ? AND builtin = FALSE",
         )
         .bind(id)
         .bind(t)
@@ -281,10 +281,10 @@ pub async fn patch_rule(
     fetch_rule(&state.pool, id).await
 }
 
-async fn fetch_rule(pool: &PgPool, id: Uuid) -> Result<Json<SocRuleRow>, ApiError> {
+async fn fetch_rule(pool: &SqlitePool, id: Uuid) -> Result<Json<SocRuleRow>, ApiError> {
     let row = sqlx::query_as::<_, SocRuleRow>(
         "SELECT id, name, description, enabled, severity, query_json, throttle_minutes, builtin
-         FROM soc_detection_rules WHERE id = $1",
+         FROM soc_detection_rules WHERE id = ?",
     )
     .bind(id)
     .fetch_one(pool)
@@ -302,7 +302,7 @@ pub async fn test_rule(
     require_operator(&actor)?;
     detection::test_rule(&state.pool, id, q.hours.unwrap_or(24))
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -313,7 +313,7 @@ pub async fn asm_summary(
     require_operator(&actor)?;
     asm::build_asm_summary(&state.pool, &state.config)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -343,7 +343,7 @@ pub async fn put_splunk_integration(
     });
     if body.token.is_empty() {
         let existing: Value =
-            sqlx::query_scalar("SELECT config_json FROM soc_integrations WHERE id = $1")
+            sqlx::query_scalar("SELECT config_json FROM soc_integrations WHERE id = ?")
                 .bind(id)
                 .fetch_one(&state.pool)
                 .await?;
@@ -352,7 +352,7 @@ pub async fn put_splunk_integration(
         }
     }
     sqlx::query(
-        "UPDATE soc_integrations SET config_json = $2, enabled = $3, updated_at = NOW() WHERE id = $1",
+        "UPDATE soc_integrations SET config_json = ?, enabled = ?, updated_at = datetime('now') WHERE id = ?",
     )
     .bind(id)
     .bind(cfg)
@@ -398,7 +398,7 @@ pub async fn patch_integration(
     require_admin(&actor)?;
     if let Some(cfg) = body.config_json {
         let existing: Value = sqlx::query_scalar(
-            "SELECT config_json FROM soc_integrations WHERE integration_type = $1 AND name = 'default'",
+            "SELECT config_json FROM soc_integrations WHERE integration_type = ? AND name = 'default'",
         )
         .bind(&integration_type)
         .fetch_one(&state.pool)
@@ -406,7 +406,7 @@ pub async fn patch_integration(
         .unwrap_or(Value::Null);
         let merged = merge_integration_config(&existing, &cfg);
         sqlx::query(
-            "UPDATE soc_integrations SET config_json = $2, updated_at = NOW() WHERE integration_type = $1 AND name = 'default'",
+            "UPDATE soc_integrations SET config_json = ?, updated_at = datetime('now') WHERE integration_type = ? AND name = 'default'",
         )
         .bind(&integration_type)
         .bind(merged)
@@ -415,7 +415,7 @@ pub async fn patch_integration(
     }
     if let Some(enabled) = body.enabled {
         sqlx::query(
-            "UPDATE soc_integrations SET enabled = $2, updated_at = NOW() WHERE integration_type = $1 AND name = 'default'",
+            "UPDATE soc_integrations SET enabled = ?, updated_at = datetime('now') WHERE integration_type = ? AND name = 'default'",
         )
         .bind(&integration_type)
         .bind(enabled)
@@ -461,7 +461,7 @@ pub async fn forward_replay_handler(
         &state.config.controller_id,
     )
     .await
-    .map_err(|e| ApiError::internal(e.to_string()))?;
+    .map_err(|e| ApiErrorernal(e.to_string()))?;
     Ok(Json(
         serde_json::json!({ "forwarded": n, "hours": q.hours.unwrap_or(24) }),
     ))
@@ -597,7 +597,7 @@ pub async fn run_ingest_cycle(
     require_admin(&actor)?;
     run_cycle(&state.pool, &state.config, &state.config.controller_id)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -636,7 +636,7 @@ pub async fn create_playbook(
         .unwrap_or_else(|| serde_json::json!({ "min_severity": "medium", "rule_names": [] }));
     sqlx::query(
         "INSERT INTO soc_playbooks (id, name, description, enabled, trigger_json, steps_json)
-         VALUES ($1, $2, $3, $4, $5, $6)",
+         VALUES (?, ?, ?, ?, ?, ?)",
     )
     .bind(id)
     .bind(&body.name)
@@ -650,7 +650,7 @@ pub async fn create_playbook(
         if e.to_string().contains("unique") {
             ApiError::bad_request("playbook name already exists")
         } else {
-            ApiError::internal(e.to_string())
+            ApiErrorernal(e.to_string())
         }
     })?;
     fetch_playbook(&state.pool, id).await
@@ -664,28 +664,28 @@ pub async fn patch_playbook(
 ) -> Result<Json<PlaybookRow>, ApiError> {
     require_admin(&actor)?;
     if let Some(desc) = &body.description {
-        sqlx::query("UPDATE soc_playbooks SET description = $2, updated_at = NOW() WHERE id = $1")
+        sqlx::query("UPDATE soc_playbooks SET description = ?, updated_at = datetime('now') WHERE id = ?")
             .bind(id)
             .bind(desc)
             .execute(&state.pool)
             .await?;
     }
     if let Some(enabled) = body.enabled {
-        sqlx::query("UPDATE soc_playbooks SET enabled = $2, updated_at = NOW() WHERE id = $1")
+        sqlx::query("UPDATE soc_playbooks SET enabled = ?, updated_at = datetime('now') WHERE id = ?")
             .bind(id)
             .bind(enabled)
             .execute(&state.pool)
             .await?;
     }
     if let Some(trigger) = &body.trigger_json {
-        sqlx::query("UPDATE soc_playbooks SET trigger_json = $2, updated_at = NOW() WHERE id = $1")
+        sqlx::query("UPDATE soc_playbooks SET trigger_json = ?, updated_at = datetime('now') WHERE id = ?")
             .bind(id)
             .bind(trigger)
             .execute(&state.pool)
             .await?;
     }
     if let Some(steps) = &body.steps_json {
-        sqlx::query("UPDATE soc_playbooks SET steps_json = $2, updated_at = NOW() WHERE id = $1")
+        sqlx::query("UPDATE soc_playbooks SET steps_json = ?, updated_at = datetime('now') WHERE id = ?")
             .bind(id)
             .bind(steps)
             .execute(&state.pool)
@@ -700,7 +700,7 @@ pub async fn delete_playbook(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>, ApiError> {
     require_admin(&actor)?;
-    let name: String = sqlx::query_scalar("SELECT name FROM soc_playbooks WHERE id = $1")
+    let name: String = sqlx::query_scalar("SELECT name FROM soc_playbooks WHERE id = ?")
         .bind(id)
         .fetch_one(&state.pool)
         .await
@@ -708,7 +708,7 @@ pub async fn delete_playbook(
     if name == "notify_on_critical" {
         return Err(ApiError::bad_request("built-in playbook cannot be deleted"));
     }
-    sqlx::query("DELETE FROM soc_playbooks WHERE id = $1")
+    sqlx::query("DELETE FROM soc_playbooks WHERE id = ?")
         .bind(id)
         .execute(&state.pool)
         .await?;
@@ -732,8 +732,8 @@ pub async fn patch_soc_settings(
     require_admin(&actor)?;
     if let Some(url) = body.webhook_url {
         sqlx::query(
-            "INSERT INTO soc_settings (id, webhook_url, updated_at) VALUES (1, $1, NOW())
-             ON CONFLICT (id) DO UPDATE SET webhook_url = EXCLUDED.webhook_url, updated_at = NOW()",
+            "INSERT INTO soc_settings (id, webhook_url, updated_at) VALUES (1, ?, datetime('now'))
+             ON CONFLICT (id) DO UPDATE SET webhook_url = EXCLUDED.webhook_url, updated_at = datetime('now')",
         )
         .bind(url.trim())
         .execute(&state.pool)
@@ -752,7 +752,7 @@ pub async fn list_playbook_runs(
     let limit = q.limit.unwrap_or(50).clamp(1, 200);
     let rows = sqlx::query_as::<_, PlaybookRunRow>(
         "SELECT id, playbook_id, alert_id, status, started_at, finished_at
-         FROM soc_playbook_runs ORDER BY started_at DESC LIMIT $1",
+         FROM soc_playbook_runs ORDER BY started_at DESC LIMIT ?",
     )
     .bind(limit)
     .fetch_all(&state.pool)
@@ -771,7 +771,7 @@ pub async fn overview(
     .fetch_one(&state.pool)
     .await?;
     let events_24h: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM soc_events WHERE occurred_at > NOW() - INTERVAL '24 hours'",
+        "SELECT COUNT(*) FROM soc_events WHERE occurred_at > datetime('now', '-24 hours')",
     )
     .fetch_one(&state.pool)
     .await?;
@@ -827,12 +827,12 @@ fn merge_integration_config(existing: &Value, patch: &Value) -> Value {
 }
 
 async fn fetch_integration_db(
-    pool: &PgPool,
+    pool: &SqlitePool,
     integration_type: &str,
 ) -> Result<IntegrationDbRow, ApiError> {
     sqlx::query_as(
         "SELECT id, integration_type, name, enabled, config_json, last_success_at, last_error
-         FROM soc_integrations WHERE integration_type = $1 AND name = 'default'",
+         FROM soc_integrations WHERE integration_type = ? AND name = 'default'",
     )
     .bind(integration_type)
     .fetch_one(pool)
@@ -874,9 +874,9 @@ fn redact_integration_config(cfg: &Value) -> Value {
     cfg
 }
 
-async fn fetch_playbook(pool: &PgPool, id: Uuid) -> Result<Json<PlaybookRow>, ApiError> {
+async fn fetch_playbook(pool: &SqlitePool, id: Uuid) -> Result<Json<PlaybookRow>, ApiError> {
     sqlx::query_as::<_, PlaybookRow>(
-        "SELECT id, name, description, enabled, trigger_json, steps_json FROM soc_playbooks WHERE id = $1",
+        "SELECT id, name, description, enabled, trigger_json, steps_json FROM soc_playbooks WHERE id = ?",
     )
     .bind(id)
     .fetch_one(pool)
@@ -885,7 +885,7 @@ async fn fetch_playbook(pool: &PgPool, id: Uuid) -> Result<Json<PlaybookRow>, Ap
     .map_err(|_| ApiError::not_found("playbook not found"))
 }
 
-async fn load_soc_webhook_url(pool: &PgPool) -> String {
+async fn load_soc_webhook_url(pool: &SqlitePool) -> String {
     if let Ok(url) =
         sqlx::query_scalar::<_, String>("SELECT webhook_url FROM soc_settings WHERE id = 1")
             .fetch_one(pool)
@@ -899,13 +899,13 @@ async fn load_soc_webhook_url(pool: &PgPool) -> String {
     std::env::var("MACHINA_SOC_WEBHOOK_URL").unwrap_or_default()
 }
 
-async fn build_alert_detail(pool: &PgPool, id: Uuid) -> Result<Json<SocAlertDetail>, ApiError> {
+async fn build_alert_detail(pool: &SqlitePool, id: Uuid) -> Result<Json<SocAlertDetail>, ApiError> {
     let row: AlertDetailDbRow = sqlx::query_as(
         "SELECT a.id, a.rule_id, a.title, a.severity, a.status, a.assigned_to, a.first_seen, a.last_seen,
                 a.event_count, a.dedupe_key, a.event_ids, a.detail_json, r.name AS rule_name
          FROM soc_alerts a
          LEFT JOIN soc_detection_rules r ON r.id = a.rule_id
-         WHERE a.id = $1",
+         WHERE a.id = ?",
     )
     .bind(id)
     .fetch_one(pool)
@@ -916,11 +916,12 @@ async fn build_alert_detail(pool: &PgPool, id: Uuid) -> Result<Json<SocAlertDeta
     let linked_events = if event_ids.is_empty() {
         vec![]
     } else {
+        let ids_json = serde_json::to_string(&event_ids.iter().map(|u| u.to_string()).collect::<Vec<_>>()).unwrap_or_default();
         sqlx::query_as::<_, SocEventDetailRow>(
             "SELECT id, occurred_at, source, category, severity, summary, ecs_json
-             FROM soc_events WHERE id = ANY($1) ORDER BY occurred_at DESC LIMIT 50",
+             FROM soc_events WHERE id IN (SELECT value FROM json_each(?)) ORDER BY occurred_at DESC LIMIT 50",
         )
-        .bind(&event_ids)
+        .bind(&ids_json)
         .fetch_all(pool)
         .await?
     };
@@ -941,7 +942,7 @@ async fn build_alert_detail(pool: &PgPool, id: Uuid) -> Result<Json<SocAlertDeta
                 r.step_results, r.error
          FROM soc_playbook_runs r
          LEFT JOIN soc_playbooks p ON p.id = r.playbook_id
-         WHERE r.alert_id = $1
+         WHERE r.alert_id = ?
          ORDER BY r.started_at DESC LIMIT 20",
     )
     .bind(id)
@@ -1019,9 +1020,9 @@ fn extract_mitre_tags(ecs: &Value) -> Vec<MitreTag> {
     out
 }
 
-async fn splunk_integration_id(pool: &PgPool) -> Result<Uuid, ApiError> {
+async fn splunk_integration_id(pool: &SqlitePool) -> Result<Uuid, ApiError> {
     sqlx::query_scalar("SELECT id FROM soc_integrations WHERE integration_type = 'splunk_hec' AND name = 'default'")
         .fetch_one(pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }

@@ -71,7 +71,7 @@ pub async fn list_content_images(
 ) -> Result<Json<Vec<ContentImageRow>>, ApiError> {
     let rows = if let Some(ref status) = q.status {
         sqlx::query_as::<_, ContentImageRow>(&format!(
-            "{CONTENT_SELECT} WHERE status = $1 ORDER BY name"
+            "{CONTENT_SELECT} WHERE status = ? ORDER BY name"
         ))
         .bind(status)
         .fetch_all(&state.pool)
@@ -97,7 +97,7 @@ pub async fn create_content_image(
     let id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO content_images (id, cluster_id, name, kind, path, size_gib, status, category, description, submitted_by, checksum)
-         VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9, $10)",
+         VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)",
     )
     .bind(id)
     .bind(cluster_id)
@@ -122,8 +122,8 @@ pub async fn approve_content_image(
     require_operator(&actor)?;
     let now = Utc::now();
     let updated = sqlx::query(
-        "UPDATE content_images SET status = 'available', approved_by = $2, approved_at = $3, rejected_reason = NULL
-         WHERE id = $1 AND status IN ('pending', 'rejected')",
+        "UPDATE content_images SET status = 'available', approved_by = ?, approved_at = ?, rejected_reason = NULL
+         WHERE id = ? AND status IN ('pending', 'rejected')",
     )
     .bind(id)
     .bind(&actor.username)
@@ -150,8 +150,8 @@ pub async fn reject_content_image(
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| "Rejected by administrator".into());
     let updated = sqlx::query(
-        "UPDATE content_images SET status = 'rejected', approved_by = NULL, approved_at = NULL, rejected_reason = $2
-         WHERE id = $1 AND status = 'pending'",
+        "UPDATE content_images SET status = 'rejected', approved_by = NULL, approved_at = NULL, rejected_reason = ?
+         WHERE id = ? AND status = 'pending'",
     )
     .bind(id)
     .bind(&reason)
@@ -166,7 +166,7 @@ pub async fn reject_content_image(
 }
 
 async fn fetch_content_row(state: &AppState, id: Uuid) -> Result<Json<ContentImageRow>, ApiError> {
-    let row = sqlx::query_as::<_, ContentImageRow>(&format!("{CONTENT_SELECT} WHERE id = $1"))
+    let row = sqlx::query_as::<_, ContentImageRow>(&format!("{CONTENT_SELECT} WHERE id = ?"))
         .bind(id)
         .fetch_one(&state.pool)
         .await?;

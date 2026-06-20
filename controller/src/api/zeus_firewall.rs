@@ -26,7 +26,7 @@ pub async fn overview(
 ) -> Result<Json<zeus_firewall::FirewallOverview>, ApiError> {
     zeus_firewall::overview(&state.pool, &state.config)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -36,7 +36,7 @@ pub async fn get_target(
 ) -> Result<Json<zeus_firewall::FirewallTargetDetail>, ApiError> {
     zeus_firewall::target_detail(&state.pool, &state.config, &id)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -46,7 +46,7 @@ pub async fn get_ports(
 ) -> Result<Json<Vec<machina_core::OpenPort>>, ApiError> {
     zeus_firewall::target_ports(&state.pool, &state.config, &id)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -56,7 +56,7 @@ pub async fn get_services(
 ) -> Result<Json<Vec<machina_core::firewall::types::AllowedService>>, ApiError> {
     zeus_firewall::target_services(&state.pool, &state.config, &id)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -66,7 +66,7 @@ pub async fn get_score(
 ) -> Result<Json<machina_core::FirewallScore>, ApiError> {
     zeus_firewall::target_score(&state.pool, &state.config, &id)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -135,7 +135,7 @@ pub async fn list_profiles(
 ) -> Result<Json<Vec<zeus_firewall::profiles::ProfileListItem>>, ApiError> {
     zeus_firewall::profiles::list_profiles(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -158,7 +158,7 @@ pub async fn get_timeline(
     let host_id = Uuid::parse_str(&id).map_err(|e| ApiError::bad_request(e.to_string()))?;
     zeus_firewall::temporary::timeline(&state.pool, "host", host_id)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -221,7 +221,7 @@ pub async fn list_checkpoints(
     let host_id = Uuid::parse_str(&id).map_err(|e| ApiError::bad_request(e.to_string()))?;
     zeus_firewall::checkpoint::list_checkpoints(&state.pool, "host", host_id)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -267,7 +267,7 @@ pub async fn simulate(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     ai_firewall::simulate_plan(&state.pool, &state.config, &body.target_id, &body.profile)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -288,7 +288,7 @@ pub async fn ai_explain(
         body.question.as_deref(),
     )
     .await
-    .map_err(|e| ApiError::internal(e.to_string()))
+    .map_err(|e| ApiErrorernal(e.to_string()))
     .map(Json)
 }
 
@@ -298,7 +298,7 @@ pub async fn ai_secure_plan(
 ) -> Result<Json<ai_firewall::SecurePlanReport>, ApiError> {
     ai_firewall::secure_machine_plan(&state.pool, &state.config, &body.target_id)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -308,7 +308,7 @@ pub async fn compliance_report(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     ai_firewall::compliance_report(&state.pool, &state.config, &kind)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -328,7 +328,7 @@ pub async fn siem_export(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let export = zeus_firewall::siem::export_timeline(&state.pool, q.hours)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let pw = packetwolf_bridge::fetch_anomalies(&state.config).await;
     let anomalies = pw
         .get("anomalies")
@@ -356,10 +356,10 @@ pub async fn detect_drift(
     let host_id = Uuid::parse_str(&id).map_err(|e| ApiError::bad_request(e.to_string()))?;
     let detail = zeus_firewall::target_detail(&state.pool, &state.config, &id)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     zeus_firewall::drift::detect_drift(&state.pool, "host", host_id, &detail.inventory)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -398,7 +398,7 @@ async fn resolve_agent(state: &AppState, target_id: &str) -> anyhow::Result<Stri
     }
     let host_id = Uuid::parse_str(target_id)?;
     let addr: String =
-        sqlx::query_scalar("SELECT COALESCE(agent_grpc_addr, '') FROM hosts WHERE id = $1")
+        sqlx::query_scalar("SELECT COALESCE(agent_grpc_addr, '') FROM hosts WHERE id = ?")
             .bind(host_id)
             .fetch_one(&state.pool)
             .await?;
@@ -434,7 +434,7 @@ pub async fn create_policy(
     Json(body): Json<PolicyBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let id = Uuid::new_v4();
-    sqlx::query("INSERT INTO firewall_policies (id, name, spec_yaml) VALUES ($1, $2, $3)")
+    sqlx::query("INSERT INTO firewall_policies (id, name, spec_yaml) VALUES (?, ?, ?)")
         .bind(id)
         .bind(&body.name)
         .bind(&body.spec_yaml)
@@ -462,7 +462,7 @@ pub async fn list_approvals(
 ) -> Result<Json<Vec<zeus_firewall::approvals::FirewallApproval>>, ApiError> {
     zeus_firewall::list_approvals(&state.pool, q.status.as_deref())
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -508,7 +508,7 @@ pub async fn export_gitops(
 ) -> Result<Json<zeus_firewall::gitops::GitOpsExport>, ApiError> {
     zeus_firewall::export_policies(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -568,7 +568,7 @@ pub async fn cloud_overview(
 ) -> Result<Json<zeus_firewall::cloud::CloudOverview>, ApiError> {
     zeus_firewall::cloud::overview(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -585,7 +585,7 @@ pub async fn vm_guest_ports(
             } else if msg.contains("vm not found") {
                 ApiError::not_found(msg)
             } else {
-                ApiError::internal(msg)
+                ApiErrorernal(msg)
             }
         })
         .map(Json)
@@ -609,7 +609,7 @@ pub async fn connectivity_matrix(
         &body.profile,
     )
     .await
-    .map_err(|e| ApiError::internal(e.to_string()))
+    .map_err(|e| ApiErrorernal(e.to_string()))
     .map(Json)
 }
 
@@ -620,7 +620,7 @@ pub async fn compliance_export_pdf(
     let bytes =
         zeus_firewall::compliance_pdf::export_compliance_pdf(&state.pool, &state.config, &kind)
             .await
-            .map_err(|e| ApiError::internal(e.to_string()))?;
+            .map_err(|e| ApiErrorernal(e.to_string()))?;
     Ok(axum::response::Response::builder()
         .header("Content-Type", "application/pdf")
         .header(
@@ -640,7 +640,7 @@ pub async fn baremetal_overview(
 ) -> Result<Json<zeus_firewall::BaremetalFirewallOverview>, ApiError> {
     zeus_firewall::metal_overview(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -688,7 +688,7 @@ pub async fn finops_exposure(
 ) -> Result<Json<zeus_firewall::finops::ExposureFinOpsReport>, ApiError> {
     zeus_firewall::finops::exposure_rollup(&state.pool, &state.config)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -697,7 +697,7 @@ pub async fn finops_exposure_export_csv(
 ) -> Result<axum::response::Response, ApiError> {
     let csv = zeus_firewall::finops::export_csv(&state.pool, &state.config)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     Ok(axum::response::Response::builder()
         .header(http::header::CONTENT_TYPE, "text/csv; charset=utf-8")
         .header(
@@ -705,7 +705,7 @@ pub async fn finops_exposure_export_csv(
             "attachment; filename=\"zeus-firewall-exposure-cost.csv\"",
         )
         .body(axum::body::Body::from(csv))
-        .map_err(|e| ApiError::internal(e.to_string()))?)
+        .map_err(|e| ApiErrorernal(e.to_string()))?)
 }
 
 pub async fn multisite_overview(
@@ -713,7 +713,7 @@ pub async fn multisite_overview(
 ) -> Result<Json<zeus_firewall::multisite::MultisiteOverview>, ApiError> {
     zeus_firewall::multisite::overview(&state.pool, &state.config)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -722,7 +722,7 @@ pub async fn multisite_export(
 ) -> Result<Json<zeus_firewall::multisite::FederatedExport>, ApiError> {
     zeus_firewall::multisite::federated_export(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -731,7 +731,7 @@ pub async fn multisite_drift(
 ) -> Result<Json<zeus_firewall::multisite::SiteDriftReport>, ApiError> {
     zeus_firewall::multisite::site_drift_compare(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -740,7 +740,7 @@ pub async fn multisite_connectivity(
 ) -> Result<Json<zeus_firewall::multisite::CrossSiteConnectivity>, ApiError> {
     zeus_firewall::multisite::cross_site_connectivity(&state.pool, &state.config)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -772,7 +772,7 @@ pub async fn multisite_timeline(
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
     zeus_firewall::multisite::merge_timeline(&state.pool, q.limit)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -781,7 +781,7 @@ pub async fn multisite_dr_templates(
 ) -> Result<Json<zeus_firewall::multisite::DrTemplateBundle>, ApiError> {
     zeus_firewall::multisite::dr_template_bundle(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 
@@ -790,7 +790,7 @@ pub async fn operator_plan(
 ) -> Result<Json<zeus_firewall::operator::FleetSecurePlan>, ApiError> {
     zeus_firewall::operator::fleet_secure_preview(&state.pool, &state.config)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
         .map(Json)
 }
 

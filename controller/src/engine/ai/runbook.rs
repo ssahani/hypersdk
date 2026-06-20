@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 #[derive(Debug, Serialize)]
 pub struct Runbook {
@@ -14,7 +14,7 @@ pub struct Runbook {
 }
 
 pub async fn generate(
-    pool: &PgPool,
+    pool: &SqlitePool,
     incident: &str,
     context: &serde_json::Value,
 ) -> anyhow::Result<Runbook> {

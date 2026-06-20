@@ -41,7 +41,7 @@ pub async fn list_audit_logs(
         (Some(action), Some(actor)) if !action.is_empty() && !actor.is_empty() => {
             sqlx::query_as::<_, AuditRow>(
                 "SELECT id, actor, action, resource_type, resource_id, created_at
-                 FROM audit_logs WHERE action LIKE $1 AND actor LIKE $2 ORDER BY created_at DESC LIMIT $3",
+                 FROM audit_logs WHERE action LIKE ? AND actor LIKE ? ORDER BY created_at DESC LIMIT ?",
             )
             .bind(format!("%{action}%"))
             .bind(format!("%{actor}%"))
@@ -52,7 +52,7 @@ pub async fn list_audit_logs(
         (Some(action), _) if !action.is_empty() => {
             sqlx::query_as::<_, AuditRow>(
                 "SELECT id, actor, action, resource_type, resource_id, created_at
-                 FROM audit_logs WHERE action LIKE $1 ORDER BY created_at DESC LIMIT $2",
+                 FROM audit_logs WHERE action LIKE ? ORDER BY created_at DESC LIMIT ?",
             )
             .bind(format!("%{action}%"))
             .bind(limit)
@@ -62,7 +62,7 @@ pub async fn list_audit_logs(
         (_, Some(actor)) if !actor.is_empty() => {
             sqlx::query_as::<_, AuditRow>(
                 "SELECT id, actor, action, resource_type, resource_id, created_at
-                 FROM audit_logs WHERE actor LIKE $1 ORDER BY created_at DESC LIMIT $2",
+                 FROM audit_logs WHERE actor LIKE ? ORDER BY created_at DESC LIMIT ?",
             )
             .bind(format!("%{actor}%"))
             .bind(limit)
@@ -72,7 +72,7 @@ pub async fn list_audit_logs(
         _ => {
             sqlx::query_as::<_, AuditRow>(
                 "SELECT id, actor, action, resource_type, resource_id, created_at
-                 FROM audit_logs ORDER BY created_at DESC LIMIT $1",
+                 FROM audit_logs ORDER BY created_at DESC LIMIT ?",
             )
             .bind(limit)
             .fetch_all(&state.pool)

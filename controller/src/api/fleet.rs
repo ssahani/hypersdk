@@ -32,7 +32,7 @@ pub async fn desktop_overview(
     fleet_desktop::overview(&state.pool, &state.config)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn linux_health(
@@ -41,7 +41,7 @@ pub async fn linux_health(
     fleet_linux::overview(&state.pool, &state.config)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn activity_overview(
@@ -50,7 +50,7 @@ pub async fn activity_overview(
     fleet_activity::overview(&state.pool, &state.config)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn backup_overview(
@@ -59,7 +59,7 @@ pub async fn backup_overview(
     fleet_backups::overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn finder_overview(
@@ -68,7 +68,7 @@ pub async fn finder_overview(
     fleet_finder::overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn network_overview(
@@ -77,7 +77,7 @@ pub async fn network_overview(
     fleet_network::overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn storage_overview(
@@ -86,7 +86,7 @@ pub async fn storage_overview(
     fleet_storage::overview(&state.pool, &state.config)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn console_overview(
@@ -95,7 +95,7 @@ pub async fn console_overview(
     fleet_console::overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn updates_overview(
@@ -104,7 +104,7 @@ pub async fn updates_overview(
     fleet_updates::overview(&state.pool, &state.config)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn keychain_overview(
@@ -113,7 +113,7 @@ pub async fn keychain_overview(
     fleet_keychain::overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn users_overview(
@@ -122,7 +122,7 @@ pub async fn users_overview(
     fleet_users::overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn shortcuts_overview(
@@ -131,7 +131,7 @@ pub async fn shortcuts_overview(
     fleet_shortcuts::overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn spaces_overview(
@@ -140,7 +140,7 @@ pub async fn spaces_overview(
     fleet_spaces::overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn general_overview(
@@ -149,7 +149,7 @@ pub async fn general_overview(
     fleet_general::overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn mission_overview(
@@ -158,7 +158,7 @@ pub async fn mission_overview(
     fleet_mission::overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn gpu_overview(
@@ -167,7 +167,7 @@ pub async fn gpu_overview(
     fleet_gpu::overview(&state.pool)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn maintenance_mission_overview(
@@ -176,7 +176,7 @@ pub async fn maintenance_mission_overview(
     fleet_maintenance_mission::overview(&state.pool, &state.config)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn dna_overview(
@@ -185,7 +185,7 @@ pub async fn dna_overview(
     fleet_dna::overview(&state.pool, &state.config)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -202,5 +202,5 @@ pub async fn fleet_diagnose(
     fleet_linux::diagnose(&state.pool, &state.config, &body.query)
         .await
         .map(Json)
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }

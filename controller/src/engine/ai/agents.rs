@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use super::context::AssembledContext;
@@ -200,7 +200,7 @@ pub struct ZeusChatResponse {
 }
 
 pub async fn chat(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &crate::config::ControllerConfig,
     body: &ZeusChatBody,
     user_id: Option<&str>,
@@ -257,11 +257,11 @@ pub async fn chat(
     })
 }
 
-pub async fn save_preference(pool: &PgPool, user_id: &str, agent_id: &str) -> anyhow::Result<()> {
+pub async fn save_preference(pool: &SqlitePool, user_id: &str, agent_id: &str) -> anyhow::Result<()> {
     sqlx::query(
         "INSERT INTO ai_user_preferences (user_id, default_agent, updated_at)
-         VALUES ($1, $2, NOW())
-         ON CONFLICT (user_id) DO UPDATE SET default_agent = EXCLUDED.default_agent, updated_at = NOW()",
+         VALUES (?, ?, datetime('now'))
+         ON CONFLICT (user_id) DO UPDATE SET default_agent = EXCLUDED.default_agent, updated_at = datetime('now')",
     )
     .bind(user_id)
     .bind(agent_id)
@@ -270,9 +270,9 @@ pub async fn save_preference(pool: &PgPool, user_id: &str, agent_id: &str) -> an
     Ok(())
 }
 
-pub async fn get_preference(pool: &PgPool, user_id: &str) -> anyhow::Result<String> {
+pub async fn get_preference(pool: &SqlitePool, user_id: &str) -> anyhow::Result<String> {
     let agent: Option<String> =
-        sqlx::query_scalar("SELECT default_agent FROM ai_user_preferences WHERE user_id = $1")
+        sqlx::query_scalar("SELECT default_agent FROM ai_user_preferences WHERE user_id = ?")
             .bind(user_id)
             .fetch_optional(pool)
             .await?;

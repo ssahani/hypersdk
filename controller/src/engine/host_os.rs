@@ -2,19 +2,19 @@
 // Host Linux OS surfaces — proxy agent RPC for enrolled hypervisors (Phase 33).
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::agent_client;
 use crate::config::ControllerConfig;
 
 pub async fn resolve_agent_addr(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     host_id: Uuid,
 ) -> anyhow::Result<(String, String)> {
     let row: (String, String) = sqlx::query_as(
-        "SELECT hostname, COALESCE(NULLIF(agent_grpc_addr, ''), '') FROM hosts WHERE id = $1",
+        "SELECT hostname, COALESCE(NULLIF(agent_grpc_addr, ''), '') FROM hosts WHERE id = ?",
     )
     .bind(host_id)
     .fetch_optional(pool)
@@ -32,7 +32,7 @@ pub async fn resolve_agent_addr(
 }
 
 pub async fn linux_observability(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     host_id: Uuid,
 ) -> anyhow::Result<serde_json::Value> {
@@ -41,7 +41,7 @@ pub async fn linux_observability(
 }
 
 pub async fn network_diagnostics(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     host_id: Uuid,
 ) -> anyhow::Result<serde_json::Value> {
@@ -72,8 +72,8 @@ pub async fn network_diagnostics(
     }
 }
 
-async fn hostname_from_pool(pool: &PgPool, host_id: Uuid) -> anyhow::Result<String> {
-    sqlx::query_scalar("SELECT hostname FROM hosts WHERE id = $1")
+async fn hostname_from_pool(pool: &SqlitePool, host_id: Uuid) -> anyhow::Result<String> {
+    sqlx::query_scalar("SELECT hostname FROM hosts WHERE id = ?")
         .bind(host_id)
         .fetch_optional(pool)
         .await?
@@ -81,7 +81,7 @@ async fn hostname_from_pool(pool: &PgPool, host_id: Uuid) -> anyhow::Result<Stri
 }
 
 pub async fn linux_audit(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     host_id: Uuid,
 ) -> anyhow::Result<serde_json::Value> {
@@ -91,7 +91,7 @@ pub async fn linux_audit(
 }
 
 pub async fn linux_package_updates(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     host_id: Uuid,
 ) -> anyhow::Result<serde_json::Value> {
@@ -101,7 +101,7 @@ pub async fn linux_package_updates(
 }
 
 pub async fn linux_filesystems(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     host_id: Uuid,
 ) -> anyhow::Result<serde_json::Value> {
@@ -111,7 +111,7 @@ pub async fn linux_filesystems(
 }
 
 pub async fn linux_top_processes(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     host_id: Uuid,
     limit: u32,
@@ -122,8 +122,8 @@ pub async fn linux_top_processes(
     Ok(serde_json::json!({ "processes": rows }))
 }
 
-pub async fn require_maintenance_mode(pool: &PgPool, host_id: Uuid) -> anyhow::Result<()> {
-    let maintenance: bool = sqlx::query_scalar("SELECT maintenance_mode FROM hosts WHERE id = $1")
+pub async fn require_maintenance_mode(pool: &SqlitePool, host_id: Uuid) -> anyhow::Result<()> {
+    let maintenance: bool = sqlx::query_scalar("SELECT maintenance_mode FROM hosts WHERE id = ?")
         .bind(host_id)
         .fetch_one(pool)
         .await?;
@@ -134,7 +134,7 @@ pub async fn require_maintenance_mode(pool: &PgPool, host_id: Uuid) -> anyhow::R
 }
 
 pub async fn apply_linux_package_upgrade(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     host_id: Uuid,
     dry_run: bool,
@@ -147,7 +147,7 @@ pub async fn apply_linux_package_upgrade(
 }
 
 pub async fn reboot_linux_host(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     host_id: Uuid,
 ) -> anyhow::Result<()> {
@@ -285,11 +285,11 @@ pub struct VmGuestHealthReport {
 }
 
 pub async fn vm_guest_health(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     vm_id: Uuid,
 ) -> anyhow::Result<VmGuestHealthReport> {
-    let row: (String, Uuid) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+    let row: (String, Uuid) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(vm_id)
         .fetch_optional(pool)
         .await?
@@ -334,7 +334,7 @@ pub async fn vm_guest_health(
         None
     };
     if !gh.guest_ip.is_empty() {
-        let _ = sqlx::query("UPDATE vms SET guest_ip = $1, updated_at = NOW() WHERE id = $2")
+        let _ = sqlx::query("UPDATE vms SET guest_ip = ?, updated_at = datetime('now') WHERE id = ?")
             .bind(&gh.guest_ip)
             .bind(vm_id)
             .execute(pool)
@@ -362,12 +362,12 @@ pub async fn vm_guest_health(
 }
 
 pub async fn vm_guest_agent_action(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     vm_id: Uuid,
     action: &str,
 ) -> anyhow::Result<serde_json::Value> {
-    let row: (String, Uuid) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+    let row: (String, Uuid) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(vm_id)
         .fetch_optional(pool)
         .await?
@@ -378,11 +378,11 @@ pub async fn vm_guest_agent_action(
 }
 
 pub async fn vm_guest_observability(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     vm_id: Uuid,
 ) -> anyhow::Result<serde_json::Value> {
-    let row: (String, Uuid) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+    let row: (String, Uuid) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(vm_id)
         .fetch_optional(pool)
         .await?
@@ -409,7 +409,7 @@ pub struct VmGuestServicesReport {
 }
 
 pub async fn vm_guest_services(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     vm_id: Uuid,
 ) -> anyhow::Result<VmGuestServicesReport> {
@@ -477,12 +477,12 @@ pub struct HostOsDiagnoseReport {
 }
 
 pub async fn diagnose_host(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     host_id: Uuid,
     query: Option<&str>,
 ) -> anyhow::Result<HostOsDiagnoseReport> {
-    let hostname: String = sqlx::query_scalar("SELECT hostname FROM hosts WHERE id = $1")
+    let hostname: String = sqlx::query_scalar("SELECT hostname FROM hosts WHERE id = ?")
         .bind(host_id)
         .fetch_one(pool)
         .await?;
@@ -552,7 +552,7 @@ pub struct VmOsDiagnoseReport {
 }
 
 pub async fn diagnose_vm(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     vm_id: Uuid,
     query: Option<&str>,

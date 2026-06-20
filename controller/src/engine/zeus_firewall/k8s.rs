@@ -5,7 +5,7 @@ use machina_core::{
     FirewallPlanRequest,
 };
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
@@ -32,7 +32,7 @@ pub async fn compile_plan(
 }
 
 pub async fn apply_plan(
-    pool: &PgPool,
+    pool: &SqlitePool,
     namespace: &str,
     profile: &str,
     actor: &str,
@@ -49,7 +49,7 @@ pub async fn apply_plan(
     if !dry_run {
         let _ = sqlx::query(
             "INSERT INTO firewall_k8s_apply_log (namespace, profile, backend, actor, detail_json)
-             VALUES ($1, $2, $3, $4, $5)",
+             VALUES (?, ?, ?, ?, ?)",
         )
         .bind(namespace)
         .bind(profile)

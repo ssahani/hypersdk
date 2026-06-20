@@ -5,7 +5,7 @@ use machina_core::{
     FirewallPlanResult, OpenPort,
 };
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::agent_client;
@@ -42,7 +42,7 @@ pub struct FirewallTargetDetail {
     pub inventory: FirewallInventory,
 }
 
-pub async fn overview(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Result<FirewallOverview> {
+pub async fn overview(pool: &SqlitePool, cfg: &ControllerConfig) -> anyhow::Result<FirewallOverview> {
     let hosts: Vec<(Uuid, String, String, String)> = sqlx::query_as(
         "SELECT id, hostname, COALESCE(agent_grpc_addr, ''), state FROM hosts ORDER BY hostname",
     )
@@ -127,7 +127,7 @@ pub async fn overview(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Result<F
 }
 
 pub async fn target_detail(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     target_id: &str,
 ) -> anyhow::Result<FirewallTargetDetail> {
@@ -149,7 +149,7 @@ pub async fn target_detail(
 
     let id = Uuid::parse_str(target_id)?;
     if let Some(row) = sqlx::query_as::<_, (String, String, String)>(
-        "SELECT hostname, COALESCE(agent_grpc_addr, ''), state FROM hosts WHERE id = $1",
+        "SELECT hostname, COALESCE(agent_grpc_addr, ''), state FROM hosts WHERE id = ?",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -189,7 +189,7 @@ pub async fn target_detail(
 }
 
 pub async fn target_ports(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     target_id: &str,
 ) -> anyhow::Result<Vec<OpenPort>> {
@@ -198,7 +198,7 @@ pub async fn target_ports(
 }
 
 pub async fn target_services(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     target_id: &str,
 ) -> anyhow::Result<Vec<machina_core::firewall::types::AllowedService>> {
@@ -207,7 +207,7 @@ pub async fn target_services(
 }
 
 pub async fn target_score(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     target_id: &str,
 ) -> anyhow::Result<machina_core::FirewallScore> {
@@ -216,14 +216,14 @@ pub async fn target_score(
 }
 
 pub async fn plan_target(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     target_id: &str,
     req: FirewallPlanRequest,
 ) -> anyhow::Result<FirewallPlanResult> {
     if target_id != "local" {
         if let Ok(id) = Uuid::parse_str(target_id) {
-            if sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM hosts WHERE id = $1")
+            if sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM hosts WHERE id = ?")
                 .bind(id)
                 .fetch_one(pool)
                 .await?
@@ -243,7 +243,7 @@ pub async fn plan_target(
 }
 
 pub async fn apply_target(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     target_id: &str,
     req: FirewallPlanRequest,
@@ -251,7 +251,7 @@ pub async fn apply_target(
 ) -> anyhow::Result<FirewallPlanResult> {
     if target_id != "local" {
         if let Ok(id) = Uuid::parse_str(target_id) {
-            if sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM hosts WHERE id = $1")
+            if sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM hosts WHERE id = ?")
                 .bind(id)
                 .fetch_one(pool)
                 .await?
@@ -285,7 +285,7 @@ pub async fn apply_target(
         }
         let _ = sqlx::query(
             "INSERT INTO firewall_timeline (target_kind, target_id, kind, summary, detail_json, actor)
-             VALUES ('host', $1, 'apply', $2, $3, $4)",
+             VALUES ('host', ?, 'apply', ?, ?, ?)",
         )
         .bind(host_id)
         .bind(format!("Applied firewall plan ({})", apply_req.profile.as_deref().unwrap_or("custom")))
@@ -295,7 +295,7 @@ pub async fn apply_target(
         .await;
         let _ = sqlx::query(
             "INSERT INTO audit_logs (id, actor, action, resource_type, resource_id, detail)
-             VALUES ($1, $2, 'zeus_firewall.apply', 'host', $3, $4)",
+             VALUES (?, ?, 'zeus_firewall.apply', 'host', ?, ?)",
         )
         .bind(Uuid::new_v4())
         .bind(actor)
@@ -382,7 +382,7 @@ pub fn risk_label(inv: &FirewallInventory) -> &'static str {
 }
 
 async fn resolve_hostname(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     target_id: &str,
 ) -> anyhow::Result<String> {
@@ -391,7 +391,7 @@ async fn resolve_hostname(
     }
     let id = Uuid::parse_str(target_id)?;
     if let Some(hostname) =
-        sqlx::query_scalar::<_, String>("SELECT hostname FROM hosts WHERE id = $1")
+        sqlx::query_scalar::<_, String>("SELECT hostname FROM hosts WHERE id = ?")
             .bind(id)
             .fetch_optional(pool)
             .await?
@@ -403,7 +403,7 @@ async fn resolve_hostname(
 }
 
 async fn resolve_agent(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     target_id: &str,
 ) -> anyhow::Result<Option<String>> {
@@ -412,7 +412,7 @@ async fn resolve_agent(
     }
     let host_id = Uuid::parse_str(target_id)?;
     let addr: String =
-        sqlx::query_scalar("SELECT COALESCE(agent_grpc_addr, '') FROM hosts WHERE id = $1")
+        sqlx::query_scalar("SELECT COALESCE(agent_grpc_addr, '') FROM hosts WHERE id = ?")
             .bind(host_id)
             .fetch_one(pool)
             .await?;
@@ -424,7 +424,7 @@ async fn resolve_agent(
 }
 
 pub async fn apply_profile(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     target_id: &str,
     profile: &str,

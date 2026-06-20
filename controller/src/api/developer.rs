@@ -27,7 +27,7 @@ pub async fn export_vm_iac(
     Path(vm_id): Path<Uuid>,
 ) -> Result<Json<developer::VmExportBundle>, ApiError> {
     require_operator(&actor)?;
-    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(vm_id)
         .fetch_one(&state.pool)
         .await?;
@@ -37,10 +37,10 @@ pub async fn export_vm_iac(
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
             .await
-            .map_err(|e| ApiError::internal(e.to_string()))?;
+            .map_err(|e| ApiErrorernal(e.to_string()))?;
     let bundle = developer::export_vm_bundle(&state.pool, &agent_addr, vm_id)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     Ok(Json(bundle))
 }
 
@@ -50,7 +50,7 @@ pub async fn export_vm_iac_zip(
     Path(vm_id): Path<Uuid>,
 ) -> Result<Response, ApiError> {
     require_operator(&actor)?;
-    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(vm_id)
         .fetch_one(&state.pool)
         .await?;
@@ -60,10 +60,10 @@ pub async fn export_vm_iac_zip(
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
             .await
-            .map_err(|e| ApiError::internal(e.to_string()))?;
+            .map_err(|e| ApiErrorernal(e.to_string()))?;
     let (vm_name, bytes) = developer::export_vm_bundle_zip(&state.pool, &agent_addr, vm_id)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let disposition = format!("attachment; filename=\"{vm_name}-iac.zip\"");
     Ok((
         StatusCode::OK,

@@ -2,7 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
@@ -20,14 +20,14 @@ pub struct InfrastructureMemory {
     pub runbook_hints: Vec<String>,
 }
 
-pub async fn recall(pool: &PgPool, limit: i64) -> anyhow::Result<InfrastructureMemory> {
+pub async fn recall(pool: &SqlitePool, limit: i64) -> anyhow::Result<InfrastructureMemory> {
     let cap = limit.clamp(1, 50);
 
     let mut incidents = Vec::new();
 
     let structured: Vec<(DateTime<Utc>, String, String, String, Option<String>)> = sqlx::query_as(
         "SELECT created_at, severity, title, summary, root_cause FROM ai_incidents
-         ORDER BY created_at DESC LIMIT $1",
+         ORDER BY created_at DESC LIMIT ?",
     )
     .bind(cap)
     .fetch_all(pool)
@@ -54,7 +54,7 @@ pub async fn recall(pool: &PgPool, limit: i64) -> anyhow::Result<InfrastructureM
             OR action LIKE 'ai.autopilot%'
             OR action LIKE '%migrate%'
             OR action LIKE '%delete%'
-         ORDER BY created_at DESC LIMIT $1",
+         ORDER BY created_at DESC LIMIT ?",
     )
     .bind(cap)
     .fetch_all(pool)
@@ -116,7 +116,7 @@ pub struct SimilarIncidentsResult {
 }
 
 pub async fn similar(
-    pool: &PgPool,
+    pool: &SqlitePool,
     query: &str,
     limit: i64,
 ) -> anyhow::Result<SimilarIncidentsResult> {
@@ -125,9 +125,9 @@ pub async fn similar(
 
     let rows: Vec<(DateTime<Utc>, String, String, Option<serde_json::Value>)> = sqlx::query_as(
         "SELECT created_at, action, actor, detail FROM audit_logs
-         WHERE action ILIKE $1 OR actor ILIKE $1
-            OR detail::text ILIKE $1
-         ORDER BY created_at DESC LIMIT $2",
+         WHERE action LIKE ? OR actor LIKE ?
+            OR detail LIKE ?
+         ORDER BY created_at DESC LIMIT ?",
     )
     .bind(&pattern)
     .bind(cap)
@@ -174,13 +174,13 @@ pub struct ChangeBeforeOutage {
 }
 
 pub async fn changes_before_outage(
-    pool: &PgPool,
+    pool: &SqlitePool,
     incident_id: Option<Uuid>,
     hours_before: i32,
 ) -> anyhow::Result<ChangeBeforeOutage> {
     let window_start = if let Some(id) = incident_id {
         sqlx::query_scalar::<_, DateTime<Utc>>(
-            "SELECT COALESCE(window_start, created_at) FROM ai_incidents WHERE id = $1",
+            "SELECT COALESCE(window_start, created_at) FROM ai_incidents WHERE id = ?",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -194,9 +194,9 @@ pub async fn changes_before_outage(
 
     let rows: Vec<(DateTime<Utc>, String, String, Option<serde_json::Value>)> = sqlx::query_as(
         "SELECT created_at, actor, action, detail FROM audit_logs
-         WHERE created_at BETWEEN $1 AND $2
-           AND (action ILIKE '%network%' OR action ILIKE '%firewall%' OR action ILIKE '%migrate%'
-                OR action ILIKE '%storage%' OR action ILIKE '%delete%' OR action ILIKE '%update%')
+         WHERE created_at BETWEEN ? AND ?
+           AND (action LIKE '%network%' OR action LIKE '%firewall%' OR action LIKE '%migrate%'
+                OR action LIKE '%storage%' OR action LIKE '%delete%' OR action LIKE '%update%')
          ORDER BY created_at ASC LIMIT 50",
     )
     .bind(start)

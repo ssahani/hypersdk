@@ -3,7 +3,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct FleetConsoleEntry {
@@ -30,21 +30,21 @@ pub struct FleetConsoleOverview {
     pub entries: Vec<FleetConsoleEntry>,
 }
 
-pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetConsoleOverview> {
+pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetConsoleOverview> {
     let audit_24h: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM audit_logs WHERE created_at > NOW() - INTERVAL '24 hours'",
+        "SELECT COUNT(*) FROM audit_logs WHERE created_at > datetime('now', '-24 hours')",
     )
     .fetch_one(pool)
     .await?;
 
     let events_24h: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM events WHERE created_at > NOW() - INTERVAL '24 hours'",
+        "SELECT COUNT(*) FROM events WHERE created_at > datetime('now', '-24 hours')",
     )
     .fetch_one(pool)
     .await?;
 
     let tasks_failed_24h: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM tasks WHERE status = 'failed' AND created_at > NOW() - INTERVAL '24 hours'",
+        "SELECT COUNT(*) FROM tasks WHERE status = 'failed' AND created_at > datetime('now', '-24 hours')",
     )
     .fetch_one(pool)
     .await?;
@@ -66,10 +66,10 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetConsoleOverview> {
             r#"
             SELECT source, id, severity, actor, action, message, resource_type, created_at FROM (
                 SELECT
-                    'audit'::text AS source,
-                    id::text AS id,
+                    'audit' AS source,
+                    id AS id,
                     CASE
-                        WHEN action ILIKE '%fail%' OR action ILIKE '%delete%' OR action ILIKE '%fence%' THEN 'warn'
+                        WHEN action LIKE '%fail%' OR action LIKE '%delete%' OR action LIKE '%fence%' THEN 'warn'
                         ELSE 'info'
                     END AS severity,
                     actor,
@@ -80,14 +80,14 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetConsoleOverview> {
                 FROM audit_logs
                 UNION ALL
                 SELECT
-                    'event'::text,
-                    id::text,
+                    'event',
+                    id,
                     CASE
-                        WHEN kind ILIKE '%fail%' OR kind ILIKE '%error%' THEN 'error'
-                        WHEN kind ILIKE '%warn%' THEN 'warn'
+                        WHEN kind LIKE '%fail%' OR kind LIKE '%error%' THEN 'error'
+                        WHEN kind LIKE '%warn%' THEN 'warn'
                         ELSE 'info'
                     END,
-                    NULL::text,
+                    NULL,
                     kind,
                     message,
                     resource_type,
@@ -95,10 +95,10 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetConsoleOverview> {
                 FROM events
                 UNION ALL
                 SELECT
-                    'task'::text,
-                    id::text,
+                    'task',
+                    id,
                     CASE WHEN status = 'failed' THEN 'error' ELSE 'info' END,
-                    NULL::text,
+                    NULL,
                     operation,
                     COALESCE(NULLIF(message, ''), operation || ' — ' || status),
                     resource_type,

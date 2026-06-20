@@ -39,7 +39,7 @@ pub async fn list_vm_migration_jobs(
 ) -> Result<Json<Vec<MigrationJobRow>>, ApiError> {
     let rows = sqlx::query_as::<_, MigrationJobRow>(
         "SELECT id, vm_id, source_host_id, dest_host_id, live, status, progress, message, created_at
-         FROM migration_jobs WHERE vm_id = $1 ORDER BY created_at DESC LIMIT 50",
+         FROM migration_jobs WHERE vm_id = ? ORDER BY created_at DESC LIMIT 50",
     )
     .bind(vm_id)
     .fetch_all(&state.pool)

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 #[derive(Debug, Serialize)]
 pub struct CapacityPlan {
@@ -19,24 +19,24 @@ pub struct CapacityPlan {
     pub forecast_90d_vms: i64,
 }
 
-pub async fn plan(pool: &PgPool) -> anyhow::Result<CapacityPlan> {
+pub async fn plan(pool: &SqlitePool) -> anyhow::Result<CapacityPlan> {
     let hosts_online: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM hosts WHERE state = 'online'")
         .fetch_one(pool)
         .await?;
     let mem: (i64, i64) = sqlx::query_as(
-        "SELECT COALESCE(SUM(memory_total_mib), 0)::bigint, COALESCE(SUM(memory_used_mib), 0)::bigint FROM hosts WHERE state = 'online'",
+        "SELECT COALESCE(SUM(memory_total_mib), 0), COALESCE(SUM(memory_used_mib), 0) FROM hosts WHERE state = 'online'",
     )
     .fetch_one(pool)
     .await?;
     let avg_cpu: f32 = sqlx::query_scalar(
-        "SELECT COALESCE(AVG(cpu_percent)::double precision, 0)::real FROM hosts WHERE state = 'online'",
+        "SELECT COALESCE(AVG(cpu_percent)::double precision, 0) FROM hosts WHERE state = 'online'",
     )
     .fetch_one(pool)
     .await?;
     let memory_headroom_mib = mem.0.saturating_sub(mem.1);
 
     let (storage_used, storage_cap): (i64, i64) = sqlx::query_as(
-        "SELECT COALESCE(SUM(used_gib), 0)::bigint, COALESCE(SUM(capacity_gib), 0)::bigint FROM storage_pools",
+        "SELECT COALESCE(SUM(used_gib), 0), COALESCE(SUM(capacity_gib), 0) FROM storage_pools",
     )
     .fetch_one(pool)
     .await
@@ -99,7 +99,7 @@ pub async fn plan(pool: &PgPool) -> anyhow::Result<CapacityPlan> {
     })
 }
 
-pub async fn export_csv(pool: &PgPool) -> anyhow::Result<String> {
+pub async fn export_csv(pool: &SqlitePool) -> anyhow::Result<String> {
     let plan = plan(pool).await?;
     let mut csv = String::from("Machina Capacity Planner Export\nMetric,Value\n");
     csv.push_str(&format!("Hosts online,{}\n", plan.hosts_online));

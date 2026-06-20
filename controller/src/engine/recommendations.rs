@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Recommendation {
@@ -16,13 +16,13 @@ pub struct Recommendation {
     pub object_ref: Option<serde_json::Value>,
 }
 
-pub async fn generate_recommendations(pool: &PgPool) -> anyhow::Result<Vec<Recommendation>> {
+pub async fn generate_recommendations(pool: &SqlitePool) -> anyhow::Result<Vec<Recommendation>> {
     let mut out = Vec::new();
 
     let no_backup: Vec<(uuid::Uuid, String)> = sqlx::query_as(
         "SELECT v.id, v.name FROM vms v
          WHERE COALESCE(v.managed, TRUE) = TRUE
-           AND ('prod' = ANY(COALESCE(v.tags, '{}')) OR 'production' = ANY(COALESCE(v.tags, '{}')))
+           AND (EXISTS (SELECT 1 FROM json_each(COALESCE(v.tags,'[]')) WHERE value='prod') OR EXISTS (SELECT 1 FROM json_each(COALESCE(v.tags,'[]')) WHERE value='production'))
            AND NOT EXISTS (SELECT 1 FROM backup_records b WHERE b.vm_id = v.id AND b.status = 'completed')
          LIMIT 10",
     )
@@ -48,7 +48,7 @@ pub async fn generate_recommendations(pool: &PgPool) -> anyhow::Result<Vec<Recom
          LEFT JOIN ha_policies hp ON hp.vm_id = v.id
          WHERE COALESCE(hp.enabled, FALSE) = FALSE
            AND v.observed_state = 'running'
-           AND ('prod' = ANY(COALESCE(v.tags, '{}')) OR 'production' = ANY(COALESCE(v.tags, '{}')))
+           AND (EXISTS (SELECT 1 FROM json_each(COALESCE(v.tags,'[]')) WHERE value='prod') OR EXISTS (SELECT 1 FROM json_each(COALESCE(v.tags,'[]')) WHERE value='production'))
          LIMIT 10",
     )
     .fetch_all(pool)

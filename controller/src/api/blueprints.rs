@@ -18,7 +18,7 @@ pub struct BlueprintRow {
     pub name: String,
     pub description: String,
     pub actions: serde_json::Value,
-    pub vm_ids: Vec<Uuid>,
+    pub vm_ids: sqlx::types::Json<Vec<Uuid>>,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -66,18 +66,18 @@ pub async fn create_blueprint(
     let actions = serde_json::to_value(&body.actions).unwrap_or(serde_json::json!([]));
     sqlx::query(
         "INSERT INTO blueprints (id, cluster_id, name, description, actions, vm_ids)
-         VALUES ($1, $2, $3, $4, $5, $6)",
+         VALUES (?, ?, ?, ?, ?, ?)",
     )
     .bind(id)
     .bind(cluster_id)
     .bind(name)
     .bind(body.description.trim())
     .bind(actions)
-    .bind(&body.vm_ids)
+    .bind(serde_json::to_string(&body.vm_ids).unwrap_or_else(|_| "[]".into()))
     .execute(&state.pool)
     .await?;
     let row = sqlx::query_as::<_, BlueprintRow>(
-        "SELECT id, name, description, actions, vm_ids, created_at FROM blueprints WHERE id = $1",
+        "SELECT id, name, description, actions, vm_ids, created_at FROM blueprints WHERE id = ?",
     )
     .bind(id)
     .fetch_one(&state.pool)
@@ -92,7 +92,7 @@ pub async fn run_blueprint(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
     let row: (serde_json::Value, Vec<Uuid>) =
-        sqlx::query_as("SELECT actions, vm_ids FROM blueprints WHERE id = $1")
+        sqlx::query_as("SELECT actions, vm_ids FROM blueprints WHERE id = ?")
             .bind(id)
             .fetch_optional(&state.pool)
             .await?
@@ -101,7 +101,7 @@ pub async fn run_blueprint(
     let actions: Vec<String> = serde_json::from_value(row.0).unwrap_or_default();
     let mut task_ids = Vec::new();
     for vm_id in &row.1 {
-        let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+        let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
             .bind(vm_id)
             .fetch_optional(&state.pool)
             .await?
@@ -140,7 +140,7 @@ pub async fn delete_blueprint(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_admin(&actor)?;
-    let deleted = sqlx::query("DELETE FROM blueprints WHERE id = $1")
+    let deleted = sqlx::query("DELETE FROM blueprints WHERE id = ?")
         .bind(id)
         .execute(&state.pool)
         .await?;

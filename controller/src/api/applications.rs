@@ -56,7 +56,7 @@ pub async fn get_application(
 ) -> Result<Json<ApplicationGroupDetail>, ApiError> {
     require_operator(&actor)?;
     let group = sqlx::query_as::<_, ApplicationGroupRow>(
-        "SELECT id, name, description, created_at FROM application_groups WHERE id = $1",
+        "SELECT id, name, description, created_at FROM application_groups WHERE id = ?",
     )
     .bind(id)
     .fetch_optional(&state.pool)
@@ -65,7 +65,7 @@ pub async fn get_application(
 
     let vms: Vec<(Uuid, String)> = sqlx::query_as(
         "SELECT v.id, v.name FROM application_group_vms agv
-         JOIN vms v ON v.id = agv.vm_id WHERE agv.group_id = $1 ORDER BY v.name",
+         JOIN vms v ON v.id = agv.vm_id WHERE agv.group_id = ? ORDER BY v.name",
     )
     .bind(id)
     .fetch_all(&state.pool)
@@ -91,7 +91,7 @@ pub async fn create_application(
         .await?;
     let id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO application_groups (id, cluster_id, name, description) VALUES ($1, $2, $3, $4)",
+        "INSERT INTO application_groups (id, cluster_id, name, description) VALUES (?, ?, ?, ?)",
     )
     .bind(id)
     .bind(cluster_id)
@@ -100,7 +100,7 @@ pub async fn create_application(
     .execute(&state.pool)
     .await?;
     for vm_id in &body.vm_ids {
-        sqlx::query("INSERT INTO application_group_vms (group_id, vm_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
+        sqlx::query("INSERT INTO application_group_vms (group_id, vm_id) VALUES (?, ?) ON CONFLICT DO NOTHING")
             .bind(id)
             .bind(vm_id)
             .execute(&state.pool)
@@ -122,7 +122,7 @@ pub async fn run_application_action(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
     let vm_ids: Vec<Uuid> =
-        sqlx::query_scalar("SELECT vm_id FROM application_group_vms WHERE group_id = $1")
+        sqlx::query_scalar("SELECT vm_id FROM application_group_vms WHERE group_id = ?")
             .bind(id)
             .fetch_all(&state.pool)
             .await?;
@@ -131,7 +131,7 @@ pub async fn run_application_action(
     }
     let mut task_ids = Vec::new();
     for vm_id in vm_ids {
-        let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+        let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
             .bind(vm_id)
             .fetch_optional(&state.pool)
             .await?

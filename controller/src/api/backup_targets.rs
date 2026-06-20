@@ -50,7 +50,7 @@ pub async fn create_backup_target(
     require_operator(&actor)?;
     machina_spec::validate_name(&body.name).map_err(|e| ApiError::bad_request(e.to_string()))?;
     let id = Uuid::new_v4();
-    sqlx::query("INSERT INTO backup_targets (id, name, kind, config_json) VALUES ($1, $2, $3, $4)")
+    sqlx::query("INSERT INTO backup_targets (id, name, kind, config_json) VALUES (?, ?, ?, ?)")
         .bind(id)
         .bind(&body.name)
         .bind(&body.kind)
@@ -58,7 +58,7 @@ pub async fn create_backup_target(
         .execute(&state.pool)
         .await?;
     let row = sqlx::query_as::<_, BackupTargetRow>(
-        "SELECT id, name, kind, config_json FROM backup_targets WHERE id = $1",
+        "SELECT id, name, kind, config_json FROM backup_targets WHERE id = ?",
     )
     .bind(id)
     .fetch_one(&state.pool)

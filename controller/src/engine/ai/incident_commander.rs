@@ -2,7 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use super::knowledge_runbook;
@@ -31,7 +31,7 @@ pub struct IncidentRoom {
     pub correlated_count: usize,
 }
 
-pub async fn list_active(pool: &PgPool) -> anyhow::Result<Vec<ActiveIncident>> {
+pub async fn list_active(pool: &SqlitePool) -> anyhow::Result<Vec<ActiveIncident>> {
     let rows: Vec<(
         Uuid,
         String,
@@ -93,7 +93,7 @@ pub async fn list_active(pool: &PgPool) -> anyhow::Result<Vec<ActiveIncident>> {
         .collect())
 }
 
-pub async fn open_room(pool: &PgPool, incident_id: Uuid) -> anyhow::Result<IncidentRoom> {
+pub async fn open_room(pool: &SqlitePool, incident_id: Uuid) -> anyhow::Result<IncidentRoom> {
     let row: Option<(
         String,
         String,
@@ -107,7 +107,7 @@ pub async fn open_room(pool: &PgPool, incident_id: Uuid) -> anyhow::Result<Incid
     )> = sqlx::query_as(
         "SELECT title, summary, severity, status, affected_resources, root_cause,
                 created_at, window_start, window_end
-         FROM ai_incidents WHERE id = $1",
+         FROM ai_incidents WHERE id = ?",
     )
     .bind(incident_id)
     .fetch_optional(pool)
@@ -185,9 +185,9 @@ pub async fn open_room(pool: &PgPool, incident_id: Uuid) -> anyhow::Result<Incid
     })
 }
 
-pub async fn ack(pool: &PgPool, incident_id: Uuid) -> anyhow::Result<()> {
+pub async fn ack(pool: &SqlitePool, incident_id: Uuid) -> anyhow::Result<()> {
     sqlx::query(
-        "UPDATE ai_incidents SET status = 'investigating', updated_at = NOW() WHERE id = $1",
+        "UPDATE ai_incidents SET status = 'investigating', updated_at = datetime('now') WHERE id = ?",
     )
     .bind(incident_id)
     .execute(pool)
@@ -206,11 +206,11 @@ pub struct CreateIncidentRequest {
     pub window_end: Option<DateTime<Utc>>,
 }
 
-pub async fn create(pool: &PgPool, req: &CreateIncidentRequest) -> anyhow::Result<Uuid> {
+pub async fn create(pool: &SqlitePool, req: &CreateIncidentRequest) -> anyhow::Result<Uuid> {
     let resources = serde_json::json!(req.affected_resources);
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO ai_incidents (title, summary, severity, status, affected_resources, root_cause, window_start, window_end)
-         VALUES ($1, $2, $3, 'open', $4, $5, $6, $7) RETURNING id",
+         VALUES (?, ?, ?, 'open', ?, ?, ?, ?) RETURNING id",
     )
     .bind(&req.title)
     .bind(&req.summary)
@@ -225,22 +225,22 @@ pub async fn create(pool: &PgPool, req: &CreateIncidentRequest) -> anyhow::Resul
 }
 
 /// Correlate recent failures into a new incident if none open.
-pub async fn correlate_and_open(pool: &PgPool) -> anyhow::Result<Option<Uuid>> {
+pub async fn correlate_and_open(pool: &SqlitePool) -> anyhow::Result<Option<Uuid>> {
     let active = list_active(pool).await?;
     if !active.is_empty() {
         return Ok(None);
     }
 
     let failed_events: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM events WHERE created_at > NOW() - interval '1 hour'
-         AND (kind ILIKE '%fail%' OR kind ILIKE '%error%')",
+        "SELECT COUNT(*) FROM events WHERE created_at > datetime('now') - interval '1 hour'
+         AND (kind LIKE '%fail%' OR kind LIKE '%error%')",
     )
     .fetch_one(pool)
     .await
     .unwrap_or(0);
 
     let failed_tasks: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM tasks WHERE status = 'failed' AND created_at > NOW() - interval '1 hour'",
+        "SELECT COUNT(*) FROM tasks WHERE status = 'failed' AND created_at > datetime('now') - interval '1 hour'",
     )
     .fetch_one(pool)
     .await

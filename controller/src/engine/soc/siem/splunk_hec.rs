@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde_json::json;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use super::{
@@ -10,7 +10,7 @@ use super::{
 };
 
 pub async fn forward(
-    pool: &PgPool,
+    pool: &SqlitePool,
     integ: &IntegrationRow,
     controller_id: &str,
 ) -> anyhow::Result<usize> {

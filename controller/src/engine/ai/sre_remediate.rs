@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 #[derive(Debug, Serialize)]
 pub struct SreRemediation {
@@ -21,7 +21,7 @@ pub struct SreRemediationReport {
     pub summary: String,
 }
 
-pub async fn propose(pool: &PgPool) -> anyhow::Result<SreRemediationReport> {
+pub async fn propose(pool: &SqlitePool) -> anyhow::Result<SreRemediationReport> {
     let forecast = super::sre_predict::forecast(pool).await?;
     let mut remediations = Vec::new();
 

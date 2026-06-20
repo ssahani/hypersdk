@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::state::AppState;
@@ -14,7 +14,7 @@ const HEARTBEAT_STALE_SECS: i64 = 90;
 
 pub fn spawn(state: AppState) {
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(45));
+        let mut interval = tokio::timeerval(Duration::from_secs(45));
         loop {
             interval.tick().await;
             if !state.leader.is_leader() {
@@ -39,13 +39,13 @@ async fn mark_stale_hosts(state: &AppState) -> anyhow::Result<()> {
         "SELECT id, hostname FROM hosts
          WHERE state = 'online'
            AND last_heartbeat_at IS NOT NULL
-           AND last_heartbeat_at < NOW() - INTERVAL '90 seconds'",
+           AND last_heartbeat_at < datetime('now', '-90 seconds')",
     )
     .fetch_all(pool)
     .await?;
 
     for (id, hostname) in stale {
-        sqlx::query("UPDATE hosts SET state = 'offline' WHERE id = $1")
+        sqlx::query("UPDATE hosts SET state = 'offline' WHERE id = ?")
             .bind(id)
             .execute(pool)
             .await?;
@@ -62,7 +62,7 @@ async fn mark_stale_hosts(state: &AppState) -> anyhow::Result<()> {
             "SELECT EXISTS(
                SELECT 1 FROM ha_policies hp
                JOIN vms v ON v.id = hp.vm_id
-               WHERE v.host_id = $1 AND hp.enabled = TRUE AND hp.fence_on_failure = TRUE
+               WHERE v.host_id = ? AND hp.enabled = TRUE AND hp.fence_on_failure = TRUE
              )",
         )
         .bind(id)
@@ -112,7 +112,7 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
 
         let dest: Option<Uuid> = sqlx::query_scalar(
             "SELECT id FROM hosts
-             WHERE id != $1 AND state = 'online' AND maintenance_mode = FALSE
+             WHERE id != ? AND state = 'online' AND maintenance_mode = FALSE
              ORDER BY vm_count, memory_used_mib LIMIT 1",
         )
         .bind(failed_host)
@@ -132,8 +132,8 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
         };
 
         sqlx::query(
-            "UPDATE vms SET host_id = $1, ha_recovery_count = ha_recovery_count + 1, updated_at = NOW()
-             WHERE id = $2",
+            "UPDATE vms SET host_id = ?, ha_recovery_count = ha_recovery_count + 1, updated_at = datetime('now')
+             WHERE id = ?",
         )
         .bind(dest_host)
         .bind(vm_id)
@@ -171,14 +171,14 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
 }
 
 async fn record_ha_event(
-    pool: &PgPool,
+    pool: &SqlitePool,
     vm_id: Option<Uuid>,
     host_id: Option<Uuid>,
     action: &str,
     message: &str,
 ) -> anyhow::Result<()> {
     sqlx::query(
-        "INSERT INTO ha_events (id, vm_id, host_id, action, message) VALUES ($1, $2, $3, $4, $5)",
+        "INSERT INTO ha_events (id, vm_id, host_id, action, message) VALUES (?, ?, ?, ?, ?)",
     )
     .bind(Uuid::new_v4())
     .bind(vm_id)
@@ -197,12 +197,12 @@ pub struct HaStatusRow {
     pub recent_events: i64,
 }
 
-pub async fn ha_status(pool: &PgPool) -> anyhow::Result<(HaStatusRow, Vec<HaEventRow>)> {
+pub async fn ha_status(pool: &SqlitePool) -> anyhow::Result<(HaStatusRow, Vec<HaEventRow>)> {
     let status: HaStatusRow = sqlx::query_as(
         "SELECT
            (SELECT COUNT(*) FROM ha_policies WHERE enabled = TRUE) AS enabled_vms,
            (SELECT COUNT(*) FROM hosts WHERE state = 'offline') AS offline_hosts,
-           (SELECT COUNT(*) FROM ha_events WHERE created_at > NOW() - INTERVAL '24 hours') AS recent_events",
+           (SELECT COUNT(*) FROM ha_events WHERE created_at > datetime('now', '-24 hours')) AS recent_events",
     )
     .fetch_one(pool)
     .await?;

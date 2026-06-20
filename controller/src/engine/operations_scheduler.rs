@@ -1,14 +1,14 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 // Scheduled runbook triggers from catalog auto_trigger hints.
 
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::config::ControllerConfig;
 use crate::state::AppState;
 
 pub fn spawn(state: AppState) {
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(600));
+        let mut interval = tokio::timeerval(std::time::Duration::from_secs(600));
         loop {
             interval.tick().await;
             if let Err(e) = tick_triggers(&state.pool, &state.config).await {
@@ -18,7 +18,7 @@ pub fn spawn(state: AppState) {
     });
 }
 
-async fn tick_triggers(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Result<()> {
+async fn tick_triggers(pool: &SqlitePool, cfg: &ControllerConfig) -> anyhow::Result<()> {
     let rows: Vec<(String, Option<String>, Option<chrono::DateTime<chrono::Utc>>)> = sqlx::query_as(
         "SELECT incident, auto_trigger, last_triggered_at FROM ops_runbook_catalog WHERE enabled = true AND auto_trigger IS NOT NULL",
     )
@@ -42,7 +42,7 @@ async fn tick_triggers(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Result<
             &serde_json::json!({ "auto_trigger": trigger }),
         )
         .await;
-        sqlx::query("UPDATE ops_runbook_catalog SET last_triggered_at = NOW() WHERE incident = $1")
+        sqlx::query("UPDATE ops_runbook_catalog SET last_triggered_at = datetime('now') WHERE incident = ?")
             .bind(&incident)
             .execute(pool)
             .await?;
@@ -52,7 +52,7 @@ async fn tick_triggers(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Result<
 }
 
 async fn trigger_fired(
-    pool: &PgPool,
+    pool: &SqlitePool,
     _cfg: &ControllerConfig,
     trigger: &str,
 ) -> anyhow::Result<bool> {
@@ -64,7 +64,7 @@ async fn trigger_fired(
     }
     if trigger == "task.failed:backup" {
         let n: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM tasks WHERE status = 'failed' AND operation LIKE '%backup%' AND created_at > NOW() - INTERVAL '1 hour'",
+            "SELECT COUNT(*) FROM tasks WHERE status = 'failed' AND operation LIKE '%backup%' AND created_at > datetime('now', '-1 hours')",
         )
         .fetch_one(pool)
         .await?;
@@ -72,7 +72,7 @@ async fn trigger_fired(
     }
     if trigger == "zeus.drift_detected" {
         let n: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM firewall_timeline WHERE kind = 'drift' AND created_at > NOW() - INTERVAL '24 hours'",
+            "SELECT COUNT(*) FROM firewall_timeline WHERE kind = 'drift' AND created_at > datetime('now', '-24 hours')",
         )
         .fetch_one(pool)
         .await?;

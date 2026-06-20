@@ -2,7 +2,7 @@
 // Fleet desktop aggregator (Phase 35).
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::config::ControllerConfig;
 use crate::engine::ai::zeus_summary;
@@ -29,7 +29,7 @@ pub struct FleetDesktopOverview {
 }
 
 pub async fn overview(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
 ) -> anyhow::Result<FleetDesktopOverview> {
     let zeus = zeus_summary::summarize(pool).await?;
@@ -56,7 +56,7 @@ pub async fn overview(
             .fetch_one(pool)
             .await?;
     let failed_tasks_24h: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM tasks WHERE status = 'failed' AND created_at > NOW() - INTERVAL '24 hours'",
+        "SELECT COUNT(*) FROM tasks WHERE status = 'failed' AND created_at > datetime('now', '-24 hours')",
     )
     .fetch_one(pool)
     .await?;

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Deserialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -35,10 +35,10 @@ struct UserInfo {
     name: Option<String>,
 }
 
-pub async fn load_config(pool: &PgPool, fallback_redirect: &str) -> anyhow::Result<OidcConfig> {
+pub async fn load_config(pool: &SqlitePool, fallback_redirect: &str) -> anyhow::Result<OidcConfig> {
     let row: (bool, String, String, String, String) = sqlx::query_as(
         "SELECT oidc_enabled, oidc_issuer, oidc_client_id, oidc_client_secret,
-                COALESCE(NULLIF(oidc_redirect_uri, ''), $1)
+                COALESCE(NULLIF(oidc_redirect_uri, ''), ?)
          FROM clusters ORDER BY created_at LIMIT 1",
     )
     .bind(fallback_redirect)
@@ -53,10 +53,10 @@ pub async fn load_config(pool: &PgPool, fallback_redirect: &str) -> anyhow::Resu
     })
 }
 
-pub async fn begin_login(pool: &PgPool, cfg: &OidcConfig) -> anyhow::Result<(String, String)> {
+pub async fn begin_login(pool: &SqlitePool, cfg: &OidcConfig) -> anyhow::Result<(String, String)> {
     let discovery = fetch_discovery(&cfg.issuer).await?;
     let state = Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO oidc_states (state) VALUES ($1)")
+    sqlx::query("INSERT INTO oidc_states (state) VALUES (?)")
         .bind(&state)
         .execute(pool)
         .await?;
@@ -71,14 +71,14 @@ pub async fn begin_login(pool: &PgPool, cfg: &OidcConfig) -> anyhow::Result<(Str
 }
 
 pub async fn complete_login(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &OidcConfig,
     jwt_secret: &str,
     code: &str,
     state: &str,
 ) -> anyhow::Result<(String, String, String)> {
     let valid: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM oidc_states WHERE state = $1 AND created_at > NOW() - INTERVAL '10 minutes')",
+        "SELECT EXISTS(SELECT 1 FROM oidc_states WHERE state = ? AND created_at > datetime('now', '-10 minutes'))",
     )
     .bind(state)
     .fetch_one(pool)
@@ -86,7 +86,7 @@ pub async fn complete_login(
     if !valid {
         anyhow::bail!("invalid or expired OIDC state");
     }
-    sqlx::query("DELETE FROM oidc_states WHERE state = $1")
+    sqlx::query("DELETE FROM oidc_states WHERE state = ?")
         .bind(state)
         .execute(pool)
         .await?;
@@ -148,7 +148,7 @@ pub async fn complete_login(
         )
     };
 
-    let role: String = match sqlx::query_scalar("SELECT role FROM users WHERE username = $1")
+    let role: String = match sqlx::query_scalar("SELECT role FROM users WHERE username = ?")
         .bind(&username)
         .fetch_optional(pool)
         .await?
@@ -157,7 +157,7 @@ pub async fn complete_login(
         None => {
             let role = "viewer".to_string();
             sqlx::query(
-                "INSERT INTO users (id, username, password_hash, role) VALUES ($1, $2, $3, $4)",
+                "INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)",
             )
             .bind(Uuid::new_v4())
             .bind(&username)

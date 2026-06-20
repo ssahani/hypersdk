@@ -14,7 +14,7 @@ pub async fn list_recommendations(
 ) -> Result<Json<Vec<PlacementRecommendationRow>>, ApiError> {
     let rows = compute_recommendations(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let _ = persist_recommendations(&state.pool, &rows).await;
     Ok(Json(rows))
 }

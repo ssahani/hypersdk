@@ -2,7 +2,7 @@
 // Maintenance Mission plan — 7-step guided patch timeline (Phase 55 v1).
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -206,7 +206,7 @@ fn build_steps(
 }
 
 pub async fn overview(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
 ) -> anyhow::Result<FleetMaintenanceMissionOverview> {
     let updates = fleet_updates::overview(pool, cfg).await?;

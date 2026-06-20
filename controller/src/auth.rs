@@ -36,12 +36,12 @@ pub fn require_operator(user: &AuthUser) -> Result<(), crate::api::ApiError> {
 }
 
 pub async fn authenticate(
-    pool: &sqlx::PgPool,
+    pool: &sqlx::SqlitePool,
     username: &str,
     password: &str,
 ) -> anyhow::Result<Option<AuthUser>> {
     let row: Option<(String, String)> =
-        sqlx::query_as("SELECT password_hash, role FROM users WHERE username = $1")
+        sqlx::query_as("SELECT password_hash, role FROM users WHERE username = ?")
             .bind(username)
             .fetch_optional(pool)
             .await?;

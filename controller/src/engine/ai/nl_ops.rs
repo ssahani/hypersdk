@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use super::actions::{self, CreateActionBody};
@@ -41,7 +41,7 @@ pub struct NlOpsPlan {
     pub reply: String,
 }
 
-pub async fn execute(pool: &PgPool, req: &NlOpsRequest, actor: &str) -> anyhow::Result<NlOpsPlan> {
+pub async fn execute(pool: &SqlitePool, req: &NlOpsRequest, actor: &str) -> anyhow::Result<NlOpsPlan> {
     let q = req.query.trim();
     let ql = q.to_lowercase();
 
@@ -101,7 +101,7 @@ pub async fn execute(pool: &PgPool, req: &NlOpsRequest, actor: &str) -> anyhow::
         let vms: Vec<(Uuid, String)> = if let Some(h) = &host_hint {
             sqlx::query_as(
                 "SELECT v.id, v.name FROM vms v JOIN hosts h ON h.id = v.host_id
-                 WHERE h.hostname ILIKE $1 OR h.id::text = $1",
+                 WHERE h.hostname LIKE ? OR h.id = ?",
             )
             .bind(h)
             .fetch_all(pool)

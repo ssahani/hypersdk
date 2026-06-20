@@ -80,7 +80,7 @@ The **web UI** proxies all `/api/...` and `/ws/...` requests to `machina-daemon`
 |-------|--------|------|
 | `core` | — | Shared types: VM/host/config structs, libvirt helpers, XML builders, audit, fleet placement |
 | `daemon` | `machina-daemon` | Single-host REST+WS API server (Axum/Tokio), auth, console proxies |
-| `controller` | `machina-controller` | Multi-host control plane: fleet, HA, DRS, AI engine, Postgres, NATS tasks |
+| `controller` | `machina-controller` | Multi-host control plane: fleet, HA, DRS, AI engine, SQLite embedded, NATS tasks |
 | `agent` | `machina-agent` | Per-host gRPC agent (tonic) executing libvirt ops for the controller |
 | `tui` | `machina-tui` / `machina` | Terminal UI (ratatui) |
 | `spec` | — | Declarative VM/cluster spec types (Serde structs mirroring the gRPC proto) |
@@ -107,7 +107,7 @@ The **web UI** proxies all `/api/...` and `/ws/...` requests to `machina-daemon`
 
 ### Controller config (env vars)
 ```
-DATABASE_URL          postgres://machina:machina@127.0.0.1:5432/machina
+DATABASE_URL          sqlite:///var/lib/machina/controller.db   (embedded, no PostgreSQL needed)
 NATS_URL              nats://127.0.0.1:4222   (optional, enables NATS task fan-out)
 MACHINA_AGENT_ADDR    http://127.0.0.1:50051
 MACHINA_JWT_SECRET    change-me

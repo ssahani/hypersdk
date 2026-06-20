@@ -2,7 +2,7 @@
 // Mission Control geography aggregator (site → rack → host).
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
@@ -87,7 +87,7 @@ fn map_host(row: MissionHostRow) -> MissionHost {
     }
 }
 
-pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetMissionOverview> {
+pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetMissionOverview> {
     let rows = sqlx::query_as::<_, MissionHostRow>(MISSION_HOST_SQL)
         .fetch_all(pool)
         .await?;

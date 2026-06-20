@@ -37,7 +37,7 @@ async fn reconcile_once(state: &AppState) -> anyhow::Result<()> {
 
     for (vm_id, name, desired, observed) in rows {
         tracing::info!("reconcile VM {name}: desired={desired} observed={observed}");
-        let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+        let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
             .bind(vm_id)
             .fetch_optional(&state.pool)
             .await?;

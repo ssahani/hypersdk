@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
@@ -42,7 +42,7 @@ pub struct AttackPathResult {
     pub summary: String,
 }
 
-pub async fn build_graph(pool: &PgPool) -> anyhow::Result<SecurityGraph> {
+pub async fn build_graph(pool: &SqlitePool) -> anyhow::Result<SecurityGraph> {
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
 
@@ -157,18 +157,18 @@ pub async fn build_graph(pool: &PgPool) -> anyhow::Result<SecurityGraph> {
     Ok(SecurityGraph { nodes, edges })
 }
 
-pub async fn attack_path(pool: &PgPool, q: &AttackPathQuery) -> anyhow::Result<AttackPathResult> {
+pub async fn attack_path(pool: &SqlitePool, q: &AttackPathQuery) -> anyhow::Result<AttackPathResult> {
     let graph = build_graph(pool).await?;
     let target_id: Option<Uuid> = if let Ok(u) = Uuid::parse_str(&q.target_vm) {
         Some(u)
     } else {
-        sqlx::query_scalar("SELECT id FROM vms WHERE name = $1")
+        sqlx::query_scalar("SELECT id FROM vms WHERE name = ?")
             .bind(&q.target_vm)
             .fetch_optional(pool)
             .await?
     };
     let target_label = if let Some(id) = target_id {
-        sqlx::query_scalar::<_, String>("SELECT name FROM vms WHERE id = $1")
+        sqlx::query_scalar::<_, String>("SELECT name FROM vms WHERE id = ?")
             .bind(id)
             .fetch_optional(pool)
             .await?

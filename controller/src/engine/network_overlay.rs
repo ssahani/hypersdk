@@ -7,7 +7,7 @@ use machina_core::{
     EastWestDefault, FirewallInventory, FirewallPosture, SegmentTier,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -118,7 +118,7 @@ pub struct EmergencyUnlockResult {
     pub summary: String,
 }
 
-pub async fn segments_overview(pool: &PgPool) -> anyhow::Result<SegmentsOverview> {
+pub async fn segments_overview(pool: &SqlitePool) -> anyhow::Result<SegmentsOverview> {
     let rows: Vec<SegmentRow> = sqlx::query_as(
         "SELECT id, name, tier, cidr, east_west_default, firewall_profile, gitops_namespace
          FROM network_segments ORDER BY tier, name",
@@ -129,7 +129,7 @@ pub async fn segments_overview(pool: &PgPool) -> anyhow::Result<SegmentsOverview
     let mut segments = Vec::new();
     for row in rows {
         let network_count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM networks WHERE segment_id = $1")
+            sqlx::query_scalar("SELECT COUNT(*) FROM networks WHERE segment_id = ?")
                 .bind(row.id)
                 .fetch_one(pool)
                 .await?;
@@ -137,7 +137,7 @@ pub async fn segments_overview(pool: &PgPool) -> anyhow::Result<SegmentsOverview
         let vm_count: i64 = sqlx::query_scalar(
             "SELECT COUNT(DISTINCT nr.vm_id) FROM network_reservations nr
              JOIN networks n ON n.id = nr.network_id
-             WHERE n.segment_id = $1 AND nr.vm_id IS NOT NULL",
+             WHERE n.segment_id = ? AND nr.vm_id IS NOT NULL",
         )
         .bind(row.id)
         .fetch_one(pool)
@@ -175,7 +175,7 @@ pub async fn segments_overview(pool: &PgPool) -> anyhow::Result<SegmentsOverview
 }
 
 pub async fn create_segment(
-    pool: &PgPool,
+    pool: &SqlitePool,
     req: &CreateSegmentRequest,
 ) -> anyhow::Result<SegmentRow> {
     validate_cidr(&req.cidr).map_err(|e| anyhow::anyhow!(e))?;
@@ -188,7 +188,7 @@ pub async fn create_segment(
     sqlx::query(
         "INSERT INTO network_segments
          (id, name, tier, cidr, east_west_default, firewall_profile, gitops_namespace)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(id)
     .bind(req.name.trim())
@@ -205,7 +205,7 @@ pub async fn create_segment(
         let gateway = ip_from_cidr_offset(&req.cidr, 1).ok();
         sqlx::query(
             "INSERT INTO network_ipam_pools (id, segment_id, cidr, gateway, dns_json, next_offset)
-             VALUES ($1, $2, $3, $4, $5, 10)",
+             VALUES (?, ?, ?, ?, ?, 10)",
         )
         .bind(pool_id)
         .bind(id)
@@ -219,15 +219,15 @@ pub async fn create_segment(
     fetch_segment(pool, id).await
 }
 
-pub async fn bind_network(pool: &PgPool, network_id: Uuid, segment_id: Uuid) -> anyhow::Result<()> {
-    let exists: Option<Uuid> = sqlx::query_scalar("SELECT id FROM network_segments WHERE id = $1")
+pub async fn bind_network(pool: &SqlitePool, network_id: Uuid, segment_id: Uuid) -> anyhow::Result<()> {
+    let exists: Option<Uuid> = sqlx::query_scalar("SELECT id FROM network_segments WHERE id = ?")
         .bind(segment_id)
         .fetch_optional(pool)
         .await?;
     if exists.is_none() {
         anyhow::bail!("segment not found");
     }
-    let r = sqlx::query("UPDATE networks SET segment_id = $1 WHERE id = $2")
+    let r = sqlx::query("UPDATE networks SET segment_id = ? WHERE id = ?")
         .bind(segment_id)
         .bind(network_id)
         .execute(pool)
@@ -239,7 +239,7 @@ pub async fn bind_network(pool: &PgPool, network_id: Uuid, segment_id: Uuid) -> 
 }
 
 pub async fn ipam_allocate(
-    pool: &PgPool,
+    pool: &SqlitePool,
     segment_id: Uuid,
     req: &IpamAllocateRequest,
 ) -> anyhow::Result<IpamAllocation> {
@@ -247,7 +247,7 @@ pub async fn ipam_allocate(
 
     let pool_row: (Uuid, String, i32) = if let Some(pid) = req.pool_id {
         sqlx::query_as(
-            "SELECT id, cidr, next_offset FROM network_ipam_pools WHERE id = $1 AND segment_id = $2",
+            "SELECT id, cidr, next_offset FROM network_ipam_pools WHERE id = ? AND segment_id = ?",
         )
         .bind(pid)
         .bind(segment_id)
@@ -256,7 +256,7 @@ pub async fn ipam_allocate(
         .ok_or_else(|| anyhow::anyhow!("IPAM pool not found for segment"))?
     } else {
         sqlx::query_as(
-            "SELECT id, cidr, next_offset FROM network_ipam_pools WHERE segment_id = $1 ORDER BY created_at LIMIT 1",
+            "SELECT id, cidr, next_offset FROM network_ipam_pools WHERE segment_id = ? ORDER BY created_at LIMIT 1",
         )
         .bind(segment_id)
         .fetch_optional(pool)
@@ -268,7 +268,7 @@ pub async fn ipam_allocate(
     let ip = ip_from_cidr_offset(&cidr, offset as u32).map_err(|e| anyhow::anyhow!(e))?;
     let next = offset + 1;
 
-    sqlx::query("UPDATE network_ipam_pools SET next_offset = $1 WHERE id = $2")
+    sqlx::query("UPDATE network_ipam_pools SET next_offset = ? WHERE id = ?")
         .bind(next)
         .bind(pool_id)
         .execute(pool)
@@ -278,7 +278,7 @@ pub async fn ipam_allocate(
         nid
     } else {
         let nid: Option<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM networks WHERE segment_id = $1 ORDER BY name LIMIT 1",
+            "SELECT id FROM networks WHERE segment_id = ? ORDER BY name LIMIT 1",
         )
         .bind(segment_id)
         .fetch_optional(pool)
@@ -289,7 +289,7 @@ pub async fn ipam_allocate(
     let reservation_id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO network_reservations (id, network_id, ip_address, pool_id, hostname)
-         VALUES ($1, $2, $3, $4, $5)",
+         VALUES (?, ?, ?, ?, ?)",
     )
     .bind(reservation_id)
     .bind(network_id)
@@ -310,7 +310,7 @@ pub async fn ipam_allocate(
 }
 
 pub async fn segment_connectivity(
-    pool: &PgPool,
+    pool: &SqlitePool,
     segment_id: Uuid,
 ) -> anyhow::Result<SegmentConnectivityResult> {
     let segment = fetch_segment(pool, segment_id).await?;
@@ -325,7 +325,7 @@ pub async fn segment_connectivity(
     let vm_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(DISTINCT nr.vm_id) FROM network_reservations nr
          JOIN networks n ON n.id = nr.network_id
-         WHERE n.segment_id = $1 AND nr.vm_id IS NOT NULL",
+         WHERE n.segment_id = ? AND nr.vm_id IS NOT NULL",
     )
     .bind(segment_id)
     .fetch_one(pool)
@@ -343,7 +343,7 @@ pub async fn segment_connectivity(
     })
 }
 
-pub async fn export_gitops(pool: &PgPool) -> anyhow::Result<SegmentGitOpsExport> {
+pub async fn export_gitops(pool: &SqlitePool) -> anyhow::Result<SegmentGitOpsExport> {
     let rows: Vec<SegmentRow> = sqlx::query_as(
         "SELECT id, name, tier, cidr, east_west_default, firewall_profile, gitops_namespace
          FROM network_segments ORDER BY name",
@@ -385,12 +385,12 @@ pub async fn export_gitops(pool: &PgPool) -> anyhow::Result<SegmentGitOpsExport>
 }
 
 pub async fn emergency_unlock(
-    pool: &PgPool,
+    pool: &SqlitePool,
     segment_id: Uuid,
 ) -> anyhow::Result<EmergencyUnlockResult> {
     let segment = fetch_segment(pool, segment_id).await?;
     let previous = segment.east_west_default.clone();
-    sqlx::query("UPDATE network_segments SET east_west_default = 'allow' WHERE id = $1")
+    sqlx::query("UPDATE network_segments SET east_west_default = 'allow' WHERE id = ?")
         .bind(segment_id)
         .execute(pool)
         .await?;
@@ -404,7 +404,7 @@ pub async fn emergency_unlock(
     })
 }
 
-pub async fn list_ipam_pools(pool: &PgPool) -> anyhow::Result<Vec<IpamPoolRow>> {
+pub async fn list_ipam_pools(pool: &SqlitePool) -> anyhow::Result<Vec<IpamPoolRow>> {
     let rows = sqlx::query_as(
         "SELECT p.id, p.segment_id, s.name AS segment_name, p.cidr, p.gateway, p.next_offset,
                 (SELECT COUNT(*) FROM network_reservations r WHERE r.pool_id = p.id) AS reservation_count
@@ -428,10 +428,10 @@ pub struct IpamPoolRow {
     pub reservation_count: i64,
 }
 
-async fn fetch_segment(pool: &PgPool, id: Uuid) -> anyhow::Result<SegmentRow> {
+async fn fetch_segment(pool: &SqlitePool, id: Uuid) -> anyhow::Result<SegmentRow> {
     sqlx::query_as(
         "SELECT id, name, tier, cidr, east_west_default, firewall_profile, gitops_namespace
-         FROM network_segments WHERE id = $1",
+         FROM network_segments WHERE id = ?",
     )
     .bind(id)
     .fetch_one(pool)
@@ -523,7 +523,7 @@ fn switch_key(neighbor: &machina_core::libvirt::host_network::LldpNeighbor) -> S
     }
 }
 
-pub async fn refresh_lldp_cache(pool: &PgPool, max_age_secs: i64) -> anyhow::Result<usize> {
+pub async fn refresh_lldp_cache(pool: &SqlitePool, max_age_secs: i64) -> anyhow::Result<usize> {
     let hosts: Vec<(Uuid, String, String)> = sqlx::query_as(
         "SELECT id, hostname, COALESCE(NULLIF(agent_console_addr, ''), agent_grpc_addr)
          FROM hosts WHERE state = 'online' ORDER BY hostname",
@@ -537,7 +537,7 @@ pub async fn refresh_lldp_cache(pool: &PgPool, max_age_secs: i64) -> anyhow::Res
             continue;
         }
         let fetched_at: Option<chrono::DateTime<chrono::Utc>> =
-            sqlx::query_scalar("SELECT fetched_at FROM host_lldp_cache WHERE host_id = $1")
+            sqlx::query_scalar("SELECT fetched_at FROM host_lldp_cache WHERE host_id = ?")
                 .bind(host_id)
                 .fetch_optional(pool)
                 .await?;
@@ -552,12 +552,12 @@ pub async fn refresh_lldp_cache(pool: &PgPool, max_age_secs: i64) -> anyhow::Res
                 let neighbors_json = serde_json::to_value(&lldp.neighbors)?;
                 sqlx::query(
                     "INSERT INTO host_lldp_cache (host_id, source, neighbors_json, summary, fetched_at)
-                     VALUES ($1, $2, $3, $4, NOW())
+                     VALUES (?, ?, ?, ?, datetime('now'))
                      ON CONFLICT (host_id) DO UPDATE SET
                        source = EXCLUDED.source,
                        neighbors_json = EXCLUDED.neighbors_json,
                        summary = EXCLUDED.summary,
-                       fetched_at = NOW()",
+                       fetched_at = datetime('now')",
                 )
                 .bind(host_id)
                 .bind(&lldp.source)
@@ -575,7 +575,7 @@ pub async fn refresh_lldp_cache(pool: &PgPool, max_age_secs: i64) -> anyhow::Res
     Ok(refreshed)
 }
 
-pub async fn lldp_topology_from_cache(pool: &PgPool) -> anyhow::Result<LldpTopologyContribution> {
+pub async fn lldp_topology_from_cache(pool: &SqlitePool) -> anyhow::Result<LldpTopologyContribution> {
     let _ = refresh_lldp_cache(pool, 300).await;
 
     let rows: Vec<(Uuid, String, String, serde_json::Value, String)> = sqlx::query_as(

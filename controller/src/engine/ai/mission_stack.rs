@@ -137,7 +137,7 @@ pub async fn execute_stack(
     )
     .fetch_one(&state.pool)
     .await
-    .map_err(|e| ApiError::internal(e.to_string()))?;
+    .map_err(|e| ApiErrorernal(e.to_string()))?;
 
     let plan = plan_mission_stack(&body.query, rates.0, rates.1);
     let mut vm_tasks = Vec::new();
@@ -152,11 +152,11 @@ pub async fn execute_stack(
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
 
-        let hostname: String = sqlx::query_scalar("SELECT hostname FROM hosts WHERE id = $1")
+        let hostname: String = sqlx::query_scalar("SELECT hostname FROM hosts WHERE id = ?")
             .bind(host_id)
             .fetch_one(&state.pool)
             .await
-            .map_err(|e| ApiError::internal(e.to_string()))?;
+            .map_err(|e| ApiErrorernal(e.to_string()))?;
 
         if body.dry_run {
             vm_tasks.push(StackVmTask {
@@ -172,34 +172,35 @@ pub async fn execute_stack(
         let cluster_id: Uuid = sqlx::query_scalar("SELECT id FROM clusters LIMIT 1")
             .fetch_one(&state.pool)
             .await
-            .map_err(|e| ApiError::internal(e.to_string()))?;
+            .map_err(|e| ApiErrorernal(e.to_string()))?;
 
         let vm_id = Uuid::new_v4();
         let spec_json = gpu_vm_spec(&name);
         let tags: Vec<String> = vec!["gpu".into(), "mission-stack".into()];
+        let tags_json = serde_json::to_string(&tags).unwrap_or_else(|_| "[]".into());
 
         sqlx::query(
             "INSERT INTO vms (id, cluster_id, host_id, name, project, spec_json, desired_state, lifecycle_phase, vcpus, memory_mib, tags)
-             VALUES ($1, $2, $3, $4, 'mission-stack', $5, 'running', 'creating', 16, 65536, $6)",
+             VALUES (?, ?, ?, ?, 'mission-stack', ?, 'running', 'creating', 16, 65536, ?)",
         )
         .bind(vm_id)
         .bind(cluster_id)
         .bind(host_id)
         .bind(&name)
         .bind(&spec_json)
-        .bind(&tags)
+        .bind(&tags_json)
         .execute(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
 
         sqlx::query(
-            "INSERT INTO vm_disks (id, vm_id, name, size_gib, storage_class) VALUES ($1, $2, 'root', 100, 'silver')",
+            "INSERT INTO vm_disks (id, vm_id, name, size_gib, storage_class) VALUES (?, ?, 'root', 100, 'silver')",
         )
         .bind(Uuid::new_v4())
         .bind(vm_id)
         .execute(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
 
         let task_id = enqueue_task(
             state,

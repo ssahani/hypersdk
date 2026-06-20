@@ -2,7 +2,7 @@
 // Fleet Shortcuts / blueprint Launchpad rollup (Phase 46).
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
@@ -25,7 +25,7 @@ pub struct FleetShortcutsOverview {
     pub shortcuts: Vec<FleetShortcutItem>,
 }
 
-pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetShortcutsOverview> {
+pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetShortcutsOverview> {
     let rows: Vec<(Uuid, String, String, serde_json::Value, Vec<Uuid>)> = sqlx::query_as(
         "SELECT id, name, description, actions, vm_ids FROM blueprints ORDER BY name",
     )
@@ -39,7 +39,7 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetShortcutsOverview> {
             .unwrap_or(0);
 
     let executions_24h: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ops_runbook_executions WHERE created_at > NOW() - INTERVAL '24 hours'",
+        "SELECT COUNT(*) FROM ops_runbook_executions WHERE created_at > datetime('now', '-24 hours')",
     )
     .fetch_one(pool)
     .await

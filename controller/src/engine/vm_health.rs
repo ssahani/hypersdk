@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::agent_client;
@@ -55,11 +55,11 @@ fn issue(
     }
 }
 
-pub async fn run_vm_health_check(pool: &PgPool, vm_id: Uuid) -> anyhow::Result<VmHealthReport> {
+pub async fn run_vm_health_check(pool: &SqlitePool, vm_id: Uuid) -> anyhow::Result<VmHealthReport> {
     let row: Option<(String, Option<Uuid>, String, String, bool, Vec<String>)> = sqlx::query_as(
         "SELECT name, host_id, observed_state, COALESCE(guest_tools_status, 'unknown'),
-                COALESCE(managed, TRUE), COALESCE(tags, '{}')
-         FROM vms WHERE id = $1",
+                COALESCE(managed, TRUE), COALESCE(tags, '[]')
+         FROM vms WHERE id = ?",
     )
     .bind(vm_id)
     .fetch_optional(pool)
@@ -102,7 +102,7 @@ pub async fn run_vm_health_check(pool: &PgPool, vm_id: Uuid) -> anyhow::Result<V
     }
 
     let ha: bool =
-        sqlx::query_scalar("SELECT COALESCE(enabled, FALSE) FROM ha_policies WHERE vm_id = $1")
+        sqlx::query_scalar("SELECT COALESCE(enabled, FALSE) FROM ha_policies WHERE vm_id = ?")
             .bind(vm_id)
             .fetch_optional(pool)
             .await?
@@ -127,7 +127,7 @@ pub async fn run_vm_health_check(pool: &PgPool, vm_id: Uuid) -> anyhow::Result<V
     }
 
     let backup_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM backup_records WHERE vm_id = $1 AND status = 'completed'",
+        "SELECT COUNT(*) FROM backup_records WHERE vm_id = ? AND status = 'completed'",
     )
     .bind(vm_id)
     .fetch_one(pool)
@@ -149,7 +149,7 @@ pub async fn run_vm_health_check(pool: &PgPool, vm_id: Uuid) -> anyhow::Result<V
     }
 
     let snap_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM snapshot_records WHERE vm_id = $1")
+        sqlx::query_scalar("SELECT COUNT(*) FROM snapshot_records WHERE vm_id = ?")
             .bind(vm_id)
             .fetch_one(pool)
             .await
@@ -170,7 +170,7 @@ pub async fn run_vm_health_check(pool: &PgPool, vm_id: Uuid) -> anyhow::Result<V
     }
 
     let cpu_pressure: Option<f32> =
-        sqlx::query_scalar("SELECT cpu_percent FROM vm_metrics WHERE vm_id = $1")
+        sqlx::query_scalar("SELECT cpu_percent FROM vm_metrics WHERE vm_id = ?")
             .bind(vm_id)
             .fetch_optional(pool)
             .await
@@ -258,8 +258,8 @@ pub async fn run_vm_health_check(pool: &PgPool, vm_id: Uuid) -> anyhow::Result<V
     }
 
     let _ = sqlx::query(
-        "UPDATE vms SET guest_tools_status = $1, guest_ip = $2, guest_hostname = $3,
-         os_family = COALESCE($4, os_family), updated_at = NOW() WHERE id = $5",
+        "UPDATE vms SET guest_tools_status = ?, guest_ip = ?, guest_hostname = ?,
+         os_family = COALESCE(?, os_family), updated_at = datetime('now') WHERE id = ?",
     )
     .bind(&guest_tools_status)
     .bind(&guest_ip)
@@ -300,15 +300,15 @@ pub async fn run_vm_health_check(pool: &PgPool, vm_id: Uuid) -> anyhow::Result<V
     })
 }
 
-async fn host_agent_addr(pool: &PgPool, host_id: Uuid) -> anyhow::Result<String> {
-    let addr: String = sqlx::query_scalar("SELECT agent_grpc_addr FROM hosts WHERE id = $1")
+async fn host_agent_addr(pool: &SqlitePool, host_id: Uuid) -> anyhow::Result<String> {
+    let addr: String = sqlx::query_scalar("SELECT agent_grpc_addr FROM hosts WHERE id = ?")
         .bind(host_id)
         .fetch_one(pool)
         .await?;
     Ok(addr)
 }
 
-pub async fn sync_guest_tools(pool: &PgPool, vm_id: Uuid, vm_name: &str, host_id: Uuid) {
+pub async fn sync_guest_tools(pool: &SqlitePool, vm_id: Uuid, vm_name: &str, host_id: Uuid) {
     let Ok(addr) = host_agent_addr(pool, host_id).await else {
         return;
     };
@@ -328,7 +328,7 @@ pub async fn sync_guest_tools(pool: &PgPool, vm_id: Uuid, vm_name: &str, host_id
         "not_installed"
     };
     let _ = sqlx::query(
-        "UPDATE vms SET guest_tools_status = $1, guest_ip = $2, guest_hostname = $3, updated_at = NOW() WHERE id = $4",
+        "UPDATE vms SET guest_tools_status = ?, guest_ip = ?, guest_hostname = ?, updated_at = datetime('now') WHERE id = ?",
     )
     .bind(status)
     .bind(if gh.guest_ip.is_empty() { None::<String> } else { Some(gh.guest_ip) })

@@ -37,8 +37,8 @@ pub async fn patch_cpu_compat_matrix(
     Json(body): Json<PatchCpuCompatBody>,
 ) -> Result<Json<Vec<CpuCompatRule>>, ApiError> {
     require_admin(&actor)?;
-    let val = serde_json::to_value(&body.rules).map_err(|e| ApiError::internal(e.to_string()))?;
-    sqlx::query("UPDATE clusters SET cpu_compat_matrix = $1")
+    let val = serde_json::to_value(&body.rules).map_err(|e| ApiErrorernal(e.to_string()))?;
+    sqlx::query("UPDATE clusters SET cpu_compat_matrix = ?")
         .bind(val)
         .execute(&state.pool)
         .await?;

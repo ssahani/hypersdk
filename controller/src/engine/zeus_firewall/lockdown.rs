@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use super::profiles::plan_for_profile;
@@ -36,7 +36,7 @@ pub fn lockdown_preview(capture: bool) -> LockdownPreview {
 }
 
 pub async fn lockdown_target(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
     target_id: &str,
     capture: bool,
@@ -50,7 +50,7 @@ pub async fn lockdown_target(
     if let Ok(host_id) = Uuid::parse_str(target_id) {
         let _ = sqlx::query(
             "INSERT INTO events (kind, severity, message, resource_type, resource_id)
-             VALUES ('security', 'critical', $1, 'host', $2)",
+             VALUES ('security', 'critical', ?, 'host', ?)",
         )
         .bind("Zeus Lockdown enabled — Emergency Isolation")
         .bind(host_id)

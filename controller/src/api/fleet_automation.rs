@@ -75,7 +75,7 @@ pub async fn create_fleet_snapshot_schedule(
     let id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO fleet_snapshot_schedules (id, name, cron_expr, project, tag_filter, disk_only, quiesce, retain_count)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(id)
     .bind(&body.name)
@@ -89,7 +89,7 @@ pub async fn create_fleet_snapshot_schedule(
     .await?;
     let row = sqlx::query_as::<_, FleetSnapshotScheduleRow>(
         "SELECT id, name, cron_expr, project, tag_filter, disk_only, quiesce, retain_count, enabled, last_run_at
-         FROM fleet_snapshot_schedules WHERE id = $1",
+         FROM fleet_snapshot_schedules WHERE id = ?",
     )
     .bind(id)
     .fetch_one(&state.pool)
@@ -101,7 +101,7 @@ pub async fn delete_fleet_snapshot_schedule(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let r = sqlx::query("DELETE FROM fleet_snapshot_schedules WHERE id = $1")
+    let r = sqlx::query("DELETE FROM fleet_snapshot_schedules WHERE id = ?")
         .bind(id)
         .execute(&state.pool)
         .await?;

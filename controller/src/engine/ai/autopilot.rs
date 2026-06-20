@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::api::ApiError;
@@ -26,7 +26,7 @@ pub struct AutopilotProposal {
     pub actions: Vec<ProposedAction>,
 }
 
-pub async fn propose(pool: &PgPool, vm_id: Option<Uuid>) -> anyhow::Result<AutopilotProposal> {
+pub async fn propose(pool: &SqlitePool, vm_id: Option<Uuid>) -> anyhow::Result<AutopilotProposal> {
     let settings = super::settings::get_ai_settings(pool).await?;
     let mut actions = Vec::new();
 
@@ -104,7 +104,7 @@ pub async fn execute(
     crate::auth::require_operator(actor)?;
     let settings = super::settings::get_ai_settings(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     if !autopilot_mode_allowed(&settings.mode) {
         return Err(ApiError::bad_request(
             "Autopilot actions require advisor, autopilot_preview, or autopilot mode",
@@ -123,13 +123,13 @@ pub async fn execute(
                 let vm_id =
                     Uuid::parse_str(id_str).map_err(|_| ApiError::bad_request("invalid vm_id"))?;
                 let host_id: Option<Uuid> =
-                    sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+                    sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
                         .bind(vm_id)
                         .fetch_optional(&state.pool)
                         .await?;
                 let backup_id = Uuid::new_v4();
                 sqlx::query(
-                    "INSERT INTO backup_records (id, vm_id, backup_type, status) VALUES ($1, $2, 'full', 'pending')",
+                    "INSERT INTO backup_records (id, vm_id, backup_type, status) VALUES (?, ?, 'full', 'pending')",
                 )
                 .bind(backup_id)
                 .bind(vm_id)
@@ -150,13 +150,13 @@ pub async fn execute(
         }
         "create_backup" => {
             let vm_id = parse_vm_id(&body.object_ref)?;
-            let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+            let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
                 .bind(vm_id)
                 .fetch_optional(&state.pool)
                 .await?;
             let backup_id = Uuid::new_v4();
             sqlx::query(
-                "INSERT INTO backup_records (id, vm_id, backup_type, status) VALUES ($1, $2, 'full', 'pending')",
+                "INSERT INTO backup_records (id, vm_id, backup_type, status) VALUES (?, ?, 'full', 'pending')",
             )
             .bind(backup_id)
             .bind(vm_id)
@@ -196,13 +196,13 @@ pub async fn execute(
                     false,
                 )
                 .await
-                .map_err(|e| ApiError::internal(e.to_string()))?;
+                .map_err(|e| ApiErrorernal(e.to_string()))?;
             }
             format!("HA enabled on {} VM(s)", vm_ids.len().min(10))
         }
         "install_guest_tools" => {
             let vm_id = parse_vm_id(&body.object_ref)?;
-            let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+            let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
                 .bind(vm_id)
                 .fetch_optional(&state.pool)
                 .await?;
@@ -220,7 +220,7 @@ pub async fn execute(
         }
         "start_vm" => {
             let vm_id = parse_vm_id(&body.object_ref)?;
-            let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+            let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
                 .bind(vm_id)
                 .fetch_optional(&state.pool)
                 .await?;
@@ -321,7 +321,7 @@ pub async fn run_safe_batch(
     crate::auth::require_operator(actor)?;
     let settings = super::settings::get_ai_settings(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     if settings.mode != "autopilot" {
         return Err(ApiError::bad_request(
             "Autopilot run requires ai_mode=autopilot (full mode with guardrails)",
@@ -330,7 +330,7 @@ pub async fn run_safe_batch(
 
     let proposal = propose(&state.pool, vm_id)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let cap = max_actions.clamp(1, 10);
     let all = proposal.actions;
     let skipped_count = all.iter().filter(|a| !is_auto_safe(a)).count();
@@ -379,14 +379,14 @@ pub struct AutopilotHistoryEntry {
     pub detail: serde_json::Value,
 }
 
-pub async fn list_history(pool: &PgPool, limit: i64) -> anyhow::Result<Vec<AutopilotHistoryEntry>> {
+pub async fn list_history(pool: &SqlitePool, limit: i64) -> anyhow::Result<Vec<AutopilotHistoryEntry>> {
     let cap = limit.clamp(1, 100);
     let rows = sqlx::query_as::<_, AutopilotHistoryEntry>(
-        "SELECT id, actor, action, created_at, COALESCE(detail, '{}'::jsonb) AS detail
+        "SELECT id, actor, action, created_at, COALESCE(detail, '{}') AS detail
          FROM audit_logs
          WHERE action LIKE 'ai.autopilot%'
          ORDER BY created_at DESC
-         LIMIT $1",
+         LIMIT ?",
     )
     .bind(cap)
     .fetch_all(pool)

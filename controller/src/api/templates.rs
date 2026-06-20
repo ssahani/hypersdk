@@ -151,10 +151,10 @@ pub async fn seed_templates(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let inserted = crate::engine::template_catalog::seed_default_templates(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let pruned = crate::engine::template_catalog::prune_stale_marketplace_templates(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let rows = sqlx::query_as::<_, TemplateRow>(&format!(
         "{TEMPLATE_SELECT} WHERE marketplace = TRUE ORDER BY featured DESC, category, name, version"
     ))
@@ -176,7 +176,7 @@ pub async fn create_template(
     let id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO templates (id, name, version, source_disk, cloud_init, os_family, category, description, featured, marketplace, icon)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(id)
     .bind(&body.name)
@@ -200,7 +200,7 @@ pub async fn get_template(
     AxumPath((name, version)): AxumPath<(String, String)>,
 ) -> Result<Json<TemplateRow>, ApiError> {
     let row = sqlx::query_as::<_, TemplateRow>(&format!(
-        "{TEMPLATE_SELECT} WHERE name = $1 AND version = $2"
+        "{TEMPLATE_SELECT} WHERE name = ? AND version = ?"
     ))
     .bind(&name)
     .bind(&version)
@@ -262,10 +262,10 @@ pub async fn list_missing_template_images(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let _ = crate::engine::template_catalog::ensure_default_templates(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let missing = crate::engine::template_readiness::list_missing_marketplace_images(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let auto_fetch_count = missing.iter().filter(|m| m.auto_fetch).count();
     Ok(Json(serde_json::json!({
         "missing": missing,
@@ -287,7 +287,7 @@ pub async fn delete_template(
     State(state): State<AppState>,
     AxumPath((name, version)): AxumPath<(String, String)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let deleted = sqlx::query("DELETE FROM templates WHERE name = $1 AND version = $2")
+    let deleted = sqlx::query("DELETE FROM templates WHERE name = ? AND version = ?")
         .bind(&name)
         .bind(&version)
         .execute(&state.pool)
@@ -299,7 +299,7 @@ pub async fn delete_template(
 }
 
 async fn fetch_template_by_id(state: &AppState, id: Uuid) -> Result<Json<TemplateRow>, ApiError> {
-    let row = sqlx::query_as::<_, TemplateRow>(&format!("{TEMPLATE_SELECT} WHERE id = $1"))
+    let row = sqlx::query_as::<_, TemplateRow>(&format!("{TEMPLATE_SELECT} WHERE id = ?"))
         .bind(id)
         .fetch_one(&state.pool)
         .await?;
@@ -311,12 +311,12 @@ pub struct ApproveTemplateBody {
     pub approval_status: String,
 }
 
-async fn run_git_template_sync(pool: &sqlx::PgPool) -> Result<usize, ApiError> {
+async fn run_git_template_sync(pool: &sqlx::SqlitePool) -> Result<usize, ApiError> {
     let dir = std::env::var("MACHINA_TEMPLATES_GIT_DIR")
         .map_err(|_| ApiError::bad_request("MACHINA_TEMPLATES_GIT_DIR not set"))?;
     crate::engine::template_git::sync_templates_from_git(pool, std::path::Path::new(&dir))
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiErrorernal(e.to_string()))
 }
 
 pub async fn sync_git_templates(
@@ -362,14 +362,14 @@ pub async fn approve_template(
             "approval_status must be approved|pending|draft|rejected",
         ));
     }
-    sqlx::query("UPDATE templates SET approval_status = $1 WHERE name = $2 AND version = $3")
+    sqlx::query("UPDATE templates SET approval_status = ? WHERE name = ? AND version = ?")
         .bind(status)
         .bind(&name)
         .bind(&version)
         .execute(&state.pool)
         .await?;
     let row = sqlx::query_as::<_, TemplateRow>(&format!(
-        "{TEMPLATE_SELECT} WHERE name = $1 AND version = $2"
+        "{TEMPLATE_SELECT} WHERE name = ? AND version = ?"
     ))
     .bind(&name)
     .bind(&version)

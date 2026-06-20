@@ -2,7 +2,7 @@
 // Fleet Disk Utility rollup — pools + SMART (Phase 41).
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::config::ControllerConfig;
@@ -45,7 +45,7 @@ pub struct FleetStorageOverview {
 }
 
 pub async fn overview(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
 ) -> anyhow::Result<FleetStorageOverview> {
     let tiers = storage_tiers::tiers_overview(pool)
@@ -75,7 +75,7 @@ pub async fn overview(
     {
         Ok(r) => r,
         Err(_) => sqlx::query_as(
-            "SELECT id, name, storage_class, used_gib, capacity_gib, NULL::uuid FROM storage_pools ORDER BY name",
+            "SELECT id, name, storage_class, used_gib, capacity_gib, NULL FROM storage_pools ORDER BY name",
         )
         .fetch_all(pool)
         .await?,

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
@@ -21,20 +21,20 @@ pub struct TerminalSuggestResult {
 }
 
 pub async fn suggest(
-    pool: &PgPool,
+    pool: &SqlitePool,
     vm_id: Option<Uuid>,
     vm_name_hint: Option<&str>,
 ) -> anyhow::Result<TerminalSuggestResult> {
     let row: Option<(Uuid, String, String, String)> = if let Some(id) = vm_id {
         sqlx::query_as(
-            "SELECT id, name, observed_state, COALESCE(guest_tools_status, 'unknown') FROM vms WHERE id = $1",
+            "SELECT id, name, observed_state, COALESCE(guest_tools_status, 'unknown') FROM vms WHERE id = ?",
         )
         .bind(id)
         .fetch_optional(pool)
         .await?
     } else if let Some(name) = vm_name_hint {
         sqlx::query_as(
-            "SELECT id, name, observed_state, COALESCE(guest_tools_status, 'unknown') FROM vms WHERE name ILIKE $1 LIMIT 1",
+            "SELECT id, name, observed_state, COALESCE(guest_tools_status, 'unknown') FROM vms WHERE name LIKE ? LIMIT 1",
         )
         .bind(name)
         .fetch_optional(pool)

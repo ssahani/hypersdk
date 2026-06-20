@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde_json::Value;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(Debug, sqlx::FromRow)]
@@ -20,9 +20,9 @@ struct AlertRow {
     rule_id: Option<Uuid>,
 }
 
-pub async fn run_playbooks_for_alert(pool: &PgPool, alert_id: Uuid) -> anyhow::Result<()> {
+pub async fn run_playbooks_for_alert(pool: &SqlitePool, alert_id: Uuid) -> anyhow::Result<()> {
     let alert: AlertRow =
-        sqlx::query_as("SELECT id, title, severity, rule_id FROM soc_alerts WHERE id = $1")
+        sqlx::query_as("SELECT id, title, severity, rule_id FROM soc_alerts WHERE id = ?")
             .bind(alert_id)
             .fetch_one(pool)
             .await?;
@@ -39,7 +39,7 @@ pub async fn run_playbooks_for_alert(pool: &PgPool, alert_id: Uuid) -> anyhow::R
         }
         let run_id = Uuid::new_v4();
         sqlx::query(
-            "INSERT INTO soc_playbook_runs (id, playbook_id, alert_id, status) VALUES ($1, $2, $3, 'running')",
+            "INSERT INTO soc_playbook_runs (id, playbook_id, alert_id, status) VALUES (?, ?, ?, 'running')",
         )
         .bind(run_id)
         .bind(pb.id)
@@ -67,7 +67,7 @@ pub async fn run_playbooks_for_alert(pool: &PgPool, alert_id: Uuid) -> anyhow::R
 
         let status = if failed { "failed" } else { "completed" };
         sqlx::query(
-            "UPDATE soc_playbook_runs SET status = $2, step_results = $3, finished_at = NOW() WHERE id = $1",
+            "UPDATE soc_playbook_runs SET status = ?, step_results = ?, finished_at = datetime('now') WHERE id = ?",
         )
         .bind(run_id)
         .bind(status)
@@ -105,7 +105,7 @@ fn severity_at_least(actual: &str, min: &str) -> bool {
     rank(actual) >= rank(min)
 }
 
-async fn execute_step(pool: &PgPool, step: &Value, alert: &AlertRow) -> anyhow::Result<String> {
+async fn execute_step(pool: &SqlitePool, step: &Value, alert: &AlertRow) -> anyhow::Result<String> {
     let step_type = step.get("type").and_then(|v| v.as_str()).unwrap_or("");
     match step_type {
         "webhook" => {
@@ -130,7 +130,7 @@ async fn execute_step(pool: &PgPool, step: &Value, alert: &AlertRow) -> anyhow::
             Ok("webhook delivered".into())
         }
         "notify" => {
-            sqlx::query("INSERT INTO notification_outbox (id, kind, payload) VALUES ($1, $2, $3)")
+            sqlx::query("INSERT INTO notification_outbox (id, kind, payload) VALUES (?, ?, ?)")
                 .bind(Uuid::new_v4())
                 .bind("soc.playbook")
                 .bind(serde_json::json!({
@@ -146,7 +146,7 @@ async fn execute_step(pool: &PgPool, step: &Value, alert: &AlertRow) -> anyhow::
     }
 }
 
-async fn resolve_webhook_url(pool: &PgPool, step: &Value) -> anyhow::Result<String> {
+async fn resolve_webhook_url(pool: &SqlitePool, step: &Value) -> anyhow::Result<String> {
     if let Some(url) = step
         .get("url")
         .and_then(|v| v.as_str())

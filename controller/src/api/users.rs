@@ -107,8 +107,8 @@ pub async fn create_user(
     let role = validate_role(&body.role)?;
     let id = Uuid::new_v4();
     let hash = bcrypt::hash(&body.password, bcrypt::DEFAULT_COST)
-        .map_err(|e| ApiError::internal(e.to_string()))?;
-    sqlx::query("INSERT INTO users (id, username, password_hash, role) VALUES ($1, $2, $3, $4)")
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
+    sqlx::query("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)")
         .bind(id)
         .bind(&username)
         .bind(hash)
@@ -116,7 +116,7 @@ pub async fn create_user(
         .execute(&state.pool)
         .await?;
     let row = sqlx::query_as::<_, UserRow>(
-        "SELECT id, username, role, created_at FROM users WHERE id = $1",
+        "SELECT id, username, role, created_at FROM users WHERE id = ?",
     )
     .bind(id)
     .fetch_one(&state.pool)
@@ -133,7 +133,7 @@ pub async fn patch_user(
     require_admin(&actor)?;
     if let Some(role) = &body.role {
         let role = validate_role(role)?;
-        sqlx::query("UPDATE users SET role = $1 WHERE id = $2")
+        sqlx::query("UPDATE users SET role = ? WHERE id = ?")
             .bind(role)
             .bind(id)
             .execute(&state.pool)
@@ -142,15 +142,15 @@ pub async fn patch_user(
     if let Some(pass) = &body.password {
         validate_password(pass)?;
         let hash = bcrypt::hash(pass, bcrypt::DEFAULT_COST)
-            .map_err(|e| ApiError::internal(e.to_string()))?;
-        sqlx::query("UPDATE users SET password_hash = $1 WHERE id = $2")
+            .map_err(|e| ApiErrorernal(e.to_string()))?;
+        sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?")
             .bind(hash)
             .bind(id)
             .execute(&state.pool)
             .await?;
     }
     let row = sqlx::query_as::<_, UserRow>(
-        "SELECT id, username, role, created_at FROM users WHERE id = $1",
+        "SELECT id, username, role, created_at FROM users WHERE id = ?",
     )
     .bind(id)
     .fetch_one(&state.pool)
@@ -164,7 +164,7 @@ pub async fn delete_user(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_admin(&actor)?;
-    let row: (String,) = sqlx::query_as("SELECT username FROM users WHERE id = $1")
+    let row: (String,) = sqlx::query_as("SELECT username FROM users WHERE id = ?")
         .bind(id)
         .fetch_one(&state.pool)
         .await?;
@@ -173,7 +173,7 @@ pub async fn delete_user(
             .with_code("invalid_request")
             .with_remediation("Sign in as another admin or delete a different user."));
     }
-    sqlx::query("DELETE FROM users WHERE id = $1")
+    sqlx::query("DELETE FROM users WHERE id = ?")
         .bind(id)
         .execute(&state.pool)
         .await?;
@@ -205,7 +205,7 @@ pub async fn me(
     Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let row: Option<UserRow> =
-        sqlx::query_as("SELECT id, username, role, created_at FROM users WHERE username = $1")
+        sqlx::query_as("SELECT id, username, role, created_at FROM users WHERE username = ?")
             .bind(&actor.username)
             .fetch_optional(&state.pool)
             .await?;

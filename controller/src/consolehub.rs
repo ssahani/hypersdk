@@ -253,7 +253,7 @@ pub fn proxy_routes() -> Router<AppState> {
 }
 
 async fn vm_row(state: &AppState, id: Uuid) -> Result<(String, Uuid), ApiError> {
-    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(id)
         .fetch_one(&state.pool)
         .await?;
@@ -268,7 +268,7 @@ async fn vm_meta(
     id: Uuid,
 ) -> Result<(String, Option<Uuid>, String, Option<String>), ApiError> {
     let row: (String, Option<Uuid>, String, Option<String>) = sqlx::query_as(
-        "SELECT name, host_id, COALESCE(inventory_source, 'libvirt'), k8s_namespace FROM vms WHERE id = $1",
+        "SELECT name, host_id, COALESCE(inventory_source, 'libvirt'), k8s_namespace FROM vms WHERE id = ?",
     )
     .bind(id)
     .fetch_one(&state.pool)
@@ -310,7 +310,7 @@ fn kubevirt_plan(vm_id: Uuid, vm_name: &str, namespace: &str, ws_token: &str) ->
 }
 
 async fn kubevirt_plan_enriched(
-    pool: &sqlx::PgPool,
+    pool: &sqlx::SqlitePool,
     daemon_base_url: &str,
     vm_id: Uuid,
     vm_name: &str,
@@ -319,7 +319,7 @@ async fn kubevirt_plan_enriched(
 ) -> ConsoleHubPlan {
     let mut plan = kubevirt_plan(vm_id, vm_name, namespace, ws_token);
     let row: Option<(Option<String>, serde_json::Value)> =
-        sqlx::query_as("SELECT guest_ip, spec_json FROM vms WHERE id = $1")
+        sqlx::query_as("SELECT guest_ip, spec_json FROM vms WHERE id = ?")
             .bind(vm_id)
             .fetch_optional(pool)
             .await
@@ -397,17 +397,17 @@ fn check_federated_console_auth(state: &AppState, user: &AuthUser) -> Result<(),
     }
 }
 
-async fn host_agent_grpc(pool: &sqlx::PgPool, host_id: Uuid) -> Result<String, ApiError> {
-    let addr: String = sqlx::query_scalar("SELECT agent_grpc_addr FROM hosts WHERE id = $1")
+async fn host_agent_grpc(pool: &sqlx::SqlitePool, host_id: Uuid) -> Result<String, ApiError> {
+    let addr: String = sqlx::query_scalar("SELECT agent_grpc_addr FROM hosts WHERE id = ?")
         .bind(host_id)
         .fetch_one(pool)
         .await?;
     Ok(addr)
 }
 
-async fn host_agent_console(pool: &sqlx::PgPool, host_id: Uuid) -> Result<String, ApiError> {
+async fn host_agent_console(pool: &sqlx::SqlitePool, host_id: Uuid) -> Result<String, ApiError> {
     let addr: String = sqlx::query_scalar(
-        "SELECT COALESCE(NULLIF(agent_console_addr, ''), agent_grpc_addr) FROM hosts WHERE id = $1",
+        "SELECT COALESCE(NULLIF(agent_console_addr, ''), agent_grpc_addr) FROM hosts WHERE id = ?",
     )
     .bind(host_id)
     .fetch_one(pool)
@@ -416,12 +416,12 @@ async fn host_agent_console(pool: &sqlx::PgPool, host_id: Uuid) -> Result<String
 }
 
 async fn host_guacamole_config(
-    pool: &sqlx::PgPool,
+    pool: &sqlx::SqlitePool,
     host_id: Uuid,
     fallback: &crate::config::ControllerConfig,
 ) -> (String, String, bool) {
     let row: Option<(String, String)> = sqlx::query_as(
-        "SELECT guacamole_base_url, guacamole_json_secret_hex FROM hosts WHERE id = $1",
+        "SELECT guacamole_base_url, guacamole_json_secret_hex FROM hosts WHERE id = ?",
     )
     .bind(host_id)
     .fetch_optional(pool)
@@ -481,7 +481,7 @@ fn serial_password_login(auth_mode: &str) -> bool {
 }
 
 async fn build_guest_access_hints(
-    pool: &sqlx::PgPool,
+    pool: &sqlx::SqlitePool,
     host_id: Uuid,
     agent: &machina_agent::pb::GetConsoleAccessPlanResponse,
     spec_vm: Option<&VirtualMachine>,
@@ -641,12 +641,12 @@ pub async fn consolehub_plan(
     let agent_addr = host_agent_grpc(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let agent_plan = agent_client::get_console_access_plan(&mut client, &vm_name)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let spec_vm: Option<VirtualMachine> =
-        sqlx::query_scalar("SELECT spec_json FROM vms WHERE id = $1")
+        sqlx::query_scalar("SELECT spec_json FROM vms WHERE id = ?")
             .bind(id)
             .fetch_optional(&state.pool)
             .await
@@ -656,7 +656,7 @@ pub async fn consolehub_plan(
     let guest_access =
         build_guest_access_hints(&state.pool, host_id, &agent_plan, spec_vm.as_ref()).await;
     let hypervisor_address: Option<String> =
-        sqlx::query_scalar("SELECT NULLIF(TRIM(address), '') FROM hosts WHERE id = $1")
+        sqlx::query_scalar("SELECT NULLIF(TRIM(address), '') FROM hosts WHERE id = ?")
             .bind(host_id)
             .fetch_optional(&state.pool)
             .await
@@ -730,7 +730,7 @@ async fn check_jit_approval(
         return Ok(());
     }
     let approved: Option<Uuid> = sqlx::query_scalar(
-        "SELECT id FROM console_access_requests WHERE vm_id = $1 AND requester = $2 AND protocol = $3 AND status = 'approved' AND (expires_at IS NULL OR expires_at > NOW()) ORDER BY approved_at DESC LIMIT 1",
+        "SELECT id FROM console_access_requests WHERE vm_id = ? AND requester = ? AND protocol = ? AND status = 'approved' AND (expires_at IS NULL OR expires_at > datetime('now')) ORDER BY approved_at DESC LIMIT 1",
     )
     .bind(vm_id)
     .bind(&user.username)
@@ -816,10 +816,10 @@ pub async fn create_session(
     let agent_addr = host_agent_grpc(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     let agent_plan = agent_client::get_console_access_plan(&mut client, &vm_name)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
 
     let protocol = body
         .protocol
@@ -842,7 +842,7 @@ pub async fn create_session(
     if body.break_glass {
         sqlx::query(
             "INSERT INTO audit_logs (id, actor, action, resource_type, resource_id, detail)
-             VALUES ($1,$2,$3,$4,$5,$6)",
+             VALUES (?,?,?,?,?,?)",
         )
         .bind(Uuid::new_v4())
         .bind(&user.username)
@@ -896,7 +896,7 @@ pub async fn create_session(
         };
         let bridge = bridge_from_plan(vm_name.clone(), target, &params)
             .await
-            .map_err(|e| ApiError::internal(e.to_string()))?;
+            .map_err(|e| ApiErrorernal(e.to_string()))?;
         let emergency = bridge.token.as_ref().map(|t| {
             format!(
                 "{}/#/?token={}",
@@ -927,7 +927,7 @@ pub async fn create_session(
     let recording = state.config.consolehub_recording_enabled || body.break_glass;
     sqlx::query(
         "INSERT INTO console_sessions (id, vm_id, host_id, actor, protocol, backend, guac_token, agent_proxy_base, emergency_url, expires_at, audit_id, recording_enabled)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
     )
     .bind(session_id)
     .bind(id)
@@ -946,12 +946,12 @@ pub async fn create_session(
     .map_err(|e| {
         let sessions = state.console_sessions.clone();
         tokio::spawn(async move { sessions.remove(session_id).await });
-        ApiError::internal(e.to_string())
+        ApiErrorernal(e.to_string())
     })?;
 
     sqlx::query(
         "INSERT INTO audit_logs (id, actor, action, resource_type, resource_id, detail)
-         VALUES ($1,$2,$3,$4,$5,$6)",
+         VALUES (?,?,?,?,?,?)",
     )
     .bind(audit_id)
     .bind(&user.username)
@@ -964,7 +964,7 @@ pub async fn create_session(
 
     let spectator_token = Uuid::new_v4().to_string();
     if recording {
-        let _ = sqlx::query("UPDATE console_sessions SET spectator_token = $2 WHERE id = $1")
+        let _ = sqlx::query("UPDATE console_sessions SET spectator_token = ? WHERE id = ?")
             .bind(session_id)
             .bind(&spectator_token)
             .execute(&state.pool)
@@ -1020,7 +1020,7 @@ pub async fn list_sessions(
         bool,
         Option<String>,
     )> = sqlx::query_as(
-        "SELECT id, actor, protocol, backend, started_at, ended_at, recording_enabled, recording_path FROM console_sessions WHERE vm_id = $1 ORDER BY started_at DESC LIMIT 50",
+        "SELECT id, actor, protocol, backend, started_at, ended_at, recording_enabled, recording_path FROM console_sessions WHERE vm_id = ? ORDER BY started_at DESC LIMIT 50",
     )
     .bind(id)
     .fetch_all(&state.pool)
@@ -1059,7 +1059,7 @@ pub async fn validate_spectator(
     axum::extract::Query(q): Query<SpectatorValidateQuery>,
 ) -> Result<Json<SpectatorValidateResponse>, ApiError> {
     let row: Option<(Uuid, String, String)> = sqlx::query_as(
-        "SELECT vm_id, actor, protocol FROM console_sessions WHERE id = $1 AND spectator_token = $2 AND ended_at IS NULL AND recording_enabled = TRUE",
+        "SELECT vm_id, actor, protocol FROM console_sessions WHERE id = ? AND spectator_token = ? AND ended_at IS NULL AND recording_enabled = TRUE",
     )
     .bind(q.session_id)
     .bind(q.token.trim())
@@ -1120,7 +1120,7 @@ pub async fn collaborate_session(
 
     sqlx::query(
         "INSERT INTO console_sessions (id, vm_id, host_id, actor, protocol, backend, expires_at, audit_id, recording_enabled, spectator_token, metadata_json)
-         VALUES ($1,$2,$3,$4,$5,'native',$6,$7,TRUE,$8,$9)",
+         VALUES (?,?,?,?,?,'native',?,?,TRUE,?,?)",
     )
     .bind(session_id)
     .bind(id)
@@ -1139,7 +1139,7 @@ pub async fn collaborate_session(
 
     sqlx::query(
         "INSERT INTO audit_logs (id, actor, action, resource_type, resource_id, detail)
-         VALUES ($1,$2,$3,$4,$5,$6)",
+         VALUES (?,?,?,?,?,?)",
     )
     .bind(audit_id)
     .bind(&user.username)
@@ -1258,9 +1258,9 @@ pub async fn end_session(
         .to_string_lossy()
         .into_owned();
     sqlx::query(
-        "UPDATE console_sessions SET ended_at = NOW(),
-         recording_path = CASE WHEN recording_enabled THEN $3 ELSE recording_path END
-         WHERE id = $1 AND actor = $2",
+        "UPDATE console_sessions SET ended_at = datetime('now'),
+         recording_path = CASE WHEN recording_enabled THEN ? ELSE recording_path END
+         WHERE id = ? AND actor = ?",
     )
     .bind(session_id)
     .bind(&user.username)
@@ -1279,7 +1279,7 @@ pub async fn upload_session_replay(
     body: Body,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let row: Option<(bool, String)> =
-        sqlx::query_as("SELECT recording_enabled, actor FROM console_sessions WHERE id = $1")
+        sqlx::query_as("SELECT recording_enabled, actor FROM console_sessions WHERE id = ?")
             .bind(session_id)
             .fetch_optional(&state.pool)
             .await?;
@@ -1304,14 +1304,14 @@ pub async fn upload_session_replay(
     if let Some(parent) = path.parent() {
         tokio::fs::create_dir_all(parent)
             .await
-            .map_err(|e| ApiError::internal(format!("create recording dir: {e}")))?;
+            .map_err(|e| ApiErrorernal(format!("create recording dir: {e}")))?;
     }
     tokio::fs::write(&path, &bytes)
         .await
-        .map_err(|e| ApiError::internal(format!("write replay: {e}")))?;
+        .map_err(|e| ApiErrorernal(format!("write replay: {e}")))?;
 
     let path_str = path.to_string_lossy().into_owned();
-    sqlx::query("UPDATE console_sessions SET recording_path = $2 WHERE id = $1")
+    sqlx::query("UPDATE console_sessions SET recording_path = ? WHERE id = ?")
         .bind(session_id)
         .bind(&path_str)
         .execute(&state.pool)
@@ -1331,7 +1331,7 @@ pub async fn get_session_replay(
     Path(session_id): Path<Uuid>,
 ) -> Result<Response, ApiError> {
     let recording_path: Option<String> =
-        sqlx::query_scalar("SELECT recording_path FROM console_sessions WHERE id = $1")
+        sqlx::query_scalar("SELECT recording_path FROM console_sessions WHERE id = ?")
             .bind(session_id)
             .fetch_optional(&state.pool)
             .await?
@@ -1345,7 +1345,7 @@ pub async fn get_session_replay(
     }
     let bytes = tokio::fs::read(path)
         .await
-        .map_err(|e| ApiError::internal(format!("read replay: {e}")))?;
+        .map_err(|e| ApiErrorernal(format!("read replay: {e}")))?;
     Ok(Response::builder()
         .status(StatusCode::OK)
         .header(
@@ -1358,7 +1358,7 @@ pub async fn get_session_replay(
                 .unwrap_or_else(|_| HeaderValue::from_static("inline")),
         )
         .body(Body::from(bytes))
-        .map_err(|e| ApiError::internal(format!("build response: {e}")))?)
+        .map_err(|e| ApiErrorernal(format!("build response: {e}")))?)
 }
 
 #[derive(Debug, Deserialize)]
@@ -1377,7 +1377,7 @@ pub async fn create_access_request(
     let request_id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO console_access_requests (id, vm_id, requester, protocol, reason, status, expires_at)
-         VALUES ($1,$2,$3,$4,$5,'pending', NOW() + INTERVAL '24 hours')",
+         VALUES (?,?,?,?,?,'pending', datetime('now', '+24 hours'))",
     )
     .bind(request_id)
     .bind(id)
@@ -1400,8 +1400,8 @@ pub async fn approve_access_request(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     crate::auth::require_operator(&user)?;
     let updated = sqlx::query(
-        "UPDATE console_access_requests SET status = 'approved', approved_by = $2, approved_at = NOW(), expires_at = NOW() + INTERVAL '4 hours'
-         WHERE id = $1 AND status = 'pending'",
+        "UPDATE console_access_requests SET status = 'approved', approved_by = ?, approved_at = datetime('now'), expires_at = datetime('now', '+4 hours')
+         WHERE id = ? AND status = 'pending'",
     )
     .bind(request_id)
     .bind(&user.username)

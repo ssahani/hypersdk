@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 #[derive(Debug, Serialize)]
 pub struct SecurityFinding {
@@ -20,13 +20,13 @@ pub struct SecurityReport {
     pub findings: Vec<SecurityFinding>,
 }
 
-pub async fn scan(pool: &PgPool) -> anyhow::Result<SecurityReport> {
+pub async fn scan(pool: &SqlitePool) -> anyhow::Result<SecurityReport> {
     let mut findings = Vec::new();
 
     let no_backup: Vec<(uuid::Uuid, String)> = sqlx::query_as(
         "SELECT v.id, v.name FROM vms v
          WHERE COALESCE(v.managed, TRUE) = TRUE
-           AND ('prod' = ANY(COALESCE(v.tags, '{}')) OR 'production' = ANY(COALESCE(v.tags, '{}')))
+           AND (EXISTS (SELECT 1 FROM json_each(COALESCE(v.tags,'[]')) WHERE value='prod') OR EXISTS (SELECT 1 FROM json_each(COALESCE(v.tags,'[]')) WHERE value='production'))
            AND NOT EXISTS (SELECT 1 FROM backup_records b WHERE b.vm_id = v.id AND b.status = 'completed')
          LIMIT 20",
     )
@@ -125,7 +125,7 @@ fn explain_event_heuristic(event: &serde_json::Value, host_id: Option<&str>) -> 
 }
 
 pub async fn explain_event(
-    pool: &PgPool,
+    pool: &SqlitePool,
     event: &serde_json::Value,
     host_id: Option<&str>,
 ) -> anyhow::Result<serde_json::Value> {
@@ -173,7 +173,7 @@ pub fn attack_reconstruct_sync(timeline: &serde_json::Value) -> serde_json::Valu
 }
 
 pub async fn attack_reconstruct(
-    pool: &PgPool,
+    pool: &SqlitePool,
     timeline: &serde_json::Value,
 ) -> anyhow::Result<serde_json::Value> {
     let mut out = attack_reconstruct_sync(timeline);
@@ -267,7 +267,7 @@ pub fn translate_nl_search(query: &str) -> String {
     query.to_string()
 }
 
-pub async fn translate_nl_search_async(pool: &PgPool, query: &str) -> (String, bool) {
+pub async fn translate_nl_search_async(pool: &SqlitePool, query: &str) -> (String, bool) {
     if let Ok(Some(llm)) = super::llm::complete_simple(
         pool,
         "Convert natural-language security hunt questions into concise keyword search terms for eBPF process/network/DNS logs. Reply with keywords only — no punctuation or explanation.",
@@ -327,7 +327,7 @@ pub fn hunt_summary_heuristic(
 }
 
 pub async fn hunt_summary(
-    pool: &PgPool,
+    pool: &SqlitePool,
     correlations: &serde_json::Value,
     timeline: &serde_json::Value,
 ) -> anyhow::Result<serde_json::Value> {

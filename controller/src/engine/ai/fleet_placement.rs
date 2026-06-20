@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
@@ -21,10 +21,10 @@ pub struct GpuPlacementReport {
     pub summary: String,
 }
 
-pub async fn advise_gpu(pool: &PgPool, workload: &str) -> anyhow::Result<GpuPlacementReport> {
+pub async fn advise_gpu(pool: &SqlitePool, workload: &str) -> anyhow::Result<GpuPlacementReport> {
     let rows: Vec<(Uuid, String, f32, i64, i64, i32, Vec<String>)> = sqlx::query_as(
         "SELECT id, hostname, cpu_percent, memory_used_mib, memory_total_mib, vm_count,
-                COALESCE(tags, '{}') AS tags
+                COALESCE(tags, '[]') AS tags
          FROM hosts WHERE state = 'online' AND maintenance_mode = FALSE ORDER BY hostname",
     )
     .fetch_all(pool)

@@ -704,14 +704,18 @@ if $INSTALL_PLATFORM; then
 fi
 
 deploy_ui_celebrate "Ship it!"
-machina_print_success "$HOST" "$ELAPSED" "./scripts/deploy remote ${USER}@${HOST} --quick"
+machina_print_success "$HOST" "$ELAPSED" "$USER" "$($INSTALL_PLATFORM && echo '--platform' || true)"
 deploy_ui_kv "🔗" "SSH" "ssh ${USER}@${HOST}"
 deploy_ui_kv "🌐" "UI" "https://${HOST}:5092/"
 if $WITH_GUACAMOLE; then
     deploy_ui_kv "🖥️" "Guacamole" "http://${HOST}:${GUACAMOLE_PORT}/guacamole/"
 fi
 tip "Trust the browser once for the self-signed TLS cert, or terminate TLS upstream."
-tip "Fast redeploy (no rebuild): ./scripts/deploy remote ${USER}@${HOST} --install-only --platform"
+if $INSTALL_PLATFORM; then
+    tip "Fast redeploy (no rebuild): ./scripts/deploy remote ${USER}@${HOST} --install-only --platform"
+else
+    tip "Add --platform to also install/update machina-controller + PostgreSQL."
+fi
 tip "After first --quick, prune sources: add --prune-sources (keeps target/ + web/dist/ on server)"
 tip "HOST USER also works: ./scripts/deploy-remote.sh ${HOST} ${USER} --install-only"
 

@@ -2,7 +2,7 @@
 // Fleet System Settings / General rollup (Phase 48).
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct FleetGeneralWallpaperOption {
@@ -30,7 +30,7 @@ pub struct FleetGeneralOverview {
     pub settings_url: String,
 }
 
-pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetGeneralOverview> {
+pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetGeneralOverview> {
     let cluster_name: String = sqlx::query_scalar(
         "SELECT COALESCE(NULLIF(name, ''), 'machina') FROM clusters ORDER BY created_at LIMIT 1",
     )

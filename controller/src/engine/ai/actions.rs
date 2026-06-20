@@ -2,7 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
@@ -33,15 +33,15 @@ pub struct CreateActionBody {
     pub source: String,
 }
 
-pub async fn list_pending(pool: &PgPool) -> anyhow::Result<Vec<ZeusActionRow>> {
+pub async fn list_pending(pool: &SqlitePool) -> anyhow::Result<Vec<ZeusActionRow>> {
     list_by_status(pool, "pending").await
 }
 
-pub async fn list_by_status(pool: &PgPool, status: &str) -> anyhow::Result<Vec<ZeusActionRow>> {
+pub async fn list_by_status(pool: &SqlitePool, status: &str) -> anyhow::Result<Vec<ZeusActionRow>> {
     let rows: Vec<(Uuid, String, String, String, String, String, serde_json::Value, String, String, DateTime<Utc>)> =
         sqlx::query_as(
             "SELECT id, source, action_type, label, review, risk, object_ref, status, requested_by, created_at
-             FROM ai_actions WHERE status = $1 ORDER BY created_at DESC LIMIT 100",
+             FROM ai_actions WHERE status = ? ORDER BY created_at DESC LIMIT 100",
         )
         .bind(status)
         .fetch_all(pool)
@@ -78,13 +78,13 @@ fn map_row(
 }
 
 pub async fn create_action(
-    pool: &PgPool,
+    pool: &SqlitePool,
     body: &CreateActionBody,
     requested_by: &str,
 ) -> anyhow::Result<ZeusActionRow> {
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO ai_actions (source, action_type, label, review, risk, object_ref, requested_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+         VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
     )
     .bind(if body.source.is_empty() { "zeus" } else { &body.source })
     .bind(&body.action_type)
@@ -104,11 +104,11 @@ pub async fn create_action(
         .ok_or_else(|| anyhow::anyhow!("action missing"))
 }
 
-pub async fn get_action(pool: &PgPool, id: Uuid) -> anyhow::Result<Option<ZeusActionRow>> {
+pub async fn get_action(pool: &SqlitePool, id: Uuid) -> anyhow::Result<Option<ZeusActionRow>> {
     let row: Option<(Uuid, String, String, String, String, String, serde_json::Value, String, String, DateTime<Utc>)> =
         sqlx::query_as(
             "SELECT id, source, action_type, label, review, risk, object_ref, status, requested_by, created_at
-             FROM ai_actions WHERE id = $1",
+             FROM ai_actions WHERE id = ?",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -128,7 +128,7 @@ pub async fn approve_and_execute(
         return Err(anyhow::anyhow!("Action already {}", action.status));
     }
     let updated = sqlx::query(
-        "UPDATE ai_actions SET status = 'approved', approved_by = $1 WHERE id = $2 AND status = 'pending'",
+        "UPDATE ai_actions SET status = 'approved', approved_by = ? WHERE id = ? AND status = 'pending'",
     )
     .bind(&actor.username)
     .bind(id)
@@ -191,7 +191,7 @@ pub async fn approve_and_execute(
                 .and_then(|v| v.as_str())
                 .and_then(|s| Uuid::parse_str(s).ok())
                 .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
-            let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+            let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
                 .bind(vm_id)
                 .fetch_optional(&state.pool)
                 .await?;
@@ -220,7 +220,7 @@ pub async fn approve_and_execute(
     match &result {
         Ok(msg) => {
             sqlx::query(
-                "UPDATE ai_actions SET status = 'executed', executed_at = NOW() WHERE id = $1",
+                "UPDATE ai_actions SET status = 'executed', executed_at = datetime('now') WHERE id = ?",
             )
             .bind(id)
             .execute(&state.pool)
@@ -240,7 +240,7 @@ pub async fn approve_and_execute(
             .map_err(|e| anyhow::anyhow!(e.message))?;
         }
         Err(_) => {
-            sqlx::query("UPDATE ai_actions SET status = 'failed' WHERE id = $1")
+            sqlx::query("UPDATE ai_actions SET status = 'failed' WHERE id = ?")
                 .bind(id)
                 .execute(&state.pool)
                 .await?;
@@ -249,9 +249,9 @@ pub async fn approve_and_execute(
     result
 }
 
-pub async fn reject(pool: &PgPool, id: Uuid, actor: &str) -> anyhow::Result<bool> {
+pub async fn reject(pool: &SqlitePool, id: Uuid, actor: &str) -> anyhow::Result<bool> {
     let r = sqlx::query(
-        "UPDATE ai_actions SET status = 'rejected', approved_by = $1 WHERE id = $2 AND status = 'pending'",
+        "UPDATE ai_actions SET status = 'rejected', approved_by = ? WHERE id = ? AND status = 'pending'",
     )
     .bind(actor)
     .bind(id)
@@ -260,7 +260,7 @@ pub async fn reject(pool: &PgPool, id: Uuid, actor: &str) -> anyhow::Result<bool
     Ok(r.rows_affected() > 0)
 }
 
-pub async fn approval_hub(pool: &PgPool) -> anyhow::Result<serde_json::Value> {
+pub async fn approval_hub(pool: &SqlitePool) -> anyhow::Result<serde_json::Value> {
     let zeus = list_pending(pool).await?;
     let firewall_count: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM firewall_approvals WHERE status = 'pending'")

@@ -8,7 +8,7 @@ use crate::auth::AuthUser;
 use crate::state::AppState;
 use crate::tasks::enqueue::enqueue_task;
 
-use super::intent_router::SpotlightIntent;
+use superent_router::SpotlightIntent;
 
 #[derive(Debug, Serialize)]
 pub struct EnvironmentResourcePlan {
@@ -134,7 +134,7 @@ pub fn plan_environment(query: &str, vcpu_rate: f64, gib_rate: f64) -> Environme
     let mut spotlight_intents = Vec::new();
     for i in 0..vm_count.min(5) {
         let name = format!("{env_type}-dev-{:02}", i + 1);
-        spotlight_intents.push(super::intent_router::intent(
+        spotlight_intents.push(superent_routerent(
             &format!("env-vm-{i}"),
             &format!("Create VM {name}"),
             &format!("{vcpus} vCPU, {mem_gib} GiB — part of {label}"),
@@ -254,7 +254,7 @@ pub async fn execute_environment(
     )
     .fetch_one(&state.pool)
     .await
-    .map_err(|e| ApiError::internal(e.to_string()))?;
+    .map_err(|e| ApiErrorernal(e.to_string()))?;
 
     let plan = plan_environment(&body.query, rates.0, rates.1);
     if plan.gpu_required {
@@ -276,11 +276,11 @@ pub async fn execute_environment(
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
 
-        let hostname: String = sqlx::query_scalar("SELECT hostname FROM hosts WHERE id = $1")
+        let hostname: String = sqlx::query_scalar("SELECT hostname FROM hosts WHERE id = ?")
             .bind(host_id)
             .fetch_one(&state.pool)
             .await
-            .map_err(|e| ApiError::internal(e.to_string()))?;
+            .map_err(|e| ApiErrorernal(e.to_string()))?;
 
         if body.dry_run {
             vm_tasks.push(EnvironmentVmTask {
@@ -296,16 +296,17 @@ pub async fn execute_environment(
         let cluster_id: Uuid = sqlx::query_scalar("SELECT id FROM clusters LIMIT 1")
             .fetch_one(&state.pool)
             .await
-            .map_err(|e| ApiError::internal(e.to_string()))?;
+            .map_err(|e| ApiErrorernal(e.to_string()))?;
 
         let vm_id = Uuid::new_v4();
         let mem_mib = plan.memory_gib_per_vm as i64 * 1024;
         let tags: Vec<String> = vec!["environment".into(), plan.environment_type.clone()];
+        let tags_json = serde_json::to_string(&tags).unwrap_or_else(|_| "[]".into());
         let spec_json = env_vm_spec(&name, plan.vcpus_per_vm, plan.memory_gib_per_vm);
 
         sqlx::query(
             "INSERT INTO vms (id, cluster_id, host_id, name, project, spec_json, desired_state, lifecycle_phase, vcpus, memory_mib, tags)
-             VALUES ($1, $2, $3, $4, 'environment', $5, 'running', 'creating', $6, $7, $8)",
+             VALUES (?, ?, ?, ?, 'environment', ?, 'running', 'creating', ?, ?, ?)",
         )
         .bind(vm_id)
         .bind(cluster_id)
@@ -314,19 +315,19 @@ pub async fn execute_environment(
         .bind(&spec_json)
         .bind(plan.vcpus_per_vm)
         .bind(mem_mib)
-        .bind(&tags)
+        .bind(&tags_json)
         .execute(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
 
         sqlx::query(
-            "INSERT INTO vm_disks (id, vm_id, name, size_gib, storage_class) VALUES ($1, $2, 'root', 80, 'silver')",
+            "INSERT INTO vm_disks (id, vm_id, name, size_gib, storage_class) VALUES (?, ?, 'root', 80, 'silver')",
         )
         .bind(Uuid::new_v4())
         .bind(vm_id)
         .execute(&state.pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
 
         let task_id = enqueue_task(
             state,

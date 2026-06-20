@@ -53,7 +53,7 @@ pub async fn vm_topology(
 }
 
 pub(crate) async fn build_topology(
-    pool: &sqlx::PgPool,
+    pool: &sqlx::SqlitePool,
     vm_filter: Option<Uuid>,
 ) -> Result<TopologyGraph, ApiError> {
     let mut nodes = Vec::new();
@@ -92,14 +92,14 @@ pub(crate) async fn build_topology(
 
     let vms: Vec<(Uuid, String, Option<Uuid>, String, Vec<String>)> = if let Some(vid) = vm_filter {
         sqlx::query_as(
-            "SELECT id, name, host_id, observed_state, COALESCE(tags, '{}') FROM vms WHERE id = $1",
+            "SELECT id, name, host_id, observed_state, COALESCE(tags, '[]') FROM vms WHERE id = ?",
         )
         .bind(vid)
         .fetch_all(pool)
         .await?
     } else {
         sqlx::query_as(
-            "SELECT id, name, host_id, observed_state, COALESCE(tags, '{}') FROM vms ORDER BY name LIMIT 100",
+            "SELECT id, name, host_id, observed_state, COALESCE(tags, '[]') FROM vms ORDER BY name LIMIT 100",
         )
         .fetch_all(pool)
         .await?
@@ -178,7 +178,7 @@ pub(crate) async fn build_topology(
         });
 
         let bound: Vec<(Uuid, String)> =
-            sqlx::query_as("SELECT id, name FROM networks WHERE segment_id = $1")
+            sqlx::query_as("SELECT id, name FROM networks WHERE segment_id = ?")
                 .bind(sid)
                 .fetch_all(pool)
                 .await

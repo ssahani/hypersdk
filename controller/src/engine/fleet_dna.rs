@@ -2,7 +2,7 @@
 // Infrastructure DNA — fleet health score 0–100 (Phase 56 v1).
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::config::ControllerConfig;
 use crate::engine::fleet_linux;
@@ -47,7 +47,7 @@ fn compliance_score_from_grade(grade: &str) -> i32 {
     }
 }
 
-pub async fn overview(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Result<FleetDnaOverview> {
+pub async fn overview(pool: &SqlitePool, cfg: &ControllerConfig) -> anyhow::Result<FleetDnaOverview> {
     let mission = fleet_mission::overview(pool).await?;
     let updates = fleet_updates::overview(pool, cfg).await?;
     let linux = fleet_linux::overview(pool, cfg).await?;

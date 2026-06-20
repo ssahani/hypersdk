@@ -60,7 +60,7 @@ pub async fn create_schedule(
     let id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO maintenance_schedules (id, host_id, action, evacuate, run_at)
-         VALUES ($1, $2, $3, $4, $5)",
+         VALUES (?, ?, ?, ?, ?)",
     )
     .bind(id)
     .bind(body.host_id)
@@ -70,7 +70,7 @@ pub async fn create_schedule(
     .execute(&state.pool)
     .await?;
     let row = sqlx::query_as::<_, MaintenanceScheduleRow>(
-        "SELECT id, host_id, action, evacuate, run_at, status FROM maintenance_schedules WHERE id = $1",
+        "SELECT id, host_id, action, evacuate, run_at, status FROM maintenance_schedules WHERE id = ?",
     )
     .bind(id)
     .fetch_one(&state.pool)
@@ -84,7 +84,7 @@ pub async fn delete_schedule(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
-    sqlx::query("DELETE FROM maintenance_schedules WHERE id = $1 AND status = 'pending'")
+    sqlx::query("DELETE FROM maintenance_schedules WHERE id = ? AND status = 'pending'")
         .bind(id)
         .execute(&state.pool)
         .await?;
@@ -99,6 +99,6 @@ pub async fn fence_host_manual(
     require_admin(&actor)?;
     let ok = crate::engine::drs::fence_host(&state, host_id)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+        .map_err(|e| ApiErrorernal(e.to_string()))?;
     Ok(Json(serde_json::json!({ "fenced": ok })))
 }

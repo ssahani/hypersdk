@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 #[derive(Debug, Serialize)]
 pub struct ComplianceCheck {
@@ -22,7 +22,7 @@ pub struct ComplianceReport {
     pub finding_count: usize,
 }
 
-pub async fn generate(pool: &PgPool) -> anyhow::Result<ComplianceReport> {
+pub async fn generate(pool: &SqlitePool) -> anyhow::Result<ComplianceReport> {
     let total_vms: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM vms WHERE COALESCE(managed, TRUE) = TRUE")
             .fetch_one(pool)
@@ -30,8 +30,8 @@ pub async fn generate(pool: &PgPool) -> anyhow::Result<ComplianceReport> {
             .unwrap_or(0);
 
     let prod_vms: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM vms WHERE 'prod' = ANY(COALESCE(tags, '{}'))
-         OR 'production' = ANY(COALESCE(tags, '{}'))",
+        "SELECT COUNT(*) FROM vms WHERE EXISTS (SELECT 1 FROM json_each(COALESCE(tags,'[]')) WHERE value='prod')
+         OR EXISTS (SELECT 1 FROM json_each(COALESCE(tags,'[]')) WHERE value='production')",
     )
     .fetch_one(pool)
     .await
@@ -39,7 +39,7 @@ pub async fn generate(pool: &PgPool) -> anyhow::Result<ComplianceReport> {
 
     let prod_with_backup: i64 = sqlx::query_scalar(
         "SELECT COUNT(DISTINCT v.id) FROM vms v
-         WHERE ('prod' = ANY(COALESCE(v.tags, '{}')) OR 'production' = ANY(COALESCE(v.tags, '{}')))
+         WHERE (EXISTS (SELECT 1 FROM json_each(COALESCE(v.tags,'[]')) WHERE value='prod') OR EXISTS (SELECT 1 FROM json_each(COALESCE(v.tags,'[]')) WHERE value='production'))
            AND EXISTS (SELECT 1 FROM backup_records b WHERE b.vm_id = v.id AND b.status = 'completed')",
     )
     .fetch_one(pool)
@@ -91,7 +91,7 @@ pub async fn generate(pool: &PgPool) -> anyhow::Result<ComplianceReport> {
         "SELECT COUNT(*) FROM vms v
          JOIN ha_policies hp ON hp.vm_id = v.id AND hp.enabled = TRUE
          WHERE v.observed_state = 'running'
-           AND ('prod' = ANY(COALESCE(v.tags, '{}')) OR 'production' = ANY(COALESCE(v.tags, '{}')))",
+           AND (EXISTS (SELECT 1 FROM json_each(COALESCE(v.tags,'[]')) WHERE value='prod') OR EXISTS (SELECT 1 FROM json_each(COALESCE(v.tags,'[]')) WHERE value='production'))",
     )
     .fetch_one(pool)
     .await

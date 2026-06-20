@@ -74,12 +74,12 @@ pub struct VmExportBundle {
 }
 
 pub async fn export_vm_bundle(
-    pool: &sqlx::PgPool,
+    pool: &sqlx::SqlitePool,
     agent_addr: &str,
     vm_id: uuid::Uuid,
 ) -> anyhow::Result<VmExportBundle> {
     let row: (String, serde_json::Value) =
-        sqlx::query_as("SELECT name, spec_json FROM vms WHERE id = $1")
+        sqlx::query_as("SELECT name, spec_json FROM vms WHERE id = ?")
             .bind(vm_id)
             .fetch_one(pool)
             .await?;
@@ -138,7 +138,7 @@ pub async fn export_vm_bundle(
 
 /// Zip bundle with terraform.tf, ansible, cloud-init, domain.xml, and manifest.json.
 pub async fn export_vm_bundle_zip(
-    pool: &sqlx::PgPool,
+    pool: &sqlx::SqlitePool,
     agent_addr: &str,
     vm_id: uuid::Uuid,
 ) -> anyhow::Result<(String, Vec<u8>)> {

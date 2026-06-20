@@ -3,7 +3,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
@@ -28,15 +28,15 @@ pub struct FleetBackupOverview {
     pub recent: Vec<FleetBackupEvent>,
 }
 
-pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetBackupOverview> {
+pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetBackupOverview> {
     let backups_completed_24h: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM backup_records WHERE status = 'completed' AND created_at > NOW() - INTERVAL '24 hours'",
+        "SELECT COUNT(*) FROM backup_records WHERE status = 'completed' AND created_at > datetime('now', '-24 hours')",
     )
     .fetch_one(pool)
     .await?;
 
     let backups_failed_24h: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM backup_records WHERE status = 'failed' AND created_at > NOW() - INTERVAL '24 hours'",
+        "SELECT COUNT(*) FROM backup_records WHERE status = 'failed' AND created_at > datetime('now', '-24 hours')",
     )
     .fetch_one(pool)
     .await?;
@@ -46,7 +46,7 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetBackupOverview> {
         .await?;
 
     let vms_with_backup_7d: i64 = sqlx::query_scalar(
-        "SELECT COUNT(DISTINCT vm_id) FROM backup_records WHERE status = 'completed' AND created_at > NOW() - INTERVAL '7 days'",
+        "SELECT COUNT(DISTINCT vm_id) FROM backup_records WHERE status = 'completed' AND created_at > datetime('now', '-7 days')",
     )
     .fetch_one(pool)
     .await?;
@@ -56,7 +56,7 @@ pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetBackupOverview> {
         SELECT (
             (SELECT COUNT(*) FROM backup_records) +
             (SELECT COUNT(*) FROM snapshot_records)
-        )::bigint
+        )
         "#,
     )
     .fetch_one(pool)

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 #[derive(Debug, Serialize)]
 pub struct RemediationItem {
@@ -20,7 +20,7 @@ pub struct RemediateHub {
     pub summary: String,
 }
 
-pub async fn hub(pool: &PgPool) -> anyhow::Result<RemediateHub> {
+pub async fn hub(pool: &SqlitePool) -> anyhow::Result<RemediateHub> {
     let cfg = crate::config::ControllerConfig::default();
     let sre = super::sre_remediate::propose(pool).await?;
     let compliance = super::compliance_remediate::propose(pool).await?;

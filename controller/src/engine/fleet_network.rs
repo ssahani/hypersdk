@@ -2,7 +2,7 @@
 // Fleet network rollup — System Settings + Network Lens (Phase 40).
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::engine::network_overlay;
 
@@ -29,7 +29,7 @@ pub struct FleetNetworkOverview {
     pub segments: Vec<FleetNetworkSegment>,
 }
 
-pub async fn overview(pool: &PgPool) -> anyhow::Result<FleetNetworkOverview> {
+pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetNetworkOverview> {
     let segments = network_overlay::segments_overview(pool).await?;
     let network_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM networks")
         .fetch_one(pool)

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 
 use crate::config::ControllerConfig;
 use crate::engine::ai::security_graph;
@@ -25,7 +25,7 @@ pub struct AsmFinding {
 }
 
 pub async fn build_asm_summary(
-    pool: &PgPool,
+    pool: &SqlitePool,
     cfg: &ControllerConfig,
 ) -> anyhow::Result<AsmSummary> {
     let overview = zeus_firewall::overview(pool, cfg).await?;
