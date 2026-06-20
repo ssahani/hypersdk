@@ -250,22 +250,22 @@ pub async fn patch_rule(
         sqlx::query(
             "UPDATE soc_detection_rules SET enabled = ?, updated_at = datetime('now') WHERE id = ?",
         )
-        .bind(id)
         .bind(enabled)
+        .bind(id)
         .execute(&state.pool)
         .await?;
     }
     if let Some(sev) = &body.severity {
         sqlx::query("UPDATE soc_detection_rules SET severity = ?, updated_at = datetime('now') WHERE id = ? AND builtin = FALSE")
-            .bind(id)
             .bind(sev)
+            .bind(id)
             .execute(&state.pool)
             .await?;
     }
     if let Some(q) = &body.query_json {
         sqlx::query("UPDATE soc_detection_rules SET query_json = ?, updated_at = datetime('now') WHERE id = ? AND builtin = FALSE")
-            .bind(id)
             .bind(q)
+            .bind(id)
             .execute(&state.pool)
             .await?;
     }
@@ -273,8 +273,8 @@ pub async fn patch_rule(
         sqlx::query(
             "UPDATE soc_detection_rules SET throttle_minutes = ?, updated_at = datetime('now') WHERE id = ? AND builtin = FALSE",
         )
-        .bind(id)
         .bind(t)
+        .bind(id)
         .execute(&state.pool)
         .await?;
     }
@@ -408,8 +408,8 @@ pub async fn patch_integration(
         sqlx::query(
             "UPDATE soc_integrations SET config_json = ?, updated_at = datetime('now') WHERE integration_type = ? AND name = 'default'",
         )
-        .bind(&integration_type)
         .bind(merged)
+        .bind(&integration_type)
         .execute(&state.pool)
         .await?;
     }
@@ -417,8 +417,8 @@ pub async fn patch_integration(
         sqlx::query(
             "UPDATE soc_integrations SET enabled = ?, updated_at = datetime('now') WHERE integration_type = ? AND name = 'default'",
         )
-        .bind(&integration_type)
         .bind(enabled)
+        .bind(&integration_type)
         .execute(&state.pool)
         .await?;
     }
@@ -665,29 +665,29 @@ pub async fn patch_playbook(
     require_admin(&actor)?;
     if let Some(desc) = &body.description {
         sqlx::query("UPDATE soc_playbooks SET description = ?, updated_at = datetime('now') WHERE id = ?")
-            .bind(id)
             .bind(desc)
+            .bind(id)
             .execute(&state.pool)
             .await?;
     }
     if let Some(enabled) = body.enabled {
         sqlx::query("UPDATE soc_playbooks SET enabled = ?, updated_at = datetime('now') WHERE id = ?")
-            .bind(id)
             .bind(enabled)
+            .bind(id)
             .execute(&state.pool)
             .await?;
     }
     if let Some(trigger) = &body.trigger_json {
         sqlx::query("UPDATE soc_playbooks SET trigger_json = ?, updated_at = datetime('now') WHERE id = ?")
-            .bind(id)
             .bind(trigger)
+            .bind(id)
             .execute(&state.pool)
             .await?;
     }
     if let Some(steps) = &body.steps_json {
         sqlx::query("UPDATE soc_playbooks SET steps_json = ?, updated_at = datetime('now') WHERE id = ?")
-            .bind(id)
             .bind(steps)
+            .bind(id)
             .execute(&state.pool)
             .await?;
     }
