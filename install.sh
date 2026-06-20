@@ -163,7 +163,7 @@ check_arch() {
 
 # ── Node.js version check and upgrade ────────────────────────────────
 
-ensure_node_18() {
+ensure_node_20() {
     local node_ver=0
     if command -v node &>/dev/null; then
         node_ver=$(node --version 2>/dev/null | sed 's/v//' | cut -d. -f1)
@@ -172,16 +172,15 @@ ensure_node_18() {
         fi
     fi
 
-    if [ "$node_ver" -ge 18 ] 2>/dev/null; then
+    if [ "$node_ver" -ge 20 ] 2>/dev/null; then
         info "Node.js $(node --version) is sufficient"
         return 0
     fi
 
-    warn "Node.js 18+ required (found: ${node_ver:-none}). Installing Node.js 20..."
+    warn "Node.js 20+ required (found: ${node_ver:-none}). Installing Node.js 20 via NodeSource..."
 
     case "$OS_FAMILY" in
         fedora)
-            # Fedora usually has recent enough Node.js
             if [ "$node_ver" -gt 0 ] 2>/dev/null; then
                 $PKG_MANAGER remove -y nodejs npm 2>/dev/null || true
             fi
@@ -189,7 +188,6 @@ ensure_node_18() {
             $PKG_MANAGER install -y nodejs >> "$LOG_FILE" 2>&1 || fail "Node.js install failed"
             ;;
         rhel)
-            # RHEL/AlmaLinux/Rocky: must remove old node first to avoid conflicts
             $PKG_MANAGER remove -y nodejs npm nodejs-full-i18n nodejs-libs 2>/dev/null || true
             curl -fsSL https://rpm.nodesource.com/setup_20.x | bash - >> "$LOG_FILE" 2>&1 || fail "NodeSource setup failed"
             $PKG_MANAGER install -y nodejs >> "$LOG_FILE" 2>&1 || fail "Node.js install failed"
@@ -200,7 +198,6 @@ ensure_node_18() {
             ;;
         suse)
             $PKG_MANAGER install -y nodejs20 npm20 >> "$LOG_FILE" 2>&1 || {
-                # Fallback to NodeSource
                 curl -fsSL https://rpm.nodesource.com/setup_20.x | bash - >> "$LOG_FILE" 2>&1 || true
                 $PKG_MANAGER install -y nodejs >> "$LOG_FILE" 2>&1 || fail "Node.js install failed"
             }
@@ -365,7 +362,7 @@ install_deps() {
 
     install_console_packages
 
-    ensure_node_18
+    ensure_node_20
     ensure_mkosi
     ensure_packer
     ensure_helm
@@ -922,16 +919,25 @@ build_web() {
 
     local node_ver
     node_ver=$(node --version 2>/dev/null | sed 's/v//' | cut -d. -f1)
-    if ! [[ "$node_ver" =~ ^[0-9]+$ ]] || [ "$node_ver" -lt 18 ]; then
-        fail "Node.js 18+ required (found: v${node_ver:-none})"
+    if ! [[ "$node_ver" =~ ^[0-9]+$ ]] || [ "$node_ver" -lt 20 ]; then
+        fail "Node.js 20+ required (found: v${node_ver:-none})"
     fi
     info "Node.js: $(node --version)"
 
     info "Installing npm dependencies..."
-    log_cmd npm install || fail "npm install failed. Check $LOG_FILE"
+    if ! log_cmd npm install; then
+        warn "npm install failed — retrying with clean node_modules..."
+        rm -rf node_modules package-lock.json
+        log_cmd npm install || fail "npm install failed after clean retry. Check $LOG_FILE"
+    fi
 
     info "Building production bundle..."
-    log_cmd npx vite build || log_cmd npm run build || fail "npm build failed. Check $LOG_FILE"
+    if ! log_cmd npm run build; then
+        warn "npm build failed — retrying with clean node_modules (native binding issue)..."
+        rm -rf node_modules package-lock.json
+        log_cmd npm install || fail "npm install failed on build retry. Check $LOG_FILE"
+        log_cmd npm run build || fail "npm build failed after clean retry. Check $LOG_FILE"
+    fi
 
     ok "Web UI built: $(find dist/assets -name '*.js' 2>/dev/null | wc -l) assets"
 }

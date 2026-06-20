@@ -590,13 +590,15 @@ for bin in machina-controller machina-agent; do
 done
 " || die "install-only failed"
     else
-        phase 3 "$TOTAL_STEPS" "Build & install (quick path)" "make release web (incremental) + install.sh --skip-build"
-        # Build as SSH user (rustup cargo on PATH); install.sh copies artifacts only (--skip-build).
+        phase 3 "$TOTAL_STEPS" "Build & install (quick path)" "deps-only → make release web (incremental) + install.sh --skip-build"
+        # Ensure system deps (protobuf-compiler, libvirt-dev, etc.) are present before building.
+        # install.sh --deps-only is idempotent and fast when deps are already installed.
         ssh_r_bash "$REMOTE" "
 set -euo pipefail
 export PATH=\"\${HOME}/.cargo/bin:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:\${PATH}\"
 export CARGO_BUILD_JOBS=${REMOTE_CARGO_BUILD_JOBS}
 cd $REMOTE_DIR
+sudo bash install.sh --deps-only --no-tests
 make release web
 sudo bash install.sh${QUICK_OPTS}
 for bin in machina-controller machina-agent; do
@@ -606,8 +608,18 @@ for bin in machina-controller machina-agent; do
 done
 " || die "quick build failed"
     fi
-    phase 4 "$TOTAL_STEPS" "Reload systemd & restart Machina services" "daemon-reload — always restart daemon, controller, agent"
-    ssh_r_bash "$REMOTE" "sudo cp ${REMOTE_DIR}/contrib/machina-daemon.service ${REMOTE_DIR}/contrib/machina-controller.service ${REMOTE_DIR}/contrib/machina-agent.service /usr/lib/systemd/system/ 2>/dev/null || true; sudo systemctl daemon-reload && sudo systemctl restart machina-daemon machina-controller machina-agent" || die "service restart failed"
+    phase 4 "$TOTAL_STEPS" "Reload systemd & restart Machina services" "daemon-reload — restart daemon; controller+agent only if active"
+    ssh_r_bash "$REMOTE" "
+set -euo pipefail
+sudo cp ${REMOTE_DIR}/contrib/machina-daemon.service ${REMOTE_DIR}/contrib/machina-controller.service ${REMOTE_DIR}/contrib/machina-agent.service /usr/lib/systemd/system/ 2>/dev/null || true
+sudo systemctl daemon-reload
+sudo systemctl restart machina-daemon
+for svc in machina-controller machina-agent; do
+  if systemctl is-enabled \"\$svc\" &>/dev/null || systemctl is-active \"\$svc\" &>/dev/null; then
+    sudo systemctl restart \"\$svc\" || true
+  fi
+done
+" || die "service restart failed"
 else
     phase 3 "$TOTAL_STEPS" "Run installer on remote" "sudo install.sh — tooling, build, unit files, optional firewall"
     ssh_r_bash "$REMOTE" "
