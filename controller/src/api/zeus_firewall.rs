@@ -435,8 +435,7 @@ pub async fn create_policy(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let id = Uuid::new_v4();
     sqlx::query("INSERT INTO firewall_policies (id, name, spec_yaml) VALUES (?, ?, ?)")
-        .bind(uuid::Uuid::new_v4())
-    .bind(id)
+        .bind(id)
         .bind(&body.name)
         .bind(&body.spec_yaml)
         .execute(&state.pool)
@@ -629,7 +628,7 @@ pub async fn compliance_export_pdf(
             format!("attachment; filename=\"zeus-firewall-{kind}.pdf\""),
         )
         .body(axum::body::Body::from(bytes))
-        .unwrap())
+        .map_err(|e| ApiError::internal(e.to_string()))?)
 }
 
 pub async fn packetwolf_anomalies(State(state): State<AppState>) -> Json<serde_json::Value> {

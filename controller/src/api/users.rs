@@ -191,7 +191,7 @@ pub async fn prune_invalid_users(
 ) -> Result<Json<PruneInvalidUsersResponse>, ApiError> {
     require_admin(&actor)?;
     let result = sqlx::query(
-        "DELETE FROM users WHERE username IS NULL OR btrim(username) = '' RETURNING id",
+        "DELETE FROM users WHERE username IS NULL OR TRIM(username) = '' RETURNING id",
     )
     .execute(&state.pool)
     .await?;

@@ -75,7 +75,7 @@ async fn analyze_with_symptoms(
     let audits: Vec<(DateTime<Utc>, String, String, Option<String>)> = sqlx::query_as(
         "SELECT created_at, actor, action, resource_type
          FROM audit_logs
-         WHERE created_at > datetime('now') - make_interval(hours => ?)
+         WHERE created_at > datetime('now', '-' || ? || ' hours')
          ORDER BY created_at DESC LIMIT 80",
     )
     .bind(hours)
@@ -96,7 +96,7 @@ async fn analyze_with_symptoms(
 
     let events: Vec<(DateTime<Utc>, String, String)> = sqlx::query_as(
         "SELECT created_at, kind, message FROM events
-         WHERE created_at > datetime('now') - make_interval(hours => ?)
+         WHERE created_at > datetime('now', '-' || ? || ' hours')
          ORDER BY created_at DESC LIMIT 60",
     )
     .bind(hours)
@@ -119,7 +119,7 @@ async fn analyze_with_symptoms(
     let tasks: Vec<(DateTime<Utc>, String, String, Option<Uuid>)> = if let Some(vid) = vm_id {
         sqlx::query_as(
             "SELECT created_at, operation, status, resource_id FROM tasks
-             WHERE created_at > datetime('now') - make_interval(hours => ?)
+             WHERE created_at > datetime('now', '-' || ? || ' hours')
                AND (resource_id = ? OR status = 'failed')
              ORDER BY created_at DESC LIMIT 40",
         )
@@ -130,7 +130,7 @@ async fn analyze_with_symptoms(
     } else {
         sqlx::query_as(
             "SELECT created_at, operation, status, resource_id FROM tasks
-             WHERE created_at > datetime('now') - make_interval(hours => ?)
+             WHERE created_at > datetime('now', '-' || ? || ' hours')
              ORDER BY created_at DESC LIMIT 40",
         )
         .bind(hours)
@@ -170,7 +170,7 @@ async fn analyze_with_symptoms(
     // Fence events
     let fences: Vec<(DateTime<Utc>, String)> = sqlx::query_as(
         "SELECT created_at, COALESCE(message, action) FROM fence_events
-         WHERE created_at > datetime('now') - make_interval(hours => ?)
+         WHERE created_at > datetime('now', '-' || ? || ' hours')
          ORDER BY created_at DESC LIMIT 10",
     )
     .bind(hours)

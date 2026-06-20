@@ -33,7 +33,7 @@ pub async fn export_timeline(pool: &SqlitePool, hours: i32) -> anyhow::Result<Si
     )> = sqlx::query_as(
         "SELECT target_kind, target_id, kind, summary, actor, created_at, detail_json
              FROM firewall_timeline
-             WHERE created_at >= now() - make_interval(hours => ?)
+             WHERE created_at >= datetime('now', '-' || ? || ' hours')
              ORDER BY created_at DESC
              LIMIT 5000",
     )
