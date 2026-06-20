@@ -68,8 +68,10 @@ pub async fn overview(pool: &SqlitePool) -> anyhow::Result<ObservabilityOverview
     .await?;
 
     let p95: Option<i32> = sqlx::query_scalar(
-        "SELECT PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms)
-         FROM api_trace_spans WHERE recorded_at > datetime('now', '-1 hours')",
+        "SELECT duration_ms FROM api_trace_spans
+         WHERE recorded_at > datetime('now', '-1 hours')
+         ORDER BY duration_ms DESC
+         LIMIT 1 OFFSET MAX(0, (SELECT COUNT(*) FROM api_trace_spans WHERE recorded_at > datetime('now', '-1 hours')) * 5 / 100 - 1)",
     )
     .fetch_optional(pool)
     .await?;

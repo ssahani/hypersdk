@@ -171,10 +171,11 @@ pub async fn ensure_default_sites(pool: &SqlitePool) -> anyhow::Result<()> {
             (dr_id, "fleet-dr-standby", "MetalLockdown"),
         ] {
             sqlx::query(
-                "INSERT INTO firewall_site_policies (site_id, policy_name, profile, spec_yaml)
-                 VALUES (?, ?, ?, ?)
+                "INSERT INTO firewall_site_policies (id, site_id, policy_name, profile, spec_yaml)
+                 VALUES (?, ?, ?, ?, ?)
                  ON CONFLICT (site_id, policy_name) DO NOTHING",
             )
+            .bind(uuid::Uuid::new_v4())
             .bind(site_id)
             .bind(name)
             .bind(profile)

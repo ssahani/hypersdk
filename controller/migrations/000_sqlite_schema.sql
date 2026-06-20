@@ -891,12 +891,12 @@ CREATE TABLE IF NOT EXISTS firewall_sites (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO firewall_sites (name, region, role, gitops_namespace, dr_pair)
-VALUES ('primary-local', 'local', 'primary', 'site-primary', 'dr-replica')
+INSERT INTO firewall_sites (id, name, region, role, gitops_namespace, dr_pair)
+VALUES (X'10000000000040008000000000000001', 'primary-local', 'local', 'primary', 'site-primary', 'dr-replica')
 ON CONFLICT (name) DO NOTHING;
 
-INSERT INTO firewall_sites (name, region, role, gitops_namespace, dr_pair, lockdown_enabled)
-VALUES ('dr-replica', 'dr', 'replica', 'site-dr', 'primary-local', 0)
+INSERT INTO firewall_sites (id, name, region, role, gitops_namespace, dr_pair, lockdown_enabled)
+VALUES (X'20000000000040008000000000000001', 'dr-replica', 'dr', 'replica', 'site-dr', 'primary-local', 0)
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================
