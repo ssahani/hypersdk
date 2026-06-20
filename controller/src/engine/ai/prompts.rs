@@ -105,9 +105,9 @@ pub async fn create_prompt(
     };
     let tags = serde_json::to_value(&body.tags)?;
     let id: Uuid = sqlx::query_scalar(
-        "INSERT INTO ai_prompts (scope, owner_id, team_id, title, body, tags, agent_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
+        "INSERT INTO ai_prompts (id, scope, owner_id, team_id, title, body, tags, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
     )
+    .bind(uuid::Uuid::new_v4())
     .bind(scope)
     .bind(user_id)
     .bind(body.team_id.trim())

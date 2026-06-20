@@ -123,7 +123,7 @@ async fn evaluate_slo(pool: &SqlitePool, policy: &SloPolicyRow) -> anyhow::Resul
 
 async fn api_availability_slo(pool: &SqlitePool, window_hours: i32) -> anyhow::Result<(f64, f64)> {
     let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM api_trace_spans WHERE recorded_at > datetime('now') - (? || ' hours')erval",
+        "SELECT COUNT(*) FROM api_trace_spans WHERE recorded_at > datetime('now', '-' || ? || ' hours')",
     )
     .bind(window_hours)
     .fetch_one(pool)
@@ -133,7 +133,7 @@ async fn api_availability_slo(pool: &SqlitePool, window_hours: i32) -> anyhow::R
     }
     let ok: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM api_trace_spans
-         WHERE recorded_at > datetime('now') - (? || ' hours')erval AND status_code < 500",
+         WHERE recorded_at > datetime('now', '-' || ? || ' hours') AND status_code < 500",
     )
     .bind(window_hours)
     .fetch_one(pool)
@@ -144,7 +144,7 @@ async fn api_availability_slo(pool: &SqlitePool, window_hours: i32) -> anyhow::R
 
 async fn task_success_slo(pool: &SqlitePool, window_hours: i32) -> anyhow::Result<(f64, f64)> {
     let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM tasks WHERE created_at > datetime('now') - (? || ' hours')erval AND status IN ('completed', 'failed')",
+        "SELECT COUNT(*) FROM tasks WHERE created_at > datetime('now', '-' || ? || ' hours') AND status IN ('completed', 'failed')",
     )
     .bind(window_hours)
     .fetch_one(pool)
@@ -153,7 +153,7 @@ async fn task_success_slo(pool: &SqlitePool, window_hours: i32) -> anyhow::Resul
         return Ok((100.0, 0.0));
     }
     let ok: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM tasks WHERE created_at > datetime('now') - (? || ' hours')erval AND status = 'completed'",
+        "SELECT COUNT(*) FROM tasks WHERE created_at > datetime('now', '-' || ? || ' hours') AND status = 'completed'",
     )
     .bind(window_hours)
     .fetch_one(pool)

@@ -12,7 +12,7 @@ pub async fn expire_stale_approvals(pool: &SqlitePool) -> anyhow::Result<u64> {
 
     let r = sqlx::query(
         "UPDATE firewall_approvals SET status = 'expired', review_note = 'SLA exceeded'
-         WHERE status = 'pending' AND created_at < datetime('now') - (? || ' hours')erval",
+         WHERE status = 'pending' AND created_at < datetime('now', '-' || ? || ' hours')",
     )
     .bind(sla_hours.to_string())
     .execute(pool)
@@ -26,9 +26,9 @@ pub async fn reconcile_gitops_policies(pool: &SqlitePool) -> anyhow::Result<usiz
         .fetch_one(pool)
         .await?;
     let _ = sqlx::query(
-        "INSERT INTO firewall_policy_reconcile_log (policies_synced, detail_json)
-         VALUES (?, ?)",
+        "INSERT INTO firewall_policy_reconcile_log (id, policies_synced, detail_json) VALUES (?, ?, ?)",
     )
+    .bind(uuid::Uuid::new_v4())
     .bind(count as i32)
     .bind(serde_json::json!({ "note": "GitOps reconcile tick — policies registered in DB" }))
     .execute(pool)

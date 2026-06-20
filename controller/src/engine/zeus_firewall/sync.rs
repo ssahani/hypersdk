@@ -26,9 +26,9 @@ pub async fn sync_host_posture(
     let report = drift::detect_drift(pool, "host", host_id, &inv).await?;
     if report.drift_detected {
         let _ = sqlx::query(
-            "INSERT INTO firewall_timeline (target_kind, target_id, kind, summary, detail_json, actor)
-             VALUES ('host', ?, 'drift', ?, ?, 'system')",
+            "INSERT INTO firewall_timeline (id, target_kind, target_id, kind, summary, detail_json, actor) VALUES (?, 'host', ?, 'drift', ?, ?, 'system')",
         )
+        .bind(uuid::Uuid::new_v4())
         .bind(host_id)
         .bind(&report.summary)
         .bind(serde_json::json!({
@@ -44,9 +44,9 @@ pub async fn sync_host_posture(
             .await
             .unwrap_or_else(|_| host_id.to_string());
         let _ = sqlx::query(
-            "INSERT INTO events (kind, severity, message, resource_type, resource_id)
-             VALUES ('firewall.drift', 'warning', ?, 'host', ?)",
+            "INSERT INTO events (id, kind, severity, message, resource_type, resource_id) VALUES (?, 'firewall.drift', 'warning', ?, 'host', ?)",
         )
+        .bind(uuid::Uuid::new_v4())
         .bind(format!("Firewall drift on {hostname}: {}", report.summary))
         .bind(host_id)
         .execute(pool)

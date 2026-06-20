@@ -48,9 +48,9 @@ pub async fn apply_plan(
     let result = apply_k8s_plan(namespace, &req)?;
     if !dry_run {
         let _ = sqlx::query(
-            "INSERT INTO firewall_k8s_apply_log (namespace, profile, backend, actor, detail_json)
-             VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO firewall_k8s_apply_log (id, namespace, profile, backend, actor, detail_json) VALUES (?, ?, ?, ?, ?, ?)",
         )
+        .bind(uuid::Uuid::new_v4())
         .bind(namespace)
         .bind(profile)
         .bind(detect_k8s_backend().as_str())

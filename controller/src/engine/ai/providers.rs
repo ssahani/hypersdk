@@ -166,9 +166,9 @@ pub async fn create_provider(
     }
     let stored_key = crypto::store_api_key(body.api_key.trim())?;
     let id: Uuid = sqlx::query_scalar(
-        "INSERT INTO ai_providers (name, kind, base_url, org_id, deployment_name, api_key_encrypted, is_default)
-         VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
+        "INSERT INTO ai_providers (id, name, kind, base_url, org_id, deployment_name, api_key_encrypted, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
     )
+    .bind(uuid::Uuid::new_v4())
     .bind(body.name.trim())
     .bind(body.kind.trim())
     .bind(body.base_url.trim())

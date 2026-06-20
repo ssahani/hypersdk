@@ -97,7 +97,7 @@ pub async fn capacity_report(
     .fetch_one(&state.pool)
     .await?;
     let avg_cpu: f32 = sqlx::query_scalar(
-        "SELECT COALESCE(AVG(cpu_percent)::double precision, 0) FROM hosts WHERE state = 'online'",
+        "SELECT COALESCE(AVG(cpu_percent), 0.0) FROM hosts WHERE state = 'online'",
     )
     .fetch_one(&state.pool)
     .await?;

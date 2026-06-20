@@ -134,9 +134,9 @@ pub async fn scan_exposure(
     let _ = super::drift::save_snapshot(pool, "bare_metal", id, &inv).await;
 
     let _ = sqlx::query(
-        "INSERT INTO firewall_timeline (target_kind, target_id, kind, summary, detail_json, actor)
-         VALUES ('bare_metal', ?, 'metal_scan', ?, ?, ?)",
+        "INSERT INTO firewall_timeline (id, target_kind, target_id, kind, summary, detail_json, actor) VALUES (?, 'bare_metal', ?, 'metal_scan', ?, ?, ?)",
     )
+    .bind(uuid::Uuid::new_v4())
     .bind(id)
     .bind(format!("Exposure scan — risk {}", scan.risk))
     .bind(&posture)
@@ -201,12 +201,12 @@ pub async fn apply_metal(
         "metal_profile_applied"
     };
     let _ = sqlx::query(
-        "INSERT INTO firewall_timeline (target_kind, target_id, kind, summary, detail_json, actor)
-         VALUES ('bare_metal', ?, ?, ?, ?, ?)",
+        "INSERT INTO firewall_timeline (id, target_kind, target_id, kind, summary, detail_json, actor) VALUES (?, 'bare_metal', ?, ?, ?, ?, ?)",
     )
     .bind(id)
     .bind(kind)
     .bind(format!("Applied metal profile {profile} (policy-only)"))
+    .bind(uuid::Uuid::new_v4())
     .bind(serde_json::json!({ "operations": result.operations, "tag": "metal" }))
     .bind(actor)
     .execute(pool)
@@ -225,7 +225,7 @@ pub async fn upsert_gitops_policy(
         "apiVersion: zeus.machina/v1\nkind: MachineFirewallPolicy\nmetadata:\n  name: {name}\nspec:\n  targetKind: bare_metal\n  profile: {profile}\n  scope: bmc+pxe\n"
     );
     sqlx::query(
-        "INSERT INTO firewall_policies (name, spec_yaml) VALUES (?, ?)
+        "INSERT INTO firewall_policies (id, name, spec_yaml) VALUES (?, ?, ?)
          ON CONFLICT (name) DO UPDATE SET spec_yaml = EXCLUDED.spec_yaml, updated_at = datetime('now')",
     )
     .bind(&name)

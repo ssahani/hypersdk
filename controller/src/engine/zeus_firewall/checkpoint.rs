@@ -86,9 +86,9 @@ pub async fn rollback_checkpoint(
     };
 
     let _ = sqlx::query(
-        "INSERT INTO firewall_timeline (target_kind, target_id, kind, summary, detail_json, actor)
-         VALUES (?, ?, 'rollback', ?, ?, ?)",
+        "INSERT INTO firewall_timeline (id, target_kind, target_id, kind, summary, detail_json, actor) VALUES (?, ?, ?, 'rollback', ?, ?, ?)",
     )
+    .bind(uuid::Uuid::new_v4())
     .bind(target_kind)
     .bind(target_id)
     .bind(format!("Rolled back to checkpoint {label}"))

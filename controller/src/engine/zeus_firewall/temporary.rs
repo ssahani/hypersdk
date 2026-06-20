@@ -57,9 +57,9 @@ pub async fn create_temporary_rule(
     .await?;
 
     let _ = sqlx::query(
-        "INSERT INTO firewall_timeline (target_kind, target_id, kind, summary, detail_json, actor)
-         VALUES (?, ?, 'temporary_rule', ?, ?, ?)",
+        "INSERT INTO firewall_timeline (id, target_kind, target_id, kind, summary, detail_json, actor) VALUES (?, ?, ?, 'temporary_rule', ?, ?, ?)",
     )
+    .bind(uuid::Uuid::new_v4())
     .bind(&req.target_kind)
     .bind(req.target_id)
     .bind(format!(
@@ -97,7 +97,7 @@ pub async fn list_temporary_rules(
     )> = sqlx::query_as(
         "SELECT id, source_cidr, dest_port, protocol, reason, expires_at, owner
              FROM firewall_temporary_rules
-             WHERE target_id = ? AND applied = true AND expires_at > now()
+             WHERE target_id = ? AND applied = true AND expires_at > datetime('now')
              ORDER BY expires_at",
     )
     .bind(target_id)
@@ -123,7 +123,7 @@ pub async fn list_temporary_rules(
 pub async fn expire_temporary_rules(pool: &SqlitePool) -> anyhow::Result<u64> {
     let rows = sqlx::query(
         "UPDATE firewall_temporary_rules SET applied = false
-         WHERE applied = true AND expires_at <= now()",
+         WHERE applied = true AND expires_at <= datetime('now')",
     )
     .execute(pool)
     .await?;

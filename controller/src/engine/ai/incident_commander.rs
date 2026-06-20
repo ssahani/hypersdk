@@ -209,9 +209,9 @@ pub struct CreateIncidentRequest {
 pub async fn create(pool: &SqlitePool, req: &CreateIncidentRequest) -> anyhow::Result<Uuid> {
     let resources = serde_json::json!(req.affected_resources);
     let id: Uuid = sqlx::query_scalar(
-        "INSERT INTO ai_incidents (title, summary, severity, status, affected_resources, root_cause, window_start, window_end)
-         VALUES (?, ?, ?, 'open', ?, ?, ?, ?) RETURNING id",
+        "INSERT INTO ai_incidents (id, title, summary, severity, status, affected_resources, root_cause, window_start, window_end) VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?) RETURNING id",
     )
+    .bind(uuid::Uuid::new_v4())
     .bind(&req.title)
     .bind(&req.summary)
     .bind(&req.severity)

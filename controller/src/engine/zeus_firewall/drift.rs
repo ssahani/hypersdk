@@ -30,9 +30,9 @@ pub async fn save_snapshot(
 ) -> anyhow::Result<()> {
     let checksum = checksum_inventory(inv);
     sqlx::query(
-        "INSERT INTO firewall_posture_snapshots (target_kind, target_id, checksum, posture_json)
-         VALUES (?, ?, ?, ?)",
+        "INSERT INTO firewall_posture_snapshots (id, target_kind, target_id, checksum, posture_json) VALUES (?, ?, ?, ?, ?)",
     )
+    .bind(uuid::Uuid::new_v4())
     .bind(target_kind)
     .bind(target_id)
     .bind(&checksum)

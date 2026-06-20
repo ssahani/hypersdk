@@ -145,14 +145,14 @@ pub async fn patch_rule(
     body: &PatchRoutingRuleBody,
 ) -> anyhow::Result<RoutingRuleRow> {
     let row: (String, Option<Uuid>, Option<Uuid>, bool) = sqlx::query_as(
-        "INSERT INTO ai_routing_rules (task_class, provider_id, model_id, enabled)
-         VALUES (?, ?, ?, ?)
+        "INSERT INTO ai_routing_rules (id, task_class, provider_id, model_id, enabled) VALUES (?, ?, ?, ?, ?)
          ON CONFLICT (task_class) DO UPDATE SET
             provider_id = EXCLUDED.provider_id,
             model_id = EXCLUDED.model_id,
             enabled = EXCLUDED.enabled
          RETURNING task_class, provider_id, model_id, enabled",
     )
+    .bind(uuid::Uuid::new_v4())
     .bind(task_class)
     .bind(body.provider_id)
     .bind(body.model_id)

@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use sqlx::SqlitePool;
+use uuid::Uuid;
 use tokio::sync::broadcast;
 
 use crate::config::ControllerConfig;
@@ -56,6 +57,7 @@ impl AppState {
         tokio::spawn(async move {
             let _ = sqlx::query("INSERT INTO events (id, kind, message) VALUES (?, ?, ?)")
                 .bind(uuid::Uuid::new_v4())
+    .bind(uuid::Uuid::new_v4())
                 .bind(&kind)
                 .bind(&msg_db)
                 .execute(&pool)

@@ -435,7 +435,8 @@ pub async fn create_policy(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let id = Uuid::new_v4();
     sqlx::query("INSERT INTO firewall_policies (id, name, spec_yaml) VALUES (?, ?, ?)")
-        .bind(id)
+        .bind(uuid::Uuid::new_v4())
+    .bind(id)
         .bind(&body.name)
         .bind(&body.spec_yaml)
         .execute(&state.pool)

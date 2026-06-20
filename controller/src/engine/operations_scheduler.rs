@@ -80,7 +80,7 @@ async fn trigger_fired(
     }
     if trigger == "storage.used_pct>85" {
         let n: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM storage_pools WHERE capacity_gib > 0 AND (used_gib::float / capacity_gib::float) > 0.85",
+            "SELECT COUNT(*) FROM storage_pools WHERE capacity_gib > 0 AND (used_gib * 1.0 / capacity_gib) > 0.85",
         )
         .fetch_one(pool)
         .await?;

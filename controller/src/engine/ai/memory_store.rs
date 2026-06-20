@@ -116,10 +116,10 @@ pub async fn remember(
     }
     let retention = settings.retention_days.max(1) as i64;
     let id: Uuid = sqlx::query_scalar(
-        "INSERT INTO ai_memory_entries (scope, owner_id, project_id, subject_kind, subject_id, summary, expires_at)
-         VALUES ('user', ?, ?, ?, ?, ?, datetime('now') + (? || ' days')erval)
+        "INSERT INTO ai_memory_entries (id, scope, owner_id, project_id, subject_kind, subject_id, summary, expires_at) VALUES (?, 'user', ?, ?, ?, ?, ?, datetime('now', ? || ' days'))
          RETURNING id",
     )
+    .bind(uuid::Uuid::new_v4())
     .bind(owner_id)
     .bind(project_id.unwrap_or(""))
     .bind(subject_kind)

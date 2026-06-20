@@ -91,7 +91,8 @@ pub async fn sync_policies(
             .await?;
         } else {
             sqlx::query("INSERT INTO firewall_policies (id, name, spec_yaml) VALUES (?, ?, ?)")
-                .bind(Uuid::new_v4())
+                .bind(uuid::Uuid::new_v4())
+    .bind(Uuid::new_v4())
                 .bind(&policy.name)
                 .bind(&policy.spec_yaml)
                 .execute(pool)

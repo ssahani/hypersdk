@@ -284,12 +284,12 @@ pub async fn apply_target(
             let _ = super::drift::save_snapshot(pool, "host", host_id, &detail.inventory).await;
         }
         let _ = sqlx::query(
-            "INSERT INTO firewall_timeline (target_kind, target_id, kind, summary, detail_json, actor)
-             VALUES ('host', ?, 'apply', ?, ?, ?)",
+            "INSERT INTO firewall_timeline (id, target_kind, target_id, kind, summary, detail_json, actor) VALUES (?, 'host', ?, 'apply', ?, ?, ?)",
         )
         .bind(host_id)
         .bind(format!("Applied firewall plan ({})", apply_req.profile.as_deref().unwrap_or("custom")))
-        .bind(serde_json::json!({ "operations": result.operations }))
+        .bind(uuid::Uuid::new_v4())
+    .bind(serde_json::json!({ "operations": result.operations }))
         .bind(actor)
         .execute(pool)
         .await;

@@ -310,9 +310,9 @@ pub async fn create_vm(
     if let Some(net) = body.vm.spec.network.first() {
         if let Some(profile) = &net.firewall_profile {
             let _ = sqlx::query(
-                "INSERT INTO firewall_timeline (target_kind, target_id, kind, summary, detail_json, actor)
-                 VALUES ('vm', ?, 'profile_requested', ?, ?, ?)",
+                "INSERT INTO firewall_timeline (id, target_kind, target_id, kind, summary, detail_json, actor) VALUES (?, 'vm', ?, 'profile_requested', ?, ?, ?)",
             )
+            .bind(uuid::Uuid::new_v4())
             .bind(vm_id)
             .bind(format!("VM network requests firewall profile {profile}"))
             .bind(serde_json::json!({ "profile": profile, "host_id": host_id.to_string(), "network": net.network }))

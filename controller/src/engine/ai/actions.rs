@@ -83,9 +83,9 @@ pub async fn create_action(
     requested_by: &str,
 ) -> anyhow::Result<ZeusActionRow> {
     let id: Uuid = sqlx::query_scalar(
-        "INSERT INTO ai_actions (source, action_type, label, review, risk, object_ref, requested_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id",
+        "INSERT INTO ai_actions (id, source, action_type, label, review, risk, object_ref, requested_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
     )
+    .bind(uuid::Uuid::new_v4())
     .bind(if body.source.is_empty() { "zeus" } else { &body.source })
     .bind(&body.action_type)
     .bind(&body.label)

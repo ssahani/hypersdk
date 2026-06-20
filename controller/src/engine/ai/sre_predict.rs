@@ -34,7 +34,7 @@ pub async fn forecast(pool: &SqlitePool) -> anyhow::Result<SreForecastReport> {
     .unwrap_or_default();
 
     let pool_ratio: f64 = sqlx::query_scalar(
-        "SELECT COALESCE(MAX(used_gib::float / NULLIF(capacity_gib, 0)), 0) FROM storage_pools WHERE capacity_gib > 0",
+        "SELECT COALESCE(MAX(used_gib * 1.0 / NULLIF(capacity_gib, 0)), 0.0) FROM storage_pools WHERE capacity_gib > 0",
     )
     .fetch_optional(pool)
     .await?

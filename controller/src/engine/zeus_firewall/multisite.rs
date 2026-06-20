@@ -145,10 +145,10 @@ pub async fn ensure_default_sites(pool: &SqlitePool) -> anyhow::Result<()> {
         .await?;
     if count == 0 {
         sqlx::query(
-            "INSERT INTO firewall_sites (name, region, role, gitops_namespace, dr_pair) VALUES
-             ('primary-local', 'local', 'primary', 'site-primary', 'dr-replica'),
+            "INSERT INTO firewall_sites (id, name, region, role, gitops_namespace, dr_pair) VALUES (?, 'primary-local', 'local', 'primary', 'site-primary', 'dr-replica'),
              ('dr-replica', 'dr', 'replica', 'site-dr', 'primary-local')",
         )
+        .bind(uuid::Uuid::new_v4())
         .execute(pool)
         .await?;
     }

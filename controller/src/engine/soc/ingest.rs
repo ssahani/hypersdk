@@ -60,10 +60,11 @@ async fn insert_event(
     dedupe_key: Option<&str>,
 ) -> anyhow::Result<bool> {
     let r = sqlx::query(
-        "INSERT INTO soc_events (occurred_at, source, category, severity, host_id, vm_id, actor, summary, ecs_json, raw_ref, dedupe_key)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "INSERT INTO soc_events (id, occurred_at, source, category, severity, host_id, vm_id, actor, summary, ecs_json, raw_ref, dedupe_key)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING",
     )
+    .bind(Uuid::new_v4())
     .bind(occurred_at)
     .bind(source)
     .bind(category)
