@@ -111,7 +111,7 @@ pub async fn register(
     .bind(id)
     .fetch_one(pool)
     .await
-    .map_err(Intoo)
+    .map_err(Into::into)
 }
 
 pub async fn link_host_firewall_profile(

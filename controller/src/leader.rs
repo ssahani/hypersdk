@@ -23,7 +23,7 @@ pub fn spawn(pool: SqlitePool, controller_id: String) -> LeaderHandle {
         is_leader: is_leader.clone(),
     };
     tokio::spawn(async move {
-        let mut interval = tokio::timeerval(Duration::from_secs(5));
+        let mut interval = tokio::time::interval(Duration::from_secs(5));
         loop {
             interval.tick().await;
             match renew_lease(&pool, &controller_id).await {

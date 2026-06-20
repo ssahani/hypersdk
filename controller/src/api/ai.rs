@@ -76,7 +76,7 @@ pub async fn spotlight(
         }
     }
 
-    Ok(Json(aient_router::route_spotlight(
+    Ok(Json(ai::intent_router::route_spotlight(
         &body.query,
         online,
         hits,
@@ -95,7 +95,7 @@ pub async fn jarvis_landing(
     let missing = crate::engine::template_readiness::list_missing_marketplace_images(&state.pool)
         .await
         .unwrap_or_default();
-    Ok(Json(aient_router::jarvis_landing_intents(
+    Ok(Json(ai::intent_router::jarvis_landing_intents(
         online, missing,
     )))
 }

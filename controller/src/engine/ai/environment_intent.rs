@@ -8,7 +8,7 @@ use crate::auth::AuthUser;
 use crate::state::AppState;
 use crate::tasks::enqueue::enqueue_task;
 
-use superent_router::SpotlightIntent;
+use super::intent_router::SpotlightIntent;
 
 #[derive(Debug, Serialize)]
 pub struct EnvironmentResourcePlan {

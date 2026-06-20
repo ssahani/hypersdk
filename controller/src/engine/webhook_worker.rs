@@ -12,7 +12,7 @@ pub fn spawn(pool: SqlitePool, leader: LeaderHandle) {
             .timeout(Duration::from_secs(10))
             .build()
             .unwrap_or_default();
-        let mut interval = tokio::timeerval(Duration::from_secs(5));
+        let mut interval = tokio::time::interval(Duration::from_secs(5));
         loop {
             interval.tick().await;
             if !leader.is_leader() {

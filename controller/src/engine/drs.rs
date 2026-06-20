@@ -11,7 +11,7 @@ use crate::tasks::enqueue::enqueue_task;
 
 pub fn spawn(state: AppState) {
     tokio::spawn(async move {
-        let mut interval = tokio::timeerval(Duration::from_secs(120));
+        let mut interval = tokio::time::interval(Duration::from_secs(120));
         loop {
             interval.tick().await;
             if !state.leader.is_leader() {
@@ -101,7 +101,7 @@ pub async fn get_inventory_sync_interval_secs(pool: &SqlitePool) -> anyhow::Resu
     )
     .fetch_one(pool)
     .await
-    .map_err(Intoo)
+    .map_err(Into::into)
 }
 
 pub async fn update_cluster_settings(

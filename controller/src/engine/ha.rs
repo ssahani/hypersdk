@@ -14,7 +14,7 @@ const HEARTBEAT_STALE_SECS: i64 = 90;
 
 pub fn spawn(state: AppState) {
     tokio::spawn(async move {
-        let mut interval = tokio::timeerval(Duration::from_secs(45));
+        let mut interval = tokio::time::interval(Duration::from_secs(45));
         loop {
             interval.tick().await;
             if !state.leader.is_leader() {

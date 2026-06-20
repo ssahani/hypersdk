@@ -8,7 +8,7 @@ use crate::tasks::enqueue::enqueue_task;
 
 pub fn spawn(state: AppState) {
     tokio::spawn(async move {
-        let mut interval = tokio::timeerval(std::time::Duration::from_secs(300));
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
         loop {
             interval.tick().await;
             if let Err(e) = tick(&state).await {
