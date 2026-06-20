@@ -1262,9 +1262,9 @@ pub async fn end_session(
          recording_path = CASE WHEN recording_enabled THEN ? ELSE recording_path END
          WHERE id = ? AND actor = ?",
     )
+    .bind(&replay_path)
     .bind(session_id)
     .bind(&user.username)
-    .bind(&replay_path)
     .execute(&state.pool)
     .await?;
     Ok(Json(

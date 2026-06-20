@@ -146,8 +146,9 @@ pub async fn ensure_default_sites(pool: &SqlitePool) -> anyhow::Result<()> {
     if count == 0 {
         sqlx::query(
             "INSERT INTO firewall_sites (id, name, region, role, gitops_namespace, dr_pair) VALUES (?, 'primary-local', 'local', 'primary', 'site-primary', 'dr-replica'),
-             ('dr-replica', 'dr', 'replica', 'site-dr', 'primary-local')",
+             (?, 'dr-replica', 'dr', 'replica', 'site-dr', 'primary-local')",
         )
+        .bind(uuid::Uuid::new_v4())
         .bind(uuid::Uuid::new_v4())
         .execute(pool)
         .await?;
@@ -543,9 +544,9 @@ pub async fn site_drift_compare(pool: &SqlitePool) -> anyhow::Result<SiteDriftRe
                  SELECT s.id, p.id, ? FROM firewall_sites s
                  JOIN firewall_sites p ON p.name = ? WHERE s.name = ?",
             )
-            .bind(&site)
-            .bind(&peer_name)
             .bind(serde_json::json!({"fields": ["profile_version", "geo_fence"]}))
+            .bind(&peer_name)
+            .bind(&site)
             .execute(pool)
             .await;
         }

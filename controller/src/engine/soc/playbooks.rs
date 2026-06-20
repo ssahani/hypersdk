@@ -69,9 +69,9 @@ pub async fn run_playbooks_for_alert(pool: &SqlitePool, alert_id: Uuid) -> anyho
         sqlx::query(
             "UPDATE soc_playbook_runs SET status = ?, step_results = ?, finished_at = datetime('now') WHERE id = ?",
         )
-        .bind(run_id)
         .bind(status)
         .bind(serde_json::json!(results))
+        .bind(run_id)
         .execute(pool)
         .await?;
     }

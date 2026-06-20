@@ -373,6 +373,7 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
             .bind(vm.vcpus as i32)
             .bind(vm.memory_mb as i64)
             .bind(&vm.guest_ip)
+            .bind(&vm.guest_ip)
             .bind(id)
             .execute(&state.pool)
             .await?;

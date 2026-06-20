@@ -286,10 +286,10 @@ pub async fn apply_target(
         let _ = sqlx::query(
             "INSERT INTO firewall_timeline (id, target_kind, target_id, kind, summary, detail_json, actor) VALUES (?, 'host', ?, 'apply', ?, ?, ?)",
         )
+        .bind(uuid::Uuid::new_v4())
         .bind(host_id)
         .bind(format!("Applied firewall plan ({})", apply_req.profile.as_deref().unwrap_or("custom")))
-        .bind(uuid::Uuid::new_v4())
-    .bind(serde_json::json!({ "operations": result.operations }))
+        .bind(serde_json::json!({ "operations": result.operations }))
         .bind(actor)
         .execute(pool)
         .await;

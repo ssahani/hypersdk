@@ -145,6 +145,8 @@ pub async fn promote_critical(pool: &SqlitePool, predictions: &[Prediction]) -> 
             )",
         )
         .bind(format!("%{}%", p.resource))
+        .bind(format!("%{}%", p.resource))
+        .bind(format!("%{}%", p.resource))
         .fetch_one(pool)
         .await
         .unwrap_or(false);

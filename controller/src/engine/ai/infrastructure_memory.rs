@@ -130,6 +130,8 @@ pub async fn similar(
          ORDER BY created_at DESC LIMIT ?",
     )
     .bind(&pattern)
+    .bind(&pattern)
+    .bind(&pattern)
     .bind(cap)
     .fetch_all(pool)
     .await?;

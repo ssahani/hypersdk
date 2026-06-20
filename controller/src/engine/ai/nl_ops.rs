@@ -104,6 +104,7 @@ pub async fn execute(pool: &SqlitePool, req: &NlOpsRequest, actor: &str) -> anyh
                  WHERE h.hostname LIKE ? OR h.id = ?",
             )
             .bind(h)
+            .bind(h)
             .fetch_all(pool)
             .await?
         } else {

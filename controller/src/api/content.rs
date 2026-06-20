@@ -125,9 +125,9 @@ pub async fn approve_content_image(
         "UPDATE content_images SET status = 'available', approved_by = ?, approved_at = ?, rejected_reason = NULL
          WHERE id = ? AND status IN ('pending', 'rejected')",
     )
-    .bind(id)
     .bind(&actor.username)
     .bind(now)
+    .bind(id)
     .execute(&state.pool)
     .await?;
     if updated.rows_affected() == 0 {
@@ -153,8 +153,8 @@ pub async fn reject_content_image(
         "UPDATE content_images SET status = 'rejected', approved_by = NULL, approved_at = NULL, rejected_reason = ?
          WHERE id = ? AND status = 'pending'",
     )
-    .bind(id)
     .bind(&reason)
+    .bind(id)
     .execute(&state.pool)
     .await?;
     if updated.rows_affected() == 0 {
