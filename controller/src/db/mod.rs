@@ -40,7 +40,7 @@ pub async fn ensure_bootstrap(
     if cluster_count == 0 {
         let cluster_id = Uuid::new_v4();
         sqlx::query("INSERT INTO clusters (id, name) VALUES (?, ?)")
-            .bind(cluster_id.to_string())
+            .bind(cluster_id)
             .bind("default")
             .execute(pool)
             .await?;
@@ -52,7 +52,7 @@ pub async fn ensure_bootstrap(
     if user_count == 0 {
         let hash = bcrypt::hash(admin_password, bcrypt::DEFAULT_COST)?;
         sqlx::query("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)")
-            .bind(Uuid::new_v4().to_string())
+            .bind(Uuid::new_v4())
             .bind(admin_user)
             .bind(hash)
             .bind("admin")
@@ -64,17 +64,16 @@ pub async fn ensure_bootstrap(
         .fetch_one(pool)
         .await?;
     if host_count == 0 {
-        let cluster_id_str: String =
-            sqlx::query_scalar::<_, String>("SELECT id FROM clusters LIMIT 1")
+        let cluster_id: Uuid =
+            sqlx::query_scalar::<_, Uuid>("SELECT id FROM clusters LIMIT 1")
                 .fetch_one(pool)
                 .await?;
-        let cluster_id = Uuid::parse_str(&cluster_id_str)?;
         sqlx::query(
             "INSERT INTO hosts (id, cluster_id, hostname, address, state, agent_grpc_addr)
              VALUES (?, ?, ?, ?, ?, ?)",
         )
-        .bind(Uuid::new_v4().to_string())
-        .bind(cluster_id.to_string())
+        .bind(Uuid::new_v4())
+        .bind(cluster_id)
         .bind("localhost")
         .bind("127.0.0.1")
         .bind("online")

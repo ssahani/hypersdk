@@ -81,7 +81,7 @@ pub async fn audit_llm_call(
         "INSERT INTO audit_logs (id, actor, action, resource_type, detail)
          VALUES (?, ?, 'zeus.llm.complete', 'zeus', ?)",
     )
-    .bind(uuid::Uuid::new_v4().to_string())
+    .bind(uuid::Uuid::new_v4())
     .bind(actor)
     .bind(serde_json::json!({
         "provider_kind": provider_kind,
