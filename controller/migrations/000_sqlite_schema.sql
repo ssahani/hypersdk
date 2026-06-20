@@ -579,7 +579,7 @@ CREATE TABLE IF NOT EXISTS policy_rules (
 );
 
 INSERT INTO policy_rules (id, name, rule_json) VALUES
-    ('00000000-0000-4000-8000-000000000001', 'production-ha-required',
+    (X'00000000000040008000000000000001', 'production-ha-required',
      '{"when":{"tags_contains":"production"},"require":{"ha_enabled":true}}')
 ON CONFLICT (name) DO NOTHING;
 
@@ -1488,16 +1488,16 @@ CREATE TABLE IF NOT EXISTS soc_detection_rules (
 
 INSERT INTO soc_detection_rules (id, name, description, enabled, severity, query_json, throttle_minutes, builtin)
 VALUES
-    ('a1000001-0001-4001-8001-000000000001', 'critical_anomaly',
+    (X'a1000001000140018001000000000001', 'critical_anomaly',
      'PacketWolf critical or high severity anomaly', 1, 'high',
      '{"type":"match","match":{"source":"packetwolf","severity":["critical","high"]}}', 30, 1),
-    ('a1000001-0001-4001-8001-000000000002', 'firewall_deny_spike',
+    (X'a1000001000140018001000000000002', 'firewall_deny_spike',
      'Three or more firewall deny events in 15 minutes', 1, 'medium',
      '{"type":"threshold","match":{"source":"firewall","category":"firewall"},"window_minutes":15,"min_count":3}', 60, 1),
-    ('a1000001-0001-4001-8001-000000000003', 'brute_force_ssh',
+    (X'a1000001000140018001000000000003', 'brute_force_ssh',
      'Repeated failed SSH or auth audit events', 1, 'high',
      '{"type":"threshold","match":{"source":"audit","ecs.event.action":["auth.failure","login.failed"]},"window_minutes":10,"min_count":5}', 120, 1),
-    ('a1000001-0001-4001-8001-000000000004', 'new_admin_api_key',
+    (X'a1000001000140018001000000000004', 'new_admin_api_key',
      'New API key created by admin actor', 1, 'medium',
      '{"type":"match","match":{"source":"audit","ecs.event.action":["api_key.create","api_keys.create"]}}', 60, 1)
 ON CONFLICT (name) DO NOTHING;
