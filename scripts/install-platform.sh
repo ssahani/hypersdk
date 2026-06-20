@@ -288,8 +288,8 @@ start_services() {
   systemctl restart machina-controller >>"$LOG_FILE" 2>&1 || fail "machina-controller failed — journalctl -u machina-controller"
 
   # Ensure bootstrap host points at local agent.
-  if command -v psql &>/dev/null; then
-    PGPASSWORD=machina psql -h 127.0.0.1 -U machina -d machina -v ON_ERROR_STOP=1 -c \
+  if command -v sqlite3 &>/dev/null && [ -f /var/lib/machina/controller.db ]; then
+    sqlite3 /var/lib/machina/controller.db \
       "UPDATE hosts SET agent_grpc_addr='127.0.0.1:50051', agent_console_addr='127.0.0.1:50052', state='online'
        WHERE agent_grpc_addr IS NOT NULL;" >>"$LOG_FILE" 2>&1 || true
   fi

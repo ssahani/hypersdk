@@ -654,7 +654,7 @@ fi
 
 phase "$SNAPSHOT_PHASE" "$TOTAL_STEPS" "Service snapshot" "machina-daemon + libvirtd + platform status"
 ssh_r_bash "$REMOTE" "
-for svc in machina-daemon libvirtd machina-controller machina-agent postgresql; do
+for svc in machina-daemon libvirtd machina-controller machina-agent; do
   st=\$(systemctl is-active \$svc 2>/dev/null || echo unknown)
   if [ \"\$st\" = active ]; then
     echo \"✅ \$svc: running\"
@@ -699,7 +699,7 @@ deploy_ui_checklist "libvirtd" "$(ssh_r_bash "$REMOTE" 'systemctl is-active libv
 if $INSTALL_PLATFORM; then
     deploy_ui_checklist "machina-controller" "$(ssh_r_bash "$REMOTE" 'systemctl is-active machina-controller 2>/dev/null || echo unknown' | tr -d '\r')"
     deploy_ui_checklist "machina-agent" "$(ssh_r_bash "$REMOTE" 'systemctl is-active machina-agent 2>/dev/null || echo unknown' | tr -d '\r')"
-    deploy_ui_checklist "postgresql" "$(ssh_r_bash "$REMOTE" 'systemctl is-active postgresql 2>/dev/null || echo unknown' | tr -d '\r')"
+    deploy_ui_kv "🗄️" "DB" "sqlite:///var/lib/machina/controller.db"
     deploy_ui_kv "🎛️" "Platform API" "http://${HOST}:5093/api/v1/health"
 fi
 
@@ -790,7 +790,7 @@ exit 1
                     LIVE_E2E_OK=false
                 fi
             fi
-            SERVICES_SUMMARY="$(ssh_r_bash "$REMOTE" 'for u in machina-daemon libvirtd machina-controller machina-agent postgresql; do printf "%s=%s\n" "$u" "$(systemctl is-active "$u" 2>/dev/null || echo unknown)"; done' | tr -d '\r')"
+            SERVICES_SUMMARY="$(ssh_r_bash "$REMOTE" 'for u in machina-daemon libvirtd machina-controller machina-agent; do printf "%s=%s\n" "$u" "$(systemctl is-active "$u" 2>/dev/null || echo unknown)"; done' | tr -d '\r')"
             OVERALL="PASS"
             if ! $FULL_E2E_OK || ! $LIVE_E2E_OK; then OVERALL="FAIL"; fi
             "${SCRIPT_DIR}/lib/send-deploy-report.sh" "$HOST" \
