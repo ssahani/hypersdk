@@ -101,9 +101,8 @@ pub async fn execute(pool: &SqlitePool, req: &NlOpsRequest, actor: &str) -> anyh
         let vms: Vec<(Uuid, String)> = if let Some(h) = &host_hint {
             sqlx::query_as(
                 "SELECT v.id, v.name FROM vms v JOIN hosts h ON h.id = v.host_id
-                 WHERE h.hostname LIKE ? OR h.id = ?",
+                 WHERE h.hostname LIKE ?",
             )
-            .bind(h)
             .bind(h)
             .fetch_all(pool)
             .await?

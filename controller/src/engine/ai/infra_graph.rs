@@ -813,14 +813,24 @@ pub async fn explain_object(pool: &SqlitePool, kind: &str, id: &str) -> anyhow::
     match kind {
         "vm" => {
             let row: Option<(String, Option<String>, i64, i32, String, Option<String>)> =
-                sqlx::query_as(
-                    "SELECT v.name, v.project, v.memory_mib, v.vcpus, v.observed_state, v.tags
-                     FROM vms v WHERE v.id = ? OR v.name = ?",
-                )
-                .bind(id)
-                .bind(id)
-                .fetch_optional(pool)
-                .await?;
+                if let Ok(uuid) = uuid::Uuid::parse_str(id) {
+                    sqlx::query_as(
+                        "SELECT v.name, v.project, v.memory_mib, v.vcpus, v.observed_state, v.tags
+                         FROM vms v WHERE v.id = ? OR v.name = ?",
+                    )
+                    .bind(uuid)
+                    .bind(id)
+                    .fetch_optional(pool)
+                    .await?
+                } else {
+                    sqlx::query_as(
+                        "SELECT v.name, v.project, v.memory_mib, v.vcpus, v.observed_state, v.tags
+                         FROM vms v WHERE v.name = ?",
+                    )
+                    .bind(id)
+                    .fetch_optional(pool)
+                    .await?
+                };
             let Some((name, project, mem, vcpu, state, tags)) = row else {
                 anyhow::bail!("VM not found");
             };
@@ -846,13 +856,22 @@ pub async fn explain_object(pool: &SqlitePool, kind: &str, id: &str) -> anyhow::
             })
         }
         "host" => {
-            let row: Option<(String, String, i64)> = sqlx::query_as(
-                "SELECT hostname, state, vm_count FROM hosts WHERE id = ? OR hostname = ?",
-            )
-            .bind(id)
-            .bind(id)
-            .fetch_optional(pool)
-            .await?;
+            let row: Option<(String, String, i64)> = if let Ok(uuid) = uuid::Uuid::parse_str(id) {
+                sqlx::query_as(
+                    "SELECT hostname, state, vm_count FROM hosts WHERE id = ? OR hostname = ?",
+                )
+                .bind(uuid)
+                .bind(id)
+                .fetch_optional(pool)
+                .await?
+            } else {
+                sqlx::query_as(
+                    "SELECT hostname, state, vm_count FROM hosts WHERE hostname = ?",
+                )
+                .bind(id)
+                .fetch_optional(pool)
+                .await?
+            };
             let Some((name, state, vms)) = row else {
                 anyhow::bail!("Host not found");
             };
