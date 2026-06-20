@@ -84,11 +84,11 @@ async fn mark_retry(
         let backoff_secs = 2_i32.saturating_pow(next as u32).min(300);
         sqlx::query(
             "UPDATE webhook_deliveries SET attempts = ?, last_error = ?,
-             next_retry_at = datetime('now') + make_interval(secs => ?) WHERE id = ?",
+             next_retry_at = datetime('now', '+' || ? || ' seconds') WHERE id = ?",
         )
         .bind(next)
         .bind(err)
-        .bind(backoff_secs as f64)
+        .bind(backoff_secs)
         .bind(id)
         .execute(pool)
         .await?;

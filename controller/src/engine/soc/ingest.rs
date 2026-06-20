@@ -36,10 +36,11 @@ async fn watermark(pool: &SqlitePool, source: &str) -> anyhow::Result<DateTime<U
 
 async fn advance_watermark(pool: &SqlitePool, source: &str, ts: DateTime<Utc>) -> anyhow::Result<()> {
     sqlx::query(
-        "UPDATE soc_ingest_watermarks SET last_at = GREATEST(last_at, ?) WHERE source = ?",
+        "UPDATE soc_ingest_watermarks SET last_at = CASE WHEN last_at > ? THEN last_at ELSE ? END WHERE source = ?",
     )
-    .bind(source)
     .bind(ts)
+    .bind(ts)
+    .bind(source)
     .execute(pool)
     .await?;
     Ok(())

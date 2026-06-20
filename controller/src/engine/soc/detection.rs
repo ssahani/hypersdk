@@ -169,7 +169,7 @@ async fn upsert_alert(
 ) -> anyhow::Result<Option<Uuid>> {
     let existing: Option<(Uuid,)> = sqlx::query_as(
         "SELECT id FROM soc_alerts WHERE dedupe_key = ? AND status IN ('open', 'acknowledged')
-         AND last_seen > datetime('now') - make_interval(mins => ?)",
+         AND last_seen > datetime('now', '-' || ? || ' minutes')",
     )
     .bind(dedupe_key)
     .bind(throttle_minutes)
