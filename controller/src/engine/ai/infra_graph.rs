@@ -818,6 +818,7 @@ pub async fn explain_object(pool: &SqlitePool, kind: &str, id: &str) -> anyhow::
                      FROM vms v WHERE v.id = ? OR v.name = ?",
                 )
                 .bind(id)
+                .bind(id)
                 .fetch_optional(pool)
                 .await?;
             let Some((name, project, mem, vcpu, state, tags)) = row else {
@@ -848,6 +849,7 @@ pub async fn explain_object(pool: &SqlitePool, kind: &str, id: &str) -> anyhow::
             let row: Option<(String, String, i64)> = sqlx::query_as(
                 "SELECT hostname, state, vm_count FROM hosts WHERE id = ? OR hostname = ?",
             )
+            .bind(id)
             .bind(id)
             .fetch_optional(pool)
             .await?;
