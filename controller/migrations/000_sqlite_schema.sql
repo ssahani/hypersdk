@@ -700,7 +700,7 @@ CREATE INDEX IF NOT EXISTS idx_blueprints_cluster ON blueprints(cluster_id);
 -- firewall_profiles
 -- ============================================================
 CREATE TABLE IF NOT EXISTS firewall_profiles (
-    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16) DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+    id BLOB NOT NULL PRIMARY KEY DEFAULT (randomblob(16)) CHECK(length(id) = 16),
     name TEXT NOT NULL UNIQUE,
     display_name TEXT NOT NULL,
     spec_json TEXT NOT NULL DEFAULT '{}',
@@ -1314,7 +1314,7 @@ CREATE TABLE IF NOT EXISTS ai_user_preferences (
 -- ai_routing_rules
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ai_routing_rules (
-    id TEXT NOT NULL PRIMARY KEY CHECK(length(id) = 16),
+    id BLOB NOT NULL PRIMARY KEY DEFAULT (randomblob(16)) CHECK(length(id) = 16),
     task_class TEXT NOT NULL UNIQUE,
     provider_id TEXT REFERENCES ai_providers(id) ON DELETE SET NULL,
     model_id TEXT REFERENCES ai_models(id) ON DELETE SET NULL,
