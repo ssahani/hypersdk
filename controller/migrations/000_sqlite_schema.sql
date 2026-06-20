@@ -368,7 +368,7 @@ CREATE TABLE IF NOT EXISTS storage_pools (
     capacity_gib INTEGER NOT NULL DEFAULT 0,
     used_gib INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    tier_id TEXT,  -- FK to storage_tiers; enforced via idx after that table exists
+    tier_id TEXT,  -- FK to storage_tiers (enforced via idx after that table exists)
     UNIQUE (cluster_id, name)
 );
 
@@ -385,7 +385,7 @@ CREATE TABLE IF NOT EXISTS networks (
     vlan_id INTEGER,
     bridge TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    segment_id TEXT,  -- FK to network_segments; enforced via idx after that table exists
+    segment_id TEXT,  -- FK to network_segments (enforced via idx after that table exists)
     UNIQUE (cluster_id, name)
 );
 
@@ -655,7 +655,7 @@ CREATE TABLE IF NOT EXISTS network_reservations (
     mac_address TEXT,
     ip_address TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    pool_id TEXT,  -- FK to network_ipam_pools; defined after that table
+    pool_id TEXT,  -- FK to network_ipam_pools (defined after that table)
     hostname TEXT
 );
 
