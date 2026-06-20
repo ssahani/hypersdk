@@ -80,6 +80,9 @@ pub async fn list_vm_timeline(
         "#,
     )
     .bind(vm_id)
+    .bind(vm_id)
+    .bind(vm_id)
+    .bind(vm_id)
     .fetch_all(&state.pool)
     .await?;
     Ok(Json(rows))
