@@ -973,14 +973,14 @@ CREATE INDEX IF NOT EXISTS idx_ipam_pools_segment ON network_ipam_pools(segment_
 
 INSERT INTO network_segments (id, name, tier, cidr, east_west_default, firewall_profile, gitops_namespace)
 VALUES
-    ('a1000000-0000-4000-8000-000000000001', 'prod-tier1', 'tier1', '10.10.0.0/16', 'allow', 'ProductionServer', 'prod-segments'),
-    ('a1000000-0000-4000-8000-000000000002', 'dmz-tier0', 'tier0', '172.16.0.0/24', 'deny', 'WebServer', 'dmz-segments')
+    (X'a1000000000040008000000000000001', 'prod-tier1', 'tier1', '10.10.0.0/16', 'allow', 'ProductionServer', 'prod-segments'),
+    (X'a1000000000040008000000000000002', 'dmz-tier0', 'tier0', '172.16.0.0/24', 'deny', 'WebServer', 'dmz-segments')
 ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO network_ipam_pools (id, segment_id, cidr, gateway, dns_json, next_offset)
 VALUES
-    ('b1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000001', '10.10.0.0/16', '10.10.0.1', '["10.10.0.1"]', 10),
-    ('b1000000-0000-4000-8000-000000000002', 'a1000000-0000-4000-8000-000000000002', '172.16.0.0/24', '172.16.0.1', '["172.16.0.1"]', 10)
+    (X'b1000000000040008000000000000001', X'a1000000000040008000000000000001', '10.10.0.0/16', '10.10.0.1', '["10.10.0.1"]', 10),
+    (X'b1000000000040008000000000000002', X'a1000000000040008000000000000002', '172.16.0.0/24', '172.16.0.1', '["172.16.0.1"]', 10)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
@@ -1004,15 +1004,15 @@ CREATE INDEX IF NOT EXISTS idx_platform_plugins_category ON platform_plugins(cat
 
 INSERT INTO platform_plugins (id, slug, name, category, description, version, author, featured, installed)
 VALUES
-    ('c2000000-0000-4000-8000-000000000001', 'guestkit', 'GuestKit', 'automation', 'Guest health checks, job runner, and in-VM automation bridge.', '1.0.0', 'Zyvor', 1, 0),
-    ('c2000000-0000-4000-8000-000000000002', 'packetwolf', 'PacketWolf', 'observability', 'Flow capture, anomaly hints, and firewall activity correlation.', '1.0.0', 'Zyvor', 1, 0),
-    ('c2000000-0000-4000-8000-000000000003', 'hypersdk', 'HyperSDK', 'migration', 'P2V migration assistant and Windows VM discovery.', '1.0.0', 'Zyvor', 1, 0),
-    ('c2000000-0000-4000-8000-000000000004', 'zeus-firewall', 'Zeus Firewall', 'security', 'Fleet machine shield, profiles, and connectivity simulation.', '1.0.0', 'Zyvor', 1, 1),
-    ('c2000000-0000-4000-8000-000000000005', 'kubevirt-bridge', 'KubeVirt Bridge', 'kubernetes', 'Export libvirt VMs and qcow2 bundles for Kubernetes.', '1.0.0', 'Zyvor', 0, 0),
-    ('c2000000-0000-4000-8000-000000000006', 'network-overlay', 'Network Overlay', 'networking', 'NSX-class segments, IPAM pools, and micro-segmentation stubs.', '1.0.0', 'Zyvor', 0, 1),
-    ('c2000000-0000-4000-8000-000000000010', 'kasm-workspaces', 'Kasm Workspaces', 'console', 'Disposable browser and isolated desktop labs (Marketplace workload — not core ConsoleHub).', '1.0.0', 'Kasm', 0, 0),
-    ('c2000000-0000-4000-8000-000000000011', 'rustdesk', 'RustDesk', 'console', 'TeamViewer-style remote support sessions via Marketplace plugin.', '1.0.0', 'RustDesk', 0, 0),
-    ('c2000000-0000-4000-8000-000000000012', 'meshcentral', 'MeshCentral', 'console', 'Remote management and support gateway as optional Marketplace plugin.', '1.0.0', 'MeshCentral', 0, 0)
+    (X'c2000000000040008000000000000001', 'guestkit', 'GuestKit', 'automation', 'Guest health checks, job runner, and in-VM automation bridge.', '1.0.0', 'Zyvor', 1, 0),
+    (X'c2000000000040008000000000000002', 'packetwolf', 'PacketWolf', 'observability', 'Flow capture, anomaly hints, and firewall activity correlation.', '1.0.0', 'Zyvor', 1, 0),
+    (X'c2000000000040008000000000000003', 'hypersdk', 'HyperSDK', 'migration', 'P2V migration assistant and Windows VM discovery.', '1.0.0', 'Zyvor', 1, 0),
+    (X'c2000000000040008000000000000004', 'zeus-firewall', 'Zeus Firewall', 'security', 'Fleet machine shield, profiles, and connectivity simulation.', '1.0.0', 'Zyvor', 1, 1),
+    (X'c2000000000040008000000000000005', 'kubevirt-bridge', 'KubeVirt Bridge', 'kubernetes', 'Export libvirt VMs and qcow2 bundles for Kubernetes.', '1.0.0', 'Zyvor', 0, 0),
+    (X'c2000000000040008000000000000006', 'network-overlay', 'Network Overlay', 'networking', 'NSX-class segments, IPAM pools, and micro-segmentation stubs.', '1.0.0', 'Zyvor', 0, 1),
+    (X'c2000000000040008000000000000010', 'kasm-workspaces', 'Kasm Workspaces', 'console', 'Disposable browser and isolated desktop labs (Marketplace workload — not core ConsoleHub).', '1.0.0', 'Kasm', 0, 0),
+    (X'c2000000000040008000000000000011', 'rustdesk', 'RustDesk', 'console', 'TeamViewer-style remote support sessions via Marketplace plugin.', '1.0.0', 'RustDesk', 0, 0),
+    (X'c2000000000040008000000000000012', 'meshcentral', 'MeshCentral', 'console', 'Remote management and support gateway as optional Marketplace plugin.', '1.0.0', 'MeshCentral', 0, 0)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ============================================================
@@ -1032,9 +1032,9 @@ CREATE TABLE IF NOT EXISTS storage_tiers (
 
 INSERT INTO storage_tiers (id, name, tier_class, iops_tier, replication, snapshot_retention_days, backup_rpo_hours, description)
 VALUES
-    ('d1000000-0000-4000-8000-000000000001', 'gold-performance', 'gold', 'nvme', 'sync-mirror', 30, 4, 'Low-latency NVMe tier with synchronous mirror stub'),
-    ('d1000000-0000-4000-8000-000000000002', 'silver-standard', 'silver', 'standard', 'local', 14, 24, 'Default production datastore tier'),
-    ('d1000000-0000-4000-8000-000000000003', 'bronze-archive', 'bronze', 'hdd', 'local', 7, 72, 'Capacity-optimized cold tier')
+    (X'd1000000000040008000000000000001', 'gold-performance', 'gold', 'nvme', 'sync-mirror', 30, 4, 'Low-latency NVMe tier with synchronous mirror stub'),
+    (X'd1000000000040008000000000000002', 'silver-standard', 'silver', 'standard', 'local', 14, 24, 'Default production datastore tier'),
+    (X'd1000000000040008000000000000003', 'bronze-archive', 'bronze', 'hdd', 'local', 7, 72, 'Capacity-optimized cold tier')
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================
@@ -1068,8 +1068,8 @@ CREATE TABLE IF NOT EXISTS vault_providers (
 
 INSERT INTO vault_providers (id, name, provider_type, address, namespace, status)
 VALUES
-    ('e1000000-0000-4000-8000-000000000001', 'local-config', 'file', '', 'machina', 'active'),
-    ('e1000000-0000-4000-8000-000000000002', 'vault-stub', 'hashicorp', 'https://vault.example:8200', 'machina', 'disconnected')
+    (X'e1000000000040008000000000000001', 'local-config', 'file', '', 'machina', 'active'),
+    (X'e1000000000040008000000000000002', 'vault-stub', 'hashicorp', 'https://vault.example:8200', 'machina', 'disconnected')
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================
@@ -1086,9 +1086,9 @@ CREATE TABLE IF NOT EXISTS mfa_policies (
 
 INSERT INTO mfa_policies (id, role_name, method, required, grace_days)
 VALUES
-    ('e2000000-0000-4000-8000-000000000001', 'admin', 'webauthn', 0, 7),
-    ('e2000000-0000-4000-8000-000000000002', 'operator', 'totp', 0, 14),
-    ('e2000000-0000-4000-8000-000000000003', 'viewer', 'totp', 0, 30)
+    (X'e2000000000040008000000000000001', 'admin', 'webauthn', 0, 7),
+    (X'e2000000000040008000000000000002', 'operator', 'totp', 0, 14),
+    (X'e2000000000040008000000000000003', 'viewer', 'totp', 0, 30)
 ON CONFLICT (role_name) DO NOTHING;
 
 -- ============================================================
@@ -1137,11 +1137,11 @@ CREATE TABLE IF NOT EXISTS ops_runbook_catalog (
 
 INSERT INTO ops_runbook_catalog (id, incident, title, category, severity, auto_trigger)
 VALUES
-    ('f1000000-0000-4000-8000-000000000001', 'host_offline', 'Host offline recovery', 'incident', 'high', 'host.state=offline'),
-    ('f1000000-0000-4000-8000-000000000002', 'backup_failed', 'Backup failure triage', 'incident', 'medium', 'task.failed:backup'),
-    ('f1000000-0000-4000-8000-000000000003', 'migration_failed', 'Migration failure triage', 'incident', 'medium', 'task.failed:migrate'),
-    ('f1000000-0000-4000-8000-000000000004', 'firewall_drift', 'Firewall drift remediation', 'compliance', 'high', 'zeus.drift_detected'),
-    ('f1000000-0000-4000-8000-000000000005', 'storage_full', 'Storage pool capacity', 'capacity', 'critical', 'storage.used_pct>85')
+    (X'f1000000000040008000000000000001', 'host_offline', 'Host offline recovery', 'incident', 'high', 'host.state=offline'),
+    (X'f1000000000040008000000000000002', 'backup_failed', 'Backup failure triage', 'incident', 'medium', 'task.failed:backup'),
+    (X'f1000000000040008000000000000003', 'migration_failed', 'Migration failure triage', 'incident', 'medium', 'task.failed:migrate'),
+    (X'f1000000000040008000000000000004', 'firewall_drift', 'Firewall drift remediation', 'compliance', 'high', 'zeus.drift_detected'),
+    (X'f1000000000040008000000000000005', 'storage_full', 'Storage pool capacity', 'capacity', 'critical', 'storage.used_pct>85')
 ON CONFLICT (incident) DO NOTHING;
 
 -- ============================================================
@@ -1188,9 +1188,9 @@ CREATE TABLE IF NOT EXISTS slo_policies (
 
 INSERT INTO slo_policies (id, name, target, objective_pct, window_hours, description)
 VALUES
-    ('a1000000-0000-4000-8000-000000000001', 'api-availability', 'controller /api/v1/*', 99.5, 720, 'HTTP 2xx/3xx rate for platform API'),
-    ('a1000000-0000-4000-8000-000000000002', 'task-success', 'platform tasks', 98.0, 168, 'Completed vs failed task ratio'),
-    ('a1000000-0000-4000-8000-000000000003', 'host-availability', 'online hosts', 99.0, 720, 'Hosts reporting online vs registered')
+    (X'a1000000000040008000000000000001', 'api-availability', 'controller /api/v1/*', 99.5, 720, 'HTTP 2xx/3xx rate for platform API'),
+    (X'a1000000000040008000000000000002', 'task-success', 'platform tasks', 98.0, 168, 'Completed vs failed task ratio'),
+    (X'a1000000000040008000000000000003', 'host-availability', 'online hosts', 99.0, 720, 'Hosts reporting online vs registered')
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================
@@ -1245,8 +1245,8 @@ CREATE TABLE IF NOT EXISTS fips_crypto_profiles (
 
 INSERT INTO fips_crypto_profiles (id, name, tls_min_version, fips_mode, cipher_suites, notes)
 VALUES
-    ('f1000000-0000-4000-8000-000000000001', 'platform-default', '1.2', 'disabled', 'TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384', 'Controller TLS via system OpenSSL — FIPS module not selected'),
-    ('f1000000-0000-4000-8000-000000000002', 'fips-ready', '1.2', 'required', 'TLS_AES_256_GCM_SHA384', 'Target profile for FIPS 140-3 validated module rollout')
+    (X'f1000000000040008000000000000001', 'platform-default', '1.2', 'disabled', 'TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384', 'Controller TLS via system OpenSSL — FIPS module not selected'),
+    (X'f1000000000040008000000000000002', 'fips-ready', '1.2', 'required', 'TLS_AES_256_GCM_SHA384', 'Target profile for FIPS 140-3 validated module rollout')
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================
@@ -1264,8 +1264,8 @@ CREATE TABLE IF NOT EXISTS tenant_isolation_policies (
 
 INSERT INTO tenant_isolation_policies (id, project_name, network_isolation, max_vms, max_storage_gib, enforce_quotas)
 VALUES
-    ('10000000-0000-4000-8000-000000000001', 'default', 'shared', 0, 0, 0),
-    ('10000000-0000-4000-8000-000000000002', 'production', 'segmented', 50, 10240, 1)
+    (X'10000000000040008000000000000001', 'default', 'shared', 0, 0, 0),
+    (X'10000000000040008000000000000002', 'production', 'segmented', 50, 10240, 1)
 ON CONFLICT (project_name) DO NOTHING;
 
 -- ============================================================
@@ -1544,13 +1544,13 @@ CREATE TABLE IF NOT EXISTS soc_integrations (
 
 INSERT INTO soc_integrations (id, integration_type, name, enabled, config_json)
 VALUES
-    ('b2000002-0002-4002-8002-000000000001', 'splunk_hec', 'default', 0,
+    (X'b2000002000240028002000000000001', 'splunk_hec', 'default', 0,
      '{"url":"","token":"","index":"machina","sourcetype_events":"machina:soc:ecs","sourcetype_alerts":"machina:soc:alert","host":""}'),
-    ('b2000002-0002-4002-8002-000000000002', 'elastic_bulk', 'default', 0,
+    (X'b2000002000240028002000000000002', 'elastic_bulk', 'default', 0,
      '{"url":"","api_key":"","index":"logs-machina.soc","pipeline":""}'),
-    ('b2000002-0002-4002-8002-000000000003', 'sentinel_dcr', 'default', 0,
+    (X'b2000002000240028002000000000003', 'sentinel_dcr', 'default', 0,
      '{"dce_endpoint":"","dcr_immutable_id":"","stream_name":"","tenant_id":"","client_id":"","client_secret":""}'),
-    ('b2000002-0002-4002-8002-000000000004', 'qradar_rest', 'default', 0,
+    (X'b2000002000240028002000000000004', 'qradar_rest', 'default', 0,
      '{"url":"","api_token":"","log_source_id":""}')
 ON CONFLICT (integration_type, name) DO NOTHING;
 
@@ -1622,7 +1622,7 @@ CREATE TABLE IF NOT EXISTS soc_playbooks (
 
 INSERT INTO soc_playbooks (id, name, description, enabled, trigger_json, steps_json)
 VALUES
-    ('c3000003-0003-4003-8003-000000000001', 'notify_on_critical',
+    (X'c3000003000340038003000000000001', 'notify_on_critical',
      'Webhook notify when critical SOC alert opens', 1,
      '{"min_severity":"high","rule_names":[]}',
      '[{"type":"webhook","url_from_setting":"soc_webhook_url","body":{"alert_id":"{{alert_id}}","title":"{{title}}","severity":"{{severity}}"}}]')
