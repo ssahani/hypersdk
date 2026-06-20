@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS hosts (
     -- 005
     notes TEXT NOT NULL DEFAULT '',
     -- 007
-    tags TEXT NOT NULL DEFAULT '{}',
+    tags TEXT NOT NULL DEFAULT '[]',
     -- 008
     fence_method TEXT NOT NULL DEFAULT 'shell',
     ipmi_address TEXT NOT NULL DEFAULT '',
@@ -173,7 +173,7 @@ CREATE TABLE IF NOT EXISTS vms (
     -- 003
     ha_recovery_count INTEGER NOT NULL DEFAULT 0,
     -- 007
-    tags TEXT NOT NULL DEFAULT '{}',
+    tags TEXT NOT NULL DEFAULT '[]',
     -- 010
     lifecycle_phase TEXT NOT NULL DEFAULT 'idle',
     last_error TEXT NOT NULL DEFAULT '',
