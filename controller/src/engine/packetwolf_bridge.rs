@@ -161,6 +161,22 @@ pub fn fabric_api_available(cfg: &ControllerConfig) -> bool {
     dev_fabric_api_available(cfg)
 }
 
+/// Async wrapper — safe to call from async context (uses spawn_blocking internally).
+pub async fn dev_fabric_available(cfg: &ControllerConfig) -> bool {
+    let cfg = cfg.clone();
+    tokio::task::spawn_blocking(move || dev_fabric_api_available(&cfg))
+        .await
+        .unwrap_or(false)
+}
+
+/// Async wrapper — safe to call from async context (uses spawn_blocking internally).
+pub async fn production_network_available(cfg: &ControllerConfig) -> bool {
+    let cfg = cfg.clone();
+    tokio::task::spawn_blocking(move || production_network_api_available(&cfg))
+        .await
+        .unwrap_or(false)
+}
+
 fn get_json(cfg: &ControllerConfig, path: &str) -> Option<Value> {
     if !cfg.packetwolf_enabled {
         return None;
@@ -543,10 +559,10 @@ pub async fn fetch_network_pulse_bundle(cfg: &ControllerConfig) -> serde_json::V
 }
 
 pub async fn fleet_threat_summary(cfg: &ControllerConfig) -> serde_json::Value {
-    if dev_fabric_api_available(cfg) {
+    if dev_fabric_available(cfg).await {
         return fabric_get(cfg, "/api/v1/fleet/threat-summary").await;
     }
-    if production_network_api_available(cfg) {
+    if production_network_available(cfg).await {
         return synthesize_production_fleet_threat(cfg).await;
     }
     fabric_get(cfg, "/api/v1/fleet/threat-summary").await
@@ -613,7 +629,8 @@ pub async fn search(
     query: &str,
     host_id: Option<&str>,
 ) -> serde_json::Value {
-    let body = if production_network_api_available(cfg) && !dev_fabric_api_available(cfg) {
+    let production_mode = production_network_available(cfg).await && !dev_fabric_available(cfg).await;
+    let body = if production_mode {
         serde_json::json!({
             "query": query,
             "limit": 50
@@ -625,7 +642,7 @@ pub async fn search(
             "limit": 50
         })
     };
-    let path = if production_network_api_available(cfg) && !dev_fabric_api_available(cfg) {
+    let path = if production_mode {
         "/api/v1/network/search"
     } else {
         "/api/v1/search"
@@ -716,7 +733,7 @@ pub async fn asset_inventory(cfg: &ControllerConfig) -> serde_json::Value {
 }
 
 pub async fn fleet_timeline(cfg: &ControllerConfig, hours: u32) -> serde_json::Value {
-    if production_network_api_available(cfg) && !dev_fabric_api_available(cfg) {
+    if production_network_available(cfg).await && !dev_fabric_available(cfg).await {
         fabric_get(cfg, "/api/v1/network/timeline?limit=200").await
     } else {
         fabric_get(
@@ -728,7 +745,7 @@ pub async fn fleet_timeline(cfg: &ControllerConfig, hours: u32) -> serde_json::V
 }
 
 pub async fn correlations(cfg: &ControllerConfig) -> serde_json::Value {
-    if production_network_api_available(cfg) && !dev_fabric_api_available(cfg) {
+    if production_network_available(cfg).await && !dev_fabric_available(cfg).await {
         fabric_get(cfg, "/api/v1/network/threat-threads").await
     } else {
         fabric_get(cfg, "/api/v1/correlations").await

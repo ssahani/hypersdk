@@ -5,7 +5,7 @@ use axum::http::HeaderMap;
 use serde_json::{json, Value};
 
 use crate::config::ControllerConfig;
-use crate::engine::packetwolf_bridge::{self, dev_fabric_api_available};
+use crate::engine::packetwolf_bridge::{self, dev_fabric_available};
 
 pub fn ingest_authorized(headers: &HeaderMap, remote_addr: Option<&str>) -> bool {
     if std::env::var("MACHINA_SKIP_AUTH").ok().as_deref() == Some("1") {
@@ -41,7 +41,7 @@ pub async fn relay_tetragon_batch(
     host_id: &str,
     body: &Value,
 ) -> Value {
-    if !cfg.packetwolf_enabled || !dev_fabric_api_available(cfg) {
+    if !cfg.packetwolf_enabled || !dev_fabric_available(cfg).await {
         return json!({
             "forwarded": false,
             "reason": "dev_fabric_unavailable",

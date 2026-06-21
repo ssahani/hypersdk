@@ -6,13 +6,13 @@ use uuid::Uuid;
 
 use crate::config::ControllerConfig;
 use crate::engine::packetwolf_bridge::{
-    dev_fabric_api_available, fabric_delete, fabric_get, fabric_patch, fabric_post,
-    fabric_put, production_network_api_available,
+    dev_fabric_available, fabric_delete, fabric_get, fabric_patch, fabric_post,
+    fabric_put, production_network_available,
 };
 use crate::engine::packetwolf_local;
 
-fn production_enforcement_mode(cfg: &ControllerConfig) -> bool {
-    production_network_api_available(cfg) && !dev_fabric_api_available(cfg)
+async fn production_enforcement_mode(cfg: &ControllerConfig) -> bool {
+    production_network_available(cfg).await && !dev_fabric_available(cfg).await
 }
 
 fn tc_rule_to_policy(rule: &Value) -> Value {
@@ -123,7 +123,7 @@ fn machina_policy_to_tc_rule(id: &str, kind: &str, match_str: &str, name: &str) 
 }
 
 pub async fn enforcement_status(cfg: &ControllerConfig) -> Value {
-    if production_enforcement_mode(cfg) {
+    if production_enforcement_mode(cfg).await {
         let raw = fabric_get(cfg, "/api/v1/runtime/enforcement/status").await;
         return normalize_production_status(&raw);
     }
@@ -131,7 +131,7 @@ pub async fn enforcement_status(cfg: &ControllerConfig) -> Value {
 }
 
 pub async fn enforcement_policies(cfg: &ControllerConfig) -> Value {
-    if production_enforcement_mode(cfg) {
+    if production_enforcement_mode(cfg).await {
         let raw = fabric_get(cfg, "/api/v1/runtime/enforcement/rules").await;
         return normalize_production_policies(&raw);
     }
@@ -139,7 +139,7 @@ pub async fn enforcement_policies(cfg: &ControllerConfig) -> Value {
     if raw.get("policies").and_then(|v| v.as_array()).is_some() {
         return raw;
     }
-    if production_network_api_available(cfg) {
+    if production_network_available(cfg).await {
         let tc = fabric_get(cfg, "/api/v1/runtime/enforcement/rules").await;
         return normalize_production_policies(&tc);
     }
@@ -150,7 +150,7 @@ pub async fn enforcement_policies(cfg: &ControllerConfig) -> Value {
 }
 
 pub async fn create_enforcement_policy(cfg: &ControllerConfig, body: Value) -> Value {
-    if !production_enforcement_mode(cfg) {
+    if !production_enforcement_mode(cfg).await {
         return fabric_post(cfg, "/api/v1/enforcement/policies", body).await;
     }
     let name = body
@@ -225,7 +225,7 @@ pub async fn apply_enforcement_policy(
     policy_id: &str,
     host_ids: &[String],
 ) -> Value {
-    if !production_enforcement_mode(cfg) {
+    if !production_enforcement_mode(cfg).await {
         let body = json!({ "host_ids": host_ids });
         return fabric_post(
             cfg,
@@ -261,7 +261,7 @@ pub async fn patch_enforcement_policy(
     policy_id: &str,
     body: Value,
 ) -> Value {
-    if !production_enforcement_mode(cfg) {
+    if !production_enforcement_mode(cfg).await {
         return fabric_patch(
             cfg,
             &format!("/api/v1/enforcement/policies/{policy_id}"),
@@ -294,7 +294,7 @@ pub async fn patch_enforcement_policy(
 }
 
 pub async fn delete_enforcement_policy(cfg: &ControllerConfig, policy_id: &str) -> Value {
-    if !production_enforcement_mode(cfg) {
+    if !production_enforcement_mode(cfg).await {
         return fabric_delete(cfg, &format!("/api/v1/enforcement/policies/{policy_id}")).await;
     }
     if let Some(removed) = packetwolf_local::delete_enforcement_policy(policy_id) {
@@ -337,7 +337,7 @@ pub async fn delete_enforcement_policy(cfg: &ControllerConfig, policy_id: &str) 
 }
 
 pub async fn enforcement_policy_tetragon(cfg: &ControllerConfig, policy_id: &str) -> Value {
-    if !production_enforcement_mode(cfg) {
+    if !production_enforcement_mode(cfg).await {
         return fabric_get(
             cfg,
             &format!("/api/v1/enforcement/policies/{policy_id}/tetragon"),
@@ -360,7 +360,7 @@ pub async fn enforcement_policy_tetragon(cfg: &ControllerConfig, policy_id: &str
 }
 
 pub async fn attach_enforcement(cfg: &ControllerConfig) -> Value {
-    if production_enforcement_mode(cfg) {
+    if production_enforcement_mode(cfg).await {
         let raw = fabric_post(cfg, "/api/v1/runtime/enforcement/attach", json!({})).await;
         return normalize_production_status(&raw);
     }
@@ -368,7 +368,7 @@ pub async fn attach_enforcement(cfg: &ControllerConfig) -> Value {
 }
 
 pub async fn sync_enforcement(cfg: &ControllerConfig) -> Value {
-    if production_enforcement_mode(cfg) {
+    if production_enforcement_mode(cfg).await {
         let raw = fabric_post(cfg, "/api/v1/runtime/enforcement/sync", json!({})).await;
         return normalize_production_status(&raw);
     }
@@ -376,7 +376,7 @@ pub async fn sync_enforcement(cfg: &ControllerConfig) -> Value {
 }
 
 pub async fn detach_enforcement(cfg: &ControllerConfig) -> Value {
-    if production_enforcement_mode(cfg) {
+    if production_enforcement_mode(cfg).await {
         let raw = fabric_post(cfg, "/api/v1/runtime/enforcement/detach", json!({})).await;
         return normalize_production_status(&raw);
     }
