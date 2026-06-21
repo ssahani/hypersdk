@@ -1,12 +1,14 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use axum::extract::State;
+use axum::Extension;
 use axum::Json;
 use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::api::topology::{build_topology, TopologyGraph};
 use crate::api::ApiError;
+use crate::auth::{require_operator, AuthUser};
 use crate::engine::packetwolf_bridge;
 use crate::state::AppState;
 
@@ -165,7 +167,9 @@ fn normalize_network_pulse(mut pulse: Value) -> Value {
 
 pub async fn network_canvas(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<NetworkCanvasResponse>, ApiError> {
+    require_operator(&actor)?;
     let topology = build_topology(&state.pool, None).await?;
     let (pw_cfg, discovery) = packetwolf_bridge::resolved_config(&state.config).await;
 

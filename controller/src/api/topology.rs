@@ -1,11 +1,13 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use axum::extract::{Path, State};
+use axum::Extension;
 use axum::Json;
 use serde::Serialize;
 use uuid::Uuid;
 
 use crate::api::ApiError;
+use crate::auth::{require_operator, AuthUser};
 use crate::state::AppState;
 
 #[derive(Debug, Serialize)]
@@ -41,14 +43,18 @@ pub struct TopologyGraph {
 
 pub async fn cluster_topology(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<TopologyGraph>, ApiError> {
+    require_operator(&actor)?;
     Ok(Json(build_topology(&state.pool, None).await?))
 }
 
 pub async fn vm_topology(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TopologyGraph>, ApiError> {
+    require_operator(&actor)?;
     Ok(Json(build_topology(&state.pool, Some(id)).await?))
 }
 
