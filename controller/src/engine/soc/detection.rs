@@ -233,8 +233,9 @@ pub async fn test_rule(
         "SELECT id, name, severity, query_json, throttle_minutes FROM soc_detection_rules WHERE id = ?",
     )
     .bind(rule_id)
-    .fetch_one(pool)
-    .await?;
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| anyhow::anyhow!("detection rule {} not found", rule_id))?;
 
     let hours = hours.clamp(1, 720);
     let since = Utc::now() - Duration::hours(hours as i64);

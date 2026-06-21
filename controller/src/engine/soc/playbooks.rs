@@ -18,14 +18,18 @@ struct AlertRow {
     title: String,
     severity: String,
     rule_id: Option<Uuid>,
+    rule_name: Option<String>,
 }
 
 pub async fn run_playbooks_for_alert(pool: &SqlitePool, alert_id: Uuid) -> anyhow::Result<()> {
-    let alert: AlertRow =
-        sqlx::query_as("SELECT id, title, severity, rule_id FROM soc_alerts WHERE id = ?")
-            .bind(alert_id)
-            .fetch_one(pool)
-            .await?;
+    let alert: AlertRow = sqlx::query_as(
+        "SELECT a.id, a.title, a.severity, a.rule_id, r.name AS rule_name
+         FROM soc_alerts a LEFT JOIN soc_detection_rules r ON r.id = a.rule_id
+         WHERE a.id = ?",
+    )
+    .bind(alert_id)
+    .fetch_one(pool)
+    .await?;
 
     let playbooks: Vec<PlaybookRow> = sqlx::query_as(
         "SELECT id, name, trigger_json, steps_json FROM soc_playbooks WHERE enabled = TRUE",
@@ -88,7 +92,10 @@ fn trigger_matches(trigger: &Value, alert: &AlertRow) -> bool {
     }
     if let Some(names) = trigger.get("rule_names").and_then(|v| v.as_array()) {
         if !names.is_empty() {
-            return false;
+            let alert_rule = alert.rule_name.as_deref().unwrap_or("");
+            if !names.iter().any(|n| n.as_str() == Some(alert_rule)) {
+                return false;
+            }
         }
     }
     true

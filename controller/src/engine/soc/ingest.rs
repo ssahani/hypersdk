@@ -26,12 +26,12 @@ pub struct IngestStats {
 }
 
 async fn watermark(pool: &SqlitePool, source: &str) -> anyhow::Result<DateTime<Utc>> {
-    let ts: DateTime<Utc> =
+    let ts: Option<DateTime<Utc>> =
         sqlx::query_scalar("SELECT last_at FROM soc_ingest_watermarks WHERE source = ?")
             .bind(source)
-            .fetch_one(pool)
+            .fetch_optional(pool)
             .await?;
-    Ok(ts)
+    Ok(ts.unwrap_or_else(|| Utc::now() - chrono::Duration::days(7)))
 }
 
 async fn advance_watermark(pool: &SqlitePool, source: &str, ts: DateTime<Utc>) -> anyhow::Result<()> {
