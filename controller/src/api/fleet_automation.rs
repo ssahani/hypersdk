@@ -53,7 +53,9 @@ fn default_retain() -> i32 {
 
 pub async fn list_fleet_snapshot_schedules(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<FleetSnapshotScheduleRow>>, ApiError> {
+    require_operator(&actor)?;
     let rows = sqlx::query_as::<_, FleetSnapshotScheduleRow>(
         "SELECT id, name, cron_expr, project, tag_filter, disk_only, quiesce, retain_count, enabled,
                 strftime('%Y-%m-%dT%H:%M:%SZ', last_run_at) AS last_run_at
@@ -110,7 +112,7 @@ pub async fn delete_fleet_snapshot_schedule(
         .execute(&state.pool)
         .await?;
     if r.rows_affected() == 0 {
-        return Err(ApiError::bad_request("schedule not found"));
+        return Err(ApiError::not_found("schedule not found"));
     }
     Ok(Json(serde_json::json!({ "deleted": true })))
 }

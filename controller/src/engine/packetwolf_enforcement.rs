@@ -64,11 +64,16 @@ fn normalize_production_status(raw: &Value) -> Value {
         .get("warning")
         .and_then(|v| v.as_str())
         .unwrap_or("Production PacketWolf TC egress enforcement");
-    let tetragon_count = packetwolf_local::list_enforcement_policies().len();
+    let tetragon_policies = packetwolf_local::list_enforcement_policies();
+    let tetragon_count = tetragon_policies.len();
+    let tetragon_enabled_count = tetragon_policies
+        .iter()
+        .filter(|p| p.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true))
+        .count();
     json!({
         "mode": if attached { "enforce" } else { "observe" },
         "policies_total": rule_count + tetragon_count,
-        "policies_enabled": rule_count + tetragon_count,
+        "policies_enabled": rule_count + tetragon_enabled_count,
         "applied_hosts": [],
         "blocked_events": drops,
         "attached": attached,
@@ -235,8 +240,8 @@ pub async fn apply_enforcement_policy(
         .await;
     }
 
-    packetwolf_local::mark_policy_applied(policy_id, host_ids);
-    let mut results = vec![fabric_post(cfg, "/api/v1/runtime/enforcement/sync", json!({})).await];
+    let sync_result = fabric_post(cfg, "/api/v1/runtime/enforcement/sync", json!({})).await;
+    let mut results = vec![sync_result];
     if let Some(policy) = packetwolf_local::get_enforcement_policy(policy_id) {
         if policy.get("kind").and_then(|v| v.as_str()) == Some("tc_allow")
             || policy.get("backend").and_then(|v| v.as_str()) == Some("packetwolf-tc")
@@ -247,6 +252,8 @@ pub async fn apply_enforcement_policy(
         // TC rules from PacketWolf may not be in local store — still sync/attach BPF map.
         results.push(fabric_post(cfg, "/api/v1/runtime/enforcement/attach", json!({})).await);
     }
+    // Mark local state only after remote sync is dispatched, so the two stay in agreement.
+    packetwolf_local::mark_policy_applied(policy_id, host_ids);
     json!({
         "ok": true,
         "api_mode": "production_tc",

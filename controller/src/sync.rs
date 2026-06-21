@@ -36,7 +36,7 @@ pub fn spawn_periodic(state: AppState) {
 }
 
 async fn sync_all_hosts(state: &AppState) -> anyhow::Result<()> {
-    let host_ids: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM hosts")
+    let host_ids: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM hosts LIMIT 200")
         .fetch_all(&state.pool)
         .await?;
 
