@@ -227,10 +227,11 @@ pub async fn chat(
     let memory_text = memory.join("\n");
     let system = system_prompt(&agent_id);
     let safe_message = body.message.chars().take(8192).collect::<String>();
+    let ctx: String = base.ctx_json.chars().take(16384).collect();
     let user_prompt = format!(
         "Agent: {agent_id}\nPage: {}\n<memory>\n{memory_text}\n</memory>\nContext: {}\n<user_message>\n{safe_message}\n</user_message>",
         body.page_path.as_deref().unwrap_or(""),
-        base.ctx_json,
+        ctx,
     );
     let mut deterministic = true;
     if let Ok(Some(llm_text)) = super::llm::complete(

@@ -197,6 +197,9 @@ pub async fn approve_and_execute(
                 .bind(vm_id)
                 .fetch_optional(&state.pool)
                 .await?;
+            if host_id.is_none() {
+                return Err(anyhow::anyhow!("VM not found or has no assigned host"));
+            }
             let task_id = crate::tasks::enqueue::enqueue_task(
                 state,
                 "vm.power",

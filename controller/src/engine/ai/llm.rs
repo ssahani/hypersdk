@@ -79,6 +79,15 @@ fn uses_local_endpoint(kind: &str) -> bool {
 }
 
 fn openai_base(resolved: &ResolvedProvider) -> String {
+    // Azure requires its own path format regardless of whether base_url is set.
+    if resolved.kind == "azure_openai" {
+        let base = resolved.base_url.trim().trim_end_matches('/');
+        return format!(
+            "{}/openai/deployments/{}/chat/completions?api-version=2024-02-01",
+            base,
+            resolved.deployment_name
+        );
+    }
     if !resolved.base_url.trim().is_empty() {
         let base = resolved.base_url.trim().trim_end_matches('/');
         if base.ends_with("/v1") {
@@ -87,11 +96,6 @@ fn openai_base(resolved: &ResolvedProvider) -> String {
         return format!("{base}/v1/chat/completions");
     }
     match resolved.kind.as_str() {
-        "azure_openai" => format!(
-            "{}/openai/deployments/{}/chat/completions?api-version=2024-02-01",
-            resolved.base_url.trim().trim_end_matches('/'),
-            resolved.deployment_name
-        ),
         "xai" => "https://api.x.ai/v1/chat/completions".into(),
         "deepseek" => "https://api.deepseek.com/v1/chat/completions".into(),
         "mistral" => "https://api.mistral.ai/v1/chat/completions".into(),
@@ -146,6 +150,9 @@ async fn openai_compatible_complete(
     let text = v["choices"][0]["message"]["content"]
         .as_str()
         .map(String::from);
+    if text.is_none() {
+        tracing::warn!(provider = %resolved.kind, "unexpected LLM response shape (no choices[0].message.content): {}", v);
+    }
     Ok(text)
 }
 
@@ -184,6 +191,9 @@ async fn anthropic_complete(
     }
     let v: serde_json::Value = resp.json().await?;
     let text = v["content"][0]["text"].as_str().map(String::from);
+    if text.is_none() {
+        tracing::warn!(provider = "anthropic", "unexpected Anthropic response shape: {}", v);
+    }
     Ok(text)
 }
 
@@ -225,5 +235,8 @@ async fn google_complete(
     let text = v["candidates"][0]["content"]["parts"][0]["text"]
         .as_str()
         .map(String::from);
+    if text.is_none() {
+        tracing::warn!(provider = "google", "unexpected Google response shape (safety block or empty parts?): {}", v);
+    }
     Ok(text)
 }
