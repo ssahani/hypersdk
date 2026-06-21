@@ -89,8 +89,9 @@ async fn vm_apply(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     let row: (String, serde_json::Value) =
         sqlx::query_as("SELECT name, spec_json FROM vms WHERE id = ?")
             .bind(vm_id)
-            .fetch_one(&state.pool)
-            .await?;
+            .fetch_optional(&state.pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("vm {} not found", vm_id))?;
     let vm: VirtualMachine = serde_json::from_value(row.1)?;
     let disk_path = disk_path_for(&state.config, &row.0);
 
@@ -205,11 +206,13 @@ async fn vm_power(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     };
     vm_lifecycle::set_vm_phase_clear_error(&state.pool, vm_id, phase).await?;
 
-    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
-        .bind(vm_id)
-        .fetch_one(&state.pool)
-        .await?;
-    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
+    let row: (String, Option<Uuid>) =
+        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
+            .bind(vm_id)
+            .fetch_optional(&state.pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("vm {} not found", vm_id))?;
+    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm {} has no host", vm_id))?;
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
     let resp = agent_client::vm_power(&mut client, &row.0, &action, power_mode).await?;
@@ -529,18 +532,21 @@ async fn vm_migrate(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         anyhow::bail!("migration pre-check failed: {msg}");
     }
 
-    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
-        .bind(vm_id)
-        .fetch_one(&state.pool)
-        .await?;
-    let source_host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
+    let row: (String, Option<Uuid>) =
+        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
+            .bind(vm_id)
+            .fetch_optional(&state.pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("vm {} not found", vm_id))?;
+    let source_host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm {} has no host", vm_id))?;
 
     let dest_uri: String =
         sqlx::query_scalar("SELECT COALESCE(NULLIF(libvirt_uri, ''), ?) FROM hosts WHERE id = ?")
             .bind(&state.config.default_libvirt_uri)
             .bind(dest_host_id)
-            .fetch_one(&state.pool)
-            .await?;
+            .fetch_optional(&state.pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("destination host {} not found", dest_host_id))?;
 
     let agent_addr = host_agent_addr(&state.pool, source_host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
@@ -607,9 +613,10 @@ async fn vm_clone(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         "SELECT name, host_id, cluster_id, spec_json, vcpus, memory_mib FROM vms WHERE id = ?",
     )
     .bind(vm_id)
-    .fetch_one(&state.pool)
-    .await?;
-    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or_else(|| anyhow::anyhow!("vm {} not found", vm_id))?;
+    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm {} has no host", vm_id))?;
 
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
@@ -718,8 +725,9 @@ async fn ha_recover(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     let row: (String, serde_json::Value) =
         sqlx::query_as("SELECT name, spec_json FROM vms WHERE id = ?")
             .bind(vm_id)
-            .fetch_one(&state.pool)
-            .await?;
+            .fetch_optional(&state.pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("vm {} not found", vm_id))?;
     let vm: VirtualMachine = serde_json::from_value(row.1)?;
     let disk_path = disk_path_for(&state.config, &row.0);
     let template_source = if let Some(ref tr) = vm.spec.template_ref {
@@ -855,8 +863,9 @@ async fn vm_snapshot(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> 
         "SELECT v.name, v.host_id, s.name FROM vms v JOIN snapshot_records s ON s.id = ? AND s.vm_id = v.id",
     )
     .bind(record_id)
-    .fetch_one(&state.pool)
-    .await?;
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or_else(|| anyhow::anyhow!("snapshot record {} not found or vm mismatch", record_id))?;
     let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
 
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
@@ -1099,9 +1108,10 @@ async fn vm_snapshot_clone(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
         "SELECT name, host_id, cluster_id, spec_json, vcpus, memory_mib FROM vms WHERE id = ?",
     )
     .bind(vm_id)
-    .fetch_one(&state.pool)
-    .await?;
-    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or_else(|| anyhow::anyhow!("vm {} not found", vm_id))?;
+    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm {} has no host", vm_id))?;
     let new_disk_path = disk_path_for(&state.config, &new_name);
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
@@ -1736,12 +1746,15 @@ async fn vm_disk_attach(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
 }
 
 async fn vm_host_row(pool: &SqlitePool, vm_id: Uuid) -> anyhow::Result<(String, Uuid)> {
-    let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
-        .bind(vm_id)
-        .fetch_one(pool)
-        .await?;
-    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
-    Ok((row.0, host_id))
+    let row: Option<(String, Option<Uuid>)> =
+        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
+            .bind(vm_id)
+            .fetch_optional(pool)
+            .await?;
+    let (name, host_id_opt) =
+        row.ok_or_else(|| anyhow::anyhow!("vm {} not found", vm_id))?;
+    let host_id = host_id_opt.ok_or_else(|| anyhow::anyhow!("vm {} has no host", vm_id))?;
+    Ok((name, host_id))
 }
 
 async fn vm_disk_detach(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
