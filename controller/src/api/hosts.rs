@@ -137,8 +137,10 @@ pub async fn get_host(
 
 pub async fn get_host_gpus(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let agent_addr: String = sqlx::query_scalar("SELECT agent_grpc_addr FROM hosts WHERE id = ?")
         .bind(id)
         .fetch_one(&state.pool)
