@@ -292,7 +292,22 @@ pub async fn create_vm(
         Some(vm_id),
         Some(host_id),
     )
-    .await?;
+    .await
+    .map_err(|e| {
+        // Compensate: delete the zombie VM row so the name is free to retry.
+        let pool = state.pool.clone();
+        tokio::spawn(async move {
+            let _ = sqlx::query("DELETE FROM vm_disks WHERE vm_id = ?")
+                .bind(vm_id)
+                .execute(&pool)
+                .await;
+            let _ = sqlx::query("DELETE FROM vms WHERE id = ?")
+                .bind(vm_id)
+                .execute(&pool)
+                .await;
+        });
+        e
+    })?;
 
     sqlx::query(
         "INSERT INTO audit_logs (id, actor, action, resource_type, resource_id, detail)

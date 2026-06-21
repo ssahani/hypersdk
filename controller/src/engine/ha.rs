@@ -174,7 +174,14 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
         )
         .await
         {
-            tracing::error!(vm_id = %vm_id, dest_host = %dest_host, "HA: failed to enqueue ha.recover task — VM will remain down: {e:?}");
+            tracing::error!(vm_id = %vm_id, dest_host = %dest_host, "HA: failed to enqueue ha.recover task: {e:?} — resetting host_id so HA can retry");
+            // Reset host_id so the next HA loop iteration will reschedule recovery.
+            let _ = sqlx::query("UPDATE vms SET host_id = ? WHERE id = ?")
+                .bind(failed_host)
+                .bind(vm_id)
+                .execute(&state.pool)
+                .await;
+            continue;
         }
         state.emit_event(
             "ha.recover",
