@@ -710,9 +710,10 @@ pub async fn intent_environment(
     let rates: (f64, f64) = sqlx::query_as(
         "SELECT finops_vcpu_hour_usd, finops_gib_hour_usd FROM clusters ORDER BY created_at LIMIT 1",
     )
-    .fetch_one(&state.pool)
+    .fetch_optional(&state.pool)
     .await
-    .map_err(|e| ApiError::internal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?
+    .ok_or_else(|| ApiError::bad_request("no cluster configured — run machina-controller bootstrap"))?;
     Ok(Json(ai::environment_intent::plan_environment(
         &body.query,
         rates.0,
@@ -939,9 +940,10 @@ pub async fn mission_stack(
     let rates: (f64, f64) = sqlx::query_as(
         "SELECT finops_vcpu_hour_usd, finops_gib_hour_usd FROM clusters ORDER BY created_at LIMIT 1",
     )
-    .fetch_one(&state.pool)
+    .fetch_optional(&state.pool)
     .await
-    .map_err(|e| ApiError::internal(e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?
+    .ok_or_else(|| ApiError::bad_request("no cluster configured — run machina-controller bootstrap"))?;
     Ok(Json(ai::mission_stack::plan_mission_stack(
         &body.query,
         rates.0,

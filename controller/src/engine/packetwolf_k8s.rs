@@ -82,13 +82,15 @@ pub fn render_export_forwarder_manifest(
 ) -> String {
     let token = k8s_name_token(cluster_id);
     let host_id = format!("k8s-{cluster_id}");
-    let api_key = cfg.packetwolf_api_key.as_deref().unwrap_or("");
+    // Strip newlines/colons from api_key to prevent YAML structure injection via template replace.
+    let raw_key = cfg.packetwolf_api_key.as_deref().unwrap_or("");
+    let api_key = raw_key.replace(['\n', '\r', ':'], "");
     FORWARDER_TEMPLATE
         .replace("{{NAMESPACE}}", namespace)
         .replace("{{CLUSTER_TOKEN}}", &token)
         .replace("{{HOST_ID}}", &host_id)
         .replace("{{EXPORT_URL}}", &packetwolf_export_url(cfg))
-        .replace("{{API_KEY}}", api_key)
+        .replace("{{API_KEY}}", &api_key)
         .replace(
             "{{FORWARD_SCRIPT}}",
             &indent_configmap_script(FORWARD_SCRIPT),

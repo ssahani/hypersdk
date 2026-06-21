@@ -535,7 +535,7 @@ export default function PlatformHostDetailPage() {
                         <MacListRow
                           key={gpu.pci_address}
                           title={gpu.device_name || gpu.pci_address}
-                          subtitle={`${gpu.vendor} · ${gpu.pci_address}${gpu.iommu_group >= 0 ? ` · IOMMU ${gpu.iommu_group}` : ''}${gpu.mig_profile ? ` · MIG ${gpu.mig_profile}` : ''}`}
+                          subtitle={`${gpu.vendor} · ${gpu.pci_address}${gpu.iommu_group != null && gpu.iommu_group >= 0 ? ` · IOMMU ${gpu.iommu_group}` : ''}${gpu.mig_profile ? ` · MIG ${gpu.mig_profile}` : ''}`}
                         />
                       ))}
                     </ul>
@@ -578,7 +578,7 @@ export default function PlatformHostDetailPage() {
                           <MacListRow
                             key={f.mount_point}
                             title={f.mount_point}
-                            subtitle={`${f.fstype} · ${f.use_percent.toFixed(0)}% used`}
+                            subtitle={`${f.fstype} · ${f.use_percent != null ? f.use_percent.toFixed(0) : '?'}% used`}
                           />
                         ))}
                       </MacGlassPanel>

@@ -1025,7 +1025,11 @@ async fn vm_backup(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
             {
                 if kind == "s3" {
                     let bucket = cfg["bucket"].as_str().unwrap_or("");
-                    let prefix = cfg["prefix"].as_str().unwrap_or("machina");
+                    // Strip leading dashes from prefix so it cannot become an AWS CLI flag
+                    // (e.g. "--no-sign-request" in the prefix field of a malicious config).
+                    let raw_prefix = cfg["prefix"].as_str().unwrap_or("machina");
+                    let prefix = raw_prefix.trim_start_matches('-');
+                    let prefix = if prefix.is_empty() { "machina" } else { prefix };
                     if !bucket.is_empty() {
                         let key = format!(
                             "{prefix}/{}",
@@ -1193,7 +1197,7 @@ async fn vm_snapshot_clone(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
                     .bind(vm_id)
                     .fetch_optional(&state.pool)
                     .await?
-                    .unwrap_or_else(|| "stopped".to_string());
+                    .ok_or_else(|| anyhow::anyhow!("vm {} disappeared before migration could start", vm_id))?;
             let use_live = live_migrate && source_running == "running";
             if use_live {
                 vm_lifecycle::set_vm_phase(&state.pool, new_id, vm_lifecycle::PHASE_STARTING)
@@ -1502,11 +1506,15 @@ async fn k8s_tetragon_install(state: &AppState, msg: &TaskMessage) -> anyhow::Re
         .get("cluster_name")
         .and_then(|v| v.as_str())
         .unwrap_or(cluster_id);
-    let namespace = msg
+    let namespace_raw = msg
         .payload
         .get("namespace")
         .and_then(|v| v.as_str())
         .unwrap_or("kube-system");
+    let namespace = namespace_raw.trim();
+    if namespace.is_empty() {
+        anyhow::bail!("namespace must not be empty");
+    }
     update_task_progress(
         &state.pool,
         msg.task_id,

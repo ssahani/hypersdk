@@ -293,13 +293,13 @@ export default function PlatformVmDetail() {
     try {
       const [v, h, policy, spec, snaps, bks, tline, dsk, mtr] = await Promise.all([
         getPlatformVm(id),
-        listPlatformHosts(),
-        getVmHaPolicy(id),
-        getPlatformVmSpec(id),
-        listVmSnapshots(id),
-        listVmBackups(id),
+        listPlatformHosts().catch(() => [] as PlatformHost[]),
+        getVmHaPolicy(id).catch(() => ({ enabled: false, restart_attempts: 3, restart_priority: 'medium', fence_on_failure: false, anti_affinity: false }) as HaPolicy),
+        getPlatformVmSpec(id).catch(() => null),
+        listVmSnapshots(id).catch(() => [] as SnapshotRecord[]),
+        listVmBackups(id).catch(() => [] as BackupRecord[]),
         listVmTimeline(id).catch(() => [] as VmTimelineEntry[]),
-        getVmDisks(id),
+        getVmDisks(id).catch(() => [] as VmDiskRow[]),
         getPlatformVmMetrics(id).catch(() => null),
       ])
       setVm(v)
@@ -753,7 +753,7 @@ export default function PlatformVmDetail() {
         vmName: vm.name,
         observedState: vm.observed_state,
         guestIp,
-        healthScore: health?.score ? Number.parseInt(health.score, 10) : null,
+        healthScore: health?.score != null ? (Number.isNaN(Number.parseInt(String(health.score), 10)) ? null : Number.parseInt(String(health.score), 10)) : null,
         doctor,
         blockers: detailBlockers,
       })
@@ -1489,7 +1489,7 @@ export default function PlatformVmDetail() {
                   <button
                     type="button"
                     className="btn-secondary"
-                    disabled={vm.managed === false || !resizeTarget || !resizeGb}
+                    disabled={vm.managed === false || !resizeTarget || !resizeGb || Number.isNaN(Number(resizeGb))}
                     onClick={() => void act('Resize disk queued', () => resizeVmDisk(id, resizeTarget, Number(resizeGb)))}
                   >
                     Resize
@@ -1832,11 +1832,11 @@ export default function PlatformVmDetail() {
                       {guestPorts.summary}
                       {!guestPorts.agent_reachable && ' · Guest agent unreachable — install Guest Tools'}
                     </p>
-                    {guestPorts.ports.length === 0 ? (
+                    {(guestPorts.ports ?? []).length === 0 ? (
                       <p className="text-sm text-slate-500">No listening ports reported inside the guest.</p>
                     ) : (
                       <div className="space-y-1">
-                        {guestPorts.ports.map((p) => (
+                        {(guestPorts.ports ?? []).map((p) => (
                           <MacListRow
                             key={`${p.port}-${p.protocol}`}
                             title={`${p.port}/${p.protocol}`}
@@ -1907,7 +1907,7 @@ export default function PlatformVmDetail() {
                     void getVmGuestAiInsights(id, { focus: 'snapshot' })
                       .then((r) => {
                         setSnapAiHint(r)
-                        const quiesceRec = r.recommendations.find((x) => x.action === 'snapshot.quiesce')
+                        const quiesceRec = (r.recommendations ?? []).find((x) => x.action === 'snapshot.quiesce')
                         if (quiesceRec) setSnapQuiesce(true)
                       })
                       .catch((e: unknown) => toast.error(formatUserError(e)))
@@ -2261,7 +2261,7 @@ export default function PlatformVmDetail() {
                         onClick={() => void act('Migration queued', () => vmMigrate(id, {
                           dest_host_id: destHost,
                           live: migrateLive,
-                          bandwidth_mib: migrateBandwidth ? Number(migrateBandwidth) : undefined,
+                          bandwidth_mib: migrateBandwidth && !Number.isNaN(Number(migrateBandwidth)) ? Number(migrateBandwidth) : undefined,
                           postcopy: migratePostcopy,
                           undefine_source: migrateUndefineSource,
                           tunnelled: migrateTunnelled,

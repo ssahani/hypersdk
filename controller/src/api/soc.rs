@@ -1081,7 +1081,8 @@ fn extract_mitre_tags(ecs: &Value) -> Vec<MitreTag> {
 
 async fn splunk_integration_id(pool: &SqlitePool) -> Result<Uuid, ApiError> {
     sqlx::query_scalar("SELECT id FROM soc_integrations WHERE integration_type = 'splunk_hec' AND name = 'default'")
-        .fetch_one(pool)
+        .fetch_optional(pool)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))?
+        .ok_or_else(|| ApiError::not_found("Splunk integration not configured — add it via the SOC integrations page"))
 }
