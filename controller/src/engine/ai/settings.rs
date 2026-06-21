@@ -66,55 +66,57 @@ pub async fn patch_ai_settings(
     pool: &SqlitePool,
     patch: &AiSettingsPatch,
 ) -> anyhow::Result<AiSettings> {
+    let mut tx = pool.begin().await?;
     if let Some(v) = patch.enabled {
         sqlx::query("UPDATE clusters SET ai_enabled = ?")
             .bind(v)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &patch.mode {
         sqlx::query("UPDATE clusters SET ai_mode = ?")
             .bind(v)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &patch.provider {
         sqlx::query("UPDATE clusters SET ai_provider = ?")
             .bind(v)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &patch.model {
         sqlx::query("UPDATE clusters SET ai_model = ?")
             .bind(v)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &patch.api_key {
         sqlx::query("UPDATE clusters SET ai_api_key = ?")
             .bind(v)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = patch.autopilot_interval_secs {
         sqlx::query("UPDATE clusters SET ai_autopilot_interval_secs = ?")
             .bind(v.clamp(0, 86400))
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = patch.autopilot_max_actions {
         sqlx::query("UPDATE clusters SET ai_autopilot_max_actions = ?")
             .bind(v.clamp(1, 10))
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &patch.fleet_peer_urls {
         let json = serde_json::to_value(v)?;
         sqlx::query("UPDATE clusters SET ai_fleet_peer_urls = ?")
             .bind(json)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
+    tx.commit().await?;
     get_ai_settings(pool).await
 }
 

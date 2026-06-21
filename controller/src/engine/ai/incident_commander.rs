@@ -232,7 +232,7 @@ pub async fn correlate_and_open(pool: &SqlitePool) -> anyhow::Result<Option<Uuid
     }
 
     let failed_events: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM events WHERE created_at > datetime('now') - interval '1 hour'
+        "SELECT COUNT(*) FROM events WHERE created_at > datetime('now', '-1 hour')
          AND (kind LIKE '%fail%' OR kind LIKE '%error%')",
     )
     .fetch_one(pool)
@@ -240,7 +240,7 @@ pub async fn correlate_and_open(pool: &SqlitePool) -> anyhow::Result<Option<Uuid
     .unwrap_or(0);
 
     let failed_tasks: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM tasks WHERE status = 'failed' AND created_at > datetime('now') - interval '1 hour'",
+        "SELECT COUNT(*) FROM tasks WHERE status = 'failed' AND created_at > datetime('now', '-1 hour')",
     )
     .fetch_one(pool)
     .await

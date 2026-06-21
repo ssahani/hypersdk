@@ -108,60 +108,62 @@ pub async fn update_cluster_settings(
     pool: &SqlitePool,
     settings: &ClusterSettingsPatch,
 ) -> anyhow::Result<()> {
+    let mut tx = pool.begin().await?;
     if let Some(v) = settings.drs_auto_migrate {
         sqlx::query("UPDATE clusters SET drs_auto_migrate = ?")
             .bind(v)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = settings.drs_cpu_threshold {
         sqlx::query("UPDATE clusters SET drs_cpu_threshold = ?")
             .bind(v)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = settings.ha_enabled {
         sqlx::query("UPDATE clusters SET ha_enabled = ?")
             .bind(v)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &settings.placement_policy {
         sqlx::query("UPDATE clusters SET placement_policy = ?")
             .bind(v)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = settings.inventory_sync_interval_secs {
         sqlx::query("UPDATE clusters SET inventory_sync_interval_secs = ?")
             .bind(v.clamp(0, 86400))
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = settings.require_vm_delete_approval {
         sqlx::query("UPDATE clusters SET require_vm_delete_approval = ?")
             .bind(v)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = settings.firewall_approval_sla_hours {
         sqlx::query("UPDATE clusters SET firewall_approval_sla_hours = ?")
             .bind(v.clamp(1, 720))
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = settings.finops_vcpu_hour_usd {
         sqlx::query("UPDATE clusters SET finops_vcpu_hour_usd = ?")
             .bind(v)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = settings.finops_gib_hour_usd {
         sqlx::query("UPDATE clusters SET finops_gib_hour_usd = ?")
             .bind(v)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
+    tx.commit().await?;
     Ok(())
 }
 

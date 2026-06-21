@@ -53,6 +53,7 @@ pub async fn execute_runbook(
     Path(incident): Path<String>,
     Json(body): Json<ExecuteRunbookRequest>,
 ) -> Result<Json<operations::RunbookExecuteResult>, ApiError> {
+    crate::auth::require_operator(&actor)?;
     operations::execute_runbook(&state.pool, &incident, &actor.username, &body.context)
         .await
         .map(Json)

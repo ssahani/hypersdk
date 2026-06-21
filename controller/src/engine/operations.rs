@@ -179,9 +179,13 @@ pub async fn showback_overview(
     ensure_showback_snapshots(pool).await?;
 
     let rows: Vec<(String, f64, String, i32)> = sqlx::query_as(
-        "SELECT DISTINCT ON (project_name) project_name, cost_usd, compliance_grade, vm_count
-         FROM ops_showback_snapshots
-         ORDER BY project_name, captured_at DESC",
+        "SELECT s.project_name, s.cost_usd, s.compliance_grade, s.vm_count
+         FROM ops_showback_snapshots s
+         WHERE s.captured_at = (
+             SELECT MAX(s2.captured_at) FROM ops_showback_snapshots s2
+             WHERE s2.project_name = s.project_name
+         )
+         ORDER BY s.project_name",
     )
     .fetch_all(pool)
     .await?;

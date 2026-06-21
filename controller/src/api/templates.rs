@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::api::tasks::TaskResponse;
 use crate::api::ApiError;
-use crate::auth::{require_operator, AuthUser};
+use crate::auth::{require_admin, require_operator, AuthUser};
 use crate::state::AppState;
 use crate::tasks::enqueue::enqueue_task;
 
@@ -148,7 +148,9 @@ pub async fn list_marketplace_templates(
 
 pub async fn seed_templates(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&actor)?;
     let inserted = crate::engine::template_catalog::seed_default_templates(&state.pool)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
@@ -285,8 +287,10 @@ pub async fn list_missing_template_images(
 
 pub async fn delete_template(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     AxumPath((name, version)): AxumPath<(String, String)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&actor)?;
     let deleted = sqlx::query("DELETE FROM templates WHERE name = ? AND version = ?")
         .bind(&name)
         .bind(&version)
@@ -321,7 +325,9 @@ async fn run_git_template_sync(pool: &sqlx::SqlitePool) -> Result<usize, ApiErro
 
 pub async fn sync_git_templates(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let synced = run_git_template_sync(&state.pool).await?;
     Ok(Json(serde_json::json!({ "synced": synced })))
 }
@@ -353,9 +359,11 @@ pub async fn sync_git_templates_webhook(
 
 pub async fn approve_template(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     AxumPath((name, version)): AxumPath<(String, String)>,
     Json(body): Json<ApproveTemplateBody>,
 ) -> Result<Json<TemplateRow>, ApiError> {
+    require_admin(&actor)?;
     let status = body.approval_status.trim();
     if !["approved", "pending", "draft", "rejected"].contains(&status) {
         return Err(ApiError::bad_request(

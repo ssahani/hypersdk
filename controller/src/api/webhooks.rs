@@ -69,14 +69,16 @@ pub async fn delete_webhook(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_admin(&actor)?;
+    let mut tx = state.pool.begin().await?;
     sqlx::query("DELETE FROM webhook_deliveries WHERE webhook_id = ?")
         .bind(id)
-        .execute(&state.pool)
+        .execute(&mut *tx)
         .await?;
     sqlx::query("DELETE FROM webhooks WHERE id = ?")
         .bind(id)
-        .execute(&state.pool)
+        .execute(&mut *tx)
         .await?;
+    tx.commit().await?;
     Ok(Json(serde_json::json!({ "deleted": true })))
 }
 

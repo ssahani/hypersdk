@@ -62,15 +62,6 @@ pub async fn create_vm_backup(
         .await?;
 
     let id = Uuid::new_v4();
-    sqlx::query(
-        "INSERT INTO backup_records (id, vm_id, backup_type, status) VALUES (?, ?, ?, 'pending')",
-    )
-    .bind(id)
-    .bind(vm_id)
-    .bind(&body.backup_type)
-    .execute(&state.pool)
-    .await?;
-
     let task_id = enqueue_task(
         &state,
         "vm.backup",
@@ -83,6 +74,15 @@ pub async fn create_vm_backup(
         Some(vm_id),
         host_id,
     )
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO backup_records (id, vm_id, backup_type, status) VALUES (?, ?, ?, 'pending')",
+    )
+    .bind(id)
+    .bind(vm_id)
+    .bind(&body.backup_type)
+    .execute(&state.pool)
     .await?;
 
     Ok(Json(TaskResponse {

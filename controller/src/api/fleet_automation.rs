@@ -99,8 +99,10 @@ pub async fn create_fleet_snapshot_schedule(
 
 pub async fn delete_fleet_snapshot_schedule(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let r = sqlx::query("DELETE FROM fleet_snapshot_schedules WHERE id = ?")
         .bind(id)
         .execute(&state.pool)

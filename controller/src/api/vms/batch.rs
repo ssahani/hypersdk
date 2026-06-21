@@ -1,12 +1,14 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use axum::extract::{Path, State};
+use axum::Extension;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::api::tasks::TaskResponse;
 use crate::api::ApiError;
+use crate::auth::{require_operator, AuthUser};
 use crate::state::AppState;
 use crate::tasks::enqueue::enqueue_task;
 
@@ -36,8 +38,10 @@ pub struct BatchVmPowerResponse {
 
 pub async fn batch_vm_power(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Json(body): Json<BatchVmPowerBody>,
 ) -> Result<Json<BatchVmPowerResponse>, ApiError> {
+    require_operator(&actor)?;
     let action = body.action.as_str();
     if !matches!(action, "start" | "stop" | "shutdown" | "reboot" | "pause" | "resume") {
         return Err(ApiError::bad_request("invalid batch power action"));
@@ -174,8 +178,10 @@ pub struct BatchVmDeleteBody {
 
 pub async fn batch_vm_delete(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Json(body): Json<BatchVmDeleteBody>,
 ) -> Result<Json<BatchVmPowerResponse>, ApiError> {
+    require_operator(&actor)?;
     let require: bool = sqlx::query_scalar(
         "SELECT require_vm_delete_approval FROM clusters ORDER BY created_at LIMIT 1",
     )

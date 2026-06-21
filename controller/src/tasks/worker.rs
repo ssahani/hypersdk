@@ -134,26 +134,35 @@ async fn vm_apply(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     )
     .await?;
 
-    sqlx::query(
-        "UPDATE vms SET uuid = ?, observed_state = 'defined', updated_at = datetime('now') WHERE id = ?",
-    )
-    .bind(&resp.uuid)
-    .bind(vm_id)
-    .execute(&state.pool)
-    .await?;
-
     let desired_state: String = sqlx::query_scalar("SELECT desired_state FROM vms WHERE id = ?")
         .bind(vm_id)
         .fetch_one(&state.pool)
         .await?;
 
-    if desired_state == "running" {
+    let needs_start = desired_state == "running";
+    if needs_start {
         vm_lifecycle::set_vm_phase(&state.pool, vm_id, vm_lifecycle::PHASE_STARTING).await?;
         agent_client::vm_power(&mut client, &row.0, "start", None).await?;
-        sqlx::query("UPDATE vms SET observed_state = 'running', updated_at = datetime('now') WHERE id = ?")
+    }
+
+    {
+        let mut tx = state.pool.begin().await?;
+        sqlx::query(
+            "UPDATE vms SET uuid = ?, observed_state = 'defined', updated_at = datetime('now') WHERE id = ?",
+        )
+        .bind(&resp.uuid)
+        .bind(vm_id)
+        .execute(&mut *tx)
+        .await?;
+        if needs_start {
+            sqlx::query(
+                "UPDATE vms SET observed_state = 'running', updated_at = datetime('now') WHERE id = ?",
+            )
             .bind(vm_id)
-            .execute(&state.pool)
+            .execute(&mut *tx)
             .await?;
+        }
+        tx.commit().await?;
     }
 
     vm_lifecycle::sync_phase_from_observed(&state.pool, vm_id).await?;
@@ -516,8 +525,8 @@ async fn vm_migrate(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
 
     let dest_uri: String =
         sqlx::query_scalar("SELECT COALESCE(NULLIF(libvirt_uri, ''), ?) FROM hosts WHERE id = ?")
-            .bind(dest_host_id)
             .bind(&state.config.default_libvirt_uri)
+            .bind(dest_host_id)
             .fetch_one(&state.pool)
             .await?;
 
@@ -538,27 +547,30 @@ async fn vm_migrate(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     )
     .await?;
 
-    sqlx::query("UPDATE vms SET host_id = ?, updated_at = datetime('now') WHERE id = ?")
-        .bind(dest_host_id)
+    {
+        let mut tx = state.pool.begin().await?;
+        sqlx::query("UPDATE vms SET host_id = ?, updated_at = datetime('now') WHERE id = ?")
+            .bind(dest_host_id)
+            .bind(vm_id)
+            .execute(&mut *tx)
+            .await?;
+        let job_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO migration_jobs (id, vm_id, source_host_id, dest_host_id, live, status, progress, precheck)
+             VALUES (?, ?, ?, ?, ?, 'completed', 100, ?)",
+        )
+        .bind(job_id)
         .bind(vm_id)
-        .execute(&state.pool)
+        .bind(source_host_id)
+        .bind(dest_host_id)
+        .bind(live)
+        .bind(serde_json::to_value(&pre)?)
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
+    }
 
     vm_lifecycle::sync_phase_from_observed(&state.pool, vm_id).await?;
-
-    let job_id = Uuid::new_v4();
-    sqlx::query(
-        "INSERT INTO migration_jobs (id, vm_id, source_host_id, dest_host_id, live, status, progress, precheck)
-         VALUES (?, ?, ?, ?, ?, 'completed', 100, ?)",
-    )
-    .bind(job_id)
-    .bind(vm_id)
-    .bind(source_host_id)
-    .bind(dest_host_id)
-    .bind(live)
-    .bind(serde_json::to_value(&pre)?)
-    .execute(&state.pool)
-    .await?;
 
     state.emit_event("vm.migrate", format!("VM {} migrated", row.0));
     update_task_progress(&state.pool, msg.task_id, 100, "migrated").await?;
@@ -1622,8 +1634,8 @@ async fn storage_pool_provision(state: &AppState, msg: &TaskMessage) -> anyhow::
     let mut client = agent_client::connect(&agent_addr).await?;
     agent_client::provision_storage_pool(&mut client, &row.0, &row.1, &path).await?;
     sqlx::query("UPDATE storage_pools SET path = COALESCE(path, ?) WHERE id = ?")
-        .bind(pool_id)
         .bind(&path)
+        .bind(pool_id)
         .execute(&state.pool)
         .await?;
     update_task_progress(

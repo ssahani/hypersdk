@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::api::tasks::TaskResponse;
 use crate::api::ApiError;
-use crate::auth::{require_admin, AuthUser};
+use crate::auth::{require_admin, require_operator, AuthUser};
 use crate::engine::host_validate;
 use crate::state::AppState;
 use crate::tasks::enqueue::{enqueue_task, write_audit};
@@ -183,6 +183,7 @@ pub async fn create_host(
     Extension(actor): Extension<AuthUser>,
     Json(req): Json<CreateHostRequest>,
 ) -> Result<Json<HostRow>, ApiError> {
+    require_operator(&actor)?;
     let cluster_id: Uuid = sqlx::query_scalar("SELECT id FROM clusters LIMIT 1")
         .fetch_one(&state.pool)
         .await?;
@@ -232,8 +233,10 @@ pub async fn create_host(
 
 pub async fn validate_host(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<host_validate::HostValidationReport>, ApiError> {
+    require_operator(&actor)?;
     let report = host_validate::validate_host(&state.pool, id).await?;
     host_validate::persist_validation(&state.pool, id, &report).await?;
     Ok(Json(report))
@@ -241,8 +244,10 @@ pub async fn validate_host(
 
 pub async fn enqueue_validate_host(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     let task_id = enqueue_task(
         &state,
         "host.validate",
@@ -261,8 +266,10 @@ pub async fn enqueue_validate_host(
 
 pub async fn sync_host(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     let task_id = enqueue_task(
         &state,
         "host.inventory",
@@ -315,6 +322,7 @@ pub async fn join_host(
         .libvirt_uri
         .unwrap_or_else(|| state.config.default_libvirt_uri.clone());
 
+    let mut tx = state.pool.begin().await?;
     sqlx::query(
         "INSERT INTO hosts (id, cluster_id, hostname, address, agent_grpc_addr, agent_console_addr, libvirt_uri, state, validation_status)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'pending_validation', 'pending')
@@ -333,20 +341,21 @@ pub async fn join_host(
     .bind(&req.agent_grpc_addr)
     .bind(&console_addr)
     .bind(&libvirt_uri)
-    .execute(&state.pool)
+    .execute(&mut *tx)
     .await?;
 
     sqlx::query("UPDATE enrollment_tokens SET used_at = datetime('now') WHERE token = ?")
         .bind(&req.token)
-        .execute(&state.pool)
+        .execute(&mut *tx)
         .await?;
 
     let host_id: Uuid =
         sqlx::query_scalar("SELECT id FROM hosts WHERE cluster_id = ? AND hostname = ?")
             .bind(cluster_id)
             .bind(&req.hostname)
-            .fetch_one(&state.pool)
+            .fetch_one(&mut *tx)
             .await?;
+    tx.commit().await?;
 
     link_baremetal_firewall_on_join(&state.pool, host_id, &req.hostname).await;
 
@@ -392,9 +401,11 @@ fn default_true() -> bool {
 
 pub async fn host_maintenance(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(req): Json<MaintenanceRequest>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     let task_id = enqueue_task(
         &state,
         "host.maintenance",
@@ -417,7 +428,9 @@ pub async fn host_maintenance(
 
 pub async fn sync_all_hosts(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<TaskResponse>>, ApiError> {
+    require_operator(&actor)?;
     let ids: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM hosts ORDER BY hostname")
         .fetch_all(&state.pool)
         .await?;
@@ -463,60 +476,62 @@ pub async fn patch_host(
     Path(id): Path<Uuid>,
     Json(body): Json<PatchHostBody>,
 ) -> Result<Json<HostDetailRow>, ApiError> {
+    require_operator(&actor)?;
+    let mut tx = state.pool.begin().await?;
     if let Some(v) = &body.address {
         sqlx::query("UPDATE hosts SET address = ? WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(&state.pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &body.agent_grpc_addr {
         sqlx::query("UPDATE hosts SET agent_grpc_addr = ? WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(&state.pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &body.libvirt_uri {
         sqlx::query("UPDATE hosts SET libvirt_uri = ? WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(&state.pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &body.notes {
         sqlx::query("UPDATE hosts SET notes = ? WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(&state.pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(tags) = &body.tags {
         sqlx::query("UPDATE hosts SET tags = ? WHERE id = ?")
             .bind(serde_json::to_string(tags).unwrap_or_else(|_| "[]".into()))
             .bind(id)
-            .execute(&state.pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &body.fence_method {
         sqlx::query("UPDATE hosts SET fence_method = ? WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(&state.pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &body.ipmi_address {
         sqlx::query("UPDATE hosts SET ipmi_address = ? WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(&state.pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &body.ipmi_username {
         sqlx::query("UPDATE hosts SET ipmi_username = ? WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(&state.pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &body.ipmi_password {
@@ -524,7 +539,7 @@ pub async fn patch_host(
             sqlx::query("UPDATE hosts SET ipmi_password = ? WHERE id = ?")
                 .bind(v)
                 .bind(id)
-                .execute(&state.pool)
+                .execute(&mut *tx)
                 .await?;
         }
     }
@@ -532,23 +547,24 @@ pub async fn patch_host(
         sqlx::query("UPDATE hosts SET site = ? WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(&state.pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &body.rack {
         sqlx::query("UPDATE hosts SET rack = ? WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(&state.pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = body.rack_u {
         sqlx::query("UPDATE hosts SET rack_u = ? WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(&state.pool)
+            .execute(&mut *tx)
             .await?;
     }
+    tx.commit().await?;
     write_audit(
         &state,
         &actor.username,

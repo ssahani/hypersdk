@@ -219,25 +219,29 @@ pub async fn approve_and_execute(
 
     match &result {
         Ok(msg) => {
+            let mut tx = state.pool.begin().await?;
             sqlx::query(
                 "UPDATE ai_actions SET status = 'executed', executed_at = datetime('now') WHERE id = ?",
             )
             .bind(id)
-            .execute(&state.pool)
+            .execute(&mut *tx)
             .await?;
-            crate::tasks::enqueue::write_audit(
-                state,
-                &actor.username,
-                "zeus.action.execute",
-                "zeus",
-                Some(id),
-                serde_json::json!({
-                    "action_type": action.action_type,
-                    "result": msg
-                }),
+            sqlx::query(
+                "INSERT INTO audit_logs (id, actor, action, resource_type, resource_id, detail) VALUES (?, ?, ?, ?, ?, ?)",
             )
-            .await
-            .map_err(|e| anyhow::anyhow!(e.message))?;
+            .bind(Uuid::new_v4())
+            .bind(&actor.username)
+            .bind("zeus.action.execute")
+            .bind("zeus")
+            .bind(id)
+            .bind(serde_json::json!({
+                "action_type": action.action_type,
+                "result": msg
+            }))
+            .execute(&mut *tx)
+            .await?;
+            tx.commit().await?;
+            state.emit_event("audit", format!("{} zeus.action.execute", actor.username));
         }
         Err(_) => {
             sqlx::query("UPDATE ai_actions SET status = 'failed' WHERE id = ?")

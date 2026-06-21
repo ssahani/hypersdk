@@ -161,10 +161,13 @@ pub async fn create_provider(
     pool: &SqlitePool,
     body: &CreateProviderBody,
 ) -> anyhow::Result<AiProviderRow> {
-    if body.is_default {
-        clear_default(pool).await?;
-    }
     let stored_key = crypto::store_api_key(body.api_key.trim())?;
+    let mut tx = pool.begin().await?;
+    if body.is_default {
+        sqlx::query("UPDATE ai_providers SET is_default = FALSE WHERE is_default = TRUE")
+            .execute(&mut *tx)
+            .await?;
+    }
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO ai_providers (id, name, kind, base_url, org_id, deployment_name, api_key_encrypted, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
     )
@@ -176,7 +179,7 @@ pub async fn create_provider(
     .bind(body.deployment_name.trim())
     .bind(stored_key)
     .bind(body.is_default)
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await?;
 
     for m in &body.models {
@@ -193,7 +196,7 @@ pub async fn create_provider(
         .bind(m.model_id.trim())
         .bind(display)
         .bind(m.context_window)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     }
 
@@ -203,9 +206,10 @@ pub async fn create_provider(
              VALUES (?, 'gpt-4o-mini', 'gpt-4o-mini') ON CONFLICT DO NOTHING",
         )
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     }
+    tx.commit().await?;
 
     get_provider(pool, id)
         .await?
@@ -217,66 +221,74 @@ pub async fn patch_provider(
     id: Uuid,
     body: &PatchProviderBody,
 ) -> anyhow::Result<AiProviderRow> {
+    let stored_key = if let Some(v) = &body.api_key {
+        Some(crypto::store_api_key(v.trim())?)
+    } else {
+        None
+    };
+    let mut tx = pool.begin().await?;
     if body.is_default == Some(true) {
-        clear_default(pool).await?;
+        sqlx::query("UPDATE ai_providers SET is_default = FALSE WHERE is_default = TRUE")
+            .execute(&mut *tx)
+            .await?;
     }
     if let Some(v) = &body.name {
         sqlx::query("UPDATE ai_providers SET name = ? WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &body.kind {
         sqlx::query("UPDATE ai_providers SET kind = ? WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &body.base_url {
         sqlx::query("UPDATE ai_providers SET base_url = ? WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &body.org_id {
         sqlx::query("UPDATE ai_providers SET org_id = ? WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &body.deployment_name {
         sqlx::query("UPDATE ai_providers SET deployment_name = ? WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
-    if let Some(v) = &body.api_key {
-        let stored_key = crypto::store_api_key(v.trim())?;
+    if let Some(stored_key) = stored_key {
         sqlx::query("UPDATE ai_providers SET api_key_encrypted = ? WHERE id = ?")
             .bind(stored_key)
             .bind(id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = body.enabled {
         sqlx::query("UPDATE ai_providers SET enabled = ? WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = body.is_default {
         sqlx::query("UPDATE ai_providers SET is_default = ? WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
+    tx.commit().await?;
     get_provider(pool, id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("provider not found"))

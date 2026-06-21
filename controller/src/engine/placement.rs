@@ -133,8 +133,9 @@ pub async fn persist_recommendations(
     pool: &SqlitePool,
     rows: &[PlacementRecommendationRow],
 ) -> anyhow::Result<()> {
+    let mut tx = pool.begin().await?;
     sqlx::query("UPDATE placement_recommendations SET status = 'superseded' WHERE status = 'open'")
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
 
     for row in rows.iter().take(50) {
@@ -148,9 +149,10 @@ pub async fn persist_recommendations(
         .bind(Uuid::parse_str(&row.to_host_id)?)
         .bind(&row.reason)
         .bind(row.score)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     }
+    tx.commit().await?;
     Ok(())
 }
 

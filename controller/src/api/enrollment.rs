@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::api::ApiError;
-use crate::auth::AuthUser;
+use crate::auth::{require_admin, AuthUser};
 use crate::state::AppState;
 
 #[derive(Debug, Serialize)]
@@ -29,6 +29,7 @@ pub async fn create_enrollment_token(
     Extension(actor): Extension<AuthUser>,
     Json(req): Json<CreateEnrollmentRequest>,
 ) -> Result<Json<EnrollmentTokenResponse>, ApiError> {
+    require_admin(&actor)?;
     let ttl = if req.ttl_hours <= 0 {
         24
     } else {
@@ -123,8 +124,10 @@ pub async fn list_enrollment_tokens(
 
 pub async fn revoke_enrollment_token(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(token): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&actor)?;
     sqlx::query("DELETE FROM enrollment_tokens WHERE token = ? AND used_at IS NULL")
         .bind(&token)
         .execute(&state.pool)

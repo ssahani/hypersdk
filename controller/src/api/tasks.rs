@@ -108,8 +108,10 @@ pub async fn get_task(
 
 pub async fn cancel_task(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskRow>, ApiError> {
+    require_operator(&actor)?;
     let updated = sqlx::query(
         "UPDATE tasks SET status = 'cancelled', message = 'cancelled by operator', updated_at = datetime('now')
          WHERE id = ? AND status = 'pending'",

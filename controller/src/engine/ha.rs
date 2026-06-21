@@ -45,18 +45,22 @@ async fn mark_stale_hosts(state: &AppState) -> anyhow::Result<()> {
     .await?;
 
     for (id, hostname) in stale {
+        let mut tx = pool.begin().await?;
         sqlx::query("UPDATE hosts SET state = 'offline' WHERE id = ?")
             .bind(id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
-        record_ha_event(
-            pool,
-            None,
-            Some(id),
-            "host.offline",
-            &format!("Host {hostname} marked offline"),
+        sqlx::query(
+            "INSERT INTO ha_events (id, vm_id, host_id, action, message) VALUES (?, ?, ?, ?, ?)",
         )
+        .bind(Uuid::new_v4())
+        .bind(Option::<Uuid>::None)
+        .bind(Some(id))
+        .bind("host.offline")
+        .bind(format!("Host {hostname} marked offline"))
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
 
         let needs_fence: bool = sqlx::query_scalar(
             "SELECT EXISTS(
@@ -131,14 +135,26 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
             continue;
         };
 
+        let mut tx = state.pool.begin().await?;
         sqlx::query(
             "UPDATE vms SET host_id = ?, ha_recovery_count = ha_recovery_count + 1, updated_at = datetime('now')
              WHERE id = ?",
         )
         .bind(dest_host)
         .bind(vm_id)
-        .execute(&state.pool)
+        .execute(&mut *tx)
         .await?;
+        sqlx::query(
+            "INSERT INTO ha_events (id, vm_id, host_id, action, message) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(Some(vm_id))
+        .bind(Some(failed_host))
+        .bind("ha.recover")
+        .bind(format!("Recovering VM {vm_name} onto host {dest_host}"))
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
 
         let _ = enqueue_task(
             state,
@@ -153,15 +169,6 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
             Some(dest_host),
         )
         .await;
-
-        record_ha_event(
-            &state.pool,
-            Some(vm_id),
-            Some(failed_host),
-            "ha.recover",
-            &format!("Recovering VM {vm_name} onto host {dest_host}"),
-        )
-        .await?;
         state.emit_event(
             "ha.recover",
             format!("Recovering {vm_name} after host failure"),

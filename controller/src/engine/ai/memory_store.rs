@@ -41,30 +41,32 @@ pub async fn patch_settings(
     pool: &SqlitePool,
     patch: &MemorySettingsPatch,
 ) -> anyhow::Result<MemorySettings> {
+    let mut tx = pool.begin().await?;
     if let Some(v) = patch.enabled {
         sqlx::query("UPDATE clusters SET zeus_memory_enabled = ?")
             .bind(v)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = patch.team_scope {
         sqlx::query("UPDATE clusters SET zeus_memory_team_scope = ?")
             .bind(v)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = patch.project_scope {
         sqlx::query("UPDATE clusters SET zeus_memory_project_scope = ?")
             .bind(v)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = patch.retention_days {
         sqlx::query("UPDATE clusters SET zeus_memory_retention_days = ?")
             .bind(v.clamp(1, 3650))
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
+    tx.commit().await?;
     get_settings(pool).await
 }
 

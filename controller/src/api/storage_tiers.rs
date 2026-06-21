@@ -21,8 +21,10 @@ pub async fn tiers_overview(
 
 pub async fn bind_pool_tier(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path((pool_id, tier_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     storage_tiers::bind_pool_tier(&state.pool, pool_id, tier_id)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))?;

@@ -9,6 +9,7 @@ use crate::auth::AuthUser;
 use crate::engine::recommendations;
 use crate::state::AppState;
 use crate::tasks::enqueue::write_audit;
+use crate::tasks::TaskMessage;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProposedAction {
@@ -128,23 +129,43 @@ pub async fn execute(
                         .fetch_optional(&state.pool)
                         .await?;
                 let backup_id = Uuid::new_v4();
-                sqlx::query(
-                    "INSERT INTO backup_records (id, vm_id, backup_type, status) VALUES (?, ?, 'full', 'pending')",
-                )
-                .bind(backup_id)
-                .bind(vm_id)
-                .execute(&state.pool)
-                .await?;
-                let tid = crate::tasks::enqueue::enqueue_task(
-                    state,
-                    "vm.backup",
-                    serde_json::json!({ "vm_id": vm_id.to_string(), "backup_id": backup_id.to_string() }),
-                    Some("vm"),
-                    Some(vm_id),
-                    host_id,
-                )
-                .await?;
-                task_ids.push(tid.to_string());
+                let task_id = Uuid::new_v4();
+                let payload =
+                    serde_json::json!({ "vm_id": vm_id.to_string(), "backup_id": backup_id.to_string() });
+                {
+                    let mut tx = state.pool.begin().await.map_err(|e| ApiError::internal(e.to_string()))?;
+                    sqlx::query(
+                        "INSERT INTO backup_records (id, vm_id, backup_type, status) VALUES (?, ?, 'full', 'pending')",
+                    )
+                    .bind(backup_id)
+                    .bind(vm_id)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(|e| ApiError::internal(e.to_string()))?;
+                    sqlx::query(
+                        "INSERT INTO tasks (id, operation, status, resource_type, resource_id, host_id, payload)
+                         VALUES (?, 'vm.backup', 'pending', 'vm', ?, ?, ?)",
+                    )
+                    .bind(task_id)
+                    .bind(vm_id)
+                    .bind(host_id)
+                    .bind(&payload)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(|e| ApiError::internal(e.to_string()))?;
+                    tx.commit().await.map_err(|e| ApiError::internal(e.to_string()))?;
+                }
+                let msg = TaskMessage {
+                    task_id,
+                    operation: "vm.backup".to_string(),
+                    payload,
+                };
+                state
+                    .task_bus
+                    .publish("machina.tasks", &msg)
+                    .await
+                    .map_err(|e| ApiError::internal(e.to_string()))?;
+                task_ids.push(task_id.to_string());
             }
             format!("Queued {} backup task(s)", task_ids.len())
         }
@@ -155,23 +176,43 @@ pub async fn execute(
                 .fetch_optional(&state.pool)
                 .await?;
             let backup_id = Uuid::new_v4();
-            sqlx::query(
-                "INSERT INTO backup_records (id, vm_id, backup_type, status) VALUES (?, ?, 'full', 'pending')",
-            )
-            .bind(backup_id)
-            .bind(vm_id)
-            .execute(&state.pool)
-            .await?;
-            let tid = crate::tasks::enqueue::enqueue_task(
-                state,
-                "vm.backup",
-                serde_json::json!({ "vm_id": vm_id.to_string(), "backup_id": backup_id.to_string() }),
-                Some("vm"),
-                Some(vm_id),
-                host_id,
-            )
-            .await?;
-            task_ids.push(tid.to_string());
+            let task_id = Uuid::new_v4();
+            let payload =
+                serde_json::json!({ "vm_id": vm_id.to_string(), "backup_id": backup_id.to_string() });
+            {
+                let mut tx = state.pool.begin().await.map_err(|e| ApiError::internal(e.to_string()))?;
+                sqlx::query(
+                    "INSERT INTO backup_records (id, vm_id, backup_type, status) VALUES (?, ?, 'full', 'pending')",
+                )
+                .bind(backup_id)
+                .bind(vm_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| ApiError::internal(e.to_string()))?;
+                sqlx::query(
+                    "INSERT INTO tasks (id, operation, status, resource_type, resource_id, host_id, payload)
+                     VALUES (?, 'vm.backup', 'pending', 'vm', ?, ?, ?)",
+                )
+                .bind(task_id)
+                .bind(vm_id)
+                .bind(host_id)
+                .bind(&payload)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| ApiError::internal(e.to_string()))?;
+                tx.commit().await.map_err(|e| ApiError::internal(e.to_string()))?;
+            }
+            let msg = TaskMessage {
+                task_id,
+                operation: "vm.backup".to_string(),
+                payload,
+            };
+            state
+                .task_bus
+                .publish("machina.tasks", &msg)
+                .await
+                .map_err(|e| ApiError::internal(e.to_string()))?;
+            task_ids.push(task_id.to_string());
             "Backup queued".into()
         }
         "enable_ha" | "bulk_ha" => {

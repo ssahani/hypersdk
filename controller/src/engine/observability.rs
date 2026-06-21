@@ -209,8 +209,8 @@ pub async fn record_trace(
     .await;
 
     let _ = sqlx::query(
-        "DELETE FROM api_trace_spans WHERE id IN (
-            SELECT id FROM api_trace_spans ORDER BY recorded_at DESC OFFSET 5000
+        "DELETE FROM api_trace_spans WHERE id NOT IN (
+            SELECT id FROM api_trace_spans ORDER BY recorded_at DESC LIMIT 5000
          )",
     )
     .execute(pool)

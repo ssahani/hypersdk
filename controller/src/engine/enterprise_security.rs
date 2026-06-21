@@ -413,12 +413,12 @@ pub async fn sync_vault_provider(pool: &SqlitePool, id: Uuid) -> anyhow::Result<
 
     let (status, message) = probe_vault(&row);
 
+    let mut tx = pool.begin().await?;
     sqlx::query("UPDATE vault_providers SET status = ?, last_sync_at = datetime('now') WHERE id = ?")
         .bind(&status)
         .bind(id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
-
     sqlx::query(
         "INSERT INTO vault_sync_runs (id, provider_id, status, message) VALUES (?, ?, ?, ?)",
     )
@@ -426,8 +426,9 @@ pub async fn sync_vault_provider(pool: &SqlitePool, id: Uuid) -> anyhow::Result<
     .bind(id)
     .bind(&status)
     .bind(&message)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    tx.commit().await?;
 
     Ok(VaultSyncResult {
         provider_id: id,

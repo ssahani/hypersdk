@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 use crate::api::tasks::TaskResponse;
 use crate::api::ApiError;
-use crate::auth::AuthUser;
+use crate::auth::{require_operator, AuthUser};
 use crate::engine::migrate_precheck::run_migrate_precheck;
 use crate::engine::placement::pick_host_for_vm;
 use crate::engine::policy;
@@ -702,54 +702,68 @@ pub async fn migrate_precheck(
 
 pub async fn start_vm(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     power_action(&state, id, "start", "vm.start", None).await
 }
 
 pub async fn stop_vm(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     power_action(&state, id, "stop", "vm.stop", None).await
 }
 
 pub async fn reboot_vm(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     body: Option<Json<VmPowerBody>>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     let mode = body.map(|b| b.0.mode).flatten();
     power_action(&state, id, "reboot", "vm.reboot", mode).await
 }
 
 pub async fn shutdown_vm(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     body: Option<Json<VmPowerBody>>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     let mode = body.map(|b| b.0.mode).flatten();
     power_action(&state, id, "shutdown", "vm.shutdown", mode).await
 }
 
 pub async fn pause_vm(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     power_action(&state, id, "pause", "vm.pause", None).await
 }
 
 pub async fn resume_vm(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     power_action(&state, id, "resume", "vm.resume", None).await
 }
 
 pub async fn reset_vm(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     power_action(&state, id, "reset", "vm.reset", None).await
 }
 
@@ -828,9 +842,11 @@ pub(crate) async fn delete_vm_inventory_row(pool: &sqlx::SqlitePool, vm_id: Uuid
 
 pub async fn delete_vm(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     body: Option<Json<DeleteVmBody>>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     let require: bool = sqlx::query_scalar(
         "SELECT require_vm_delete_approval FROM clusters ORDER BY created_at LIMIT 1",
     )
@@ -1094,9 +1110,11 @@ pub struct PatchVmBody {
 
 pub async fn patch_vm(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<PatchVmBody>,
 ) -> Result<Json<VmRow>, ApiError> {
+    require_operator(&actor)?;
     if let Some(ds) = &body.desired_state {
         sqlx::query("UPDATE vms SET desired_state = ?, updated_at = datetime('now') WHERE id = ?")
             .bind(ds)
@@ -1289,8 +1307,10 @@ pub struct PruneVmInventoryResponse {
 
 pub async fn prune_vm_inventory_record(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<PruneVmInventoryResponse>, ApiError> {
+    require_operator(&actor)?;
     let observed: String = sqlx::query_scalar("SELECT observed_state FROM vms WHERE id = ?")
         .bind(id)
         .fetch_one(&state.pool)
@@ -1810,9 +1830,11 @@ pub struct RenameVmBody {
 
 pub async fn rename_platform_vm(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<RenameVmBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let new_name = body.new_name.trim();
     if new_name.is_empty() {
         return Err(ApiError::bad_request("new_name is required"));
@@ -1857,8 +1879,10 @@ pub async fn rename_platform_vm(
 
 pub async fn inject_vm_nmi(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let (name, host_id) = crate::api::vm_row::vm_agent_row_libvirt(&state, id).await?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await

@@ -46,7 +46,9 @@ fn default_backend() -> String {
 
 pub async fn discover_storage_pools(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let imported = crate::engine::storage_sync::discover_all_online(&state.pool)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
@@ -298,9 +300,11 @@ pub async fn deactivate_storage_pool(
 
 pub async fn refresh_storage_pool(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Query(q): Query<StoragePoolHostQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let name = storage_pool_name(&state.pool, id).await?;
     let host_id = resolve_online_host(&state.pool, q.host_id).await?;
     let result = invoke_pool_on_host(&state, host_id, "storage.pool.refresh", &name).await?;
@@ -314,8 +318,10 @@ pub async fn refresh_storage_pool(
 
 pub async fn live_storage_pools(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Query(q): Query<StoragePoolHostQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let host_id = resolve_online_host(&state.pool, q.host_id).await?;
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)

@@ -45,7 +45,7 @@ pub async fn analyze(pool: &SqlitePool) -> anyhow::Result<CostAnalysis> {
          WHERE v.observed_state = 'running'
            AND v.memory_mib > 0
            AND m.memory_used_mib > 0
-           AND m.memory_used_mib::float / v.memory_mib::float < 0.35",
+           AND CAST(m.memory_used_mib AS REAL) / CAST(v.memory_mib AS REAL) < 0.35",
     )
     .fetch_one(pool)
     .await

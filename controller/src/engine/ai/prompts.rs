@@ -138,34 +138,36 @@ pub async fn patch_prompt(
     id: Uuid,
     body: &PatchPromptBody,
 ) -> anyhow::Result<PromptRow> {
+    let mut tx = pool.begin().await?;
     if let Some(v) = &body.title {
         sqlx::query("UPDATE ai_prompts SET title = ?, updated_at = datetime('now') WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &body.body {
         sqlx::query("UPDATE ai_prompts SET body = ?, updated_at = datetime('now') WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &body.tags {
         sqlx::query("UPDATE ai_prompts SET tags = ?, updated_at = datetime('now') WHERE id = ?")
             .bind(serde_json::to_value(v)?)
             .bind(id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &body.agent_id {
         sqlx::query("UPDATE ai_prompts SET agent_id = ?, updated_at = datetime('now') WHERE id = ?")
             .bind(v)
             .bind(id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
+    tx.commit().await?;
     get_prompt(pool, id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("prompt not found"))

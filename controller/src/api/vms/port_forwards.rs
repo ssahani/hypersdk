@@ -1,11 +1,13 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use axum::extract::{Path, State};
+use axum::Extension;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::api::ApiError;
+use crate::auth::{require_operator, AuthUser};
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -84,9 +86,11 @@ pub async fn list_vm_port_forwards(
 
 pub async fn create_vm_port_forward(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<CreateVmPortForwardBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let (guest_ip, agent_addr) = vm_host_agent(&state, id).await?;
     let guest_ip = guest_ip.trim().to_string();
     if guest_ip.is_empty() {
@@ -111,9 +115,11 @@ pub async fn create_vm_port_forward(
 
 pub async fn delete_vm_port_forward(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<DeleteVmPortForwardBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let (guest_ip, agent_addr) = vm_host_agent(&state, id).await?;
     let guest_ip = guest_ip.trim();
     if guest_ip.is_empty() {

@@ -90,6 +90,7 @@ pub async fn create_application(
         .fetch_one(&state.pool)
         .await?;
     let id = Uuid::new_v4();
+    let mut tx = state.pool.begin().await?;
     sqlx::query(
         "INSERT INTO application_groups (id, cluster_id, name, description) VALUES (?, ?, ?, ?)",
     )
@@ -97,15 +98,16 @@ pub async fn create_application(
     .bind(cluster_id)
     .bind(name)
     .bind(body.description.trim())
-    .execute(&state.pool)
+    .execute(&mut *tx)
     .await?;
     for vm_id in &body.vm_ids {
         sqlx::query("INSERT INTO application_group_vms (group_id, vm_id) VALUES (?, ?) ON CONFLICT DO NOTHING")
             .bind(id)
             .bind(vm_id)
-            .execute(&state.pool)
+            .execute(&mut *tx)
             .await?;
     }
+    tx.commit().await?;
     get_application(State(state), Extension(actor), Path(id)).await
 }
 

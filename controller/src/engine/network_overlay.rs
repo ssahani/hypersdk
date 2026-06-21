@@ -185,6 +185,7 @@ pub async fn create_segment(
     machina_spec::validate_name(&req.name)?;
 
     let id = Uuid::new_v4();
+    let mut tx = pool.begin().await?;
     sqlx::query(
         "INSERT INTO network_segments
          (id, name, tier, cidr, east_west_default, firewall_profile, gitops_namespace)
@@ -197,7 +198,7 @@ pub async fn create_segment(
     .bind(EastWestDefault::parse(&req.east_west_default).as_str())
     .bind(&req.firewall_profile)
     .bind(req.gitops_namespace.trim())
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
 
     if req.create_ipam_pool {
@@ -212,9 +213,10 @@ pub async fn create_segment(
         .bind(req.cidr.trim())
         .bind(gateway)
         .bind(serde_json::json!([]))
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     }
+    tx.commit().await?;
 
     fetch_segment(pool, id).await
 }
@@ -268,12 +270,6 @@ pub async fn ipam_allocate(
     let ip = ip_from_cidr_offset(&cidr, offset as u32).map_err(|e| anyhow::anyhow!(e))?;
     let next = offset + 1;
 
-    sqlx::query("UPDATE network_ipam_pools SET next_offset = ? WHERE id = ?")
-        .bind(next)
-        .bind(pool_id)
-        .execute(pool)
-        .await?;
-
     let network_id = if let Some(nid) = req.network_id {
         nid
     } else {
@@ -287,6 +283,12 @@ pub async fn ipam_allocate(
     };
 
     let reservation_id = Uuid::new_v4();
+    let mut tx = pool.begin().await?;
+    sqlx::query("UPDATE network_ipam_pools SET next_offset = ? WHERE id = ?")
+        .bind(next)
+        .bind(pool_id)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query(
         "INSERT INTO network_reservations (id, network_id, ip_address, pool_id, hostname)
          VALUES (?, ?, ?, ?, ?)",
@@ -296,8 +298,9 @@ pub async fn ipam_allocate(
     .bind(&ip)
     .bind(pool_id)
     .bind(&req.hostname)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    tx.commit().await?;
 
     Ok(IpamAllocation {
         reservation_id: reservation_id.to_string(),

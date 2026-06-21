@@ -1239,7 +1239,7 @@ pub async fn delete_ai_prompt(
     Extension(actor): Extension<AuthUser>,
     axum::extract::Path(id): axum::extract::Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_operator(&actor)?;
+    require_admin(&actor)?;
     let _ = actor;
     let ok = ai::prompts::delete_prompt(&state.pool, id)
         .await
