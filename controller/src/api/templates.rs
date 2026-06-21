@@ -75,8 +75,10 @@ const TEMPLATE_SELECT: &str =
 
 pub async fn list_templates(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Query(q): Query<ListTemplatesQuery>,
 ) -> Result<Json<Vec<TemplateRow>>, ApiError> {
+    require_operator(&actor)?;
     let rows = match (q.marketplace, q.featured) {
         (Some(true), Some(true)) => {
             sqlx::query_as::<_, TemplateRow>(&format!(
@@ -128,7 +130,9 @@ fn template_rows_with_auto_fetch(rows: Vec<TemplateRow>) -> Vec<serde_json::Valu
 
 pub async fn list_marketplace_templates(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+    require_operator(&actor)?;
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM templates WHERE marketplace = TRUE")
         .fetch_one(&state.pool)
         .await?;
@@ -199,8 +203,10 @@ pub async fn create_template(
 
 pub async fn get_template(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     AxumPath((name, version)): AxumPath<(String, String)>,
 ) -> Result<Json<TemplateRow>, ApiError> {
+    require_operator(&actor)?;
     let row = sqlx::query_as::<_, TemplateRow>(&format!(
         "{TEMPLATE_SELECT} WHERE name = ? AND version = ?"
     ))
@@ -213,8 +219,10 @@ pub async fn get_template(
 
 pub async fn get_template_readiness(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     AxumPath((name, version)): AxumPath<(String, String)>,
 ) -> Result<Json<crate::engine::template_readiness::TemplateReadiness>, ApiError> {
+    require_operator(&actor)?;
     let readiness =
         crate::engine::template_readiness::check_template_readiness(&state.pool, &name, &version)
             .await
@@ -261,7 +269,9 @@ pub async fn prefetch_missing_template_images(
 
 pub async fn list_missing_template_images(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let _ = crate::engine::template_catalog::ensure_default_templates(&state.pool)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;

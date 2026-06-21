@@ -41,8 +41,10 @@ fn default_backend() -> String {
 
 pub async fn get_network(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<NetworkRow>, ApiError> {
+    require_operator(&actor)?;
     let row = sqlx::query_as::<_, NetworkRow>(
         "SELECT id, name, backend, vlan_id, bridge, segment_id FROM networks WHERE id = ?",
     )
@@ -55,7 +57,9 @@ pub async fn get_network(
 
 pub async fn list_networks(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<NetworkRow>>, ApiError> {
+    require_operator(&actor)?;
     let rows = sqlx::query_as::<_, NetworkRow>(
         "SELECT id, name, backend, vlan_id, bridge, segment_id FROM networks ORDER BY name",
     )

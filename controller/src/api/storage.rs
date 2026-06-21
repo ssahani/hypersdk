@@ -66,8 +66,10 @@ pub async fn discover_storage_pools(
 
 pub async fn get_storage_pool(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<StoragePoolRow>, ApiError> {
+    require_operator(&actor)?;
     let row = sqlx::query_as::<_, StoragePoolRow>(
         "SELECT id, name, storage_class, backend, path, capacity_gib, used_gib, tier_id FROM storage_pools WHERE id = ?",
     )
@@ -80,7 +82,9 @@ pub async fn get_storage_pool(
 
 pub async fn list_storage_pools(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<StoragePoolRow>>, ApiError> {
+    require_operator(&actor)?;
     let rows = sqlx::query_as::<_, StoragePoolRow>(
         "SELECT id, name, storage_class, backend, path, capacity_gib, used_gib, tier_id
          FROM storage_pools ORDER BY name",
@@ -384,9 +388,11 @@ async fn invoke_pool_action(
 
 pub async fn list_storage_pool_volumes(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Query(q): Query<StoragePoolHostQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let name = storage_pool_name(&state.pool, id).await?;
     let host_id = resolve_online_host(&state.pool, q.host_id).await?;
     let (_, agent_addr) =

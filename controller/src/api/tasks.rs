@@ -44,8 +44,10 @@ fn default_limit() -> i64 {
 
 pub async fn list_tasks(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Query(q): Query<TaskQuery>,
 ) -> Result<Json<Vec<TaskRow>>, ApiError> {
+    require_operator(&actor)?;
     let limit = q.limit.clamp(1, 500);
     let rows = match (&q.status, &q.operation) {
         (Some(status), Some(op)) if !status.is_empty() && !op.is_empty() => {
@@ -98,8 +100,10 @@ pub async fn list_tasks(
 
 pub async fn get_task(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskRow>, ApiError> {
+    require_operator(&actor)?;
     let row = sqlx::query_as::<_, TaskRow>(
         "SELECT id, operation, status, progress, message,
                 strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
@@ -127,7 +131,7 @@ pub async fn cancel_task(
     if updated.rows_affected() == 0 {
         return Err(ApiError::bad_request("task not pending or not found"));
     }
-    get_task(State(state), Path(id)).await
+    get_task(State(state), Extension(actor), Path(id)).await
 }
 
 pub async fn retry_task(

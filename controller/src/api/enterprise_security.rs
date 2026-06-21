@@ -15,7 +15,9 @@ use crate::state::AppState;
 
 pub async fn overview(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<enterprise_security::EnterpriseSecurityOverview>, ApiError> {
+    require_operator(&actor)?;
     enterprise_security::overview(&state.pool)
         .await
         .map(Json)
@@ -47,7 +49,9 @@ pub async fn register_vault_provider(
 
 pub async fn list_mfa_policies(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<enterprise_security::MfaPolicyRow>>, ApiError> {
+    require_operator(&actor)?;
     enterprise_security::list_mfa_policies(&state.pool)
         .await
         .map(Json)
@@ -69,7 +73,9 @@ pub async fn upsert_mfa_policy(
 
 pub async fn list_air_gap_bundles(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<enterprise_security::AirGapBundleRow>>, ApiError> {
+    require_operator(&actor)?;
     enterprise_security::list_air_gap_bundles(&state.pool)
         .await
         .map(Json)
@@ -125,7 +131,9 @@ pub async fn sync_all_vault_providers(
 
 pub async fn mfa_compliance(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<enterprise_security::MfaComplianceReport>, ApiError> {
+    require_operator(&actor)?;
     enterprise_security::mfa_compliance(&state.pool)
         .await
         .map(Json)
@@ -134,7 +142,9 @@ pub async fn mfa_compliance(
 
 pub async fn fips_matrix(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<enterprise_security::FipsMatrix>, ApiError> {
+    require_operator(&actor)?;
     enterprise_security::fips_matrix(&state.pool)
         .await
         .map(Json)
@@ -143,7 +153,9 @@ pub async fn fips_matrix(
 
 pub async fn tenant_isolation_overview(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<enterprise_security::TenantIsolationOverview>, ApiError> {
+    require_operator(&actor)?;
     enterprise_security::tenant_isolation_overview(&state.pool)
         .await
         .map(Json)

@@ -12,7 +12,9 @@ use crate::state::AppState;
 
 pub async fn segments_overview(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<network_overlay::SegmentsOverview>, ApiError> {
+    require_operator(&actor)?;
     network_overlay::segments_overview(&state.pool)
         .await
         .map(Json)
@@ -33,8 +35,10 @@ pub async fn create_segment(
 
 pub async fn segment_connectivity(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<network_overlay::SegmentConnectivityResult>, ApiError> {
+    require_operator(&actor)?;
     network_overlay::segment_connectivity(&state.pool, id)
         .await
         .map(Json)
