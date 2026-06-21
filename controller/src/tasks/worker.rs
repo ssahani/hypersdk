@@ -1919,7 +1919,7 @@ async fn run_incremental_backup(
     let prior: Option<String> = sqlx::query_scalar(
         "SELECT backup_path FROM backup_records
          WHERE vm_id = ? AND status = 'completed' AND backup_path != ''
-         ORDER BY created_at DESC LIMIT 1",
+         ORDER BY datetime(created_at) DESC LIMIT 1",
     )
     .bind(vm_id)
     .fetch_optional(pool)

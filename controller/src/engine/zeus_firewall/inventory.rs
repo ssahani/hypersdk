@@ -1,8 +1,8 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use machina_core::{
-    builtin_profiles, gather_firewall_inventory, FirewallInventory, FirewallPlanRequest,
-    FirewallPlanResult, OpenPort,
+    builtin_profiles, gather_firewall_inventory, FirewallBackend, FirewallInventory,
+    FirewallPlanRequest, FirewallPlanResult, FirewallPosture, FirewallScore, OpenPort, StealthLevel,
 };
 use serde::Serialize;
 use sqlx::SqlitePool;
@@ -328,17 +328,31 @@ async fn fetch_inventory(
 }
 
 fn empty_inventory(hostname: &str) -> FirewallInventory {
-    gather_firewall_inventory(hostname).unwrap_or_else(|_| {
-        serde_json::from_value(serde_json::json!({
-            "hostname": hostname,
-            "posture": { "enabled": false, "backend": "unknown", "stealth_level": "off", "drift_detected": false },
-            "rules": [],
-            "open_ports": [],
-            "services": [],
-            "score": { "score": 0, "breakdown": [], "recommendations": [] },
-            "profiles_available": []
-        }))
-        .unwrap()
+    gather_firewall_inventory(hostname).unwrap_or_else(|_| FirewallInventory {
+        hostname: hostname.to_string(),
+        posture: FirewallPosture {
+            enabled: false,
+            backend: FirewallBackend::Unknown,
+            stealth_level: StealthLevel::Off,
+            drift_detected: false,
+            profile: None,
+            default_inbound: None,
+            default_outbound: None,
+            backend_zone: None,
+            status_line: None,
+            last_changed: None,
+        },
+        rules: vec![],
+        open_ports: vec![],
+        services: vec![],
+        score: FirewallScore {
+            score: 0,
+            breakdown: vec![],
+            recommendations: vec![],
+        },
+        profiles_available: vec![],
+        nftables_summary: None,
+        activity: None,
     })
 }
 

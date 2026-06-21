@@ -150,7 +150,7 @@ export default function PlatformConsoleHub() {
       setHistory(sessions)
       setMachineTimeline(timeline)
       if (health) {
-        const parts = health.score.split('/')
+        const parts = (health.score ?? '0').split('/')
         const n = Number(parts[0])
         setHealthScore(Number.isFinite(n) ? n : null)
       } else {
