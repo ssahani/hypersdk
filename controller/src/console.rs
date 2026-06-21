@@ -9,8 +9,11 @@ use serde::{Deserialize, Serialize};
 use tokio_tungstenite::{connect_async, tungstenite::Message as TsMessage};
 use uuid::Uuid;
 
+use axum::Extension;
+
 use crate::agent_client;
 use crate::api::ApiError;
+use crate::auth::{require_operator, AuthUser};
 use crate::state::AppState;
 
 #[derive(Debug, Serialize)]
@@ -28,8 +31,10 @@ pub struct WsTokenQuery {
 
 pub async fn vm_console(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ConsoleInfo>, ApiError> {
+    require_operator(&actor)?;
     let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(id)
         .fetch_one(&state.pool)
@@ -67,8 +72,10 @@ pub async fn vm_console(
 
 pub async fn issue_ws_token(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let _exists: Uuid = sqlx::query_scalar("SELECT id FROM vms WHERE id = ?")
         .bind(id)
         .fetch_one(&state.pool)

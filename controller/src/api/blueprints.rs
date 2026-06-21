@@ -43,9 +43,9 @@ pub async fn get_blueprint(
         "SELECT id, name, description, actions, vm_ids, strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at FROM blueprints WHERE id = ?",
     )
     .bind(id)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|_| ApiError::not_found("blueprint not found"))?;
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or_else(|| ApiError::not_found("blueprint not found"))?;
     Ok(Json(row))
 }
 
@@ -107,7 +107,7 @@ pub async fn run_blueprint(
     Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_operator(&actor)?;
+    require_admin(&actor)?;
     let row: (serde_json::Value, sqlx::types::Json<Vec<Uuid>>) =
         sqlx::query_as("SELECT actions, vm_ids FROM blueprints WHERE id = ?")
             .bind(id)

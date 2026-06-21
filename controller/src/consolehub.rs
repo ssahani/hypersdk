@@ -23,7 +23,7 @@ use uuid::Uuid;
 
 use crate::agent_client;
 use crate::api::ApiError;
-use crate::auth::AuthUser;
+use crate::auth::{require_operator, AuthUser};
 use crate::state::AppState;
 
 #[derive(Clone)]
@@ -1008,8 +1008,10 @@ fn session_replay_path(state: &AppState, session_id: Uuid) -> std::path::PathBuf
 
 pub async fn list_sessions(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+    require_operator(&actor)?;
     let rows: Vec<(
         Uuid,
         String,
@@ -1327,9 +1329,10 @@ pub async fn upload_session_replay(
 
 pub async fn get_session_replay(
     State(state): State<AppState>,
-    Extension(_user): Extension<AuthUser>,
+    Extension(actor): Extension<AuthUser>,
     Path(session_id): Path<Uuid>,
 ) -> Result<Response, ApiError> {
+    require_operator(&actor)?;
     let recording_path: Option<String> =
         sqlx::query_scalar("SELECT recording_path FROM console_sessions WHERE id = ?")
             .bind(session_id)
@@ -1615,9 +1618,11 @@ pub struct ConsoleExplainBody {
 
 pub async fn consolehub_explain(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<ConsoleExplainBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let (vm_name, _host_id) = vm_row(&state, id).await?;
     let intent = if body.intent.is_empty() {
         "explain_screen"

@@ -47,9 +47,9 @@ pub async fn get_schedule(
         "SELECT id, host_id, action, evacuate, run_at, status FROM maintenance_schedules WHERE id = ?",
     )
     .bind(id)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|_| ApiError::not_found("schedule not found"))?;
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or_else(|| ApiError::not_found("schedule not found"))?;
     Ok(Json(row))
 }
 
@@ -72,7 +72,7 @@ pub async fn create_schedule(
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<CreateScheduleBody>,
 ) -> Result<Json<MaintenanceScheduleRow>, ApiError> {
-    require_operator(&actor)?;
+    require_admin(&actor)?;
     let id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO maintenance_schedules (id, host_id, action, evacuate, run_at)
@@ -99,11 +99,14 @@ pub async fn delete_schedule(
     Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_operator(&actor)?;
-    sqlx::query("DELETE FROM maintenance_schedules WHERE id = ? AND status = 'pending'")
+    require_admin(&actor)?;
+    let deleted = sqlx::query("DELETE FROM maintenance_schedules WHERE id = ? AND status = 'pending'")
         .bind(id)
         .execute(&state.pool)
         .await?;
+    if deleted.rows_affected() == 0 {
+        return Err(ApiError::not_found("schedule not found or already running/completed"));
+    }
     Ok(Json(serde_json::json!({ "deleted": true })))
 }
 
