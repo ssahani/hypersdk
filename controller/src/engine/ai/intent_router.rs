@@ -35,7 +35,7 @@ pub struct SpotlightResult {
 pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) -> SpotlightResult {
     let q = query.trim();
     let mut intents = Vec::new();
-    let mut search_hits = vm_hits;
+    let search_hits = vm_hits;
 
     if q.is_empty() {
         return SpotlightResult {

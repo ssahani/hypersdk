@@ -431,7 +431,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/soc/rules", get(soc::list_rules).post(soc::create_rule))
         .route(
             "/api/v1/soc/rules/{id}",
-            patch(soc::patch_rule),
+            patch(soc::patch_rule).delete(soc::delete_rule),
         )
         .route("/api/v1/soc/rules/{id}/test", post(soc::test_rule))
         .route("/api/v1/soc/asm/summary", get(soc::asm_summary))

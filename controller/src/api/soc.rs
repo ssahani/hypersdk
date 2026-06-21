@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
 use axum::Extension;
 use axum::Json;
 use chrono::{DateTime, Utc};
@@ -295,6 +296,25 @@ async fn fetch_rule(pool: &SqlitePool, id: Uuid) -> Result<Json<SocRuleRow>, Api
     .await
     .map_err(|_| ApiError::not_found("rule not found"))?;
     Ok(Json(row))
+}
+
+pub async fn delete_rule(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, ApiError> {
+    require_admin(&actor)?;
+    let deleted = sqlx::query(
+        "DELETE FROM soc_detection_rules WHERE id = ? AND builtin = FALSE",
+    )
+    .bind(id)
+    .execute(&state.pool)
+    .await?
+    .rows_affected();
+    if deleted == 0 {
+        return Err(ApiError::not_found("rule not found or is built-in"));
+    }
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn test_rule(

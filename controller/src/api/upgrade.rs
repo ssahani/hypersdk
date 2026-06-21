@@ -21,7 +21,7 @@ pub struct AgentUpgradeMatrix {
 }
 
 pub async fn upgrade_matrix(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
 ) -> Result<Json<AgentUpgradeMatrix>, ApiError> {
     Ok(Json(AgentUpgradeMatrix {
         controller_version: env!("CARGO_PKG_VERSION").into(),

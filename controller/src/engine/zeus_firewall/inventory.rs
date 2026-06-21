@@ -383,7 +383,7 @@ pub fn risk_label(inv: &FirewallInventory) -> &'static str {
 
 async fn resolve_hostname(
     pool: &SqlitePool,
-    cfg: &ControllerConfig,
+    _cfg: &ControllerConfig,
     target_id: &str,
 ) -> anyhow::Result<String> {
     if target_id == "local" {

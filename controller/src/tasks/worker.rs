@@ -738,9 +738,10 @@ async fn ha_recover(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     .await?;
 
     sqlx::query(
-        "UPDATE vms SET uuid = ?, observed_state = 'defined', updated_at = datetime('now') WHERE id = ?",
+        "UPDATE vms SET uuid = ?, host_id = ?, observed_state = 'defined', updated_at = datetime('now') WHERE id = ?",
     )
     .bind(&resp.uuid)
+    .bind(host_id)
     .bind(vm_id)
     .execute(&state.pool)
     .await?;

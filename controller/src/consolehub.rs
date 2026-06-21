@@ -753,7 +753,7 @@ pub async fn create_session(
     Json(body): Json<CreateSessionBody>,
 ) -> Result<Json<ConsoleSessionResponse>, ApiError> {
     check_federated_console_auth(&state, &user)?;
-    let (vm_name, _host_id, source, k8s_namespace) = vm_meta(&state, id).await?;
+    let (_vm_name, _host_id, source, k8s_namespace) = vm_meta(&state, id).await?;
     if source == "kubevirt" {
         let protocol = body
             .protocol
@@ -1198,7 +1198,7 @@ pub async fn break_glass_session(
 
 fn guac_target_for_protocol(
     protocol: &str,
-    vm_name: &str,
+    _vm_name: &str,
     plan: &machina_agent::pb::GetConsoleAccessPlanResponse,
     guest_ip: String,
     rdp_user: Option<&str>,

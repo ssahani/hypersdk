@@ -157,7 +157,7 @@ pub struct AutonomousExecuteBody {
 pub async fn execute_approved_plan(
     pool: &SqlitePool,
     cfg: &crate::config::ControllerConfig,
-    state: &crate::state::AppState,
+    _state: &crate::state::AppState,
     actor: &crate::auth::AuthUser,
     body: &AutonomousExecuteBody,
 ) -> anyhow::Result<serde_json::Value> {
