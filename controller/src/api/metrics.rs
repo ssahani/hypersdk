@@ -2,10 +2,16 @@
 
 use axum::extract::State;
 use axum::response::IntoResponse;
+use axum::Extension;
 
+use crate::auth::{require_operator, AuthUser};
 use crate::state::AppState;
 
-pub async fn prometheus_metrics(State(state): State<AppState>) -> impl IntoResponse {
+pub async fn prometheus_metrics(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<impl IntoResponse, crate::api::ApiError> {
+    require_operator(&actor)?;
     let hosts: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM hosts")
         .fetch_one(&state.pool)
         .await
@@ -74,11 +80,11 @@ pub async fn prometheus_metrics(State(state): State<AppState>) -> impl IntoRespo
         ));
     }
     body.push_str(&crate::engine::observability::prometheus_slo_gauges(&state.pool).await);
-    (
+    Ok((
         [(
             axum::http::header::CONTENT_TYPE,
             "text/plain; version=0.0.4",
         )],
         body,
-    )
+    ))
 }

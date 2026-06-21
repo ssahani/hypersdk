@@ -6,7 +6,7 @@ use axum::Json;
 use serde::Serialize;
 use sqlx::SqlitePool;
 
-use crate::auth::{require_admin, AuthUser};
+use crate::auth::{require_admin, require_operator, AuthUser};
 use crate::engine::drs::{self, ClusterSettings, ClusterSettingsPatch};
 use crate::state::AppState;
 
@@ -52,7 +52,9 @@ pub async fn get_leadership(
 
 pub async fn get_settings(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<ClusterSettings>, ApiError> {
+    require_operator(&actor)?;
     let settings = drs::get_cluster_settings(&state.pool)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;

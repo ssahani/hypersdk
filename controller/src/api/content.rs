@@ -67,8 +67,10 @@ const CONTENT_SELECT: &str = "SELECT id, name, kind, path, size_gib, status, cat
 
 pub async fn list_content_images(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Query(q): Query<ListContentQuery>,
 ) -> Result<Json<Vec<ContentImageRow>>, ApiError> {
+    require_operator(&actor)?;
     let rows = if let Some(ref status) = q.status {
         sqlx::query_as::<_, ContentImageRow>(&format!(
             "{CONTENT_SELECT} WHERE status = ? ORDER BY name"
