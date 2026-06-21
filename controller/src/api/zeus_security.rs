@@ -99,31 +99,31 @@ pub struct HostQuery {
 pub async fn host_summary(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
-    Ok(Json(zeus_security::host_summary(&state.config, &id).await))
+    Ok(Json(zeus_security::host_summary(&state.config, &id.to_string()).await))
 }
 
 pub async fn host_processes(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
     Query(q): Query<HostQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
-    Ok(Json(zeus_security::host_resource(&state.config, &id, "processes", q.hours.unwrap_or(24)).await))
+    Ok(Json(zeus_security::host_resource(&state.config, &id.to_string(), "processes", q.hours.unwrap_or(24)).await))
 }
 
 pub async fn host_connections(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
     Query(q): Query<HostQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
     Ok(Json(
-        zeus_security::host_resource(&state.config, &id, "connections", q.hours.unwrap_or(24))
+        zeus_security::host_resource(&state.config, &id.to_string(), "connections", q.hours.unwrap_or(24))
             .await,
     ))
 }
@@ -131,49 +131,49 @@ pub async fn host_connections(
 pub async fn host_dns(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
     Query(q): Query<HostQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
-    Ok(Json(zeus_security::host_resource(&state.config, &id, "dns", q.hours.unwrap_or(24)).await))
+    Ok(Json(zeus_security::host_resource(&state.config, &id.to_string(), "dns", q.hours.unwrap_or(24)).await))
 }
 
 pub async fn host_files(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
     Query(q): Query<HostQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
-    Ok(Json(zeus_security::host_resource(&state.config, &id, "files", q.hours.unwrap_or(168)).await))
+    Ok(Json(zeus_security::host_resource(&state.config, &id.to_string(), "files", q.hours.unwrap_or(168)).await))
 }
 
 pub async fn host_ports(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
-    Ok(Json(zeus_security::host_resource(&state.config, &id, "ports", 0).await))
+    Ok(Json(zeus_security::host_resource(&state.config, &id.to_string(), "ports", 0).await))
 }
 
 pub async fn host_containers(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
-    Ok(Json(zeus_security::host_resource(&state.config, &id, "containers", 0).await))
+    Ok(Json(zeus_security::host_resource(&state.config, &id.to_string(), "containers", 0).await))
 }
 
 pub async fn host_timeline(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
     Query(q): Query<HostQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
-    Ok(Json(zeus_security::host_resource(&state.config, &id, "timeline", q.hours.unwrap_or(24)).await))
+    Ok(Json(zeus_security::host_resource(&state.config, &id.to_string(), "timeline", q.hours.unwrap_or(24)).await))
 }
 
 #[derive(Debug, Deserialize)]
@@ -184,12 +184,12 @@ pub struct ProcessGraphQuery {
 pub async fn host_process_graph(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
     Query(q): Query<ProcessGraphQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
     let pid_q = q.pid.map(|p| format!("?pid={p}")).unwrap_or_default();
-    Ok(Json(packetwolf_bridge::host_fabric(&state.config, &id, "process-graph", &pid_q).await))
+    Ok(Json(packetwolf_bridge::host_fabric(&state.config, &id.to_string(), "process-graph", &pid_q).await))
 }
 
 #[derive(Debug, Deserialize)]
@@ -210,22 +210,21 @@ pub async fn search(
 pub async fn install_tetragon(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_admin(&actor)?;
     use crate::tasks::enqueue::enqueue_task;
-    use uuid::Uuid;
 
-    let pw = packetwolf_bridge::register_sensor(&state.config, &id).await;
-    let _ = packetwolf_bridge::queue_tetragon_install(&state.config, &id).await;
-    let host_uuid = Uuid::parse_str(&id).ok();
+    let id_str = id.to_string();
+    let pw = packetwolf_bridge::register_sensor(&state.config, &id_str).await;
+    let _ = packetwolf_bridge::queue_tetragon_install(&state.config, &id_str).await;
     let task_id = enqueue_task(
         &state,
         "host.tetragon.install",
-        serde_json::json!({ "host_id": id, "packetwolf_base_url": state.config.packetwolf_base_url }),
+        serde_json::json!({ "host_id": id_str, "packetwolf_base_url": state.config.packetwolf_base_url }),
         Some("host"),
-        host_uuid,
-        host_uuid,
+        Some(id),
+        Some(id),
     )
     .await?;
     Ok(Json(serde_json::json!({

@@ -172,7 +172,7 @@ async fn upsert_alert(
          AND last_seen > datetime('now', '-' || ? || ' minutes')",
     )
     .bind(dedupe_key)
-    .bind(throttle_minutes)
+    .bind(throttle_minutes.max(0))
     .fetch_optional(pool)
     .await?;
 
@@ -236,6 +236,7 @@ pub async fn test_rule(
     .fetch_one(pool)
     .await?;
 
+    let hours = hours.clamp(1, 720);
     let since = Utc::now() - Duration::hours(hours as i64);
     let events: Vec<(Uuid, String, String, Value)> = sqlx::query_as(
         "SELECT id, source, severity, ecs_json FROM soc_events WHERE occurred_at >= ? ORDER BY occurred_at DESC LIMIT 1000",

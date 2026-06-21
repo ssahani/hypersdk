@@ -46,8 +46,13 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
         if rec.score < 20.0 {
             continue;
         }
-        let vm_id = Uuid::parse_str(&rec.vm_id)?;
-        let dest_id = Uuid::parse_str(&rec.to_host_id)?;
+        let (vm_id, dest_id) = match (Uuid::parse_str(&rec.vm_id), Uuid::parse_str(&rec.to_host_id)) {
+            (Ok(v), Ok(d)) => (v, d),
+            _ => {
+                tracing::warn!(vm_id = %rec.vm_id, "DRS: malformed UUID in recommendation, skipping");
+                continue;
+            }
+        };
 
         let pre = crate::engine::migrate_precheck::run_migrate_precheck(
             &state.pool,
@@ -117,58 +122,74 @@ pub async fn update_cluster_settings(
     pool: &SqlitePool,
     settings: &ClusterSettingsPatch,
 ) -> anyhow::Result<()> {
+    let cluster_id: Option<uuid::Uuid> =
+        sqlx::query_scalar("SELECT id FROM clusters ORDER BY created_at LIMIT 1")
+            .fetch_optional(pool)
+            .await?;
+    let Some(cluster_id) = cluster_id else {
+        return Ok(());
+    };
     let mut tx = pool.begin().await?;
     if let Some(v) = settings.drs_auto_migrate {
-        sqlx::query("UPDATE clusters SET drs_auto_migrate = ?")
+        sqlx::query("UPDATE clusters SET drs_auto_migrate = ? WHERE id = ?")
             .bind(v)
+            .bind(cluster_id)
             .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = settings.drs_cpu_threshold {
-        sqlx::query("UPDATE clusters SET drs_cpu_threshold = ?")
+        sqlx::query("UPDATE clusters SET drs_cpu_threshold = ? WHERE id = ?")
             .bind(v)
+            .bind(cluster_id)
             .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = settings.ha_enabled {
-        sqlx::query("UPDATE clusters SET ha_enabled = ?")
+        sqlx::query("UPDATE clusters SET ha_enabled = ? WHERE id = ?")
             .bind(v)
+            .bind(cluster_id)
             .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = &settings.placement_policy {
-        sqlx::query("UPDATE clusters SET placement_policy = ?")
+        sqlx::query("UPDATE clusters SET placement_policy = ? WHERE id = ?")
             .bind(v)
+            .bind(cluster_id)
             .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = settings.inventory_sync_interval_secs {
-        sqlx::query("UPDATE clusters SET inventory_sync_interval_secs = ?")
+        sqlx::query("UPDATE clusters SET inventory_sync_interval_secs = ? WHERE id = ?")
             .bind(v.clamp(0, 86400))
+            .bind(cluster_id)
             .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = settings.require_vm_delete_approval {
-        sqlx::query("UPDATE clusters SET require_vm_delete_approval = ?")
+        sqlx::query("UPDATE clusters SET require_vm_delete_approval = ? WHERE id = ?")
             .bind(v)
+            .bind(cluster_id)
             .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = settings.firewall_approval_sla_hours {
-        sqlx::query("UPDATE clusters SET firewall_approval_sla_hours = ?")
+        sqlx::query("UPDATE clusters SET firewall_approval_sla_hours = ? WHERE id = ?")
             .bind(v.clamp(1, 720))
+            .bind(cluster_id)
             .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = settings.finops_vcpu_hour_usd {
-        sqlx::query("UPDATE clusters SET finops_vcpu_hour_usd = ?")
+        sqlx::query("UPDATE clusters SET finops_vcpu_hour_usd = ? WHERE id = ?")
             .bind(v)
+            .bind(cluster_id)
             .execute(&mut *tx)
             .await?;
     }
     if let Some(v) = settings.finops_gib_hour_usd {
-        sqlx::query("UPDATE clusters SET finops_gib_hour_usd = ?")
+        sqlx::query("UPDATE clusters SET finops_gib_hour_usd = ? WHERE id = ?")
             .bind(v)
+            .bind(cluster_id)
             .execute(&mut *tx)
             .await?;
     }

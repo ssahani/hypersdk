@@ -235,7 +235,7 @@ pub async fn list_rules(
     require_operator(&actor)?;
     let rows = sqlx::query_as::<_, SocRuleRow>(
         "SELECT id, name, description, enabled, severity, query_json, throttle_minutes, builtin
-         FROM soc_detection_rules ORDER BY name",
+         FROM soc_detection_rules ORDER BY name LIMIT 500",
     )
     .fetch_all(&state.pool)
     .await?;
@@ -430,7 +430,7 @@ pub async fn list_integrations(
     let rows: Vec<IntegrationDbRow> = sqlx::query_as(
         "SELECT id, integration_type, name, enabled, config_json,
                 strftime('%Y-%m-%dT%H:%M:%SZ', last_success_at) AS last_success_at, last_error
-         FROM soc_integrations ORDER BY integration_type",
+         FROM soc_integrations ORDER BY integration_type LIMIT 100",
     )
     .fetch_all(&state.pool)
     .await?;
@@ -657,7 +657,7 @@ pub async fn list_playbooks(
 ) -> Result<Json<Vec<PlaybookRow>>, ApiError> {
     require_operator(&actor)?;
     let rows = sqlx::query_as::<_, PlaybookRow>(
-        "SELECT id, name, description, enabled, trigger_json, steps_json FROM soc_playbooks ORDER BY name",
+        "SELECT id, name, description, enabled, trigger_json, steps_json FROM soc_playbooks ORDER BY name LIMIT 500",
     )
     .fetch_all(&state.pool)
     .await?;

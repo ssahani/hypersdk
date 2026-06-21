@@ -1152,8 +1152,7 @@ async fn vm_snapshot_clone(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
                 sqlx::query_scalar("SELECT observed_state FROM vms WHERE id = ?")
                     .bind(vm_id)
                     .fetch_one(&state.pool)
-                    .await
-                    .unwrap_or_default();
+                    .await?;
             let use_live = live_migrate && source_running == "running";
             if use_live {
                 vm_lifecycle::set_vm_phase(&state.pool, new_id, vm_lifecycle::PHASE_STARTING)
