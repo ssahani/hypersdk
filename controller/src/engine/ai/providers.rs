@@ -223,6 +223,13 @@ pub async fn patch_provider(
     id: Uuid,
     body: &PatchProviderBody,
 ) -> anyhow::Result<AiProviderRow> {
+    let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM ai_providers WHERE id = ?)")
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+    if !exists {
+        anyhow::bail!("provider not found");
+    }
     let stored_key = if let Some(v) = &body.api_key {
         Some(crypto::store_api_key(v.trim())?)
     } else {
@@ -408,13 +415,14 @@ async fn legacy_resolve(pool: &SqlitePool) -> anyhow::Result<Option<ResolvedProv
     if key.is_empty() {
         return Ok(None);
     }
+    let api_key = crypto::load_api_key(&key)?;
     Ok(Some(ResolvedProvider {
         provider_id: Uuid::nil(),
         kind,
         base_url: String::new(),
         org_id: String::new(),
         deployment_name: String::new(),
-        api_key: key,
+        api_key,
         model_id: model,
     }))
 }
@@ -431,7 +439,11 @@ pub async fn resolve_local(pool: &SqlitePool) -> anyhow::Result<Option<ResolvedP
     let Some((pid, kind, base_url, org_id, deployment_name, stored_key)) = row else {
         return Ok(None);
     };
-    let api_key = crypto::load_api_key(&stored_key)?;
+    let api_key = if stored_key.is_empty() {
+        String::new()
+    } else {
+        crypto::load_api_key(&stored_key)?
+    };
     let model: String = sqlx::query_scalar(
         "SELECT model_id FROM ai_models WHERE provider_id = ? AND enabled = TRUE ORDER BY display_name LIMIT 1",
     )

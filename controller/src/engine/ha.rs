@@ -39,7 +39,8 @@ async fn mark_stale_hosts(state: &AppState) -> anyhow::Result<()> {
         "SELECT id, hostname FROM hosts
          WHERE state = 'online'
            AND last_heartbeat_at IS NOT NULL
-           AND last_heartbeat_at < datetime('now', '-90 seconds')",
+           AND last_heartbeat_at < datetime('now', '-90 seconds')
+         LIMIT 50",
     )
     .fetch_all(pool)
     .await?;
@@ -100,7 +101,8 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
          FROM vms v
          JOIN ha_policies hp ON hp.vm_id = v.id AND hp.enabled = TRUE
          JOIN hosts h ON h.id = v.host_id
-         WHERE h.state = 'offline'",
+         WHERE h.state = 'offline'
+         LIMIT 100",
     )
     .fetch_all(&state.pool)
     .await?;
@@ -174,13 +176,14 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
         )
         .await
         {
-            tracing::error!(vm_id = %vm_id, dest_host = %dest_host, "HA: failed to enqueue ha.recover task: {e:?} — resetting host_id so HA can retry");
-            // Reset host_id so the next HA loop iteration will reschedule recovery.
-            let _ = sqlx::query("UPDATE vms SET host_id = ? WHERE id = ?")
-                .bind(failed_host)
-                .bind(vm_id)
-                .execute(&state.pool)
-                .await;
+            tracing::error!(vm_id = %vm_id, dest_host = %dest_host, "HA: failed to enqueue ha.recover task: {e:?} — resetting host_id and recovery_count so HA can retry");
+            let _ = sqlx::query(
+                "UPDATE vms SET host_id = ?, ha_recovery_count = ha_recovery_count - 1 WHERE id = ?",
+            )
+            .bind(failed_host)
+            .bind(vm_id)
+            .execute(&state.pool)
+            .await;
             continue;
         }
         state.emit_event(

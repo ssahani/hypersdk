@@ -67,8 +67,8 @@ fn decrypt(key: &[u8; 32], stored: &str) -> anyhow::Result<String> {
     let blob = base64::engine::general_purpose::STANDARD
         .decode(b64)
         .map_err(|e| anyhow::anyhow!("base64 decode: {e}"))?;
-    if blob.len() < 13 {
-        anyhow::bail!("encrypted blob too short");
+    if blob.len() < 28 {
+        anyhow::bail!("encrypted blob too short (need ≥28 bytes: 12 nonce + 16 GCM tag)");
     }
     let (nonce_bytes, ciphertext) = blob.split_at(12);
     let cipher = Aes256Gcm::new_from_slice(key)
