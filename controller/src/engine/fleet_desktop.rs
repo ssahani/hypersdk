@@ -61,7 +61,7 @@ pub async fn overview(
     .fetch_one(pool)
     .await?;
     let unread_notifications: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM notifications WHERE read_at IS NULL")
+        sqlx::query_scalar("SELECT COUNT(*) FROM notification_outbox WHERE delivered = FALSE")
             .fetch_one(pool)
             .await
             .unwrap_or(0);

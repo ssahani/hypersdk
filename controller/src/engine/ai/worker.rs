@@ -57,7 +57,7 @@ async fn should_run(pool: &SqlitePool, interval_secs: i32) -> bool {
     }
 
     let last: Option<DateTime<Utc>> = sqlx::query_scalar(
-        "SELECT ai_autopilot_last_run FROM clusters ORDER BY created_at LIMIT 1",
+        "SELECT strftime('%Y-%m-%dT%H:%M:%SZ', ai_autopilot_last_run) FROM clusters ORDER BY created_at LIMIT 1",
     )
     .fetch_one(pool)
     .await

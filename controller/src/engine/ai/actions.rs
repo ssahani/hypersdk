@@ -40,7 +40,8 @@ pub async fn list_pending(pool: &SqlitePool) -> anyhow::Result<Vec<ZeusActionRow
 pub async fn list_by_status(pool: &SqlitePool, status: &str) -> anyhow::Result<Vec<ZeusActionRow>> {
     let rows: Vec<(Uuid, String, String, String, String, String, serde_json::Value, String, String, DateTime<Utc>)> =
         sqlx::query_as(
-            "SELECT id, source, action_type, label, review, risk, object_ref, status, requested_by, created_at
+            "SELECT id, source, action_type, label, review, risk, object_ref, status, requested_by,
+                    strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
              FROM ai_actions WHERE status = ? ORDER BY created_at DESC LIMIT 100",
         )
         .bind(status)
@@ -107,7 +108,8 @@ pub async fn create_action(
 pub async fn get_action(pool: &SqlitePool, id: Uuid) -> anyhow::Result<Option<ZeusActionRow>> {
     let row: Option<(Uuid, String, String, String, String, String, serde_json::Value, String, String, DateTime<Utc>)> =
         sqlx::query_as(
-            "SELECT id, source, action_type, label, review, risk, object_ref, status, requested_by, created_at
+            "SELECT id, source, action_type, label, review, risk, object_ref, status, requested_by,
+                    strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
              FROM ai_actions WHERE id = ?",
         )
         .bind(id)

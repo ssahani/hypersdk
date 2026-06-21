@@ -164,7 +164,7 @@ pub async fn list_conversations(
     user_id: &str,
 ) -> anyhow::Result<Vec<ConversationRow>> {
     let rows: Vec<(Uuid, String, String, DateTime<Utc>)> = sqlx::query_as(
-        "SELECT id, agent_id, summary, updated_at FROM ai_conversations WHERE user_id = ? ORDER BY updated_at DESC LIMIT 50",
+        "SELECT id, agent_id, summary, strftime('%Y-%m-%dT%H:%M:%SZ', updated_at) AS updated_at FROM ai_conversations WHERE user_id = ? ORDER BY updated_at DESC LIMIT 50",
     )
     .bind(user_id)
     .fetch_all(pool)

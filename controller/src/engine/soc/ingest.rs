@@ -93,8 +93,9 @@ async fn ingest_firewall_timeline(pool: &SqlitePool) -> anyhow::Result<usize> {
         DateTime<Utc>,
         Value,
     )> = sqlx::query_as(
-        "SELECT target_kind, target_id, kind, summary, actor, created_at, detail_json
-         FROM firewall_timeline WHERE created_at > ? ORDER BY created_at ASC LIMIT 2000",
+        "SELECT target_kind, target_id, kind, summary, actor,
+                strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at, detail_json
+         FROM firewall_timeline WHERE strftime('%Y-%m-%dT%H:%M:%SZ', created_at) > ? ORDER BY created_at ASC LIMIT 2000",
     )
     .bind(since)
     .fetch_all(pool)
@@ -175,8 +176,9 @@ async fn ingest_audit_logs(pool: &SqlitePool) -> anyhow::Result<usize> {
         Value,
         DateTime<Utc>,
     )> = sqlx::query_as(
-        "SELECT id, actor, action, resource_type, resource_id, detail, created_at
-             FROM audit_logs WHERE created_at > ? ORDER BY created_at ASC LIMIT 2000",
+        "SELECT id, actor, action, resource_type, resource_id, detail,
+                strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
+             FROM audit_logs WHERE strftime('%Y-%m-%dT%H:%M:%SZ', created_at) > ? ORDER BY created_at ASC LIMIT 2000",
     )
     .bind(since)
     .fetch_all(pool)
@@ -244,8 +246,9 @@ async fn ingest_platform_events(pool: &SqlitePool) -> anyhow::Result<usize> {
         Value,
         DateTime<Utc>,
     )> = sqlx::query_as(
-        "SELECT id, kind, resource_type, resource_id, message, payload, created_at
-             FROM events WHERE created_at > ? ORDER BY created_at ASC LIMIT 1000",
+        "SELECT id, kind, resource_type, resource_id, message, payload,
+                strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
+             FROM events WHERE strftime('%Y-%m-%dT%H:%M:%SZ', created_at) > ? ORDER BY created_at ASC LIMIT 1000",
     )
     .bind(since)
     .fetch_all(pool)

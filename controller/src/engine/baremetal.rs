@@ -138,15 +138,16 @@ pub fn plan_capacity(query: &str) -> BaremetalCapacityPlan {
     let engineers = ql
         .split_whitespace()
         .find_map(|w| w.parse::<i32>().ok())
-        .unwrap_or(100);
+        .unwrap_or(100)
+        .clamp(1, 100_000);
     let servers_needed = ((engineers as f64) / 25.0).ceil() as i32;
     let cores_per = 64;
     let mem_gib_per = 512;
     BaremetalCapacityPlan {
         query: query.into(),
         servers_needed,
-        total_cpu_cores: servers_needed * cores_per,
-        total_memory_gib: servers_needed * mem_gib_per,
+        total_cpu_cores: servers_needed.saturating_mul(cores_per),
+        total_memory_gib: servers_needed.saturating_mul(mem_gib_per),
         summary: format!(
             "For ~{engineers} AI engineers: {servers_needed} bare-metal servers ({cores_per} cores, {mem_gib_per} GiB each)"
         ),

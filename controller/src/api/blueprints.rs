@@ -33,13 +33,29 @@ pub struct CreateBlueprintBody {
     pub vm_ids: Vec<Uuid>,
 }
 
+pub async fn get_blueprint(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<BlueprintRow>, ApiError> {
+    require_operator(&actor)?;
+    let row = sqlx::query_as::<_, BlueprintRow>(
+        "SELECT id, name, description, actions, vm_ids, strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at FROM blueprints WHERE id = ?",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|_| ApiError::not_found("blueprint not found"))?;
+    Ok(Json(row))
+}
+
 pub async fn list_blueprints(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<BlueprintRow>>, ApiError> {
     require_operator(&actor)?;
     let rows = sqlx::query_as::<_, BlueprintRow>(
-        "SELECT id, name, description, actions, vm_ids, created_at FROM blueprints ORDER BY name",
+        "SELECT id, name, description, actions, vm_ids, strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at FROM blueprints ORDER BY name",
     )
     .fetch_all(&state.pool)
     .await?;
@@ -77,7 +93,7 @@ pub async fn create_blueprint(
     .execute(&state.pool)
     .await?;
     let row = sqlx::query_as::<_, BlueprintRow>(
-        "SELECT id, name, description, actions, vm_ids, created_at FROM blueprints WHERE id = ?",
+        "SELECT id, name, description, actions, vm_ids, strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at FROM blueprints WHERE id = ?",
     )
     .bind(id)
     .fetch_one(&state.pool)

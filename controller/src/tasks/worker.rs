@@ -169,7 +169,7 @@ async fn vm_apply(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
 
     state.emit_event("vm.apply", format!("VM {} applied on host", row.0));
 
-    let _ = enqueue_task(
+    if let Err(e) = enqueue_task(
         state,
         "vm.guest_tools.install",
         serde_json::json!({ "vm_id": vm_id.to_string() }),
@@ -177,7 +177,10 @@ async fn vm_apply(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         Some(vm_id),
         Some(host_id),
     )
-    .await;
+    .await
+    {
+        tracing::warn!(vm_id = %vm_id, "guest_tools.install enqueue failed: {e:#}");
+    }
 
     update_task_progress(&state.pool, msg.task_id, 100, "VM defined").await?;
     Ok(())
@@ -387,7 +390,7 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
             .execute(&state.pool)
             .await?;
 
-            let _ = sqlx::query(
+            let metrics_result = sqlx::query(
                 "INSERT INTO vm_metrics (vm_id, cpu_percent, memory_used_mib, disk_read_iops, disk_write_iops, updated_at)
                  VALUES (?, ?, ?, ?, ?, datetime('now'))
                  ON CONFLICT (vm_id) DO UPDATE SET
@@ -404,6 +407,9 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
             .bind(vm.disk_write_iops as i64)
             .execute(&state.pool)
             .await;
+            if let Err(e) = metrics_result {
+                tracing::warn!(vm_id = %id, "vm_metrics upsert failed: {e:#}");
+            }
 
             if vm.state == "running" {
                 crate::engine::vm_health::sync_guest_tools(&state.pool, id, &vm.name, host_id)
@@ -662,7 +668,7 @@ async fn host_maintenance(state: &AppState, msg: &TaskMessage) -> anyhow::Result
 
             if let Some(dest_id) = dest {
                 for (vm_id, _name) in vm_ids {
-                    let _ = enqueue_task(
+                    if let Err(e) = enqueue_task(
                         state,
                         "vm.migrate",
                         serde_json::json!({
@@ -674,7 +680,10 @@ async fn host_maintenance(state: &AppState, msg: &TaskMessage) -> anyhow::Result
                         Some(vm_id),
                         Some(host_id),
                     )
-                    .await;
+                    .await
+                    {
+                        tracing::warn!(vm_id = %vm_id, host_id = %host_id, "vm.migrate enqueue failed during maintenance evacuation: {e:#}");
+                    }
                 }
             }
         }
@@ -710,7 +719,7 @@ async fn ha_recover(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     let template_source = if let Some(ref tr) = vm.spec.template_ref {
         let disk = crate::engine::template::resolve_template_disk(&state.pool, tr).await?;
         let (tname, tver) = crate::engine::template::parse_template_ref(tr);
-        let _ = crate::engine::template_image_fetch::ensure_template_disk(
+        crate::engine::template_image_fetch::ensure_template_disk(
             &state.pool,
             host_id,
             &disk,
@@ -748,10 +757,13 @@ async fn ha_recover(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
 
     if desired == "running" {
         agent_client::vm_power(&mut client, &row.0, "start", None).await?;
-        sqlx::query("UPDATE vms SET observed_state = 'running' WHERE id = ?")
+        if let Err(e) = sqlx::query("UPDATE vms SET observed_state = 'running' WHERE id = ?")
             .bind(vm_id)
             .execute(&state.pool)
-            .await?;
+            .await
+        {
+            tracing::warn!(vm_id = %vm_id, "ha_recover: failed to set observed_state=running after power-on: {e:#}");
+        }
     }
 
     state.emit_event("ha.recover", format!("VM {} recovered on new host", row.0));
@@ -1557,12 +1569,15 @@ async fn host_enforcement_apply(state: &AppState, msg: &TaskMessage) -> anyhow::
         &format!("rendering Tetragon TracingPolicy for {policy_id}"),
     )
     .await?;
-    let _result = crate::engine::packetwolf_bridge::apply_enforcement_policy(
+    if let Err(e) = crate::engine::packetwolf_bridge::apply_enforcement_policy(
         &state.config,
         policy_id,
         &[host_id.to_string()],
     )
-    .await;
+    .await
+    {
+        tracing::warn!(host_id = %host_id, policy_id = %policy_id, "apply_enforcement_policy failed: {e:#}");
+    }
     update_task_progress(
         &state.pool,
         msg.task_id,
@@ -1572,13 +1587,16 @@ async fn host_enforcement_apply(state: &AppState, msg: &TaskMessage) -> anyhow::
     .await?;
     if let Ok(host_uuid) = Uuid::parse_str(host_id) {
         if let Ok(agent_addr) = host_agent_addr(&state.pool, host_uuid).await {
-            let _ = crate::engine::packetwolf_sync::sync_host_security_bundle(
+            if let Err(e) = crate::engine::packetwolf_sync::sync_host_security_bundle(
                 &state.config,
                 &state.pool,
                 host_uuid,
                 &agent_addr,
             )
-            .await;
+            .await
+            {
+                tracing::warn!(host_id = %host_id, "sync_host_security_bundle failed: {e:#}");
+            }
         }
     }
     update_task_progress(
@@ -1913,9 +1931,16 @@ async fn run_incremental_backup(
     let resp = agent_client::backup_vm(&mut client, vm_name, dest).await?;
     if resp.ok {
         if let Some(base) = prior.filter(|p| std::path::Path::new(p).exists()) {
-            let _ = std::process::Command::new("qemu-img")
+            match std::process::Command::new("qemu-img")
                 .args(["rebase", "-u", "-b", &base, &resp.path])
-                .output();
+                .output()
+            {
+                Err(e) => tracing::warn!("qemu-img rebase unavailable: {e}"),
+                Ok(out) if !out.status.success() => {
+                    tracing::warn!("qemu-img rebase failed: {}", String::from_utf8_lossy(&out.stderr));
+                }
+                _ => {}
+            }
         }
     }
     Ok(resp)

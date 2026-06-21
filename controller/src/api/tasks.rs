@@ -50,7 +50,8 @@ pub async fn list_tasks(
     let rows = match (&q.status, &q.operation) {
         (Some(status), Some(op)) if !status.is_empty() && !op.is_empty() => {
             sqlx::query_as::<_, TaskRow>(
-                "SELECT id, operation, status, progress, message, created_at
+                "SELECT id, operation, status, progress, message,
+                        strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
                  FROM tasks WHERE status = ? AND operation LIKE ? ORDER BY created_at DESC LIMIT ?",
             )
             .bind(status)
@@ -61,7 +62,8 @@ pub async fn list_tasks(
         }
         (Some(status), _) if !status.is_empty() => {
             sqlx::query_as::<_, TaskRow>(
-                "SELECT id, operation, status, progress, message, created_at
+                "SELECT id, operation, status, progress, message,
+                        strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
                  FROM tasks WHERE status = ? ORDER BY created_at DESC LIMIT ?",
             )
             .bind(status)
@@ -71,7 +73,8 @@ pub async fn list_tasks(
         }
         (_, Some(op)) if !op.is_empty() => {
             sqlx::query_as::<_, TaskRow>(
-                "SELECT id, operation, status, progress, message, created_at
+                "SELECT id, operation, status, progress, message,
+                        strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
                  FROM tasks WHERE operation LIKE ? ORDER BY created_at DESC LIMIT ?",
             )
             .bind(format!("%{op}%"))
@@ -81,7 +84,8 @@ pub async fn list_tasks(
         }
         _ => {
             sqlx::query_as::<_, TaskRow>(
-                "SELECT id, operation, status, progress, message, created_at
+                "SELECT id, operation, status, progress, message,
+                        strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
                  FROM tasks ORDER BY created_at DESC LIMIT ?",
             )
             .bind(limit)
@@ -97,7 +101,8 @@ pub async fn get_task(
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskRow>, ApiError> {
     let row = sqlx::query_as::<_, TaskRow>(
-        "SELECT id, operation, status, progress, message, created_at
+        "SELECT id, operation, status, progress, message,
+                strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
          FROM tasks WHERE id = ?",
     )
     .bind(id)

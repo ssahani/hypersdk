@@ -37,7 +37,7 @@ pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetKeychainOverview
     let bundles = enterprise_security::list_air_gap_bundles(pool).await?;
 
     let api_rows: Vec<(Uuid, String, String, Option<DateTime<Utc>>)> = sqlx::query_as(
-        "SELECT id, name, role, last_used_at FROM api_keys ORDER BY created_at DESC LIMIT 24",
+        "SELECT id, name, role, strftime('%Y-%m-%dT%H:%M:%SZ', last_used_at) AS last_used_at FROM api_keys ORDER BY created_at DESC LIMIT 24",
     )
     .fetch_all(pool)
     .await?;

@@ -139,7 +139,9 @@ pub async fn list_alerts(
     let limit = q.limit.unwrap_or(100).clamp(1, 500);
     let rows = if let Some(status) = q.status.filter(|s| !s.is_empty()) {
         sqlx::query_as::<_, SocAlertRow>(
-            "SELECT id, rule_id, title, severity, status, assigned_to, first_seen, last_seen, event_count
+            "SELECT id, rule_id, title, severity, status, assigned_to,
+                    strftime('%Y-%m-%dT%H:%M:%SZ', first_seen) AS first_seen,
+                    strftime('%Y-%m-%dT%H:%M:%SZ', last_seen) AS last_seen, event_count
              FROM soc_alerts WHERE status = ? ORDER BY last_seen DESC LIMIT ?",
         )
         .bind(status)
@@ -148,7 +150,9 @@ pub async fn list_alerts(
         .await?
     } else {
         sqlx::query_as::<_, SocAlertRow>(
-            "SELECT id, rule_id, title, severity, status, assigned_to, first_seen, last_seen, event_count
+            "SELECT id, rule_id, title, severity, status, assigned_to,
+                    strftime('%Y-%m-%dT%H:%M:%SZ', first_seen) AS first_seen,
+                    strftime('%Y-%m-%dT%H:%M:%SZ', last_seen) AS last_seen, event_count
              FROM soc_alerts ORDER BY last_seen DESC LIMIT ?",
         )
         .bind(limit)
@@ -195,7 +199,9 @@ pub async fn patch_alert(
 
 async fn fetch_alert(pool: &SqlitePool, id: Uuid) -> Result<Json<SocAlertRow>, ApiError> {
     let row = sqlx::query_as::<_, SocAlertRow>(
-        "SELECT id, rule_id, title, severity, status, assigned_to, first_seen, last_seen, event_count
+        "SELECT id, rule_id, title, severity, status, assigned_to,
+                strftime('%Y-%m-%dT%H:%M:%SZ', first_seen) AS first_seen,
+                strftime('%Y-%m-%dT%H:%M:%SZ', last_seen) AS last_seen, event_count
          FROM soc_alerts WHERE id = ?",
     )
     .bind(id)
@@ -203,6 +209,23 @@ async fn fetch_alert(pool: &SqlitePool, id: Uuid) -> Result<Json<SocAlertRow>, A
     .await
     .map_err(|_| ApiError::not_found("alert not found"))?;
     Ok(Json(row))
+}
+
+pub async fn delete_alert(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<axum::http::StatusCode, ApiError> {
+    require_admin(&actor)?;
+    let deleted = sqlx::query("DELETE FROM soc_alerts WHERE id = ?")
+        .bind(id)
+        .execute(&state.pool)
+        .await?
+        .rows_affected();
+    if deleted == 0 {
+        return Err(ApiError::not_found("alert not found"));
+    }
+    Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
 pub async fn list_rules(
@@ -405,7 +428,8 @@ pub async fn list_integrations(
 ) -> Result<Json<Vec<IntegrationPublic>>, ApiError> {
     require_admin(&actor)?;
     let rows: Vec<IntegrationDbRow> = sqlx::query_as(
-        "SELECT id, integration_type, name, enabled, config_json, last_success_at, last_error
+        "SELECT id, integration_type, name, enabled, config_json,
+                strftime('%Y-%m-%dT%H:%M:%SZ', last_success_at) AS last_success_at, last_error
          FROM soc_integrations ORDER BY integration_type",
     )
     .fetch_all(&state.pool)
@@ -779,7 +803,9 @@ pub async fn list_playbook_runs(
     require_operator(&actor)?;
     let limit = q.limit.unwrap_or(50).clamp(1, 200);
     let rows = sqlx::query_as::<_, PlaybookRunRow>(
-        "SELECT id, playbook_id, alert_id, status, started_at, finished_at
+        "SELECT id, playbook_id, alert_id, status,
+                strftime('%Y-%m-%dT%H:%M:%SZ', started_at) AS started_at,
+                strftime('%Y-%m-%dT%H:%M:%SZ', finished_at) AS finished_at
          FROM soc_playbook_runs ORDER BY started_at DESC LIMIT ?",
     )
     .bind(limit)
@@ -859,7 +885,8 @@ async fn fetch_integration_db(
     integration_type: &str,
 ) -> Result<IntegrationDbRow, ApiError> {
     sqlx::query_as(
-        "SELECT id, integration_type, name, enabled, config_json, last_success_at, last_error
+        "SELECT id, integration_type, name, enabled, config_json,
+                strftime('%Y-%m-%dT%H:%M:%SZ', last_success_at) AS last_success_at, last_error
          FROM soc_integrations WHERE integration_type = ? AND name = 'default'",
     )
     .bind(integration_type)
@@ -929,7 +956,9 @@ async fn load_soc_webhook_url(pool: &SqlitePool) -> String {
 
 async fn build_alert_detail(pool: &SqlitePool, id: Uuid) -> Result<Json<SocAlertDetail>, ApiError> {
     let row: AlertDetailDbRow = sqlx::query_as(
-        "SELECT a.id, a.rule_id, a.title, a.severity, a.status, a.assigned_to, a.first_seen, a.last_seen,
+        "SELECT a.id, a.rule_id, a.title, a.severity, a.status, a.assigned_to,
+                strftime('%Y-%m-%dT%H:%M:%SZ', a.first_seen) AS first_seen,
+                strftime('%Y-%m-%dT%H:%M:%SZ', a.last_seen) AS last_seen,
                 a.event_count, a.dedupe_key, a.event_ids, a.detail_json, r.name AS rule_name
          FROM soc_alerts a
          LEFT JOIN soc_detection_rules r ON r.id = a.rule_id
@@ -966,7 +995,9 @@ async fn build_alert_detail(pool: &SqlitePool, id: Uuid) -> Result<Json<SocAlert
     }
 
     let playbook_runs: Vec<PlaybookRunDetailRow> = sqlx::query_as(
-        "SELECT r.id, r.playbook_id, p.name AS playbook_name, r.status, r.started_at, r.finished_at,
+        "SELECT r.id, r.playbook_id, p.name AS playbook_name, r.status,
+                strftime('%Y-%m-%dT%H:%M:%SZ', r.started_at) AS started_at,
+                strftime('%Y-%m-%dT%H:%M:%SZ', r.finished_at) AS finished_at,
                 r.step_results, r.error
          FROM soc_playbook_runs r
          LEFT JOIN soc_playbooks p ON p.id = r.playbook_id

@@ -64,6 +64,20 @@ pub async fn discover_storage_pools(
     })))
 }
 
+pub async fn get_storage_pool(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<StoragePoolRow>, ApiError> {
+    let row = sqlx::query_as::<_, StoragePoolRow>(
+        "SELECT id, name, storage_class, backend, path, capacity_gib, used_gib, tier_id FROM storage_pools WHERE id = ?",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|_| ApiError::not_found("storage pool not found"))?;
+    Ok(Json(row))
+}
+
 pub async fn list_storage_pools(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<StoragePoolRow>>, ApiError> {

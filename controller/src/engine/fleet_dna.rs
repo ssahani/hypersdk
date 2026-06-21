@@ -78,11 +78,18 @@ pub async fn overview(pool: &SqlitePool, cfg: &ControllerConfig) -> anyhow::Resu
         ((clean as f64 / updates.hosts_scanned as f64) * 100.0).round() as i32
     };
 
-    let linux_penalty =
-        (linux.pressure_hosts + linux.thermal_alerts + linux.smart_alerts) as i32 * 8;
+    let linux_penalty = (linux
+        .pressure_hosts
+        .saturating_add(linux.thermal_alerts)
+        .saturating_add(linux.smart_alerts) as i32)
+        .saturating_mul(8);
     let linux_health = (100 - linux_penalty).clamp(0, 100);
 
-    let storage_penalty = (storage.pools_over_85_pct * 10 + storage.smart_failure_count * 5) as i32;
+    let storage_penalty = (storage
+        .pools_over_85_pct
+        .saturating_mul(10)
+        .saturating_add(storage.smart_failure_count.saturating_mul(5))
+        .min(100)) as i32;
     let backup_posture = (100 - storage_penalty).clamp(0, 100);
 
     let mut pillars = vec![

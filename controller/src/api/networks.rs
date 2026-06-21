@@ -39,6 +39,20 @@ fn default_backend() -> String {
     "linux-bridge".into()
 }
 
+pub async fn get_network(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<NetworkRow>, ApiError> {
+    let row = sqlx::query_as::<_, NetworkRow>(
+        "SELECT id, name, backend, vlan_id, bridge, segment_id FROM networks WHERE id = ?",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|_| ApiError::not_found("network not found"))?;
+    Ok(Json(row))
+}
+
 pub async fn list_networks(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<NetworkRow>>, ApiError> {

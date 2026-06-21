@@ -37,6 +37,22 @@ fn default_true() -> bool {
     true
 }
 
+pub async fn get_schedule(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<MaintenanceScheduleRow>, ApiError> {
+    require_operator(&actor)?;
+    let row = sqlx::query_as::<_, MaintenanceScheduleRow>(
+        "SELECT id, host_id, action, evacuate, run_at, status FROM maintenance_schedules WHERE id = ?",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|_| ApiError::not_found("schedule not found"))?;
+    Ok(Json(row))
+}
+
 pub async fn list_schedules(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,

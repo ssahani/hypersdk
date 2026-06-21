@@ -45,7 +45,9 @@ pub async fn list_active(pool: &SqlitePool) -> anyhow::Result<Vec<ActiveIncident
         Option<DateTime<Utc>>,
     )> = sqlx::query_as(
         "SELECT id, title, summary, severity, status, affected_resources, root_cause,
-                created_at, window_start, window_end
+                strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at,
+                strftime('%Y-%m-%dT%H:%M:%SZ', window_start) AS window_start,
+                strftime('%Y-%m-%dT%H:%M:%SZ', window_end) AS window_end
          FROM ai_incidents WHERE status IN ('open', 'investigating')
          ORDER BY created_at DESC LIMIT 20",
     )
@@ -106,7 +108,9 @@ pub async fn open_room(pool: &SqlitePool, incident_id: Uuid) -> anyhow::Result<I
         Option<DateTime<Utc>>,
     )> = sqlx::query_as(
         "SELECT title, summary, severity, status, affected_resources, root_cause,
-                created_at, window_start, window_end
+                strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at,
+                strftime('%Y-%m-%dT%H:%M:%SZ', window_start) AS window_start,
+                strftime('%Y-%m-%dT%H:%M:%SZ', window_end) AS window_end
          FROM ai_incidents WHERE id = ?",
     )
     .bind(incident_id)

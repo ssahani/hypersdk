@@ -142,7 +142,8 @@ pub async fn timeline(
         Option<String>,
         chrono::DateTime<Utc>,
     )> = sqlx::query_as(
-        "SELECT kind, summary, detail_json, actor, created_at
+        "SELECT kind, summary, detail_json, actor,
+                strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
              FROM firewall_timeline
              WHERE target_kind = ? AND target_id = ?
              ORDER BY created_at DESC LIMIT 100",

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-use axum::extract::State;
+use axum::extract::{Path, State};
+use axum::http::StatusCode;
 use axum::Extension;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -64,4 +65,21 @@ pub async fn create_backup_target(
     .fetch_one(&state.pool)
     .await?;
     Ok(Json(row))
+}
+
+pub async fn delete_backup_target(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, ApiError> {
+    require_operator(&actor)?;
+    let deleted = sqlx::query("DELETE FROM backup_targets WHERE id = ?")
+        .bind(id)
+        .execute(&state.pool)
+        .await?
+        .rows_affected();
+    if deleted == 0 {
+        return Err(ApiError::not_found("backup target not found"));
+    }
+    Ok(StatusCode::NO_CONTENT)
 }

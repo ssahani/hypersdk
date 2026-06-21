@@ -132,7 +132,7 @@ pub(crate) async fn fetch_unexported_alerts(
     limit: i64,
 ) -> anyhow::Result<Vec<AlertRow>> {
     let rows: Vec<AlertRow> = sqlx::query_as(
-        "SELECT a.id, a.title, a.severity, a.status, a.first_seen, a.last_seen, a.detail_json
+        "SELECT a.id, a.title, a.severity, a.status, strftime('%Y-%m-%dT%H:%M:%SZ', a.first_seen) AS first_seen, strftime('%Y-%m-%dT%H:%M:%SZ', a.last_seen) AS last_seen, a.detail_json
          FROM soc_alerts a
          WHERE a.last_seen > datetime('now', '-7 days')
          AND NOT EXISTS (

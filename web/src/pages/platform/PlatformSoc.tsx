@@ -111,7 +111,7 @@ export default function PlatformSoc() {
       ])
       setOverview(ov)
       setAlerts(al)
-      setEvents(ev)
+      setEvents(ev ?? [])
       setRules(ru)
       setAsm(asmRes)
       setThreatScore(threat?.fleet_threat_score ?? null)

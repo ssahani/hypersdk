@@ -51,7 +51,8 @@ pub async fn list_prompts(pool: &SqlitePool, user_id: &str) -> anyhow::Result<Ve
         String,
         DateTime<Utc>,
     )> = sqlx::query_as(
-        "SELECT id, scope, owner_id, team_id, title, body, tags, agent_id, created_at
+        "SELECT id, scope, owner_id, team_id, title, body, tags, agent_id,
+                strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
              FROM ai_prompts
              WHERE scope = 'org' OR owner_id = ? OR (scope = 'team' AND team_id <> '')
              ORDER BY created_at DESC LIMIT 200",
@@ -125,7 +126,7 @@ pub async fn create_prompt(
 pub async fn get_prompt(pool: &SqlitePool, id: Uuid) -> anyhow::Result<Option<PromptRow>> {
     let row: Option<(Uuid, String, String, String, String, String, serde_json::Value, String, DateTime<Utc>)> =
         sqlx::query_as(
-            "SELECT id, scope, owner_id, team_id, title, body, tags, agent_id, created_at FROM ai_prompts WHERE id = ?",
+            "SELECT id, scope, owner_id, team_id, title, body, tags, agent_id, strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at FROM ai_prompts WHERE id = ?",
         )
         .bind(id)
         .fetch_optional(pool)

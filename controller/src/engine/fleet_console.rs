@@ -76,7 +76,7 @@ pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetConsoleOverview>
                     action,
                     COALESCE(action || COALESCE(' · ' || resource_type, ''), action) AS message,
                     resource_type,
-                    created_at
+                    strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
                 FROM audit_logs
                 UNION ALL
                 SELECT
@@ -91,7 +91,7 @@ pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetConsoleOverview>
                     kind,
                     message,
                     resource_type,
-                    created_at
+                    strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
                 FROM events
                 UNION ALL
                 SELECT
@@ -102,7 +102,7 @@ pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetConsoleOverview>
                     operation,
                     COALESCE(NULLIF(message, ''), operation || ' — ' || status),
                     resource_type,
-                    created_at
+                    strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
                 FROM tasks
             ) merged
             ORDER BY created_at DESC
