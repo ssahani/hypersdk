@@ -42,8 +42,9 @@ pub async fn load_config(pool: &SqlitePool, fallback_redirect: &str) -> anyhow::
          FROM clusters ORDER BY created_at LIMIT 1",
     )
     .bind(fallback_redirect)
-    .fetch_one(pool)
-    .await?;
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| anyhow::anyhow!("no cluster configured — run machina-controller bootstrap"))?;
     Ok(OidcConfig {
         enabled: row.0,
         issuer: row.1.trim_end_matches('/').to_string(),
