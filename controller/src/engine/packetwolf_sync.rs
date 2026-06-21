@@ -148,7 +148,7 @@ pub async fn sync_host_security_bundle(
 /// Apply bundles for all online hosts (maintenance / operator trigger).
 pub async fn sync_all_online(pool: &SqlitePool, cfg: &ControllerConfig) -> anyhow::Result<usize> {
     let hosts: Vec<(Uuid, String)> = sqlx::query_as(
-        "SELECT id, agent_grpc_addr FROM hosts WHERE state = 'online' ORDER BY hostname",
+        "SELECT id, agent_grpc_addr FROM hosts WHERE state = 'online' ORDER BY hostname LIMIT 200",
     )
     .fetch_all(pool)
     .await?;

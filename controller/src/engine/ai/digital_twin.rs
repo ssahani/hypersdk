@@ -315,7 +315,7 @@ async fn resolve_storage(pool: &SqlitePool, target: &str) -> anyhow::Result<Uuid
 async fn host_shutdown_impact(pool: &SqlitePool, target: &str) -> anyhow::Result<ImpactAnalysis> {
     let host_id = resolve_host(pool, target).await?;
     let vms: Vec<(Uuid, String, String)> =
-        sqlx::query_as("SELECT id, name, observed_state FROM vms WHERE host_id = ? ORDER BY name")
+        sqlx::query_as("SELECT id, name, observed_state FROM vms WHERE host_id = ? ORDER BY name LIMIT 500")
             .bind(host_id)
             .fetch_all(pool)
             .await?;
@@ -446,7 +446,7 @@ async fn host_migrate_impact(pool: &SqlitePool, target: &str) -> anyhow::Result<
         .await?;
 
     let vms: Vec<(Uuid, String, String)> =
-        sqlx::query_as("SELECT id, name, observed_state FROM vms WHERE host_id = ? ORDER BY name")
+        sqlx::query_as("SELECT id, name, observed_state FROM vms WHERE host_id = ? ORDER BY name LIMIT 500")
             .bind(host_id)
             .fetch_all(pool)
             .await?;

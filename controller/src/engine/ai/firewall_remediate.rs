@@ -24,7 +24,7 @@ pub struct FirewallRemediateProposal {
 
 pub async fn propose(pool: &SqlitePool) -> anyhow::Result<FirewallRemediateProposal> {
     let hosts: Vec<(Uuid, String)> =
-        sqlx::query_as("SELECT id, hostname FROM hosts WHERE state = 'online' ORDER BY hostname")
+        sqlx::query_as("SELECT id, hostname FROM hosts WHERE state = 'online' ORDER BY hostname LIMIT 200")
             .fetch_all(pool)
             .await?;
 

@@ -93,7 +93,7 @@ pub async fn list_missing_marketplace_images(
     pool: &SqlitePool,
 ) -> anyhow::Result<Vec<MissingTemplateImage>> {
     let rows: Vec<(String, String, String, String, Option<String>)> = sqlx::query_as(
-        "SELECT name, version, source_disk, category, icon FROM templates WHERE marketplace = TRUE ORDER BY featured DESC, name",
+        "SELECT name, version, source_disk, category, icon FROM templates WHERE marketplace = TRUE ORDER BY featured DESC, name LIMIT 200",
     )
     .fetch_all(pool)
     .await?;
@@ -129,7 +129,7 @@ pub async fn disk_exists_on_hosts(pool: &SqlitePool, path: &str) -> bool {
         return true;
     }
     let hosts: Vec<String> = sqlx::query_scalar(
-        "SELECT COALESCE(NULLIF(address, ''), hostname) FROM hosts WHERE state = 'online' ORDER BY hostname",
+        "SELECT COALESCE(NULLIF(address, ''), hostname) FROM hosts WHERE state = 'online' ORDER BY hostname LIMIT 200",
     )
     .fetch_all(pool)
     .await

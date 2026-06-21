@@ -449,7 +449,7 @@ pub async fn cross_site_sync(
     let mut apply_errors = Vec::new();
     if req.apply_profiles || req.include_lockdown {
         let online_hosts: Vec<(Uuid,)> =
-            sqlx::query_as("SELECT id FROM hosts WHERE state = 'online' ORDER BY hostname")
+            sqlx::query_as("SELECT id FROM hosts WHERE state = 'online' ORDER BY hostname LIMIT 200")
                 .fetch_all(pool)
                 .await?;
 
