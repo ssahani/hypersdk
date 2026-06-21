@@ -14,6 +14,7 @@ pub struct ObjectRef {
     pub name: Option<String>,
 }
 
+#[derive(Debug)]
 pub struct ApiError {
     pub status: StatusCode,
     pub message: String,
