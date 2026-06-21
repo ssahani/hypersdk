@@ -43,9 +43,11 @@ pub async fn segment_connectivity(
 
 pub async fn ipam_allocate(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<IpamAllocateRequest>,
 ) -> Result<Json<network_overlay::IpamAllocation>, ApiError> {
+    require_operator(&actor)?;
     network_overlay::ipam_allocate(&state.pool, id, &body)
         .await
         .map(Json)

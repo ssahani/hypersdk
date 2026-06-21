@@ -190,8 +190,10 @@ pub async fn vm_guest_observability(
 
 pub async fn vm_guest_services(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<host_os::VmGuestServicesReport>, ApiError> {
+    require_operator(&actor)?;
     host_os::vm_guest_services(&state.pool, &state.config, id)
         .await
         .map(Json)
@@ -200,8 +202,10 @@ pub async fn vm_guest_services(
 
 pub async fn vm_guest_sync_time(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     host_os::vm_guest_agent_action(&state.pool, &state.config, id, "sync_time")
         .await
         .map(Json)
@@ -210,8 +214,10 @@ pub async fn vm_guest_sync_time(
 
 pub async fn vm_guest_fstrim(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     host_os::vm_guest_agent_action(&state.pool, &state.config, id, "fstrim")
         .await
         .map(Json)
@@ -220,8 +226,10 @@ pub async fn vm_guest_fstrim(
 
 pub async fn vm_guest_fs_freeze_status(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     host_os::vm_guest_agent_action(&state.pool, &state.config, id, "fs_freeze_status")
         .await
         .map(Json)
@@ -237,9 +245,11 @@ pub struct GuestAiInsightsQuery {
 
 pub async fn vm_guest_ai_insights(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Query(q): Query<GuestAiInsightsQuery>,
 ) -> Result<Json<crate::engine::ai::guest_insights::GuestAiInsightsReport>, ApiError> {
+    require_operator(&actor)?;
     crate::engine::ai::guest_insights::generate_insights(
         &state.pool,
         &state.config,
@@ -259,9 +269,11 @@ pub struct OsDiagnoseBody {
 
 pub async fn diagnose_host(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<OsDiagnoseBody>,
 ) -> Result<Json<host_os::HostOsDiagnoseReport>, ApiError> {
+    require_operator(&actor)?;
     host_os::diagnose_host(&state.pool, &state.config, id, body.query.as_deref())
         .await
         .map(Json)
@@ -270,9 +282,11 @@ pub async fn diagnose_host(
 
 pub async fn diagnose_vm(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<OsDiagnoseBody>,
 ) -> Result<Json<host_os::VmOsDiagnoseReport>, ApiError> {
+    require_operator(&actor)?;
     host_os::diagnose_vm(&state.pool, &state.config, id, body.query.as_deref())
         .await
         .map(Json)
