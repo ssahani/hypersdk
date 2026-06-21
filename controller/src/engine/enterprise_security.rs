@@ -446,13 +446,47 @@ pub async fn sync_vault_provider(pool: &SqlitePool, id: Uuid) -> anyhow::Result<
 }
 
 pub async fn sync_all_vault_providers(pool: &SqlitePool) -> anyhow::Result<VaultSyncAllResult> {
-    let ids: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM vault_providers ORDER BY name")
-        .fetch_all(pool)
-        .await?;
+    let rows: Vec<VaultProviderRow> = sqlx::query_as(
+        "SELECT id, name, provider_type, address, namespace, status,
+                strftime('%Y-%m-%dT%H:%M:%SZ', last_sync_at) AS last_sync_at
+         FROM vault_providers ORDER BY name",
+    )
+    .fetch_all(pool)
+    .await?;
     let mut results = Vec::new();
-    for id in ids {
-        if let Ok(r) = sync_vault_provider(pool, id).await {
-            results.push(r);
+    for row in rows {
+        let (status, message) = probe_vault(&row);
+        let mut tx = match pool.begin().await {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+        let ok = sqlx::query(
+            "UPDATE vault_providers SET status = ?, last_sync_at = datetime('now') WHERE id = ?",
+        )
+        .bind(&status)
+        .bind(row.id)
+        .execute(&mut *tx)
+        .await
+        .is_ok()
+            && sqlx::query(
+                "INSERT INTO vault_sync_runs (id, provider_id, status, message) VALUES (?, ?, ?, ?)",
+            )
+            .bind(Uuid::new_v4())
+            .bind(row.id)
+            .bind(&status)
+            .bind(&message)
+            .execute(&mut *tx)
+            .await
+            .is_ok()
+            && tx.commit().await.is_ok();
+        if ok {
+            results.push(VaultSyncResult {
+                provider_id: row.id,
+                provider_name: row.name,
+                status,
+                message,
+                last_sync_at: chrono::Utc::now(),
+            });
         }
     }
     let synced = results.len();

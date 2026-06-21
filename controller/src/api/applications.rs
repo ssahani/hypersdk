@@ -127,21 +127,18 @@ pub async fn run_application_action(
     Json(body): Json<ApplicationActionBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
-    let vm_ids: Vec<Uuid> =
-        sqlx::query_scalar("SELECT vm_id FROM application_group_vms WHERE group_id = ?")
-            .bind(id)
-            .fetch_all(&state.pool)
-            .await?;
-    if vm_ids.is_empty() {
+    let vms: Vec<(Uuid, Option<Uuid>)> = sqlx::query_as(
+        "SELECT agv.vm_id, v.host_id FROM application_group_vms agv
+         JOIN vms v ON v.id = agv.vm_id WHERE agv.group_id = ?",
+    )
+    .bind(id)
+    .fetch_all(&state.pool)
+    .await?;
+    if vms.is_empty() {
         return Err(ApiError::bad_request("application group has no VMs"));
     }
     let mut task_ids = Vec::new();
-    for vm_id in vm_ids {
-        let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
-            .bind(vm_id)
-            .fetch_optional(&state.pool)
-            .await?
-            .flatten();
+    for (vm_id, host_id) in vms {
         let (op, payload) = match body.action.as_str() {
             "start" => (
                 "vm.power",
