@@ -247,7 +247,7 @@ pub async fn rightsizing_report(pool: &SqlitePool) -> anyhow::Result<Rightsizing
 
     let idle: Vec<(Uuid, String)> = sqlx::query_as(
         "SELECT id, name FROM vms WHERE observed_state = 'stopped'
-         AND updated_at < datetime('now') - interval '30 days' LIMIT 20",
+         AND updated_at < datetime('now', '-30 days') LIMIT 20",
     )
     .fetch_all(pool)
     .await

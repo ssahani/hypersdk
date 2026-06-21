@@ -3,6 +3,7 @@
 use machina_core::gather_cloud_inventory;
 use serde::Serialize;
 use sqlx::SqlitePool;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CloudOverview {
@@ -20,9 +21,10 @@ pub async fn overview(pool: &SqlitePool) -> anyhow::Result<CloudOverview> {
     .unwrap_or(None);
 
     let _ = sqlx::query(
-        "INSERT INTO firewall_cloud_snapshots (provider, summary, inventory_json)
-         VALUES (?, ?, ?)",
+        "INSERT INTO firewall_cloud_snapshots (id, provider, summary, inventory_json)
+         VALUES (?, ?, ?, ?)",
     )
+    .bind(Uuid::new_v4())
     .bind(inv.provider.as_str())
     .bind(&inv.summary)
     .bind(serde_json::to_value(&inv)?)

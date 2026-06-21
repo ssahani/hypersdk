@@ -396,8 +396,13 @@ pub async fn build_enriched(
 }
 
 fn profile_rules(profile: &str) -> Vec<machina_core::ZeusFirewallRule> {
-    let prof = machina_core::profile_by_name(profile)
-        .unwrap_or_else(|| machina_core::profile_by_name("Balanced").expect("Balanced profile"));
+    let prof = match machina_core::profile_by_name(profile)
+        .or_else(|| machina_core::profile_by_name("Private"))
+        .or_else(|| machina_core::builtin_profiles().into_iter().next())
+    {
+        Some(p) => p,
+        None => return vec![],
+    };
     prof.rules
         .iter()
         .enumerate()
@@ -681,7 +686,7 @@ pub async fn explain_path(
     // Recent network/firewall audit
     let recent: Option<(String,)> = sqlx::query_as(
         "SELECT action FROM audit_logs
-         WHERE created_at > datetime('now') - interval '4 hours'
+         WHERE created_at > datetime('now', '-4 hours')
            AND (action LIKE '%network%' OR action LIKE '%firewall%')
          ORDER BY created_at DESC LIMIT 1",
     )

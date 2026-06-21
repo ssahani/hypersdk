@@ -150,8 +150,7 @@ pub async fn persist_validation(
         "pending_validation"
     };
     sqlx::query(
-        "UPDATE hosts SET validation_status = ?, validation_report = ?, state = ?, updated_at = datetime('now')
-         WHERE id = ?",
+        "UPDATE hosts SET validation_status = ?, validation_report = ?, state = ? WHERE id = ?",
     )
     .bind(status)
     .bind(serde_json::to_value(&report.checks)?)

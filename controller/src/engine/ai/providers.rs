@@ -189,9 +189,10 @@ pub async fn create_provider(
             m.display_name.clone()
         };
         sqlx::query(
-            "INSERT INTO ai_models (provider_id, model_id, display_name, context_window)
-             VALUES (?, ?, ?, ?) ON CONFLICT (provider_id, model_id) DO NOTHING",
+            "INSERT INTO ai_models (id, provider_id, model_id, display_name, context_window)
+             VALUES (?, ?, ?, ?, ?) ON CONFLICT (provider_id, model_id) DO NOTHING",
         )
+        .bind(Uuid::new_v4())
         .bind(id)
         .bind(m.model_id.trim())
         .bind(display)
@@ -202,9 +203,10 @@ pub async fn create_provider(
 
     if body.models.is_empty() {
         sqlx::query(
-            "INSERT INTO ai_models (provider_id, model_id, display_name)
-             VALUES (?, 'gpt-4o-mini', 'gpt-4o-mini') ON CONFLICT DO NOTHING",
+            "INSERT INTO ai_models (id, provider_id, model_id, display_name)
+             VALUES (?, ?, 'gpt-4o-mini', 'gpt-4o-mini') ON CONFLICT DO NOTHING",
         )
+        .bind(Uuid::new_v4())
         .bind(id)
         .execute(&mut *tx)
         .await?;

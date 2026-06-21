@@ -469,7 +469,7 @@ fn parse_reach_query(message: &str) -> Option<(String, String, Option<i32>)> {
         });
 
     if let Some(idx) = ml.find(" reach ") {
-        let rest = &message[idx + 7..];
+        let rest = &ml[idx + 7..];
         let parts: Vec<&str> = rest.split_whitespace().collect();
         if parts.len() >= 3 && parts[1].eq_ignore_ascii_case("to") {
             return Some((

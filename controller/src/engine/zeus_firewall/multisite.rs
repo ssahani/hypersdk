@@ -448,7 +448,7 @@ pub async fn cross_site_sync(
     let mut hosts_applied = 0usize;
     let mut apply_errors = Vec::new();
     if req.apply_profiles || req.include_lockdown {
-        let online_hosts: Vec<(String,)> =
+        let online_hosts: Vec<(Uuid,)> =
             sqlx::query_as("SELECT id FROM hosts WHERE state = 'online' ORDER BY hostname")
                 .fetch_all(pool)
                 .await?;
@@ -456,11 +456,12 @@ pub async fn cross_site_sync(
         if req.apply_profiles {
             if let Some(profile) = profiles_to_apply.first() {
                 for (host_id,) in &online_hosts {
-                    match super::inventory::apply_profile(pool, cfg, host_id, profile, actor, false)
+                    let hid = host_id.to_string();
+                    match super::inventory::apply_profile(pool, cfg, &hid, profile, actor, false)
                         .await
                     {
                         Ok(_) => hosts_applied += 1,
-                        Err(e) => apply_errors.push(format!("{host_id} {profile}: {e}")),
+                        Err(e) => apply_errors.push(format!("{hid} {profile}: {e}")),
                     }
                 }
             }
@@ -468,10 +469,11 @@ pub async fn cross_site_sync(
 
         if req.include_lockdown {
             for (host_id,) in &online_hosts {
+                let hid = host_id.to_string();
                 match super::inventory::apply_profile(
                     pool,
                     cfg,
-                    host_id,
+                    &hid,
                     &req.lockdown_profile,
                     actor,
                     false,
@@ -479,7 +481,7 @@ pub async fn cross_site_sync(
                 .await
                 {
                     Ok(_) => hosts_applied += 1,
-                    Err(e) => apply_errors.push(format!("{host_id} {}: {e}", req.lockdown_profile)),
+                    Err(e) => apply_errors.push(format!("{hid} {}: {e}", req.lockdown_profile)),
                 }
             }
         }
@@ -542,10 +544,11 @@ pub async fn site_drift_compare(pool: &SqlitePool) -> anyhow::Result<SiteDriftRe
                 captured_at: chrono::Utc::now().to_rfc3339(),
             });
             let _ = sqlx::query(
-                "INSERT INTO firewall_site_drift (site_id, peer_site_id, drift_json)
-                 SELECT s.id, p.id, ? FROM firewall_sites s
+                "INSERT INTO firewall_site_drift (id, site_id, peer_site_id, drift_json)
+                 SELECT ?, s.id, p.id, ? FROM firewall_sites s
                  JOIN firewall_sites p ON p.name = ? WHERE s.name = ?",
             )
+            .bind(Uuid::new_v4())
             .bind(serde_json::json!({"fields": ["profile_version", "geo_fence"]}))
             .bind(&peer_name)
             .bind(&site)

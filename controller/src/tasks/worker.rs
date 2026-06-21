@@ -1597,7 +1597,7 @@ async fn host_agent_upgrade(state: &AppState, msg: &TaskMessage) -> anyhow::Resu
         .as_str()
         .unwrap_or(env!("CARGO_PKG_VERSION"));
     update_task_progress(&state.pool, msg.task_id, 20, "upgrade queued").await?;
-    sqlx::query("UPDATE hosts SET agent_version = ?, updated_at = datetime('now') WHERE id = ?")
+    sqlx::query("UPDATE hosts SET agent_version = ? WHERE id = ?")
         .bind(target)
         .bind(host_id)
         .execute(&state.pool)

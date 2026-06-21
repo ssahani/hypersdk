@@ -95,9 +95,10 @@ pub async fn connectivity_matrix(
     let matrix = simulate_connectivity(&detail.inventory, &after_rules);
     if let Ok(host_id) = Uuid::parse_str(target_id) {
         let _ = sqlx::query(
-            "INSERT INTO firewall_connectivity_runs (target_id, profile, matrix_json)
-             VALUES (?, ?, ?)",
+            "INSERT INTO firewall_connectivity_runs (id, target_id, profile, matrix_json)
+             VALUES (?, ?, ?, ?)",
         )
+        .bind(Uuid::new_v4())
         .bind(host_id)
         .bind(profile)
         .bind(serde_json::to_value(&matrix)?)

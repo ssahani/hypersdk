@@ -187,10 +187,11 @@ pub async fn upsert_conversation_summary(
     summary: &str,
 ) -> anyhow::Result<()> {
     sqlx::query(
-        "INSERT INTO ai_conversations (user_id, agent_id, summary, updated_at)
-         VALUES (?, ?, ?, datetime('now'))
+        "INSERT INTO ai_conversations (id, user_id, agent_id, summary, updated_at)
+         VALUES (?, ?, ?, ?, datetime('now'))
          ON CONFLICT DO NOTHING",
     )
+    .bind(Uuid::new_v4())
     .bind(user_id)
     .bind(agent_id)
     .bind(summary)
