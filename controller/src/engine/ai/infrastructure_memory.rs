@@ -26,7 +26,7 @@ pub async fn recall(pool: &SqlitePool, limit: i64) -> anyhow::Result<Infrastruct
     let mut incidents = Vec::new();
 
     let structured: Vec<(DateTime<Utc>, String, String, String, Option<String>)> = sqlx::query_as(
-        "SELECT created_at, severity, title, summary, root_cause FROM ai_incidents
+        "SELECT strftime('%Y-%m-%dT%H:%M:%SZ', created_at), severity, title, summary, root_cause FROM ai_incidents
          ORDER BY created_at DESC LIMIT ?",
     )
     .bind(cap)
@@ -49,7 +49,7 @@ pub async fn recall(pool: &SqlitePool, limit: i64) -> anyhow::Result<Infrastruct
     }
 
     let rows: Vec<(DateTime<Utc>, String, String, Option<serde_json::Value>)> = sqlx::query_as(
-        "SELECT created_at, actor, action, detail FROM audit_logs
+        "SELECT strftime('%Y-%m-%dT%H:%M:%SZ', created_at), actor, action, detail FROM audit_logs
          WHERE action LIKE '%fail%'
             OR action LIKE 'ai.autopilot%'
             OR action LIKE '%migrate%'
@@ -124,7 +124,7 @@ pub async fn similar(
     let pattern = format!("%{}%", query.trim());
 
     let rows: Vec<(DateTime<Utc>, String, String, Option<serde_json::Value>)> = sqlx::query_as(
-        "SELECT created_at, action, actor, detail FROM audit_logs
+        "SELECT strftime('%Y-%m-%dT%H:%M:%SZ', created_at), action, actor, detail FROM audit_logs
          WHERE action LIKE ? OR actor LIKE ?
             OR detail LIKE ?
          ORDER BY created_at DESC LIMIT ?",
@@ -182,7 +182,7 @@ pub async fn changes_before_outage(
 ) -> anyhow::Result<ChangeBeforeOutage> {
     let window_start = if let Some(id) = incident_id {
         sqlx::query_scalar::<_, DateTime<Utc>>(
-            "SELECT COALESCE(window_start, created_at) FROM ai_incidents WHERE id = ?",
+            "SELECT strftime('%Y-%m-%dT%H:%M:%SZ', COALESCE(window_start, created_at)) FROM ai_incidents WHERE id = ?",
         )
         .bind(id)
         .fetch_optional(pool)
@@ -195,7 +195,7 @@ pub async fn changes_before_outage(
     let start = end - chrono::Duration::hours(hours_before.clamp(1, 48) as i64);
 
     let rows: Vec<(DateTime<Utc>, String, String, Option<serde_json::Value>)> = sqlx::query_as(
-        "SELECT created_at, actor, action, detail FROM audit_logs
+        "SELECT strftime('%Y-%m-%dT%H:%M:%SZ', created_at), actor, action, detail FROM audit_logs
          WHERE created_at BETWEEN ? AND ?
            AND (action LIKE '%network%' OR action LIKE '%firewall%' OR action LIKE '%migrate%'
                 OR action LIKE '%storage%' OR action LIKE '%delete%' OR action LIKE '%update%')

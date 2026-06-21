@@ -40,7 +40,8 @@ pub async fn list_audit_logs(
     let rows = match (&q.action, &q.actor) {
         (Some(action), Some(actor)) if !action.is_empty() && !actor.is_empty() => {
             sqlx::query_as::<_, AuditRow>(
-                "SELECT id, actor, action, resource_type, resource_id, created_at
+                "SELECT id, actor, action, resource_type, resource_id,
+                        strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
                  FROM audit_logs WHERE action LIKE ? AND actor LIKE ? ORDER BY created_at DESC LIMIT ?",
             )
             .bind(format!("%{action}%"))
@@ -51,7 +52,8 @@ pub async fn list_audit_logs(
         }
         (Some(action), _) if !action.is_empty() => {
             sqlx::query_as::<_, AuditRow>(
-                "SELECT id, actor, action, resource_type, resource_id, created_at
+                "SELECT id, actor, action, resource_type, resource_id,
+                        strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
                  FROM audit_logs WHERE action LIKE ? ORDER BY created_at DESC LIMIT ?",
             )
             .bind(format!("%{action}%"))
@@ -61,7 +63,8 @@ pub async fn list_audit_logs(
         }
         (_, Some(actor)) if !actor.is_empty() => {
             sqlx::query_as::<_, AuditRow>(
-                "SELECT id, actor, action, resource_type, resource_id, created_at
+                "SELECT id, actor, action, resource_type, resource_id,
+                        strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
                  FROM audit_logs WHERE actor LIKE ? ORDER BY created_at DESC LIMIT ?",
             )
             .bind(format!("%{actor}%"))
@@ -71,7 +74,8 @@ pub async fn list_audit_logs(
         }
         _ => {
             sqlx::query_as::<_, AuditRow>(
-                "SELECT id, actor, action, resource_type, resource_id, created_at
+                "SELECT id, actor, action, resource_type, resource_id,
+                        strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
                  FROM audit_logs ORDER BY created_at DESC LIMIT ?",
             )
             .bind(limit)

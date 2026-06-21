@@ -95,7 +95,7 @@ async fn analyze_with_symptoms(
     }
 
     let events: Vec<(DateTime<Utc>, String, String)> = sqlx::query_as(
-        "SELECT created_at, kind, message FROM events
+        "SELECT strftime('%Y-%m-%dT%H:%M:%SZ', created_at), kind, message FROM events
          WHERE created_at > datetime('now', '-' || ? || ' hours')
          ORDER BY created_at DESC LIMIT 60",
     )
