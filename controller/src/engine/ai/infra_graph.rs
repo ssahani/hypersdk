@@ -791,10 +791,11 @@ pub async fn query(pool: &SqlitePool, req: &GraphQueryRequest) -> anyhow::Result
     }
 
     if hits.is_empty() {
+        let escaped = req.query.trim().replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
         let rows: Vec<(Uuid, String, String)> = sqlx::query_as(
-            "SELECT id, name, observed_state FROM vms WHERE name LIKE ? ORDER BY name LIMIT 20",
+            "SELECT id, name, observed_state FROM vms WHERE name LIKE ? ESCAPE '\\' ORDER BY name LIMIT 20",
         )
-        .bind(format!("%{}%", req.query.trim()))
+        .bind(format!("%{escaped}%"))
         .fetch_all(pool)
         .await?;
         for (id, name, st) in rows {
@@ -949,8 +950,7 @@ pub async fn graph_at(pool: &SqlitePool, ts: DateTime<Utc>) -> anyhow::Result<Gr
         .take(10)
         .cloned()
         .collect();
-    let node_delta = current.node_count as i64
-        - (current.node_count as i64 - added.len() as i64 + removed.len() as i64);
+    let node_delta = added.len() as i64 - removed.len() as i64;
     Ok(GraphAtTime {
         timestamp: ts,
         nodes: current.nodes.clone(),

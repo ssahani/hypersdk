@@ -17,7 +17,7 @@ pub struct ZeusSecurityStatus {
 }
 
 pub async fn status(cfg: &ControllerConfig) -> ZeusSecurityStatus {
-    let pw = packetwolf_bridge::status(cfg);
+    let pw = packetwolf_bridge::status_async(cfg).await;
     ZeusSecurityStatus {
         fabric_reachable: pw.reachable,
         packetwolf: pw,

@@ -17,7 +17,7 @@ use crate::state::AppState;
 pub async fn status(State(state): State<AppState>) -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "zeus_firewall": zeus_firewall::zeus_firewall_status().await,
-        "packetwolf": packetwolf_bridge::status(&state.config),
+        "packetwolf": packetwolf_bridge::status_async(&state.config).await,
     }))
 }
 
@@ -368,6 +368,9 @@ pub async fn get_activity(
     Path(id): Path<String>,
     Query(q): Query<ActivityQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    if id != "local" {
+        Uuid::parse_str(&id).map_err(|_| ApiError::bad_request("invalid host id"))?;
+    }
     let hours = q.hours.unwrap_or(24);
     if state.config.packetwolf_enabled {
         Ok(Json(

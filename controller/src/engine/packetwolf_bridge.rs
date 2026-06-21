@@ -77,6 +77,21 @@ pub fn status(cfg: &ControllerConfig) -> PacketwolfStatus {
     status_with_discovery(cfg, None)
 }
 
+/// Async wrapper — safe to call from async context (uses spawn_blocking internally).
+pub async fn status_async(cfg: &ControllerConfig) -> PacketwolfStatus {
+    let cfg = cfg.clone();
+    tokio::task::spawn_blocking(move || status(&cfg))
+        .await
+        .unwrap_or_else(|_| PacketwolfStatus {
+            enabled: false,
+            base_url: String::new(),
+            reachable: false,
+            summary: "status check failed".into(),
+            storage: None,
+            discovery_source: None,
+        })
+}
+
 fn fetch_health(base_url: &str, insecure_tls: bool) -> (bool, Option<Value>) {
     let Ok(client) = build_client(insecure_tls, 5) else {
         return (false, None);
