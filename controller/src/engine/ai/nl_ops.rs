@@ -99,11 +99,12 @@ pub async fn execute(pool: &SqlitePool, req: &NlOpsRequest, actor: &str) -> anyh
     if ql.contains("migrate") && ql.contains("from") {
         let host_hint = extract_host_hint(&ql);
         let vms: Vec<(Uuid, String)> = if let Some(h) = &host_hint {
+            let escaped = h.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
             sqlx::query_as(
                 "SELECT v.id, v.name FROM vms v JOIN hosts h ON h.id = v.host_id
-                 WHERE h.hostname LIKE ?",
+                 WHERE h.hostname LIKE ? ESCAPE '\\'",
             )
-            .bind(h)
+            .bind(format!("%{escaped}%"))
             .fetch_all(pool)
             .await?
         } else {
