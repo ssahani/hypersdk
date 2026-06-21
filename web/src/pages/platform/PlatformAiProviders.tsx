@@ -258,7 +258,7 @@ export default function PlatformAiProviders({ embedded }: { embedded?: boolean }
       variant="danger"
       onCancel={() => setDeleteProviderId(null)}
       onConfirm={async () => {
-        try { await deleteAiProvider(deleteProviderId!); toast.success('Deleted'); await load() }
+        try { if (!deleteProviderId) return; await deleteAiProvider(deleteProviderId); toast.success('Deleted'); await load() }
         catch (e: unknown) { toast.error(formatUserError(e)) }
         finally { setDeleteProviderId(null) }
       }}

@@ -2204,7 +2204,7 @@ export const getAirGapBundle = (id: string) =>
 
 export const markAllNotificationsDelivered = async (limit = 200) => {
   const rows = await listNotifications(true)
-  const batch = rows.slice(0, limit)
+  const batch = (rows ?? []).slice(0, limit)
   await Promise.all(batch.map((r) => markNotificationDelivered(r.id)))
   return batch.length
 }
