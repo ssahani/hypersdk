@@ -97,7 +97,7 @@ export default function PlatformDeveloper() {
           <p className="text-sm text-slate-400">{overview.summary}</p>
           <div className="grid gap-4 sm:grid-cols-3">
             <MacStatWidget label="SDK version" value={overview.sdk_typescript.version} icon={<Package className="w-4 h-4" />} />
-            <MacStatWidget label="Terraform resources" value={String(overview.terraform.resources.length)} icon={<Code2 className="w-4 h-4" />} />
+            <MacStatWidget label="Terraform resources" value={String(overview.terraform.resources?.length ?? 0)} icon={<Code2 className="w-4 h-4" />} />
             <MacStatWidget label="OpenAPI" value="v1" icon={<Terminal className="w-4 h-4" />} />
           </div>
           <MacGlassPanel title="TypeScript SDK">
@@ -107,7 +107,7 @@ export default function PlatformDeveloper() {
               <CopyButton text={overview.sdk_typescript.install} label="Copy install" />
             </div>
             <ul className="mt-3 flex flex-wrap gap-2">
-              {overview.sdk_typescript.resources.map((r) => (
+              {(overview.sdk_typescript.resources ?? []).map((r) => (
                 <li key={r} className="text-xs px-2 py-1 rounded bg-slate-800 text-slate-300">{r}</li>
               ))}
             </ul>

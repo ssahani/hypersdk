@@ -514,7 +514,7 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
           <p className="text-2xl font-bold text-slate-100 -mt-2">{compliance.score}/100</p>
           <p className="text-sm text-slate-400 mt-1">{compliance.summary}</p>
           <ul className="mt-3 text-xs space-y-1">
-            {compliance.checks.map((c) => (
+            {(compliance.checks ?? []).map((c) => (
               <li key={c.id} className={statusToneClass(c.passed ? 'ok' : 'warn')}>
                 {c.passed ? '✓' : '○'} {c.name} — {c.detail}
               </li>

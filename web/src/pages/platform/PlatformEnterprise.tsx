@@ -246,7 +246,7 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
       {activeTab === 'mfa' && mfa && (
         <MacGlassPanel title="MFA compliance">
           <p className="text-sm text-slate-400 mb-3">{mfa.summary}</p>
-          {mfa.users.length === 0 ? (
+          {(mfa.users ?? []).length === 0 ? (
             <p className="text-sm text-slate-500">No roles require MFA yet — enable in Settings → Security.</p>
           ) : (
             <table className="w-full text-sm text-left" aria-label="MFA-required users">
@@ -259,7 +259,7 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
                 </tr>
               </thead>
               <tbody>
-                {mfa.users.map((u) => (
+                {(mfa.users ?? []).map((u) => (
                   <tr key={u.username} className="border-b border-slate-800/60">
                     <td className="py-2 pr-4 text-slate-200">{u.username}</td>
                     <td className="py-2 pr-4 text-slate-400">{u.role}</td>
@@ -335,7 +335,7 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
               </tr>
             </thead>
             <tbody>
-              {tenants.projects.map((p) => (
+              {(tenants.projects ?? []).map((p) => (
                 <tr key={p.project_name} className="border-b border-slate-800/60">
                   <td className="py-2 pr-4 text-slate-200">{p.project_name}</td>
                   <td className="py-2 pr-4 text-slate-400">{p.vm_count}{p.max_vms > 0 ? ` / ${p.max_vms}` : ''}</td>
