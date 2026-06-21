@@ -672,9 +672,11 @@ pub struct MetalTemporaryBody {
 
 pub async fn baremetal_temporary(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<String>,
     Json(body): Json<MetalTemporaryBody>,
 ) -> Result<Json<zeus_firewall::TemporaryRule>, ApiError> {
+    require_operator(&actor)?;
     let uid = uuid::Uuid::parse_str(&id).map_err(|e| ApiError::bad_request(e.to_string()))?;
     zeus_firewall::create_metal_temporary_preset(
         &state.pool,
