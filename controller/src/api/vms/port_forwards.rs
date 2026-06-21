@@ -169,9 +169,11 @@ pub async fn list_vm_port_forward_templates(
 
 pub async fn upsert_vm_port_forward_template(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<PortForwardTemplateDto>,
 ) -> Result<Json<Vec<PortForwardTemplateDto>>, ApiError> {
+    require_operator(&actor)?;
     if body.name.trim().is_empty() || body.id.trim().is_empty() {
         return Err(ApiError::bad_request("Template id and name are required"));
     }
