@@ -112,7 +112,9 @@ pub struct EnrollmentTokenRow {
 
 pub async fn list_enrollment_tokens(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<EnrollmentTokenRow>>, ApiError> {
+    require_admin(&actor)?;
     let rows = sqlx::query_as::<_, EnrollmentTokenRow>(
         "SELECT token, expires_at, used_at, created_at FROM enrollment_tokens
          ORDER BY created_at DESC LIMIT 50",
