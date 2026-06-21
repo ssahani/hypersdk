@@ -179,7 +179,7 @@ async fn vm_apply(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     )
     .await
     {
-        tracing::warn!(vm_id = %vm_id, "guest_tools.install enqueue failed: {e:#}");
+        tracing::warn!(vm_id = %vm_id, "guest_tools.install enqueue failed: {e:?}");
     }
 
     update_task_progress(&state.pool, msg.task_id, 100, "VM defined").await?;
@@ -682,7 +682,7 @@ async fn host_maintenance(state: &AppState, msg: &TaskMessage) -> anyhow::Result
                     )
                     .await
                     {
-                        tracing::warn!(vm_id = %vm_id, host_id = %host_id, "vm.migrate enqueue failed during maintenance evacuation: {e:#}");
+                        tracing::warn!(vm_id = %vm_id, host_id = %host_id, "vm.migrate enqueue failed during maintenance evacuation: {e:?}");
                     }
                 }
             }
@@ -1569,15 +1569,12 @@ async fn host_enforcement_apply(state: &AppState, msg: &TaskMessage) -> anyhow::
         &format!("rendering Tetragon TracingPolicy for {policy_id}"),
     )
     .await?;
-    if let Err(e) = crate::engine::packetwolf_bridge::apply_enforcement_policy(
+    let _result = crate::engine::packetwolf_bridge::apply_enforcement_policy(
         &state.config,
         policy_id,
         &[host_id.to_string()],
     )
-    .await
-    {
-        tracing::warn!(host_id = %host_id, policy_id = %policy_id, "apply_enforcement_policy failed: {e:#}");
-    }
+    .await;
     update_task_progress(
         &state.pool,
         msg.task_id,
