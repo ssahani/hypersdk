@@ -186,6 +186,7 @@ pub async fn create_vm(
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<CreateVmBody>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     body.vm.validate()
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
 
@@ -375,6 +376,7 @@ pub async fn create_from_template(
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<CreateFromTemplateBody>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     let apply = |s: &str| crate::engine::template::apply_template_vars(s, &body.template_vars);
     let name = apply(&body.name);
     machina_spec::validate_name(&name).map_err(|e| ApiError::bad_request(e.to_string()))?;
@@ -437,6 +439,7 @@ pub async fn create_from_iso(
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<CreateFromIsoBody>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     machina_spec::validate_name(&body.name).map_err(|e| ApiError::bad_request(e.to_string()))?;
     let iso_path = body.iso_path.trim();
     if iso_path.is_empty() {
@@ -551,6 +554,7 @@ pub async fn create_from_virt_install(
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<CreateFromVirtInstallBody>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     machina_spec::validate_name(&body.name).map_err(|e| ApiError::bad_request(e.to_string()))?;
     let has_location = body
         .virt_install_location
