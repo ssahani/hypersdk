@@ -52,7 +52,7 @@ async fn run_due(state: &AppState) -> anyhow::Result<()> {
                     .await?;
             }
             Err(e) => {
-                tracing::warn!(schedule_id = %id, "maintenance task enqueue failed, will retry next tick: {e}");
+                tracing::warn!(schedule_id = %id, "maintenance task enqueue failed, will retry next tick: {}", e.message);
             }
         }
     }
