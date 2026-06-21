@@ -31,7 +31,8 @@ machina_save_deploy_last() {
 machina_load_deploy_last() { deploy_ui_load_deploy_last "$1"; }
 
 machina_elapsed_fmt() {
-    local s="${1:-0}" m=$((s / 60)) r=$((s % 60))
+    local s="${1:-0}"
+    local m=$((s / 60)) r=$((s % 60))
     ((m > 0)) && printf '%dm ' "$m"
     printf '%ds' "$r"
 }
