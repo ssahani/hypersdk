@@ -81,8 +81,9 @@ pub async fn export_vm_bundle(
     let row: (String, serde_json::Value) =
         sqlx::query_as("SELECT name, spec_json FROM vms WHERE id = ?")
             .bind(vm_id)
-            .fetch_one(pool)
-            .await?;
+            .fetch_optional(pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("vm {} not found", vm_id))?;
     let (name, spec_val) = row;
     let vm: VirtualMachine = serde_json::from_value(spec_val)?;
     let vcpus = vm.total_vcpus();
