@@ -40,12 +40,51 @@ pub async fn list_webhooks(
     Ok(Json(rows))
 }
 
+fn validate_webhook_url(url: &str) -> Result<(), ApiError> {
+    let parsed = url::Url::parse(url)
+        .map_err(|_| ApiError::bad_request("webhook url is not a valid URL"))?;
+    match parsed.scheme() {
+        "http" | "https" => {}
+        _ => return Err(ApiError::bad_request("webhook url must use http or https")),
+    }
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| ApiError::bad_request("webhook url has no host"))?;
+    // Reject loopback / private / link-local to prevent SSRF.
+    let blocked = matches!(
+        host,
+        "localhost" | "127.0.0.1" | "::1" | "0.0.0.0"
+    ) || host.starts_with("10.")
+        || host.starts_with("192.168.")
+        || host.starts_with("169.254.")
+        || host.starts_with("fc")
+        || host.starts_with("fd");
+    // Also block 172.16.0.0/12 range.
+    let blocked = blocked || {
+        if let Some(rest) = host.strip_prefix("172.") {
+            rest.split('.')
+                .next()
+                .and_then(|s| s.parse::<u8>().ok())
+                .is_some_and(|n| (16..=31).contains(&n))
+        } else {
+            false
+        }
+    };
+    if blocked {
+        return Err(ApiError::bad_request(
+            "webhook url must not target private or loopback addresses",
+        ));
+    }
+    Ok(())
+}
+
 pub async fn create_webhook(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<CreateWebhookBody>,
 ) -> Result<Json<WebhookRow>, ApiError> {
     require_admin(&actor)?;
+    validate_webhook_url(&body.url)?;
     let id = Uuid::new_v4();
     sqlx::query("INSERT INTO webhooks (id, url, events, secret) VALUES (?, ?, ?, ?)")
         .bind(id)

@@ -8,10 +8,16 @@ use crate::leader::LeaderHandle;
 
 pub fn spawn(pool: SqlitePool, leader: LeaderHandle) {
     tokio::spawn(async move {
-        let client = reqwest::Client::builder()
+        let client = match reqwest::Client::builder()
             .timeout(Duration::from_secs(10))
             .build()
-            .unwrap_or_default();
+        {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::error!("webhook worker: failed to build HTTP client: {e:#}");
+                return;
+            }
+        };
         let mut interval = tokio::time::interval(Duration::from_secs(5));
         loop {
             interval.tick().await;
