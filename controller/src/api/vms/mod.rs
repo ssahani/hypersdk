@@ -865,8 +865,8 @@ pub async fn delete_vm(
     let require: bool = sqlx::query_scalar(
         "SELECT require_vm_delete_approval FROM clusters ORDER BY created_at LIMIT 1",
     )
-    .fetch_one(&state.pool)
-    .await
+    .fetch_optional(&state.pool)
+    .await?
     .unwrap_or(false);
     if require && !body.as_ref().is_some_and(|b| b.0.confirmed) {
         return Err(ApiError::bad_request(
@@ -1368,19 +1368,23 @@ pub async fn attach_vm_disk(
         .bind(id)
         .fetch_one(&state.pool)
         .await?;
-    if let Some(size) = body.size_gib {
+    let disk_id = if let Some(size) = body.size_gib {
+        let disk_id = Uuid::new_v4();
         sqlx::query(
             "INSERT INTO vm_disks (id, vm_id, name, size_gib, storage_class, path)
              VALUES (?, ?, ?, ?, 'silver', ?)",
         )
-        .bind(Uuid::new_v4())
+        .bind(disk_id)
         .bind(id)
         .bind(&body.target_dev)
         .bind(size)
         .bind(&body.disk_path)
         .execute(&state.pool)
         .await?;
-    }
+        Some(disk_id)
+    } else {
+        None
+    };
     let task_id = enqueue_task(
         &state,
         "vm.disk.attach",
@@ -1393,7 +1397,19 @@ pub async fn attach_vm_disk(
         Some(id),
         host_id,
     )
-    .await?;
+    .await
+    .map_err(|e| {
+        if let Some(did) = disk_id {
+            let pool = state.pool.clone();
+            tokio::spawn(async move {
+                let _ = sqlx::query("DELETE FROM vm_disks WHERE id = ?")
+                    .bind(did)
+                    .execute(&pool)
+                    .await;
+            });
+        }
+        e
+    })?;
     Ok(Json(TaskResponse {
         task_id: task_id.to_string(),
         status: "pending".into(),
@@ -1850,10 +1866,12 @@ pub async fn rename_platform_vm(
     Json(body): Json<RenameVmBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
-    let new_name = body.new_name.trim();
+    let new_name = body.new_name.trim().to_string();
     if new_name.is_empty() {
         return Err(ApiError::bad_request("new_name is required"));
     }
+    machina_spec::validate_name(&new_name)
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
     let row: (String, Option<Uuid>, String, String) = sqlx::query_as(
         "SELECT name, host_id, COALESCE(inventory_source, 'libvirt'), observed_state FROM vms WHERE id = ?",
     )
@@ -1869,25 +1887,35 @@ pub async fn rename_platform_vm(
     let host_id = row
         .1
         .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
+    let old_name = row.0.clone();
+    // Update DB first — if libvirt rename then fails we can roll back the DB row safely.
+    sqlx::query("UPDATE vms SET name = ?, updated_at = datetime('now') WHERE id = ?")
+        .bind(&new_name)
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     let mut client = crate::agent_client::connect(&agent_addr)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    crate::agent_client::vm_libvirt_invoke(
+    if let Err(e) = crate::agent_client::vm_libvirt_invoke(
         &mut client,
-        &row.0,
+        &old_name,
         "domain.rename",
         &serde_json::json!({ "new_name": new_name }),
     )
     .await
-    .map_err(|e| ApiError::internal(e.to_string()))?;
-    sqlx::query("UPDATE vms SET name = ?, updated_at = datetime('now') WHERE id = ?")
-        .bind(new_name)
-        .bind(id)
-        .execute(&state.pool)
-        .await?;
+    {
+        // Libvirt rename failed — roll back the DB name to keep them in sync.
+        let _ = sqlx::query("UPDATE vms SET name = ?, updated_at = datetime('now') WHERE id = ?")
+            .bind(&old_name)
+            .bind(id)
+            .execute(&state.pool)
+            .await;
+        return Err(ApiError::internal(e.to_string()));
+    }
     state.emit_event("vm.rename", format!("VM renamed to {new_name}"));
     Ok(Json(serde_json::json!({ "status": "ok", "new_name": new_name })))
 }
