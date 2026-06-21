@@ -118,17 +118,21 @@ fn apply_stale_host_state(mut row: HostRow) -> HostRow {
     row
 }
 
+async fn fetch_host_row(state: &AppState, id: Uuid) -> Result<HostRow, ApiError> {
+    let row = sqlx::query_as::<_, HostRow>(&format!("{HOST_LIST_SQL} WHERE id = ?"))
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await?;
+    Ok(apply_stale_host_state(row))
+}
+
 pub async fn get_host(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<HostRow>, ApiError> {
     require_operator(&actor)?;
-    let row = sqlx::query_as::<_, HostRow>(&format!("{HOST_LIST_SQL} WHERE id = ?"))
-        .bind(id)
-        .fetch_one(&state.pool)
-        .await?;
-    Ok(Json(apply_stale_host_state(row)))
+    Ok(Json(fetch_host_row(&state, id).await?))
 }
 
 pub async fn get_host_gpus(
@@ -164,12 +168,7 @@ pub async fn get_host_gpus(
     })))
 }
 
-pub async fn get_host_detail(
-    State(state): State<AppState>,
-    Extension(actor): Extension<AuthUser>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<HostDetailRow>, ApiError> {
-    require_operator(&actor)?;
+async fn fetch_host_detail_row(state: &AppState, id: Uuid) -> Result<HostDetailRow, ApiError> {
     let row = sqlx::query_as::<_, HostDetailRow>(&format!("{HOST_DETAIL_SQL} WHERE id = ?"))
         .bind(id)
         .fetch_one(&state.pool)
@@ -183,7 +182,16 @@ pub async fn get_host_detail(
             }
         }
     }
-    Ok(Json(detail))
+    Ok(detail)
+}
+
+pub async fn get_host_detail(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<HostDetailRow>, ApiError> {
+    require_operator(&actor)?;
+    Ok(Json(fetch_host_detail_row(&state, id).await?))
 }
 
 pub async fn create_host(
@@ -236,7 +244,7 @@ pub async fn create_host(
     )
     .await;
 
-    get_host(State(state), Path(id)).await
+    fetch_host_row(&state, id).await.map(Json)
 }
 
 pub async fn validate_host(
@@ -377,7 +385,7 @@ pub async fn join_host(
     )
     .await;
 
-    get_host(State(state), Path(host_id)).await
+    fetch_host_row(&state, host_id).await.map(Json)
 }
 
 async fn link_baremetal_firewall_on_join(pool: &sqlx::SqlitePool, host_id: Uuid, hostname: &str) {
@@ -582,7 +590,7 @@ pub async fn patch_host(
         serde_json::json!({}),
     )
     .await?;
-    get_host_detail(State(state), Path(id)).await
+    fetch_host_detail_row(&state, id).await.map(Json)
 }
 
 pub async fn delete_host(
