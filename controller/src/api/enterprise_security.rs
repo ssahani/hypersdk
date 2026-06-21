@@ -6,7 +6,7 @@ use axum::Json;
 use uuid::Uuid;
 
 use crate::api::ApiError;
-use crate::auth::{require_admin, AuthUser};
+use crate::auth::{require_admin, require_operator, AuthUser};
 use crate::engine::enterprise_security::{
     self, CreateAirGapBundleRequest, RegisterVaultProviderRequest, UpsertMfaPolicyRequest,
     UpsertTenantPolicyRequest,
@@ -24,7 +24,9 @@ pub async fn overview(
 
 pub async fn list_vault_providers(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<enterprise_security::VaultProviderRow>>, ApiError> {
+    require_operator(&actor)?;
     enterprise_security::list_vault_providers(&state.pool)
         .await
         .map(Json)
@@ -88,8 +90,10 @@ pub async fn create_air_gap_bundle(
 
 pub async fn get_air_gap_bundle(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<enterprise_security::AirGapBundleRow>, ApiError> {
+    require_operator(&actor)?;
     enterprise_security::get_air_gap_bundle(&state.pool, id)
         .await
         .map(Json)
