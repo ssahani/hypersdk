@@ -76,8 +76,9 @@ pub async fn create_blueprint(
         ));
     }
     let cluster_id: Uuid = sqlx::query_scalar("SELECT id FROM clusters LIMIT 1")
-        .fetch_one(&state.pool)
-        .await?;
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| ApiError::bad_request("no cluster configured"))?;
     let id = Uuid::new_v4();
     let actions = serde_json::to_value(&body.actions).unwrap_or(serde_json::json!([]));
     sqlx::query(
