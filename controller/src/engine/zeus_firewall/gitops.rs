@@ -54,6 +54,7 @@ pub async fn sync_policies(
     req: GitOpsSyncRequest,
     actor: &str,
 ) -> anyhow::Result<GitOpsSyncResult> {
+    let mut tx = pool.begin().await?;
     let mut upserted = 0usize;
     let mut removed = 0usize;
 
@@ -61,14 +62,14 @@ pub async fn sync_policies(
         let names: Vec<String> = req.policies.iter().map(|p| p.name.clone()).collect();
         if names.is_empty() {
             let r = sqlx::query("DELETE FROM firewall_policies")
-                .execute(pool)
+                .execute(&mut *tx)
                 .await?;
             removed = r.rows_affected() as usize;
         } else {
             let names_json = serde_json::to_string(&names).unwrap_or_default();
             let r = sqlx::query("DELETE FROM firewall_policies WHERE name NOT IN (SELECT value FROM json_each(?))")
                 .bind(&names_json)
-                .execute(pool)
+                .execute(&mut *tx)
                 .await?;
             removed = r.rows_affected() as usize;
         }
@@ -78,7 +79,7 @@ pub async fn sync_policies(
         let existing: Option<Uuid> =
             sqlx::query_scalar("SELECT id FROM firewall_policies WHERE name = ?")
                 .bind(&policy.name)
-                .fetch_optional(pool)
+                .fetch_optional(&mut *tx)
                 .await?;
 
         if let Some(id) = existing {
@@ -87,14 +88,14 @@ pub async fn sync_policies(
             )
             .bind(&policy.spec_yaml)
             .bind(id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
         } else {
             sqlx::query("INSERT INTO firewall_policies (id, name, spec_yaml) VALUES (?, ?, ?)")
                 .bind(Uuid::new_v4())
                 .bind(&policy.name)
                 .bind(&policy.spec_yaml)
-                .execute(pool)
+                .execute(&mut *tx)
                 .await?;
         }
         upserted += 1;
@@ -109,8 +110,10 @@ pub async fn sync_policies(
     .bind(upserted as i32)
     .bind(actor)
     .bind(serde_json::json!({ "replace": req.replace, "removed": removed }))
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+
+    tx.commit().await?;
 
     Ok(GitOpsSyncResult {
         upserted,

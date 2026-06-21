@@ -99,7 +99,7 @@ async fn enqueue_snapshots_for_schedule(
         .bind(&snap_name)
         .execute(pool)
         .await?;
-        enqueue_task(
+        if let Err(e) = enqueue_task(
             app,
             "vm.snapshot",
             serde_json::json!({
@@ -116,7 +116,13 @@ async fn enqueue_snapshots_for_schedule(
             host_id,
         )
         .await
-        .map_err(|e| anyhow::anyhow!("enqueue vm.snapshot: {}", e.message))?;
+        {
+            let _ = sqlx::query("DELETE FROM snapshot_records WHERE id = ?")
+                .bind(record_id)
+                .execute(pool)
+                .await;
+            return Err(anyhow::anyhow!("enqueue vm.snapshot: {}", e.message));
+        }
     }
     Ok(())
 }
