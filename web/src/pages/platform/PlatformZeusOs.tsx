@@ -147,7 +147,7 @@ export default function PlatformZeusOs() {
       setAttackSummary(path.summary)
       const fw = await getComplianceFrameworks()
       setFrameworksSummary(
-        fw.frameworks.map((f) => `${f.framework} ${f.grade} (${f.score})`).join(' · ') || fw.summary,
+        (fw.frameworks ?? []).map((f) => `${f.framework} ${f.grade} (${f.score})`).join(' · ') || fw.summary,
       )
       setSecurityLoaded(true)
     } catch (e: unknown) {
@@ -168,7 +168,7 @@ export default function PlatformZeusOs() {
         simulateServiceImpact('payments').catch(() => null),
       ])
       setServiceCount(sg.service_count)
-      setMemoryCount(mem.incidents.length)
+      setMemoryCount(mem.incidents?.length ?? 0)
       if (impact) setServiceImpact(impact.summary)
       setServicesLoaded(true)
     } catch (e: unknown) {
@@ -236,7 +236,7 @@ export default function PlatformZeusOs() {
       ])
       setKnowledgeHits(r.hits)
       setDiagnosisSummary(diag.hypotheses[0]?.title ?? diag.summary)
-      setRunbookSummary(`${rb.runbook_title}: ${rb.steps[0] ?? rb.summary}`)
+      setRunbookSummary(`${rb.runbook_title}: ${rb.steps?.[0] ?? rb.summary}`)
     } catch (e: unknown) {
       setError(formatUserError(e))
     }

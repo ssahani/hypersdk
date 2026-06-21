@@ -1204,7 +1204,7 @@ export default function PlatformVmDetail() {
                 <div className="flex flex-wrap items-center gap-2 text-sm rounded-xl border border-violet-500/20 bg-violet-950/20 px-4 py-3">
                   <span className="text-slate-300">
                     Doctor: <span className="font-semibold text-violet-200">{doctor.score_numeric}/100</span>
-                    {doctor.issues.length > 0 ? ` · ${doctor.issues.length} issue(s)` : ' · all checks passed'}
+                    {(doctor.issues?.length ?? 0) > 0 ? ` · ${doctor.issues.length} issue(s)` : ' · all checks passed'}
                   </span>
                   <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => setTab('doctor')}>
                     Full report →
@@ -2274,7 +2274,7 @@ export default function PlatformVmDetail() {
                       </button>
                     </div>
                     {precheck && (
-                      <ul className="text-xs mt-2 space-y-1">{precheck.checks.map((c) => (
+                      <ul className="text-xs mt-2 space-y-1">{(precheck.checks ?? []).map((c) => (
                         <li key={c.name} className={statusToneClass(c.passed ? 'ok' : 'error')}>
                           {c.name}: {c.message}
                           {c.remediation && !c.passed && (

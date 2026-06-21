@@ -447,7 +447,7 @@ export default function PlatformSoc() {
               <p className="text-sm text-slate-500 p-3">No high-risk exposure findings.</p>
             ) : (
               <ul>
-                {asm!.open_port_findings.map((f, i) => (
+                {(asm?.open_port_findings ?? []).map((f, i) => (
                   <MacListRow
                     key={`${f.resource}-${i}`}
                     title={f.resource}
