@@ -153,7 +153,11 @@ pub async fn generate(pool: &SqlitePool) -> anyhow::Result<ComplianceReport> {
         },
     ];
 
-    let score = (checks.iter().map(|c| c.score as u16).sum::<u16>() / checks.len() as u16) as u8;
+    let score = if checks.is_empty() {
+        0
+    } else {
+        (checks.iter().map(|c| c.score as u16).sum::<u16>() / checks.len() as u16) as u8
+    };
     let grade = if score >= 90 {
         "A"
     } else if score >= 75 {

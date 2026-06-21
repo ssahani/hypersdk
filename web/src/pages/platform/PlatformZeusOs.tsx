@@ -190,7 +190,7 @@ export default function PlatformZeusOs() {
     void getZeusSummary().then((z) => setZeusSummary(`${z.status} · ${z.highlights?.[0] ?? z.tagline}`)).catch(() => {})
     void getRemediateHub().then((h) => {
       setHubSummary(h.summary)
-      setHubItems(h.items.slice(0, 6))
+      setHubItems((h.items ?? []).slice(0, 6))
     }).catch(() => {})
   }, [])
 

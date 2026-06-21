@@ -168,7 +168,7 @@ export default function DiskImagesPage() {
 
   const templateOptions = useMemo(() => {
     if (!vbCatalog) return []
-    const fromItems = vbCatalog.items.map((i) => i.name)
+    const fromItems = (vbCatalog.items ?? []).map((i) => i.name)
     if (fromItems.length) return [...fromItems].sort((a, b) => a.localeCompare(b))
     return [...vbCatalog.templates].sort((a, b) => a.localeCompare(b))
   }, [vbCatalog])

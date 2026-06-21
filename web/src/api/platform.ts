@@ -503,6 +503,8 @@ export interface EnrollmentToken {
 }
 
 export const listPlatformHosts = () => platformFetch<PlatformHost[]>('/api/v1/hosts')
+export const createPlatformHost = (body: { hostname: string; address?: string; agent_grpc_addr?: string; libvirt_uri?: string }) =>
+  platformFetch<PlatformHost>('/api/v1/hosts', { method: 'POST', body: JSON.stringify(body) })
 export const getPlatformHostDetail = (id: string) => platformFetch<PlatformHostDetail>(`/api/v1/hosts/${id}/detail`)
 export const syncAllHosts = () => platformFetch<{ task_id: string }[]>('/api/v1/hosts/sync-all', { method: 'POST' })
 export const deleteHost = (id: string) => platformFetch<{ deleted: boolean }>(`/api/v1/hosts/${id}`, { method: 'DELETE' })

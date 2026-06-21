@@ -172,13 +172,13 @@ pub async fn promote_critical(pool: &SqlitePool, predictions: &[Prediction]) -> 
         )
         .await?;
         let _ = sqlx::query(
-            "INSERT INTO events (id, kind, severity, message, resource_type, resource_id) VALUES (?, 'prediction', ?, ?, ?, ?)",
+            "INSERT INTO events (id, kind, message, resource_type, resource_id, payload) VALUES (?, 'prediction', ?, ?, ?, ?)",
         )
         .bind(uuid::Uuid::new_v4())
-        .bind(&p.severity)
         .bind(&p.message)
         .bind(&p.resource_kind)
         .bind(p.resource.clone())
+        .bind(serde_json::json!({"severity": &p.severity}))
         .execute(pool)
         .await;
         let _ = id;

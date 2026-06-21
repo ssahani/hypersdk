@@ -371,7 +371,7 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
                 >
                   {migrationBusy ? 'Generating…' : 'Generate report'}
                 </button>
-                {migrationReport && migrationReport.rows.length > 0 && (
+                {migrationReport && (migrationReport.rows?.length ?? 0) > 0 && (
                   <button
                     type="button"
                     className="btn-secondary text-xs"
@@ -383,8 +383,8 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
                           row.vm_name,
                           row.readiness_percent,
                           row.install_state,
-                          row.qga_gaps.join('; '),
-                          row.remediation.join('; '),
+                          (row.qga_gaps ?? []).join('; '),
+                          (row.remediation ?? []).join('; '),
                         ]
                           .map((c) => `"${String(c).replace(/"/g, '""')}"`)
                           .join(','),

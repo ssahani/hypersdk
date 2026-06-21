@@ -49,7 +49,7 @@ pub async fn lockdown_target(
     }
     if let Ok(host_id) = Uuid::parse_str(target_id) {
         let _ = sqlx::query(
-            "INSERT INTO events (id, kind, severity, message, resource_type, resource_id) VALUES (?, 'security', 'critical', ?, 'host', ?)",
+            "INSERT INTO events (id, kind, message, resource_type, resource_id, payload) VALUES (?, 'security', ?, 'host', ?, '{\"severity\":\"critical\"}')",
         )
         .bind(uuid::Uuid::new_v4())
         .bind("Zeus Lockdown enabled — Emergency Isolation")

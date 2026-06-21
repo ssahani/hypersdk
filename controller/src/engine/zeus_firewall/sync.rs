@@ -44,7 +44,7 @@ pub async fn sync_host_posture(
             .await
             .unwrap_or_else(|_| host_id.to_string());
         let _ = sqlx::query(
-            "INSERT INTO events (id, kind, severity, message, resource_type, resource_id) VALUES (?, 'firewall.drift', 'warning', ?, 'host', ?)",
+            "INSERT INTO events (id, kind, message, resource_type, resource_id, payload) VALUES (?, 'firewall.drift', ?, 'host', ?, '{\"severity\":\"warning\"}')",
         )
         .bind(uuid::Uuid::new_v4())
         .bind(format!("Firewall drift on {hostname}: {}", report.summary))

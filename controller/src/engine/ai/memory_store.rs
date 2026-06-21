@@ -188,8 +188,7 @@ pub async fn upsert_conversation_summary(
 ) -> anyhow::Result<()> {
     sqlx::query(
         "INSERT INTO ai_conversations (id, user_id, agent_id, summary, updated_at)
-         VALUES (?, ?, ?, ?, datetime('now'))
-         ON CONFLICT DO NOTHING",
+         VALUES (?, ?, ?, ?, datetime('now'))",
     )
     .bind(Uuid::new_v4())
     .bind(user_id)

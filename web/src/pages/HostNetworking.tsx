@@ -718,7 +718,7 @@ export default function HostNetworkingPage() {
 
           {sysctlData && (
             <ul className={`text-xs space-y-1 list-disc list-inside rounded-lg px-4 py-3 ${statusSurfaceClasses('warn')}`}>
-              {sysctlData.notes.map((n) => <li key={n}>{n}</li>)}
+              {(sysctlData.notes ?? []).map((n) => <li key={n}>{n}</li>)}
             </ul>
           )}
 
@@ -738,7 +738,7 @@ export default function HostNetworkingPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700/30 text-sm font-mono">
-                  {sysctlData.rows.map(row => (
+                  {(sysctlData.rows ?? []).map(row => (
                     <tr key={row.key} className="table-row-hover">
                       <td className="px-4 py-2 text-slate-300 whitespace-nowrap">{row.key}</td>
                       <td className="px-4 py-2 text-cyan-400/90 break-all">{row.recommended}</td>

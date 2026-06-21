@@ -99,7 +99,7 @@ pub async fn hub(pool: &SqlitePool) -> anyhow::Result<RemediateHub> {
             label: r.label.clone(),
             review: r.review.clone(),
             action: r.action.clone(),
-            priority: 2 + i as u8,
+            priority: (2usize + i).min(u8::MAX as usize) as u8,
             risk: r.risk.clone(),
         });
     }

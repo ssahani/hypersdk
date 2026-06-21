@@ -256,7 +256,7 @@ async fn vm_install(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     .await?;
 
     sqlx::query(
-        "UPDATE vms SET desired_state = 'running', observed_state = 'running', updated_at = datetime('now') WHERE id = ?",
+        "UPDATE vms SET desired_state = 'running', updated_at = datetime('now') WHERE id = ?",
     )
     .bind(vm_id)
     .execute(&state.pool)
@@ -1541,12 +1541,14 @@ async fn host_enforcement_apply(state: &AppState, msg: &TaskMessage) -> anyhow::
         .payload
         .get("host_id")
         .and_then(|v| v.as_str())
-        .unwrap_or("");
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("host_id missing or empty"))?;
     let policy_id = msg
         .payload
         .get("policy_id")
         .and_then(|v| v.as_str())
-        .unwrap_or("");
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("policy_id missing or empty"))?;
     update_task_progress(
         &state.pool,
         msg.task_id,
@@ -1554,12 +1556,15 @@ async fn host_enforcement_apply(state: &AppState, msg: &TaskMessage) -> anyhow::
         &format!("rendering Tetragon TracingPolicy for {policy_id}"),
     )
     .await?;
-    let _ = crate::engine::packetwolf_bridge::apply_enforcement_policy(
+    if let Err(e) = crate::engine::packetwolf_bridge::apply_enforcement_policy(
         &state.config,
         policy_id,
         &[host_id.to_string()],
     )
-    .await;
+    .await
+    {
+        tracing::warn!("enforcement policy apply failed for {host_id}: {e}");
+    }
     update_task_progress(
         &state.pool,
         msg.task_id,

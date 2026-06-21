@@ -154,6 +154,16 @@ export const patchSocAlert = (id: string, body: { status?: string; assigned_to?:
 
 export const getSocRules = () => platformFetch<SocRule[]>('/api/v1/soc/rules')
 
+export const createSocRule = (body: {
+  name: string
+  description?: string
+  enabled?: boolean
+  severity?: string
+  query_json: Record<string, unknown>
+  throttle_minutes?: number
+}) =>
+  platformFetch<SocRule>('/api/v1/soc/rules', { method: 'POST', body: JSON.stringify(body) })
+
 export const patchSocRule = (id: string, body: { enabled?: boolean }) =>
   platformFetch<SocRule>(`/api/v1/soc/rules/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 

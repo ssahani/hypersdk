@@ -59,7 +59,7 @@ pub async fn request_approval(
     .await?;
 
     let _ = sqlx::query(
-        "INSERT INTO events (id, kind, severity, message, resource_type, resource_id) VALUES (?, 'approval', 'warning', ?, 'zeus_firewall', ?)",
+        "INSERT INTO events (id, kind, message, resource_type, resource_id, payload) VALUES (?, 'approval', ?, 'zeus_firewall', ?, '{\"severity\":\"warning\"}')",
     )
     .bind(uuid::Uuid::new_v4())
     .bind(format!(

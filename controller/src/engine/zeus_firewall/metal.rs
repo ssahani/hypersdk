@@ -203,10 +203,10 @@ pub async fn apply_metal(
     let _ = sqlx::query(
         "INSERT INTO firewall_timeline (id, target_kind, target_id, kind, summary, detail_json, actor) VALUES (?, 'bare_metal', ?, ?, ?, ?, ?)",
     )
+    .bind(uuid::Uuid::new_v4())
     .bind(id)
     .bind(kind)
     .bind(format!("Applied metal profile {profile} (policy-only)"))
-    .bind(uuid::Uuid::new_v4())
     .bind(serde_json::json!({ "operations": result.operations, "tag": "metal" }))
     .bind(actor)
     .execute(pool)
