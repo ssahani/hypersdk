@@ -33,7 +33,7 @@ CREATE INDEX IF NOT EXISTS idx_soc_playbook_runs_playbook ON soc_playbook_runs(p
 CREATE INDEX IF NOT EXISTS idx_console_sessions_active ON console_sessions(ended_at) WHERE ended_at IS NULL;
 
 -- ai_conversations: filter by owner
-CREATE INDEX IF NOT EXISTS idx_ai_conversations_owner ON ai_conversations(owner_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_conversations_owner ON ai_conversations(user_id, created_at DESC);
 
 -- maintenance_windows: filter by host
 CREATE INDEX IF NOT EXISTS idx_maintenance_windows_host ON maintenance_windows(host_id);
