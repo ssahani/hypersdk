@@ -412,13 +412,14 @@ pub async fn cross_site_sync(
     let mut profiles_to_apply: Vec<String> = Vec::new();
     for (name, yaml, profile) in policies {
         sqlx::query(
-            "INSERT INTO firewall_site_policies (site_id, policy_name, profile, spec_yaml)
-             VALUES (?, ?, ?, ?)
+            "INSERT INTO firewall_site_policies (id, site_id, policy_name, profile, spec_yaml)
+             VALUES (?, ?, ?, ?, ?)
              ON CONFLICT (site_id, policy_name) DO UPDATE SET
                spec_yaml = EXCLUDED.spec_yaml,
                profile = EXCLUDED.profile,
                updated_at = datetime('now')",
         )
+        .bind(Uuid::new_v4())
         .bind(target_id)
         .bind(&name)
         .bind(&profile)
@@ -493,8 +494,9 @@ pub async fn cross_site_sync(
         "apply_errors": apply_errors.len(),
     });
     sqlx::query(
-        "INSERT INTO firewall_site_timeline (site_id, kind, detail_json, actor) VALUES (?, 'sync', ?, ?)",
+        "INSERT INTO firewall_site_timeline (id, site_id, kind, detail_json, actor) VALUES (?, ?, 'sync', ?, ?)",
     )
+    .bind(Uuid::new_v4())
     .bind(target_id)
     .bind(detail)
     .bind(actor)

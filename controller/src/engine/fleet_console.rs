@@ -67,7 +67,7 @@ pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetConsoleOverview>
             SELECT source, id, severity, actor, action, message, resource_type, created_at FROM (
                 SELECT
                     'audit' AS source,
-                    id AS id,
+                    lower(hex(id)) AS id,
                     CASE
                         WHEN action LIKE '%fail%' OR action LIKE '%delete%' OR action LIKE '%fence%' THEN 'warn'
                         ELSE 'info'
@@ -81,7 +81,7 @@ pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetConsoleOverview>
                 UNION ALL
                 SELECT
                     'event',
-                    id,
+                    lower(hex(id)),
                     CASE
                         WHEN kind LIKE '%fail%' OR kind LIKE '%error%' THEN 'error'
                         WHEN kind LIKE '%warn%' THEN 'warn'
@@ -96,7 +96,7 @@ pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetConsoleOverview>
                 UNION ALL
                 SELECT
                     'task',
-                    id,
+                    lower(hex(id)),
                     CASE WHEN status = 'failed' THEN 'error' ELSE 'info' END,
                     NULL,
                     operation,
