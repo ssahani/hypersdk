@@ -1108,9 +1108,11 @@ async fn list_services_handler(
 
 async fn service_action_handler(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path((name, action)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    log_audit("service_action", &format!("{action} {name}"), "");
+    require_destroy_vm(&actor)?;
+    log_audit_with_actor(&actor, "service_action", &format!("{action} {name}"), "");
     extras::service_action(&name, &action)?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "service": name, "action": action }),
@@ -1121,8 +1123,10 @@ async fn service_action_handler(
 
 async fn get_logs_handler(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
     let lines: u32 = params
         .get("lines")
         .and_then(|v| v.parse().ok())
@@ -1156,7 +1160,9 @@ async fn get_logs_handler(
 
 async fn list_log_boots_handler(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
     let boots = extras::get_journal_boots()?;
     Ok(Json(serde_json::json!(boots)))
 }
@@ -1165,16 +1171,20 @@ async fn list_log_boots_handler(
 
 async fn host_shutdown_handler(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    log_audit("host_shutdown", "host", "");
+    require_destroy_vm(&actor)?;
+    log_audit_with_actor(&actor, "host_shutdown", "host", "");
     extras::host_shutdown()?;
     Ok(Json(serde_json::json!({ "status": "shutting_down" })))
 }
 
 async fn host_reboot_handler(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    log_audit("host_reboot", "host", "");
+    require_destroy_vm(&actor)?;
+    log_audit_with_actor(&actor, "host_reboot", "host", "");
     extras::host_reboot()?;
     Ok(Json(serde_json::json!({ "status": "rebooting" })))
 }
@@ -1227,9 +1237,11 @@ struct SetHostnameRequest {
 
 async fn set_hostname_handler(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Json(req): Json<SetHostnameRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    log_audit("set_hostname", &req.hostname, "");
+    require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
+    log_audit_with_actor(&actor, "set_hostname", &req.hostname, "");
     extras::set_hostname(&req.hostname)?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "hostname": req.hostname }),
@@ -1243,9 +1255,11 @@ struct SetTimezoneRequest {
 
 async fn set_timezone_handler(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Json(req): Json<SetTimezoneRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    log_audit("set_timezone", &req.timezone, "");
+    require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
+    log_audit_with_actor(&actor, "set_timezone", &req.timezone, "");
     extras::set_timezone(&req.timezone)?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "timezone": req.timezone }),
@@ -1258,8 +1272,10 @@ struct CockpitSectionQuery {
 }
 
 async fn get_host_cockpit_handler(
+    Extension(actor): Extension<RequestActor>,
     Query(q): Query<CockpitSectionQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
     let section = q.section.as_deref().unwrap_or("all");
     let storage = if section == "all" || section == "storage" {
         Some(
@@ -1304,8 +1320,10 @@ struct CockpitActionBody {
 }
 
 async fn post_host_cockpit_action_handler(
+    Extension(actor): Extension<RequestActor>,
     Json(body): Json<CockpitActionBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_destroy_vm(&actor)?;
     let result = tokio::task::spawn_blocking(move || match body.action.as_str() {
         "cockpit.firewalld.add_service" => {
             let zone = body
