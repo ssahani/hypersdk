@@ -902,7 +902,21 @@ build_rust() {
 
     cd "$INSTALL_DIR"
     export_libclang_path
-    if ! log_cmd cargo build --workspace --release; then
+
+    # Run cargo in the background and emit a heartbeat line every 15s so the
+    # SSH connection stays alive (silent builds drop the TCP session).
+    cargo build --workspace --release >> "$LOG_FILE" 2>&1 &
+    local _build_pid=$!
+    local _elapsed=0
+    while kill -0 "$_build_pid" 2>/dev/null; do
+        sleep 15
+        _elapsed=$((_elapsed + 15))
+        printf "  ⏳ compiling… %ds\n" "$_elapsed" >&2
+    done
+    wait "$_build_pid"
+    local _build_rc=$?
+
+    if [ "$_build_rc" -ne 0 ]; then
         echo "⚠️  Last 60 lines of $LOG_FILE:" >&2
         tail -60 "$LOG_FILE" >&2 || true
         fail "Rust build failed. Full log: $LOG_FILE"
