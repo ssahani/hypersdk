@@ -228,6 +228,10 @@ async fn vm_power(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     .execute(&state.pool)
     .await?;
 
+    // Derive lifecycle_phase from the new desired/observed states so the VM
+    // doesn't stay stuck in "starting" or "stopping" after the action completes.
+    vm_lifecycle::sync_phase_from_observed(&state.pool, vm_id).await?;
+
     state.emit_event("vm.power", format!("VM {} -> {}", row.0, resp.state));
     update_task_progress(&state.pool, msg.task_id, 100, &resp.state).await?;
     Ok(())
