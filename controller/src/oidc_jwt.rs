@@ -29,6 +29,7 @@ struct IdClaims {
     email: Option<String>,
     preferred_username: Option<String>,
     name: Option<String>,
+    nonce: Option<String>,
 }
 
 pub async fn validate_id_token(
@@ -36,6 +37,7 @@ pub async fn validate_id_token(
     issuer: &str,
     client_id: &str,
     jwks_uri: &str,
+    expected_nonce: Option<&str>,
 ) -> anyhow::Result<String> {
     let header = decode_header(id_token)?;
     let alg = header.alg;
@@ -60,6 +62,15 @@ pub async fn validate_id_token(
     validation.validate_exp = true;
 
     let data = decode::<IdClaims>(id_token, &decoding_key, &validation)?;
+
+    if let Some(expected) = expected_nonce {
+        match data.claims.nonce.as_deref() {
+            Some(got) if got == expected => {}
+            Some(got) => anyhow::bail!("id_token nonce mismatch: expected {expected:?}, got {got:?}"),
+            None => anyhow::bail!("id_token missing nonce claim (replay protection requires nonce)"),
+        }
+    }
+
     let username = data
         .claims
         .email

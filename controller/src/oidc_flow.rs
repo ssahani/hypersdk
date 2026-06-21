@@ -56,16 +56,19 @@ pub async fn load_config(pool: &SqlitePool, fallback_redirect: &str) -> anyhow::
 pub async fn begin_login(pool: &SqlitePool, cfg: &OidcConfig) -> anyhow::Result<(String, String)> {
     let discovery = fetch_discovery(&cfg.issuer).await?;
     let state = Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO oidc_states (state) VALUES (?)")
+    let nonce = Uuid::new_v4().to_string();
+    sqlx::query("INSERT INTO oidc_states (state, nonce) VALUES (?, ?)")
         .bind(&state)
+        .bind(&nonce)
         .execute(pool)
         .await?;
     let url = format!(
-        "{}?client_id={}&redirect_uri={}&response_type=code&scope=openid%20profile%20email&state={}",
+        "{}?client_id={}&redirect_uri={}&response_type=code&scope=openid%20profile%20email&state={}&nonce={}",
         discovery.authorization_endpoint,
         urlencoding::encode(&cfg.client_id),
         urlencoding::encode(&cfg.redirect_uri),
         urlencoding::encode(&state),
+        urlencoding::encode(&nonce),
     );
     Ok((state, url))
 }
@@ -77,15 +80,16 @@ pub async fn complete_login(
     code: &str,
     state: &str,
 ) -> anyhow::Result<(String, String, String)> {
-    let valid: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM oidc_states WHERE state = ? AND created_at > datetime('now', '-10 minutes'))",
+    // Fetch nonce alongside state validation; None means state not found or expired.
+    let stored_nonce: Option<Option<String>> = sqlx::query_scalar(
+        "SELECT nonce FROM oidc_states WHERE state = ? AND created_at > datetime('now', '-10 minutes')",
     )
     .bind(state)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await?;
-    if !valid {
+    let Some(nonce) = stored_nonce else {
         anyhow::bail!("invalid or expired OIDC state");
-    }
+    };
     sqlx::query("DELETE FROM oidc_states WHERE state = ?")
         .bind(state)
         .execute(pool)
@@ -128,6 +132,7 @@ pub async fn complete_login(
                 &cfg.issuer,
                 &cfg.client_id,
                 jwks_uri,
+                nonce.as_deref(),
             )
             .await
             {
