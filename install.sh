@@ -903,23 +903,36 @@ build_rust() {
     cd "$INSTALL_DIR"
     export_libclang_path
 
-    # Run cargo in the background and emit a heartbeat line every 15s so the
-    # SSH connection stays alive (silent builds drop the TCP session).
-    cargo build --workspace --release >> "$LOG_FILE" 2>&1 &
-    local _build_pid=$!
+    # Capture cargo exit code via a temp file (pipes lose it).
+    local _rc_file
+    _rc_file=$(mktemp /tmp/machina-cargo-rc-XXXXXX)
+
+    # Run cargo in a subshell; stream ALL output to the log AND filter
+    # error/warning/progress lines to stderr so they appear over SSH.
+    # A heartbeat every 20s keeps the TCP session alive during quiet intervals.
+    (
+        cargo build --workspace --release 2>&1
+        printf '%s' "$?" > "$_rc_file"
+    ) | tee -a "$LOG_FILE" \
+      | grep --line-buffered -E "^(error|warning\[|Compiling |Finished |   = |note:)" \
+      | sed 's/^/  /' >&2 &
+    local _pipe_pid=$!
     local _elapsed=0
-    while kill -0 "$_build_pid" 2>/dev/null; do
-        sleep 15
-        _elapsed=$((_elapsed + 15))
+    while kill -0 "$_pipe_pid" 2>/dev/null; do
+        sleep 20
+        _elapsed=$((_elapsed + 20))
         printf "  ⏳ compiling… %ds\n" "$_elapsed" >&2
     done
-    wait "$_build_pid"
-    local _build_rc=$?
+    wait "$_pipe_pid" || true
 
-    if [ "$_build_rc" -ne 0 ]; then
-        echo "⚠️  Last 60 lines of $LOG_FILE:" >&2
-        tail -60 "$LOG_FILE" >&2 || true
-        fail "Rust build failed. Full log: $LOG_FILE"
+    local _build_rc=1
+    [[ -f "$_rc_file" ]] && _build_rc=$(cat "$_rc_file" | tr -d '[:space:]') || true
+    rm -f "$_rc_file"
+
+    if [ "$_build_rc" != "0" ]; then
+        echo "⚠️  Last 80 lines of build log ($LOG_FILE):" >&2
+        tail -80 "$LOG_FILE" >&2 || true
+        fail "Rust build failed (exit $\_build_rc). Full log: $LOG_FILE"
     fi
 
     ok "Built: target/release/machina-daemon ($(du -h target/release/machina-daemon | cut -f1))"
