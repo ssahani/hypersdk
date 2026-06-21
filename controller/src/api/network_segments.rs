@@ -56,7 +56,9 @@ pub async fn ipam_allocate(
 
 pub async fn ipam_pools(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<network_overlay::IpamPoolRow>>, ApiError> {
+    require_operator(&actor)?;
     network_overlay::list_ipam_pools(&state.pool)
         .await
         .map(Json)
@@ -65,7 +67,9 @@ pub async fn ipam_pools(
 
 pub async fn gitops_export(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<network_overlay::SegmentGitOpsExport>, ApiError> {
+    require_operator(&actor)?;
     network_overlay::export_gitops(&state.pool)
         .await
         .map(Json)
