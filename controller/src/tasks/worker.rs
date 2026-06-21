@@ -136,8 +136,9 @@ async fn vm_apply(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
 
     let desired_state: String = sqlx::query_scalar("SELECT desired_state FROM vms WHERE id = ?")
         .bind(vm_id)
-        .fetch_one(&state.pool)
-        .await?;
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("vm {} not found after apply", vm_id))?;
 
     let needs_start = desired_state == "running";
     if needs_start {
@@ -361,8 +362,9 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
 
     let cluster_id: Uuid = sqlx::query_scalar("SELECT cluster_id FROM hosts WHERE id = ?")
         .bind(host_id)
-        .fetch_one(&state.pool)
-        .await?;
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("host {} not found or has no cluster", host_id))?;
 
     let mut seen_names: HashSet<String> = HashSet::new();
 
@@ -1219,13 +1221,12 @@ async fn vm_backup_restore(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
         .await?;
     let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
 
+    let agent_addr = host_agent_addr(&state.pool, host_id).await?;
+    let mut client = agent_client::connect(&agent_addr).await?;
     sqlx::query("UPDATE backup_records SET restore_status = 'running' WHERE id = ?")
         .bind(record_id)
         .execute(&state.pool)
         .await?;
-
-    let agent_addr = host_agent_addr(&state.pool, host_id).await?;
-    let mut client = agent_client::connect(&agent_addr).await?;
     let resp = agent_client::restore_vm_backup(&mut client, &row.0, &backup_path).await?;
     if resp.ok {
         sqlx::query("UPDATE backup_records SET restore_status = 'completed' WHERE id = ?")
