@@ -14,7 +14,17 @@ use crate::state::AppState;
 pub async fn guestkit_status(
     State(state): State<AppState>,
 ) -> Json<guestkit_bridge::GuestkitStatus> {
-    Json(guestkit_bridge::status(&state.config))
+    let cfg = state.config.clone();
+    let status = tokio::task::spawn_blocking(move || guestkit_bridge::status(&cfg))
+        .await
+        .unwrap_or_else(|_| guestkit_bridge::GuestkitStatus {
+            enabled: false,
+            library_version: String::new(),
+            worker_url: String::new(),
+            worker_reachable: false,
+            summary: "status check failed".into(),
+        });
+    Json(status)
 }
 
 #[derive(Debug, Deserialize)]
