@@ -142,7 +142,17 @@ pub async fn create_vm_snapshot(
         Some(vm_id),
         host_id,
     )
-    .await?;
+    .await
+    .map_err(|e| {
+        let pool = state.pool.clone();
+        tokio::spawn(async move {
+            let _ = sqlx::query("DELETE FROM snapshot_records WHERE id = ?")
+                .bind(id)
+                .execute(&pool)
+                .await;
+        });
+        e
+    })?;
 
     Ok(Json(TaskResponse {
         task_id: task_id.to_string(),

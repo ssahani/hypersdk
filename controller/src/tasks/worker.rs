@@ -948,8 +948,9 @@ async fn vm_backup(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     let backup_type: String =
         sqlx::query_scalar("SELECT backup_type FROM backup_records WHERE id = ?")
             .bind(record_id)
-            .fetch_one(&state.pool)
-            .await?;
+            .fetch_optional(&state.pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("backup record {} not found", record_id))?;
     let dest = state
         .config
         .backup_dir
@@ -1209,8 +1210,9 @@ async fn vm_backup_restore(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
     let backup_path: String =
         sqlx::query_scalar("SELECT backup_path FROM backup_records WHERE id = ?")
             .bind(record_id)
-            .fetch_one(&state.pool)
-            .await?;
+            .fetch_optional(&state.pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("backup record {} not found", record_id))?;
     let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(vm_id)
         .fetch_one(&state.pool)

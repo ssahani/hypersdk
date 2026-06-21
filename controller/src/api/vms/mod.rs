@@ -119,7 +119,7 @@ pub async fn list_vms(
              OR (?6 = 'ha_enabled' AND hp.enabled = TRUE)
              OR ?6 = 'all'
            )
-         ORDER BY v.name",
+         ORDER BY v.name LIMIT 2000",
     )
     .bind(q.project.as_deref())
     .bind(q.host_id)
@@ -190,8 +190,9 @@ pub async fn create_vm(
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
 
     let cluster_id: Uuid = sqlx::query_scalar("SELECT id FROM clusters LIMIT 1")
-        .fetch_one(&state.pool)
-        .await?;
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| ApiError::bad_request("no cluster configured — add a host first"))?;
 
     let vcpus = body.vm.total_vcpus() as i32;
     let memory_mib = body.vm.memory_mib().map_err(|e| ApiError::bad_request(e.to_string()))? as i64;
@@ -1193,7 +1194,7 @@ pub async fn list_vm_disks(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<VmDiskRow>>, ApiError> {
     let rows = sqlx::query_as::<_, VmDiskRow>(
-        "SELECT id, name, size_gib, storage_class, path FROM vm_disks WHERE vm_id = ?",
+        "SELECT id, name, size_gib, storage_class, path FROM vm_disks WHERE vm_id = ? LIMIT 200",
     )
     .bind(id)
     .fetch_all(&state.pool)
@@ -2284,7 +2285,7 @@ pub async fn retire_vm(
         .bind(id)
         .execute(&state.pool)
         .await?;
-        let _ = enqueue_task(
+        enqueue_task(
             &state,
             "vm.backup",
             serde_json::json!({
@@ -2295,7 +2296,17 @@ pub async fn retire_vm(
             Some(id),
             row.1,
         )
-        .await?;
+        .await
+        .map_err(|e| {
+            let pool = state.pool.clone();
+            tokio::spawn(async move {
+                let _ = sqlx::query("DELETE FROM backup_records WHERE id = ?")
+                    .bind(backup_id)
+                    .execute(&pool)
+                    .await;
+            });
+            e
+        })?;
     }
     state.emit_event("vm.retire", format!("VM {} marked retired", row.0));
     Ok(Json(TaskResponse {
@@ -2336,7 +2347,17 @@ pub async fn export_vm_disk(
         Some(id),
         host_id,
     )
-    .await?;
+    .await
+    .map_err(|e| {
+        let pool = state.pool.clone();
+        tokio::spawn(async move {
+            let _ = sqlx::query("DELETE FROM backup_records WHERE id = ?")
+                .bind(backup_id)
+                .execute(&pool)
+                .await;
+        });
+        e
+    })?;
     Ok(Json(TaskResponse {
         task_id: task_id.to_string(),
         status: "pending".into(),
