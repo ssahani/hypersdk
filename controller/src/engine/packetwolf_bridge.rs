@@ -373,7 +373,7 @@ fn fetch_activity_blocking(
         .get("dropped")
         .or_else(|| stats.get("dropped_count"))
         .and_then(|v| v.as_u64())
-        .unwrap_or(events.len() as u64);
+        .unwrap_or(0);
     let allowed_today = stats
         .get("forwarded")
         .or_else(|| stats.get("allowed"))

@@ -60,6 +60,9 @@ pub async fn create_api_key(
     Json(body): Json<CreateApiKeyBody>,
 ) -> Result<Json<CreateApiKeyResponse>, ApiError> {
     require_admin(&actor)?;
+    if body.name.len() > 128 || body.name.is_empty() {
+        return Err(ApiError::bad_request("api key name must be 1–128 characters"));
+    }
     let id = Uuid::new_v4();
     let token = format!("machina_{}", Uuid::new_v4());
     let hash = hash_token(&token);

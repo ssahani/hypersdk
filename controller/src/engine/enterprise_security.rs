@@ -119,7 +119,8 @@ pub async fn overview(pool: &SqlitePool) -> anyhow::Result<EnterpriseSecurityOve
 
 pub async fn list_vault_providers(pool: &SqlitePool) -> anyhow::Result<Vec<VaultProviderRow>> {
     sqlx::query_as(
-        "SELECT id, name, provider_type, address, namespace, status, last_sync_at
+        "SELECT id, name, provider_type, address, namespace, status,
+                strftime('%Y-%m-%dT%H:%M:%SZ', last_sync_at) AS last_sync_at
          FROM vault_providers ORDER BY name",
     )
     .fetch_all(pool)
@@ -167,7 +168,8 @@ pub async fn register_vault_provider(
     .await?;
 
     sqlx::query_as(
-        "SELECT id, name, provider_type, address, namespace, status, last_sync_at
+        "SELECT id, name, provider_type, address, namespace, status,
+                strftime('%Y-%m-%dT%H:%M:%SZ', last_sync_at) AS last_sync_at
          FROM vault_providers WHERE name = ?",
     )
     .bind(name)
@@ -229,7 +231,8 @@ pub async fn upsert_mfa_policy(
 
 pub async fn list_air_gap_bundles(pool: &SqlitePool) -> anyhow::Result<Vec<AirGapBundleRow>> {
     sqlx::query_as(
-        "SELECT id, name, checksum, manifest_json, size_bytes, exported_at
+        "SELECT id, name, checksum, manifest_json, size_bytes,
+                strftime('%Y-%m-%dT%H:%M:%SZ', exported_at) AS exported_at
          FROM air_gap_bundles ORDER BY exported_at DESC",
     )
     .fetch_all(pool)
@@ -296,7 +299,8 @@ pub async fn create_air_gap_bundle(
     .await?;
 
     sqlx::query_as(
-        "SELECT id, name, checksum, manifest_json, size_bytes, exported_at
+        "SELECT id, name, checksum, manifest_json, size_bytes,
+                strftime('%Y-%m-%dT%H:%M:%SZ', exported_at) AS exported_at
          FROM air_gap_bundles WHERE id = ?",
     )
     .bind(id)
@@ -307,7 +311,8 @@ pub async fn create_air_gap_bundle(
 
 pub async fn get_air_gap_bundle(pool: &SqlitePool, id: Uuid) -> anyhow::Result<AirGapBundleRow> {
     sqlx::query_as(
-        "SELECT id, name, checksum, manifest_json, size_bytes, exported_at
+        "SELECT id, name, checksum, manifest_json, size_bytes,
+                strftime('%Y-%m-%dT%H:%M:%SZ', exported_at) AS exported_at
          FROM air_gap_bundles WHERE id = ?",
     )
     .bind(id)
@@ -403,7 +408,8 @@ pub struct UpsertTenantPolicyRequest {
 
 pub async fn sync_vault_provider(pool: &SqlitePool, id: Uuid) -> anyhow::Result<VaultSyncResult> {
     let row: VaultProviderRow = sqlx::query_as(
-        "SELECT id, name, provider_type, address, namespace, status, last_sync_at
+        "SELECT id, name, provider_type, address, namespace, status,
+                strftime('%Y-%m-%dT%H:%M:%SZ', last_sync_at) AS last_sync_at
          FROM vault_providers WHERE id = ?",
     )
     .bind(id)

@@ -919,30 +919,29 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
         || ql.contains("evacuate")
         || (ql.contains("migrate") && ql.contains("host"))
     {
-        let host_hint = extract_after(&ql, "host ")
-            .or_else(|| extract_after(&ql, "down "))
-            .unwrap_or("host-01");
-        let action = if ql.contains("evacuate") || ql.contains("migrate") {
-            "migrate"
-        } else {
-            "shutdown"
-        };
-        let label = format!("Impact: {action} host {host_hint}");
-        let review =
-            format!("Simulate blast radius if host {host_hint} is evacuated or shut down.");
-        intents.push(intent(
-            "twin-impact",
-            &label,
-            &review,
-            "twin_impact",
-            None,
-            Some("/platform/topology".into()),
-            Some(serde_json::json!({
-                "action": action,
-                "target_kind": "host",
-                "target_id": host_hint,
-            })),
-        ));
+        if let Some(host_hint) = extract_after(&ql, "host ").or_else(|| extract_after(&ql, "down ")) {
+            let action = if ql.contains("evacuate") || ql.contains("migrate") {
+                "migrate"
+            } else {
+                "shutdown"
+            };
+            let label = format!("Impact: {action} host {host_hint}");
+            let review =
+                format!("Simulate blast radius if host {host_hint} is evacuated or shut down.");
+            intents.push(intent(
+                "twin-impact",
+                &label,
+                &review,
+                "twin_impact",
+                None,
+                Some("/platform/topology".into()),
+                Some(serde_json::json!({
+                    "action": action,
+                    "target_kind": "host",
+                    "target_id": host_hint,
+                })),
+            ));
+        }
     }
 
     if ql.contains("isolate") && ql.contains("network") {

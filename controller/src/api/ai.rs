@@ -115,6 +115,9 @@ pub async fn copilot_chat(
     Json(body): Json<CopilotBody>,
 ) -> Result<Json<ai::CopilotResponse>, ApiError> {
     require_operator(&actor)?;
+    if body.message.len() > 32_768 {
+        return Err(ApiError::bad_request("message too long (max 32 768 chars)"));
+    }
     ai::copilot_chat(
         &state.pool,
         &state.config,
@@ -133,14 +136,20 @@ pub async fn copilot_stream(
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<CopilotBody>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let (tx, rx) = tokio::sync::mpsc::channel::<Result<Event, Infallible>>(64);
     if require_operator(&actor).is_err() {
-        let (tx, rx) = tokio::sync::mpsc::channel::<Result<Event, Infallible>>(1);
-        let _ = tx.try_send(Ok(Event::default().data(
+        let (tx1, rx1) = tokio::sync::mpsc::channel::<Result<Event, Infallible>>(1);
+        let _ = tx1.try_send(Ok(Event::default().data(
             serde_json::json!({"type":"error","message":"Forbidden"}).to_string()
+        )));
+        return Sse::new(ReceiverStream::new(rx1)).keep_alive(KeepAlive::new().interval(Duration::from_secs(15)));
+    }
+    if body.message.len() > 32_768 {
+        let _ = tx.try_send(Ok(Event::default().data(
+            serde_json::json!({"type":"error","message":"message too long"}).to_string()
         )));
         return Sse::new(ReceiverStream::new(rx)).keep_alive(KeepAlive::new().interval(Duration::from_secs(15)));
     }
-    let (tx, rx) = tokio::sync::mpsc::channel::<Result<Event, Infallible>>(64);
     let pool = state.pool.clone();
     let config = state.config.clone();
     let message = body.message;

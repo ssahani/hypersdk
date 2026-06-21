@@ -16,7 +16,7 @@ DISABLE_FIREWALL=false
 PUBLIC_URL=""
 # shellcheck source=lib/disable-firewalld.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/disable-firewalld.sh"
-SKIP_AUTH="${MACHINA_SKIP_AUTH:-1}"
+SKIP_AUTH="${MACHINA_SKIP_AUTH:-0}"
 MERGE_PACKETWOLF_ONLY=false
 
 info()  { echo "ℹ️  $*"; }

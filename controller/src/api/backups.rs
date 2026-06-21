@@ -42,7 +42,7 @@ pub async fn list_vm_backups(
     let rows = sqlx::query_as::<_, BackupRow>(
         "SELECT id, vm_id, backup_type, status, message, COALESCE(backup_path, '') AS backup_path,
                 strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
-         FROM backup_records WHERE vm_id = ? ORDER BY created_at DESC",
+         FROM backup_records WHERE vm_id = ? ORDER BY created_at DESC LIMIT 200",
     )
     .bind(vm_id)
     .fetch_all(&state.pool)

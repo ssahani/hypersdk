@@ -42,7 +42,9 @@ pub async fn list_applications(
 ) -> Result<Json<Vec<ApplicationGroupRow>>, ApiError> {
     require_operator(&actor)?;
     let rows = sqlx::query_as::<_, ApplicationGroupRow>(
-        "SELECT id, name, description, created_at FROM application_groups ORDER BY name",
+        "SELECT id, name, description,
+                strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
+         FROM application_groups ORDER BY name",
     )
     .fetch_all(&state.pool)
     .await?;
@@ -56,7 +58,9 @@ pub async fn get_application(
 ) -> Result<Json<ApplicationGroupDetail>, ApiError> {
     require_operator(&actor)?;
     let group = sqlx::query_as::<_, ApplicationGroupRow>(
-        "SELECT id, name, description, created_at FROM application_groups WHERE id = ?",
+        "SELECT id, name, description,
+                strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
+         FROM application_groups WHERE id = ?",
     )
     .bind(id)
     .fetch_optional(&state.pool)

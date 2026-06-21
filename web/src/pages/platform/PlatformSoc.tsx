@@ -97,10 +97,10 @@ export default function PlatformSoc() {
     setError(null)
     try {
       const [ov, al, ev, ru, asmRes, threat, splunk, ints, pbs, pbr, socSet] = await Promise.all([
-        getSocOverview(),
-        getSocAlerts({ limit: 50 }),
-        getSocEvents(30),
-        getSocRules(),
+        getSocOverview().catch(() => null),
+        getSocAlerts({ limit: 50 }).catch(() => []),
+        getSocEvents(30).catch(() => []),
+        getSocRules().catch(() => []),
         getAsmSummary().catch(() => null),
         getFleetThreatSummary().catch(() => null),
         getSplunkIntegration().catch(() => null),
@@ -111,7 +111,7 @@ export default function PlatformSoc() {
       ])
       setOverview(ov)
       setAlerts(al)
-      setEvents(ev ?? [])
+      setEvents(ev)
       setRules(ru)
       setAsm(asmRes)
       setThreatScore(threat?.fleet_threat_score ?? null)

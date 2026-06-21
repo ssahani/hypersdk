@@ -34,8 +34,10 @@ fn default_limit() -> i64 {
 
 pub async fn list_notifications(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Query(q): Query<NotificationQuery>,
 ) -> Result<Json<Vec<NotificationRow>>, ApiError> {
+    require_operator(&actor)?;
     let limit = q.limit.clamp(1, 500);
     let rows = if q.undelivered {
         sqlx::query_as::<_, NotificationRow>(

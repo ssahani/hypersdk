@@ -133,13 +133,14 @@ pub async fn complete_login(
             {
                 Ok(u) => u,
                 Err(e) => {
-                    tracing::warn!("id_token JWKS validation failed: {e:#}; falling back to parse");
-                    crate::oidc_jwt::parse_id_token_unverified(id_token)
-                        .unwrap_or_else(|| id_token.clone())
+                    tracing::warn!("id_token JWKS validation failed: {e:#}");
+                    return Err(anyhow::anyhow!("id_token signature verification failed"));
                 }
             }
         } else {
-            crate::oidc_jwt::parse_id_token_unverified(id_token).unwrap_or_else(|| id_token.clone())
+            return Err(anyhow::anyhow!(
+                "OIDC provider has no jwks_uri — cannot verify id_token signature"
+            ));
         }
     } else {
         format!(
@@ -174,6 +175,33 @@ pub async fn complete_login(
 }
 
 async fn fetch_discovery(issuer: &str) -> anyhow::Result<OidcDiscovery> {
+    if !issuer.starts_with("https://") {
+        return Err(anyhow::anyhow!(
+            "OIDC issuer must use HTTPS — got: {issuer}"
+        ));
+    }
     let url = format!("{issuer}/.well-known/openid-configuration");
-    Ok(reqwest::get(url).await?.error_for_status()?.json().await?)
+    let discovery: OidcDiscovery = reqwest::get(&url).await?.error_for_status()?.json().await?;
+    // Validate that token_endpoint and userinfo_endpoint share the issuer's origin
+    // to prevent SSRF via attacker-controlled discovery document fields.
+    let issuer_origin = issuer
+        .trim_end_matches('/')
+        .split('/')
+        .take(3)
+        .collect::<Vec<_>>()
+        .join("/");
+    if !discovery.token_endpoint.starts_with(&issuer_origin) {
+        return Err(anyhow::anyhow!(
+            "OIDC token_endpoint '{}' does not match issuer origin '{issuer_origin}'",
+            discovery.token_endpoint
+        ));
+    }
+    if let Some(ref ui) = discovery.userinfo_endpoint {
+        if !ui.starts_with(&issuer_origin) {
+            return Err(anyhow::anyhow!(
+                "OIDC userinfo_endpoint '{ui}' does not match issuer origin '{issuer_origin}'"
+            ));
+        }
+    }
+    Ok(discovery)
 }

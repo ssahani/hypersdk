@@ -21,8 +21,7 @@ pub fn require_admin(user: &AuthUser) -> Result<(), crate::api::ApiError> {
     if user.role == "admin" {
         Ok(())
     } else {
-        Err(crate::api::ApiError::bad_request("admin role required")
-            .with_code("forbidden")
+        Err(crate::api::ApiError::forbidden("admin role required")
             .with_remediation("Sign in with an administrator account to manage users."))
     }
 }
@@ -31,7 +30,7 @@ pub fn require_operator(user: &AuthUser) -> Result<(), crate::api::ApiError> {
     if user.role == "admin" || user.role == "operator" {
         Ok(())
     } else {
-        Err(crate::api::ApiError::bad_request("operator role required"))
+        Err(crate::api::ApiError::forbidden("operator role required"))
     }
 }
 

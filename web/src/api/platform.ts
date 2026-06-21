@@ -272,14 +272,14 @@ export interface PlatformHost {
   maintenance_mode: boolean
   agent_grpc_addr: string
   vm_count: number
-  cpu_percent?: number
-  memory_used_mib?: number
-  memory_total_mib?: number
-  fenced?: boolean
-  validation_status?: string
+  cpu_percent: number
+  memory_used_mib: number
+  memory_total_mib: number
+  fenced: boolean
+  validation_status: string
   last_heartbeat_at?: string | null
-  site?: string
-  rack?: string
+  site: string
+  rack: string
   rack_u?: number | null
 }
 
@@ -291,7 +291,6 @@ export interface PlatformHostDetail extends PlatformHost {
   libvirt_version: string
   qemu_version: string
   notes: string
-  validation_status?: string
   validation_report?: Array<{ name: string; passed: boolean; message: string; remediation?: string }>
 }
 
@@ -301,16 +300,16 @@ export interface PlatformVm {
   host_id?: string | null
   desired_state: string
   observed_state: string
-  lifecycle_phase?: string
-  last_error?: string
-  managed?: boolean
+  lifecycle_phase: string
+  last_error: string
+  managed: boolean
   uuid?: string | null
   vcpus: number
   memory_mib: number
-  ha_enabled?: boolean
+  ha_enabled: boolean
   project?: string | null
-  tags?: string[]
-  inventory_source?: string
+  tags: string[]
+  inventory_source: string
   k8s_namespace?: string | null
   last_seen_at?: string | null
   guest_ip?: string | null

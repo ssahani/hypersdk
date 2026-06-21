@@ -525,7 +525,7 @@ async fn firewall_path_blocker(
     let profile = detail.target.profile.as_deref().unwrap_or("Balanced");
     let rules = profile_rules(profile);
     let matrix = simulate_connectivity(&detail.inventory, &rules);
-    let probe_port = if port > 0 { port as u16 } else { 5432 };
+    let probe_port = if port > 0 && port <= 65535 { port as u16 } else { 5432 };
     if let Some(block) = matrix.blocks.iter().find(|c| c.port == probe_port) {
         return Some(PathBlocker {
             kind: "firewall_deny".into(),

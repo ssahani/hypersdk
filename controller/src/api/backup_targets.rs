@@ -50,6 +50,12 @@ pub async fn create_backup_target(
 ) -> Result<Json<BackupTargetRow>, ApiError> {
     require_operator(&actor)?;
     machina_spec::validate_name(&body.name).map_err(|e| ApiError::bad_request(e.to_string()))?;
+    if !["local", "s3", "nfs"].contains(&body.kind.as_str()) {
+        return Err(ApiError::bad_request(format!(
+            "invalid backup kind '{}' — must be one of: local, s3, nfs",
+            body.kind
+        )));
+    }
     let id = Uuid::new_v4();
     sqlx::query("INSERT INTO backup_targets (id, name, kind, config_json) VALUES (?, ?, ?, ?)")
         .bind(id)

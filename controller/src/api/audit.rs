@@ -1,11 +1,13 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use axum::extract::{Query, State};
+use axum::Extension;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::api::ApiError;
+use crate::auth::{require_admin, AuthUser};
 use crate::state::AppState;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -34,8 +36,10 @@ fn default_limit() -> i64 {
 
 pub async fn list_audit_logs(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Query(q): Query<AuditQuery>,
 ) -> Result<Json<Vec<AuditRow>>, ApiError> {
+    require_admin(&actor)?;
     let limit = q.limit.clamp(1, 500);
     let rows = match (&q.action, &q.actor) {
         (Some(action), Some(actor)) if !action.is_empty() && !actor.is_empty() => {

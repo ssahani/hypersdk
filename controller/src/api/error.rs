@@ -97,6 +97,16 @@ impl ApiError {
         }
     }
 
+    pub fn forbidden(msg: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::FORBIDDEN,
+            message: msg.into(),
+            error_code: Some("forbidden".into()),
+            remediation: None,
+            object_ref: None,
+        }
+    }
+
     pub fn policy_violation(msg: impl Into<String>, remediation: impl Into<String>) -> Self {
         Self {
             status: StatusCode::FORBIDDEN,

@@ -875,20 +875,24 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/cpu-compat",
             get(cpu_compat::get_cpu_compat_matrix).patch(cpu_compat::patch_cpu_compat_matrix),
         )
+        .route("/api/v1/cloud-init/validate", post(cloud_init::validate_cloud_init))
         .route_layer(middleware::from_fn_with_state(state.clone(), observability_middleware::trace_middleware))
         .route_layer(middleware::from_fn_with_state(rate_limiter.clone(), rate_limit_middleware))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
+    let rate_limited_public = Router::new()
+        .route("/api/v1/hosts/join", post(hosts::join_host))
+        .route_layer(middleware::from_fn_with_state(rate_limiter, rate_limit_middleware));
+
     Router::new()
-        .route("/api/v1/cloud-init/validate", post(cloud_init::validate_cloud_init))
         .route("/api/v1/health", get(health::health))
         .route("/api/v1/health/ready", get(health::ready))
         .route("/api/v1/openapi.json", get(health::openapi))
         .route("/api/v1/auth/oidc/login", get(oidc::oidc_login))
         .route("/api/v1/auth/oidc/redirect", get(oidc::oidc_login_redirect))
         .route("/api/v1/auth/oidc/callback", get(oidc::oidc_callback))
-        .route("/api/v1/hosts/join", post(hosts::join_host))
         .route("/install.sh", get(enrollment::install_script))
+        .merge(rate_limited_public)
         .merge(consolehub::proxy_routes())
         .merge(console::ws_routes())
         .merge(protected)

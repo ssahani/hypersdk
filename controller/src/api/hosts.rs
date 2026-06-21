@@ -94,8 +94,12 @@ pub struct CreateHostRequest {
     pub libvirt_uri: Option<String>,
 }
 
-pub async fn list_hosts(State(state): State<AppState>) -> Result<Json<Vec<HostRow>>, ApiError> {
-    let rows = sqlx::query_as::<_, HostRow>(&format!("{HOST_LIST_SQL} ORDER BY hostname"))
+pub async fn list_hosts(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<Vec<HostRow>>, ApiError> {
+    require_operator(&actor)?;
+    let rows = sqlx::query_as::<_, HostRow>(&format!("{HOST_LIST_SQL} ORDER BY hostname LIMIT 500"))
         .fetch_all(&state.pool)
         .await?;
     Ok(Json(rows.into_iter().map(apply_stale_host_state).collect()))
@@ -116,8 +120,10 @@ fn apply_stale_host_state(mut row: HostRow) -> HostRow {
 
 pub async fn get_host(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<HostRow>, ApiError> {
+    require_operator(&actor)?;
     let row = sqlx::query_as::<_, HostRow>(&format!("{HOST_LIST_SQL} WHERE id = ?"))
         .bind(id)
         .fetch_one(&state.pool)
@@ -160,8 +166,10 @@ pub async fn get_host_gpus(
 
 pub async fn get_host_detail(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<HostDetailRow>, ApiError> {
+    require_operator(&actor)?;
     let row = sqlx::query_as::<_, HostDetailRow>(&format!("{HOST_DETAIL_SQL} WHERE id = ?"))
         .bind(id)
         .fetch_one(&state.pool)
@@ -608,8 +616,10 @@ pub async fn delete_host(
 
 pub async fn host_lldp(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<machina_core::libvirt::host_network::LldpInventory>, ApiError> {
+    require_admin(&actor)?;
     let row: (String, String) = sqlx::query_as(
         "SELECT hostname, COALESCE(NULLIF(agent_console_addr, ''), agent_grpc_addr)
          FROM hosts WHERE id = ?",
