@@ -1556,15 +1556,12 @@ async fn host_enforcement_apply(state: &AppState, msg: &TaskMessage) -> anyhow::
         &format!("rendering Tetragon TracingPolicy for {policy_id}"),
     )
     .await?;
-    if let Err(e) = crate::engine::packetwolf_bridge::apply_enforcement_policy(
+    let _result = crate::engine::packetwolf_bridge::apply_enforcement_policy(
         &state.config,
         policy_id,
         &[host_id.to_string()],
     )
-    .await
-    {
-        tracing::warn!("enforcement policy apply failed for {host_id}: {e}");
-    }
+    .await;
     update_task_progress(
         &state.pool,
         msg.task_id,
