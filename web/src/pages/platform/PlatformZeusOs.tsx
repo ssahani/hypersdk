@@ -320,9 +320,9 @@ export default function PlatformZeusOs() {
                 <Link to="/platform/activity" className={hubLinkClasses()}>Activity Monitor →</Link>
                 <Link to="/platform/maintenance?tab=mission" className={hubLinkClasses()}>Maintenance mission →</Link>
               </div>
-              {linuxHealth.hosts.length > 0 && (
+              {(linuxHealth.hosts ?? []).length > 0 && (
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 text-xs mt-3">
-                  {linuxHealth.hosts.slice(0, 6).map((h) => (
+                  {(linuxHealth.hosts ?? []).slice(0, 6).map((h) => (
                     <Link key={h.host_id} to={`/platform/hosts/${h.host_id}?tab=linux`} className="rounded-lg border border-white/[0.06] p-2 hover:bg-slate-800/40">
                       <p className="font-medium text-slate-200">{h.hostname}</p>
                       <p className="text-slate-500">IO {h.io_pressure_pct.toFixed(0)}% · {h.status}</p>
@@ -347,7 +347,7 @@ export default function PlatformZeusOs() {
           </MacGlassPanel>
           <MacGlassPanel title="Fleet heat map" subtitle="Hot, cold, and power-waste hosts">
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 text-xs">
-              {heatmap.hosts.map((h) => (
+              {(heatmap.hosts ?? []).map((h) => (
                 <div key={h.host_id} className="rounded-lg border border-white/[0.06] p-2">
                   <p className="font-medium text-slate-200">{h.hostname}</p>
                   <p className="text-slate-500">CPU {h.cpu_percent.toFixed(0)}% · Mem {h.memory_percent.toFixed(0)}% · {h.classification}</p>
@@ -368,7 +368,7 @@ export default function PlatformZeusOs() {
           {rebalance && (
             <MacGlassPanel title="Autonomous rebalancer" subtitle={rebalance.summary}>
               <ul className="text-xs space-y-2 text-slate-400">
-                {rebalance.moves.map((m) => (
+                {(rebalance.moves ?? []).map((m) => (
                   <li key={m.vm_id}>{m.vm_name}: {m.from_host} → {m.to_host}</li>
                 ))}
               </ul>
@@ -383,7 +383,7 @@ export default function PlatformZeusOs() {
                 >
                   Preview execute
                 </button>
-                {rebalance.moves.length > 0 && (
+                {(rebalance.moves ?? []).length > 0 && (
                   <button
                     type="button"
                     className="btn-primary text-xs"

@@ -1772,14 +1772,14 @@ export default function PlatformVmDetail() {
                 {!guestServicesLoading && !guestServicesError && guestServices && (
                   <>
                     <p className="text-xs text-slate-500 mb-3">{guestServices.summary}</p>
-                    {guestServices.services.length === 0 ? (
+                    {(guestServices.services ?? []).length === 0 ? (
                       <PlatformEmptyState
                         icon={Server}
                         title="No guest services"
                         subtitle="The guest agent did not report any service inventory for this VM."
                       />
                     ) : (
-                      guestServices.services.map((s, i) => (
+                      (guestServices.services ?? []).map((s, i) => (
                         <MacListRow key={`${s.name}-${i}`} title={s.name} subtitle={`${s.status} · ${s.detail}`} />
                       ))
                     )}
