@@ -234,7 +234,7 @@ pub async fn create_host(
     )
     .await?;
 
-    let _ = enqueue_task(
+    if let Err(e) = enqueue_task(
         &state,
         "host.validate",
         serde_json::json!({ "host_id": id.to_string() }),
@@ -242,7 +242,10 @@ pub async fn create_host(
         Some(id),
         Some(id),
     )
-    .await;
+    .await
+    {
+        tracing::warn!(host_id = %id, "host.validate enqueue failed after create: {}", e.message);
+    }
 
     fetch_host_row(&state, id).await.map(Json)
 }
@@ -375,7 +378,7 @@ pub async fn join_host(
 
     link_baremetal_firewall_on_join(&state.pool, host_id, &req.hostname).await;
 
-    let _ = enqueue_task(
+    if let Err(e) = enqueue_task(
         &state,
         "host.validate",
         serde_json::json!({ "host_id": host_id.to_string() }),
@@ -383,7 +386,10 @@ pub async fn join_host(
         Some(host_id),
         Some(host_id),
     )
-    .await;
+    .await
+    {
+        tracing::warn!(host_id = %host_id, "host.validate enqueue failed after join: {}", e.message);
+    }
 
     fetch_host_row(&state, host_id).await.map(Json)
 }
