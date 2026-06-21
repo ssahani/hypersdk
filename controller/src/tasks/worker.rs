@@ -790,8 +790,9 @@ async fn ha_recover(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
 async fn host_agent_addr(pool: &SqlitePool, host_id: Uuid) -> anyhow::Result<String> {
     let addr: String = sqlx::query_scalar("SELECT agent_grpc_addr FROM hosts WHERE id = ?")
         .bind(host_id)
-        .fetch_one(pool)
-        .await?;
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("host {} not found", host_id))?;
     Ok(addr)
 }
 
@@ -928,9 +929,10 @@ async fn vm_snapshot_delete(state: &AppState, msg: &TaskMessage) -> anyhow::Resu
 
     let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(vm_id)
-        .fetch_one(&state.pool)
-        .await?;
-    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("vm {} not found", vm_id))?;
+    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm {} has no host", vm_id))?;
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
     agent_client::delete_snapshot(&mut client, &row.0, &snap_name).await?;
@@ -955,9 +957,10 @@ async fn vm_backup(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
 
     let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(vm_id)
-        .fetch_one(&state.pool)
-        .await?;
-    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("vm {} not found", vm_id))?;
+    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm {} has no host", vm_id))?;
     let backup_type: String =
         sqlx::query_scalar("SELECT backup_type FROM backup_records WHERE id = ?")
             .bind(record_id)
@@ -1071,9 +1074,10 @@ async fn vm_snapshot_revert(state: &AppState, msg: &TaskMessage) -> anyhow::Resu
 
     let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(vm_id)
-        .fetch_one(&state.pool)
-        .await?;
-    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("vm {} not found", vm_id))?;
+    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm {} has no host", vm_id))?;
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
     let resp = agent_client::revert_snapshot(&mut client, &row.0, &snap_name).await?;
@@ -1237,9 +1241,10 @@ async fn vm_backup_restore(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
             .ok_or_else(|| anyhow::anyhow!("backup record {} not found", record_id))?;
     let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(vm_id)
-        .fetch_one(&state.pool)
-        .await?;
-    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("vm {} not found", vm_id))?;
+    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm {} has no host", vm_id))?;
 
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
@@ -1376,7 +1381,7 @@ async fn host_validate_task(state: &AppState, msg: &TaskMessage) -> anyhow::Resu
     let report = crate::engine::host_validate::validate_host(&state.pool, host_id).await?;
     crate::engine::host_validate::persist_validation(&state.pool, host_id, &report).await?;
     if report.ok {
-        let _ = enqueue_task(
+        if let Err(e) = enqueue_task(
             state,
             "host.inventory",
             serde_json::json!({ "host_id": host_id.to_string() }),
@@ -1384,7 +1389,10 @@ async fn host_validate_task(state: &AppState, msg: &TaskMessage) -> anyhow::Resu
             Some(host_id),
             Some(host_id),
         )
-        .await;
+        .await
+        {
+            tracing::warn!(host_id = %host_id, "host.inventory enqueue failed after validation: {}", e.message);
+        }
     }
     let summary = if report.ok {
         "validation passed"
@@ -1669,8 +1677,9 @@ async fn storage_pool_provision(state: &AppState, msg: &TaskMessage) -> anyhow::
     let row: (String, String, Option<String>) =
         sqlx::query_as("SELECT name, backend, path FROM storage_pools WHERE id = ?")
             .bind(pool_id)
-            .fetch_one(&state.pool)
-            .await?;
+            .fetch_optional(&state.pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("storage pool {} not found", pool_id))?;
     let path = row
         .2
         .ok_or_else(|| anyhow::anyhow!("storage pool path required"))?;
@@ -1709,8 +1718,9 @@ async fn network_provision(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
     let row: (String, String, Option<i32>, Option<String>) =
         sqlx::query_as("SELECT name, backend, vlan_id, bridge FROM networks WHERE id = ?")
             .bind(network_id)
-            .fetch_one(&state.pool)
-            .await?;
+            .fetch_optional(&state.pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("network {} not found", network_id))?;
     let bridge = row.3.unwrap_or_else(|| "virbr0".into());
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
@@ -1736,9 +1746,10 @@ async fn vm_disk_attach(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
 
     let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(vm_id)
-        .fetch_one(&state.pool)
-        .await?;
-    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("vm {} not found", vm_id))?;
+    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm {} has no host", vm_id))?;
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
     agent_client::attach_disk(&mut client, &row.0, &disk_path, &target_dev).await?;
@@ -1917,9 +1928,10 @@ async fn vm_guest_tools_install(state: &AppState, msg: &TaskMessage) -> anyhow::
         .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
     let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(vm_id)
-        .fetch_one(&state.pool)
-        .await?;
-    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("vm {} not found", vm_id))?;
+    let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm {} has no host", vm_id))?;
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
     agent_client::install_guest_tools(&mut client, &row.0).await?;
