@@ -1154,8 +1154,9 @@ async fn vm_snapshot_clone(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
             let source_running: String =
                 sqlx::query_scalar("SELECT observed_state FROM vms WHERE id = ?")
                     .bind(vm_id)
-                    .fetch_one(&state.pool)
-                    .await?;
+                    .fetch_optional(&state.pool)
+                    .await?
+                    .unwrap_or_else(|| "stopped".to_string());
             let use_live = live_migrate && source_running == "running";
             if use_live {
                 vm_lifecycle::set_vm_phase(&state.pool, new_id, vm_lifecycle::PHASE_STARTING)
@@ -1166,7 +1167,7 @@ async fn vm_snapshot_clone(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
                     .execute(&state.pool)
                     .await?;
             }
-            let _ = enqueue_task(
+            if let Err(e) = enqueue_task(
                 state,
                 "vm.migrate",
                 serde_json::json!({
@@ -1178,7 +1179,14 @@ async fn vm_snapshot_clone(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
                 Some(new_id),
                 Some(host_id),
             )
-            .await;
+            .await
+            {
+                tracing::warn!(vm_id = %new_id, dest = %dest, "vm.migrate enqueue failed after snapshot clone: {}; resetting desired_state to stopped", e.message);
+                let _ = sqlx::query("UPDATE vms SET desired_state = 'stopped' WHERE id = ?")
+                    .bind(new_id)
+                    .execute(&state.pool)
+                    .await;
+            }
         }
     }
 

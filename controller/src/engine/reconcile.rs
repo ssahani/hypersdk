@@ -57,7 +57,7 @@ async fn reconcile_once(state: &AppState) -> anyhow::Result<()> {
             continue;
         };
 
-        let _ = enqueue_task(
+        if let Err(e) = enqueue_task(
             &state,
             "vm.power",
             serde_json::json!({
@@ -69,9 +69,14 @@ async fn reconcile_once(state: &AppState) -> anyhow::Result<()> {
             Some(vm_id),
             Some(host_id),
         )
-        .await;
+        .await
+        {
+            tracing::warn!(vm_id = %vm_id, action, "reconcile enqueue failed: {}", e.message);
+        }
 
-        let _ = vm_lifecycle::sync_phase_from_observed(&state.pool, vm_id).await;
+        if let Err(e) = vm_lifecycle::sync_phase_from_observed(&state.pool, vm_id).await {
+            tracing::warn!(vm_id = %vm_id, "reconcile sync_phase failed: {e:#}");
+        }
     }
     Ok(())
 }
