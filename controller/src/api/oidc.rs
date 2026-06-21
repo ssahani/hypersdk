@@ -7,7 +7,7 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 
 use crate::api::ApiError;
-use crate::auth::{require_admin, AuthUser};
+use crate::auth::{require_admin, require_operator, AuthUser};
 use crate::oidc_flow;
 use crate::state::AppState;
 
@@ -51,7 +51,9 @@ pub struct OidcTokenResponse {
 
 pub async fn get_oidc_settings(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<OidcSettings>, ApiError> {
+    require_operator(&actor)?;
     let cfg = oidc_flow::load_config(&state.pool, &default_redirect(&state))
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;

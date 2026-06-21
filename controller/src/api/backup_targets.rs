@@ -34,7 +34,9 @@ fn default_kind() -> String {
 
 pub async fn list_backup_targets(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<BackupTargetRow>>, ApiError> {
+    require_operator(&actor)?;
     let rows = sqlx::query_as::<_, BackupTargetRow>(
         "SELECT id, name, kind, config_json FROM backup_targets ORDER BY name LIMIT 200",
     )

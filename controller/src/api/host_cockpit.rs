@@ -34,9 +34,11 @@ async fn host_cockpit_query(
 
 pub async fn host_cockpit_inventory(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Query(q): Query<CockpitSectionQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let section = q.section.as_deref().unwrap_or("all");
     let storage = if section == "all" || section == "storage" {
         Some(host_cockpit_query(&state, id, "cockpit.storage").await?)

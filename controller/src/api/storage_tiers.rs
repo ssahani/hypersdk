@@ -12,7 +12,9 @@ use crate::state::AppState;
 
 pub async fn tiers_overview(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<storage_tiers::TiersOverview>, ApiError> {
+    require_operator(&actor)?;
     storage_tiers::tiers_overview(&state.pool)
         .await
         .map(Json)
@@ -35,7 +37,9 @@ pub async fn bind_pool_tier(
 
 pub async fn backup_sla_overview(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<storage_tiers::BackupSlaOverview>, ApiError> {
+    require_operator(&actor)?;
     storage_tiers::backup_sla_overview(&state.pool)
         .await
         .map(Json)
@@ -57,8 +61,10 @@ pub async fn upsert_backup_sla(
 
 pub async fn pool_snapshot_policy(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(pool_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     storage_tiers::snapshot_policy_for_pool(&state.pool, pool_id)
         .await
         .map(Json)

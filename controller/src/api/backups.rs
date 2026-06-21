@@ -37,8 +37,10 @@ fn default_type() -> String {
 
 pub async fn list_vm_backups(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(vm_id): Path<Uuid>,
 ) -> Result<Json<Vec<BackupRow>>, ApiError> {
+    require_operator(&actor)?;
     let rows = sqlx::query_as::<_, BackupRow>(
         "SELECT id, vm_id, backup_type, status, message, COALESCE(backup_path, '') AS backup_path,
                 strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
@@ -137,7 +139,9 @@ pub struct BackupTimelineRow {
 
 pub async fn list_backup_timeline(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<BackupTimelineRow>>, ApiError> {
+    require_operator(&actor)?;
     let rows = sqlx::query_as::<_, BackupTimelineRow>(
         r#"
         SELECT * FROM (

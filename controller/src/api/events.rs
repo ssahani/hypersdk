@@ -1,11 +1,13 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use axum::extract::{Query, State};
+use axum::Extension;
 use axum::Json;
 use serde::Serialize;
 use uuid::Uuid;
 
 use crate::api::ApiError;
+use crate::auth::{require_operator, AuthUser};
 use crate::state::AppState;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -30,8 +32,10 @@ fn default_limit() -> i64 {
 
 pub async fn list_events(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Query(q): Query<EventQuery>,
 ) -> Result<Json<Vec<EventRow>>, ApiError> {
+    require_operator(&actor)?;
     let limit = q.limit.clamp(1, 500);
     let rows = if let Some(kind) = q.kind.filter(|k| !k.is_empty()) {
         sqlx::query_as::<_, EventRow>(

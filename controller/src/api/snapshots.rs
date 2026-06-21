@@ -47,8 +47,10 @@ pub struct VmTimelineRow {
 
 pub async fn list_vm_timeline(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(vm_id): Path<Uuid>,
 ) -> Result<Json<Vec<VmTimelineRow>>, ApiError> {
+    require_operator(&actor)?;
     let rows = sqlx::query_as::<_, VmTimelineRow>(
         r#"
         SELECT * FROM (
@@ -90,8 +92,10 @@ pub async fn list_vm_timeline(
 
 pub async fn list_vm_snapshots(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(vm_id): Path<Uuid>,
 ) -> Result<Json<Vec<SnapshotRow>>, ApiError> {
+    require_operator(&actor)?;
     let rows = sqlx::query_as::<_, SnapshotRow>(
         "SELECT id, vm_id, name, status, message, COALESCE(snapshot_path, '') AS snapshot_path,
                 strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at

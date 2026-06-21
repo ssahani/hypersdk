@@ -19,7 +19,9 @@ pub struct HaStatusResponse {
 
 pub async fn get_ha_status(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<HaStatusResponse>, ApiError> {
+    require_operator(&actor)?;
     let (status, events) = crate::engine::ha::ha_status(&state.pool)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
@@ -48,8 +50,10 @@ fn default_priority() -> String {
 
 pub async fn get_vm_ha_policy(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<HaPolicyRow>, ApiError> {
+    require_operator(&actor)?;
     let policy = get_ha_policy(&state.pool, id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?
