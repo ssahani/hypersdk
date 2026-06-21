@@ -55,24 +55,24 @@ pub async fn list_vm_timeline(
             SELECT 'backup' AS kind, b.id,
                    CASE WHEN b.status = 'completed' THEN 'Backup successful'
                         ELSE 'Backup ' || b.status END AS label,
-                   b.status, b.created_at
+                   b.status, strftime('%Y-%m-%dT%H:%M:%SZ', b.created_at) AS created_at
             FROM backup_records b WHERE b.vm_id = ?
             UNION ALL
             SELECT 'snapshot' AS kind, s.id,
                    'Snapshot: ' || s.name AS label,
-                   s.status, s.created_at
+                   s.status, strftime('%Y-%m-%dT%H:%M:%SZ', s.created_at) AS created_at
             FROM snapshot_records s WHERE s.vm_id = ?
             UNION ALL
             SELECT 'console' AS kind, c.id,
                    'Console ' || c.protocol || ' (' || c.backend || ')' AS label,
                    CASE WHEN c.ended_at IS NULL THEN 'active' ELSE 'ended' END AS status,
-                   c.started_at AS created_at
+                   strftime('%Y-%m-%dT%H:%M:%SZ', c.started_at) AS created_at
             FROM console_sessions c WHERE c.vm_id = ?
             UNION ALL
             SELECT 'lifecycle' AS kind, v.id,
                    'VM ' || COALESCE(v.observed_state, v.desired_state, 'unknown') AS label,
                    COALESCE(v.observed_state, v.desired_state, 'unknown') AS status,
-                   COALESCE(v.updated_at, v.created_at) AS created_at
+                   strftime('%Y-%m-%dT%H:%M:%SZ', COALESCE(v.updated_at, v.created_at)) AS created_at
             FROM vms v WHERE v.id = ?
         ) t
         ORDER BY created_at DESC
@@ -93,7 +93,8 @@ pub async fn list_vm_snapshots(
     Path(vm_id): Path<Uuid>,
 ) -> Result<Json<Vec<SnapshotRow>>, ApiError> {
     let rows = sqlx::query_as::<_, SnapshotRow>(
-        "SELECT id, vm_id, name, status, message, COALESCE(snapshot_path, '') AS snapshot_path, created_at
+        "SELECT id, vm_id, name, status, message, COALESCE(snapshot_path, '') AS snapshot_path,
+                strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
          FROM snapshot_records WHERE vm_id = ? ORDER BY created_at DESC",
     )
     .bind(vm_id)

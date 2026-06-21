@@ -40,7 +40,8 @@ pub async fn list_vm_backups(
     Path(vm_id): Path<Uuid>,
 ) -> Result<Json<Vec<BackupRow>>, ApiError> {
     let rows = sqlx::query_as::<_, BackupRow>(
-        "SELECT id, vm_id, backup_type, status, message, COALESCE(backup_path, '') AS backup_path, created_at
+        "SELECT id, vm_id, backup_type, status, message, COALESCE(backup_path, '') AS backup_path,
+                strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
          FROM backup_records WHERE vm_id = ? ORDER BY created_at DESC",
     )
     .bind(vm_id)

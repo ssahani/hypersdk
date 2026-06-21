@@ -1701,7 +1701,7 @@ export const adoptPlatformVm = (id: string) =>
   platformFetch<PlatformVm>(`/api/v1/vms/${id}/adopt`, { method: 'POST' })
 
 export const getPlatformVmMetrics = (id: string) =>
-  platformFetch<{ vm_id: string; cpu_percent: number; memory_used_mib: number; updated_at: string }>(
+  platformFetch<{ vm_id: string; cpu_percent: number; memory_used_mib: number; disk_read_iops: number; disk_write_iops: number; updated_at: string }>(
     `/api/v1/vms/${id}/metrics`,
   )
 
@@ -2475,12 +2475,12 @@ export interface BackupRecord {
   backup_type: string
   status: string
   message?: string | null
+  backup_path: string
   created_at: string
-  restore_status?: string
 }
 
 export const retryTask = (id: string) =>
-  platformFetch<{ task_id: string }>(`/api/v1/tasks/${id}/retry`, { method: 'POST' })
+  platformFetch<{ task_id: string; status: string; operation: string }>(`/api/v1/tasks/${id}/retry`, { method: 'POST' })
 
 export const patchVm = (id: string, body: { desired_state?: string; project?: string; tags?: string[]; description?: string }) =>
   platformFetch<PlatformVm>(`/api/v1/vms/${id}`, { method: 'PATCH', body: JSON.stringify(body) })

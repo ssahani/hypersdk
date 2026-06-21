@@ -149,7 +149,7 @@ async fn insert_security_alert(
     let exists: bool = sqlx::query_scalar(
         "SELECT EXISTS(
             SELECT 1 FROM notification_outbox
-            WHERE kind = 'security.alert' AND payload->>'title' = ? AND created_at > datetime('now', '-1 hours')
+            WHERE kind = 'security.alert' AND json_extract(payload, '$.title') = ? AND created_at > datetime('now', '-1 hours')
         )",
     )
     .bind(summary)

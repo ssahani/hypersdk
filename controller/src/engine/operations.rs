@@ -259,7 +259,7 @@ async fn ensure_showback_snapshots(pool: &SqlitePool) -> anyhow::Result<()> {
         )
         .bind(Uuid::new_v4())
         .bind((vm_count as f64) * 12.0)
-        .bind(vm_count as i32)
+        .bind(vm_count)
         .execute(pool)
         .await?;
         return Ok(());
@@ -290,7 +290,7 @@ async fn ensure_showback_snapshots(pool: &SqlitePool) -> anyhow::Result<()> {
         .bind(&name)
         .bind(cost)
         .bind(if vm_count > 5 { "C" } else { grade.as_str() })
-        .bind(vm_count as i32)
+        .bind(vm_count)
         .execute(&mut *tx)
         .await?;
     }

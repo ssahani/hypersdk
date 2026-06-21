@@ -35,13 +35,16 @@ async fn tick_triggers(pool: &SqlitePool, cfg: &ControllerConfig) -> anyhow::Res
         if !trigger_fired(pool, cfg, &trigger).await? {
             continue;
         }
-        let _ = crate::engine::operations::execute_runbook(
+        if let Err(e) = crate::engine::operations::execute_runbook(
             pool,
             &incident,
             "runbook-scheduler",
             &serde_json::json!({ "auto_trigger": trigger }),
         )
-        .await;
+        .await
+        {
+            tracing::error!(incident = %incident, "runbook scheduler: auto-triggered runbook failed: {e:#}");
+        }
         sqlx::query("UPDATE ops_runbook_catalog SET last_triggered_at = datetime('now') WHERE incident = ?")
             .bind(&incident)
             .execute(pool)

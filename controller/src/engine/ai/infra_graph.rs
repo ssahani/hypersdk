@@ -925,7 +925,7 @@ pub async fn graph_at(pool: &SqlitePool, ts: DateTime<Utc>) -> anyhow::Result<Gr
     .await
     .unwrap_or(0);
     let vm_names_at: Vec<String> = sqlx::query_scalar(
-        "SELECT DISTINCT COALESCE(detail->>'name', resource_id) FROM audit_logs
+        "SELECT DISTINCT COALESCE(json_extract(detail, '$.name'), resource_id) FROM audit_logs
          WHERE action LIKE '%vm%' AND action LIKE '%create%' AND created_at <= ?
          ORDER BY 1 LIMIT 50",
     )

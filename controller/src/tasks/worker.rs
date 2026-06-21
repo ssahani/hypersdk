@@ -1857,7 +1857,7 @@ async fn vm_resize(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
                 .ok_or_else(|| anyhow::anyhow!("count missing"))? as u32;
             agent_client::set_vcpus(&mut client, &name, count).await?;
             sqlx::query("UPDATE vms SET vcpus = ?, updated_at = datetime('now') WHERE id = ?")
-                .bind(count as i32)
+                .bind(count as i64)
                 .bind(vm_id)
                 .execute(&state.pool)
                 .await?;

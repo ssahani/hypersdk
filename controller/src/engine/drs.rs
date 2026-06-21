@@ -35,7 +35,9 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
     }
 
     let recs = crate::engine::placement::compute_recommendations(&state.pool).await?;
-    let _ = crate::engine::placement::persist_recommendations(&state.pool, &recs).await;
+    if let Err(e) = crate::engine::placement::persist_recommendations(&state.pool, &recs).await {
+        tracing::warn!("DRS: failed to persist placement recommendations: {e:#}");
+    }
 
     for rec in recs.into_iter().take(3) {
         if rec.score < 20.0 {
@@ -60,7 +62,7 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
             .fetch_one(&state.pool)
             .await?;
 
-        let _ = enqueue_task(
+        if let Err(e) = enqueue_task(
             state,
             "vm.migrate",
             serde_json::json!({
@@ -73,7 +75,10 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
             Some(vm_id),
             source_host,
         )
-        .await;
+        .await
+        {
+            tracing::warn!(vm_id = %rec.vm_id, "DRS: failed to enqueue vm.migrate task: {e:#}");
+        }
 
         state.emit_event(
             "drs.migrate",

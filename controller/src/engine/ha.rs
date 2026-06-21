@@ -73,7 +73,9 @@ async fn mark_stale_hosts(state: &AppState) -> anyhow::Result<()> {
         tx.commit().await?;
 
         if needs_fence {
-            let _ = crate::engine::drs::fence_host(state, id).await;
+            if let Err(e) = crate::engine::drs::fence_host(state, id).await {
+                tracing::error!(host_id = %id, "HA: fence_host failed — split-brain risk if host is still running VMs: {e:#}");
+            }
         }
 
         tracing::warn!("HA: host {hostname} ({id}) marked offline");
@@ -155,7 +157,7 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
         .await?;
         tx.commit().await?;
 
-        let _ = enqueue_task(
+        if let Err(e) = enqueue_task(
             state,
             "ha.recover",
             serde_json::json!({
@@ -167,7 +169,10 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
             Some(vm_id),
             Some(dest_host),
         )
-        .await;
+        .await
+        {
+            tracing::error!(vm_id = %vm_id, dest_host = %dest_host, "HA: failed to enqueue ha.recover task — VM will remain down: {e:#}");
+        }
         state.emit_event(
             "ha.recover",
             format!("Recovering {vm_name} after host failure"),

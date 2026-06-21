@@ -107,7 +107,7 @@ pub async fn sync_policies(
          VALUES (?, 'import', ?, ?, ?)",
     )
     .bind(sync_id)
-    .bind(upserted as i32)
+    .bind(upserted as i64)
     .bind(actor)
     .bind(serde_json::json!({ "replace": req.replace, "removed": removed }))
     .execute(&mut *tx)

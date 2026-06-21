@@ -55,7 +55,8 @@ pub async fn list_fleet_snapshot_schedules(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<FleetSnapshotScheduleRow>>, ApiError> {
     let rows = sqlx::query_as::<_, FleetSnapshotScheduleRow>(
-        "SELECT id, name, cron_expr, project, tag_filter, disk_only, quiesce, retain_count, enabled, last_run_at
+        "SELECT id, name, cron_expr, project, tag_filter, disk_only, quiesce, retain_count, enabled,
+                strftime('%Y-%m-%dT%H:%M:%SZ', last_run_at) AS last_run_at
          FROM fleet_snapshot_schedules ORDER BY name",
     )
     .fetch_all(&state.pool)
@@ -88,7 +89,8 @@ pub async fn create_fleet_snapshot_schedule(
     .execute(&state.pool)
     .await?;
     let row = sqlx::query_as::<_, FleetSnapshotScheduleRow>(
-        "SELECT id, name, cron_expr, project, tag_filter, disk_only, quiesce, retain_count, enabled, last_run_at
+        "SELECT id, name, cron_expr, project, tag_filter, disk_only, quiesce, retain_count, enabled,
+                strftime('%Y-%m-%dT%H:%M:%SZ', last_run_at) AS last_run_at
          FROM fleet_snapshot_schedules WHERE id = ?",
     )
     .bind(id)

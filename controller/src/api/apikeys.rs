@@ -44,7 +44,10 @@ pub async fn list_api_keys(
 ) -> Result<Json<Vec<ApiKeyRow>>, ApiError> {
     require_admin(&actor)?;
     let rows = sqlx::query_as::<_, ApiKeyRow>(
-        "SELECT id, name, role, created_at, last_used_at FROM api_keys ORDER BY created_at DESC",
+        "SELECT id, name, role,
+                strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at,
+                strftime('%Y-%m-%dT%H:%M:%SZ', last_used_at) AS last_used_at
+         FROM api_keys ORDER BY created_at DESC",
     )
     .fetch_all(&state.pool)
     .await?;

@@ -67,12 +67,14 @@ pub async fn overview(pool: &SqlitePool) -> anyhow::Result<ObservabilityOverview
     .fetch_one(pool)
     .await?;
 
+    let p95_offset = ((trace_count_1h * 5 / 100) - 1).max(0);
     let p95: Option<i32> = sqlx::query_scalar(
         "SELECT duration_ms FROM api_trace_spans
          WHERE recorded_at > datetime('now', '-1 hours')
          ORDER BY duration_ms DESC
-         LIMIT 1 OFFSET MAX(0, (SELECT COUNT(*) FROM api_trace_spans WHERE recorded_at > datetime('now', '-1 hours')) * 5 / 100 - 1)",
+         LIMIT 1 OFFSET ?",
     )
+    .bind(p95_offset)
     .fetch_optional(pool)
     .await?;
 

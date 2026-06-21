@@ -25,7 +25,8 @@ pub async fn list_migration_jobs(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<MigrationJobRow>>, ApiError> {
     let rows = sqlx::query_as::<_, MigrationJobRow>(
-        "SELECT id, vm_id, source_host_id, dest_host_id, live, status, progress, message, created_at
+        "SELECT id, vm_id, source_host_id, dest_host_id, live, status, progress, message,
+                strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
          FROM migration_jobs ORDER BY created_at DESC LIMIT 100",
     )
     .fetch_all(&state.pool)
@@ -38,7 +39,8 @@ pub async fn list_vm_migration_jobs(
     Path(vm_id): Path<Uuid>,
 ) -> Result<Json<Vec<MigrationJobRow>>, ApiError> {
     let rows = sqlx::query_as::<_, MigrationJobRow>(
-        "SELECT id, vm_id, source_host_id, dest_host_id, live, status, progress, message, created_at
+        "SELECT id, vm_id, source_host_id, dest_host_id, live, status, progress, message,
+                strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
          FROM migration_jobs WHERE vm_id = ? ORDER BY created_at DESC LIMIT 50",
     )
     .bind(vm_id)

@@ -334,11 +334,14 @@ pub async fn vm_guest_health(
         None
     };
     if !gh.guest_ip.is_empty() {
-        let _ = sqlx::query("UPDATE vms SET guest_ip = ?, updated_at = datetime('now') WHERE id = ?")
+        if let Err(e) = sqlx::query("UPDATE vms SET guest_ip = ?, updated_at = datetime('now') WHERE id = ?")
             .bind(&gh.guest_ip)
             .bind(vm_id)
             .execute(pool)
-            .await;
+            .await
+        {
+            tracing::warn!(vm_id = %vm_id, "host_os: failed to persist guest_ip: {e:#}");
+        }
     }
 
     Ok(VmGuestHealthReport {
