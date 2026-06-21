@@ -14,13 +14,14 @@ pub struct MemorySettings {
 }
 
 pub async fn get_settings(pool: &SqlitePool) -> anyhow::Result<MemorySettings> {
-    let row: (bool, bool, bool, i32) = sqlx::query_as(
+    let row: Option<(bool, bool, bool, i32)> = sqlx::query_as(
         "SELECT COALESCE(zeus_memory_enabled, TRUE), COALESCE(zeus_memory_team_scope, FALSE),
                 COALESCE(zeus_memory_project_scope, TRUE), COALESCE(zeus_memory_retention_days, 90)
          FROM clusters ORDER BY created_at LIMIT 1",
     )
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await?;
+    let row = row.unwrap_or((true, false, true, 90));
     Ok(MemorySettings {
         enabled: row.0,
         team_scope: row.1,
@@ -188,7 +189,10 @@ pub async fn upsert_conversation_summary(
 ) -> anyhow::Result<()> {
     sqlx::query(
         "INSERT INTO ai_conversations (id, user_id, agent_id, summary, updated_at)
-         VALUES (?, ?, ?, ?, datetime('now'))",
+         VALUES (?, ?, ?, ?, datetime('now'))
+         ON CONFLICT (user_id, agent_id) DO UPDATE SET
+             summary = excluded.summary,
+             updated_at = excluded.updated_at",
     )
     .bind(Uuid::new_v4())
     .bind(user_id)

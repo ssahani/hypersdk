@@ -41,15 +41,18 @@ pub async fn list_audit_logs(
 ) -> Result<Json<Vec<AuditRow>>, ApiError> {
     require_admin(&actor)?;
     let limit = q.limit.clamp(1, 500);
+    fn escape_like(s: &str) -> String {
+        s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+    }
     let rows = match (&q.action, &q.actor) {
-        (Some(action), Some(actor)) if !action.is_empty() && !actor.is_empty() => {
+        (Some(action), Some(actor_filter)) if !action.is_empty() && !actor_filter.is_empty() => {
             sqlx::query_as::<_, AuditRow>(
                 "SELECT id, actor, action, resource_type, resource_id,
                         strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
-                 FROM audit_logs WHERE action LIKE ? AND actor LIKE ? ORDER BY created_at DESC LIMIT ?",
+                 FROM audit_logs WHERE action LIKE ? ESCAPE '\\' AND actor LIKE ? ESCAPE '\\' ORDER BY created_at DESC LIMIT ?",
             )
-            .bind(format!("%{action}%"))
-            .bind(format!("%{actor}%"))
+            .bind(format!("%{}%", escape_like(action)))
+            .bind(format!("%{}%", escape_like(actor_filter)))
             .bind(limit)
             .fetch_all(&state.pool)
             .await?
@@ -58,20 +61,20 @@ pub async fn list_audit_logs(
             sqlx::query_as::<_, AuditRow>(
                 "SELECT id, actor, action, resource_type, resource_id,
                         strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
-                 FROM audit_logs WHERE action LIKE ? ORDER BY created_at DESC LIMIT ?",
+                 FROM audit_logs WHERE action LIKE ? ESCAPE '\\' ORDER BY created_at DESC LIMIT ?",
             )
-            .bind(format!("%{action}%"))
+            .bind(format!("%{}%", escape_like(action)))
             .bind(limit)
             .fetch_all(&state.pool)
             .await?
         }
-        (_, Some(actor)) if !actor.is_empty() => {
+        (_, Some(actor_filter)) if !actor_filter.is_empty() => {
             sqlx::query_as::<_, AuditRow>(
                 "SELECT id, actor, action, resource_type, resource_id,
                         strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
-                 FROM audit_logs WHERE actor LIKE ? ORDER BY created_at DESC LIMIT ?",
+                 FROM audit_logs WHERE actor LIKE ? ESCAPE '\\' ORDER BY created_at DESC LIMIT ?",
             )
-            .bind(format!("%{actor}%"))
+            .bind(format!("%{}%", escape_like(actor_filter)))
             .bind(limit)
             .fetch_all(&state.pool)
             .await?

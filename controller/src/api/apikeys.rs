@@ -60,8 +60,11 @@ pub async fn create_api_key(
     Json(body): Json<CreateApiKeyBody>,
 ) -> Result<Json<CreateApiKeyResponse>, ApiError> {
     require_admin(&actor)?;
-    if body.name.len() > 128 || body.name.is_empty() {
+    if body.name.is_empty() || body.name.len() > 128 {
         return Err(ApiError::bad_request("api key name must be 1–128 characters"));
+    }
+    if !matches!(body.role.as_str(), "admin" | "operator" | "viewer") {
+        return Err(ApiError::bad_request("role must be admin, operator, or viewer"));
     }
     let id = Uuid::new_v4();
     let token = format!("machina_{}", Uuid::new_v4());
