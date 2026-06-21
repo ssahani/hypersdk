@@ -77,7 +77,7 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
         )
         .await
         {
-            tracing::warn!(vm_id = %rec.vm_id, "DRS: failed to enqueue vm.migrate task: {e:#}");
+            tracing::warn!(vm_id = %rec.vm_id, "DRS: failed to enqueue vm.migrate task: {e:?}");
         }
 
         state.emit_event(

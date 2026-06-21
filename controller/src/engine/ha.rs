@@ -171,7 +171,7 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
         )
         .await
         {
-            tracing::error!(vm_id = %vm_id, dest_host = %dest_host, "HA: failed to enqueue ha.recover task — VM will remain down: {e:#}");
+            tracing::error!(vm_id = %vm_id, dest_host = %dest_host, "HA: failed to enqueue ha.recover task — VM will remain down: {e:?}");
         }
         state.emit_event(
             "ha.recover",
