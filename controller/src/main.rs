@@ -43,6 +43,13 @@ async fn main() -> anyhow::Result<()> {
     }
     let config = Arc::new(config);
 
+    if config.jwt_secret.len() < 32 {
+        tracing::warn!(
+            "MACHINA_JWT_SECRET is shorter than 32 bytes ({} bytes) — set a strong secret in production",
+            config.jwt_secret.len()
+        );
+    }
+
     let pool = db::connect(&config.database_url).await?;
     db::migrate(&pool).await?;
     db::ensure_bootstrap(&pool, &config.admin_user, &config.admin_password).await?;

@@ -84,10 +84,13 @@ async fn mark_stale_hosts(state: &AppState) -> anyhow::Result<()> {
 }
 
 async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
-    let ha_enabled: bool =
+    let Some(ha_enabled): Option<bool> =
         sqlx::query_scalar("SELECT ha_enabled FROM clusters ORDER BY created_at LIMIT 1")
-            .fetch_one(&state.pool)
-            .await?;
+            .fetch_optional(&state.pool)
+            .await?
+    else {
+        return Ok(());
+    };
     if !ha_enabled {
         return Ok(());
     }

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
-use super::digital_twin::{DigitalTwinGraph, TwinEdge, TwinNode};
+use super::digital_twin::DigitalTwinGraph;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphNode {

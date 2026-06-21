@@ -25,10 +25,13 @@ pub fn spawn(state: AppState) {
 }
 
 async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
-    let enabled: bool =
+    let Some(enabled): Option<bool> =
         sqlx::query_scalar("SELECT drs_auto_migrate FROM clusters ORDER BY created_at LIMIT 1")
-            .fetch_one(&state.pool)
-            .await?;
+            .fetch_optional(&state.pool)
+            .await?
+    else {
+        return Ok(());
+    };
 
     if !enabled {
         return Ok(());
@@ -59,8 +62,9 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
 
         let source_host: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
             .bind(vm_id)
-            .fetch_one(&state.pool)
-            .await?;
+            .fetch_optional(&state.pool)
+            .await?
+            .flatten();
 
         if let Err(e) = enqueue_task(
             state,

@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
-use super::infra_graph::{GraphScope, PathRequest};
 
 #[derive(Debug, Deserialize)]
 pub struct TroubleshootRequest {

@@ -2,7 +2,6 @@
 
 use serde_json::json;
 use sqlx::SqlitePool;
-use uuid::Uuid;
 
 use super::{
     fetch_unexported_alerts, fetch_unexported_events, integration_err, integration_ok,

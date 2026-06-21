@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use sqlx::SqlitePool;
-use uuid::Uuid;
 use tokio::sync::broadcast;
 
 use crate::config::ControllerConfig;

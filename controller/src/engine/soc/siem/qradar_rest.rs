@@ -4,8 +4,7 @@ use serde_json::json;
 use sqlx::SqlitePool;
 
 use super::{
-    fetch_unexported_events, integration_err, integration_ok, mark_exported, EventRow,
-    IntegrationRow,
+    fetch_unexported_events, integration_err, integration_ok, mark_exported, IntegrationRow,
 };
 
 pub async fn forward(

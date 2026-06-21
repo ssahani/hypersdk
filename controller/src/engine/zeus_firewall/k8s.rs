@@ -6,7 +6,6 @@ use machina_core::{
 };
 use serde::Serialize;
 use sqlx::SqlitePool;
-use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct K8sFirewallStatus {
