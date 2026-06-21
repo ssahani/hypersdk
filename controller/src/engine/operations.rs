@@ -271,12 +271,13 @@ async fn ensure_showback_snapshots(pool: &SqlitePool) -> anyhow::Result<()> {
         .map(|c| c.grade.clone())
         .unwrap_or_else(|| "B".into());
 
+    let mut tx = pool.begin().await?;
     for (name,) in projects {
         let vm_count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM vms WHERE COALESCE(NULLIF(TRIM(project), ''), 'default') = ?",
         )
         .bind(&name)
-        .fetch_one(pool)
+        .fetch_one(&mut *tx)
         .await
         .unwrap_or(0);
 
@@ -290,8 +291,9 @@ async fn ensure_showback_snapshots(pool: &SqlitePool) -> anyhow::Result<()> {
         .bind(cost)
         .bind(if vm_count > 5 { "C" } else { grade.as_str() })
         .bind(vm_count as i32)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     }
+    tx.commit().await?;
     Ok(())
 }

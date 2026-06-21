@@ -256,6 +256,7 @@ async fn ensure_sla_stubs(pool: &SqlitePool) -> anyhow::Result<()> {
         } else {
             "C"
         };
+        let mut tx = pool.begin().await?;
         sqlx::query(
             "INSERT INTO storage_backup_sla (id, pool_id, rpo_hours, rto_hours, retention_days, compliance_grade)
              VALUES (?, ?, ?, 4, ?, ?)",
@@ -265,8 +266,9 @@ async fn ensure_sla_stubs(pool: &SqlitePool) -> anyhow::Result<()> {
         .bind(rpo)
         .bind(retention)
         .bind(grade)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
     }
     Ok(())
 }
