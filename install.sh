@@ -1034,6 +1034,15 @@ install_files_bundle() {
         ok "Configured daemon to bind to $BIND_HOST"
     fi
 
+    if [ -n "${MACHINA_LICENSE_KEY:-}" ]; then
+        mkdir -p /etc/machina
+        printf '%s\n' "$MACHINA_LICENSE_KEY" > /etc/machina/license.key
+        chmod 600 /etc/machina/license.key
+        ok "License key -> /etc/machina/license.key"
+    elif [ ! -f /etc/machina/license.key ]; then
+        warn "No license key found — set MACHINA_LICENSE_KEY or place key in /etc/machina/license.key"
+    fi
+
     if [ -f "$root/machina-daemon.service" ]; then
         install -Dm644 "$root/machina-daemon.service" /usr/lib/systemd/system/machina-daemon.service
         systemctl daemon-reload
@@ -1086,6 +1095,15 @@ install_files() {
     if [ -n "$BIND_HOST" ]; then
         sed -i "s/^host = .*/host = \"$BIND_HOST\"/" /etc/machina/config.toml
         ok "Configured daemon to bind to $BIND_HOST"
+    fi
+
+    if [ -n "${MACHINA_LICENSE_KEY:-}" ]; then
+        mkdir -p /etc/machina
+        printf '%s\n' "$MACHINA_LICENSE_KEY" > /etc/machina/license.key
+        chmod 600 /etc/machina/license.key
+        ok "License key -> /etc/machina/license.key"
+    elif [ ! -f /etc/machina/license.key ]; then
+        warn "No license key found — set MACHINA_LICENSE_KEY or place key in /etc/machina/license.key"
     fi
 
     # Optional env overrides (hyper2kvm-style /etc/default)

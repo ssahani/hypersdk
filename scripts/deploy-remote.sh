@@ -582,7 +582,7 @@ if [ ! -x target/release/machina-daemon ] || [ ! -f web/dist/index.html ]; then
   echo 'Missing target/release/machina-daemon or web/dist — run --quick once first' >&2
   exit 1
 fi
-sudo bash install.sh${QUICK_OPTS}
+${MACHINA_LICENSE_KEY:+export MACHINA_LICENSE_KEY=\"$MACHINA_LICENSE_KEY\"; }sudo -E bash install.sh${QUICK_OPTS}
 for bin in machina-controller machina-agent; do
   if [ -x target/release/\$bin ]; then
     sudo install -m755 target/release/\$bin /usr/local/bin/\$bin
@@ -600,7 +600,7 @@ export CARGO_BUILD_JOBS=${REMOTE_CARGO_BUILD_JOBS}
 cd $REMOTE_DIR
 sudo bash install.sh --deps-only --no-tests
 make release web
-sudo bash install.sh${QUICK_OPTS}
+${MACHINA_LICENSE_KEY:+export MACHINA_LICENSE_KEY=\"$MACHINA_LICENSE_KEY\"; }sudo -E bash install.sh${QUICK_OPTS}
 for bin in machina-controller machina-agent; do
   if [ -x target/release/\$bin ]; then
     sudo install -m755 target/release/\$bin /usr/local/bin/\$bin
@@ -625,7 +625,7 @@ else
     ssh_r_bash "$REMOTE" "
 set -euo pipefail
 cd $REMOTE_DIR
-sudo bash install.sh${OPTS}${REMOTE_INST}
+${MACHINA_LICENSE_KEY:+export MACHINA_LICENSE_KEY=\"$MACHINA_LICENSE_KEY\"; }sudo -E bash install.sh${OPTS}${REMOTE_INST}
 " || die "install failed"
 fi
 
