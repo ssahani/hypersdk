@@ -2,6 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
+mod license;
 mod auth;
 mod automation_worker;
 mod cluster_bootstrap;
@@ -67,6 +68,8 @@ fn init_rustls_crypto_provider() -> anyhow::Result<()> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    license::load_and_check()?;
+
     // Default log filter: suppress noisy rustls SNI WARN that fires for every
     // TLS client that connects using an IP address literal instead of a hostname.
     // RFC 6066 forbids IP literals in SNI; rustls logs WARN but still serves the
