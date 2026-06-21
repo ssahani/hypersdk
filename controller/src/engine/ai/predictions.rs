@@ -222,7 +222,7 @@ pub async fn rightsizing_report(pool: &SqlitePool) -> anyhow::Result<Rightsizing
         "SELECT v.id, v.name, v.memory_mib, m.memory_used_mib FROM vms v
          JOIN vm_metrics m ON m.vm_id = v.id
          WHERE v.observed_state = 'running'
-           AND m.memory_used_mib::float / NULLIF(v.memory_mib, 0) < 0.35
+           AND CAST(m.memory_used_mib AS REAL) / NULLIF(v.memory_mib, 0) < 0.35
          ORDER BY v.memory_mib DESC LIMIT 30",
     )
     .fetch_all(pool)

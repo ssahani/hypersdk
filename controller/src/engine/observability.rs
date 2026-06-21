@@ -180,7 +180,8 @@ async fn host_availability_slo(pool: &SqlitePool) -> anyhow::Result<(f64, f64)> 
 
 pub async fn list_traces(pool: &SqlitePool, limit: i64) -> anyhow::Result<Vec<TraceSpanRow>> {
     sqlx::query_as(
-        "SELECT id, method, path, status_code, duration_ms, recorded_at
+        "SELECT id, method, path, status_code, duration_ms,
+                strftime('%Y-%m-%dT%H:%M:%SZ', recorded_at) AS recorded_at
          FROM api_trace_spans ORDER BY recorded_at DESC LIMIT ?",
     )
     .bind(limit.clamp(1, 200))
@@ -198,7 +199,7 @@ pub async fn record_trace(
 ) {
     let path = if path.len() > 256 { &path[..256] } else { path };
     let _ = sqlx::query(
-        "INSERT INTO api_trace_spans (id, method, path, status_code, duration_ms) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO api_trace_spans (id, method, path, status_code, duration_ms, recorded_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))",
     )
     .bind(Uuid::new_v4())
     .bind(method)

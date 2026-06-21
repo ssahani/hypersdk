@@ -47,7 +47,7 @@ pub async fn generate(pool: &SqlitePool) -> anyhow::Result<ComplianceReport> {
     .unwrap_or(0);
 
     let backup_pct = if prod_vms > 0 {
-        (prod_with_backup * 100 / prod_vms) as u8
+        (prod_with_backup * 100 / prod_vms).clamp(0, 100) as u8
     } else {
         100
     };
@@ -66,7 +66,7 @@ pub async fn generate(pool: &SqlitePool) -> anyhow::Result<ComplianceReport> {
     .await
     .unwrap_or(0);
     let guest_pct = if running > 0 {
-        (with_guest * 100 / running) as u8
+        (with_guest * 100 / running).clamp(0, 100) as u8
     } else {
         100
     };
@@ -81,7 +81,7 @@ pub async fn generate(pool: &SqlitePool) -> anyhow::Result<ComplianceReport> {
         .await
         .unwrap_or(0);
     let host_pct = if hosts_total > 0 {
-        (hosts_online * 100 / hosts_total) as u8
+        (hosts_online * 100 / hosts_total).clamp(0, 100) as u8
     } else {
         100
     };
@@ -97,7 +97,7 @@ pub async fn generate(pool: &SqlitePool) -> anyhow::Result<ComplianceReport> {
     .await
     .unwrap_or(0);
     let ha_pct = if prod_vms > 0 {
-        (prod_ha * 100 / prod_vms) as u8
+        (prod_ha * 100 / prod_vms).clamp(0, 100) as u8
     } else {
         100
     };

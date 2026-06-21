@@ -256,7 +256,7 @@ async fn vm_install(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     .await?;
 
     sqlx::query(
-        "UPDATE vms SET desired_state = 'running', updated_at = datetime('now') WHERE id = ?",
+        "UPDATE vms SET desired_state = 'running', observed_state = 'defined', updated_at = datetime('now') WHERE id = ?",
     )
     .bind(vm_id)
     .execute(&state.pool)

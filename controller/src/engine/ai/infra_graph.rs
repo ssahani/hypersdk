@@ -973,8 +973,8 @@ pub async fn timeline_replay(
 ) -> anyhow::Result<TimelineReplay> {
     let mut entries = Vec::new();
     let audits: Vec<(DateTime<Utc>, String, String, Option<String>)> = sqlx::query_as(
-        "SELECT created_at, actor, action, resource_type FROM audit_logs
-         WHERE created_at BETWEEN ? AND ? ORDER BY created_at ASC LIMIT 200",
+        "SELECT strftime('%Y-%m-%dT%H:%M:%SZ', created_at), actor, action, resource_type
+         FROM audit_logs WHERE created_at BETWEEN ? AND ? ORDER BY created_at ASC LIMIT 200",
     )
     .bind(from)
     .bind(to)
@@ -994,7 +994,7 @@ pub async fn timeline_replay(
         });
     }
     let events: Vec<(DateTime<Utc>, String, String)> = sqlx::query_as(
-        "SELECT created_at, kind, message FROM events
+        "SELECT strftime('%Y-%m-%dT%H:%M:%SZ', created_at), kind, message FROM events
          WHERE created_at BETWEEN ? AND ? ORDER BY created_at ASC LIMIT 100",
     )
     .bind(from)

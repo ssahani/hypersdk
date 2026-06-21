@@ -60,8 +60,6 @@ async fn mark_stale_hosts(state: &AppState) -> anyhow::Result<()> {
         .bind(format!("Host {hostname} marked offline"))
         .execute(&mut *tx)
         .await?;
-        tx.commit().await?;
-
         let needs_fence: bool = sqlx::query_scalar(
             "SELECT EXISTS(
                SELECT 1 FROM ha_policies hp
@@ -70,8 +68,9 @@ async fn mark_stale_hosts(state: &AppState) -> anyhow::Result<()> {
              )",
         )
         .bind(id)
-        .fetch_one(pool)
+        .fetch_one(&mut *tx)
         .await?;
+        tx.commit().await?;
 
         if needs_fence {
             let _ = crate::engine::drs::fence_host(state, id).await;
@@ -215,8 +214,9 @@ pub async fn ha_status(pool: &SqlitePool) -> anyhow::Result<(HaStatusRow, Vec<Ha
     .await?;
 
     let events = sqlx::query_as::<_, HaEventRow>(
-        "SELECT id, vm_id, host_id, action, message, created_at FROM ha_events
-         ORDER BY created_at DESC LIMIT 50",
+        "SELECT id, vm_id, host_id, action, message,
+                strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
+         FROM ha_events ORDER BY created_at DESC LIMIT 50",
     )
     .fetch_all(pool)
     .await?;
