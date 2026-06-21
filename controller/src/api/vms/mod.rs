@@ -711,9 +711,11 @@ pub async fn create_from_virt_install(
 
 pub async fn migrate_precheck(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<MigrateVmBody>,
 ) -> Result<Json<crate::engine::migrate_precheck::MigratePrecheckResult>, ApiError> {
+    require_operator(&actor)?;
     let result = run_migrate_precheck(&state.pool, id, body.dest_host_id, body.live)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
@@ -1778,9 +1780,11 @@ pub async fn batch_vm_guest_ips(
 
 pub async fn get_vm_viewer_vv(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, ApiError> {
+    require_operator(&actor)?;
     let row: (String, Option<Uuid>, String) = sqlx::query_as(
         "SELECT name, host_id, COALESCE(inventory_source, 'libvirt') FROM vms WHERE id = ?",
     )
@@ -1848,9 +1852,11 @@ pub async fn get_vm_viewer_vv(
 
 pub async fn get_vm_qemu_logs(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Query(q): Query<QemuLogsQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
     let (name, host_id) = crate::api::vm_row::vm_agent_row_libvirt(&state, id).await?;
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
