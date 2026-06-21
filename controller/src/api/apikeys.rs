@@ -47,7 +47,7 @@ pub async fn list_api_keys(
         "SELECT id, name, role,
                 strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at,
                 strftime('%Y-%m-%dT%H:%M:%SZ', last_used_at) AS last_used_at
-         FROM api_keys ORDER BY created_at DESC",
+         FROM api_keys ORDER BY created_at DESC LIMIT 500",
     )
     .fetch_all(&state.pool)
     .await?;

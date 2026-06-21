@@ -44,7 +44,7 @@ pub async fn list_applications(
     let rows = sqlx::query_as::<_, ApplicationGroupRow>(
         "SELECT id, name, description,
                 strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
-         FROM application_groups ORDER BY name",
+         FROM application_groups ORDER BY name LIMIT 500",
     )
     .fetch_all(&state.pool)
     .await?;

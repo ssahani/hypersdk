@@ -447,7 +447,7 @@ pub async fn sync_all_hosts(
     Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<TaskResponse>>, ApiError> {
     require_operator(&actor)?;
-    let ids: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM hosts ORDER BY hostname")
+    let ids: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM hosts ORDER BY hostname LIMIT 500")
         .fetch_all(&state.pool)
         .await?;
     let mut out = Vec::new();

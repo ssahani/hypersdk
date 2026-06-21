@@ -36,7 +36,7 @@ pub async fn list_backup_targets(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<BackupTargetRow>>, ApiError> {
     let rows = sqlx::query_as::<_, BackupTargetRow>(
-        "SELECT id, name, kind, config_json FROM backup_targets ORDER BY name",
+        "SELECT id, name, kind, config_json FROM backup_targets ORDER BY name LIMIT 200",
     )
     .fetch_all(&state.pool)
     .await?;
