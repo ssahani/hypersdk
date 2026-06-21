@@ -100,10 +100,11 @@ fn openai_base(resolved: &ResolvedProvider) -> String {
         "deepseek" => "https://api.deepseek.com/v1/chat/completions".into(),
         "mistral" => "https://api.mistral.ai/v1/chat/completions".into(),
         "ollama" => "http://127.0.0.1:11434/v1/chat/completions".into(),
-        "vllm" => format!(
-            "{}/v1/chat/completions",
-            resolved.base_url.trim().trim_end_matches('/')
-        ),
+        "vllm" => {
+            let base = resolved.base_url.trim().trim_end_matches('/');
+            let base = if base.is_empty() { "http://127.0.0.1:8000" } else { base };
+            format!("{base}/v1/chat/completions")
+        }
         _ => "https://api.openai.com/v1/chat/completions".into(),
     }
 }
