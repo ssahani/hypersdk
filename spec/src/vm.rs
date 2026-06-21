@@ -189,6 +189,11 @@ impl VirtualMachine {
                 "cpu sockets and cores must be >= 1".into(),
             ));
         }
+        if self.spec.cpu.sockets > 64 || self.spec.cpu.cores > 128 {
+            return Err(SpecError::Validation(
+                "cpu sockets must be <= 64 and cores must be <= 128".into(),
+            ));
+        }
         parse_memory_mib(&self.spec.memory)?;
         if self.spec.storage.is_empty() {
             return Err(SpecError::Validation(

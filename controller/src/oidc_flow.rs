@@ -209,5 +209,12 @@ async fn fetch_discovery(issuer: &str) -> anyhow::Result<OidcDiscovery> {
             ));
         }
     }
+    if let Some(ref jwks) = discovery.jwks_uri {
+        if !jwks.starts_with(&issuer_origin) {
+            return Err(anyhow::anyhow!(
+                "OIDC jwks_uri '{jwks}' does not match issuer origin '{issuer_origin}'"
+            ));
+        }
+    }
     Ok(discovery)
 }

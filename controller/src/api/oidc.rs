@@ -109,7 +109,7 @@ pub async fn patch_oidc_settings(
             .execute(&state.pool)
             .await?;
     }
-    get_oidc_settings(State(state)).await
+    get_oidc_settings(State(state), Extension(actor)).await
 }
 
 pub async fn oidc_login(
@@ -161,6 +161,8 @@ pub async fn oidc_callback(
     .map_err(|e| ApiError::bad_request(e.to_string()))?;
 
     let web = state.config.web_base_url.trim_end_matches('/');
+    let safe_user = html_escape(&username);
+    let safe_role = html_escape(&role);
     let html = format!(
         r#"<!DOCTYPE html><html><head><title>Machina login</title></head><body>
 <script>
@@ -168,9 +170,17 @@ localStorage.setItem('machina_platform_jwt', {token:?});
 localStorage.removeItem('machina_platform_basic');
 window.location.href = {web:?} + '/platform';
 </script>
-<p>Signing in as {username:?} ({role:?})…</p></body></html>"#
+<p>Signing in as {safe_user} ({safe_role})…</p></body></html>"#
     );
     Ok(Html(html).into_response())
+}
+
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#x27;")
 }
 
 fn default_redirect(state: &AppState) -> String {

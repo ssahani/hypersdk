@@ -112,16 +112,16 @@ export default function PlatformZeusOs() {
       const [h, r, gpu, power, linux, summary, local] = await Promise.all([
         getFleetHeatmap(),
         getFleetRebalanceProposal(),
-        getGpuPlacement('inference'),
-        getFleetPowerOptimize(),
+        getGpuPlacement('inference').catch(() => null),
+        getFleetPowerOptimize().catch(() => null),
         getFleetLinuxHealth().catch(() => null),
         getFleetSummary().catch(() => null),
         getFleetLocal().catch(() => null),
       ])
       setHeatmap(h)
       setRebalance(r)
-      setGpuSummary(gpu.summary)
-      setPowerSummary(power.summary)
+      setGpuSummary(gpu?.summary ?? null)
+      setPowerSummary(power?.summary ?? null)
       setLinuxHealth(linux)
       const summaryStr = summary
         ? `${summary.aggregate_vm_count} VMs · ${summary.reachable_peers}/${summary.peer_count} peers · $${summary.aggregate_monthly_usd.toFixed(0)}/mo`

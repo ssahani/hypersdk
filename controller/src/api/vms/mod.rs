@@ -232,6 +232,8 @@ pub async fn create_vm(
     let vm_id = Uuid::new_v4();
     let spec_json = serde_json::to_value(&body.vm).map_err(|e| ApiError::internal(e.to_string()))?;
 
+    let mut tx = state.pool.begin().await?;
+
     sqlx::query(
         "INSERT INTO vms (id, cluster_id, host_id, name, project, spec_json, desired_state, lifecycle_phase, vcpus, memory_mib, tags)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'creating', ?, ?, ?)",
@@ -246,7 +248,7 @@ pub async fn create_vm(
     .bind(vcpus)
     .bind(memory_mib)
     .bind(serde_json::to_string(&body.tags).unwrap_or_else(|_| "[]".into()))
-    .execute(&state.pool)
+    .execute(&mut *tx)
     .await?;
 
     for vol in &body.vm.spec.storage {
@@ -260,9 +262,11 @@ pub async fn create_vm(
         .bind(&vol.name)
         .bind(size_gib)
         .bind(&vol.class)
-        .execute(&state.pool)
+        .execute(&mut *tx)
         .await?;
     }
+
+    tx.commit().await?;
 
     if body.vm.spec.ha.enabled {
         upsert_ha_policy(

@@ -620,25 +620,32 @@ async fn vm_clone(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     .ok_or_else(|| anyhow::anyhow!("vm {} not found", vm_id))?;
     let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm {} has no host", vm_id))?;
 
-    let agent_addr = host_agent_addr(&state.pool, host_id).await?;
-    let mut client = agent_client::connect(&agent_addr).await?;
-    let resp = agent_client::clone_vm(&mut client, &row.0, &new_name, &clone_mode).await?;
-
+    // Insert the DB record first so a hypervisor clone success always has a matching row.
+    // The row starts with a placeholder uuid that is updated once the hypervisor responds.
     let new_id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO vms (id, cluster_id, host_id, name, spec_json, desired_state, observed_state, uuid, vcpus, memory_mib)
-         VALUES (?, ?, ?, ?, ?, 'stopped', 'defined', ?, ?, ?)",
+        "INSERT INTO vms (id, cluster_id, host_id, name, spec_json, desired_state, observed_state, vcpus, memory_mib)
+         VALUES (?, ?, ?, ?, ?, 'stopped', 'creating', ?, ?)",
     )
     .bind(new_id)
     .bind(row.2)
     .bind(host_id)
     .bind(&new_name)
     .bind(&row.3)
-    .bind(&resp.uuid)
     .bind(row.4)
     .bind(row.5)
     .execute(&state.pool)
     .await?;
+
+    let agent_addr = host_agent_addr(&state.pool, host_id).await?;
+    let mut client = agent_client::connect(&agent_addr).await?;
+    let resp = agent_client::clone_vm(&mut client, &row.0, &new_name, &clone_mode).await?;
+
+    sqlx::query("UPDATE vms SET uuid = ?, observed_state = 'defined' WHERE id = ?")
+        .bind(&resp.uuid)
+        .bind(new_id)
+        .execute(&state.pool)
+        .await?;
 
     state.emit_event("vm.clone", format!("Cloned {} -> {}", row.0, new_name));
     update_task_progress(&state.pool, msg.task_id, 100, "cloned").await?;
@@ -762,25 +769,27 @@ async fn ha_recover(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     )
     .await?;
 
+    let mut tx = state.pool.begin().await?;
     sqlx::query(
         "UPDATE vms SET uuid = ?, host_id = ?, observed_state = 'defined', updated_at = datetime('now') WHERE id = ?",
     )
     .bind(&resp.uuid)
     .bind(host_id)
     .bind(vm_id)
-    .execute(&state.pool)
+    .execute(&mut *tx)
     .await?;
 
     if desired == "running" {
         agent_client::vm_power(&mut client, &row.0, "start", None).await?;
         if let Err(e) = sqlx::query("UPDATE vms SET observed_state = 'running' WHERE id = ?")
             .bind(vm_id)
-            .execute(&state.pool)
+            .execute(&mut *tx)
             .await
         {
             tracing::warn!(vm_id = %vm_id, "ha_recover: failed to set observed_state=running after power-on: {e:#}");
         }
     }
+    tx.commit().await?;
 
     state.emit_event("ha.recover", format!("VM {} recovered on new host", row.0));
     update_task_progress(&state.pool, msg.task_id, 100, "recovered").await?;
@@ -986,9 +995,13 @@ async fn vm_backup(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         agent_client::backup_vm(&mut client, &row.0, &dest).await?
     };
     if resp.ok && msg.payload["export"].as_bool() == Some(true) {
-        let _ = std::process::Command::new("qemu-img")
-            .args(["check", &resp.path])
-            .output();
+        let check_path = resp.path.clone();
+        let _ = tokio::task::spawn_blocking(move || {
+            std::process::Command::new("qemu-img")
+                .args(["check", &check_path])
+                .output()
+        })
+        .await;
     }
 
     if resp.ok {
@@ -1022,27 +1035,35 @@ async fn vm_backup(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
                                 .unwrap_or("backup.qcow2")
                         );
                         let dest = format!("s3://{bucket}/{key}");
-                        let endpoint = cfg["endpoint_url"].as_str().unwrap_or("");
-                        let mut aws_args = vec!["s3", "cp", &resp.path, &dest];
-                        if !endpoint.is_empty() {
-                            aws_args.push("--endpoint-url");
-                            aws_args.push(endpoint);
-                        }
-                        match std::process::Command::new("aws").args(&aws_args).output() {
-                            Ok(out) if out.status.success() => {
+                        let endpoint = cfg["endpoint_url"].as_str().unwrap_or("").to_string();
+                        let src_path = resp.path.clone();
+                        let dest_clone = dest.clone();
+                        let aws_result = tokio::task::spawn_blocking(move || {
+                            let mut aws_args =
+                                vec!["s3".to_string(), "cp".to_string(), src_path, dest_clone];
+                            if !endpoint.is_empty() {
+                                aws_args.push("--endpoint-url".to_string());
+                                aws_args.push(endpoint);
+                            }
+                            std::process::Command::new("aws").args(&aws_args).output()
+                        })
+                        .await;
+                        match aws_result {
+                            Ok(Ok(out)) if out.status.success() => {
                                 sqlx::query("UPDATE backup_records SET message = ? WHERE id = ?")
                                     .bind(format!("{}; uploaded to {dest}", resp.message))
                                     .bind(record_id)
                                     .execute(&state.pool)
                                     .await?;
                             }
-                            Ok(out) => {
+                            Ok(Ok(out)) => {
                                 tracing::warn!(
                                     "S3 upload failed: {}",
                                     String::from_utf8_lossy(&out.stderr)
                                 );
                             }
-                            Err(e) => tracing::warn!("aws cli not available for S3 upload: {e}"),
+                            Ok(Err(e)) => tracing::warn!("aws cli not available for S3 upload: {e}"),
+                            Err(e) => tracing::warn!("S3 upload task panicked: {e}"),
                         }
                     }
                 }
@@ -1493,12 +1514,20 @@ async fn k8s_tetragon_install(state: &AppState, msg: &TaskMessage) -> anyhow::Re
         &format!("planning Tetragon Helm release for {cluster_name}"),
     )
     .await?;
-    let helm = crate::engine::packetwolf_k8s::install_tetragon_helm(
-        &state.config,
-        cluster_id,
-        namespace,
-        cluster_name,
-    );
+    let cfg_clone = state.config.clone();
+    let cluster_id_owned = cluster_id.to_string();
+    let namespace_owned = namespace.to_string();
+    let cluster_name_owned = cluster_name.to_string();
+    let helm = tokio::task::spawn_blocking(move || {
+        crate::engine::packetwolf_k8s::install_tetragon_helm(
+            &cfg_clone,
+            &cluster_id_owned,
+            &namespace_owned,
+            &cluster_name_owned,
+        )
+    })
+    .await
+    .map_err(|e| anyhow::anyhow!("tetragon install task panicked: {e}"))?;
     update_task_progress(
         &state.pool,
         msg.task_id,
@@ -1969,14 +1998,20 @@ async fn run_incremental_backup(
     let resp = agent_client::backup_vm(&mut client, vm_name, dest).await?;
     if resp.ok {
         if let Some(base) = prior.filter(|p| std::path::Path::new(p).exists()) {
-            match std::process::Command::new("qemu-img")
-                .args(["rebase", "-u", "-b", &base, &resp.path])
-                .output()
-            {
-                Err(e) => tracing::warn!("qemu-img rebase unavailable: {e}"),
-                Ok(out) if !out.status.success() => {
+            let base_owned = base.clone();
+            let path_owned = resp.path.clone();
+            let rebase_result = tokio::task::spawn_blocking(move || {
+                std::process::Command::new("qemu-img")
+                    .args(["rebase", "-u", "-b", &base_owned, &path_owned])
+                    .output()
+            })
+            .await;
+            match rebase_result {
+                Ok(Err(e)) => tracing::warn!("qemu-img rebase unavailable: {e}"),
+                Ok(Ok(out)) if !out.status.success() => {
                     tracing::warn!("qemu-img rebase failed: {}", String::from_utf8_lossy(&out.stderr));
                 }
+                Err(e) => tracing::warn!("qemu-img rebase task panicked: {e}"),
                 _ => {}
             }
         }

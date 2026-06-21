@@ -98,24 +98,25 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
 }
 
 pub async fn get_cluster_settings(pool: &SqlitePool) -> anyhow::Result<ClusterSettings> {
-    Ok(sqlx::query_as(
+    sqlx::query_as(
         "SELECT drs_auto_migrate, drs_cpu_threshold, ha_enabled, placement_policy,
                 inventory_sync_interval_secs, require_vm_delete_approval,
                 firewall_approval_sla_hours,
                 finops_vcpu_hour_usd, finops_gib_hour_usd
          FROM clusters ORDER BY created_at LIMIT 1",
     )
-    .fetch_one(pool)
-    .await?)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| anyhow::anyhow!("no cluster configured — run machina-controller bootstrap"))
 }
 
 pub async fn get_inventory_sync_interval_secs(pool: &SqlitePool) -> anyhow::Result<i32> {
     sqlx::query_scalar(
         "SELECT inventory_sync_interval_secs FROM clusters ORDER BY created_at LIMIT 1",
     )
-    .fetch_one(pool)
-    .await
-    .map_err(Into::into)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| anyhow::anyhow!("no cluster configured — run machina-controller bootstrap"))
 }
 
 pub async fn update_cluster_settings(
@@ -229,8 +230,9 @@ pub async fn fence_host(state: &AppState, host_id: Uuid) -> anyhow::Result<bool>
                 COALESCE(ipmi_username, ''), COALESCE(ipmi_password, '') FROM hosts WHERE id = ?",
     )
     .bind(host_id)
-    .fetch_one(&state.pool)
-    .await?;
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or_else(|| anyhow::anyhow!("host {} not found — may have been removed while HA was scanning", host_id))?;
 
     let shell_cmd = std::env::var("MACHINA_FENCE_COMMAND").unwrap_or_default();
     let mut client = tokio::time::timeout(

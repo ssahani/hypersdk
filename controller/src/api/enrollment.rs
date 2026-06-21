@@ -30,16 +30,22 @@ pub async fn create_enrollment_token(
     Json(req): Json<CreateEnrollmentRequest>,
 ) -> Result<Json<EnrollmentTokenResponse>, ApiError> {
     require_admin(&actor)?;
+    const MAX_TTL_HOURS: i64 = 720; // 30 days
     let ttl = if req.ttl_hours <= 0 {
         24
+    } else if req.ttl_hours > MAX_TTL_HOURS {
+        return Err(ApiError::bad_request(
+            "ttl_hours must be <= 720 (30 days)",
+        ));
     } else {
         req.ttl_hours
     };
     let token = format!("join-{}", Uuid::new_v4());
     let expires = Utc::now() + Duration::hours(ttl);
     let cluster_id: Uuid = sqlx::query_scalar("SELECT id FROM clusters LIMIT 1")
-        .fetch_one(&state.pool)
-        .await?;
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| ApiError::internal("no cluster configured"))?;
 
     sqlx::query(
         "INSERT INTO enrollment_tokens (token, cluster_id, expires_at) VALUES (?, ?, ?)",

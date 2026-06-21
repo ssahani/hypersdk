@@ -199,9 +199,9 @@ export default function PlatformSoc() {
   const runIngest = async () => {
     try {
       const r = await runSocIngestCycle()
-      const ing = r.ingest
-      const total = ing.firewall + ing.audit + ing.platform + ing.packetwolf
-      toast.success(`Ingest: ${total} new events, ${r.alerts_fired} alerts, ${r.forwarded} forwarded`)
+      const ing = r?.ingest
+      const total = (ing?.firewall ?? 0) + (ing?.audit ?? 0) + (ing?.platform ?? 0) + (ing?.packetwolf ?? 0)
+      toast.success(`Ingest: ${total} new events, ${r?.alerts_fired ?? 0} alerts, ${r?.forwarded ?? 0} forwarded`)
       void load()
     } catch (e: unknown) {
       toast.error(formatUserError(e))

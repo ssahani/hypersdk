@@ -244,7 +244,7 @@ export async function platformFetch<T>(path: string, init?: RequestInit): Promis
     }
     throw parsed ?? new Error(body || `${res!.status} ${res!.statusText}`)
   }
-  if (res!.status === 204) return undefined as T
+  if (res!.status === 204) return null as T
   return (await res!.json()) as T
 }
 
