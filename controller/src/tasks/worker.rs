@@ -252,9 +252,10 @@ async fn vm_install(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     let row: (String, String, Option<Uuid>) =
         sqlx::query_as("SELECT name, spec_json, host_id FROM vms WHERE id = ?")
             .bind(vm_id)
-            .fetch_one(&state.pool)
-            .await?;
-    let host_id = row.2.ok_or_else(|| anyhow::anyhow!("vm has no host"))?;
+            .fetch_optional(&state.pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("vm {} not found", vm_id))?;
+    let host_id = row.2.ok_or_else(|| anyhow::anyhow!("vm {} has no host", vm_id))?;
     let vm: machina_spec::VirtualMachine = serde_json::from_str(&row.1)?;
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
@@ -289,8 +290,9 @@ async fn vm_delete(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         "SELECT name, host_id, COALESCE(inventory_source, 'libvirt'), k8s_namespace, observed_state FROM vms WHERE id = ?",
     )
     .bind(vm_id)
-    .fetch_one(&state.pool)
-    .await?;
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or_else(|| anyhow::anyhow!("vm {} not found", vm_id))?;
 
     if row.4 == "missing" {
         // Domain already absent from hypervisor inventory — drop the stale DB row only.
