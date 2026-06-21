@@ -785,8 +785,10 @@ pub async fn reset_vm(
 
 pub async fn install_vm(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     let meta: (Option<Uuid>, String, String) = sqlx::query_as(
         "SELECT host_id, COALESCE(inventory_source, 'libvirt'), observed_state FROM vms WHERE id = ?",
     )
@@ -922,8 +924,10 @@ pub struct DeleteVmBody {
 
 pub async fn install_guest_tools(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
         .bind(id)
         .fetch_one(&state.pool)
@@ -1034,9 +1038,11 @@ fn default_live() -> bool {
 
 pub async fn migrate_vm(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<MigrateVmBody>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     let source_host: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
         .bind(id)
         .fetch_one(&state.pool)
@@ -1084,9 +1090,11 @@ fn default_clone_mode() -> String {
 
 pub async fn clone_vm(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<CloneVmBody>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     machina_spec::validate_name(&body.new_name)
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
 
@@ -1232,6 +1240,7 @@ pub async fn adopt_vm(
     Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<VmRow>, ApiError> {
+    require_operator(&actor)?;
     let row: Option<(bool, String)> =
         sqlx::query_as("SELECT managed, observed_state FROM vms WHERE id = ?")
             .bind(id)
@@ -1362,9 +1371,11 @@ fn default_target() -> String {
 
 pub async fn attach_vm_disk(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<AttachDiskBody>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
         .bind(id)
         .fetch_one(&state.pool)
@@ -1974,8 +1985,10 @@ async fn enqueue_vm_host_task(
 
 pub async fn detach_vm_disk(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path((id, target)): Path<(Uuid, String)>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     enqueue_vm_host_task(
         &state,
         id,
@@ -1995,9 +2008,11 @@ pub struct ResizeVmDiskBody {
 
 pub async fn resize_vm_disk(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path((id, target)): Path<(Uuid, String)>,
     Json(body): Json<ResizeVmDiskBody>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     enqueue_vm_host_task(
         &state,
         id,
@@ -2024,9 +2039,11 @@ fn default_nic_model() -> String {
 
 pub async fn attach_vm_nic(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<AttachNicBody>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     enqueue_vm_host_task(
         &state,
         id,
@@ -2042,8 +2059,10 @@ pub async fn attach_vm_nic(
 
 pub async fn detach_vm_nic(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path((id, mac)): Path<(Uuid, String)>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     enqueue_vm_host_task(
         &state,
         id,
@@ -2063,9 +2082,11 @@ pub struct SetAutostartBody {
 
 pub async fn set_vm_autostart(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<SetAutostartBody>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     enqueue_vm_host_task(
         &state,
         id,
@@ -2085,9 +2106,11 @@ pub struct SetVcpusBody {
 
 pub async fn set_vm_vcpus(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<SetVcpusBody>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     enqueue_vm_host_task(
         &state,
         id,
@@ -2108,9 +2131,11 @@ pub struct SetMemoryBody {
 
 pub async fn set_vm_memory(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<SetMemoryBody>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     enqueue_vm_host_task(
         &state,
         id,
@@ -2148,9 +2173,11 @@ fn publish_tpl_category() -> String {
 /// Publish a libvirt VM as a golden template (unifies daemon JSON + platform DB).
 pub async fn publish_vm_template(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<PublishTemplateFromVmBody>,
 ) -> Result<Json<crate::api::templates::TemplateRow>, ApiError> {
+    require_operator(&actor)?;
     machina_spec::validate_name(&body.template_name)
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
 

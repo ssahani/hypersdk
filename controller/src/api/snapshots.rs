@@ -163,8 +163,10 @@ pub async fn create_vm_snapshot(
 
 pub async fn delete_vm_snapshot(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path((vm_id, name)): Path<(Uuid, String)>,
 ) -> Result<Json<TaskResponse>, ApiError> {
+    require_operator(&actor)?;
     let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
         .bind(vm_id)
         .fetch_one(&state.pool)
