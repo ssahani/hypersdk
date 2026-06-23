@@ -6,6 +6,7 @@ import {
   Pause,
   Play,
   Power,
+  RotateCcw,
   Square,
   Trash2,
   X,
@@ -150,10 +151,11 @@ export default function MachineFinderPage() {
         />
       )}
 
-      {selectedVmIds.size > 0 && lens === 'table' && (
+      {selectedVmIds.size > 0 && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[80] bg-slate-900/95 backdrop-blur border border-white/[0.08] rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3 flex-wrap" data-testid="platform-vm-bulk-bar">
           <span className="text-sm font-medium text-slate-200">{selectedVmIds.size} selected</span>
           <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" disabled={batchPowerBusy} onClick={() => void handleBatchPower('start')}><Play className="w-4 h-4" /> Start</button>
+          <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" disabled={batchPowerBusy} onClick={() => void handleBatchPower('resume')}><RotateCcw className="w-4 h-4" /> Resume</button>
           <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" disabled={batchPowerBusy} onClick={() => void handleBatchPower('shutdown')}><Power className="w-4 h-4" /> Shutdown</button>
           <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" disabled={batchPowerBusy} onClick={() => void handleBatchPower('stop')}><Square className="w-4 h-4" /> Stop</button>
           <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" disabled={batchPowerBusy} onClick={() => void handleBatchPower('pause')}><Pause className="w-4 h-4" /> Pause</button>

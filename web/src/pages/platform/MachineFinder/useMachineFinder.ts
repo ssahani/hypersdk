@@ -19,7 +19,7 @@ import {
   type PlatformHost,
   type PlatformVm,
 } from '../../../api/platform'
-import { fleetGuestQuery, type FleetGuestQueryReport } from '../../../api/ai'
+import { fleetGuestQuery, getAiSecurity, type FleetGuestQueryReport, type SecurityReport } from '../../../api/ai'
 import { useAi } from '../../../contexts/AiContext'
 import { useToastContext } from '../../../contexts/ToastContext'
 import { usePlatformDesktopTier } from '../../../hooks/usePlatformDesktopTier'
@@ -94,6 +94,7 @@ export function useMachineFinder() {
   const [deleteVmTarget, setDeleteVmTarget] = useState<PlatformVm | null>(null)
   const [fleetGuestReport, setFleetGuestReport] = useState<FleetGuestQueryReport | null>(null)
   const [fleetGuestBusy, setFleetGuestBusy] = useState(false)
+  const [aiSecurity, setAiSecurity] = useState<SecurityReport | null>(null)
   const deleteTaskToastRef = useRef<string | null>(null)
 
   const hostMap = useMemo(() => new Map(hosts.map((h) => [h.id, h.hostname])), [hosts])
@@ -250,6 +251,11 @@ export function useMachineFinder() {
   }, [folder, tag, project, source])
 
   useEffect(() => { void load() }, [load])
+
+  useEffect(() => {
+    if (overlay !== 'security') return
+    void getAiSecurity().then(setAiSecurity).catch(() => setAiSecurity(null))
+  }, [overlay])
 
   const deleteTaskId = (location.state as { vmDeleteTaskId?: string; vmDeleteLabel?: string } | null)?.vmDeleteTaskId
   const deleteTaskLabel = (location.state as { vmDeleteLabel?: string } | null)?.vmDeleteLabel
@@ -714,6 +720,7 @@ export function useMachineFinder() {
     fleetGuestReport,
     setFleetGuestReport,
     fleetGuestBusy,
+    aiSecurity,
     tier,
     load,
     setFilter,

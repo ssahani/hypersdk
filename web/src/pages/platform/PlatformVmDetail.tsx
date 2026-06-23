@@ -599,7 +599,7 @@ export default function PlatformVmDetail() {
   }, [tab, id, loadComputeTopology, loadGuestPorts, loadGuestServices, loadLibvirtDetails, loadDomainXml, vm?.inventory_source])
 
   useEffect(() => {
-    if (tab !== 'snapshots' || !id || vm?.inventory_source === 'kubevirt') {
+    if (tab !== 'snapshots' || !id || !vm || vm.inventory_source === 'kubevirt') {
       setSnapPrecheck(null)
       return
     }
@@ -998,7 +998,7 @@ export default function PlatformVmDetail() {
               observedState={vm.observed_state}
               guestIp={guestIp}
               hostLabel={hostLabel}
-              healthScore={health?.score ? Number.parseInt(health.score, 10) : null}
+              healthScore={health?.score != null ? Number.parseInt(String(health.score), 10) : null}
               doctorScore={doctor?.score_numeric ?? null}
               sshExposed={Boolean(sshNatHostPort(portForwardRules))}
               blockers={detailBlockers}
@@ -1319,7 +1319,9 @@ export default function PlatformVmDetail() {
             </MacGlassPanel>
           )}
 
-          {tab === 'devices' && vm.inventory_source !== 'kubevirt' && (
+          {tab === 'devices' && (vm.inventory_source === 'kubevirt' ? (
+            <PlatformEmptyState title="Not available" subtitle="Device management requires a libvirt-managed VM." />
+          ) : (
             <VmDevicesPanel
               vmId={id}
               hostId={vm.host_id}
@@ -1329,7 +1331,7 @@ export default function PlatformVmDetail() {
               vmState={vm.observed_state}
               onChanged={() => void loadDomainXml()}
             />
-          )}
+          ))}
 
           {tab === 'disks' && (
             <div className="space-y-4 pt-2" data-testid="vm-disks-panel">
@@ -1880,7 +1882,7 @@ export default function PlatformVmDetail() {
                             className="btn-secondary text-xs"
                             onClick={() => {
                               const name = e.label.replace(/^Snapshot:\s*/, '')
-                              void act('Revert queued', () => revertVmSnapshot(id, name))
+                              void runSnapshotAction(name, 'revert', () => revertVmSnapshot(id, name), 'Revert queued')
                             }}
                           >
                             Revert
@@ -2054,9 +2056,11 @@ export default function PlatformVmDetail() {
             </div>
           )}
 
-          {tab === 'logs' && vm.inventory_source !== 'kubevirt' && (
+          {tab === 'logs' && (vm.inventory_source === 'kubevirt' ? (
+            <PlatformEmptyState title="Not available" subtitle="QEMU logs are only available for libvirt-managed VMs." />
+          ) : (
             <VmQemuLogsPanel vmId={id} vmName={vm.name} />
-          )}
+          ))}
 
           {tab === 'settings' && (
             <div className="space-y-4">
