@@ -1876,14 +1876,16 @@ fn build_console_access_plan(
 
     let mut ctx = libvirt.lock().map_err(|e| format!("libvirt lock: {e}"))?;
 
-    let (vnc_host, vnc_port) = ctx.resolve_vnc(vm_name).unwrap_or(("".into(), 0));
+    let xml = ctx.get_domain_xml(vm_name).unwrap_or_default();
+    let has_spice = machina_core::libvirt::graphics_convert::domain_has_spice_graphics(&xml);
+    let (vnc_host, vnc_port) = ctx.resolve_vnc_from_xml(vm_name, &xml).unwrap_or(("".into(), 0));
     let console_type = if vnc_port > 0 {
         "vnc".to_string()
+    } else if has_spice {
+        "spice".to_string()
     } else {
         "unknown".to_string()
     };
-
-    let xml = ctx.get_domain_xml(vm_name).unwrap_or_default();
     let mut guest_ip = String::new();
     let ssh_user = std::env::var("MACHINA_DEFAULT_SSH_USER").unwrap_or_else(|_| "ubuntu".into());
     let mut os_hint = "unknown".to_string();
@@ -1933,11 +1935,13 @@ fn build_console_access_plan(
 
     let recommended = if os_hint == "windows" && !guest_ip.is_empty() && guac_up {
         "guacamole_rdp".into()
+    } else if console_type == "spice" {
+        "spice".into()
+    } else if console_type == "vnc" && vnc_port > 0 {
+        "novnc".into()
     } else if server_cloud_linux && serial_available {
         "serial".into()
     } else if desktop_golden {
-        "novnc".into()
-    } else if console_type == "vnc" && vnc_port > 0 {
         "novnc".into()
     } else if !guest_ip.is_empty() && guac_up {
         "guacamole_ssh".into()

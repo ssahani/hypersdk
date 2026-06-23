@@ -699,7 +699,7 @@ pub async fn auth_middleware(
     let path = req.uri().path();
 
     // Public endpoints (paths after nest stripping of /api/v1 or /ws/v1)
-    if path == "/health" || path == "/openapi.json" || path.starts_with("/auth/") {
+    if path == "/health" || path == "/license" || path == "/openapi.json" || path.starts_with("/auth/") {
         return next.run(req).await;
     }
 
@@ -773,7 +773,9 @@ pub async fn ws_auth_middleware(
 ) -> Response {
     let path = req.uri().path();
     // Platform VNC/serial use controller-issued tokens; machina-controller validates them.
-    if path.starts_with("/platform/vnc/") || path.starts_with("/platform/serial/") {
+    // The WS routes are nested at /ws/v1, so the full path is /ws/v1/platform/vnc/... or
+    // /ws/v1/platform/serial/... — match either prefix to accommodate future re-nesting.
+    if path.contains("/platform/vnc/") || path.contains("/platform/serial/") || path.contains("/platform/spice/") {
         return next.run(req).await;
     }
 

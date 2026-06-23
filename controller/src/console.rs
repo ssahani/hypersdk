@@ -275,9 +275,88 @@ async fn host_console_addr(pool: &sqlx::SqlitePool, host_id: Uuid) -> Result<Str
     Ok(addr)
 }
 
+pub async fn spice_ws_proxy(
+    ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+    Path(vm_id): Path<Uuid>,
+    Query(q): Query<WsTokenQuery>,
+) -> impl IntoResponse {
+    let validated = state.ws_tokens.validate(&q.token).await;
+    if validated != Some(vm_id) {
+        return (axum::http::StatusCode::UNAUTHORIZED, "invalid token").into_response();
+    }
+    ws.on_upgrade(move |socket| proxy_to_agent_spice(socket, state, vm_id))
+}
+
+async fn proxy_to_agent_spice(socket: WebSocket, state: AppState, vm_id: Uuid) {
+    let Some((name, agent_console)) = vm_agent_target(&state, vm_id).await else {
+        let (mut sink, _) = socket.split();
+        let _ = sink.close().await;
+        return;
+    };
+
+    let ws_url = format!(
+        "ws://{}/ws/spice/{}",
+        agent_client::normalize_agent_addr(&agent_console),
+        name
+    );
+
+    let agent_ws = match connect_async(&ws_url).await {
+        Ok((stream, _)) => stream,
+        Err(_) => {
+            let (mut sink, _) = socket.split();
+            let _ = sink.close().await;
+            return;
+        }
+    };
+
+    let (mut client_sink, mut client_stream) = socket.split();
+    let (mut agent_sink, mut agent_stream) = agent_ws.split();
+
+    let c2a = tokio::spawn(async move {
+        while let Some(Ok(msg)) = client_stream.next().await {
+            let up = match msg {
+                Message::Binary(b) => TsMessage::Binary(bytes::Bytes::from(b.to_vec())),
+                Message::Text(t) => TsMessage::Text(t.to_string().into()),
+                Message::Close(_) => {
+                    let _ = agent_sink.send(TsMessage::Close(None)).await;
+                    break;
+                }
+                _ => continue,
+            };
+            if agent_sink.send(up).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    let a2c = tokio::spawn(async move {
+        while let Some(Ok(msg)) = agent_stream.next().await {
+            let down = match msg {
+                TsMessage::Binary(b) => Message::Binary(b.into()),
+                TsMessage::Text(t) => Message::Text(t.to_string().into()),
+                TsMessage::Close(_) => {
+                    let _ = client_sink.send(Message::Close(None)).await;
+                    break;
+                }
+                _ => continue,
+            };
+            if client_sink.send(down).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    tokio::select! {
+        _ = c2a => {},
+        _ = a2c => {},
+    }
+}
+
 pub fn ws_routes() -> axum::Router<AppState> {
     use axum::routing::get;
     axum::Router::new()
         .route("/ws/v1/platform/vnc/{vm_id}", get(vnc_ws_proxy))
         .route("/ws/v1/platform/serial/{vm_id}", get(serial_ws_proxy))
+        .route("/ws/v1/platform/spice/{vm_id}", get(spice_ws_proxy))
 }

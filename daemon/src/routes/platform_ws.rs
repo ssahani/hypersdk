@@ -103,8 +103,18 @@ async fn platform_serial_ws_proxy(
     ws.on_upgrade(move |socket| relay_platform_ws(socket, path, q.token))
 }
 
+async fn platform_spice_ws_proxy(
+    ws: WebSocketUpgrade,
+    Path(vm_id): Path<String>,
+    Query(q): Query<PlatformWsQuery>,
+) -> impl IntoResponse {
+    let path = format!("{}/ws/v1/platform/spice/{vm_id}", controller_ws_base());
+    ws.on_upgrade(move |socket| relay_platform_ws(socket, path, q.token))
+}
+
 pub fn platform_ws_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/platform/vnc/{vm_id}", get(platform_vnc_ws_proxy))
         .route("/platform/serial/{vm_id}", get(platform_serial_ws_proxy))
+        .route("/platform/spice/{vm_id}", get(platform_spice_ws_proxy))
 }

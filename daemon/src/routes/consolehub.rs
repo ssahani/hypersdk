@@ -237,13 +237,16 @@ async fn build_plan(
     let conn_str = conn_q.connection.clone().unwrap_or_default();
     let (vnc_host, vnc_port, console_type, guest_ip, os_hint) =
         spawn_libvirt_actor(manager.clone(), Some(actor), conn_q, move |conn| {
-            let (vnc_host, vnc_port) = vnc::resolve_vnc_tcp(conn, &name2).unwrap_or(("".into(), 0));
+            let xml = machina_core::libvirt::domain::get_vm_xml(conn, &name2).unwrap_or_default();
+            let has_spice = machina_core::libvirt::graphics_convert::domain_has_spice_graphics(&xml);
+            let (vnc_host, vnc_port) = vnc::resolve_vnc_tcp_xml(conn, &name2, &xml).unwrap_or(("".into(), 0));
             let console_type = if vnc_port > 0 {
                 "vnc".to_string()
+            } else if has_spice {
+                "spice".to_string()
             } else {
                 "unknown".to_string()
             };
-            let xml = machina_core::libvirt::domain::get_vm_xml(conn, &name2).unwrap_or_default();
             let mut guest_ip = String::new();
             let mut os_hint = "unknown".to_string();
             if xml.to_lowercase().contains("microsoft windows")
@@ -294,6 +297,8 @@ async fn build_plan(
 
     let recommended = if os_hint == "windows" && !guest_ip.is_empty() && guac_up {
         "guacamole_rdp".into()
+    } else if console_type == "spice" {
+        "spice".into()
     } else if console_type == "vnc" && vnc_port > 0 {
         "novnc".into()
     } else if !guest_ip.is_empty() && guac_up {

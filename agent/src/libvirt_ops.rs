@@ -510,6 +510,10 @@ impl LibvirtCtx {
         machina_core::libvirt::resize::set_memory(&self.conn, name, memory_mb)
     }
 
+    pub fn resolve_vnc_from_xml(&self, name: &str, xml: &str) -> Result<(String, u16), LibvirtError> {
+        machina_core::libvirt::vnc::resolve_vnc_tcp_xml(&self.conn, name, xml)
+    }
+
     pub fn resolve_vnc(&mut self, name: &str) -> Result<(String, u16), LibvirtError> {
         self.ensure_alive()?;
         machina_core::libvirt::vnc::resolve_vnc_tcp(&self.conn, name)
