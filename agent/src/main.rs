@@ -49,7 +49,7 @@ enum Command {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
-    machina_core::license::load_and_check()?;
+    machina_core::license::load_or_community();
     let cli = Cli::parse();
 
     if let Some(Command::Join {
