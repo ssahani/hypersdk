@@ -37,9 +37,8 @@ type Props = {
   displayProtocols?: string[]
   activeProtocol?: string
   onProtocolChange?: (protocol: string) => void
-  /** Agent recommendation (novnc | serial) — Cockpit-style guidance. */
+  /** Backend recommendation — used only to guide users who are on the wrong lens. */
   recommended?: string
-  osHint?: string
 }
 
 export default function ViewLensBar({
@@ -49,21 +48,15 @@ export default function ViewLensBar({
   activeProtocol,
   onProtocolChange,
   recommended,
-  osHint,
 }: Props) {
-  const serialAvailable = displayProtocols.includes('serial')
+  // Cockpit pattern: only hint when the user is on the wrong lens for the VM type.
+  // Never nudge away from Display toward Serial — serial is a last resort.
   const cockpitHint =
-    recommended === 'serial' && active !== 'serial'
-      ? 'Linux cloud images boot on Serial — switch to Serial for login output.'
-      : active === 'display'
-        && activeProtocol === 'novnc'
-        && serialAvailable
-        && osHint === 'linux'
-        && recommended !== 'novnc'
-        ? 'Blank display? Cloud/server VMs log in on Serial — switch to the Serial lens.'
-        : recommended === 'novnc' && active === 'serial'
-          ? 'Graphical desktop guest — use Display (VNC) for the GUI.'
-          : null
+    recommended === 'novnc' && active === 'serial'
+      ? 'This VM has a graphical display — switch to Display for VNC.'
+      : recommended === 'spice' && active === 'serial'
+        ? 'This VM has a SPICE display — switch to Display for the graphics console.'
+        : null
 
   return (
     <div className="flex flex-col gap-2 shrink-0">

@@ -26,6 +26,7 @@ import MachineCockpit from '../../components/consolehub/MachineCockpit'
 import type { ConsoleHubSessionRow } from '../../components/consolehub/ConsoleHubSessionHistory'
 import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
 import {
+  getDefaultProtocol,
   parseConsoleMode,
   cinemaPopoutPath,
   resolveConsoleMode,
@@ -122,9 +123,10 @@ export default function PlatformConsoleHub() {
       if (hubPlan) {
         setPlan(hubPlan)
         setVmName(hubPlan.vm_name)
+        // Cockpit pattern: prefer VNC → SPICE → serial based on VM capabilities, not backend hint
         const preferred = protocolFromUrl && hubPlan.protocols.includes(protocolFromUrl)
           ? protocolFromUrl
-          : hubPlan.recommended
+          : getDefaultProtocol(hubPlan)
         setActiveProtocol(preferred)
         if (hubPlan.guest_ip?.trim()) {
           listVmPortForwards(id).then(setPortForwardRules).catch(() => setPortForwardRules([]))
@@ -166,8 +168,8 @@ export default function PlatformConsoleHub() {
         setWsUrl(hubPlan?.native?.ws_path ? platformVncWsUrl(hubPlan.native.ws_path) : null)
         setSerialWsUrl(hubPlan?.native?.serial_ws_path ? platformVncWsUrl(hubPlan.native.serial_ws_path) : null)
         setPlatformSpiceWsPath(null)
-        if (hubPlan?.recommended === 'serial') {
-          setActiveProtocol('serial')
+        if (hubPlan) {
+          setActiveProtocol(getDefaultProtocol(hubPlan))
         }
       } else if (wsToken) {
         setWsUrl(platformVmVncWsUrl(id, wsToken))
@@ -182,9 +184,10 @@ export default function PlatformConsoleHub() {
         setError(null)
       }
 
-      const needsGuac = hubPlan?.recommended.startsWith('guacamole_') ?? false
+      const defaultProto = hubPlan ? getDefaultProtocol(hubPlan) : 'novnc'
+      const needsGuac = defaultProto.startsWith('guacamole_')
       if (needsGuac && hubPlan?.guacamole.available) {
-        const sess = await createConsoleHubSession(id, { protocol: hubPlan.recommended })
+        const sess = await createConsoleHubSession(id, { protocol: defaultProto })
         setSession(sess)
       } else {
         setSession(null)
@@ -196,11 +199,15 @@ export default function PlatformConsoleHub() {
     }
   }, [id, protocolFromUrl])
 
+  // When the plan first loads and the VM has no display device, exit Cinema mode (requires a display).
+  // Runs once per plan load — does NOT re-run when the user manually changes experienceMode.
   useEffect(() => {
-    if (plan?.recommended === 'serial' && experienceMode === 'cinema') {
+    if (!plan) return
+    if (getDefaultProtocol(plan) === 'serial' && experienceMode === 'cinema') {
       setExperienceMode('studio')
     }
-  }, [plan?.recommended, experienceMode, setExperienceMode])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan])
 
   useEffect(() => {
     setWsUrl(null)
