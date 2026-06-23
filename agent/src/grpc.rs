@@ -1933,14 +1933,13 @@ fn build_console_access_plan(
     let server_cloud_linux = linux_cloud_serial_preferred(&xml_lower, &os_hint, desktop_golden);
     let serial_available = resolve_console_pty(&xml).is_some();
 
+    // Serial is always last resort — only when no graphical display and no SSH/RDP alternative.
     let recommended = if os_hint == "windows" && !guest_ip.is_empty() && guac_up {
         "guacamole_rdp".into()
     } else if console_type == "spice" {
         "spice".into()
     } else if console_type == "vnc" && vnc_port > 0 {
         "novnc".into()
-    } else if server_cloud_linux && serial_available {
-        "serial".into()
     } else if desktop_golden {
         "novnc".into()
     } else if !guest_ip.is_empty() && guac_up {

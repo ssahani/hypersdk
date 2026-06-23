@@ -235,7 +235,7 @@ async fn build_plan(
     let cfg = MachinaConfig::load();
     let name2 = vm_name.to_string();
     let conn_str = conn_q.connection.clone().unwrap_or_default();
-    let (vnc_host, vnc_port, console_type, guest_ip, os_hint) =
+    let (vnc_host, vnc_port, console_type, serial_available, guest_ip, os_hint) =
         spawn_libvirt_actor(manager.clone(), Some(actor), conn_q, move |conn| {
             let xml = machina_core::libvirt::domain::get_vm_xml(conn, &name2).unwrap_or_default();
             let has_spice = machina_core::libvirt::graphics_convert::domain_has_spice_graphics(&xml);
@@ -247,6 +247,19 @@ async fn build_plan(
             } else {
                 "unknown".to_string()
             };
+            let serial_available = machina_core::xml::extract_attr(&xml, "console", "tty")
+                .filter(|s| !s.is_empty())
+                .or_else(|| {
+                    for block in machina_core::xml::split_blocks(&xml, "console") {
+                        if let Some(p) = machina_core::xml::extract_attr(&block, "source", "path") {
+                            if !p.is_empty() {
+                                return Some(p);
+                            }
+                        }
+                    }
+                    None
+                })
+                .is_some();
             let mut guest_ip = String::new();
             let mut os_hint = "unknown".to_string();
             if xml.to_lowercase().contains("microsoft windows")
@@ -274,7 +287,7 @@ async fn build_plan(
                     }
                 }
             }
-            Ok((vnc_host, vnc_port, console_type, guest_ip, os_hint))
+            Ok((vnc_host, vnc_port, console_type, serial_available, guest_ip, os_hint))
         })
         .await?;
 
@@ -295,6 +308,7 @@ async fn build_plan(
         }
     }
 
+    // Serial is always the last resort — only when no graphical display and no SSH/RDP alternative.
     let recommended = if os_hint == "windows" && !guest_ip.is_empty() && guac_up {
         "guacamole_rdp".into()
     } else if console_type == "spice" {
@@ -303,6 +317,8 @@ async fn build_plan(
         "novnc".into()
     } else if !guest_ip.is_empty() && guac_up {
         "guacamole_ssh".into()
+    } else if serial_available {
+        "serial".into()
     } else {
         "novnc".into()
     };
