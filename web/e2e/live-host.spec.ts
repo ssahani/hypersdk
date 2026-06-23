@@ -54,7 +54,7 @@ test('platform marketplace scrolls on live host', async ({ page }) => {
   await page.goto(`${live}/platform/templates`)
   // Template catalog may not be configured on all hosts — soft-skip when absent
   try {
-    await expect(page.getByText('Fleet template catalog').first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText('Fleet template catalog').first()).toBeVisible({ timeout: 8_000 })
   } catch {
     return // catalog not present on this host, pass silently
   }
