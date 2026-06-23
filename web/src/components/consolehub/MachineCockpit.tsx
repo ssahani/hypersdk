@@ -163,6 +163,11 @@ function CockpitInner({
     if (loading) setConnected(false)
   }, [activeProtocol, loading, setProtocol, setMode, setConnected])
 
+  // Reset the lens guard when navigating to a different VM so the new plan picks its own default.
+  useEffect(() => {
+    lensInitialized.current = false
+  }, [vmId])
+
   // Cockpit pattern: set the default lens ONCE when the plan first arrives.
   // Decision is made from VM capabilities (native.available, console_type, webrtc_spice_available),
   // not from the backend `recommended` string — mirrors getDefaultConsole() in cockpit/pkg/machines.
