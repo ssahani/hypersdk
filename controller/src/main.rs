@@ -32,6 +32,7 @@ struct Cli {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
+    machina_core::license::load_and_check()?;
     machina_controller::engine::ai::crypto::init();
     let cli = Cli::parse();
     let mut config = ControllerConfig::default();

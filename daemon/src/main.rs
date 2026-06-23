@@ -2,7 +2,6 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-mod license;
 mod auth;
 mod automation_worker;
 mod cluster_bootstrap;
@@ -68,7 +67,7 @@ fn init_rustls_crypto_provider() -> anyhow::Result<()> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    license::load_and_check()?;
+    let license = machina_core::license::load_or_community();
 
     // Default log filter: suppress noisy rustls SNI WARN that fires for every
     // TLS client that connects using an IP address literal instead of a hostname.
@@ -180,7 +179,7 @@ async fn main() -> anyhow::Result<()> {
     let tls_cert_path = config.tls.cert_path.clone();
     let tls_key_path = config.tls.key_path.clone();
 
-    let app = server::create_app(manager, config);
+    let app = server::create_app(manager, config, license);
 
     if tls_enabled {
         info!("listening on {bind_addr} (TLS enabled)");

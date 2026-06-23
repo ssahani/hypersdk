@@ -5,6 +5,7 @@
 mod advanced;
 mod automation;
 mod backup;
+mod license;
 mod console;
 pub mod consolehub;
 pub(crate) mod events;
@@ -61,6 +62,7 @@ pub fn api_routes() -> Router<LibvirtManager> {
         .merge(node::node_routes())
         .merge(metrics::metrics_routes())
         .merge(health::health_routes())
+        .merge(license::license_routes())
         .merge(guest_images::guest_image_routes())
         .merge(templates::template_routes())
         .merge(prometheus::prometheus_routes())

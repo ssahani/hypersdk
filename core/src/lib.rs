@@ -3,6 +3,7 @@
 // https://zyvor.dev · info@zyvor.dev
 
 pub mod api_error;
+pub mod license;
 pub mod audit;
 pub mod audit_ship;
 pub mod bpf_probe;

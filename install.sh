@@ -260,10 +260,11 @@ install_deps_debian() {
     log_cmd $PKG_MANAGER update -qq
 
     # llvm-dev: llvm-config; libclang-dev + clang: libclang.so for pam-sys bindgen
+    # libssl-dev: OpenSSL headers required by openssl-sys crate at build time
     local packages=(gcc g++ make pkg-config
         libvirt-dev libvirt-daemon-system qemu-kvm virtinst
         libpam0g-dev libclang-dev clang llvm-dev
-        protobuf-compiler
+        protobuf-compiler libssl-dev
         openssl git curl unzip)
 
     info "Installing: ${packages[*]}"

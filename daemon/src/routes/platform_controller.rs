@@ -34,16 +34,19 @@ fn platform_service_basic_auth() -> Option<HeaderValue> {
 
 fn forward_headers(src: &HeaderMap) -> HeaderMap {
     let mut h = HeaderMap::new();
-    for name in ["authorization", "content-type", "accept"] {
+    for name in ["content-type", "accept"] {
         if let Some(v) = src.get(name) {
             h.insert(name, v.clone());
         }
     }
-    // Browser uses daemon session cookie; inject controller credentials when the UI has none stored.
-    if !h.contains_key(header::AUTHORIZATION) {
-        if let Some(v) = platform_service_basic_auth() {
-            h.insert(header::AUTHORIZATION, v);
-        }
+    // When MACHINA_PLATFORM_AUTH is set, always use it — the browser's Bearer token
+    // is a daemon JWT which the controller cannot verify (different JWT secret).
+    // If MACHINA_PLATFORM_AUTH is not set, forward whatever the browser sent as a
+    // fallback (allows shared-secret or API-key setups).
+    if let Some(v) = platform_service_basic_auth() {
+        h.insert(header::AUTHORIZATION, v);
+    } else if let Some(v) = src.get(header::AUTHORIZATION) {
+        h.insert(header::AUTHORIZATION, v.clone());
     }
     h
 }

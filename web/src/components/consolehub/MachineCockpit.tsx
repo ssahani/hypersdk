@@ -195,11 +195,17 @@ function CockpitInner({
       toast.info('Read-only session — cannot send keys')
       return
     }
+    // Prefer noVNC-native key injection (works without qemu-guest-agent).
+    if (vp.sendCtrlAltDel) {
+      vp.sendCtrlAltDel()
+      toast.success('Sent Ctrl+Alt+Del')
+      return
+    }
     try {
       await sendGuestKey(vmName, { preset: 'ctrl_alt_del' })
       toast.success('Sent Ctrl+Alt+Del')
     } catch {
-      toast.error('Could not send key')
+      toast.error('Could not send key — install qemu-guest-agent in the VM or connect via VNC')
     }
   }
 

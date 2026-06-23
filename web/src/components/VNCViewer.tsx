@@ -297,6 +297,7 @@ export default function VNCViewer({
           if (!cancelled) {
             setStatus('connected')
             vp?.setConnected(true)
+            vp?.registerCtrlAltDel?.(() => rfbRef.current?.sendCtrlAltDel?.())
             syncGuestSize(rfb)
             if (cockpitMode) {
               scheduleCockpitViewportRefresh(rfb, scrollRef.current, () => cancelled)
@@ -332,6 +333,7 @@ export default function VNCViewer({
           if (!cancelled) {
             setStatus('disconnected')
             vp?.setConnected(false)
+            vp?.registerCtrlAltDel?.(null)
             vp?.setGuestSize(0, 0)
             onCanvasReady?.(null)
             if (clipRef.current) {
