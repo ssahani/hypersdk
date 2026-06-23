@@ -5,13 +5,14 @@ import { mockPlatformApi } from './platformMock'
 
 test('missing VM folder shows prune control', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
-  page.on('dialog', (d) => d.accept())
   await page.goto('/platform/vms?folder=missing')
   await expect(page.getByRole('button', { name: 'Prune missing records' })).toBeVisible({ timeout: 15_000 })
   const pruneReq = page.waitForResponse(
     (r) => r.url().includes('/vms/prune-missing') && r.request().method() === 'POST',
   )
   await page.getByRole('button', { name: 'Prune missing records' }).click()
+  // ConfirmDialog (React modal) — click the "Remove records" confirm button
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove records' }).click()
   expect((await pruneReq).ok()).toBeTruthy()
 })
 

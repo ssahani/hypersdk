@@ -127,7 +127,10 @@ test('machine finder page renders without crash', async ({ page }) => {
 test('machine finder card selection opens command center', async ({ page }) => {
   await mockPlatformApi(page)
   await page.goto('/platform/vms')
-  await page.getByText('e2e-libvirt-43356').first().click()
+  // Wait for the card to render before clicking
+  await expect(page.getByText('e2e-libvirt-43356').first()).toBeVisible({ timeout: 15_000 })
+  // Click the VM name text — bubbles up to card onSelect, avoids the action-button stopPropagation row
+  await page.getByTestId('machine-card-0c704fad-55e0-4a70-a5a5-d7fed8158921').getByText('e2e-libvirt-43356').click()
   await expect(page.getByTestId('machine-finder-command-center')).toBeVisible({ timeout: 10_000 })
 })
 

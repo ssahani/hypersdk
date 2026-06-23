@@ -146,7 +146,7 @@ test('backups destinations tab loads at normal tier', async ({ page }) => {
 test('vm detail topology tab loads at power tier', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/vms/v1?tab=topology')
-  await expect(page.getByRole('heading', { name: 'vm-1' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('heading', { name: 'vm-1' }).first()).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('2 nodes · 1 edges')).toBeVisible({ timeout: 15_000 })
 })
 
