@@ -125,7 +125,7 @@ mod tests {
         assert!(is_local_hypervisor_address("127.0.0.1"));
         assert!(is_local_hypervisor_address("localhost"));
         assert!(is_local_hypervisor_address("127.0.0.2"));
-        assert!(!is_local_hypervisor_address("175.110.114.93"));
+        assert!(!is_local_hypervisor_address("10.0.0.2"));
         assert!(!is_local_hypervisor_address(""));
     }
 }
