@@ -129,8 +129,11 @@ test('machine finder card selection opens command center', { retries: 1 }, async
   await page.goto('/platform/vms')
   const card = page.getByTestId('machine-card-0c704fad-55e0-4a70-a5a5-d7fed8158921')
   await expect(card).toBeVisible({ timeout: 15_000 })
-  // Force-click the card; the selected-state Command Center h2 only renders when a VM is selected
-  await card.click({ force: true })
+  // draggable divs swallow Playwright synthetic mouse events; dispatch a native DOM click instead
+  await page.evaluate(() => {
+    const el = document.querySelector('[data-testid="machine-card-0c704fad-55e0-4a70-a5a5-d7fed8158921"]')
+    el?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))
+  })
   await expect(page.getByRole('heading', { name: 'Command Center' })).toBeVisible({ timeout: 15_000 })
 })
 

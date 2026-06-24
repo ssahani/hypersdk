@@ -92,7 +92,11 @@ test('machine finder delete from command center does not crash', async ({ page }
     timeout: 15_000,
   })
 
-  await page.getByTestId('machine-card-v1').click({ force: true })
+  // draggable divs swallow Playwright synthetic mouse events; dispatch a native DOM click instead
+  await page.evaluate(() => {
+    const el = document.querySelector('[data-testid="machine-card-v1"]')
+    el?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))
+  })
   await expect(page.getByRole('heading', { name: 'Command Center' })).toBeVisible({ timeout: 15_000 })
 
   const deleteReq = page.waitForResponse(
