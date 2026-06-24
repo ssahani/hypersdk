@@ -249,3 +249,14 @@ export async function getWsToken(): Promise<string> {
   }
   return tok
 }
+
+export interface LicenseInfo {
+  licensee: string
+  issued: string
+  expires: string
+  days_remaining: number
+  is_valid: boolean
+  product: string
+}
+
+export const getLicense = () => apiGet<LicenseInfo>('/api/v1/license')

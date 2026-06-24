@@ -203,7 +203,7 @@ export default function VmKubevirtHardwareDrawer({ open, onClose, vmId, vmName, 
             <Link to={cinemaHubPath(vmId)} className="btn-primary text-xs" onClick={onClose}>
               Open Cinema
             </Link>
-            <Link to="/platform/k8s/workloads" className="btn-secondary text-xs" onClick={onClose}>
+            <Link to="/k8s/workloads" className="btn-secondary text-xs" onClick={onClose}>
               K8s workloads
             </Link>
           </div>

@@ -504,6 +504,7 @@ export interface EnrollmentToken {
 export const listPlatformHosts = () => platformFetch<PlatformHost[]>('/api/v1/hosts')
 export const createPlatformHost = (body: { hostname: string; address?: string; agent_grpc_addr?: string; libvirt_uri?: string }) =>
   platformFetch<PlatformHost>('/api/v1/hosts', { method: 'POST', body: JSON.stringify(body) })
+export const getPlatformHost = (id: string) => platformFetch<PlatformHost>(`/api/v1/hosts/${id}`)
 export const getPlatformHostDetail = (id: string) => platformFetch<PlatformHostDetail>(`/api/v1/hosts/${id}/detail`)
 export const syncAllHosts = () => platformFetch<{ task_id: string }[]>('/api/v1/hosts/sync-all', { method: 'POST' })
 export const deleteHost = (id: string) => platformFetch<{ deleted: boolean }>(`/api/v1/hosts/${id}`, { method: 'DELETE' })
@@ -828,6 +829,7 @@ export const listApiTraces = (limit = 50) =>
   platformFetch<ApiTraceSpan[]>(`/api/v1/observability/traces?limit=${limit}`)
 
 export const listPlatformNetworks = () => platformFetch<PlatformNetwork[]>('/api/v1/networks')
+export const getPlatformNetwork = (id: string) => platformFetch<PlatformNetwork>(`/api/v1/networks/${id}`)
 export const discoverPlatformNetworks = () =>
   platformFetch<{ imported: number; networks: PlatformNetwork[] }>('/api/v1/networks/discover', {
     method: 'POST',
@@ -2530,6 +2532,8 @@ export const listBackupTargets = () => platformFetch<BackupTarget[]>('/api/v1/ba
 
 export const createBackupTarget = (body: { name: string; kind?: string; config_json?: Record<string, unknown> }) =>
   platformFetch<BackupTarget>('/api/v1/backup-targets', { method: 'POST', body: JSON.stringify(body) })
+export const deleteBackupTarget = (id: string) =>
+  platformFetch<{ deleted: boolean }>(`/api/v1/backup-targets/${id}`, { method: 'DELETE' })
 
 export const upsertProjectQuota = (body: {
   project: string
@@ -2634,6 +2638,8 @@ export interface MaintenanceSchedule {
 export const listMaintenanceSchedules = () => platformFetch<MaintenanceSchedule[]>('/api/v1/maintenance/schedules')
 export const createMaintenanceSchedule = (body: { host_id: string; action?: string; evacuate?: boolean; run_at: string }) =>
   platformFetch<MaintenanceSchedule>('/api/v1/maintenance/schedules', { method: 'POST', body: JSON.stringify(body) })
+export const getMaintenanceSchedule = (id: string) =>
+  platformFetch<MaintenanceSchedule>(`/api/v1/maintenance/schedules/${id}`)
 export const deleteMaintenanceSchedule = (id: string) =>
   platformFetch<{ deleted: boolean }>(`/api/v1/maintenance/schedules/${id}`, { method: 'DELETE' })
 
@@ -2832,6 +2838,7 @@ export interface Blueprint {
 }
 
 export const listBlueprints = () => platformFetch<Blueprint[]>('/api/v1/blueprints')
+export const getBlueprint = (id: string) => platformFetch<Blueprint>(`/api/v1/blueprints/${id}`)
 
 export const createBlueprint = (body: { name: string; description?: string; actions: string[]; vm_ids: string[] }) =>
   platformFetch<Blueprint>('/api/v1/blueprints', { method: 'POST', body: JSON.stringify(body) })
@@ -2907,6 +2914,61 @@ export type {
 export { validateCloudInit } from './platformCloudInit'
 export type { CloudInitValidation } from './platformCloudInit'
 export { syncGitTemplates, approvePlatformTemplate, publishVmAsTemplate } from './platformTemplatesExtra'
+
+// ── Bare Metal ────────────────────────────────────────────────────────────────
+
+export interface BaremetalServer {
+  id: string
+  hostname: string
+  bmc_address: string
+  bmc_type: string
+  state: string
+  cpu_cores: number
+  memory_mib: number
+  firewall_profile: string
+  firewall_enabled: boolean
+  bmc_vlan: string
+  pxe_vlan: string
+  created_at: string
+}
+
+export interface RegisterBaremetalBody {
+  hostname: string
+  bmc_address: string
+  bmc_type?: string
+  cpu_cores?: number
+  memory_mib?: number
+  firewall_profile?: string
+  firewall_enabled?: boolean
+  bmc_vlan?: string
+  pxe_vlan?: string
+}
+
+export interface BmcPowerBody {
+  action: 'on' | 'off' | 'reset' | 'soft'
+}
+
+export interface BmcPowerResult {
+  server_id: string
+  action: string
+  success: boolean
+  message: string
+}
+
+export const listBaremetalServers = () =>
+  platformFetch<BaremetalServer[]>('/api/v1/baremetal/servers')
+
+export const registerBaremetalServer = (body: RegisterBaremetalBody) =>
+  platformFetch<BaremetalServer>('/api/v1/baremetal/servers', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const baremetalServerPower = (id: string, body: BmcPowerBody) =>
+  platformFetch<BmcPowerResult>(`/api/v1/baremetal/servers/${id}/power`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 export { retirePlatformVm, exportVmDisk, exportVmIac, downloadVmIacZip, downloadVmIacBundle } from './platformVmLifecycle'
 export type { VmIacExportBundle } from './platformVmLifecycle'
 export {

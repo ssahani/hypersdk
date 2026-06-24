@@ -176,8 +176,16 @@ export default function PlatformConsoleHub() {
         setSerialWsUrl(platformVmSerialWsUrl(id, wsToken))
         setPlatformSpiceWsPath(platformVmSpiceWsPath(id, wsToken))
       } else if (hubPlan?.native?.ws_path) {
-        setWsUrl(platformVncWsUrl(hubPlan.native.ws_path))
-        setPlatformSpiceWsPath(null)
+        const rawPath = hubPlan.native.ws_path
+        const isSpicePath =
+          hubPlan.native.console_type === 'spice' || rawPath.includes('/spice/')
+        if (isSpicePath) {
+          setPlatformSpiceWsPath(rawPath.replace(/^\//, ''))
+          setWsUrl(null)
+        } else {
+          setWsUrl(platformVncWsUrl(rawPath))
+          setPlatformSpiceWsPath(null)
+        }
       }
 
       if (wsToken || hubPlan?.native?.ws_path) {

@@ -38,7 +38,7 @@ export default function PlatformWorkloadsHub() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <NavCard to="/platform/vms" icon={<Server className="w-5 h-5" />} title="Virtual Machines" subtitle="All fleet VMs — search, filter, manage" />
         <NavCard to="/platform/templates" icon={<LayoutTemplate className="w-5 h-5" />} title="Templates" subtitle="Golden images and cloud-init templates" />
-        <NavCard to="/platform/snapshots" icon={<Camera className="w-5 h-5" />} title="Snapshots" subtitle="Fleet-wide snapshot management" />
+        <NavCard to="/platform/fleet-snapshots" icon={<Camera className="w-5 h-5" />} title="Snapshots" subtitle="Fleet-wide snapshot management" />
         <NavCard to="/platform/applications" icon={<Boxes className="w-5 h-5" />} title="Applications" subtitle="Deployed application stacks" />
         <NavCard to="/platform/blueprints" icon={<Rocket className="w-5 h-5" />} title="Blueprints" subtitle="Automation shortcuts and launchpad" />
       </div>

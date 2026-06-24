@@ -3,22 +3,13 @@
 // https://zyvor.dev · info@zyvor.dev
 
 import { useState, useEffect } from 'react'
-import { apiGet } from '../api/client'
-
-interface LicenseInfo {
-  licensee: string
-  issued: string
-  expires: string
-  days_remaining: number
-  is_valid: boolean
-  product: string
-}
+import { getLicense, type LicenseInfo } from '../api/client'
 
 export default function TrialBanner() {
   const [info, setInfo] = useState<LicenseInfo | null>(null)
 
   useEffect(() => {
-    apiGet<LicenseInfo>('/api/v1/license')
+    getLicense()
       .then(setInfo)
       .catch(() => {/* ignore — no banner if unreachable */})
   }, [])
