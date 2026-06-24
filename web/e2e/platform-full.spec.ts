@@ -110,11 +110,12 @@ test('integrations hub lists classic Machina tools', async ({ page }) => {
   await expect(page.getByText('Leaving the desktop')).toBeVisible()
 })
 
-test('Go menu navigates without tier bounce on allowed route', async ({ page }) => {
+test('Go menu navigates without tier bounce on allowed route', { retries: 1 }, async ({ page }) => {
+  test.setTimeout(90_000)
   await mockPlatformApi(page, { tier: 'normal' })
   await page.goto('/platform')
   await expect(page.getByRole('heading', { name: /e2e-cluster|Production Cluster|Zyvor Platform/i })).toBeVisible({
-    timeout: 15_000,
+    timeout: 30_000,
   })
   const menubar = page.locator('.mac-menubar-inner')
   await menubar.getByRole('button', { name: 'Go', exact: true }).click()

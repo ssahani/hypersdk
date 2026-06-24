@@ -17,8 +17,7 @@ test('Maintenance Mission shows 7-step timeline', async ({ page }) => {
   await expect(timeline.getByText('Verify & exit', { exact: true })).toBeVisible()
 })
 
-test('Maintenance schedule enqueue shows ErrorBanner on failure', async ({ page }) => {
-  test.retries(1)
+test('Maintenance schedule enqueue shows ErrorBanner on failure', { retries: 1 }, async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/maintenance?tab=schedules')
   // Wait for hosts to load so the select has options before we try to use it

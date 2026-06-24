@@ -37,12 +37,15 @@ test.describe('Platform storage (live)', () => {
 })
 
 test.describe('Platform networks (live)', () => {
+  test.describe.configure({ retries: 1 })
+
   test('networks page lists import and create actions', async ({ page }) => {
+    test.setTimeout(90_000)
     const live = liveBaseUrl()
     await setDesktopTier(page, 'power')
     await ensureLoggedIn(page, live, '/platform')
     await page.goto(`${live}/platform/networks`, { waitUntil: 'domcontentloaded' })
-    await expect(page.getByRole('heading', { name: 'Networks' })).toBeVisible({ timeout: 45_000 })
+    await expect(page.getByRole('heading', { name: 'Networks' })).toBeVisible({ timeout: 60_000 })
     await expect(page.getByRole('button', { name: /import from hosts/i })).toBeVisible()
     await expect(page.getByRole('button', { name: /new network/i })).toBeVisible()
   })

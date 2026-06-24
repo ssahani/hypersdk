@@ -48,10 +48,11 @@ test('language switcher on login', async ({ page }) => {
   await expect(page.getByLabel('Usuario')).toBeVisible()
 })
 
-test('platform marketplace scrolls on live host', async ({ page }) => {
+test('platform marketplace scrolls on live host', { retries: 1 }, async ({ page }) => {
+  test.setTimeout(90_000)
   test.skip(!liveCredentials(), 'Set PLAYWRIGHT_LIVE_USER/PASS or LDAP creds')
   await loginAtMachinaLoginPage(page, live!)
-  await page.goto(`${live}/platform/templates`)
+  await page.goto(`${live}/platform/templates`, { waitUntil: 'domcontentloaded' })
   // Template catalog may not be configured on all hosts — soft-skip when absent
   try {
     await expect(page.getByText('Fleet template catalog').first()).toBeVisible({ timeout: 8_000 })

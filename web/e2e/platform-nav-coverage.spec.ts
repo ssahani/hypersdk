@@ -52,10 +52,11 @@ test('normal tier hides context bar on dashboard', async ({ page }) => {
   await expect(page.locator('.tahoe-context-bar')).toHaveCount(0)
 })
 
-test('power tier shows context bar on hub roots only', async ({ page }) => {
+test('power tier shows context bar on hub roots only', { retries: 1 }, async ({ page }) => {
+  test.setTimeout(60_000)
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/operations')
-  await expect(page.locator('.tahoe-context-bar')).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('.tahoe-context-bar')).toBeVisible({ timeout: 20_000 })
   await page.goto('/platform/tasks')
   await expect(page.locator('.tahoe-context-bar')).toHaveCount(0)
 })

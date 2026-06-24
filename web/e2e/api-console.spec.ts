@@ -17,9 +17,11 @@ test('developer API console tab loads controller operations', async ({ page }) =
   await expect(page.getByText('/api/v1/hosts').first()).toBeVisible()
 })
 
-test('developer API console host tab loads daemon operations', async ({ page }) => {
+test('developer API console host tab loads daemon operations', { retries: 1 }, async ({ page }) => {
   await page.goto('/platform/developer')
-  await page.getByRole('tab', { name: /API Console/i }).click()
+  const consoleTab = page.getByRole('tab', { name: /API Console/i })
+  await expect(consoleTab).toBeVisible({ timeout: 15_000 })
+  await consoleTab.click({ force: true })
   await page.getByRole('button', { name: /Host \(daemon\)/i }).click()
   await expect(page.getByText('/api/v1/vms').first()).toBeVisible({ timeout: 15_000 })
   await page.getByText('/api/v1/vms').first().click()

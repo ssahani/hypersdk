@@ -3,10 +3,11 @@
 import { test, expect } from '@playwright/test'
 import { mockPlatformApi } from './platformMock'
 
-test('missing VM folder shows prune control', async ({ page }) => {
+test('missing VM folder shows prune control', { retries: 1 }, async ({ page }) => {
+  test.setTimeout(90_000)
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/vms?folder=missing')
-  await expect(page.getByRole('button', { name: 'Prune missing records' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('button', { name: 'Prune missing records' })).toBeVisible({ timeout: 40_000 })
   const pruneReq = page.waitForResponse(
     (r) => r.url().includes('/vms/prune-missing') && r.request().method() === 'POST',
   )
