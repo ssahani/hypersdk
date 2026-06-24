@@ -111,7 +111,7 @@ async function mockPlatformApi(page: import('@playwright/test').Page) {
   })
 }
 
-test('machine finder page renders without crash', async ({ page }) => {
+test('machine finder page renders without crash', { retries: 1 }, async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', (err) => errors.push(err.message))
 

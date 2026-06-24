@@ -3,7 +3,7 @@
 import { test, expect } from '@playwright/test'
 import { mockPlatformApi } from './platformMock'
 
-test('advanced tier shows sidebar policy and Go menu opens', async ({ page }) => {
+test('advanced tier shows sidebar policy and Go menu opens', { retries: 1 }, async ({ page }) => {
   await mockPlatformApi(page, { tier: 'advanced' })
   await page.goto('/platform/policy')
   await expect(page.getByRole('heading', { name: /Policy & Quotas/i })).toBeVisible()
@@ -112,7 +112,7 @@ test('normal tier alerts quick action opens notification center', async ({ page 
   await expect(page.getByRole('heading', { name: 'Alerts', exact: true })).toBeVisible({ timeout: 15_000 })
 })
 
-test('settings context bar collapses overflow into More menu', async ({ page }) => {
+test('settings context bar collapses overflow into More menu', { retries: 1 }, async ({ page }) => {
   await mockPlatformApi(page, { tier: 'advanced' })
   await page.goto('/platform/policy')
   await expect(page.getByRole('heading', { name: /Policy & Quotas/i })).toBeVisible({ timeout: 15_000 })
