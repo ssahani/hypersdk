@@ -25,7 +25,7 @@ use crate::obs_workers::ObservabilityWorkers;
 use crate::routes;
 use crate::terminal::{self, TerminalSessionStore};
 
-pub fn create_app(manager: LibvirtManager, config: MachinaConfig, license: machina_core::license::License) -> Router {
+pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
     let web_dir = find_web_dist();
     let session_store = SessionStore::new(
         config.auth.max_sessions_global,
@@ -57,7 +57,6 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig, license: machi
 
     let job_registry = std::sync::Arc::new(JobRegistry::new());
     let event_bus = std::sync::Arc::new(crate::routes::events::EventBus::new(256));
-    let license = Arc::new(license);
     let vib_build_slots = Arc::new(Semaphore::new(
         config.libvirt.virt_image_build_max_concurrent.max(1),
     ));
@@ -75,7 +74,6 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig, license: machi
         .layer(Extension(http_metrics.clone()))
         .layer(Extension(metrics_history_store.clone()))
         .layer(Extension(obs_workers.clone()))
-        .layer(Extension(license.clone()))
         .route_layer(middleware::from_fn_with_state(
             session_store.clone(),
             auth::auth_middleware,

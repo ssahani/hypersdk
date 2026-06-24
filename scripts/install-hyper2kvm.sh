@@ -2,14 +2,12 @@
 # scripts/install-hyper2kvm.sh — End-user installer for Machina Hyper2KVM Platform
 #
 # Installs machina-daemon + machina-controller + machina-agent, enables the HyperSDK
-# proxy integration, generates a 30-day trial licence, and starts all services.
+# proxy integration, and starts all services.
 #
 # Usage:
 #   sudo ./scripts/install-hyper2kvm.sh [OPTIONS]
 #
 # Options:
-#   --licensee "Name"      Licensee name embedded in trial key (default: "Trial Customer")
-#   --days N               Trial duration in days (default: 30)
 #   --bind ADDR            Bind address for daemon (default: 0.0.0.0)
 #   --open-firewall        Open ports 5092 and 5093 in the active firewall
 #   --disable-firewalld    Disable firewalld/ufw entirely (lab environments)
@@ -25,8 +23,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
-LICENSEE="Trial Customer"
-TRIAL_DAYS=30
 BIND_ADDR="0.0.0.0"
 OPEN_FIREWALL=false
 DISABLE_FIREWALL=false
@@ -61,13 +57,11 @@ parse_args() {
     local prev=""
     for arg in "$@"; do
         case "$prev" in
-            --licensee) LICENSEE="$arg"; prev=""; continue ;;
-            --days)     TRIAL_DAYS="$arg"; prev=""; continue ;;
             --bind)     BIND_ADDR="$arg";  prev=""; continue ;;
             --remote)   REMOTE_HOST="$arg"; prev=""; continue ;;
         esac
         case "$arg" in
-            --licensee|--days|--bind|--remote) prev="$arg" ;;
+            --bind|--remote) prev="$arg" ;;
             --open-firewall)    OPEN_FIREWALL=true ;;
             --disable-firewalld) DISABLE_FIREWALL=true ;;
             --no-start)         NO_START=true ;;
@@ -87,8 +81,6 @@ Usage:
   sudo ./scripts/install-hyper2kvm.sh [OPTIONS]
 
 Options:
-  --licensee "Name"      Licensee name for trial key (default: "Trial Customer")
-  --days N               Trial duration in days (default: 30)
   --bind ADDR            Bind address (default: 0.0.0.0 — all interfaces)
   --open-firewall        Open ports 5092 and 5093 in firewall
   --disable-firewalld    Stop and disable firewalld/ufw
@@ -103,11 +95,10 @@ Components installed:
   machina-controller    Enterprise control plane       (:5093)
   machina-agent         Per-host KVM agent             (:50051)
   HyperSDK proxy        /api/v1/hypersdk/*  (enabled)
-  30-day trial licence  Auto-generated, written to /etc/machina/license.key
 
 Examples:
   sudo ./scripts/install-hyper2kvm.sh
-  sudo ./scripts/install-hyper2kvm.sh --licensee "Acme Corp" --days 30
+  sudo ./scripts/install-hyper2kvm.sh --bind 0.0.0.0 --open-firewall
   ./scripts/install-hyper2kvm.sh --remote root@192.168.1.100 --open-firewall
 EOF
 }
@@ -126,7 +117,7 @@ remote_deploy() {
     ok "Source synced"
 
     # Build remote args
-    local rargs="--licensee \"$LICENSEE\" --days $TRIAL_DAYS --bind $BIND_ADDR --no-tests"
+    local rargs="--bind $BIND_ADDR --no-tests"
     $OPEN_FIREWALL    && rargs="$rargs --open-firewall"
     $DISABLE_FIREWALL && rargs="$rargs --disable-firewalld"
     $WITH_GUACAMOLE   && rargs="$rargs --with-guacamole"
@@ -146,61 +137,7 @@ remote_deploy() {
     echo "  🌐 Web UI:      https://$ip:5092"
     echo "  🔗 Daemon API:  https://$ip:5092/api/v1/health"
     echo "  🗄  Controller:  https://$ip:5093/api/v1/health"
-    echo "  📋 Trial:       $TRIAL_DAYS days from today ($LICENSEE)"
     echo ""
-}
-
-# ── Trial key generation ──────────────────────────────────────────────────────
-
-generate_trial_key() {
-    step "Generating 30-day trial licence for: $LICENSEE"
-
-    if ! command -v python3 >/dev/null 2>&1; then
-        warn "python3 not found — install python3 and retry, or set MACHINA_LICENSE_KEY manually"
-        return 1
-    fi
-
-    TRIAL_KEY=$(python3 - "$LICENSEE" "$TRIAL_DAYS" <<'PYEOF'
-import sys, base64, datetime, hmac, hashlib, json
-
-HMAC_SECRET = b"zyvor-machina-trial-v1-5f7h9j1l3n5p7r9t"
-PRODUCT = "machina"
-
-def b64url(data):
-    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
-
-licensee = sys.argv[1]
-days = int(sys.argv[2])
-today = datetime.date.today()
-expiry = today + datetime.timedelta(days=days)
-payload = json.dumps({"p": PRODUCT, "iss": today.isoformat(), "exp": expiry.isoformat(), "who": licensee},
-                     separators=(",", ":")).encode()
-payload_b64 = b64url(payload)
-sig = hmac.new(HMAC_SECRET, payload_b64.encode(), hashlib.sha256).digest()
-print(f"{payload_b64}.{b64url(sig)}", end="")
-PYEOF
-)
-
-    if [[ -z "$TRIAL_KEY" ]]; then
-        fail "Trial key generation failed"
-    fi
-
-    TRIAL_EXPIRY=$(python3 -c "import datetime; print((datetime.date.today() + datetime.timedelta(days=$TRIAL_DAYS)).isoformat())")
-    ok "Trial key generated (expires $TRIAL_EXPIRY)"
-}
-
-# ── Install trial key ─────────────────────────────────────────────────────────
-
-install_trial_key() {
-    step "Installing trial licence key"
-
-    mkdir -p /etc/machina
-    printf '%s\n' "$TRIAL_KEY" > /etc/machina/license.key
-    chmod 600 /etc/machina/license.key
-    ok "Licence key -> /etc/machina/license.key"
-
-    # Export for child scripts that read the env var
-    export MACHINA_LICENSE_KEY="$TRIAL_KEY"
 }
 
 # ── Install machina-daemon ────────────────────────────────────────────────────
@@ -266,25 +203,6 @@ install_platform() {
     ok "machina-controller + machina-agent installed"
 }
 
-# ── Propagate licence to platform services ────────────────────────────────────
-
-propagate_license_to_platform() {
-    step "Configuring trial key for controller and agent"
-
-    local env_file="/etc/default/machina-platform"
-    if [[ ! -f "$env_file" ]]; then
-        warn "$env_file not found — controller/agent may need MACHINA_LICENSE_KEY set manually"
-        return 0
-    fi
-
-    # Remove any existing key line and append the new one
-    if grep -q "^MACHINA_LICENSE_KEY=" "$env_file" 2>/dev/null; then
-        sed -i '/^MACHINA_LICENSE_KEY=/d' "$env_file"
-    fi
-    echo "MACHINA_LICENSE_KEY=${TRIAL_KEY}" >> "$env_file"
-    ok "Trial key written to $env_file"
-}
-
 # ── Restart all services ──────────────────────────────────────────────────────
 
 restart_services() {
@@ -325,9 +243,8 @@ run_verification() {
         fi
     }
 
-    check "Daemon health"    "https://$host:5092/api/v1/health"   "healthy"
-    check "License endpoint" "https://$host:5092/api/v1/license"  "is_valid"
-    check "Web UI"           "https://$host:5092/"                 ""    # just checks 200
+    check "Daemon health" "https://$host:5092/api/v1/health" "healthy"
+    check "Web UI"        "https://$host:5092/"              ""
 
     echo ""
     echo "  Test results: ✅ $passed passed, ❌ $failed failed"
@@ -348,9 +265,6 @@ print_summary() {
     echo "  🌐 Web UI:        https://${host}:5092"
     echo "  🔗 Daemon API:    https://${host}:5092/api/v1/health"
     echo "  🗄  Controller:    https://${host}:5093/api/v1/health  (if enabled)"
-    echo "  📋 Licence:       /etc/machina/license.key"
-    echo "  🔑 Licensee:      $LICENSEE"
-    echo "  ⏰ Trial expires: ${TRIAL_EXPIRY:-$TRIAL_DAYS days from today}"
     echo ""
     echo "  Manage:"
     echo "    sudo systemctl status  machina-daemon"
@@ -363,8 +277,6 @@ print_summary() {
     echo ""
     echo "  HyperSDK proxy enabled: /api/v1/hypersdk/*"
     echo "  Configure base_url in /etc/machina/config.toml [hypersdk]"
-    echo ""
-    echo "  For a commercial licence: sales@zyvor.dev | https://zyvor.dev"
     echo ""
 }
 
@@ -384,12 +296,9 @@ main() {
         fail "Run as root: sudo $0 $*"
     fi
 
-    generate_trial_key
-    install_trial_key
     install_daemon
     configure_hypersdk
     install_platform
-    propagate_license_to_platform
     restart_services
     run_verification
     print_summary

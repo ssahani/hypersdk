@@ -27,7 +27,6 @@ import { useSequenceShortcuts } from './hooks/useSequenceShortcut'
 import { useKeyboardShortcut, isInputFocused } from './hooks/useKeyboardShortcut'
 import { useRecordRecentPage } from './hooks/useRecordRecentPage'
 import { usePlatformInfo } from './contexts/PlatformInfoContext'
-import TrialBanner from './components/TrialBanner'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const VMList = lazy(() => import('./pages/VMList'))
@@ -346,7 +345,6 @@ function AuthenticatedShellRoutes() {
             >
               Skip to main content
             </a>
-            <TrialBanner />
             {!isPlatformRoute && <Navbar onOpenHelp={openHelp} />}
             {!isPlatformRoute && <ShellBridgeBar />}
             <ZeusSpotlight onOpenHelp={openHelp} />

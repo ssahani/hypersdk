@@ -67,8 +67,6 @@ fn init_rustls_crypto_provider() -> anyhow::Result<()> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let license = machina_core::license::load_or_community();
-
     // Default log filter: suppress noisy rustls SNI WARN that fires for every
     // TLS client that connects using an IP address literal instead of a hostname.
     // RFC 6066 forbids IP literals in SNI; rustls logs WARN but still serves the
@@ -179,7 +177,7 @@ async fn main() -> anyhow::Result<()> {
     let tls_cert_path = config.tls.cert_path.clone();
     let tls_key_path = config.tls.key_path.clone();
 
-    let app = server::create_app(manager, config, license);
+    let app = server::create_app(manager, config);
 
     if tls_enabled {
         info!("listening on {bind_addr} (TLS enabled)");
