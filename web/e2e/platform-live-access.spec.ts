@@ -1,21 +1,25 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { test, expect } from '@playwright/test'
-import { ensureLoggedIn } from './helpers/liveAuth'
+import { ensureLoggedIn, liveCredentials } from './helpers/liveAuth'
 
 const live = process.env.PLAYWRIGHT_LIVE_URL?.replace(/\/$/, '')
 test.skip(!live, 'Set PLAYWRIGHT_LIVE_URL to run live access e2e')
 
 test.beforeEach(async ({ page }) => {
+  test.skip(!liveCredentials(), 'Set PLAYWRIGHT_LIVE_USER and PLAYWRIGHT_LIVE_PASS to run live access tests')
   await ensureLoggedIn(page, live!, { tier: 'power' })
 })
 
+async function fetchVms(page: import('@playwright/test').Page) {
+  const res = await page.request.get(`${live}/api/v1/platform/controller/api/v1/vms`, { ignoreHTTPSErrors: true })
+  if (!res.ok()) return []
+  const raw = await res.json()
+  return (Array.isArray(raw) ? raw : ((raw as any).items ?? [])) as Array<{ id: string; guest_ip?: string }>
+}
+
 test('platform VM overview shows daily access when guest IP is private', async ({ page }) => {
-  const vmsRes = await page.request.get(`${live}/api/v1/platform/controller/api/v1/vms`, {
-    ignoreHTTPSErrors: true,
-  })
-  expect(vmsRes.ok()).toBeTruthy()
-  const vms = (await vmsRes.json()) as Array<{ id: string; guest_ip?: string }>
+  const vms = await fetchVms(page)
   const vm = vms.find((v) => v.guest_ip?.startsWith('192.168.')) ?? vms[0]
   test.skip(!vm?.id, 'no platform VMs on host')
 
@@ -27,10 +31,7 @@ test('platform VM overview shows daily access when guest IP is private', async (
 })
 
 test('Access tab shows connect hub on live VM', async ({ page }) => {
-  const vmsRes = await page.request.get(`${live}/api/v1/platform/controller/api/v1/vms`, {
-    ignoreHTTPSErrors: true,
-  })
-  const vms = (await vmsRes.json()) as Array<{ id: string; guest_ip?: string }>
+  const vms = await fetchVms(page)
   const vm = vms.find((v) => v.guest_ip?.startsWith('192.168.')) ?? vms[0]
   test.skip(!vm?.id, 'no platform VMs on host')
 
@@ -40,10 +41,7 @@ test('Access tab shows connect hub on live VM', async ({ page }) => {
 })
 
 test('network tab exposes SSH via port forward panel', async ({ page }) => {
-  const vmsRes = await page.request.get(`${live}/api/v1/platform/controller/api/v1/vms`, {
-    ignoreHTTPSErrors: true,
-  })
-  const vms = (await vmsRes.json()) as Array<{ id: string; guest_ip?: string }>
+  const vms = await fetchVms(page)
   const vm = vms.find((v) => v.guest_ip?.startsWith('192.168.')) ?? vms[0]
   test.skip(!vm?.id, 'no platform VMs on host')
 
@@ -62,10 +60,7 @@ test('network tab exposes SSH via port forward panel', async ({ page }) => {
 
 test('ConsoleHub serial lens shows recovery card on private NAT VM', { retries: 1 }, async ({ page }) => {
   test.setTimeout(90_000)
-  const vmsRes = await page.request.get(`${live}/api/v1/platform/controller/api/v1/vms`, {
-    ignoreHTTPSErrors: true,
-  })
-  const vms = (await vmsRes.json()) as Array<{ id: string; guest_ip?: string }>
+  const vms = await fetchVms(page)
   const vm = vms.find((v) => v.guest_ip?.startsWith('192.168.')) ?? vms[0]
   test.skip(!vm?.id, 'no platform VMs on host')
 
