@@ -1963,6 +1963,7 @@ fn build_console_access_plan(
         guacamole_available: guac_up,
         guacamole_protocols: protocols,
         guest_auth_mode: guest_auth_mode_from_domain_xml(&xml),
+        has_spice,
     })
 }
 

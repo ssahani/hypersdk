@@ -944,7 +944,18 @@ async fn vm_snapshot_delete(state: &AppState, msg: &TaskMessage) -> anyhow::Resu
     let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm {} has no host", vm_id))?;
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
-    agent_client::delete_snapshot(&mut client, &row.0, &snap_name).await?;
+    match agent_client::delete_snapshot(&mut client, &row.0, &snap_name).await {
+        Ok(_) => {}
+        Err(e) => {
+            let msg_str = e.to_string().to_lowercase();
+            // If libvirt already deleted the snapshot (e.g. after a revert that restructured the
+            // snapshot chain), treat "not found" as success and just clean up the controller record.
+            if !msg_str.contains("not found") && !msg_str.contains("notfound") {
+                return Err(e);
+            }
+            tracing::warn!(snap = %snap_name, "snapshot not found in libvirt during delete — cleaning up controller record only");
+        }
+    }
     sqlx::query("DELETE FROM snapshot_records WHERE vm_id = ? AND name = ?")
         .bind(vm_id)
         .bind(&snap_name)

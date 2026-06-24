@@ -857,7 +857,7 @@ export default function PlatformVmDetail() {
             act={act}
             power={{
               onInstall: canInstall ? () => void act('Install queued', () => installPlatformVm(id)) : undefined,
-              onStart: (vm.observed_state === 'stopped' || vm.observed_state === 'shut off') && !canInstall
+              onStart: (vm.observed_state === 'stopped' || vm.observed_state === 'shut off' || vm.observed_state === 'shutoff') && !canInstall
                 ? () => void act('Start queued', () => vmPower(id, 'start'))
                 : undefined,
               onResume: vm.observed_state === 'paused'
@@ -1716,7 +1716,7 @@ export default function PlatformVmDetail() {
                   lastRefreshedAt={guestHealthRefreshedAt}
                   onRefresh={() => void loadGuestHealth()}
                   onStartVm={
-                    vm.observed_state === 'stopped' || vm.observed_state === 'shut off'
+                    vm.observed_state === 'stopped' || vm.observed_state === 'shut off' || vm.observed_state === 'shutoff'
                       ? () => void act('Start queued', () => vmPower(id, 'start'))
                       : undefined
                   }

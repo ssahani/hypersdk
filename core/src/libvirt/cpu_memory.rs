@@ -192,6 +192,7 @@ fn replace_or_insert_vcpu(xml: &str, vcpus: u32) -> String {
 
 fn replace_or_insert_topology(xml: &str, sockets: u32, cores: u32, threads: u32) -> String {
     let topo = format!("<topology sockets='{sockets}' cores='{cores}' threads='{threads}'/>");
+    // Replace existing <topology .../> inside the <cpu> block.
     if let Some(start) = xml.find("<topology") {
         if let Some(end) = xml[start..].find("/>") {
             let end_idx = start + end + 2;
@@ -199,15 +200,20 @@ fn replace_or_insert_topology(xml: &str, sockets: u32, cores: u32, threads: u32)
         }
     }
     if let Some(cpu_start) = xml.find("<cpu") {
-        if let Some(cpu_gt) = xml[cpu_start..].find('>') {
+        let cpu_substr = &xml[cpu_start..];
+        // Self-closing <cpu ... /> — convert to open block with topology inside.
+        if let Some(sc_off) = cpu_substr.find("/>") {
+            if !cpu_substr[..sc_off].contains('>') {
+                let attrs = cpu_substr[..sc_off].trim_start_matches("<cpu");
+                let new_cpu = format!("<cpu{attrs}>\n  {topo}\n</cpu>");
+                let after = &xml[cpu_start + sc_off + 2..];
+                return format!("{}{}{}", &xml[..cpu_start], new_cpu, after);
+            }
+        }
+        // Open <cpu ...>...</cpu> — insert topology right after the opening >.
+        if let Some(cpu_gt) = cpu_substr.find('>') {
             let insert_at = cpu_start + cpu_gt + 1;
-            return format!(
-                "{}{}\n  {}{}",
-                &xml[..insert_at],
-                "",
-                topo,
-                &xml[insert_at..]
-            );
+            return format!("{}\n  {}{}", &xml[..insert_at], topo, &xml[insert_at..]);
         }
     }
     if let Some(idx) = xml.find("<vcpu") {

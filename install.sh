@@ -265,6 +265,7 @@ install_deps_debian() {
         libvirt-dev libvirt-daemon-system qemu-kvm virtinst
         libpam0g-dev libclang-dev clang llvm-dev
         protobuf-compiler libssl-dev
+        genisoimage
         openssl git curl unzip)
 
     info "Installing: ${packages[*]}"

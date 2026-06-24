@@ -544,9 +544,13 @@ fn plan_from_agent(
         recommended,
         native: NativeConsoleInfo {
             console_type: agent.console_type.clone(),
-            ws_path: format!("/ws/v1/platform/vnc/{vm_id}?token={ws_token}"),
+            ws_path: if agent.console_type == "spice" && agent.vnc_port == 0 {
+                format!("/ws/v1/platform/spice/{vm_id}?token={ws_token}")
+            } else {
+                format!("/ws/v1/platform/vnc/{vm_id}?token={ws_token}")
+            },
             serial_ws_path: format!("/ws/v1/platform/serial/{vm_id}?token={ws_token}"),
-            available: agent.vnc_port > 0,
+            available: agent.vnc_port > 0 || agent.has_spice,
         },
         guacamole: GuacamoleConsoleInfo {
             available: agent.guacamole_available,
@@ -568,7 +572,7 @@ fn plan_from_agent(
             agent.os_hint.clone()
         },
         protocols: build_protocol_list(agent),
-        webrtc_spice_available: agent.console_type == "spice",
+        webrtc_spice_available: agent.console_type == "spice" || agent.has_spice,
         guest_access: guest_access.clone(),
         hypervisor_address: hypervisor_address.clone(),
         ssh_connect_host: ssh_host.clone(),
@@ -598,7 +602,7 @@ fn ssh_connect_target(
 
 fn build_protocol_list(agent: &machina_agent::pb::GetConsoleAccessPlanResponse) -> Vec<String> {
     let mut out = Vec::new();
-    if agent.console_type == "spice" {
+    if agent.console_type == "spice" || agent.has_spice {
         out.push("spice".into());
         out.push("webrtc_spice".into());
     }
