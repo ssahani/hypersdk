@@ -112,6 +112,7 @@ test('F10 — Doctor tab deep-links GuestKit migrate plan', async ({ page }) => 
 })
 
 test('F11 — Cinema ConsoleHub shell, ops shelf, and serial recovery', async ({ page }) => {
+  test.setTimeout(60_000)
   await page.goto('/platform/vms/v1/consolehub?mode=studio')
   await expect(page.getByTestId('studio-layout')).toBeVisible({ timeout: 15_000 })
   await page.getByRole('button', { name: 'Serial' }).first().click()

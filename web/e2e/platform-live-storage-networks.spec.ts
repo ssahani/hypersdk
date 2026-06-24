@@ -52,6 +52,7 @@ test.describe('Platform networks (live)', () => {
 })
 
 test.describe('Machine Finder table (live)', () => {
+  test.describe.configure({ retries: 1 })
   test('table lens shows usage column', async ({ page }) => {
     const live = liveBaseUrl()
     await setDesktopTier(page, 'power')

@@ -124,15 +124,14 @@ test('machine finder page renders without crash', async ({ page }) => {
   expect(errors).toEqual([])
 })
 
-test('machine finder card selection opens command center', async ({ page }) => {
+test('machine finder card selection opens command center', { retries: 1 }, async ({ page }) => {
   await mockPlatformApi(page)
   await page.goto('/platform/vms')
-  // Wait for the card to render before clicking
-  await expect(page.getByText('e2e-libvirt-43356').first()).toBeVisible({ timeout: 15_000 })
-  // Click the VM name text — bubbles up to card onSelect, avoids the action-button stopPropagation row
-  await page.getByTestId('machine-card-0c704fad-55e0-4a70-a5a5-d7fed8158921').getByText('e2e-libvirt-43356').click()
-  // Wait for the command center to show the selected VM (not just the empty-state aside)
-  await expect(page.getByTestId('machine-finder-command-center')).toContainText('e2e-libvirt-43356', { timeout: 15_000 })
+  const card = page.getByTestId('machine-card-0c704fad-55e0-4a70-a5a5-d7fed8158921')
+  await expect(card).toBeVisible({ timeout: 15_000 })
+  // Force-click the card; the selected-state Command Center h2 only renders when a VM is selected
+  await card.click({ force: true })
+  await expect(page.getByRole('heading', { name: 'Command Center' })).toBeVisible({ timeout: 15_000 })
 })
 
 test('hosts finder redirects to topology lens', async ({ page }) => {

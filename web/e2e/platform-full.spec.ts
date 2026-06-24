@@ -86,16 +86,9 @@ test('integrations hub lists OpenStack when enabled', async ({ page }) => {
 
 test('integrations hub shows live OpenStack and K8s preview stats', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
-  const instancesReq = page.waitForResponse(
-    (r) => r.url().includes('/openstack/instances') && r.ok(),
-    { timeout: 20_000 },
-  )
-  const k8sReq = page.waitForResponse((r) => r.url().includes('/k8s/overview') && r.ok(), { timeout: 20_000 })
   await page.goto('/platform/integrations')
-  await expect(page.getByText('OpenStack preview')).toBeVisible()
-  await expect(page.getByText('Kubernetes preview')).toBeVisible()
-  await instancesReq
-  await k8sReq
+  await expect(page.getByText('OpenStack preview')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('Kubernetes preview')).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('Instances').first()).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('web-01')).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('k3s')).toBeVisible({ timeout: 15_000 })

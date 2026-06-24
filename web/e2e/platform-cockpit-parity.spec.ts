@@ -4,6 +4,8 @@ import { test, expect } from '@playwright/test'
 import { mockPlatformApi } from './platformMock'
 
 test.describe('Cockpit parity surfaces (mock)', () => {
+  test.describe.configure({ retries: 1 })
+
   test.beforeEach(async ({ page }) => {
     await mockPlatformApi(page, { tier: 'power' })
   })

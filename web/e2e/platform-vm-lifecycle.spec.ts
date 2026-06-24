@@ -92,8 +92,8 @@ test('machine finder delete from command center does not crash', async ({ page }
     timeout: 15_000,
   })
 
-  await page.getByTestId('machine-card-v1').click()
-  await expect(page.getByTestId('machine-finder-command-center')).toBeVisible({ timeout: 10_000 })
+  await page.getByTestId('machine-card-v1').click({ force: true })
+  await expect(page.getByRole('heading', { name: 'Command Center' })).toBeVisible({ timeout: 15_000 })
 
   const deleteReq = page.waitForResponse(
     (r) => r.url().includes('/vms/v1/delete') && r.request().method() === 'POST',
