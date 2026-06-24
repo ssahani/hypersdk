@@ -70,6 +70,13 @@ test('machine finder delete from command center does not crash', async ({ page }
 
   let vmGone = false
   await mockPlatformApi(page, { tier: 'power' })
+  // after deletion, load() refetches the list — return empty list so the card disappears
+  await page.route('**/platform/controller/api/v1/vms?*', async (route) => {
+    if (vmGone && route.request().method() === 'GET') {
+      return route.fulfill({ json: [] })
+    }
+    await route.fallback()
+  })
   await page.route('**/platform/controller/api/v1/vms/v1', async (route) => {
     if (vmGone && route.request().method() === 'GET') {
       return route.fulfill({
