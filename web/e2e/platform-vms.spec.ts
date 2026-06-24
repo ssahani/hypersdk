@@ -131,7 +131,8 @@ test('machine finder card selection opens command center', async ({ page }) => {
   await expect(page.getByText('e2e-libvirt-43356').first()).toBeVisible({ timeout: 15_000 })
   // Click the VM name text — bubbles up to card onSelect, avoids the action-button stopPropagation row
   await page.getByTestId('machine-card-0c704fad-55e0-4a70-a5a5-d7fed8158921').getByText('e2e-libvirt-43356').click()
-  await expect(page.getByTestId('machine-finder-command-center')).toBeVisible({ timeout: 10_000 })
+  // Wait for the command center to show the selected VM (not just the empty-state aside)
+  await expect(page.getByTestId('machine-finder-command-center')).toContainText('e2e-libvirt-43356', { timeout: 15_000 })
 })
 
 test('hosts finder redirects to topology lens', async ({ page }) => {

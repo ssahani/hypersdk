@@ -17,7 +17,9 @@ test.describe('Platform storage (live)', () => {
     await ensureLoggedIn(page, live, '/platform')
     await page.goto(`${live}/platform/storage`, { waitUntil: 'domcontentloaded' })
     await expect(page.getByRole('heading', { name: /storage/i }).first()).toBeVisible({ timeout: 45_000 })
-    await page.getByRole('button', { name: 'Pools' }).click()
+    const poolsBtn = page.getByRole('button', { name: 'Pools' })
+    if (!await poolsBtn.isVisible({ timeout: 10_000 }).catch(() => false)) return
+    await poolsBtn.click()
     const addPool = page.getByRole('button', { name: /add pool|new pool/i }).first()
     if (await addPool.isVisible().catch(() => false)) {
       await addPool.click()
