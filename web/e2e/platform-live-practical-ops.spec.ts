@@ -169,14 +169,15 @@ test.describe('VM power cycle (live)', () => {
   })
 
   test('P05 — force stop (destroy) and restart', async ({ page }) => {
-    test.setTimeout(120_000)
+    test.setTimeout(180_000)
     await openLiveVmDetail(page)
     const stop = await controllerVmPower(page, 'stop')
     expect(stop.status()).toBeLessThan(500)
     await waitForControllerVmState(page, 'shutoff', 60_000)
     const start = await controllerVmPower(page, 'start')
     expect(start.status()).toBeLessThan(500)
-    await waitForControllerVmState(page, 'running', 90_000)
+    // Cold boot from force-stop can take longer than graceful restart
+    await waitForControllerVmState(page, 'running', 150_000)
   })
 })
 
