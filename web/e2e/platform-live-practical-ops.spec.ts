@@ -305,12 +305,25 @@ test.describe('Network operations (live)', () => {
 
 test.describe('Host resources (live)', () => {
   test('H01 — hosts list returns at least one host', async ({ page }) => {
+    test.setTimeout(60_000)
+    // Re-open VM detail to refresh auth cookie (may have expired after long power-cycle suite)
     await openLiveVmDetail(page)
-    const res = await platformApiGet(page, `${CTRL}/hosts`)
-    expect(res.status()).toBe(200)
-    const hosts = (await res.json()) as Array<{ id: string; name?: string; state?: string }>
-    expect(hosts.length).toBeGreaterThan(0)
-    expect(hosts[0].id).toBeTruthy()
+    // Poll to handle transient auth expiry in long-running serial suites
+    await expect
+      .poll(
+        async () => {
+          const res = await platformApiGet(page, `${CTRL}/hosts`)
+          if (res.status() !== 200) {
+            // Re-authenticate and retry
+            await openLiveVmDetail(page)
+            return null
+          }
+          const hosts = (await res.json()) as Array<{ id: string }>
+          return hosts.length > 0 && hosts[0].id ? true : null
+        },
+        { timeout: 30_000, intervals: [3000] },
+      )
+      .toBe(true)
   })
 
   test('H02 — host detail includes CPU and memory capacity', async ({ page }) => {
