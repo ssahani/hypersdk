@@ -6,6 +6,7 @@ import { test, expect } from '@playwright/test'
 import {
   liveBaseUrl,
   liveVmId,
+  liveVmName,
   livePlatformVmId,
   openLiveVmDetail,
   openVmDetailTab,
@@ -486,8 +487,8 @@ test.describe('VM adoption (live)', () => {
     await expect(page.getByText('Application error|Something went wrong')).toHaveCount(0)
     // Machine finder page should load with at least the root container
     await expect(page.getByTestId('machine-finder-page')).toBeVisible({ timeout: 20_000 })
-    // And contain at least one VM (ubuntu-iso-test is always running on this host)
-    await expect(page.getByText('ubuntu-iso-test')).toBeVisible({ timeout: 20_000 })
+    // And contain at least one VM — the configured test VM
+    await expect(page.getByText(liveVmName())).toBeVisible({ timeout: 20_000 })
   })
 })
 
