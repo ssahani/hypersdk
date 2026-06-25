@@ -135,7 +135,7 @@ export async function ensureLoggedIn(
   if (!navigate) return
 
   const target = entryPath === '/' ? '/platform' : entryPath
-  await page.goto(`${baseUrl}${target}`, { waitUntil: 'domcontentloaded', timeout: 45_000 })
+  await page.goto(`${baseUrl}${target}`, { waitUntil: 'domcontentloaded', timeout: 75_000 })
   await page.locator('#login-username').waitFor({ state: 'hidden', timeout: 20_000 }).catch(() => {})
 }
 

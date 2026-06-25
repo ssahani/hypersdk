@@ -170,15 +170,16 @@ test.describe('VM power cycle (live)', () => {
   })
 
   test('P05 — force stop (destroy) and restart', async ({ page }) => {
-    test.setTimeout(180_000)
+    // Budget: 15s setup + 60s shutoff + 240s boot = 315s worst-case → use 360s
+    test.setTimeout(360_000)
     await openLiveVmDetail(page)
     const stop = await controllerVmPower(page, 'stop')
     expect(stop.status()).toBeLessThan(500)
     await waitForControllerVmState(page, 'shutoff', 60_000)
     const start = await controllerVmPower(page, 'start')
     expect(start.status()).toBeLessThan(500)
-    // Cold boot from force-stop can take longer than graceful restart
-    await waitForControllerVmState(page, 'running', 150_000)
+    // Cold boot from force-stop may require qcow2 overlay journal recovery — allow extra time
+    await waitForControllerVmState(page, 'running', 240_000)
   })
 })
 
