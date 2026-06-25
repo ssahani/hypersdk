@@ -25,6 +25,9 @@ test.describe.configure({ mode: 'serial' })
 
 test.beforeEach(({ page: _page }, testInfo) => {
   skipUnlessLiveVm(testInfo)
+  // Live tests hit remote hosts that can be slow post-heavy-ops; tests with explicit
+  // test.setTimeout() override this (last call wins).
+  test.setTimeout(270_000)
 })
 
 const CTRL = '/api/v1/platform/controller/api/v1'

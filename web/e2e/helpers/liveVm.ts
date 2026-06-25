@@ -69,7 +69,7 @@ export async function openLiveVmDetail(page: Page, vmId = liveVmId(), vmName = l
   // Resolve UUID after login (API call needs auth cookie)
   const platformId = await livePlatformVmId(page, vmId)
   await page.goto(`${live}/platform/vms/${platformId}`, { waitUntil: 'domcontentloaded' })
-  await expect(page.getByText(new RegExp(vmName, 'i')).first()).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByText(new RegExp(vmName, 'i')).first()).toBeVisible({ timeout: 120_000 })
 }
 
 /**

@@ -20,6 +20,7 @@ test.describe.configure({ mode: 'serial' })
 
 test.beforeEach(({ page: _page }, testInfo) => {
   skipUnlessLiveVm(testInfo)
+  test.setTimeout(270_000)
 })
 
 test.describe('Platform VM operations APIs (live)', () => {
