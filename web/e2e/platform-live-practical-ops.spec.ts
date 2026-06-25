@@ -296,7 +296,6 @@ test.describe('Network operations (live)', () => {
     const res = await platformApiGet(page, `${CTRL}/vms/${platformId}`)
     expect(res.status()).toBe(200)
     const vm = (await res.json()) as { guest_ip?: string | null }
-    // ubuntu-iso-test has a DHCP IP — assert it's present and looks like an IPv4
     if (vm.guest_ip) {
       expect(vm.guest_ip).toMatch(/^\d+\.\d+\.\d+\.\d+$/)
     }
@@ -473,8 +472,7 @@ test.describe('VM adoption (live)', () => {
     const res = await platformApiGet(page, `${CTRL}/vms`)
     expect(res.status()).toBe(200)
     const vms = (await res.json()) as Array<{ name: string; inventory_source?: string }>
-    // ubuntu-iso-test was auto-discovered from libvirt
-    const found = vms.find((v) => v.name === liveVmId() || v.name === 'ubuntu-iso-test')
+    const found = vms.find((v) => v.name === liveVmId() || v.name === liveVmName())
     expect(found).toBeTruthy()
   })
 
