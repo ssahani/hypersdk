@@ -172,6 +172,7 @@ test.describe('Platform advanced create route (live)', () => {
   })
 
   test('devices tab hostdev attach panel when host inventory available', async ({ page }) => {
+    await openLiveVmDetail(page)
     await openVmDetailTab(page, 'Devices')
     await expect(page.getByTestId('vm-devices-panel')).toBeVisible({ timeout: 30_000 })
     const hostdev = page.getByTestId('vm-hostdev-attach-panel')
