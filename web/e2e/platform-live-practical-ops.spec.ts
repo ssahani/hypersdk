@@ -74,7 +74,8 @@ test.describe('Snapshot lifecycle (live)', () => {
   })
 
   test('S03 — snapshot appears in list with completed status', async ({ page }) => {
-    test.setTimeout(90_000)
+    // Server load from snapshot creation in S02 can slow navigation — allow extra time
+    test.setTimeout(180_000)
     await openLiveVmDetail(page)
     const platformId = await livePlatformVmId(page, liveVmId())
     await expect

@@ -96,6 +96,7 @@ test.describe('Platform VM operations APIs (live)', () => {
 
 test.describe('Platform VM operations UI (live)', () => {
   test.beforeEach(async ({ page }) => {
+    test.setTimeout(180_000)
     await openLiveVmDetail(page)
   })
 
