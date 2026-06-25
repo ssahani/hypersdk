@@ -470,10 +470,10 @@ test.describe('VM adoption (live)', () => {
     await page.goto(`${live}/platform/vms`, { waitUntil: 'domcontentloaded' })
     await expect(page.locator('body')).not.toBeEmpty({ timeout: 20_000 })
     await expect(page.getByText('Application error|Something went wrong')).toHaveCount(0)
-    // At least one VM row should be visible
-    await expect(page.getByRole('row').nth(1).or(page.getByTestId('vm-row').first())).toBeVisible({
-      timeout: 20_000,
-    })
+    // Machine finder page should load with at least the root container
+    await expect(page.getByTestId('machine-finder-page')).toBeVisible({ timeout: 20_000 })
+    // And contain at least one VM (ubuntu-iso-test is always running on this host)
+    await expect(page.getByText('ubuntu-iso-test')).toBeVisible({ timeout: 20_000 })
   })
 })
 

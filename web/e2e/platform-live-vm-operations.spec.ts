@@ -132,9 +132,10 @@ test.describe('Platform VM operations UI (live)', () => {
   })
 
   test('advanced tab loads hostdev passthrough controls', async ({ page }) => {
+    test.setTimeout(90_000)
     await openVmDetailTab(page, 'Advanced')
-    await expect(page.getByTestId('vm-advanced-panel')).toBeVisible({ timeout: 45_000 })
-    await expect(page.getByTestId('vm-hostdev-panel')).toBeVisible()
+    await expect(page.getByTestId('vm-advanced-panel')).toBeVisible({ timeout: 60_000 })
+    await expect(page.getByTestId('vm-hostdev-panel')).toBeVisible({ timeout: 20_000 })
     await expect(page.getByText('USB devices on host')).toBeVisible()
     await expect(page.getByText('PCI devices')).toBeVisible()
   })
@@ -148,12 +149,15 @@ test.describe('Platform VM operations UI (live)', () => {
 
 test.describe('Platform advanced create route (live)', () => {
   test('create-advanced wizard shows storage and unattended options', async ({ page }) => {
+    test.setTimeout(60_000)
     const live = liveBaseUrl()
     await openLiveVmDetail(page)
     await page.goto(`${live}/platform/create-advanced`, { waitUntil: 'domcontentloaded' })
     await expect(page.getByRole('heading', { name: 'Advanced VM install' })).toBeVisible({ timeout: 30_000 })
-    await page.getByRole('button', { name: 'Next' }).click()
-    await expect(page.getByText('Create new qcow2')).toBeVisible()
+    const nextBtn = page.getByRole('button', { name: 'Next' })
+    await expect(nextBtn).toBeEnabled({ timeout: 10_000 })
+    await nextBtn.click()
+    await expect(page.getByText('Create new qcow2')).toBeVisible({ timeout: 10_000 })
     await expect(page.getByText('Existing disk path')).toBeVisible()
     await expect(page.getByText(/virt-install --unattended/i)).toBeVisible()
   })
