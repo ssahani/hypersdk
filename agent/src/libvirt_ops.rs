@@ -1269,5 +1269,9 @@ fn create_request_from_vm(
     if !disk_path.trim().is_empty() && Path::new(disk_path).exists() {
         req.existing_disk = disk_path.trim().to_string();
     }
+    let virtio_win_iso = label_str(&labels, "virtio_win_iso").trim().to_string();
+    if !virtio_win_iso.is_empty() {
+        req.virtio_win_iso = virtio_win_iso;
+    }
     Ok(req)
 }
