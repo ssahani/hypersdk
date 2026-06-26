@@ -154,6 +154,8 @@ import VmKubevirtHardwareDrawer from '../../components/vm/VmKubevirtHardwareDraw
 import VmHardwareSection from '../../components/vm/VmHardwareSection'
 import VmWindowsReadinessPanel from '../../components/vm/VmWindowsReadinessPanel'
 import VmEditHardwareDrawer from '../../components/vm/VmEditHardwareDrawer'
+import { listVmSchedules, createVmSchedule, deleteVmSchedule, type VmSchedule, type VmScheduleAction } from '../../api/platformVmSchedules'
+import { useBreadcrumbName } from '../../contexts/BreadcrumbNameContext'
 
 export default function PlatformVmDetail() {
   const location = useLocation()
@@ -186,6 +188,7 @@ export default function PlatformVmDetail() {
   const { setContextVmId, setContextSummary, openCopilot } = useAi()
   const toast = useToastContext()
   const [vm, setVm] = useState<PlatformVm | null>(null)
+  useBreadcrumbName(vm?.name ?? '')
   const [hosts, setHosts] = useState<PlatformHost[]>([])
   const [error, setError] = useState<string | null>(null)
   const [destHost, setDestHost] = useState('')
@@ -241,6 +244,13 @@ export default function PlatformVmDetail() {
   const [pendingConfig, setPendingConfig] = useState<VmPendingConfig | null>(null)
   const [pendingConfigLoading, setPendingConfigLoading] = useState(false)
   const [domainXml, setDomainXml] = useState('')
+  const [schedules, setSchedules] = useState<VmSchedule[]>([])
+  const [schedulesLoading, setSchedulesLoading] = useState(false)
+  const [newSchedAction, setNewSchedAction] = useState<VmScheduleAction>('snapshot')
+  const [newSchedInterval, setNewSchedInterval] = useState(1440)
+  const [newSchedRetention, setNewSchedRetention] = useState<number | null>(5)
+  const [newSchedLabel, setNewSchedLabel] = useState('')
+  const [newSchedSaving, setNewSchedSaving] = useState(false)
   const [renameDraft, setRenameDraft] = useState('')
   const [descriptionDraft, setDescriptionDraft] = useState('')
   const [resizeTarget, setResizeTarget] = useState('')
@@ -574,6 +584,12 @@ export default function PlatformVmDetail() {
     }
   }, [id, vm?.inventory_source])
 
+  const loadSchedules = useCallback(async () => {
+    if (!id) return
+    setSchedulesLoading(true)
+    try { setSchedules(await listVmSchedules(id)) } catch { setSchedules([]) } finally { setSchedulesLoading(false) }
+  }, [id])
+
   useEffect(() => {
     if (id && vm?.inventory_source !== 'kubevirt') void loadPendingConfig()
   }, [id, vm?.inventory_source, vm?.observed_state, loadPendingConfig])
@@ -584,6 +600,7 @@ export default function PlatformVmDetail() {
     if ((tab === 'overview' || tab === 'access' || tab === 'hardware' || tab === 'disks' || tab === 'devices' || tab === 'network' || tab === 'settings' || tab === 'advanced') && id && vm?.inventory_source !== 'kubevirt') {
       if (tab === 'overview') void loadComputeTopology()
       if (tab === 'overview' || tab === 'access' || tab === 'settings' || tab === 'advanced' || tab === 'devices') void loadDomainXml()
+      if (tab === 'settings') void loadSchedules()
       void loadLibvirtDetails()
       if (tab === 'disks') {
         void listIsos()
@@ -596,7 +613,7 @@ export default function PlatformVmDetail() {
           .catch(() => setPlatformNetworks([]))
       }
     }
-  }, [tab, id, loadComputeTopology, loadGuestPorts, loadGuestServices, loadLibvirtDetails, loadDomainXml, vm?.inventory_source])
+  }, [tab, id, loadComputeTopology, loadGuestPorts, loadGuestServices, loadLibvirtDetails, loadDomainXml, loadSchedules, vm?.inventory_source])
 
   useEffect(() => {
     if (tab !== 'snapshots' || !id || !vm || vm.inventory_source === 'kubevirt') {
@@ -2067,12 +2084,12 @@ export default function PlatformVmDetail() {
               <MacGlassPanel title="Organization">
                 <div className="flex flex-wrap gap-3 items-end">
                   <div>
-                    <label className="text-xs text-slate-500 block mb-1">Project</label>
-                    <input className="input" value={project} onChange={(e) => setProject(e.target.value)} placeholder="default" />
+                    <label htmlFor="vm-settings-project" className="text-xs text-slate-500 block mb-1">Project</label>
+                    <input id="vm-settings-project" className="input" value={project} onChange={(e) => setProject(e.target.value)} placeholder="default" />
                   </div>
                   <div className="flex-1 min-w-[12rem]">
-                    <label className="text-xs text-slate-500 block mb-1">Tags</label>
-                    <input className="input w-full" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="prod, web" />
+                    <label htmlFor="vm-settings-tags" className="text-xs text-slate-500 block mb-1">Tags</label>
+                    <input id="vm-settings-tags" className="input w-full" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="prod, web" />
                   </div>
                   <button type="button" className="btn-secondary" onClick={() => void act('Project updated', () => patchVm(id, { project, tags: tags.split(',').map((t) => t.trim()).filter(Boolean) }))}>Save</button>
                 </div>
@@ -2080,6 +2097,7 @@ export default function PlatformVmDetail() {
               <MacGlassPanel title="Description">
                 <p className="text-xs text-slate-500 mb-2">Operator notes stored in the VM spec (Cockpit Machines parity).</p>
                 <textarea
+                  aria-label="Description"
                   className="input w-full min-h-[4.5rem] text-sm"
                   value={descriptionDraft}
                   onChange={(e) => setDescriptionDraft(e.target.value)}
@@ -2154,9 +2172,111 @@ export default function PlatformVmDetail() {
                   </p>
                 </MacGlassPanel>
               )}
+              <MacGlassPanel title="Scheduled operations" subtitle="Recurring power or snapshot actions">
+                {schedulesLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                ) : schedules.length === 0 ? (
+                  <p className="text-sm text-slate-500 mb-3">No schedules configured.</p>
+                ) : (
+                  <table className="w-full text-sm mb-3">
+                    <thead><tr className="text-left text-xs text-slate-400 border-b border-slate-700/50"><th scope="col" className="pb-1 pr-4">Action</th><th scope="col" className="pb-1 pr-4">Every</th><th scope="col" className="pb-1 pr-4">Next run</th><th scope="col" className="pb-1 pr-4">Label</th><th scope="col" /></tr></thead>
+                    <tbody className="divide-y divide-slate-700/30">
+                      {schedules.map((s) => (
+                        <tr key={s.id}>
+                          <td className="py-1 pr-4 font-mono">{s.action}</td>
+                          <td className="py-1 pr-4 text-slate-300">
+                            {s.interval_minutes < 60
+                              ? `${s.interval_minutes}m`
+                              : s.interval_minutes < 1440
+                              ? `${s.interval_minutes / 60}h`
+                              : `${s.interval_minutes / 1440}d`}
+                          </td>
+                          <td className="py-1 pr-4 text-slate-400 text-xs">{new Date(s.next_run_at + 'Z').toLocaleString()}</td>
+                          <td className="py-1 pr-4 text-slate-400">{s.label || '—'}</td>
+                          <td className="py-1 text-right">
+                            <button
+                              type="button"
+                              className="p-1 hover:bg-red-600/20 rounded"
+                              title="Delete schedule"
+                              aria-label="Delete schedule"
+                              onClick={async () => {
+                                try { await deleteVmSchedule(id!, s.id); void loadSchedules() } catch (e: unknown) { toast.error(formatUserError(e)) }
+                              }}
+                            >
+                              <Trash2 className={`w-3 h-3 ${statusToneClass('error')}`} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                <div className="grid grid-cols-2 gap-2 text-sm mt-1">
+                  <select aria-label="Action" className="input" value={newSchedAction} onChange={(e) => setNewSchedAction(e.target.value as VmScheduleAction)}>
+                    <option value="start">Start</option>
+                    <option value="shutdown">Graceful shutdown</option>
+                    <option value="stop">Force stop</option>
+                    <option value="snapshot">Snapshot</option>
+                  </select>
+                  <select aria-label="Interval" className="input" value={newSchedInterval} onChange={(e) => setNewSchedInterval(Number(e.target.value))}>
+                    <option value={60}>Every hour</option>
+                    <option value={360}>Every 6 hours</option>
+                    <option value={720}>Every 12 hours</option>
+                    <option value={1440}>Daily</option>
+                    <option value={10080}>Weekly</option>
+                  </select>
+                  {newSchedAction === 'snapshot' && (
+                    <div className="col-span-2 flex items-center gap-2">
+                      <label className="text-xs text-slate-400 whitespace-nowrap">Keep last</label>
+                      <input
+                        type="number"
+                        className="input w-20 text-sm"
+                        min={1}
+                        max={100}
+                        value={newSchedRetention ?? 5}
+                        onChange={(e) => setNewSchedRetention(Number(e.target.value) || null)}
+                      />
+                      <label className="text-xs text-slate-400">snapshots</label>
+                    </div>
+                  )}
+                  <input
+                    aria-label="Label (optional)"
+                    className="input col-span-2 text-sm"
+                    placeholder="Label (optional)"
+                    value={newSchedLabel}
+                    onChange={(e) => setNewSchedLabel(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn-secondary col-span-2 text-sm"
+                    disabled={newSchedSaving || vm.managed === false}
+                    onClick={async () => {
+                      setNewSchedSaving(true)
+                      try {
+                        await createVmSchedule(id!, {
+                          action: newSchedAction,
+                          interval_minutes: newSchedInterval,
+                          retention: newSchedAction === 'snapshot' ? (newSchedRetention ?? null) : null,
+                          label: newSchedLabel,
+                        })
+                        toast.success('Schedule created')
+                        setNewSchedLabel('')
+                        void loadSchedules()
+                      } catch (e: unknown) {
+                        toast.error(formatUserError(e))
+                      } finally {
+                        setNewSchedSaving(false)
+                      }
+                    }}
+                  >
+                    {newSchedSaving ? 'Saving…' : 'Add schedule'}
+                  </button>
+                </div>
+              </MacGlassPanel>
               {vm.inventory_source !== 'kubevirt' && (
                 <MacGlassPanel title="Domain XML" subtitle="Inline domain definition (libvirt define)">
                   <textarea
+                    aria-label="Domain XML"
                     className="input w-full font-mono text-xs min-h-[12rem] mt-2"
                     value={domainXml}
                     onChange={(e) => setDomainXml(e.target.value)}

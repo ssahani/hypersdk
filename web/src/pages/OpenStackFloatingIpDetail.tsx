@@ -17,6 +17,7 @@ import PageSkeleton from '../components/PageSkeleton'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { statusBadgeClasses, statusDestructiveButtonClasses } from '../utils/semanticColors'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 export default function OpenStackFloatingIpDetailPage() {
   return (
@@ -31,6 +32,7 @@ function OpenStackFloatingIpDetailContent() {
   const toast = useToastContext()
   const [fip, setFip] = useState<OpenStackFloatingIp | null>(null)
   const [loading, setLoading] = useState(true)
+  useBreadcrumbName(fip?.address)
 
   const load = useCallback(async () => {
     if (!id) return

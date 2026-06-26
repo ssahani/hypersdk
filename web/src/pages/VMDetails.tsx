@@ -1185,7 +1185,7 @@ export default function VMDetailsPage() {
               </span>
             ))}
             <form className="inline-flex items-center gap-1" onSubmit={async (e) => { e.preventDefault(); const tag = newTag.trim(); if (!tag || vmTags.includes(tag)) return; const next = [...vmTags, tag]; try { await apiSetVmTags(vm.name, next); setVmTags(next); setNewTag('') } catch (e: unknown) { toast.error(formatUserError(e)) } }}>
-              <input type="text" aria-label="Add tag" value={newTag} onChange={(e) => setNewTag(e.target.value)} placeholder="+ tag" className="w-16 px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-xs focus:outline-none focus:border-blue-500 text-slate-300" />
+              <input type="text" aria-label="Add tag" value={newTag} onChange={(e) => setNewTag(e.target.value)} placeholder="+ tag" className="w-16 px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-xs focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 text-slate-300" />
             </form>
           </div>
         </div>
@@ -1532,10 +1532,10 @@ export default function VMDetailsPage() {
                 <table className="w-full text-sm" aria-label="Filesystem mounts">
                   <thead>
                     <tr className="text-left text-slate-400 border-b border-slate-700/50">
-                      <th className="py-2 pr-4 font-medium">Mount</th>
-                      <th className="py-2 pr-4 font-medium">Type</th>
-                      <th className="py-2 pr-4 font-medium text-right">Used</th>
-                      <th className="py-2 font-medium text-right">Total</th>
+                      <th scope="col" className="py-2 pr-4 font-medium">Mount</th>
+                      <th scope="col" className="py-2 pr-4 font-medium">Type</th>
+                      <th scope="col" className="py-2 pr-4 font-medium text-right">Used</th>
+                      <th scope="col" className="py-2 font-medium text-right">Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700/40">
@@ -1700,7 +1700,7 @@ export default function VMDetailsPage() {
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
             <table className="w-full" aria-label="Disk devices">
-              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Target</th><th className="px-6 py-3">Bus</th><th className="px-6 py-3">Cache</th><th className="px-6 py-3">Device</th><th className="px-6 py-3">Driver</th><th className="px-6 py-3">Source</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">Target</th><th scope="col" className="px-6 py-3">Bus</th><th scope="col" className="px-6 py-3">Cache</th><th scope="col" className="px-6 py-3">Device</th><th scope="col" className="px-6 py-3">Driver</th><th scope="col" className="px-6 py-3">Source</th><th scope="col" className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {vm.disks.map((d) => (
                   <tr key={d.target} className="table-row-hover">
@@ -1827,7 +1827,7 @@ export default function VMDetailsPage() {
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
             <table className="w-full" aria-label="Network interfaces">
-              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">MAC Address</th><th className="px-6 py-3">Source</th><th className="px-6 py-3">Model</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">MAC Address</th><th scope="col" className="px-6 py-3">Source</th><th scope="col" className="px-6 py-3">Model</th><th scope="col" className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {vm.interfaces.map((iface) => (
                   <tr key={iface.mac_address} className="table-row-hover">
@@ -1876,7 +1876,7 @@ export default function VMDetailsPage() {
               <div className="p-8 text-center text-slate-500">No snapshots. Create one to save the current VM state.</div>
             ) : (
               <table className="w-full" aria-label="VM snapshots">
-                <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Snapshot</th><th className="px-6 py-3">State</th><th className="px-6 py-3">Created</th><th className="px-6 py-3">Current</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+                <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">Snapshot</th><th scope="col" className="px-6 py-3">State</th><th scope="col" className="px-6 py-3">Created</th><th scope="col" className="px-6 py-3">Current</th><th scope="col" className="px-6 py-3 text-right">Actions</th></tr></thead>
                 <tbody className="divide-y divide-slate-700/30">
                   <SnapshotTableRows
                     nodes={snapshotRoots}
@@ -1952,11 +1952,11 @@ export default function VMDetailsPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">Source path (host)</label>
-                  <input value={shareSourceDir} onChange={(e) => setShareSourceDir(e.target.value)} placeholder="/data/share" className="input-field w-full" />
+                  <input aria-label="Source path (host)" value={shareSourceDir} onChange={(e) => setShareSourceDir(e.target.value)} placeholder="/data/share" className="input-field w-full" />
                 </div>
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">Mount tag</label>
-                  <input value={shareMountTag} onChange={(e) => setShareMountTag(e.target.value)} placeholder="hostshare" className="input-field w-full font-mono text-xs" />
+                  <input aria-label="Mount tag" value={shareMountTag} onChange={(e) => setShareMountTag(e.target.value)} placeholder="hostshare" className="input-field w-full font-mono text-xs" />
                 </div>
                 <div className="flex items-end gap-3">
                   <label className="flex items-center gap-2 text-sm text-slate-300 pb-2 cursor-pointer select-none">
@@ -1989,11 +1989,11 @@ export default function VMDetailsPage() {
                 <table className="w-full" aria-label="virtio-fs shares">
                   <thead>
                     <tr className="border-b border-slate-700/50 text-left text-xs text-slate-500">
-                      <th className="px-5 py-2">Mount tag</th>
-                      <th className="px-5 py-2">Source</th>
-                      <th className="px-5 py-2">Driver</th>
-                      <th className="px-5 py-2">xattr</th>
-                      <th className="px-5 py-2 text-right">Actions</th>
+                      <th scope="col" className="px-5 py-2">Mount tag</th>
+                      <th scope="col" className="px-5 py-2">Source</th>
+                      <th scope="col" className="px-5 py-2">Driver</th>
+                      <th scope="col" className="px-5 py-2">xattr</th>
+                      <th scope="col" className="px-5 py-2 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700/30 text-sm">
@@ -2060,7 +2060,7 @@ export default function VMDetailsPage() {
             </div>
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
               <table className="w-full" aria-label="USB devices">
-                <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-6 py-2">Bus</th><th className="px-6 py-2">Device</th><th className="px-6 py-2">ID</th><th className="px-6 py-2">Description</th><th className="px-6 py-2 text-right">Actions</th></tr></thead>
+                <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th scope="col" className="px-6 py-2">Bus</th><th scope="col" className="px-6 py-2">Device</th><th scope="col" className="px-6 py-2">ID</th><th scope="col" className="px-6 py-2">Description</th><th scope="col" className="px-6 py-2 text-right">Actions</th></tr></thead>
                 <tbody className="divide-y divide-slate-700/30 text-sm">
                   {usbDevices.map((d) => (
                     <tr key={`${d.vendor_id}:${d.product_id}`} className="table-row-hover">
@@ -2092,7 +2092,7 @@ export default function VMDetailsPage() {
             <h3 className="text-lg font-semibold flex items-center gap-2"><Monitor className="w-5 h-5 text-purple-400" /> PCI Devices</h3>
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
               <table className="w-full" aria-label="PCI devices">
-                <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-6 py-2">Slot</th><th className="px-6 py-2">Class</th><th className="px-6 py-2">Vendor</th><th className="px-6 py-2">Device</th><th className="px-6 py-2">IOMMU Group</th></tr></thead>
+                <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th scope="col" className="px-6 py-2">Slot</th><th scope="col" className="px-6 py-2">Class</th><th scope="col" className="px-6 py-2">Vendor</th><th scope="col" className="px-6 py-2">Device</th><th scope="col" className="px-6 py-2">IOMMU Group</th></tr></thead>
                 <tbody className="divide-y divide-slate-700/30 text-sm">
                   {pciDevices.map((d) => (
                     <tr key={d.slot} className="table-row-hover">
@@ -2120,7 +2120,7 @@ export default function VMDetailsPage() {
                   <div key={g.group_id} className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
                     <div className="px-5 py-2.5 bg-slate-800/80 border-b border-slate-700/50 text-sm font-medium text-orange-400">Group {g.group_id} ({g.devices.length} device{g.devices.length !== 1 ? 's' : ''})</div>
                     <table className="w-full" aria-label="IOMMU group devices">
-                      <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-5 py-2">BDF</th><th className="px-5 py-2">Vendor</th><th className="px-5 py-2">Device</th></tr></thead>
+                      <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th scope="col" className="px-5 py-2">BDF</th><th scope="col" className="px-5 py-2">Vendor</th><th scope="col" className="px-5 py-2">Device</th></tr></thead>
                       <tbody className="divide-y divide-slate-700/30 text-sm">
                         {g.devices.map((d) => (
                           <tr key={d.bdf} className="table-row-hover">
@@ -2688,9 +2688,9 @@ export default function VMDetailsPage() {
                   <div key={dev} className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2">
                     <span className="text-xs text-slate-500 w-4">{i + 1}.</span>
                     <span className="flex-1 text-sm font-medium">{dev}</span>
-                    <button onClick={() => moveBootDevice(i, -1)} disabled={i === 0} className="p-0.5 hover:bg-slate-700 rounded disabled:opacity-30" aria-label="Move up"><ChevronUp className="w-4 h-4" /></button>
-                    <button onClick={() => moveBootDevice(i, 1)} disabled={i === bootDevices.length - 1} className="p-0.5 hover:bg-slate-700 rounded disabled:opacity-30" aria-label="Move down"><ChevronDown className="w-4 h-4" /></button>
-                    <button onClick={() => setBootDevices(bootDevices.filter((_, j) => j !== i))} className="p-0.5 hover:bg-red-600/20 rounded" aria-label="Remove"><X className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
+                    <button onClick={() => moveBootDevice(i, -1)} disabled={i === 0} className="p-1.5 hover:bg-slate-700 rounded disabled:opacity-30" aria-label="Move up"><ChevronUp className="w-4 h-4" /></button>
+                    <button onClick={() => moveBootDevice(i, 1)} disabled={i === bootDevices.length - 1} className="p-1.5 hover:bg-slate-700 rounded disabled:opacity-30" aria-label="Move down"><ChevronDown className="w-4 h-4" /></button>
+                    <button onClick={() => setBootDevices(bootDevices.filter((_, j) => j !== i))} className="p-1.5 hover:bg-red-600/20 rounded" aria-label="Remove"><X className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
                   </div>
                 ))}
               </div>
@@ -2914,7 +2914,7 @@ export default function VMDetailsPage() {
                 <option value="vmxnet3">vmxnet3</option>
               </select>
               <label className="block text-sm text-slate-400 mb-1 mt-3">Libvirt network name</label>
-              <input type="text" value={tuneNicNet} onChange={(e) => setTuneNicNet(e.target.value)} className="input-field" placeholder="default" />
+              <input aria-label="Libvirt network name" type="text" value={tuneNicNet} onChange={(e) => setTuneNicNet(e.target.value)} className="input-field" placeholder="default" />
             </DialogBox>
           )}
 
@@ -2961,7 +2961,7 @@ export default function VMDetailsPage() {
           {dialog === 'serial' && (
             <DialogBox title="Extra serial + console" icon={<Terminal className={`w-5 h-5 ${statusToneClass('info')}`} />} onClose={() => setDialog(null)} onConfirm={handleSerialAttach} confirmLabel="Attach">
               <label className="block text-sm text-slate-400 mb-1">Guest serial port index</label>
-              <input type="number" min={1} max={32} value={serPort} onChange={(e) => setSerPort(parseInt(e.target.value, 10) || 1)} className="input-field" />
+              <input aria-label="Guest serial port index" type="number" min={1} max={32} value={serPort} onChange={(e) => setSerPort(parseInt(e.target.value, 10) || 1)} className="input-field" />
               <p className="text-xs text-slate-500 mt-2">Adds PTY serial and matching console (e.g. 1 → ttyS1).</p>
             </DialogBox>
           )}
@@ -3073,11 +3073,11 @@ export default function VMDetailsPage() {
             <DialogBox title="Scheduler tuning" icon={<Cpu className={`w-5 h-5 ${statusToneClass('info')}`} />} onClose={() => setDialog(null)} onConfirm={handleSchedulerSave} confirmLabel="Apply">
               <p className="text-xs text-slate-500 mb-3">Only filled fields are sent; others stay unchanged in libvirt.</p>
               <label className="block text-sm text-slate-400 mb-1">cpu_shares</label>
-              <input className="input-field mb-2" value={schedShares} onChange={(e) => setSchedShares(e.target.value)} placeholder="e.g. 1024" />
+              <input aria-label="cpu_shares" className="input-field mb-2" value={schedShares} onChange={(e) => setSchedShares(e.target.value)} placeholder="e.g. 1024" />
               <label className="block text-sm text-slate-400 mb-1">vcpu_period (µs)</label>
-              <input className="input-field mb-2" value={schedPeriod} onChange={(e) => setSchedPeriod(e.target.value)} />
+              <input aria-label="vcpu_period (µs)" className="input-field mb-2" value={schedPeriod} onChange={(e) => setSchedPeriod(e.target.value)} />
               <label className="block text-sm text-slate-400 mb-1">vcpu_quota (µs)</label>
-              <input className="input-field" value={schedQuota} onChange={(e) => setSchedQuota(e.target.value)} />
+              <input aria-label="vcpu_quota (µs)" className="input-field" value={schedQuota} onChange={(e) => setSchedQuota(e.target.value)} />
             </DialogBox>
           )}
 
@@ -3085,11 +3085,11 @@ export default function VMDetailsPage() {
             <DialogBox title="Memory tuning (KiB)" icon={<MemoryStick className="w-5 h-5 text-purple-400" />} onClose={() => setDialog(null)} onConfirm={handleMemtuneSave} confirmLabel="Apply">
               <p className="text-xs text-slate-500 mb-3">Values are KiB (same unit as libvirt memtune XML). Leave blank to leave unchanged.</p>
               <label className="block text-sm text-slate-400 mb-1">hard_limit_kb</label>
-              <input className="input-field mb-2" value={memHardKb} onChange={(e) => setMemHardKb(e.target.value)} />
+              <input aria-label="hard_limit_kb" className="input-field mb-2" value={memHardKb} onChange={(e) => setMemHardKb(e.target.value)} />
               <label className="block text-sm text-slate-400 mb-1">soft_limit_kb</label>
-              <input className="input-field mb-2" value={memSoftKb} onChange={(e) => setMemSoftKb(e.target.value)} />
+              <input aria-label="soft_limit_kb" className="input-field mb-2" value={memSoftKb} onChange={(e) => setMemSoftKb(e.target.value)} />
               <label className="block text-sm text-slate-400 mb-1">swap_hard_limit_kb</label>
-              <input className="input-field" value={memSwapKb} onChange={(e) => setMemSwapKb(e.target.value)} />
+              <input aria-label="swap_hard_limit_kb" className="input-field" value={memSwapKb} onChange={(e) => setMemSwapKb(e.target.value)} />
             </DialogBox>
           )}
 
@@ -3097,9 +3097,9 @@ export default function VMDetailsPage() {
             <DialogBox title="NUMA memory tuning" icon={<Cpu className="w-5 h-5 text-violet-400" />} onClose={() => setDialog(null)} onConfirm={() => void handleNumaSave()} confirmLabel="Apply">
               <p className="text-xs text-slate-500 mb-2">Maps to libvirt <code className="text-slate-400">numatune</code>. Mode is the raw libvirt mem mode integer; leave blank to skip updating mode.</p>
               <label className="block text-sm text-slate-400 mb-1">node_set (e.g. 0-1 or 0)</label>
-              <input className="input-field mb-3" value={numaNodeSet} onChange={(e) => setNumaNodeSet(e.target.value)} placeholder="0" />
+              <input aria-label="node_set" className="input-field mb-3" value={numaNodeSet} onChange={(e) => setNumaNodeSet(e.target.value)} placeholder="0" />
               <label className="block text-sm text-slate-400 mb-1">mode (optional)</label>
-              <input className="input-field" value={numaModeInput} onChange={(e) => setNumaModeInput(e.target.value)} placeholder="strict / preferred / … as int" />
+              <input aria-label="mode" className="input-field" value={numaModeInput} onChange={(e) => setNumaModeInput(e.target.value)} placeholder="strict / preferred / … as int" />
             </DialogBox>
           )}
 
@@ -3120,7 +3120,7 @@ export default function VMDetailsPage() {
           {dialog === 'pin-vcpu' && (
             <DialogBox title="Pin vCPU to host CPUs" icon={<Cpu className="w-5 h-5 text-cyan-400" />} onClose={() => setDialog(null)} onConfirm={handlePinSave} confirmLabel="Apply pin">
               <label className="block text-sm text-slate-400 mb-1">vCPU index</label>
-              <input type="number" min={0} max={Math.max(0, (vm?.vcpus ?? 1) - 1)} className="input-field mb-3" value={pinVcpuN} onChange={(e) => setPinVcpuN(parseInt(e.target.value, 10) || 0)} />
+              <input aria-label="vCPU index" type="number" min={0} max={Math.max(0, (vm?.vcpus ?? 1) - 1)} className="input-field mb-3" value={pinVcpuN} onChange={(e) => setPinVcpuN(parseInt(e.target.value, 10) || 0)} />
               <p className="text-xs text-slate-500 mb-2">Host CPUs 0–63 (first 64 logical CPUs).</p>
               <div className="max-h-40 overflow-y-auto border border-slate-700 rounded p-2 grid grid-cols-8 gap-1">
                 {pinMap.map((on, i) => (
@@ -3137,9 +3137,9 @@ export default function VMDetailsPage() {
             <DialogBox title="Block commit" icon={<HardDrive className={`w-5 h-5 ${statusToneClass('info')}`} />} onClose={() => setDialog(null)} onConfirm={handleBlockCommit} confirmLabel="Start commit">
               <p className="text-xs text-slate-500 mb-2">Disk: <code className="text-slate-300">{blockDisk || '—'}</code></p>
               <label className="block text-sm text-slate-400 mb-1">Base (optional)</label>
-              <input className="input-field mb-2" value={blockBase} onChange={(e) => setBlockBase(e.target.value)} placeholder="backing file name or leave empty" />
+              <input aria-label="Base (optional)" className="input-field mb-2" value={blockBase} onChange={(e) => setBlockBase(e.target.value)} placeholder="backing file name or leave empty" />
               <label className="block text-sm text-slate-400 mb-1">Top (optional)</label>
-              <input className="input-field mb-2" value={blockTop} onChange={(e) => setBlockTop(e.target.value)} />
+              <input aria-label="Top (optional)" className="input-field mb-2" value={blockTop} onChange={(e) => setBlockTop(e.target.value)} />
               <label className="flex items-center gap-2 text-sm text-slate-300 mb-1"><input type="checkbox" checked={blockShallow} onChange={(e) => setBlockShallow(e.target.checked)} /> Shallow</label>
               <label className="flex items-center gap-2 text-sm text-slate-300 mb-1"><input type="checkbox" checked={blockDelete} onChange={(e) => setBlockDelete(e.target.checked)} /> Delete merged images</label>
               <label className="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={blockActive} onChange={(e) => setBlockActive(e.target.checked)} /> Active commit</label>
@@ -3417,7 +3417,7 @@ function EditableRow({ label, value, onEdit }: { label: string; value: string | 
       <span className="text-slate-400 text-sm">{label}</span>
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium">{String(value)}</span>
-        <button onClick={onEdit} className="p-0.5 hover:bg-slate-700 rounded transition" aria-label={`Edit ${label}`}><Pencil className="w-3 h-3 text-slate-500 hover:text-[var(--machina-status-info)]" /></button>
+        <button onClick={onEdit} className="p-1.5 hover:bg-slate-700 rounded transition" aria-label={`Edit ${label}`}><Pencil className="w-4 h-4 text-slate-500 hover:text-[var(--machina-status-info)]" /></button>
       </div>
     </div>
   )

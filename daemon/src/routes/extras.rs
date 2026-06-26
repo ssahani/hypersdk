@@ -1097,6 +1097,34 @@ async fn list_iommu_groups_handler(
     Ok(Json(serde_json::json!(groups)))
 }
 
+// ── VFIO Status ──────────────────────────────────────────────────
+
+async fn vfio_status_handler(
+    State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Path(addr): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_usb_pci(&actor)?;
+    // Normalize addr: "0000:01:00.0" -> "0000:01:00.0"
+    let addr_clean: String = addr.chars().filter(|c| c.is_alphanumeric() || *c == ':' || *c == '.').collect();
+    let driver_link = std::path::Path::new("/sys/bus/pci/devices")
+        .join(&addr_clean)
+        .join("driver");
+    let (driver, vfio_bound) = match std::fs::read_link(&driver_link) {
+        Ok(target) => {
+            let name = target.file_name().and_then(|n| n.to_str()).unwrap_or("unknown").to_string();
+            let is_vfio = name == "vfio-pci";
+            (name, is_vfio)
+        }
+        Err(_) => ("none".to_string(), false),
+    };
+    Ok(Json(serde_json::json!({
+        "addr": addr_clean,
+        "driver": driver,
+        "vfio_bound": vfio_bound,
+    })))
+}
+
 // ── Systemd Services ──────────────────────────────────────────────
 
 async fn list_services_handler(
@@ -1591,6 +1619,8 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         .route("/host/pci", get(list_pci_handler))
         // IOMMU
         .route("/host/iommu-groups", get(list_iommu_groups_handler))
+        // VFIO status
+        .route("/host/devices/{addr}/vfio-status", get(vfio_status_handler))
         // Host stats + DHCP
         .route("/host/stats", get(get_host_stats))
         .route(

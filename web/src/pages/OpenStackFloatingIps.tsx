@@ -80,6 +80,7 @@ function OpenStackFloatingIpsContent() {
         <div>
           <label className="block text-xs text-slate-500 mb-1">External network</label>
           <select value={extNet} onChange={(e) => setExtNet(e.target.value)}
+            aria-label="External network"
             className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 min-w-[12rem]">
             {networks.map((n) => (
               <option key={n.id} value={n.id}>{n.name || n.id.slice(0, 8)}</option>
@@ -136,10 +137,10 @@ function OpenStackFloatingIpsContent() {
           <table className="w-full text-sm" aria-label="Floating IPs">
             <thead className="bg-slate-900/80 text-slate-400 text-left">
               <tr>
-                <th className="px-3 py-2">Address</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Instance</th>
-                <th className="px-3 py-2">Actions</th>
+                <th scope="col" className="px-3 py-2">Address</th>
+                <th scope="col" className="px-3 py-2">Status</th>
+                <th scope="col" className="px-3 py-2">Instance</th>
+                <th scope="col" className="px-3 py-2">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">

@@ -75,7 +75,7 @@ export default function ConfirmDialog({
             <span id={titleId} className="text-lg font-semibold">{title}</span>
           </div>
           <button type="button" onClick={onCancel} aria-label="Cancel" className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition">
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
         <div className="p-5 text-slate-300 text-sm leading-relaxed space-y-3">
@@ -94,7 +94,7 @@ export default function ConfirmDialog({
                 spellCheck={false}
                 value={typed}
                 onChange={(e) => setTyped(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm font-mono text-slate-200 focus:outline-none focus:border-red-500"
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm font-mono text-slate-200 focus:outline-none focus:border-red-500 focus-visible:ring-2 focus-visible:ring-red-500/50"
                 placeholder={typeToMatch}
               />
             </div>

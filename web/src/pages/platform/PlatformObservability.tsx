@@ -143,11 +143,11 @@ export default function PlatformObservability() {
                   <table className="w-full text-sm text-left" aria-label="Recent API traces">
                     <thead className="text-xs text-slate-500 border-b border-slate-700">
                       <tr>
-                        <th className="py-2 pr-4">Time</th>
-                        <th className="py-2 pr-4">Method</th>
-                        <th className="py-2 pr-4">Path</th>
-                        <th className="py-2 pr-4">Status</th>
-                        <th className="py-2">Duration</th>
+                        <th scope="col" className="py-2 pr-4">Time</th>
+                        <th scope="col" className="py-2 pr-4">Method</th>
+                        <th scope="col" className="py-2 pr-4">Path</th>
+                        <th scope="col" className="py-2 pr-4">Status</th>
+                        <th scope="col" className="py-2">Duration</th>
                       </tr>
                     </thead>
                     <tbody>

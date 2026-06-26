@@ -32,6 +32,7 @@ import {
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 export default function OpenStackLoadBalancerDetailPage() {
   return (
@@ -61,6 +62,7 @@ function OpenStackLoadBalancerDetailContent() {
   const [memberPort, setMemberPort] = useState('80')
   const [memberPoolId, setMemberPoolId] = useState('')
   const [monitorPoolId, setMonitorPoolId] = useState('')
+  useBreadcrumbName(lb?.name)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -176,7 +178,7 @@ function OpenStackLoadBalancerDetailContent() {
       <section className="rounded-xl border border-slate-700 p-4 space-y-3">
         <h2 className="text-sm font-medium text-slate-300">Pools</h2>
         <div className="flex flex-wrap gap-2">
-          <input value={poolName} onChange={(e) => setPoolName(e.target.value)} placeholder="Pool name"
+          <input aria-label="Pool name" value={poolName} onChange={(e) => setPoolName(e.target.value)} placeholder="Pool name"
             className="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-sm" />
           <select aria-label="Listener" value={poolListenerId} onChange={(e) => setPoolListenerId(e.target.value)}
             className="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-sm">

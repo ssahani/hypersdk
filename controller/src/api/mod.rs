@@ -62,6 +62,7 @@ mod upgrade;
 mod users;
 mod vm_libvirt;
 mod vm_row;
+mod vm_schedules;
 mod vms;
 mod webhooks;
 
@@ -170,6 +171,14 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/v1/vms/{id}/metrics", get(vms::get_vm_metrics))
         .route("/api/v1/vms/{id}/adopt", post(vms::adopt_vm))
+        .route(
+            "/api/v1/vms/{id}/schedules",
+            get(vm_schedules::list_vm_schedules).post(vm_schedules::create_vm_schedule),
+        )
+        .route(
+            "/api/v1/vms/{id}/schedules/{schedule_id}",
+            delete(vm_schedules::delete_vm_schedule),
+        )
         .route("/api/v1/vms/{id}/health-check", post(health_check::vm_health_check))
         .route("/api/v1/vms/{id}/guest/health", get(host_os::vm_guest_health))
         .route(

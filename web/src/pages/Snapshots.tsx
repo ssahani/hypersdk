@@ -8,9 +8,20 @@ import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EmptyState from '../components/EmptyState'
 import PageLayout from '../components/PageLayout'
-import { Trash2, RotateCcw, RefreshCw, Camera } from 'lucide-react'
+import { Trash2, RotateCcw, RefreshCw, Camera, AlertTriangle } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
-import { statusActionLinkClasses, statusToneClass } from '../utils/semanticColors'
+import { statusActionLinkClasses, statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
+import { snapshotStateSeverity } from '../utils/snapshotHealth'
+
+function SnapshotStateBadge({ state }: { state: string }) {
+  const sev = snapshotStateSeverity(state)
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${statusBadgeClasses(sev)}`}>
+      {(sev === 'error' || sev === 'warn') && <AlertTriangle className="w-3 h-3" />}
+      {state || '—'}
+    </span>
+  )
+}
 
 export default function SnapshotsPage() {
   const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([])
@@ -61,13 +72,13 @@ export default function SnapshotsPage() {
       ) : (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           <table className="w-full" aria-label="VM snapshots">
-            <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Snapshot</th><th className="px-6 py-3">VM</th><th className="px-6 py-3">State</th><th className="px-6 py-3 hidden md:table-cell">Created</th><th className="px-6 py-3">Current</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+            <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">Snapshot</th><th scope="col" className="px-6 py-3">VM</th><th scope="col" className="px-6 py-3">State</th><th scope="col" className="px-6 py-3 hidden md:table-cell">Created</th><th scope="col" className="px-6 py-3">Current</th><th scope="col" className="px-6 py-3 text-right">Actions</th></tr></thead>
             <tbody className="divide-y divide-slate-700/50">
               {snapshots.map((s) => (
                 <tr key={`${s.vm_name}/${s.name}`} className="hover:bg-slate-700/50">
                   <td className="px-6 py-3 font-medium">{s.name}</td>
                   <td className={`px-6 py-3 text-sm ${statusActionLinkClasses('info')}`}>{s.vm_name}</td>
-                  <td className="px-6 py-3 text-sm text-slate-400">{s.state}</td>
+                  <td className="px-6 py-3"><SnapshotStateBadge state={s.state} /></td>
                   <td className="px-6 py-3 text-sm text-slate-400 hidden md:table-cell">{s.creation_time ? new Date(s.creation_time * 1000).toLocaleString() : '-'}</td>
                   <td className="px-6 py-3">{s.is_current && <span className={`text-xs font-medium ${statusToneClass('ok')}`}>● Current</span>}</td>
                   <td className="px-6 py-3">

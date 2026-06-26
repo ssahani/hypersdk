@@ -20,6 +20,7 @@ import PageSkeleton from '../components/PageSkeleton'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 export default function OpenStackSecurityGroupDetailPage() {
   return (
@@ -34,6 +35,7 @@ function OpenStackSecurityGroupDetailContent() {
   const toast = useToastContext()
   const [group, setGroup] = useState<OpenStackSecurityGroup | null>(null)
   const [loading, setLoading] = useState(true)
+  useBreadcrumbName(group?.name)
 
   const load = useCallback(async () => {
     if (!id) return

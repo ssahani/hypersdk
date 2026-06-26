@@ -87,10 +87,10 @@ export default function PlatformApiKeys({ embedded }: { embedded?: boolean } = {
           title="API keys"
           columns={
             <>
-              <th className="p-3 text-left">Name</th>
-              <th className="p-3 text-left">Role</th>
-              <th className="p-3 text-left">Last used</th>
-              <th className="p-3 text-right" />
+              <th scope="col" className="p-3 text-left">Name</th>
+              <th scope="col" className="p-3 text-left">Role</th>
+              <th scope="col" className="p-3 text-left">Last used</th>
+              <th scope="col" className="p-3 text-right" />
             </>
           }
           isEmpty={rows.length === 0}

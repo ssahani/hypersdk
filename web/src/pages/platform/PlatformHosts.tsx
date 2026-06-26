@@ -105,7 +105,7 @@ export default function PlatformHosts() {
       <button type="button" className="btn-secondary text-sm" onClick={async () => {
         try { await syncAllHosts(); toast.success('Sync all queued') } catch (e: unknown) { toast.error(formatUserError(e)) }
       }}>Sync all</button>
-      <button type="button" onClick={() => void load()} className="btn-secondary"><RefreshCw className="w-4 h-4" /></button>
+      <button type="button" aria-label="Refresh" onClick={() => void load()} className="btn-secondary"><RefreshCw className="w-4 h-4" /></button>
     </>
   )
 
@@ -114,11 +114,11 @@ export default function PlatformHosts() {
       <table className="w-full text-sm" aria-label="Managed hosts">
         <thead>
           <tr className="text-slate-400 border-b border-white/[0.06]">
-            <th className="p-3 text-left">Host</th>
-            <th className="p-3">State</th>
-            <th className="p-3">VMs</th>
-            <th className="p-3">CPU</th>
-            <th className="p-3">Linux</th>
+            <th scope="col" className="p-3 text-left">Host</th>
+            <th scope="col" className="p-3">State</th>
+            <th scope="col" className="p-3">VMs</th>
+            <th scope="col" className="p-3">CPU</th>
+            <th scope="col" className="p-3">Linux</th>
           </tr>
         </thead>
         <tbody>
@@ -253,7 +253,7 @@ export default function PlatformHosts() {
       loading={loading && hosts.length === 0}
       title={filterOffline ? 'Offline hosts' : 'Hosts'}
       subtitle={
-        <span className="flex flex-wrap items-center gap-2 text-sm">
+        <span aria-live="polite" className="flex flex-wrap items-center gap-2 text-sm">
           <span className={statusPillClasses(fleetTone)}>{online} / {hosts.length} online</span>
           <span className="text-slate-400">{totalVms} VM{totalVms === 1 ? '' : 's'} fleet-wide</span>
           {filterOffline && <span className="text-slate-500">Showing offline only</span>}
@@ -265,7 +265,7 @@ export default function PlatformHosts() {
           <button type="button" className="btn-secondary text-sm" onClick={async () => {
             try { await syncAllHosts(); toast.success('Sync all queued') } catch (e: unknown) { toast.error(formatUserError(e)) }
           }}>Sync all</button>
-          <button type="button" onClick={() => void load()} className="btn-secondary"><RefreshCw className="w-4 h-4" /></button>
+          <button type="button" aria-label="Refresh" onClick={() => void load()} className="btn-secondary"><RefreshCw className="w-4 h-4" /></button>
           {!filterOffline && (
             <button type="button" className="btn-primary text-sm inline-flex items-center gap-1" onClick={() => setEnrollWizardOpen(true)}>
               <Plus className="w-4 h-4" /> Add host
@@ -276,7 +276,7 @@ export default function PlatformHosts() {
       contentClassName="space-y-4"
     >
       {viewMode === 'icons' && visibleHosts.length > 0 && (
-        <div className="flex flex-col xl:flex-row gap-4" data-testid="host-fleet-panels">
+        <div className="flex flex-col xl:flex-row xl:items-start gap-4" data-testid="host-fleet-panels">
           <div className="grid gap-3 sm:grid-cols-2 flex-1 min-w-0">
             {visibleHosts.map((h) => (
               <HostFleetCard

@@ -210,7 +210,7 @@ export default function StoragePoolDetail() {
             <EmptyState title="No volumes" description="This pool is empty. Create a volume to get started." />
           ) : (
             <table className="w-full" aria-label="Storage volumes">
-              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Name</th><th className="px-6 py-3">Type</th><th className="px-6 py-3">Capacity</th><th className="px-6 py-3">Used</th><th className="px-6 py-3 hidden lg:table-cell">Path</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">Name</th><th scope="col" className="px-6 py-3">Type</th><th scope="col" className="px-6 py-3">Capacity</th><th scope="col" className="px-6 py-3">Used</th><th scope="col" className="px-6 py-3 hidden lg:table-cell">Path</th><th scope="col" className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/50">
                 {volumes.map((v) => (
                   <tr key={v.name} className="hover:bg-slate-700/50">
@@ -264,13 +264,13 @@ export default function StoragePoolDetail() {
           <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
             <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
               <span className="text-lg font-semibold">Resize Volume</span>
-              <button onClick={() => setResizeTarget(null)} className="p-1 hover:bg-slate-700 rounded transition"><X className="w-4 h-4 text-slate-400" /></button>
+              <button aria-label="Close" onClick={() => setResizeTarget(null)} className="p-1 hover:bg-slate-700 rounded transition"><X className="w-4 h-4 text-slate-400" /></button>
             </div>
             <div className="p-5 space-y-4">
               <div className="text-sm text-slate-400">Volume: <span className="text-white font-medium">{resizeTarget.vol}</span></div>
               <div>
                 <label className="block text-sm text-slate-400 mb-1">New Size (GB)</label>
-                <input type="number" step="0.01" min="0.01" value={resizeGb} onChange={(e) => setResizeGb(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
+                <input aria-label="New size in gigabytes" type="number" step="0.01" min="0.01" value={resizeGb} onChange={(e) => setResizeGb(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
               </div>
             </div>
             <div className="flex justify-end gap-3 px-5 pb-5">
@@ -286,13 +286,13 @@ export default function StoragePoolDetail() {
           <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
             <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
               <span className="text-lg font-semibold">Clone Volume</span>
-              <button onClick={() => setCloneTarget(null)} className="p-1 hover:bg-slate-700 rounded transition"><X className="w-4 h-4 text-slate-400" /></button>
+              <button aria-label="Close" onClick={() => setCloneTarget(null)} className="p-1 hover:bg-slate-700 rounded transition"><X className="w-4 h-4 text-slate-400" /></button>
             </div>
             <div className="p-5 space-y-4">
               <div className="text-sm text-slate-400">Source: <span className="text-white font-medium">{cloneTarget.vol}</span></div>
               <div>
                 <label className="block text-sm text-slate-400 mb-1">New Volume Name</label>
-                <input type="text" value={cloneName} onChange={(e) => setCloneName(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
+                <input aria-label="New volume name" type="text" value={cloneName} onChange={(e) => setCloneName(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
               </div>
             </div>
             <div className="flex justify-end gap-3 px-5 pb-5">
@@ -308,7 +308,7 @@ export default function StoragePoolDetail() {
           <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
             <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
               <span className="text-lg font-semibold">Create Volume</span>
-              <button onClick={() => setShowCreateVol(false)} className="p-1 hover:bg-slate-700 rounded transition"><X className="w-4 h-4 text-slate-400" /></button>
+              <button aria-label="Close" onClick={() => setShowCreateVol(false)} className="p-1 hover:bg-slate-700 rounded transition"><X className="w-4 h-4 text-slate-400" /></button>
             </div>
             <div className="p-5 space-y-4">
               <div>
@@ -317,7 +317,7 @@ export default function StoragePoolDetail() {
               </div>
               <div>
                 <label className="block text-sm text-slate-400 mb-1">Capacity (GB)</label>
-                <input type="number" step="0.01" min="0.01" value={newVolCapacity} onChange={(e) => setNewVolCapacity(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
+                <input aria-label="Volume capacity in gigabytes" type="number" step="0.01" min="0.01" value={newVolCapacity} onChange={(e) => setNewVolCapacity(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
               </div>
               <div>
                 <label className="block text-sm text-slate-400 mb-1">Format</label>

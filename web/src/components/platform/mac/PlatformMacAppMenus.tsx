@@ -213,7 +213,7 @@ export default function PlatformMacAppMenus() {
           value={zeusQuery}
           onChange={(e) => setZeusQuery(e.target.value)}
           placeholder={ZEUS_SEARCH_PLACEHOLDER}
-          className="w-full rounded-lg bg-white/[0.06] border border-white/[0.08] px-3 py-1 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500/40"
+          className="w-full rounded-lg bg-white/[0.06] border border-white/[0.08] px-3 py-1 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus-visible:ring-1 focus-visible:ring-sky-500/40"
           data-testid="menubar-zeus-search"
         />
       </form>

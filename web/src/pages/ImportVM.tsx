@@ -144,7 +144,7 @@ export default function ImportVMPage() {
 
       {step === 'import' && (
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
-          <h3 className="text-lg font-semibold flex items-center gap-2"><HardDrive className={`w-5 h-5 ${statusToneClass('info')}`} /> Import Disk Image</h3>
+          <h2 className="text-lg font-semibold flex items-center gap-2"><HardDrive className={`w-5 h-5 ${statusToneClass('info')}`} /> Import Disk Image</h2>
           <p className="text-sm text-slate-400">Convert VMDK, VDI, VHD, RAW, or IMG disk images to qcow2 format.</p>
 
           <div>
@@ -196,7 +196,7 @@ export default function ImportVMPage() {
 
       {step === 'configure' && (
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
-          <h3 className="text-lg font-semibold">Configure VM</h3>
+          <h2 className="text-lg font-semibold">Configure VM</h2>
           <div className={`p-3 rounded-lg border text-sm ${statusSurfaceClasses('ok')}`}>
             Disk imported to: <code className="font-mono">{importedPath}</code>
           </div>
@@ -228,7 +228,7 @@ export default function ImportVMPage() {
 
           {(submitting || createLog.length > 0) && (
             <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 p-3 space-y-2">
-              <h4 className="text-xs font-semibold text-slate-300">virt-install progress</h4>
+              <h3 className="text-xs font-semibold text-slate-300">virt-install progress</h3>
               <pre className="max-h-56 overflow-y-auto rounded bg-black/50 border border-slate-800 p-2 text-[11px] font-mono text-slate-200 whitespace-pre-wrap break-all">
                 {createLog.length ? createLog.join('\n') : <span className="text-slate-500">Starting…</span>}
               </pre>

@@ -167,7 +167,7 @@ export default function PlatformFirewallCompliance() {
         <p className="text-sm text-slate-400 mb-3">Fleet-wide time-boxed allow rule — audited and auto-expires.</p>
         <div className="grid gap-3 md:grid-cols-4 max-w-2xl">
           <input aria-label="Port" className="input text-sm" value={tempPort} onChange={(e) => setTempPort(e.target.value)} placeholder="Port" />
-          <select className="input text-sm" value={tempProtocol} onChange={(e) => setTempProtocol(e.target.value)}>
+          <select aria-label="Protocol" className="input text-sm" value={tempProtocol} onChange={(e) => setTempProtocol(e.target.value)}>
             <option value="tcp">tcp</option>
             <option value="udp">udp</option>
           </select>

@@ -16,6 +16,7 @@ import PageSkeleton from '../components/PageSkeleton'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 export default function OpenStackHypervisorDetailPage() {
   return (
@@ -30,6 +31,7 @@ function OpenStackHypervisorDetailContent() {
   const toast = useToastContext()
   const [hv, setHv] = useState<OpenStackHypervisor | null>(null)
   const [loading, setLoading] = useState(true)
+  useBreadcrumbName(hv?.hostname)
 
   const load = useCallback(async () => {
     if (!id) return

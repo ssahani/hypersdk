@@ -685,13 +685,13 @@ export default function PlatformStorage() {
               <table className="w-full text-sm" aria-label="Storage tiers">
                 <thead>
                   <tr className="text-left text-slate-500 border-b border-white/[0.06]">
-                    <th className="py-2 px-2">Name</th>
-                    <th className="py-2 px-2">Class</th>
-                    <th className="py-2 px-2">IOPS</th>
-                    <th className="py-2 px-2">Replication</th>
-                    <th className="py-2 px-2">Snapshots</th>
-                    <th className="py-2 px-2">RPO</th>
-                    <th className="py-2 px-2">Pools</th>
+                    <th scope="col" className="py-2 px-2">Name</th>
+                    <th scope="col" className="py-2 px-2">Class</th>
+                    <th scope="col" className="py-2 px-2">IOPS</th>
+                    <th scope="col" className="py-2 px-2">Replication</th>
+                    <th scope="col" className="py-2 px-2">Snapshots</th>
+                    <th scope="col" className="py-2 px-2">RPO</th>
+                    <th scope="col" className="py-2 px-2">Pools</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -722,13 +722,13 @@ export default function PlatformStorage() {
               <table className="w-full text-sm" aria-label="Backup SLA policies">
                 <thead>
                   <tr className="text-left text-slate-500 border-b border-white/[0.06]">
-                    <th className="py-2 px-2">Pool</th>
-                    <th className="py-2 px-2">Tier</th>
-                    <th className="py-2 px-2">RPO</th>
-                    <th className="py-2 px-2">RTO</th>
-                    <th className="py-2 px-2">Retention</th>
-                    <th className="py-2 px-2">Grade</th>
-                    <th className="py-2 px-2" />
+                    <th scope="col" className="py-2 px-2">Pool</th>
+                    <th scope="col" className="py-2 px-2">Tier</th>
+                    <th scope="col" className="py-2 px-2">RPO</th>
+                    <th scope="col" className="py-2 px-2">RTO</th>
+                    <th scope="col" className="py-2 px-2">Retention</th>
+                    <th scope="col" className="py-2 px-2">Grade</th>
+                    <th scope="col" className="py-2 px-2" />
                   </tr>
                 </thead>
                 <tbody>
@@ -845,8 +845,9 @@ export default function PlatformStorage() {
               <p className="text-sm text-slate-400 mt-1">Pool: {resizePool.name}</p>
             </div>
             <div className="p-5 space-y-3">
-              <label className="block text-sm text-slate-400">Capacity (GiB)</label>
+              <label htmlFor="resize-pool-capacity" className="block text-sm text-slate-400">Capacity (GiB)</label>
               <input
+                id="resize-pool-capacity"
                 type="number"
                 min={1}
                 className="input-field w-full"

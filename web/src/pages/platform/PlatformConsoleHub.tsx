@@ -34,6 +34,7 @@ import {
   type ConsoleExperienceMode,
 } from '../../utils/consoleExperienceMode'
 import { usePlatformMacDesktop } from '../../components/platform/mac/PlatformMacDesktopContext'
+import { useBreadcrumbName } from '../../contexts/BreadcrumbNameContext'
 
 export default function PlatformConsoleHub() {
   const toast = useToastContext()
@@ -51,6 +52,7 @@ export default function PlatformConsoleHub() {
   const [serialWsUrl, setSerialWsUrl] = useState<string | null>(null)
   const [platformSpiceWsPath, setPlatformSpiceWsPath] = useState<string | null>(null)
   const [vmName, setVmName] = useState<string | null>(null)
+  useBreadcrumbName(vmName ?? '')
   const [vmState, setVmState] = useState<string | null>(null)
   const [nodeName, setNodeName] = useState<string | null>(null)
   const [healthScore, setHealthScore] = useState<number | null>(null)

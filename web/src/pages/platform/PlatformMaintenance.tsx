@@ -222,6 +222,7 @@ export default function PlatformMaintenance() {
                 <label className="text-xs text-slate-500">Host</label>
                 <select
                   className="input max-w-xs"
+                  aria-label="Host"
                   value={selectedMission?.host_id ?? ''}
                   onChange={(e) => setMissionHostId(e.target.value)}
                 >
@@ -539,7 +540,7 @@ export default function PlatformMaintenance() {
           ) : (
           <div className="card overflow-x-auto">
             <table className="w-full text-sm" aria-label="Maintenance schedules">
-              <thead><tr className="text-slate-400 border-b border-slate-800"><th className="p-3 text-left">Host</th><th className="p-3">Action</th><th className="p-3">Run at</th><th className="p-3">Status</th><th className="p-3" /></tr></thead>
+              <thead><tr className="text-slate-400 border-b border-slate-800"><th scope="col" className="p-3 text-left">Host</th><th scope="col" className="p-3">Action</th><th scope="col" className="p-3">Run at</th><th scope="col" className="p-3">Status</th><th scope="col" className="p-3" /></tr></thead>
               <tbody>{rows.map((s) => (
                 <tr key={s.id} className="border-b border-slate-900">
                   <td className="p-3">
@@ -550,7 +551,7 @@ export default function PlatformMaintenance() {
                   <td className="p-3">{s.status}</td>
                   <td className="p-3 text-right">
                     {s.status === 'pending' && (
-                      <button type="button" className="btn-secondary text-xs" onClick={async () => {
+                      <button type="button" className="btn-secondary text-xs" aria-label="Delete" onClick={async () => {
                         try { await deleteMaintenanceSchedule(s.id); toast.success('Cancelled'); await loadSchedules() } catch (e: unknown) { toast.error(formatUserError(e)) }
                       }}><Trash2 className="w-3 h-3 inline" /></button>
                     )}

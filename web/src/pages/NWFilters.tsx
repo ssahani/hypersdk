@@ -83,7 +83,7 @@ export default function NWFiltersPage() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <input type="text" aria-label="Search network filters" placeholder="Search filters..." value={search} onChange={(e) => setSearch(e.target.value)}
-          className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 ${search ? 'pr-8' : 'pr-4'}`} />
+          className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 ${search ? 'pr-8' : 'pr-4'}`} />
         {search && (
           <button type="button" aria-label="Clear search" onClick={() => setSearch('')}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
@@ -113,7 +113,7 @@ export default function NWFiltersPage() {
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           <table className="w-full" aria-label="Network filters">
             <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400">
-              <th className="px-6 py-3">Name</th><th className="px-6 py-3 hidden md:table-cell">UUID</th><th className="px-6 py-3 text-right">Actions</th>
+              <th scope="col" className="px-6 py-3">Name</th><th scope="col" className="px-6 py-3 hidden md:table-cell">UUID</th><th scope="col" className="px-6 py-3 text-right">Actions</th>
             </tr></thead>
             <tbody className="divide-y divide-slate-700/30">
               {filtered.map(f => (
@@ -140,7 +140,7 @@ export default function NWFiltersPage() {
           <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-3xl mx-4 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-slate-700/50">
               <span className="text-lg font-semibold font-mono">{xmlName}</span>
-              <button onClick={() => setXmlContent(null)} className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition"><X className="w-4 h-4" /></button>
+              <button aria-label="Close" onClick={() => setXmlContent(null)} className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition"><X className="w-4 h-4" /></button>
             </div>
             <pre className="p-5 text-sm text-slate-300 overflow-auto whitespace-pre-wrap font-mono flex-1">{xmlContent}</pre>
           </div>
@@ -152,7 +152,7 @@ export default function NWFiltersPage() {
           <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-3xl mx-4 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-slate-700/50">
               <span className="text-lg font-semibold">Create Network Filter</span>
-              <button onClick={() => setShowCreate(false)} className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition"><X className="w-4 h-4" /></button>
+              <button aria-label="Close" onClick={() => setShowCreate(false)} className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-5 flex-1 flex flex-col gap-4 overflow-auto">
               <label className="text-sm text-slate-400">Filter XML Definition</label>
@@ -161,7 +161,7 @@ export default function NWFiltersPage() {
                 value={newFilterXml}
                 onChange={(e) => setNewFilterXml(e.target.value)}
                 rows={12}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm font-mono text-slate-300 focus:outline-none focus:border-blue-500 resize-y"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm font-mono text-slate-300 focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 resize-y"
                 spellCheck={false}
               />
               <div className="flex justify-end gap-2">

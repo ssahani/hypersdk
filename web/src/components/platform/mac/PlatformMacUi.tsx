@@ -87,6 +87,7 @@ export function MacSheet({
   subtitle,
   children,
   wide,
+  ariaLabel,
 }: {
   open: boolean
   onClose: () => void
@@ -94,9 +95,10 @@ export function MacSheet({
   subtitle?: string
   children: React.ReactNode
   wide?: boolean
+  ariaLabel?: string
 }) {
   return (
-    <GlassModal open={open} onClose={onClose} title={title} subtitle={subtitle} wide={wide}>
+    <GlassModal open={open} onClose={onClose} title={title} subtitle={subtitle} wide={wide} ariaLabel={ariaLabel}>
       <div className="max-h-none overflow-visible -mx-1 px-1">{children}</div>
     </GlassModal>
   )
@@ -168,7 +170,7 @@ export function NewLaunchpadCard({ onClick, label = 'New Application', subtitle 
         <Plus className="w-8 h-8" />
       </div>
       <span className="text-xs sm:text-sm font-medium text-slate-300 max-w-[7rem] leading-tight">{label}</span>
-      <span className="text-[10px] text-slate-500 -mt-1">{subtitle}</span>
+      <span className="text-xs text-slate-400 -mt-1">{subtitle}</span>
     </button>
   )
 }
@@ -346,8 +348,8 @@ export function MacSettingsPane({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col xl:flex-row gap-0 min-h-0 w-full rounded-2xl border border-white/[0.06] overflow-clip bg-slate-950/30">
-      <aside className="xl:w-56 shrink-0 border-b xl:border-b-0 xl:border-r border-white/[0.06] p-3">
+    <div className="flex flex-col xl:flex-row xl:items-start gap-0 w-full rounded-2xl border border-white/[0.06] overflow-clip bg-slate-950/30">
+      <aside className="xl:w-56 shrink-0 border-b xl:border-b-0 xl:border-r border-white/[0.06] p-3 xl:sticky xl:top-[calc(var(--platform-chrome-top,6.5rem)+0.5rem)] xl:self-start">
         <h2 className="text-lg font-semibold text-slate-100 px-2 mb-3 hidden xl:block">{title}</h2>
         <nav className="flex xl:flex-col gap-1 overflow-x-auto xl:overflow-visible">
           {sections.map((s) => (

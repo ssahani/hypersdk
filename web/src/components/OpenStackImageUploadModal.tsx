@@ -125,7 +125,7 @@ export default function OpenStackImageUploadModal({
             Upload qcow2 to OpenStack Glance
           </h2>
           <button type="button" className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400" onClick={onClose} aria-label="Close">
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
         <div className="p-4 overflow-y-auto space-y-4 text-sm">

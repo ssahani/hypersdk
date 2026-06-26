@@ -124,10 +124,10 @@ export default function PlatformDeveloper() {
               <table className="w-full text-sm text-left" aria-label="API resources">
                 <thead className="text-xs text-slate-500 border-b border-slate-700">
                   <tr>
-                    <th className="py-2 pr-4">Resource</th>
-                    <th className="py-2 pr-4">Kind</th>
-                    <th className="py-2 pr-4">API</th>
-                    <th className="py-2">Attributes</th>
+                    <th scope="col" className="py-2 pr-4">Resource</th>
+                    <th scope="col" className="py-2 pr-4">Kind</th>
+                    <th scope="col" className="py-2 pr-4">API</th>
+                    <th scope="col" className="py-2">Attributes</th>
                   </tr>
                 </thead>
                 <tbody>

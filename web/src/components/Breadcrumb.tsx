@@ -5,9 +5,14 @@
 import { Link, useLocation } from 'react-router'
 import { ChevronRight, Home } from 'lucide-react'
 import { routeLabels } from '../utils/routes'
+import { useBreadcrumbNameValue } from '../contexts/BreadcrumbNameContext'
+
+// Matches UUIDs, raw hex IDs, and other non-human-readable path segments
+const ID_PATTERN = /^[0-9a-f]{8,}(-[0-9a-f]{4,})*$/i
 
 export default function Breadcrumb() {
   const { pathname } = useLocation()
+  const entityName = useBreadcrumbNameValue()
 
   // Don't render on Dashboard (root)
   if (pathname === '/') return null
@@ -16,9 +21,14 @@ export default function Breadcrumb() {
   const crumbs: { path: string; label: string }[] = []
 
   let cumulative = ''
-  for (const seg of segments) {
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i]
     cumulative += `/${seg}`
-    const label = routeLabels[cumulative] || decodeURIComponent(seg)
+    const isLast = i === segments.length - 1
+    const fromRouteLabels = routeLabels[cumulative]
+    const label =
+      fromRouteLabels ||
+      (entityName && ID_PATTERN.test(seg) ? entityName : decodeURIComponent(seg))
     crumbs.push({ path: cumulative, label })
   }
 

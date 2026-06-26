@@ -450,10 +450,10 @@ export default function FleetPage() {
           <table className="w-full text-sm" aria-label="Fleet hosts">
             <thead className="bg-slate-800/60 text-slate-400">
               <tr>
-                <th className="px-4 py-2 text-left">{t('fleet.colName')}</th>
-                <th className="px-4 py-2 text-left">{t('fleet.colPeer')}</th>
-                <th className="px-4 py-2 text-left">{t('fleet.colState')}</th>
-                <th className="px-4 py-2 text-right">{t('fleet.colActions')}</th>
+                <th scope="col" className="px-4 py-2 text-left">{t('fleet.colName')}</th>
+                <th scope="col" className="px-4 py-2 text-left">{t('fleet.colPeer')}</th>
+                <th scope="col" className="px-4 py-2 text-left">{t('fleet.colState')}</th>
+                <th scope="col" className="px-4 py-2 text-right">{t('fleet.colActions')}</th>
               </tr>
             </thead>
             <tbody>

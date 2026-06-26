@@ -163,7 +163,7 @@ export default function PlatformBackups() {
         <div className="space-y-4">
           <MacGlassPanel title="Backup destinations" subtitle="Register NFS, S3, or local targets for fleet backups.">
             <div className="grid gap-3 md:grid-cols-3 mb-4">
-              <input className="input text-sm" placeholder="Name" value={targetName} onChange={(e) => setTargetName(e.target.value)} />
+              <input className="input text-sm" aria-label="Backup destination name" placeholder="Name" value={targetName} onChange={(e) => setTargetName(e.target.value)} />
               <select className="input text-sm" aria-label="Destination type" value={targetKind} onChange={(e) => setTargetKind(e.target.value)}>
                 <option value="nfs">nfs</option>
                 <option value="s3">s3</option>
@@ -183,7 +183,7 @@ export default function PlatformBackups() {
           </MacGlassPanel>
           <MacGlassPanel title="Queue VM backup" subtitle="Full qcow2 or incremental (chains prior completed backup on host).">
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-              <input className="input text-sm" placeholder="VM id" value={backupVmId} onChange={(e) => setBackupVmId(e.target.value)} />
+              <input className="input text-sm" aria-label="VM ID" placeholder="VM id" value={backupVmId} onChange={(e) => setBackupVmId(e.target.value)} />
               <select className="input text-sm" aria-label="Backup type" value={backupType} onChange={(e) => setBackupType(e.target.value as 'full' | 'incremental')}>
                 <option value="full">Full backup</option>
                 <option value="incremental">Incremental</option>

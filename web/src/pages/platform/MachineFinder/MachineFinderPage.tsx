@@ -102,7 +102,7 @@ export default function MachineFinderPage() {
           </div>
         )}
 
-        <div className="flex flex-col xl:flex-row gap-4 flex-1 min-h-0">
+        <div className="flex flex-col xl:flex-row xl:items-start gap-4 flex-1 min-h-0">
           {showSidebar && <MachineFinderSmartFolders state={state} />}
 
           <main className="flex-1 min-w-0 flex flex-col gap-3">
@@ -161,7 +161,7 @@ export default function MachineFinderPage() {
           <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" disabled={batchPowerBusy} onClick={() => void handleBatchPower('pause')}><Pause className="w-4 h-4" /> Pause</button>
           <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" disabled={batchPowerBusy} onClick={() => void handleBatchSnapshot()}><Camera className="w-4 h-4" /> Snapshot</button>
           <button type="button" className="btn-danger text-sm inline-flex items-center gap-1" disabled={batchDeleteBusy} onClick={() => setBatchDeleteOpen(true)}><Trash2 className="w-4 h-4" /> Delete</button>
-          <button type="button" onClick={() => state.setSelectedVmIds(new Set())} className="p-1.5 hover:bg-white/[0.06] rounded-lg"><X className="w-4 h-4 text-slate-400" /></button>
+          <button type="button" aria-label="Clear selection" onClick={() => state.setSelectedVmIds(new Set())} className="p-1.5 hover:bg-white/[0.06] rounded-lg"><X className="w-4 h-4 text-slate-400" /></button>
         </div>
       )}
 

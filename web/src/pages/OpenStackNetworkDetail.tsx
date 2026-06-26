@@ -13,6 +13,7 @@ import PageSkeleton from '../components/PageSkeleton'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { statusDestructiveButtonClasses, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 export default function OpenStackNetworkDetailPage() {
   return (
@@ -29,6 +30,7 @@ function OpenStackNetworkDetailContent() {
   const [net, setNet] = useState<OpenStackNetwork | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  useBreadcrumbName(net?.name)
 
   const load = useCallback(async () => {
     if (!id) return

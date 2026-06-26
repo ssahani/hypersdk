@@ -280,7 +280,14 @@ export default function MissionControlOverlay() {
           </section>
           <section className="rounded-2xl border border-white/[0.06] bg-slate-900/50 p-4 space-y-3">
             <h2 className="text-sm font-semibold text-slate-400 flex items-center gap-2"><ArrowRightLeft className="w-4 h-4" /> Migrations & tasks</h2>
-            <p className="text-xs text-slate-500">{migrations.length} migration tasks · {failedTasks.length} failed</p>
+            <p className="text-xs text-slate-500">
+              {migrations.length} migration tasks ·{' '}
+              {failedTasks.length > 0 ? (
+                <Link to={tasksHubHref(tier)} className="text-amber-300 hover:underline" onClick={closeMissionControl}>
+                  {failedTasks.length} failed
+                </Link>
+              ) : '0 failed'}
+            </p>
             <ul className="space-y-2 text-sm max-h-48 overflow-y-auto">
               {failedTasks.slice(0, 8).map((t) => (
                 <li key={t.id} className={`truncate ${statusToneClass('error')} opacity-90`}>{t.operation} — {t.status}</li>

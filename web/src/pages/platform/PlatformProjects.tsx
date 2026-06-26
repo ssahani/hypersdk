@@ -167,13 +167,13 @@ export default function PlatformProjects({ embedded }: { embedded?: boolean } = 
               title="Space inventory"
               columns={
                 <>
-                  <th className="p-3 text-left">Space</th>
-                  <th className="p-3 text-center">VMs</th>
-                  <th className="p-3 text-center">Running</th>
-                  <th className="p-3 text-center">Hosts</th>
-                  <th className="p-3 text-center">Isolation</th>
-                  <th className="p-3 text-center">Quota</th>
-                  <th className="p-3 text-right" />
+                  <th scope="col" className="p-3 text-left">Space</th>
+                  <th scope="col" className="p-3 text-center">VMs</th>
+                  <th scope="col" className="p-3 text-center">Running</th>
+                  <th scope="col" className="p-3 text-center">Hosts</th>
+                  <th scope="col" className="p-3 text-center">Isolation</th>
+                  <th scope="col" className="p-3 text-center">Quota</th>
+                  <th scope="col" className="p-3 text-right" />
                 </>
               }
             >

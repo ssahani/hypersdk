@@ -22,6 +22,7 @@ import {
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 type Tab = 'overview' | 'resources' | 'events' | 'template' | 'outputs'
 
@@ -45,6 +46,7 @@ function OpenStackHeatDetailContent() {
   const [template, setTemplate] = useState('')
   const [editTemplate, setEditTemplate] = useState('')
   const [tabLoading, setTabLoading] = useState(false)
+  useBreadcrumbName(stack?.stack_name)
 
   const loadStack = useCallback(async () => {
     if (!name || !id) return
@@ -151,10 +153,10 @@ function OpenStackHeatDetailContent() {
           <table className="w-full text-sm" aria-label="Stack resources">
             <thead className="bg-slate-900/80 text-slate-400 text-left">
               <tr>
-                <th className="px-3 py-2">Logical ID</th>
-                <th className="px-3 py-2">Type</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Physical ID</th>
+                <th scope="col" className="px-3 py-2">Logical ID</th>
+                <th scope="col" className="px-3 py-2">Type</th>
+                <th scope="col" className="px-3 py-2">Status</th>
+                <th scope="col" className="px-3 py-2">Physical ID</th>
               </tr>
             </thead>
             <tbody>
@@ -188,6 +190,7 @@ function OpenStackHeatDetailContent() {
             value={editTemplate}
             onChange={(e) => setEditTemplate(e.target.value)}
             rows={16}
+            aria-label="Stack template"
             className="w-full font-mono text-xs px-3 py-2 rounded-lg bg-slate-900 border border-slate-700"
           />
           <button
@@ -214,9 +217,9 @@ function OpenStackHeatDetailContent() {
           <table className="w-full text-sm" aria-label="Stack outputs">
             <thead className="bg-slate-900/80 text-slate-400 text-left">
               <tr>
-                <th className="px-3 py-2">Key</th>
-                <th className="px-3 py-2">Value</th>
-                <th className="px-3 py-2">Description</th>
+                <th scope="col" className="px-3 py-2">Key</th>
+                <th scope="col" className="px-3 py-2">Value</th>
+                <th scope="col" className="px-3 py-2">Description</th>
               </tr>
             </thead>
             <tbody>

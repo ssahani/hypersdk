@@ -87,9 +87,12 @@ export default function PlatformFirewallPolicies() {
       subtitle={`${rows.length} polic${rows.length === 1 ? 'y' : 'ies'} · create, simulate, and manage Zeus firewall policies`}
       icon={<Shield className="w-6 h-6 text-slate-400" />}
       actions={
-        <button type="button" className="btn-secondary" onClick={() => void load()} aria-label="Refresh">
-          <RefreshCw className="w-4 h-4" />
-        </button>
+        <div className="flex gap-2">
+          <button type="button" className="btn-primary text-sm" onClick={() => void create()}>Create</button>
+          <button type="button" className="btn-secondary" onClick={() => void load()} aria-label="Refresh">
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       }
       contentClassName="space-y-4"
     >
@@ -97,10 +100,9 @@ export default function PlatformFirewallPolicies() {
         <div className="grid gap-3 max-w-lg">
           <input aria-label="Policy name" className="input text-sm" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
           <input aria-label="Policy profile" className="input text-sm" placeholder="Profile" value={profile} onChange={(e) => setProfile(e.target.value)} />
-          <textarea className="input text-sm font-mono min-h-[8rem]" value={specYaml} onChange={(e) => setSpecYaml(e.target.value)} />
+          <textarea aria-label="Policy spec YAML" className="input text-sm font-mono min-h-[8rem]" value={specYaml} onChange={(e) => setSpecYaml(e.target.value)} />
           <div className="flex gap-2">
             <button type="button" className="btn-secondary text-sm" onClick={() => void simulate()}>Simulate</button>
-            <button type="button" className="btn-primary text-sm" onClick={() => void create()}>Create</button>
           </div>
         </div>
       </MacGlassPanel>

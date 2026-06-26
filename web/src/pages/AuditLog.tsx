@@ -84,7 +84,7 @@ export default function AuditLogPage() {
             placeholder="Action contains…"
             value={actionInp}
             onChange={(e) => setActionInp(e.target.value)}
-            className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 ${actionInp ? 'pr-8' : 'pr-4'}`}
+            className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 ${actionInp ? 'pr-8' : 'pr-4'}`}
           />
           {actionInp && (
             <button type="button" aria-label="Clear action filter" onClick={() => setActionInp('')}
@@ -101,7 +101,7 @@ export default function AuditLogPage() {
             placeholder="Actor contains…"
             value={actorInp}
             onChange={(e) => setActorInp(e.target.value)}
-            className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 ${actorInp ? 'pr-8' : 'pr-4'}`}
+            className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 ${actorInp ? 'pr-8' : 'pr-4'}`}
           />
           {actorInp && (
             <button type="button" aria-label="Clear actor filter" onClick={() => setActorInp('')}
@@ -118,7 +118,7 @@ export default function AuditLogPage() {
             placeholder="Any field (action, target, result, actor)…"
             value={qInp}
             onChange={(e) => setQInp(e.target.value)}
-            className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 ${qInp ? 'pr-8' : 'pr-4'}`}
+            className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 ${qInp ? 'pr-8' : 'pr-4'}`}
           />
           {qInp && (
             <button type="button" aria-label="Clear search" onClick={() => setQInp('')}
@@ -137,7 +137,7 @@ export default function AuditLogPage() {
       ) : (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden overflow-x-auto">
           <table className="w-full min-w-[56rem]" aria-label="Audit log">
-            <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Time</th><th className="px-6 py-3">Action</th><th className="px-6 py-3">Target</th><th className="px-6 py-3">Actor</th><th className="px-6 py-3">Result</th></tr></thead>
+            <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">Time</th><th scope="col" className="px-6 py-3">Action</th><th scope="col" className="px-6 py-3">Target</th><th scope="col" className="px-6 py-3">Actor</th><th scope="col" className="px-6 py-3">Result</th></tr></thead>
             <tbody className="divide-y divide-slate-700/30">
               {events.map((e) => (
                 <tr key={`${e.timestamp}-${e.action}-${e.target}`} className="table-row-hover">

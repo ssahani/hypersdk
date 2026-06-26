@@ -30,6 +30,7 @@ import {
 } from '../../utils/launchpadHelpers'
 import { statusToneClass } from '../../utils/semanticColors'
 import { useToastContext } from '../../contexts/ToastContext'
+import { useBreadcrumbName } from '../../contexts/BreadcrumbNameContext'
 
 function findApp(catalog: LaunchpadApp[], idParam: string): LaunchpadApp | undefined {
   const decoded = decodeURIComponent(idParam)
@@ -80,6 +81,8 @@ export default function PlatformLaunchpadAppDetail() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useBreadcrumbName(app?.displayName ?? '')
 
   const tone = launchpadStatusTone(app?.status ?? 'unknown') as 'ok' | 'warn' | 'error' | 'neutral'
   const subtitle = useMemo(() => {

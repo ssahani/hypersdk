@@ -260,7 +260,7 @@ export function PremiumLoginShell({
 
         {!isSecure ? <div className={`login-beam hidden lg:block ${beamClass}`} aria-hidden /> : null}
 
-        <main className="login-panel flex-1 flex items-center justify-center relative px-6 py-12 min-h-screen lg:min-h-0">
+        <main id="main-content" className="login-panel flex-1 flex items-center justify-center relative px-6 py-12 min-h-screen lg:min-h-0">
           <div className="login-panel-grid" aria-hidden />
           {!isSecure ? <div className="login-panel-glow" aria-hidden /> : null}
           <div className="w-full max-w-[420px] relative z-10">
