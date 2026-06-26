@@ -2245,6 +2245,17 @@ a.tahoe-context-app-title:hover {
 .steel-theme {
   color-scheme: dark;
   --page-bg: #0b1017;
+
+  /* Kill liquid-glass system — override every design token */
+  --blur-liquid: 0px;
+  --glass-bg: rgba(16, 23, 34, 0.97);
+  --glass-bg-elevated: rgba(20, 28, 40, 0.97);
+  --glass-bg-strong: rgba(11, 16, 23, 0.99);
+  --glass-border: rgba(100, 130, 165, 0.2);
+  --glass-border-strong: rgba(120, 145, 180, 0.28);
+  --glass-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 1px 4px rgba(0, 0, 0, 0.35);
+  --glass-highlight: rgba(120, 145, 180, 0.04);
+  --glass-tint: rgba(100, 130, 165, 0.01);
 }
 .steel-theme body {
   background-color: #0b1017;
@@ -2491,6 +2502,67 @@ a.tahoe-context-app-title:hover {
 .steel-theme .border-slate-700\/50,
 .steel-theme .border-slate-700,
 .steel-theme .border-slate-700\/30 { border-color: rgba(120, 145, 175, 0.15); }
+
+/* Steel: kill all backdrop blur — hardcoded values not covered by --blur-liquid var */
+.steel-theme .glass,
+.steel-theme .glass-elevated,
+.steel-theme .glass-strong,
+.steel-theme .glass-card,
+.steel-theme .tahoe-glass-card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.steel-theme .liquid-glass-navbar {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: linear-gradient(180deg, #0f141a 0%, #1a222d 50%, #0c1117 100%);
+  border-bottom-color: rgba(140, 160, 190, 0.18);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.steel-theme .liquid-glass-modal-panel {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: linear-gradient(160deg, #141c26 0%, #0f1722 100%);
+  border-color: rgba(120, 145, 175, 0.22);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.steel-theme .liquid-glass-modal-backdrop {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.steel-theme .liquid-glass-toast {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(16, 23, 34, 0.98);
+  border-color: rgba(120, 145, 175, 0.22);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.steel-theme .liquid-glass-breadcrumb {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Steel: suppress every backdrop-blur-* Tailwind utility */
+.steel-theme [class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Steel: replace transparent-white borders with steel-tinted borders */
+.steel-theme [class*="border-white"] {
+  border-color: rgba(100, 130, 165, 0.18);
+}
+
+/* Steel: replace transparent-white backgrounds with solid steel surface */
+.steel-theme [class*="bg-white\/"] {
+  background-color: rgba(16, 23, 34, 0.45);
+}
 
 /* ── VM detail: machine cockpit polish ─────────────────────────── */
 
