@@ -32,7 +32,7 @@ async fn tick(state: &AppState) -> anyhow::Result<()> {
     .fetch_all(&state.pool)
     .await?;
 
-    for (sched_id, vm_id, action, interval_minutes, retention) in due {
+    for (sched_id, vm_id, action, _interval_minutes, retention) in due {
         let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
             .bind(vm_id)
             .fetch_optional(&state.pool)
