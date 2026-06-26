@@ -53,6 +53,7 @@ import {
 } from '../../api/platform'
 import { getFirewallTarget, type FirewallTargetDetail } from '../../api/zeusFirewall'
 import { useAi } from '../../contexts/AiContext'
+import { useBreadcrumbName } from '../../contexts/BreadcrumbNameContext'
 import AskZeusButton from '../../components/ai/AskZeusButton'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
@@ -106,6 +107,7 @@ export default function PlatformHostDetailPage() {
   const { openCopilot, setContextHostId } = useAi()
   const [section, setSection] = useState<HostDetailTab>('general')
   const [host, setHost] = useState<PlatformHostDetail | null>(null)
+  useBreadcrumbName(host?.hostname ?? '')
   const [linuxObs, setLinuxObs] = useState<HostLinuxObservability | null>(null)
   const [linuxUpdates, setLinuxUpdates] = useState<HostLinuxUpdates | null>(null)
   const [netDiag, setNetDiag] = useState<HostNetworkDiag | null>(null)
@@ -406,7 +408,7 @@ export default function PlatformHostDetailPage() {
                 </MacSettingsGroup>
                 <MacSettingsGroup title="Notes">
                   <div className="p-3 space-y-2">
-                    <textarea className="input min-h-20 text-sm w-full" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                    <textarea className="input min-h-20 text-sm w-full" aria-label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
                     <button type="button" className="btn-secondary text-sm" onClick={() => void patchHost(id, { notes }).then(() => { toast.success('Notes saved'); return load() })}>Save</button>
                   </div>
                 </MacSettingsGroup>

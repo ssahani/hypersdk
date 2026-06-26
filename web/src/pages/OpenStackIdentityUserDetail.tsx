@@ -79,8 +79,8 @@ function OpenStackIdentityUserDetailContent() {
         <div><dt className="text-xs text-slate-500 uppercase">Default project</dt><dd className="font-mono text-xs mt-1">{user.default_project_id || '—'}</dd></div>
       </dl>
       <div className="rounded-xl border border-slate-700 p-4 space-y-3">
-        <label className="block text-xs text-slate-500">Email</label>
-        <input value={email} onChange={(e) => setEmail(e.target.value)}
+        <label htmlFor="user-email" className="block text-xs text-slate-500">Email</label>
+        <input id="user-email" value={email} onChange={(e) => setEmail(e.target.value)}
           className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
         <div className="flex gap-2">
           <button type="button" className="px-3 py-1.5 rounded-lg bg-sky-600 text-white text-sm"

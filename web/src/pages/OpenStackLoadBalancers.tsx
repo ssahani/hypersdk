@@ -67,7 +67,7 @@ function OpenStackLoadBalancersContent() {
       <div className="rounded-xl border border-slate-700 p-4 flex flex-wrap gap-3 items-end">
         <div>
           <label className="block text-xs text-slate-500 mb-1">Name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
+          <input value={name} onChange={(e) => setName(e.target.value)} aria-label="Name" className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
         </div>
         <div>
           <label className="block text-xs text-slate-500 mb-1">VIP subnet</label>
@@ -120,7 +120,7 @@ function OpenStackLoadBalancersContent() {
                   <td className="px-3 py-2">{lb.provisioning_status}</td>
                   <td className="px-3 py-2">{lb.operating_status}</td>
                   <td className="px-3 py-2 text-right">
-                    <button type="button" className={statusActionLinkClasses('error', 'inline-flex items-center gap-1')}
+                    <button type="button" aria-label="Delete" className={statusActionLinkClasses('error', 'inline-flex items-center gap-1')}
                       onClick={async () => {
                         if (!confirm(`Delete ${lb.name}?`)) return
                         try {

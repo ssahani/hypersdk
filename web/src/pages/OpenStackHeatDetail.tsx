@@ -190,6 +190,7 @@ function OpenStackHeatDetailContent() {
             value={editTemplate}
             onChange={(e) => setEditTemplate(e.target.value)}
             rows={16}
+            aria-label="Stack template"
             className="w-full font-mono text-xs px-3 py-2 rounded-lg bg-slate-900 border border-slate-700"
           />
           <button

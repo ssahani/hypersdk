@@ -12,11 +12,13 @@ import { listLaunchpadCatalog, type LaunchpadApp } from '../../api/launchpad'
 import { formatUserError } from '../../utils/apiError'
 import { groupAppsBySpace, launchpadSpaceById } from '../../utils/launchpadSpaces'
 import { launchpadDetailPath } from '../../utils/launchpadHelpers'
+import { useBreadcrumbName } from '../../contexts/BreadcrumbNameContext'
 
 export default function PlatformLaunchpadSpace() {
   const { spaceId = '' } = useParams()
   const navigate = useNavigate()
   const space = launchpadSpaceById(spaceId)
+  useBreadcrumbName(space?.label ?? '')
   const [apps, setApps] = useState<LaunchpadApp[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

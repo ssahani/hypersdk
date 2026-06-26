@@ -155,13 +155,13 @@ export default function SecretsPage() {
           <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-slate-700/50">
               <span className="text-lg font-semibold">Define libvirt secret</span>
-              <button type="button" disabled={defSaving} onClick={() => setDefineOpen(false)} className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition"><X className="w-4 h-4" /></button>
+              <button type="button" aria-label="Close" disabled={defSaving} onClick={() => setDefineOpen(false)} className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-5 space-y-3 overflow-y-auto flex-1">
-              <label className="block text-sm text-slate-400">Secret XML (<code className="text-slate-500">virSecretDefineXML</code>)</label>
-              <textarea value={defXml} onChange={(e) => setDefXml(e.target.value)} rows={8} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm font-mono text-slate-200 focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50" placeholder={'<secret ephemeral=\'no\'>\n  <description>…</description>\n</secret>'} />
-              <label className="block text-sm text-slate-400">Value (base64, optional)</label>
-              <textarea value={defValueB64} onChange={(e) => setDefValueB64(e.target.value)} rows={2} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm font-mono text-slate-200 focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50" placeholder="Base64-encoded secret bytes (optional)" />
+              <label htmlFor="define-secret-xml" className="block text-sm text-slate-400">Secret XML (<code className="text-slate-500">virSecretDefineXML</code>)</label>
+              <textarea id="define-secret-xml" value={defXml} onChange={(e) => setDefXml(e.target.value)} rows={8} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm font-mono text-slate-200 focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50" placeholder={'<secret ephemeral=\'no\'>\n  <description>…</description>\n</secret>'} />
+              <label htmlFor="define-secret-value" className="block text-sm text-slate-400">Value (base64, optional)</label>
+              <textarea id="define-secret-value" value={defValueB64} onChange={(e) => setDefValueB64(e.target.value)} rows={2} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm font-mono text-slate-200 focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50" placeholder="Base64-encoded secret bytes (optional)" />
               <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
                 <input type="checkbox" checked={defValidate} onChange={(e) => setDefValidate(e.target.checked)} />
                 Validate XML against schema
@@ -181,7 +181,7 @@ export default function SecretsPage() {
           <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-3xl mx-4 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-slate-700/50">
               <span className="text-lg font-semibold font-mono">{xmlUuid}</span>
-              <button onClick={() => setXmlContent(null)} className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition"><X className="w-4 h-4" /></button>
+              <button aria-label="Close" onClick={() => setXmlContent(null)} className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition"><X className="w-4 h-4" /></button>
             </div>
             <pre className="p-5 text-sm text-slate-300 overflow-auto whitespace-pre-wrap font-mono flex-1">{xmlContent}</pre>
           </div>

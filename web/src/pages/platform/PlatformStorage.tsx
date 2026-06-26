@@ -845,8 +845,9 @@ export default function PlatformStorage() {
               <p className="text-sm text-slate-400 mt-1">Pool: {resizePool.name}</p>
             </div>
             <div className="p-5 space-y-3">
-              <label className="block text-sm text-slate-400">Capacity (GiB)</label>
+              <label htmlFor="resize-pool-capacity" className="block text-sm text-slate-400">Capacity (GiB)</label>
               <input
+                id="resize-pool-capacity"
                 type="number"
                 min={1}
                 className="input-field w-full"

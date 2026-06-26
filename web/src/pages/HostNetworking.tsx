@@ -867,7 +867,7 @@ export default function HostNetworkingPage() {
                     value={ifaceFilter}
                     onChange={(e) => setIfaceFilter(e.target.value)}
                     placeholder="Filter by name, type, master, or IP…"
-                    className="w-full pl-10 pr-3 py-2 text-sm bg-slate-800/80 border border-slate-600 rounded-lg text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_40%,transparent)]"
+                    className="w-full pl-10 pr-3 py-2 text-sm bg-slate-800/80 border border-slate-600 rounded-lg text-slate-200 placeholder:text-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--machina-status-info)_40%,transparent)]"
                     aria-label="Filter interfaces"
                   />
                 </div>
@@ -931,7 +931,7 @@ export default function HostNetworkingPage() {
             <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-fade-in" onClick={e => e.stopPropagation()}>
               <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
                 <span className="text-lg font-semibold flex items-center gap-2"><Router className="w-5 h-5 text-orange-400" /> Create Bridge</span>
-                <button onClick={() => setDialog(null)} className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
+                <button onClick={() => setDialog(null)} aria-label="Close" className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
               </div>
               <div className="p-5 space-y-3">
                 <div><label htmlFor="br-name" className="block text-sm text-slate-400 mb-1">Bridge Name</label><input id="br-name" autoFocus value={brName} onChange={e => setBrName(e.target.value)} className="input-field" placeholder="br0" /></div>
@@ -962,7 +962,7 @@ export default function HostNetworkingPage() {
             <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-fade-in" onClick={e => e.stopPropagation()}>
               <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
                 <span className="text-lg font-semibold flex items-center gap-2"><ArrowRight className="w-5 h-5 text-cyan-400" /> Port Forward</span>
-                <button onClick={() => setDialog(null)} className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
+                <button onClick={() => setDialog(null)} aria-label="Close" className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
               </div>
               <div className="p-5 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
@@ -994,7 +994,7 @@ export default function HostNetworkingPage() {
             <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-fade-in" onClick={e => e.stopPropagation()}>
               <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
                 <span className="text-lg font-semibold flex items-center gap-2"><Shield className={`w-5 h-5 ${statusToneClass('error')}`} /> Firewall Rule</span>
-                <button onClick={() => setDialog(null)} className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
+                <button onClick={() => setDialog(null)} aria-label="Close" className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
               </div>
               <div className="p-5 space-y-3">
                 <div><label htmlFor="fw-vmip" className="block text-sm text-slate-400 mb-1">VM IP</label>

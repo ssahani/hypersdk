@@ -65,9 +65,9 @@ export default function PlatformFirewallK8s() {
       <MacGlassPanel title="PacketWolf Tetragon (cluster)" subtitle="Helm install + export forwarder readiness">
         <div className="space-y-3 max-w-lg text-sm">
           <label className="block text-xs text-slate-500">Cluster ID</label>
-          <input className="input text-sm w-full font-mono" value={clusterId} onChange={(e) => setClusterId(e.target.value)} placeholder="k3s" />
+          <input aria-label="Cluster ID" className="input text-sm w-full font-mono" value={clusterId} onChange={(e) => setClusterId(e.target.value)} placeholder="k3s" />
           <label className="block text-xs text-slate-500">Export namespace</label>
-          <input className="input text-sm w-full font-mono" value={exportNs} onChange={(e) => setExportNs(e.target.value)} />
+          <input aria-label="Export namespace" className="input text-sm w-full font-mono" value={exportNs} onChange={(e) => setExportNs(e.target.value)} />
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -119,9 +119,9 @@ export default function PlatformFirewallK8s() {
       <MacGlassPanel title="Apply profile to namespace">
         <div className="space-y-3 max-w-md">
           <label className="block text-xs text-slate-500">Namespace</label>
-          <input className="input text-sm w-full" value={namespace} onChange={(e) => setNamespace(e.target.value)} />
+          <input aria-label="Namespace" className="input text-sm w-full" value={namespace} onChange={(e) => setNamespace(e.target.value)} />
           <label className="block text-xs text-slate-500">Profile</label>
-          <input className="input text-sm w-full" value={profile} onChange={(e) => setProfile(e.target.value)} />
+          <input aria-label="Profile" className="input text-sm w-full" value={profile} onChange={(e) => setProfile(e.target.value)} />
           <button
             type="button"
             className="btn-primary text-sm"

@@ -134,6 +134,7 @@ function OpenStackNetworkingContent() {
           <div>
             <label className="block text-xs text-slate-500 mb-1">Network name</label>
             <input
+              aria-label="Network name"
               value={newNetName}
               onChange={(e) => setNewNetName(e.target.value)}
               className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 min-w-[10rem]"
@@ -185,6 +186,7 @@ function OpenStackNetworkingContent() {
           <div>
             <label className="block text-xs text-slate-500 mb-1">CIDR</label>
             <input
+              aria-label="CIDR"
               value={subnetCidr}
               onChange={(e) => setSubnetCidr(e.target.value)}
               className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 font-mono w-36"
@@ -193,6 +195,7 @@ function OpenStackNetworkingContent() {
           <div>
             <label className="block text-xs text-slate-500 mb-1">Subnet name (optional)</label>
             <input
+              aria-label="Subnet name"
               value={subnetName}
               onChange={(e) => setSubnetName(e.target.value)}
               className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700"
@@ -224,6 +227,7 @@ function OpenStackNetworkingContent() {
           <div>
             <label className="block text-xs text-slate-500 mb-1">Router name</label>
             <input
+              aria-label="Router name"
               value={routerName}
               onChange={(e) => setRouterName(e.target.value)}
               className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700"

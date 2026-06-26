@@ -75,7 +75,7 @@ export default function ServicesPage() {
           placeholder="Filter services..."
           value={filter}
           onChange={e => setFilter(e.target.value)}
-          className={`w-full pl-10 py-2.5 bg-slate-800/50 border border-slate-700/50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 ${filter ? 'pr-8' : 'pr-4'}`}
+          className={`w-full pl-10 py-2.5 bg-slate-800/50 border border-slate-700/50 rounded-xl text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 ${filter ? 'pr-8' : 'pr-4'}`}
         />
         {filter && (
           <button

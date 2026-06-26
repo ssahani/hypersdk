@@ -1952,11 +1952,11 @@ export default function VMDetailsPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">Source path (host)</label>
-                  <input value={shareSourceDir} onChange={(e) => setShareSourceDir(e.target.value)} placeholder="/data/share" className="input-field w-full" />
+                  <input aria-label="Source path (host)" value={shareSourceDir} onChange={(e) => setShareSourceDir(e.target.value)} placeholder="/data/share" className="input-field w-full" />
                 </div>
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">Mount tag</label>
-                  <input value={shareMountTag} onChange={(e) => setShareMountTag(e.target.value)} placeholder="hostshare" className="input-field w-full font-mono text-xs" />
+                  <input aria-label="Mount tag" value={shareMountTag} onChange={(e) => setShareMountTag(e.target.value)} placeholder="hostshare" className="input-field w-full font-mono text-xs" />
                 </div>
                 <div className="flex items-end gap-3">
                   <label className="flex items-center gap-2 text-sm text-slate-300 pb-2 cursor-pointer select-none">
@@ -2914,7 +2914,7 @@ export default function VMDetailsPage() {
                 <option value="vmxnet3">vmxnet3</option>
               </select>
               <label className="block text-sm text-slate-400 mb-1 mt-3">Libvirt network name</label>
-              <input type="text" value={tuneNicNet} onChange={(e) => setTuneNicNet(e.target.value)} className="input-field" placeholder="default" />
+              <input aria-label="Libvirt network name" type="text" value={tuneNicNet} onChange={(e) => setTuneNicNet(e.target.value)} className="input-field" placeholder="default" />
             </DialogBox>
           )}
 
@@ -2961,7 +2961,7 @@ export default function VMDetailsPage() {
           {dialog === 'serial' && (
             <DialogBox title="Extra serial + console" icon={<Terminal className={`w-5 h-5 ${statusToneClass('info')}`} />} onClose={() => setDialog(null)} onConfirm={handleSerialAttach} confirmLabel="Attach">
               <label className="block text-sm text-slate-400 mb-1">Guest serial port index</label>
-              <input type="number" min={1} max={32} value={serPort} onChange={(e) => setSerPort(parseInt(e.target.value, 10) || 1)} className="input-field" />
+              <input aria-label="Guest serial port index" type="number" min={1} max={32} value={serPort} onChange={(e) => setSerPort(parseInt(e.target.value, 10) || 1)} className="input-field" />
               <p className="text-xs text-slate-500 mt-2">Adds PTY serial and matching console (e.g. 1 → ttyS1).</p>
             </DialogBox>
           )}
@@ -3073,11 +3073,11 @@ export default function VMDetailsPage() {
             <DialogBox title="Scheduler tuning" icon={<Cpu className={`w-5 h-5 ${statusToneClass('info')}`} />} onClose={() => setDialog(null)} onConfirm={handleSchedulerSave} confirmLabel="Apply">
               <p className="text-xs text-slate-500 mb-3">Only filled fields are sent; others stay unchanged in libvirt.</p>
               <label className="block text-sm text-slate-400 mb-1">cpu_shares</label>
-              <input className="input-field mb-2" value={schedShares} onChange={(e) => setSchedShares(e.target.value)} placeholder="e.g. 1024" />
+              <input aria-label="cpu_shares" className="input-field mb-2" value={schedShares} onChange={(e) => setSchedShares(e.target.value)} placeholder="e.g. 1024" />
               <label className="block text-sm text-slate-400 mb-1">vcpu_period (µs)</label>
-              <input className="input-field mb-2" value={schedPeriod} onChange={(e) => setSchedPeriod(e.target.value)} />
+              <input aria-label="vcpu_period (µs)" className="input-field mb-2" value={schedPeriod} onChange={(e) => setSchedPeriod(e.target.value)} />
               <label className="block text-sm text-slate-400 mb-1">vcpu_quota (µs)</label>
-              <input className="input-field" value={schedQuota} onChange={(e) => setSchedQuota(e.target.value)} />
+              <input aria-label="vcpu_quota (µs)" className="input-field" value={schedQuota} onChange={(e) => setSchedQuota(e.target.value)} />
             </DialogBox>
           )}
 
@@ -3085,11 +3085,11 @@ export default function VMDetailsPage() {
             <DialogBox title="Memory tuning (KiB)" icon={<MemoryStick className="w-5 h-5 text-purple-400" />} onClose={() => setDialog(null)} onConfirm={handleMemtuneSave} confirmLabel="Apply">
               <p className="text-xs text-slate-500 mb-3">Values are KiB (same unit as libvirt memtune XML). Leave blank to leave unchanged.</p>
               <label className="block text-sm text-slate-400 mb-1">hard_limit_kb</label>
-              <input className="input-field mb-2" value={memHardKb} onChange={(e) => setMemHardKb(e.target.value)} />
+              <input aria-label="hard_limit_kb" className="input-field mb-2" value={memHardKb} onChange={(e) => setMemHardKb(e.target.value)} />
               <label className="block text-sm text-slate-400 mb-1">soft_limit_kb</label>
-              <input className="input-field mb-2" value={memSoftKb} onChange={(e) => setMemSoftKb(e.target.value)} />
+              <input aria-label="soft_limit_kb" className="input-field mb-2" value={memSoftKb} onChange={(e) => setMemSoftKb(e.target.value)} />
               <label className="block text-sm text-slate-400 mb-1">swap_hard_limit_kb</label>
-              <input className="input-field" value={memSwapKb} onChange={(e) => setMemSwapKb(e.target.value)} />
+              <input aria-label="swap_hard_limit_kb" className="input-field" value={memSwapKb} onChange={(e) => setMemSwapKb(e.target.value)} />
             </DialogBox>
           )}
 
@@ -3097,9 +3097,9 @@ export default function VMDetailsPage() {
             <DialogBox title="NUMA memory tuning" icon={<Cpu className="w-5 h-5 text-violet-400" />} onClose={() => setDialog(null)} onConfirm={() => void handleNumaSave()} confirmLabel="Apply">
               <p className="text-xs text-slate-500 mb-2">Maps to libvirt <code className="text-slate-400">numatune</code>. Mode is the raw libvirt mem mode integer; leave blank to skip updating mode.</p>
               <label className="block text-sm text-slate-400 mb-1">node_set (e.g. 0-1 or 0)</label>
-              <input className="input-field mb-3" value={numaNodeSet} onChange={(e) => setNumaNodeSet(e.target.value)} placeholder="0" />
+              <input aria-label="node_set" className="input-field mb-3" value={numaNodeSet} onChange={(e) => setNumaNodeSet(e.target.value)} placeholder="0" />
               <label className="block text-sm text-slate-400 mb-1">mode (optional)</label>
-              <input className="input-field" value={numaModeInput} onChange={(e) => setNumaModeInput(e.target.value)} placeholder="strict / preferred / … as int" />
+              <input aria-label="mode" className="input-field" value={numaModeInput} onChange={(e) => setNumaModeInput(e.target.value)} placeholder="strict / preferred / … as int" />
             </DialogBox>
           )}
 
@@ -3120,7 +3120,7 @@ export default function VMDetailsPage() {
           {dialog === 'pin-vcpu' && (
             <DialogBox title="Pin vCPU to host CPUs" icon={<Cpu className="w-5 h-5 text-cyan-400" />} onClose={() => setDialog(null)} onConfirm={handlePinSave} confirmLabel="Apply pin">
               <label className="block text-sm text-slate-400 mb-1">vCPU index</label>
-              <input type="number" min={0} max={Math.max(0, (vm?.vcpus ?? 1) - 1)} className="input-field mb-3" value={pinVcpuN} onChange={(e) => setPinVcpuN(parseInt(e.target.value, 10) || 0)} />
+              <input aria-label="vCPU index" type="number" min={0} max={Math.max(0, (vm?.vcpus ?? 1) - 1)} className="input-field mb-3" value={pinVcpuN} onChange={(e) => setPinVcpuN(parseInt(e.target.value, 10) || 0)} />
               <p className="text-xs text-slate-500 mb-2">Host CPUs 0–63 (first 64 logical CPUs).</p>
               <div className="max-h-40 overflow-y-auto border border-slate-700 rounded p-2 grid grid-cols-8 gap-1">
                 {pinMap.map((on, i) => (
@@ -3137,9 +3137,9 @@ export default function VMDetailsPage() {
             <DialogBox title="Block commit" icon={<HardDrive className={`w-5 h-5 ${statusToneClass('info')}`} />} onClose={() => setDialog(null)} onConfirm={handleBlockCommit} confirmLabel="Start commit">
               <p className="text-xs text-slate-500 mb-2">Disk: <code className="text-slate-300">{blockDisk || '—'}</code></p>
               <label className="block text-sm text-slate-400 mb-1">Base (optional)</label>
-              <input className="input-field mb-2" value={blockBase} onChange={(e) => setBlockBase(e.target.value)} placeholder="backing file name or leave empty" />
+              <input aria-label="Base (optional)" className="input-field mb-2" value={blockBase} onChange={(e) => setBlockBase(e.target.value)} placeholder="backing file name or leave empty" />
               <label className="block text-sm text-slate-400 mb-1">Top (optional)</label>
-              <input className="input-field mb-2" value={blockTop} onChange={(e) => setBlockTop(e.target.value)} />
+              <input aria-label="Top (optional)" className="input-field mb-2" value={blockTop} onChange={(e) => setBlockTop(e.target.value)} />
               <label className="flex items-center gap-2 text-sm text-slate-300 mb-1"><input type="checkbox" checked={blockShallow} onChange={(e) => setBlockShallow(e.target.checked)} /> Shallow</label>
               <label className="flex items-center gap-2 text-sm text-slate-300 mb-1"><input type="checkbox" checked={blockDelete} onChange={(e) => setBlockDelete(e.target.checked)} /> Delete merged images</label>
               <label className="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={blockActive} onChange={(e) => setBlockActive(e.target.checked)} /> Active commit</label>

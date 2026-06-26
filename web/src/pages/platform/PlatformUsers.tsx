@@ -126,7 +126,18 @@ export default function PlatformUsers({ embedded }: { embedded?: boolean } = {})
       title={embedded ? undefined : 'Access & Workspaces'}
       subtitle={embedded ? undefined : 'Platform RBAC accounts and tenant workspaces — switch active workspace from the menu bar.'}
       icon={embedded ? undefined : <Users className="w-6 h-6 text-slate-400" />}
-      actions={embedded ? undefined : <PlatformRefreshButton onClick={() => void load()} />}
+      actions={embedded ? undefined : (
+        <>
+          <button
+            type="button"
+            className="btn-primary flex items-center gap-2"
+            onClick={scrollToAddUser}
+          >
+            <Plus className="w-4 h-4" /> Add user
+          </button>
+          <PlatformRefreshButton onClick={() => void load()} />
+        </>
+      )}
       contentClassName="space-y-4"
     >
       <OperatingSurfaceLayout testId="platform-users-page">

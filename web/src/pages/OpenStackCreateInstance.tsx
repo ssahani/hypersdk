@@ -318,10 +318,31 @@ function OpenStackCreateInstanceContent() {
       title="Create OpenStack instance"
       icon={<Cloud className="w-7 h-7 text-sky-400" />}
       actions={
-        <Link to="/openstack/instances" className="inline-flex items-center gap-2 text-slate-400 hover:text-slate-200 text-sm">
-          <ArrowLeft className="w-4 h-4" />
-          Instances
-        </Link>
+        <div className="flex items-center gap-3">
+          {step === STEPS.length - 1 && (
+            <button
+              type="button"
+              disabled={
+                submitting ||
+                Boolean(
+                  catalogErrors.flavors ||
+                    catalogErrors.networks ||
+                    (bootSource !== 'volume' && catalogErrors.images) ||
+                    (bootSource === 'volume' && catalogErrors.volumes),
+                )
+              }
+              onClick={handleCreate}
+              className="btn-primary inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-50 text-sm"
+            >
+              {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+              Create instance
+            </button>
+          )}
+          <Link to="/openstack/instances" className="inline-flex items-center gap-2 text-slate-400 hover:text-slate-200 text-sm">
+            <ArrowLeft className="w-4 h-4" />
+            Instances
+          </Link>
+        </div>
       }
     >
       {!computeLive && connectionHint && (
@@ -370,6 +391,7 @@ function OpenStackCreateInstanceContent() {
           <div>
             <label className="block text-sm text-slate-400 mb-1">Instance name</label>
             <input
+              aria-label="Instance name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100"
@@ -519,6 +541,7 @@ function OpenStackCreateInstanceContent() {
               <div>
                 <label className="block text-sm text-slate-400 mb-1">New boot volume size (GB)</label>
                 <input
+                  aria-label="New boot volume size (GB)"
                   type="number"
                   min={1}
                   value={bootVolumeSizeGb}
@@ -602,6 +625,7 @@ function OpenStackCreateInstanceContent() {
           <div>
             <label className="block text-sm text-slate-400 mb-1">Additional networks (optional)</label>
             <input
+              aria-label="Additional networks"
               value={extraNetworks}
               onChange={(e) => setExtraNetworks(e.target.value)}
               className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-sm"
@@ -645,6 +669,7 @@ function OpenStackCreateInstanceContent() {
           <div>
             <label className="block text-sm text-slate-400 mb-1">Availability zone (optional)</label>
             <select
+              aria-label="Availability zone"
               value={availabilityZone}
               onChange={(e) => setAvailabilityZone(e.target.value)}
               className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100"
@@ -658,6 +683,7 @@ function OpenStackCreateInstanceContent() {
           <div>
             <label className="block text-sm text-slate-400 mb-1">Security groups (comma-separated, optional)</label>
             <input
+              aria-label="Security groups"
               value={securityGroups}
               onChange={(e) => setSecurityGroups(e.target.value)}
               className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100"

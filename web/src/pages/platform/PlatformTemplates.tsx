@@ -269,7 +269,7 @@ export default function PlatformTemplates() {
         <>
           {tab === 'templates' && (
             <>
-              <button type="button" className="btn-secondary text-sm" onClick={() => void load(false)} disabled={loading}>
+              <button type="button" aria-label="Refresh" className="btn-secondary text-sm" onClick={() => void load(false)} disabled={loading}>
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               </button>
               <button type="button" className="btn-secondary text-sm" onClick={() => void seedDefaultTemplates().then((r) => { setRows(r.templates); toast.success(`Catalog: ${r.templates.length} templates`) }).catch((e) => toast.error(formatUserError(e)))}>
@@ -493,7 +493,7 @@ export default function PlatformTemplates() {
           <input aria-label="Template version" className="input" placeholder="version" value={version} onChange={(e) => setVersion(e.target.value)} />
           <input aria-label="Source disk path" className="input md:col-span-2" placeholder="source disk path" value={disk} onChange={(e) => setDisk(e.target.value)} />
           <input aria-label="Description" className="input md:col-span-2" placeholder="description" value={description} onChange={(e) => setDescription(e.target.value)} />
-          <select className="input" value={tplCategory} onChange={(e) => setTplCategory(e.target.value)}>
+          <select aria-label="Template category" className="input" value={tplCategory} onChange={(e) => setTplCategory(e.target.value)}>
             {CATEGORIES.filter((c) => c !== 'All').map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}

@@ -189,7 +189,7 @@ export default function NetworksPage() {
                 <td className="px-6 py-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${statusBadgeClasses(net.active ? 'ok' : 'error')}`}>{net.active ? 'Active' : 'Inactive'}</span></td>
                 <td className="px-6 py-3 hidden md:table-cell text-sm text-slate-400 font-mono">{net.bridge || '-'}</td>
                 <td className="px-6 py-3 hidden md:table-cell">
-                  <button onClick={() => toggleAutostart(net)} className="flex items-center gap-1">
+                  <button onClick={() => toggleAutostart(net)} aria-label={net.autostart ? 'Disable autostart' : 'Enable autostart'} className="flex items-center gap-1">
                     {net.autostart ? <ToggleRight className={`w-5 h-5 ${statusToneClass('ok')}`} /> : <ToggleLeft className="w-5 h-5 text-slate-500" />}
                   </button>
                 </td>
@@ -238,7 +238,7 @@ export default function NetworksPage() {
                 <span className="text-lg font-semibold flex items-center gap-2"><Network className={`w-5 h-5 ${statusToneClass('info')}`} /> Edit network XML</span>
                 <p className="text-xs text-slate-500 mt-1 font-mono">{editTarget.name}</p>
               </div>
-              <button type="button" onClick={() => !editXmlSaving && setEditTarget(null)} className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
+              <button type="button" aria-label="Close" onClick={() => !editXmlSaving && setEditTarget(null)} className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
             </div>
             <div className="p-5 flex-1 min-h-0 flex flex-col gap-3">
               {editTarget.active && (
@@ -256,7 +256,7 @@ export default function NetworksPage() {
                     value={editXml}
                     onChange={e => setEditXml(e.target.value)}
                     spellCheck={false}
-                    className="w-full min-h-[280px] flex-1 font-mono text-xs bg-slate-900/80 border border-slate-600/50 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-y"
+                    className="w-full min-h-[280px] flex-1 font-mono text-xs bg-slate-900/80 border border-slate-600/50 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 resize-y"
                     disabled={editXmlSaving}
                   />
                 </>
@@ -283,7 +283,7 @@ export default function NetworksPage() {
           <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
             <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
               <span className="text-lg font-semibold flex items-center gap-2"><Network className={`w-5 h-5 ${statusToneClass('info')}`} /> Create Network</span>
-              <button onClick={() => setShowCreate(false)} className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
+              <button aria-label="Close" onClick={() => setShowCreate(false)} className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
             </div>
             <div className="p-5 space-y-3">
               <div><label htmlFor="net-name" className="block text-sm text-slate-400 mb-1">Name</label><input id="net-name" autoFocus value={newName} onChange={e => setNewName(e.target.value)} className="input-field" placeholder="my-network" /></div>

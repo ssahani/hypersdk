@@ -80,6 +80,7 @@ function OpenStackFloatingIpsContent() {
         <div>
           <label className="block text-xs text-slate-500 mb-1">External network</label>
           <select value={extNet} onChange={(e) => setExtNet(e.target.value)}
+            aria-label="External network"
             className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 min-w-[12rem]">
             {networks.map((n) => (
               <option key={n.id} value={n.id}>{n.name || n.id.slice(0, 8)}</option>

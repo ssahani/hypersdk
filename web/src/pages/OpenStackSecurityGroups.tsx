@@ -115,7 +115,7 @@ function OpenStackSecurityGroupsContent() {
       </div>
 
       <div className="rounded-xl border border-slate-700 p-4 flex flex-wrap gap-2 items-end text-sm">
-        <input id="new-sg-name" placeholder="New group name"
+        <input id="new-sg-name" placeholder="New group name" aria-label="New security group name"
           className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700" />
         <button type="button" className="px-3 py-1.5 rounded-lg bg-sky-600 text-white"
           onClick={async () => {

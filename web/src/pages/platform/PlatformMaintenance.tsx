@@ -222,6 +222,7 @@ export default function PlatformMaintenance() {
                 <label className="text-xs text-slate-500">Host</label>
                 <select
                   className="input max-w-xs"
+                  aria-label="Host"
                   value={selectedMission?.host_id ?? ''}
                   onChange={(e) => setMissionHostId(e.target.value)}
                 >
@@ -550,7 +551,7 @@ export default function PlatformMaintenance() {
                   <td className="p-3">{s.status}</td>
                   <td className="p-3 text-right">
                     {s.status === 'pending' && (
-                      <button type="button" className="btn-secondary text-xs" onClick={async () => {
+                      <button type="button" className="btn-secondary text-xs" aria-label="Delete" onClick={async () => {
                         try { await deleteMaintenanceSchedule(s.id); toast.success('Cancelled'); await loadSchedules() } catch (e: unknown) { toast.error(formatUserError(e)) }
                       }}><Trash2 className="w-3 h-3 inline" /></button>
                     )}

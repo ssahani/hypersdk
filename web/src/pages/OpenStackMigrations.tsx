@@ -215,8 +215,9 @@ function OpenStackMigrationsContent() {
           {!submitAdvanced ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <div>
-                <label className="block text-xs text-slate-500 mb-1">VM name</label>
+                <label htmlFor="submit-vm-name" className="block text-xs text-slate-500 mb-1">VM name</label>
                 <input
+                  id="submit-vm-name"
                   value={submitVmName}
                   onChange={(e) => setSubmitVmName(e.target.value)}
                   list="hypersdk-vm-names"
@@ -230,8 +231,9 @@ function OpenStackMigrationsContent() {
                 </datalist>
               </div>
               <div>
-                <label className="block text-xs text-slate-500 mb-1">VM / instance ID (optional)</label>
+                <label htmlFor="submit-vm-id" className="block text-xs text-slate-500 mb-1">VM / instance ID (optional)</label>
                 <input
+                  id="submit-vm-id"
                   value={submitVmId}
                   onChange={(e) => setSubmitVmId(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm font-mono"
@@ -239,8 +241,9 @@ function OpenStackMigrationsContent() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-slate-500 mb-1">Destination path (optional)</label>
+                <label htmlFor="submit-dest-path" className="block text-xs text-slate-500 mb-1">Destination path (optional)</label>
                 <input
+                  id="submit-dest-path"
                   value={submitDestPath}
                   onChange={(e) => setSubmitDestPath(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm font-mono"

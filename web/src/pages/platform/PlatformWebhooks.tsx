@@ -67,7 +67,33 @@ export default function PlatformWebhooks({ embedded }: { embedded?: boolean } = 
       title={embedded ? undefined : 'Webhooks'}
       subtitle={embedded ? undefined : 'Event notifications for VM lifecycle and HA events'}
       icon={embedded ? undefined : <Webhook className="w-6 h-6 text-slate-400" />}
-      actions={embedded ? undefined : <PlatformRefreshButton onClick={() => void load()} />}
+      actions={embedded ? undefined : (
+        <>
+          <input
+            aria-label="Webhook URL"
+            className="input text-sm w-64"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://example.com/hook"
+          />
+          <button
+            type="button"
+            className="btn-primary flex items-center gap-2 shrink-0"
+            onClick={async () => {
+              try {
+                await createWebhook({ url, events: ['vm.create', 'vm.delete', 'ha.recover'] })
+                toast.success('Webhook added')
+                await load()
+              } catch (e: unknown) {
+                toast.error(formatUserError(e))
+              }
+            }}
+          >
+            <Plus className="w-4 h-4" /> Add endpoint
+          </button>
+          <PlatformRefreshButton onClick={() => void load()} />
+        </>
+      )}
       contentClassName="space-y-4"
     >
       <OperatingSurfaceLayout testId="platform-webhooks-page">
@@ -93,15 +119,6 @@ export default function PlatformWebhooks({ embedded }: { embedded?: boolean } = 
             </button>
           </div>
         )}
-
-        <MacGlassPanel title="Add webhook endpoint" subtitle="Subscribe to vm.create, vm.delete, and ha.recover events.">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <input aria-label="Webhook URL" className="input flex-1" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com/hook" />
-            <button type="button" className="btn-primary flex items-center gap-2 shrink-0" onClick={async () => {
-              try { await createWebhook({ url, events: ['vm.create', 'vm.delete', 'ha.recover'] }); toast.success('Webhook added'); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
-            }}><Plus className="w-4 h-4" /> Add endpoint</button>
-          </div>
-        </MacGlassPanel>
 
         {rows.length === 0 ? (
           <PlatformEmptyState

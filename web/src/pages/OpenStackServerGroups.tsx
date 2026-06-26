@@ -64,11 +64,13 @@ function OpenStackServerGroupsContent() {
         <div>
           <label className="block text-xs text-slate-500 mb-1">Name</label>
           <input value={name} onChange={(e) => setName(e.target.value)}
+            aria-label="Name"
             className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
         </div>
         <div>
           <label className="block text-xs text-slate-500 mb-1">Policy</label>
           <select value={policy} onChange={(e) => setPolicy(e.target.value)}
+            aria-label="Policy"
             className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm">
             {POLICIES.map((p) => (
               <option key={p} value={p}>{p}</option>

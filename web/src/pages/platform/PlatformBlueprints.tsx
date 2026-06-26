@@ -158,7 +158,7 @@ export default function PlatformBlueprints() {
       {tab === 'studio' && (
         <>
           <MacGlassPanel title="Generate from description">
-            <textarea className="input min-h-20" value={nlPrompt} onChange={(e) => setNlPrompt(e.target.value)} placeholder="Backup all Windows VMs every night" />
+            <textarea className="input min-h-20" aria-label="Describe your blueprint" value={nlPrompt} onChange={(e) => setNlPrompt(e.target.value)} placeholder="Backup all Windows VMs every night" />
             <div className="flex gap-2 flex-wrap">
               <button type="button" className="btn-primary text-sm" disabled={generating} onClick={async () => {
                 setGenerating(true)

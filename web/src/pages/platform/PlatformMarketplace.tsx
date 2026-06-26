@@ -99,10 +99,11 @@ export default function PlatformMarketplace() {
 
         <input
           type="search"
+          aria-label="Filter plugins"
           placeholder="Filter plugins…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="w-full rounded-lg border border-border/50 bg-background/60 px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          className="w-full rounded-lg border border-border/50 bg-background/60 px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         />
 
         {featured.length > 0 && (

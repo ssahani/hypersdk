@@ -940,8 +940,9 @@ export default function CreateVMPage() {
             </select>
             {MACHINA_PACKER_SCRIPT_GUESTS.find((g) => g.virtInstallDownloadOs === virtInstallInstallOs)?.family === 'rpm' && (
               <div className="space-y-2 rounded-lg border border-rose-500/30 bg-rose-950/20 p-3">
-                <label className="block text-sm text-slate-400">RHEL-family offline image token (POST /guest-images/rhel-url)</label>
+                <label htmlFor="rhel-access-token" className="block text-sm text-slate-400">RHEL-family offline image token (POST /guest-images/rhel-url)</label>
                 <input
+                  id="rhel-access-token"
                   type="password"
                   autoComplete="off"
                   value={rhelAccessToken}
@@ -1278,9 +1279,10 @@ export default function CreateVMPage() {
 
         {guestProfile === 'windows' && (
           <div className="pt-2 border-t border-slate-700/50 space-y-2">
-            <label className="block text-sm text-slate-400 mb-1">virtio-win drivers ISO (recommended for Windows installs)</label>
+            <label htmlFor="virtio-win-iso" className="block text-sm text-slate-400 mb-1">virtio-win drivers ISO (recommended for Windows installs)</label>
             <div className="flex gap-2">
               <input
+                id="virtio-win-iso"
                 type="text"
                 value={virtioWinIso}
                 onChange={(e) => setVirtioWinIso(e.target.value)}
@@ -1319,16 +1321,16 @@ export default function CreateVMPage() {
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
-            <label className="block text-sm text-slate-400 mb-1">User</label>
-            <input value={cloudInitUser} onChange={(e) => setCloudInitUser(e.target.value)} className="input-field" placeholder="ubuntu" />
+            <label htmlFor="cloud-init-user" className="block text-sm text-slate-400 mb-1">User</label>
+            <input id="cloud-init-user" value={cloudInitUser} onChange={(e) => setCloudInitUser(e.target.value)} className="input-field" placeholder="ubuntu" />
           </div>
           <div>
-            <label className="block text-sm text-slate-400 mb-1">Password (optional)</label>
-            <input value={cloudInitPassword} onChange={(e) => setCloudInitPassword(e.target.value)} className="input-field" placeholder="(leave blank to skip)" />
+            <label htmlFor="cloud-init-password" className="block text-sm text-slate-400 mb-1">Password (optional)</label>
+            <input id="cloud-init-password" value={cloudInitPassword} onChange={(e) => setCloudInitPassword(e.target.value)} className="input-field" placeholder="(leave blank to skip)" />
           </div>
           <div>
-            <label className="block text-sm text-slate-400 mb-1">SSH public key (optional)</label>
-            <input value={cloudInitSshKey} onChange={(e) => setCloudInitSshKey(e.target.value)} className="input-field font-mono text-xs" placeholder="ssh-ed25519 AAAA..." />
+            <label htmlFor="cloud-init-ssh-key" className="block text-sm text-slate-400 mb-1">SSH public key (optional)</label>
+            <input id="cloud-init-ssh-key" value={cloudInitSshKey} onChange={(e) => setCloudInitSshKey(e.target.value)} className="input-field font-mono text-xs" placeholder="ssh-ed25519 AAAA..." />
           </div>
         </div>
         <div className="flex gap-2">

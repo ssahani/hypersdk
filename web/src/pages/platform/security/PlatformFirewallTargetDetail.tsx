@@ -34,6 +34,7 @@ import {
   type AllowedService,
   type FirewallTargetDetail,
 } from '../../../api/zeusFirewall'
+import { useBreadcrumbName } from '../../../contexts/BreadcrumbNameContext'
 import { useToastContext } from '../../../contexts/ToastContext'
 import { formatUserError } from '../../../utils/apiError'
 import { hubLinkClasses, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass } from '../../../utils/semanticColors'
@@ -58,6 +59,7 @@ export default function PlatformFirewallTargetDetail() {
   const toast = useToastContext()
   const [pane, setPane] = useState<PaneId>('firewall')
   const [detail, setDetail] = useState<FirewallTargetDetail | null>(null)
+  useBreadcrumbName(detail?.target.name ?? '')
   const [services, setServices] = useState<AllowedService[]>([])
   const [profiles, setProfiles] = useState<Array<{ name: string; display_name: string }>>([])
   const [selectedProfile, setSelectedProfile] = useState('ProductionServer')
@@ -202,6 +204,7 @@ export default function PlatformFirewallTargetDetail() {
                 <MacSettingsGroup title="Profile">
                   <div className="px-4 py-3 space-y-3">
                     <select
+                      aria-label="Firewall profile"
                       className="input text-sm w-full max-w-md"
                       value={selectedProfile}
                       onChange={(e) => setSelectedProfile(e.target.value)}

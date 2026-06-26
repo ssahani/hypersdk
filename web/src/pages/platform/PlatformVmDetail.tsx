@@ -155,6 +155,7 @@ import VmHardwareSection from '../../components/vm/VmHardwareSection'
 import VmWindowsReadinessPanel from '../../components/vm/VmWindowsReadinessPanel'
 import VmEditHardwareDrawer from '../../components/vm/VmEditHardwareDrawer'
 import { listVmSchedules, createVmSchedule, deleteVmSchedule, type VmSchedule, type VmScheduleAction } from '../../api/platformVmSchedules'
+import { useBreadcrumbName } from '../../contexts/BreadcrumbNameContext'
 
 export default function PlatformVmDetail() {
   const location = useLocation()
@@ -187,6 +188,7 @@ export default function PlatformVmDetail() {
   const { setContextVmId, setContextSummary, openCopilot } = useAi()
   const toast = useToastContext()
   const [vm, setVm] = useState<PlatformVm | null>(null)
+  useBreadcrumbName(vm?.name ?? '')
   const [hosts, setHosts] = useState<PlatformHost[]>([])
   const [error, setError] = useState<string | null>(null)
   const [destHost, setDestHost] = useState('')
@@ -2082,12 +2084,12 @@ export default function PlatformVmDetail() {
               <MacGlassPanel title="Organization">
                 <div className="flex flex-wrap gap-3 items-end">
                   <div>
-                    <label className="text-xs text-slate-500 block mb-1">Project</label>
-                    <input className="input" value={project} onChange={(e) => setProject(e.target.value)} placeholder="default" />
+                    <label htmlFor="vm-settings-project" className="text-xs text-slate-500 block mb-1">Project</label>
+                    <input id="vm-settings-project" className="input" value={project} onChange={(e) => setProject(e.target.value)} placeholder="default" />
                   </div>
                   <div className="flex-1 min-w-[12rem]">
-                    <label className="text-xs text-slate-500 block mb-1">Tags</label>
-                    <input className="input w-full" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="prod, web" />
+                    <label htmlFor="vm-settings-tags" className="text-xs text-slate-500 block mb-1">Tags</label>
+                    <input id="vm-settings-tags" className="input w-full" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="prod, web" />
                   </div>
                   <button type="button" className="btn-secondary" onClick={() => void act('Project updated', () => patchVm(id, { project, tags: tags.split(',').map((t) => t.trim()).filter(Boolean) }))}>Save</button>
                 </div>
@@ -2095,6 +2097,7 @@ export default function PlatformVmDetail() {
               <MacGlassPanel title="Description">
                 <p className="text-xs text-slate-500 mb-2">Operator notes stored in the VM spec (Cockpit Machines parity).</p>
                 <textarea
+                  aria-label="Description"
                   className="input w-full min-h-[4.5rem] text-sm"
                   value={descriptionDraft}
                   onChange={(e) => setDescriptionDraft(e.target.value)}
@@ -2237,6 +2240,7 @@ export default function PlatformVmDetail() {
                     </div>
                   )}
                   <input
+                    aria-label="Label (optional)"
                     className="input col-span-2 text-sm"
                     placeholder="Label (optional)"
                     value={newSchedLabel}
@@ -2272,6 +2276,7 @@ export default function PlatformVmDetail() {
               {vm.inventory_source !== 'kubevirt' && (
                 <MacGlassPanel title="Domain XML" subtitle="Inline domain definition (libvirt define)">
                   <textarea
+                    aria-label="Domain XML"
                     className="input w-full font-mono text-xs min-h-[12rem] mt-2"
                     value={domainXml}
                     onChange={(e) => setDomainXml(e.target.value)}
