@@ -867,7 +867,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder={spotlight ? 'Zeus — search or ask…' : 'Search or type > import networks…'}
-              className="flex-1 py-3.5 bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none"
+              className="flex-1 py-3.5 bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none focus-visible:ring-1 focus-visible:ring-blue-500/50"
             />
             {spotlight ? (
               <kbd className="px-1.5 py-0.5 bg-slate-700 border border-slate-600 rounded text-[10px] font-mono text-slate-400 hidden sm:inline">⌘Space</kbd>
