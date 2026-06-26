@@ -276,7 +276,7 @@ export default function PlatformHosts() {
       contentClassName="space-y-4"
     >
       {viewMode === 'icons' && visibleHosts.length > 0 && (
-        <div className="flex flex-col xl:flex-row gap-4" data-testid="host-fleet-panels">
+        <div className="flex flex-col xl:flex-row xl:items-start gap-4" data-testid="host-fleet-panels">
           <div className="grid gap-3 sm:grid-cols-2 flex-1 min-w-0">
             {visibleHosts.map((h) => (
               <HostFleetCard

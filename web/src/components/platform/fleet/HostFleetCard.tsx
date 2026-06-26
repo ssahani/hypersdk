@@ -59,7 +59,7 @@ export function HostCommandCenter({
 }) {
   if (!host) {
     return (
-      <aside className="w-full xl:w-72 shrink-0 rounded-xl border border-white/[0.06] bg-slate-950/50 p-4">
+      <aside className="machine-finder-command-center w-full xl:w-96 shrink-0 rounded-xl border border-white/[0.06] bg-slate-950/50 p-4">
         <p className="text-sm text-slate-500">Select a host for Command Center</p>
       </aside>
     )
@@ -68,7 +68,7 @@ export function HostCommandCenter({
     ? Math.round(((host.memory_used_mib ?? 0) / host.memory_total_mib) * 100)
     : null
   return (
-    <aside className="w-full xl:w-72 shrink-0 rounded-xl border border-white/[0.06] bg-slate-950/50 overflow-hidden" data-testid="host-command-center">
+    <aside className="machine-finder-command-center w-full xl:w-96 shrink-0 rounded-xl border border-white/[0.06] bg-slate-950/50" data-testid="host-command-center">
       <header className="px-4 py-3 border-b border-white/[0.06]">
         <h2 className="font-semibold text-white">Host Command Center</h2>
         <p className="text-xs text-slate-500 truncate">{host.hostname}</p>

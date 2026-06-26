@@ -723,7 +723,11 @@ a.tahoe-context-app-title:hover {
 }
 
 .machine-finder-command-center {
-  max-height: calc(100dvh - 12rem);
+  position: sticky;
+  top: calc(var(--platform-chrome-top, 6.5rem) + 0.5rem);
+  align-self: flex-start;
+  max-height: calc(100dvh - var(--platform-chrome-top, 6.5rem) - 2rem);
+  overflow-y: auto;
 }
 
 .mission-control-page,

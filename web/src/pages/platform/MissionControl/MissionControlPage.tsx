@@ -113,7 +113,7 @@ export default function MissionControlPage() {
 
   return (
     <PageLayout compact hideHeader contentClassName="mission-control-page pb-[calc(var(--dock-height,4.25rem)+1rem)]">
-      <div className="flex flex-col xl:flex-row gap-4">
+      <div className="flex flex-col xl:flex-row xl:items-start gap-4">
         <section className="mission-control-root flex-1 min-w-0 flex flex-col gap-4" data-testid="mission-control-page">
           {state.error && <StructuredErrorBanner error={{ message: state.error }} />}
 

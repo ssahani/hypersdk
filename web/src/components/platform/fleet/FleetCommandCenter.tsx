@@ -54,7 +54,7 @@ export default function FleetCommandCenter({
 
   if (!selectedVm) {
     return (
-      <aside className={`machine-finder-command-center hidden xl:flex xl:w-72 shrink-0 flex-col rounded-xl border border-white/[0.06] bg-slate-950/50 p-4 ${className}`} data-testid={testId}>
+      <aside className={`machine-finder-command-center hidden xl:flex xl:w-96 shrink-0 flex-col rounded-xl border border-white/[0.06] bg-slate-950/50 p-4 ${className}`} data-testid={testId}>
         <p className="text-sm text-slate-500">Select a machine to open Command Center</p>
       </aside>
     )
@@ -63,13 +63,13 @@ export default function FleetCommandCenter({
   const running = selectedVm.observed_state === 'running'
 
   return (
-    <aside className={`machine-finder-command-center w-full xl:w-72 shrink-0 flex flex-col rounded-xl border border-white/[0.06] bg-slate-950/50 overflow-hidden ${className}`} data-testid={testId}>
+    <aside className={`machine-finder-command-center w-full xl:w-96 shrink-0 flex flex-col rounded-xl border border-white/[0.06] bg-slate-950/50 ${className}`} data-testid={testId}>
       <header className="px-4 py-3 border-b border-white/[0.06]">
         <h2 className="font-semibold text-white">Command Center</h2>
         <p className="text-xs text-slate-500 truncate">{selectedVm.name}</p>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 text-sm">
+      <div className="p-4 space-y-4 text-sm">
         <div className="grid grid-cols-2 gap-2 text-xs">
           <Metric label="Health" value={healthLoading ? '…' : healthScore ?? '—'} />
           <Metric label="State" value={<VmStatusBadge state={selectedVm.observed_state} />} />
