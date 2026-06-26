@@ -45,7 +45,7 @@ export default function MissionControlHero({ state, warnings }: Props) {
           ])}
         </p>
       </div>
-      <HostOrb healthy={healthy} className="shrink-0 mx-auto sm:mx-0" />
+      <HostOrb healthy={healthy} className="hidden xl:block shrink-0 w-24 h-24" />
     </header>
   )
 }

@@ -170,7 +170,7 @@ export function NewLaunchpadCard({ onClick, label = 'New Application', subtitle 
         <Plus className="w-8 h-8" />
       </div>
       <span className="text-xs sm:text-sm font-medium text-slate-300 max-w-[7rem] leading-tight">{label}</span>
-      <span className="text-[10px] text-slate-500 -mt-1">{subtitle}</span>
+      <span className="text-xs text-slate-400 -mt-1">{subtitle}</span>
     </button>
   )
 }
