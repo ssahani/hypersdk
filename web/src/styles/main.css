@@ -59,7 +59,7 @@ body {
   font-feature-settings: 'ss02', 'ss03';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #0f172a;
+  background-color: var(--page-bg, #0f172a);
   color: var(--text-primary);
 }
 
@@ -2060,6 +2060,7 @@ a.tahoe-context-app-title:hover {
 /* Aurora theme — void shell with prismatic accents (Machina signature) */
 .aurora-theme {
   color-scheme: dark;
+  --page-bg: #030712;
 }
 .aurora-theme body {
   background-color: #030712;
@@ -2197,9 +2198,27 @@ a.tahoe-context-app-title:hover {
 .aurora-theme .border-slate-700,
 .aurora-theme .border-slate-700\/30 { border-color: rgba(167, 139, 250, 0.15); }
 
+.aurora-theme .bg-slate-900,
+.aurora-theme .bg-slate-900\/95 { background-color: rgba(10, 8, 22, 0.9); }
+.aurora-theme .bg-slate-900\/80 { background-color: rgba(12, 8, 28, 0.88); }
+.aurora-theme .bg-slate-900\/60 { background-color: rgba(10, 8, 22, 0.6); }
+.aurora-theme .bg-slate-900\/50 { background-color: rgba(10, 8, 22, 0.5); }
+.aurora-theme .bg-slate-900\/40 { background-color: rgba(10, 8, 22, 0.4); }
+.aurora-theme .bg-slate-900\/30 { background-color: rgba(10, 8, 22, 0.3); }
+
+.aurora-theme .bg-slate-950\/50 { background-color: rgba(8, 6, 20, 0.5); }
+.aurora-theme .bg-slate-950\/40 { background-color: rgba(8, 6, 20, 0.4); }
+.aurora-theme .bg-slate-950\/30 { background-color: rgba(8, 6, 20, 0.3); }
+
+.aurora-theme .bg-slate-800\/80 { background-color: rgba(14, 10, 28, 0.8); }
+.aurora-theme .bg-slate-800\/60 { background-color: rgba(14, 10, 28, 0.6); }
+
+.aurora-theme .bg-slate-700 { background-color: rgba(20, 15, 38, 0.85); }
+
 /* Steel theme — dark steel dashboard shell + nav helpers */
 .steel-theme {
   color-scheme: dark;
+  --page-bg: #0b1017;
 }
 .steel-theme body {
   background-color: #0b1017;
@@ -2391,6 +2410,34 @@ a.tahoe-context-app-title:hover {
 .steel-theme ::-webkit-scrollbar-thumb:hover {
   background: #556274;
 }
+
+/* Steel-theme: surface overrides for hardcoded Tailwind bg classes */
+.steel-theme .bg-slate-950,
+.steel-theme .bg-slate-950\/95,
+.steel-theme .bg-slate-950\/80 { background-color: rgba(6, 10, 18, 0.92); }
+.steel-theme .bg-slate-950\/50 { background-color: rgba(6, 10, 18, 0.5); }
+.steel-theme .bg-slate-950\/40 { background-color: rgba(6, 10, 18, 0.4); }
+.steel-theme .bg-slate-950\/30 { background-color: rgba(6, 10, 18, 0.3); }
+
+.steel-theme .bg-slate-900,
+.steel-theme .bg-slate-900\/95 { background-color: rgba(11, 16, 23, 0.9); }
+.steel-theme .bg-slate-900\/80 { background-color: rgba(11, 16, 23, 0.8); }
+.steel-theme .bg-slate-900\/60 { background-color: rgba(11, 16, 23, 0.6); }
+.steel-theme .bg-slate-900\/50 { background-color: rgba(11, 16, 23, 0.5); }
+.steel-theme .bg-slate-900\/40 { background-color: rgba(11, 16, 23, 0.4); }
+.steel-theme .bg-slate-900\/30 { background-color: rgba(11, 16, 23, 0.3); }
+
+.steel-theme .bg-slate-800,
+.steel-theme .bg-slate-800\/80 { background-color: rgba(16, 23, 34, 0.85); }
+.steel-theme .bg-slate-800\/60 { background-color: rgba(16, 23, 34, 0.6); }
+.steel-theme .bg-slate-800\/50 { background-color: rgba(16, 23, 34, 0.5); }
+.steel-theme .bg-slate-800\/40 { background-color: rgba(16, 23, 34, 0.4); }
+
+.steel-theme .bg-slate-700 { background-color: rgba(24, 33, 46, 0.85); }
+
+.steel-theme .border-slate-700\/50,
+.steel-theme .border-slate-700,
+.steel-theme .border-slate-700\/30 { border-color: rgba(120, 145, 175, 0.15); }
 
 /* ── VM detail: machine cockpit polish ─────────────────────────── */
 
