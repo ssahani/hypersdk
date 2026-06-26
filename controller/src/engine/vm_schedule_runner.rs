@@ -110,3 +110,19 @@ async fn tick(state: &AppState) -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn snapshot_name_format_matches_expected_pattern() {
+        let name = format!(
+            "sched-{}",
+            chrono::Utc::now().format("%Y%m%d-%H%M")
+        );
+        // Must start with "sched-" followed by YYYYMMDD-HHMM (14 digits + dash)
+        assert!(name.starts_with("sched-"), "name = {name}");
+        let suffix = &name["sched-".len()..];
+        assert_eq!(suffix.len(), 13, "expected YYYYMMDD-HHMM, got: {suffix}");
+        assert!(suffix.chars().all(|c| c.is_ascii_digit() || c == '-'), "unexpected chars: {suffix}");
+    }
+}

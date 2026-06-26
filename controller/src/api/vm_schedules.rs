@@ -128,3 +128,52 @@ pub async fn delete_vm_schedule(
 
     Ok(Json(serde_json::json!({"ok": true})))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn valid_actions_contains_all_expected() {
+        for action in &["start", "shutdown", "stop", "snapshot"] {
+            assert!(
+                VALID_ACTIONS.contains(action),
+                "expected '{action}' to be a valid action"
+            );
+        }
+    }
+
+    #[test]
+    fn invalid_actions_rejected() {
+        for action in &["restart", "reboot", "delete", "", "STOP"] {
+            assert!(
+                !VALID_ACTIONS.contains(action),
+                "expected '{action}' to be invalid"
+            );
+        }
+    }
+
+    #[test]
+    fn default_interval_is_1440() {
+        assert_eq!(default_interval(), 1440);
+    }
+
+    #[test]
+    fn create_body_deserializes_with_defaults() {
+        let json = r#"{"action":"snapshot"}"#;
+        let body: CreateVmScheduleBody = serde_json::from_str(json).unwrap();
+        assert_eq!(body.action, "snapshot");
+        assert_eq!(body.interval_minutes, 1440);
+        assert!(body.retention.is_none());
+        assert_eq!(body.label, "");
+    }
+
+    #[test]
+    fn create_body_accepts_explicit_interval() {
+        let json = r#"{"action":"start","interval_minutes":60,"retention":5,"label":"morning"}"#;
+        let body: CreateVmScheduleBody = serde_json::from_str(json).unwrap();
+        assert_eq!(body.interval_minutes, 60);
+        assert_eq!(body.retention, Some(5));
+        assert_eq!(body.label, "morning");
+    }
+}

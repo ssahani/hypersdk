@@ -11,13 +11,7 @@ import PageLayout from '../components/PageLayout'
 import { Trash2, RotateCcw, RefreshCw, Camera, AlertTriangle } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
 import { statusActionLinkClasses, statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
-
-function snapshotStateSeverity(state: string): 'ok' | 'warn' | 'error' | 'info' {
-  const s = state?.toLowerCase() ?? ''
-  if (s === 'error' || s === 'crashed') return 'error'
-  if (s === 'blocking' || s === 'paused') return 'warn'
-  return 'info'
-}
+import { snapshotStateSeverity } from '../utils/snapshotHealth'
 
 function SnapshotStateBadge({ state }: { state: string }) {
   const sev = snapshotStateSeverity(state)
