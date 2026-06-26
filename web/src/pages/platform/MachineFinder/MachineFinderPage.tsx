@@ -102,7 +102,7 @@ export default function MachineFinderPage() {
           </div>
         )}
 
-        <div className="flex flex-col xl:flex-row gap-4 flex-1 min-h-0">
+        <div className="flex flex-col xl:flex-row xl:items-start gap-4 flex-1 min-h-0">
           {showSidebar && <MachineFinderSmartFolders state={state} />}
 
           <main className="flex-1 min-w-0 flex flex-col gap-3">
