@@ -165,7 +165,7 @@ export default function FleetCommandCenter({
             to={`/platform/vms/${selectedVm.id}`}
             className="btn-secondary text-xs flex-1 text-center inline-flex items-center justify-center gap-1"
           >
-            VM detail
+            Open VM detail
           </Link>
         </div>
       </div>
