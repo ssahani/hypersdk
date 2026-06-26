@@ -14,12 +14,14 @@ import {
   platformApiPost,
   platformApiDelete,
 } from './helpers/liveVm'
+import { ensureLoggedIn } from './helpers/liveAuth'
 
 test.describe.configure({ mode: 'serial' })
+test.use({ timeout: 300_000 })
 
-test.beforeEach(({ page: _page }, testInfo) => {
+test.beforeEach(async ({ page }, testInfo) => {
   skipUnlessLiveVm(testInfo)
-  test.setTimeout(120_000)
+  await ensureLoggedIn(page, liveBaseUrl(), { navigate: false })
 })
 
 const CTRL = '/api/v1/platform/controller/api/v1'
@@ -29,7 +31,7 @@ const CTRL = '/api/v1/platform/controller/api/v1'
 test.describe('Snapshot health badges (live)', () => {
   test('SH01 — snapshots page loads and renders state column', async ({ page }) => {
     const live = liveBaseUrl()
-    await page.goto(`${live}/snapshots`, { waitUntil: 'domcontentloaded', timeout: 30_000 })
+    await page.goto(`${live}/snapshots`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
     // Page must render (not crash)
     await expect(page.locator('text=Snapshots').first()).toBeVisible({ timeout: 15_000 })
     // Either shows "No snapshots" empty state or the table
@@ -48,7 +50,7 @@ test.describe('Snapshot health badges (live)', () => {
       test.skip()
       return
     }
-    await page.goto(`${live}/snapshots`, { waitUntil: 'domcontentloaded', timeout: 30_000 })
+    await page.goto(`${live}/snapshots`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
     await expect(page.locator('table[aria-label="VM snapshots"]')).toBeVisible({ timeout: 15_000 })
     // Badge span with rounded class
     const badge = page.locator('td span[class*="rounded"]').first()
@@ -61,7 +63,7 @@ test.describe('Snapshot health badges (live)', () => {
 test.describe('Devices page (live)', () => {
   test('DV01 — devices page loads and shows node device list', async ({ page }) => {
     const live = liveBaseUrl()
-    await page.goto(`${live}/devices`, { waitUntil: 'domcontentloaded', timeout: 30_000 })
+    await page.goto(`${live}/devices`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
     await expect(page.locator('text=Node Devices').first()).toBeVisible({ timeout: 15_000 })
     // Check API
     const res = await page.request.get(`${live}/api/v1/node-devices`, { ignoreHTTPSErrors: true })
