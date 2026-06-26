@@ -17,7 +17,7 @@ export default defineConfig({
   testIgnore: '**/live-ux-wiring.spec.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: 2,
+  retries: 1,
   workers: process.env.CI ? 1 : undefined,
   timeout: 150_000,
   reporter: process.env.CI ? 'github' : 'list',

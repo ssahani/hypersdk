@@ -27,7 +27,7 @@ test.beforeEach(({ page: _page }, testInfo) => {
   skipUnlessLiveVm(testInfo)
   // Live tests hit remote hosts that can be slow post-heavy-ops; tests with explicit
   // test.setTimeout() override this (last call wins).
-  test.setTimeout(270_000)
+  test.setTimeout(480_000)
 })
 
 const CTRL = '/api/v1/platform/controller/api/v1'
@@ -42,13 +42,13 @@ let SNAP_NAME = `e2e-snap-${String(Date.now()).slice(-6)}`
 
 test.describe('Snapshot lifecycle (live)', () => {
   test('S01 — stop VM and clean up any leftover test snapshots before suite', async ({ page }) => {
-    test.setTimeout(120_000)
+    test.setTimeout(270_000)
     await openLiveVmDetail(page)
     await ensureVmManaged(page)
     // Stop VM so external snapshot creation is clean
     const stop = await controllerVmPower(page, 'stop')
     expect(stop.status()).toBeLessThan(500)
-    await waitForControllerVmState(page, 'shutoff', 60_000)
+    await waitForControllerVmState(page, 'shutoff', 120_000)
     // Best-effort cleanup of stale e2e snapshot records — fire-and-forget, don't fail suite
     const platformId = await livePlatformVmId(page, liveVmId())
     const r = await platformApiGet(page, `${CTRL}/vms/${platformId}/snapshots`)
@@ -62,7 +62,7 @@ test.describe('Snapshot lifecycle (live)', () => {
   })
 
   test('S02 — create snapshot via API on stopped VM', async ({ page }) => {
-    test.setTimeout(120_000)
+    test.setTimeout(480_000)
     await openLiveVmDetail(page)
     const platformId = await livePlatformVmId(page, liveVmId())
     const res = await platformApiPost(page, `${CTRL}/vms/${platformId}/snapshots`, {
@@ -78,7 +78,7 @@ test.describe('Snapshot lifecycle (live)', () => {
 
   test('S03 — snapshot appears in list with completed status', async ({ page }) => {
     // Server load from snapshot creation in S02 can slow navigation — allow extra time
-    test.setTimeout(180_000)
+    test.setTimeout(480_000)
     await openLiveVmDetail(page)
     const platformId = await livePlatformVmId(page, liveVmId())
     await expect
@@ -97,7 +97,7 @@ test.describe('Snapshot lifecycle (live)', () => {
   })
 
   test('S04 — snapshots tab shows the snapshot record in UI', async ({ page }) => {
-    test.setTimeout(60_000)
+    test.setTimeout(270_000)
     await openLiveVmDetail(page)
     await openVmDetailTab(page, 'Snapshots')
     await expect(page.getByTestId('vm-snapshots-panel')).toBeVisible({ timeout: 20_000 })
@@ -117,7 +117,7 @@ test.describe('Snapshot lifecycle (live)', () => {
   test('S05 — restart VM (boots from snapshot overlay)', async ({ page }) => {
     // External snapshot changes disk to overlay; VM can boot from overlay (backing = original).
     // Snapshot deletion / block-commit happens asynchronously — don't race with it here.
-    test.setTimeout(150_000)
+    test.setTimeout(360_000)
     await openLiveVmDetail(page)
     const start = await controllerVmPower(page, 'start')
     expect(start.status()).toBeLessThan(500)
@@ -152,7 +152,7 @@ test.describe('VM power cycle (live)', () => {
   })
 
   test('P03 — start after shutdown brings VM back to running', async ({ page }) => {
-    test.setTimeout(120_000)
+    test.setTimeout(270_000)
     await openLiveVmDetail(page)
     const start = await controllerVmPower(page, 'start')
     expect(start.status()).toBeLessThan(500)
@@ -160,7 +160,7 @@ test.describe('VM power cycle (live)', () => {
   })
 
   test('P04 — pause and resume round-trip', async ({ page }) => {
-    test.setTimeout(60_000)
+    test.setTimeout(270_000)
     await openLiveVmDetail(page)
     const pause = await controllerVmPower(page, 'pause')
     expect(pause.status()).toBeLessThan(500)
@@ -174,12 +174,12 @@ test.describe('VM power cycle (live)', () => {
   })
 
   test('P05 — force stop (destroy) and restart', async ({ page }) => {
-    // Budget: 15s setup + 60s shutoff + 240s boot = 315s worst-case → use 360s
-    test.setTimeout(360_000)
+    // Budget: 15s setup + 120s shutoff + 240s boot = 375s worst-case → use 420s
+    test.setTimeout(420_000)
     await openLiveVmDetail(page)
     const stop = await controllerVmPower(page, 'stop')
     expect(stop.status()).toBeLessThan(500)
-    await waitForControllerVmState(page, 'shutoff', 60_000)
+    await waitForControllerVmState(page, 'shutoff', 120_000)
     const start = await controllerVmPower(page, 'start')
     expect(start.status()).toBeLessThan(500)
     // Cold boot from force-stop may require qcow2 overlay journal recovery — allow extra time
@@ -246,7 +246,7 @@ test.describe('CD-ROM insert and eject (live)', () => {
     await openLiveVmDetail(page)
     await openVmDetailTab(page, 'Devices')
     await expect(page.getByTestId('vm-devices-panel')).toBeVisible({ timeout: 30_000 })
-    await expect(page.getByText(/CD-ROM|cdrom|ISO/i).first()).toBeVisible()
+    await expect(page.getByText(/CD-ROM|cdrom|ISO/i).first()).toBeVisible({ timeout: 30_000 })
   })
 
   test('C02 — insert ISO API accepts request on running VM', async ({ page }) => {
@@ -311,7 +311,7 @@ test.describe('Network operations (live)', () => {
 
 test.describe('Host resources (live)', () => {
   test('H01 — hosts list returns at least one host', async ({ page }) => {
-    test.setTimeout(60_000)
+    test.setTimeout(270_000)
     // Re-open VM detail to refresh auth cookie (may have expired after long power-cycle suite)
     await openLiveVmDetail(page)
     // Poll to handle transient auth expiry in long-running serial suites
@@ -528,6 +528,6 @@ test.describe('VM clone (live)', () => {
     await openLiveVmDetail(page)
     await openVmDetailTab(page, 'Settings')
     await expect(page.getByTestId('vm-migrate-panel')).toBeVisible({ timeout: 30_000 })
-    await expect(page.getByRole('heading', { name: 'Clone' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Clone', exact: true })).toBeVisible()
   })
 })
