@@ -8,9 +8,26 @@ import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EmptyState from '../components/EmptyState'
 import PageLayout from '../components/PageLayout'
-import { Trash2, RotateCcw, RefreshCw, Camera } from 'lucide-react'
+import { Trash2, RotateCcw, RefreshCw, Camera, AlertTriangle } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
-import { statusActionLinkClasses, statusToneClass } from '../utils/semanticColors'
+import { statusActionLinkClasses, statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
+
+function snapshotStateSeverity(state: string): 'ok' | 'warn' | 'error' | 'info' {
+  const s = state?.toLowerCase() ?? ''
+  if (s === 'error' || s === 'crashed') return 'error'
+  if (s === 'blocking' || s === 'paused') return 'warn'
+  return 'info'
+}
+
+function SnapshotStateBadge({ state }: { state: string }) {
+  const sev = snapshotStateSeverity(state)
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${statusBadgeClasses(sev)}`}>
+      {(sev === 'error' || sev === 'warn') && <AlertTriangle className="w-3 h-3" />}
+      {state || '—'}
+    </span>
+  )
+}
 
 export default function SnapshotsPage() {
   const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([])
@@ -67,7 +84,7 @@ export default function SnapshotsPage() {
                 <tr key={`${s.vm_name}/${s.name}`} className="hover:bg-slate-700/50">
                   <td className="px-6 py-3 font-medium">{s.name}</td>
                   <td className={`px-6 py-3 text-sm ${statusActionLinkClasses('info')}`}>{s.vm_name}</td>
-                  <td className="px-6 py-3 text-sm text-slate-400">{s.state}</td>
+                  <td className="px-6 py-3"><SnapshotStateBadge state={s.state} /></td>
                   <td className="px-6 py-3 text-sm text-slate-400 hidden md:table-cell">{s.creation_time ? new Date(s.creation_time * 1000).toLocaleString() : '-'}</td>
                   <td className="px-6 py-3">{s.is_current && <span className={`text-xs font-medium ${statusToneClass('ok')}`}>● Current</span>}</td>
                   <td className="px-6 py-3">

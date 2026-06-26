@@ -87,7 +87,11 @@ export default function DevicesPage() {
                 <tr key={dev.name} className="hover:bg-slate-700/50">
                   <td className="px-6 py-3 font-medium font-mono text-sm">{dev.name}</td>
                   <td className="px-6 py-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${statusBadgeClasses('info')}`}>{dev.capability_type}</span></td>
-                  <td className="px-6 py-3 hidden md:table-cell text-sm text-slate-400">{dev.driver || '-'}</td>
+                  <td className="px-6 py-3 hidden md:table-cell text-sm">
+                    {dev.driver === 'vfio-pci'
+                      ? <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${statusBadgeClasses('ok')}`}>vfio-pci ✓</span>
+                      : <span className="text-slate-400">{dev.driver || '-'}</span>}
+                  </td>
                   <td className="px-6 py-3 hidden md:table-cell text-sm text-slate-400 font-mono">{dev.parent || '-'}</td>
                   <td className="px-6 py-3 text-right">
                     <button onClick={() => showXml(dev.name)} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="View XML" aria-label="View XML"><Code className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
