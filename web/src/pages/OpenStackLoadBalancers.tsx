@@ -103,11 +103,11 @@ function OpenStackLoadBalancersContent() {
           <table className="w-full text-sm" aria-label="Load balancers">
             <thead className="bg-slate-900/80 text-slate-400 text-left">
               <tr>
-                <th className="px-3 py-2">Name</th>
-                <th className="px-3 py-2">VIP</th>
-                <th className="px-3 py-2">Provisioning</th>
-                <th className="px-3 py-2">Operating</th>
-                <th className="px-3 py-2" />
+                <th scope="col" className="px-3 py-2">Name</th>
+                <th scope="col" className="px-3 py-2">VIP</th>
+                <th scope="col" className="px-3 py-2">Provisioning</th>
+                <th scope="col" className="px-3 py-2">Operating</th>
+                <th scope="col" className="px-3 py-2" />
               </tr>
             </thead>
             <tbody>

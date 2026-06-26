@@ -87,6 +87,7 @@ export function MacSheet({
   subtitle,
   children,
   wide,
+  ariaLabel,
 }: {
   open: boolean
   onClose: () => void
@@ -94,9 +95,10 @@ export function MacSheet({
   subtitle?: string
   children: React.ReactNode
   wide?: boolean
+  ariaLabel?: string
 }) {
   return (
-    <GlassModal open={open} onClose={onClose} title={title} subtitle={subtitle} wide={wide}>
+    <GlassModal open={open} onClose={onClose} title={title} subtitle={subtitle} wide={wide} ariaLabel={ariaLabel}>
       <div className="max-h-none overflow-visible -mx-1 px-1">{children}</div>
     </GlassModal>
   )

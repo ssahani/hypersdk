@@ -1532,10 +1532,10 @@ export default function VMDetailsPage() {
                 <table className="w-full text-sm" aria-label="Filesystem mounts">
                   <thead>
                     <tr className="text-left text-slate-400 border-b border-slate-700/50">
-                      <th className="py-2 pr-4 font-medium">Mount</th>
-                      <th className="py-2 pr-4 font-medium">Type</th>
-                      <th className="py-2 pr-4 font-medium text-right">Used</th>
-                      <th className="py-2 font-medium text-right">Total</th>
+                      <th scope="col" className="py-2 pr-4 font-medium">Mount</th>
+                      <th scope="col" className="py-2 pr-4 font-medium">Type</th>
+                      <th scope="col" className="py-2 pr-4 font-medium text-right">Used</th>
+                      <th scope="col" className="py-2 font-medium text-right">Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700/40">
@@ -1700,7 +1700,7 @@ export default function VMDetailsPage() {
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
             <table className="w-full" aria-label="Disk devices">
-              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Target</th><th className="px-6 py-3">Bus</th><th className="px-6 py-3">Cache</th><th className="px-6 py-3">Device</th><th className="px-6 py-3">Driver</th><th className="px-6 py-3">Source</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">Target</th><th scope="col" className="px-6 py-3">Bus</th><th scope="col" className="px-6 py-3">Cache</th><th scope="col" className="px-6 py-3">Device</th><th scope="col" className="px-6 py-3">Driver</th><th scope="col" className="px-6 py-3">Source</th><th scope="col" className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {vm.disks.map((d) => (
                   <tr key={d.target} className="table-row-hover">
@@ -1827,7 +1827,7 @@ export default function VMDetailsPage() {
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
             <table className="w-full" aria-label="Network interfaces">
-              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">MAC Address</th><th className="px-6 py-3">Source</th><th className="px-6 py-3">Model</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">MAC Address</th><th scope="col" className="px-6 py-3">Source</th><th scope="col" className="px-6 py-3">Model</th><th scope="col" className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {vm.interfaces.map((iface) => (
                   <tr key={iface.mac_address} className="table-row-hover">
@@ -1876,7 +1876,7 @@ export default function VMDetailsPage() {
               <div className="p-8 text-center text-slate-500">No snapshots. Create one to save the current VM state.</div>
             ) : (
               <table className="w-full" aria-label="VM snapshots">
-                <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Snapshot</th><th className="px-6 py-3">State</th><th className="px-6 py-3">Created</th><th className="px-6 py-3">Current</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+                <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">Snapshot</th><th scope="col" className="px-6 py-3">State</th><th scope="col" className="px-6 py-3">Created</th><th scope="col" className="px-6 py-3">Current</th><th scope="col" className="px-6 py-3 text-right">Actions</th></tr></thead>
                 <tbody className="divide-y divide-slate-700/30">
                   <SnapshotTableRows
                     nodes={snapshotRoots}
@@ -1989,11 +1989,11 @@ export default function VMDetailsPage() {
                 <table className="w-full" aria-label="virtio-fs shares">
                   <thead>
                     <tr className="border-b border-slate-700/50 text-left text-xs text-slate-500">
-                      <th className="px-5 py-2">Mount tag</th>
-                      <th className="px-5 py-2">Source</th>
-                      <th className="px-5 py-2">Driver</th>
-                      <th className="px-5 py-2">xattr</th>
-                      <th className="px-5 py-2 text-right">Actions</th>
+                      <th scope="col" className="px-5 py-2">Mount tag</th>
+                      <th scope="col" className="px-5 py-2">Source</th>
+                      <th scope="col" className="px-5 py-2">Driver</th>
+                      <th scope="col" className="px-5 py-2">xattr</th>
+                      <th scope="col" className="px-5 py-2 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700/30 text-sm">
@@ -2060,7 +2060,7 @@ export default function VMDetailsPage() {
             </div>
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
               <table className="w-full" aria-label="USB devices">
-                <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-6 py-2">Bus</th><th className="px-6 py-2">Device</th><th className="px-6 py-2">ID</th><th className="px-6 py-2">Description</th><th className="px-6 py-2 text-right">Actions</th></tr></thead>
+                <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th scope="col" className="px-6 py-2">Bus</th><th scope="col" className="px-6 py-2">Device</th><th scope="col" className="px-6 py-2">ID</th><th scope="col" className="px-6 py-2">Description</th><th scope="col" className="px-6 py-2 text-right">Actions</th></tr></thead>
                 <tbody className="divide-y divide-slate-700/30 text-sm">
                   {usbDevices.map((d) => (
                     <tr key={`${d.vendor_id}:${d.product_id}`} className="table-row-hover">
@@ -2092,7 +2092,7 @@ export default function VMDetailsPage() {
             <h3 className="text-lg font-semibold flex items-center gap-2"><Monitor className="w-5 h-5 text-purple-400" /> PCI Devices</h3>
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
               <table className="w-full" aria-label="PCI devices">
-                <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-6 py-2">Slot</th><th className="px-6 py-2">Class</th><th className="px-6 py-2">Vendor</th><th className="px-6 py-2">Device</th><th className="px-6 py-2">IOMMU Group</th></tr></thead>
+                <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th scope="col" className="px-6 py-2">Slot</th><th scope="col" className="px-6 py-2">Class</th><th scope="col" className="px-6 py-2">Vendor</th><th scope="col" className="px-6 py-2">Device</th><th scope="col" className="px-6 py-2">IOMMU Group</th></tr></thead>
                 <tbody className="divide-y divide-slate-700/30 text-sm">
                   {pciDevices.map((d) => (
                     <tr key={d.slot} className="table-row-hover">
@@ -2120,7 +2120,7 @@ export default function VMDetailsPage() {
                   <div key={g.group_id} className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
                     <div className="px-5 py-2.5 bg-slate-800/80 border-b border-slate-700/50 text-sm font-medium text-orange-400">Group {g.group_id} ({g.devices.length} device{g.devices.length !== 1 ? 's' : ''})</div>
                     <table className="w-full" aria-label="IOMMU group devices">
-                      <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-5 py-2">BDF</th><th className="px-5 py-2">Vendor</th><th className="px-5 py-2">Device</th></tr></thead>
+                      <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th scope="col" className="px-5 py-2">BDF</th><th scope="col" className="px-5 py-2">Vendor</th><th scope="col" className="px-5 py-2">Device</th></tr></thead>
                       <tbody className="divide-y divide-slate-700/30 text-sm">
                         {g.devices.map((d) => (
                           <tr key={d.bdf} className="table-row-hover">
@@ -2688,9 +2688,9 @@ export default function VMDetailsPage() {
                   <div key={dev} className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2">
                     <span className="text-xs text-slate-500 w-4">{i + 1}.</span>
                     <span className="flex-1 text-sm font-medium">{dev}</span>
-                    <button onClick={() => moveBootDevice(i, -1)} disabled={i === 0} className="p-0.5 hover:bg-slate-700 rounded disabled:opacity-30" aria-label="Move up"><ChevronUp className="w-4 h-4" /></button>
-                    <button onClick={() => moveBootDevice(i, 1)} disabled={i === bootDevices.length - 1} className="p-0.5 hover:bg-slate-700 rounded disabled:opacity-30" aria-label="Move down"><ChevronDown className="w-4 h-4" /></button>
-                    <button onClick={() => setBootDevices(bootDevices.filter((_, j) => j !== i))} className="p-0.5 hover:bg-red-600/20 rounded" aria-label="Remove"><X className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
+                    <button onClick={() => moveBootDevice(i, -1)} disabled={i === 0} className="p-1.5 hover:bg-slate-700 rounded disabled:opacity-30" aria-label="Move up"><ChevronUp className="w-4 h-4" /></button>
+                    <button onClick={() => moveBootDevice(i, 1)} disabled={i === bootDevices.length - 1} className="p-1.5 hover:bg-slate-700 rounded disabled:opacity-30" aria-label="Move down"><ChevronDown className="w-4 h-4" /></button>
+                    <button onClick={() => setBootDevices(bootDevices.filter((_, j) => j !== i))} className="p-1.5 hover:bg-red-600/20 rounded" aria-label="Remove"><X className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
                   </div>
                 ))}
               </div>
@@ -3417,7 +3417,7 @@ function EditableRow({ label, value, onEdit }: { label: string; value: string | 
       <span className="text-slate-400 text-sm">{label}</span>
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium">{String(value)}</span>
-        <button onClick={onEdit} className="p-0.5 hover:bg-slate-700 rounded transition" aria-label={`Edit ${label}`}><Pencil className="w-3 h-3 text-slate-500 hover:text-[var(--machina-status-info)]" /></button>
+        <button onClick={onEdit} className="p-1.5 hover:bg-slate-700 rounded transition" aria-label={`Edit ${label}`}><Pencil className="w-4 h-4 text-slate-500 hover:text-[var(--machina-status-info)]" /></button>
       </div>
     </div>
   )

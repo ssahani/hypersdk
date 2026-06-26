@@ -177,12 +177,12 @@ export default function PlatformGpuCommandCenter() {
                 <table className="w-full text-sm" aria-label="GPU hosts">
                   <thead>
                     <tr className="text-left text-slate-500 border-b border-white/[0.06]">
-                      <th className="py-2 pr-2">Host</th>
-                      <th className="py-2 pr-2">Profile</th>
-                      <th className="py-2 pr-2">Model</th>
-                      <th className="py-2 pr-2">Site / rack</th>
-                      <th className="py-2 pr-2">GPU VMs</th>
-                      <th className="py-2 pr-2">vGPU slices</th>
+                      <th scope="col" className="py-2 pr-2">Host</th>
+                      <th scope="col" className="py-2 pr-2">Profile</th>
+                      <th scope="col" className="py-2 pr-2">Model</th>
+                      <th scope="col" className="py-2 pr-2">Site / rack</th>
+                      <th scope="col" className="py-2 pr-2">GPU VMs</th>
+                      <th scope="col" className="py-2 pr-2">vGPU slices</th>
                     </tr>
                   </thead>
                   <tbody>

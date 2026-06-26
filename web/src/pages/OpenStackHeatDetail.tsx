@@ -153,10 +153,10 @@ function OpenStackHeatDetailContent() {
           <table className="w-full text-sm" aria-label="Stack resources">
             <thead className="bg-slate-900/80 text-slate-400 text-left">
               <tr>
-                <th className="px-3 py-2">Logical ID</th>
-                <th className="px-3 py-2">Type</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Physical ID</th>
+                <th scope="col" className="px-3 py-2">Logical ID</th>
+                <th scope="col" className="px-3 py-2">Type</th>
+                <th scope="col" className="px-3 py-2">Status</th>
+                <th scope="col" className="px-3 py-2">Physical ID</th>
               </tr>
             </thead>
             <tbody>
@@ -217,9 +217,9 @@ function OpenStackHeatDetailContent() {
           <table className="w-full text-sm" aria-label="Stack outputs">
             <thead className="bg-slate-900/80 text-slate-400 text-left">
               <tr>
-                <th className="px-3 py-2">Key</th>
-                <th className="px-3 py-2">Value</th>
-                <th className="px-3 py-2">Description</th>
+                <th scope="col" className="px-3 py-2">Key</th>
+                <th scope="col" className="px-3 py-2">Value</th>
+                <th scope="col" className="px-3 py-2">Description</th>
               </tr>
             </thead>
             <tbody>

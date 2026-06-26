@@ -109,7 +109,12 @@ export default function SerialConsole({ vmName, libvirtConnection, wsUrl: wsUrlO
     <div className={fullscreen ? 'fixed inset-0 z-50 bg-slate-900 flex flex-col' : ''}>
       <div className="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700 rounded-t-lg">
         <div className="flex items-center gap-3">
-          <div className={`w-2.5 h-2.5 rounded-full ${statusBgClass(connected ? 'ok' : 'error')}`} />
+          <div
+            className={`w-2.5 h-2.5 rounded-full ${statusBgClass(connected ? 'ok' : 'error')}`}
+            role="img"
+            title={connected ? 'Connected' : 'Disconnected'}
+            aria-label={connected ? 'Connected' : 'Disconnected'}
+          />
           <span className="text-sm text-slate-300">Serial Console — {vmName}</span>
         </div>
         <div className="flex items-center gap-1">

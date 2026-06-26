@@ -566,11 +566,11 @@ function OpenStackCreateInstanceContent() {
               <table className="w-full text-sm" aria-label="Flavors">
                 <thead className="bg-slate-900 text-slate-400 text-left">
                   <tr>
-                    <th className="px-3 py-2" />
-                    <th className="px-3 py-2">Name</th>
-                    <th className="px-3 py-2">vCPU</th>
-                    <th className="px-3 py-2">RAM</th>
-                    <th className="px-3 py-2">Disk</th>
+                    <th scope="col" className="px-3 py-2" />
+                    <th scope="col" className="px-3 py-2">Name</th>
+                    <th scope="col" className="px-3 py-2">vCPU</th>
+                    <th scope="col" className="px-3 py-2">RAM</th>
+                    <th scope="col" className="px-3 py-2">Disk</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">

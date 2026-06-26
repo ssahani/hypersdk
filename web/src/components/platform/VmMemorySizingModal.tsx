@@ -58,7 +58,7 @@ export default function VmMemorySizingModal({ open, vmId, vmName, running, onClo
   }
 
   return (
-    <MacSheet open={open} onClose={onClose} title={`Memory — ${vmName}`}>
+    <MacSheet open={open} onClose={onClose} title={`Memory — ${vmName}`} ariaLabel="Memory sizing">
       {loading ? (
         <p className="text-sm text-slate-400">Loading memory…</p>
       ) : (

@@ -288,10 +288,10 @@ export default function LogsPage() {
             <table className="w-full" aria-label="System logs">
               <thead className="sticky top-0 bg-slate-800 z-10">
                 <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
-                  <th className="text-left px-3 py-2 whitespace-nowrap">Timestamp</th>
-                  <th className="text-left px-3 py-2">Priority</th>
-                  <th className="text-left px-3 py-2">Unit</th>
-                  <th className="text-left px-3 py-2">Message</th>
+                  <th scope="col" className="text-left px-3 py-2 whitespace-nowrap">Timestamp</th>
+                  <th scope="col" className="text-left px-3 py-2">Priority</th>
+                  <th scope="col" className="text-left px-3 py-2">Unit</th>
+                  <th scope="col" className="text-left px-3 py-2">Message</th>
                 </tr>
               </thead>
               <tbody>

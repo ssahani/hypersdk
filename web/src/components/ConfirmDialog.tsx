@@ -75,7 +75,7 @@ export default function ConfirmDialog({
             <span id={titleId} className="text-lg font-semibold">{title}</span>
           </div>
           <button type="button" onClick={onCancel} aria-label="Cancel" className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition">
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
         <div className="p-5 text-slate-300 text-sm leading-relaxed space-y-3">

@@ -114,11 +114,11 @@ export default function PlatformHosts() {
       <table className="w-full text-sm" aria-label="Managed hosts">
         <thead>
           <tr className="text-slate-400 border-b border-white/[0.06]">
-            <th className="p-3 text-left">Host</th>
-            <th className="p-3">State</th>
-            <th className="p-3">VMs</th>
-            <th className="p-3">CPU</th>
-            <th className="p-3">Linux</th>
+            <th scope="col" className="p-3 text-left">Host</th>
+            <th scope="col" className="p-3">State</th>
+            <th scope="col" className="p-3">VMs</th>
+            <th scope="col" className="p-3">CPU</th>
+            <th scope="col" className="p-3">Linux</th>
           </tr>
         </thead>
         <tbody>
@@ -253,7 +253,7 @@ export default function PlatformHosts() {
       loading={loading && hosts.length === 0}
       title={filterOffline ? 'Offline hosts' : 'Hosts'}
       subtitle={
-        <span className="flex flex-wrap items-center gap-2 text-sm">
+        <span aria-live="polite" className="flex flex-wrap items-center gap-2 text-sm">
           <span className={statusPillClasses(fleetTone)}>{online} / {hosts.length} online</span>
           <span className="text-slate-400">{totalVms} VM{totalVms === 1 ? '' : 's'} fleet-wide</span>
           {filterOffline && <span className="text-slate-500">Showing offline only</span>}

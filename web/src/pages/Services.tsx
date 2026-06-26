@@ -99,12 +99,12 @@ export default function ServicesPage() {
             <table className="w-full text-sm" aria-label="System services">
               <thead>
                 <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
-                  <th className="text-left px-4 py-3">Service</th>
-                  <th className="text-left px-4 py-3 hidden lg:table-cell">Description</th>
-                  <th className="text-center px-4 py-3">Active</th>
-                  <th className="text-center px-4 py-3">Sub State</th>
-                  <th className="text-center px-4 py-3">Enabled</th>
-                  <th className="text-center px-4 py-3">Actions</th>
+                  <th scope="col" className="text-left px-4 py-3">Service</th>
+                  <th scope="col" className="text-left px-4 py-3 hidden lg:table-cell">Description</th>
+                  <th scope="col" className="text-center px-4 py-3">Active</th>
+                  <th scope="col" className="text-center px-4 py-3">Sub State</th>
+                  <th scope="col" className="text-center px-4 py-3">Enabled</th>
+                  <th scope="col" className="text-center px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/30">

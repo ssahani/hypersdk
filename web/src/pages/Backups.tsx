@@ -317,14 +317,14 @@ export default function BackupsPage() {
           <table className="w-full" aria-label="Backup jobs">
             <thead>
               <tr className="border-b border-slate-700/50 text-left text-sm text-slate-400">
-                <th className="px-4 py-3">Backup ID</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Scope</th>
-                <th className="px-4 py-3 hidden md:table-cell">VMs</th>
-                <th className="px-4 py-3 hidden lg:table-cell">Target</th>
-                <th className="px-4 py-3">Disks</th>
-                <th className="px-4 py-3">Size</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th scope="col" className="px-4 py-3">Backup ID</th>
+                <th scope="col" className="px-4 py-3">Status</th>
+                <th scope="col" className="px-4 py-3">Scope</th>
+                <th scope="col" className="px-4 py-3 hidden md:table-cell">VMs</th>
+                <th scope="col" className="px-4 py-3 hidden lg:table-cell">Target</th>
+                <th scope="col" className="px-4 py-3">Disks</th>
+                <th scope="col" className="px-4 py-3">Size</th>
+                <th scope="col" className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/50">

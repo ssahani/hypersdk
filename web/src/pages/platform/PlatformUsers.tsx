@@ -214,9 +214,9 @@ export default function PlatformUsers({ embedded }: { embedded?: boolean } = {})
               title="Platform users"
               columns={
                 <>
-                  <th className="p-3 text-left w-[40%]">User</th>
-                  <th className="p-3 text-left w-[35%]">Role</th>
-                  <th className="p-3 text-right w-[25%]">Actions</th>
+                  <th scope="col" className="p-3 text-left w-[40%]">User</th>
+                  <th scope="col" className="p-3 text-left w-[35%]">Role</th>
+                  <th scope="col" className="p-3 text-right w-[25%]">Actions</th>
                 </>
               }
               isEmpty={rows.length === 0}

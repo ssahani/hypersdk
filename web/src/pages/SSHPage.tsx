@@ -37,7 +37,7 @@ export default function SSHPage() {
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center gap-4">
         <Link to="/vms" className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Back">
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="w-5 h-5" aria-hidden="true" />
         </Link>
         <h1 className="text-xl font-bold">SSH — {userFromQuery}@{host}{sshPort && sshPort !== 22 ? `:${sshPort}` : ''}</h1>
       </div>

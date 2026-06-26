@@ -95,10 +95,10 @@ function HostProcessTableBlock({
   return (
     <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between gap-3 flex-wrap">
-        <h3 className="text-lg font-semibold flex items-center gap-2">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
           {headerIcon}
           {title}
-        </h3>
+        </h2>
         <span className="text-xs text-slate-500">
           {hintLead}
           {canKillHostProcess
@@ -110,14 +110,14 @@ function HostProcessTableBlock({
         <table className="w-full text-sm" aria-label="Running processes">
           <thead>
             <tr className="text-left text-slate-400 border-b border-slate-700/50">
-              <th className="px-6 py-3 font-medium">PID</th>
-              <th className="px-6 py-3 font-medium">User</th>
-              <th className={`px-6 py-3 font-medium text-right ${headCpu}`}>CPU%</th>
-              <th className={`px-6 py-3 font-medium text-right ${headRss}`}>RSS</th>
-              <th className="px-6 py-3 font-medium">Comm</th>
-              <th className="px-6 py-3 font-medium hidden xl:table-cell">Command line</th>
+              <th scope="col" className="px-6 py-3 font-medium">PID</th>
+              <th scope="col" className="px-6 py-3 font-medium">User</th>
+              <th scope="col" className={`px-6 py-3 font-medium text-right ${headCpu}`}>CPU%</th>
+              <th scope="col" className={`px-6 py-3 font-medium text-right ${headRss}`}>RSS</th>
+              <th scope="col" className="px-6 py-3 font-medium">Comm</th>
+              <th scope="col" className="px-6 py-3 font-medium hidden xl:table-cell">Command line</th>
               {canKillHostProcess && (
-                <th className="px-6 py-3 font-medium text-right">Actions</th>
+                <th scope="col" className="px-6 py-3 font-medium text-right">Actions</th>
               )}
             </tr>
           </thead>
@@ -568,7 +568,7 @@ export default function NodeInfoPage() {
       {/* System Info */}
       {sysInfo && (
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
-          <h3 className="text-lg font-semibold flex items-center gap-2"><Monitor className="w-5 h-5 text-cyan-400" /> System Configuration</h3>
+          <h2 className="text-lg font-semibold flex items-center gap-2"><Monitor className="w-5 h-5 text-cyan-400" /> System Configuration</h2>
           <InfoRow label="OS" value={sysInfo.os_pretty_name || `${sysInfo.os_name} ${sysInfo.os_version}`} />
           <InfoRow label="Kernel" value={sysInfo.kernel_version} />
           {sysInfo.architecture && <InfoRow label="Architecture" value={sysInfo.architecture} />}
@@ -690,9 +690,9 @@ export default function NodeInfoPage() {
 
       {sysInfo && (
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
             <Activity className={`w-5 h-5 ${statusToneClass('ok')}`} /> Raw systemd diagnostics
-          </h3>
+          </h2>
           <p className="text-xs text-slate-500">
             Extended snapshot: raw <code className="text-slate-400">hostnamectl</code>/<code className="text-slate-400">timedatectl</code>,{' '}
             <code className="text-slate-400">resolvectl</code>, sockets/timers/jobs, unit lists, target dependencies,{' '}
@@ -901,7 +901,7 @@ export default function NodeInfoPage() {
       {/* Hardware Details */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
-          <h3 className="text-lg font-semibold flex items-center gap-2"><Server className={`w-5 h-5 ${statusToneClass('info')}`} /> System</h3>
+          <h2 className="text-lg font-semibold flex items-center gap-2"><Server className={`w-5 h-5 ${statusToneClass('info')}`} /> System</h2>
           <InfoRow label="Hostname" value={node.hostname} />
           <InfoRow label="Hypervisor" value={`${node.hypervisor} ${node.hypervisor_version}`} />
           <InfoRow label="Libvirt" value={node.lib_version} />
@@ -911,7 +911,7 @@ export default function NodeInfoPage() {
         </div>
 
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
-          <h3 className="text-lg font-semibold flex items-center gap-2"><Cpu className="w-5 h-5 text-purple-400" /> CPU</h3>
+          <h2 className="text-lg font-semibold flex items-center gap-2"><Cpu className="w-5 h-5 text-purple-400" /> CPU</h2>
           <InfoRow label="Architecture" value={node.cpu_model} />
           <InfoRow label="Cores" value={node.cpu_cores} />
           <InfoRow label="Threads per Core" value={node.cpu_threads} />
@@ -922,7 +922,7 @@ export default function NodeInfoPage() {
         </div>
 
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
-          <h3 className="text-lg font-semibold flex items-center gap-2"><MemoryStick className={`w-5 h-5 ${statusToneClass('ok')}`} /> Memory</h3>
+          <h2 className="text-lg font-semibold flex items-center gap-2"><MemoryStick className={`w-5 h-5 ${statusToneClass('ok')}`} /> Memory</h2>
           <InfoRow label="Total RAM" value={`${(node.memory_mb / 1024).toFixed(1)} GB`} />
           {stats && (
             <>
@@ -940,9 +940,9 @@ export default function NodeInfoPage() {
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h3 className="text-lg font-semibold flex items-center gap-2">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
                 <FolderTree className="w-5 h-5 text-cyan-400" /> Platform inventory
-              </h3>
+              </h2>
               <p className="text-xs text-slate-500 mt-1 max-w-3xl">
                 Kernel-exposed CPU topology and SMBIOS/DMI tables (same conceptual sources as proprietary hypervisors use for sockets/cores/threads/NUMA),
                 cross-checked with libvirt&apos;s node caps for audit-style reconciliation.
@@ -963,7 +963,7 @@ export default function NodeInfoPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <h4 className="text-sm font-medium text-slate-300">Firmware / chassis (DMI)</h4>
+              <h3 className="text-sm font-medium text-slate-300">Firmware / chassis (DMI)</h3>
               <InfoRow label="Hardware UUID" value={hardwareInventory.dmi.product_uuid ?? '—'} />
               <InfoRow label="Serial / tag" value={hardwareInventory.dmi.product_serial || '—'} />
               <InfoRow label="Vendor" value={hardwareInventory.dmi.sys_vendor || '—'} />
@@ -972,14 +972,14 @@ export default function NodeInfoPage() {
               <InfoRow label="BIOS" value={[hardwareInventory.dmi.bios_version, hardwareInventory.dmi.bios_date].filter(Boolean).join(' · ') || '—'} />
             </div>
             <div className="space-y-2">
-              <h4 className="text-sm font-medium text-slate-300">CPU identity (/proc/cpuinfo)</h4>
+              <h3 className="text-sm font-medium text-slate-300">CPU identity (/proc/cpuinfo)</h3>
               <InfoRow label="Vendor" value={hardwareInventory.cpuinfo_vendor_id ?? '—'} />
               <InfoRow label="Model" value={hardwareInventory.cpuinfo_model_name ?? '—'} />
             </div>
           </div>
 
           <div>
-            <h4 className="text-sm font-medium text-slate-300 mb-2">Topology (sysfs)</h4>
+            <h3 className="text-sm font-medium text-slate-300 mb-2">Topology (sysfs)</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               <div className="rounded-lg bg-slate-900/40 border border-slate-700/40 px-3 py-2">
                 <div className="text-[10px] uppercase tracking-wide text-slate-500">Online CPUs</div>
@@ -1021,14 +1021,14 @@ export default function NodeInfoPage() {
 
           {hardwareInventory.numa_nodes.length > 0 && (
             <div>
-              <h4 className="text-sm font-medium text-slate-300 mb-2">NUMA (sysfs)</h4>
+              <h3 className="text-sm font-medium text-slate-300 mb-2">NUMA (sysfs)</h3>
               <div className="overflow-x-auto rounded-lg border border-slate-700/40">
                 <table className="w-full text-sm" aria-label="NUMA topology">
                   <thead>
                     <tr className="text-left text-slate-400 border-b border-slate-700/50">
-                      <th className="px-4 py-2">Node</th>
-                      <th className="px-4 py-2">CPUs</th>
-                      <th className="px-4 py-2">Memory</th>
+                      <th scope="col" className="px-4 py-2">Node</th>
+                      <th scope="col" className="px-4 py-2">CPUs</th>
+                      <th scope="col" className="px-4 py-2">Memory</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700/40">
@@ -1047,7 +1047,7 @@ export default function NodeInfoPage() {
 
           {hardwareInventory.libvirt && (
             <div>
-              <h4 className="text-sm font-medium text-slate-300 mb-2">Libvirt node caps (reconciliation)</h4>
+              <h3 className="text-sm font-medium text-slate-300 mb-2">Libvirt node caps (reconciliation)</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                 <InfoRow label="libvirt model" value={hardwareInventory.libvirt.cpu_model} />
                 <InfoRow label="NUMA cells (libvirt)" value={hardwareInventory.libvirt.numa_nodes} />
@@ -1073,9 +1073,9 @@ export default function NodeInfoPage() {
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
           <div className="flex flex-wrap justify-between gap-2 items-start">
             <div>
-              <h3 className="text-lg font-semibold flex items-center gap-2">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
                 <ScrollText className="w-5 h-5 text-slate-400" /> Inventory history
-              </h3>
+              </h2>
               <p className="text-xs text-slate-500 mt-1 max-w-3xl">
                 JSON Lines on the hypervisor (daemon appends on a schedule; default hourly). Newest snapshots first — useful for spotting UUID / topology drift over time.
               </p>
@@ -1097,12 +1097,12 @@ export default function NodeInfoPage() {
               <table className="w-full text-sm" aria-label="Hardware inventory history">
                 <thead>
                   <tr className="text-left text-slate-400 border-b border-slate-700/50">
-                    <th className="px-4 py-2 whitespace-nowrap">Collected (UTC)</th>
-                    <th className="px-4 py-2">CPUs</th>
-                    <th className="px-4 py-2">Sockets</th>
-                    <th className="px-4 py-2">Phys. cores</th>
-                    <th className="px-4 py-2 hidden md:table-cell">HW UUID</th>
-                    <th className="px-4 py-2">Alerts</th>
+                    <th scope="col" className="px-4 py-2 whitespace-nowrap">Collected (UTC)</th>
+                    <th scope="col" className="px-4 py-2">CPUs</th>
+                    <th scope="col" className="px-4 py-2">Sockets</th>
+                    <th scope="col" className="px-4 py-2">Phys. cores</th>
+                    <th scope="col" className="px-4 py-2 hidden md:table-cell">HW UUID</th>
+                    <th scope="col" className="px-4 py-2">Alerts</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700/40">
@@ -1136,7 +1136,7 @@ export default function NodeInfoPage() {
       {/* Storage Overview (root aggregate) */}
       {stats && (
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
-          <h3 className="text-lg font-semibold flex items-center gap-2 mb-4"><Database className="w-5 h-5 text-orange-400" /> Root filesystem</h3>
+          <h2 className="text-lg font-semibold flex items-center gap-2 mb-4"><Database className="w-5 h-5 text-orange-400" /> Root filesystem</h2>
           <div className="grid grid-cols-3 gap-6">
             <div>
               <div className="text-xs text-slate-500 mb-1">Total</div>
@@ -1162,20 +1162,20 @@ export default function NodeInfoPage() {
       {filesystems.length > 0 && (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between gap-3 flex-wrap">
-            <h3 className="text-lg font-semibold flex items-center gap-2"><FolderTree className={`w-5 h-5 ${statusToneClass('warn')}`} /> Filesystems</h3>
+            <h2 className="text-lg font-semibold flex items-center gap-2"><FolderTree className={`w-5 h-5 ${statusToneClass('warn')}`} /> Filesystems</h2>
             <span className="text-xs text-slate-500">Per mount from the hypervisor (same idea as Cockpit Storage)</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm" aria-label="Filesystem mounts">
               <thead>
                 <tr className="text-left text-slate-400 border-b border-slate-700/50">
-                  <th className="px-6 py-3 font-medium">Mounted on</th>
-                  <th className="px-6 py-3 font-medium hidden lg:table-cell">Device</th>
-                  <th className="px-6 py-3 font-medium">Type</th>
-                  <th className="px-6 py-3 font-medium text-right">Size</th>
-                  <th className="px-6 py-3 font-medium text-right hidden md:table-cell">Used</th>
-                  <th className="px-6 py-3 font-medium text-right hidden md:table-cell">Avail</th>
-                  <th className="px-6 py-3 font-medium text-right">Use</th>
+                  <th scope="col" className="px-6 py-3 font-medium">Mounted on</th>
+                  <th scope="col" className="px-6 py-3 font-medium hidden lg:table-cell">Device</th>
+                  <th scope="col" className="px-6 py-3 font-medium">Type</th>
+                  <th scope="col" className="px-6 py-3 font-medium text-right">Size</th>
+                  <th scope="col" className="px-6 py-3 font-medium text-right hidden md:table-cell">Used</th>
+                  <th scope="col" className="px-6 py-3 font-medium text-right hidden md:table-cell">Avail</th>
+                  <th scope="col" className="px-6 py-3 font-medium text-right">Use</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/50">
@@ -1230,7 +1230,7 @@ export default function NodeInfoPage() {
 
       {!loading && pkgUpdates && (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 space-y-4">
-          <h3 className="text-lg font-semibold flex items-center gap-2"><Package className={`w-5 h-5 ${statusToneClass('ok')}`} /> Package updates</h3>
+          <h2 className="text-lg font-semibold flex items-center gap-2"><Package className={`w-5 h-5 ${statusToneClass('ok')}`} /> Package updates</h2>
           <div className="text-sm text-slate-300 space-y-1">
             <div><span className="text-slate-500">Backend:</span> <code className={statusToneClass('warn')}>{pkgUpdates.backend}</code></div>
             {pkgUpdates.summary && <div>{pkgUpdates.summary}</div>}
@@ -1355,7 +1355,7 @@ export default function NodeInfoPage() {
 
       {linuxObs?.pressure.available && (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 space-y-3">
-          <h3 className="text-lg font-semibold">Resource pressure (PSI)</h3>
+          <h2 className="text-lg font-semibold">Resource pressure (PSI)</h2>
           <p className="text-xs text-slate-500">From <code className="text-slate-600">/proc/pressure/*</code> — Linux kernel stall metrics (same on all distros with PSI enabled).</p>
           <div className="grid sm:grid-cols-3 gap-4 text-sm">
             <div>
@@ -1378,9 +1378,9 @@ export default function NodeInfoPage() {
                 <table className="w-full text-xs" aria-label="Block device I/O">
                   <thead>
                     <tr className="text-slate-400 text-left">
-                      <th className="py-1 pr-3">Device</th>
-                      <th className="py-1 pr-3 text-right">Read</th>
-                      <th className="py-1 text-right">Write</th>
+                      <th scope="col" className="py-1 pr-3">Device</th>
+                      <th scope="col" className="py-1 pr-3 text-right">Read</th>
+                      <th scope="col" className="py-1 text-right">Write</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1461,9 +1461,9 @@ export default function NodeInfoPage() {
               <table className="w-full text-xs" aria-label="VM cgroups">
                 <thead>
                   <tr className="text-slate-500 text-left">
-                    <th className="pr-3 pb-1">VM</th>
-                    <th className="pr-3 pb-1">Memory</th>
-                    <th className="pb-1">CPU use</th>
+                    <th scope="col" className="pr-3 pb-1">VM</th>
+                    <th scope="col" className="pr-3 pb-1">Memory</th>
+                    <th scope="col" className="pb-1">CPU use</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1492,7 +1492,7 @@ export default function NodeInfoPage() {
 
       {securitySummary && (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 space-y-2">
-          <h3 className="text-lg font-semibold flex items-center gap-2"><Shield className="w-5 h-5 text-orange-400" /> Firewall &amp; host networking stack</h3>
+          <h2 className="text-lg font-semibold flex items-center gap-2"><Shield className="w-5 h-5 text-orange-400" /> Firewall &amp; host networking stack</h2>
           <div className="text-sm text-slate-300 grid sm:grid-cols-2 gap-2">
             <div><span className="text-slate-500">Network tooling:</span> <code className="text-cyan-300/90">{securitySummary.network_backend}</code></div>
             <div><span className="text-slate-500">Firewall:</span> <code className="text-cyan-300/90">{securitySummary.firewall_backend}</code></div>
@@ -1510,18 +1510,18 @@ export default function NodeInfoPage() {
       {netCounters.length > 0 && (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between gap-3 flex-wrap">
-            <h3 className="text-lg font-semibold flex items-center gap-2"><Network className="w-5 h-5 text-sky-400" /> Network I/O (since boot)</h3>
+            <h2 className="text-lg font-semibold flex items-center gap-2"><Network className="w-5 h-5 text-sky-400" /> Network I/O (since boot)</h2>
             <span className="text-xs text-slate-500">From /proc/net/dev — same counters on Ubuntu, Fedora, Arch, …</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm" aria-label="Network I/O counters">
               <thead>
                 <tr className="text-left text-slate-400 border-b border-slate-700/50">
-                  <th className="px-6 py-3 font-medium">Interface</th>
-                  <th className="px-6 py-3 font-medium text-right">RX</th>
-                  <th className="px-6 py-3 font-medium text-right hidden md:table-cell">RX pkt</th>
-                  <th className="px-6 py-3 font-medium text-right">TX</th>
-                  <th className="px-6 py-3 font-medium text-right hidden md:table-cell">TX pkt</th>
+                  <th scope="col" className="px-6 py-3 font-medium">Interface</th>
+                  <th scope="col" className="px-6 py-3 font-medium text-right">RX</th>
+                  <th scope="col" className="px-6 py-3 font-medium text-right hidden md:table-cell">RX pkt</th>
+                  <th scope="col" className="px-6 py-3 font-medium text-right">TX</th>
+                  <th scope="col" className="px-6 py-3 font-medium text-right hidden md:table-cell">TX pkt</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/50">
@@ -1543,7 +1543,7 @@ export default function NodeInfoPage() {
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-700/50 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-lg font-semibold flex items-center gap-2"><Activity className={`w-5 h-5 ${statusToneClass('ok')}`} /> Live throughput</h3>
+            <h2 className="text-lg font-semibold flex items-center gap-2"><Activity className={`w-5 h-5 ${statusToneClass('ok')}`} /> Live throughput</h2>
             <p className="text-xs text-slate-500 mt-1">Two reads of <code className="text-slate-600">/proc/net/dev</code>; excludes <code className="text-slate-600">lo</code>. Same on all Linux distros.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1576,11 +1576,11 @@ export default function NodeInfoPage() {
             <table className="w-full text-sm" aria-label="Network interface rates">
               <thead>
                 <tr className="text-left text-slate-400 border-b border-slate-700/50">
-                  <th className="px-6 py-3 font-medium">Interface</th>
-                  <th className="px-6 py-3 font-medium text-right">RX</th>
-                  <th className="px-6 py-3 font-medium text-right">TX</th>
-                  <th className="px-6 py-3 font-medium text-right hidden md:table-cell">RX pkt/s</th>
-                  <th className="px-6 py-3 font-medium text-right hidden md:table-cell">TX pkt/s</th>
+                  <th scope="col" className="px-6 py-3 font-medium">Interface</th>
+                  <th scope="col" className="px-6 py-3 font-medium text-right">RX</th>
+                  <th scope="col" className="px-6 py-3 font-medium text-right">TX</th>
+                  <th scope="col" className="px-6 py-3 font-medium text-right hidden md:table-cell">RX pkt/s</th>
+                  <th scope="col" className="px-6 py-3 font-medium text-right hidden md:table-cell">TX pkt/s</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/50">
@@ -1608,7 +1608,7 @@ export default function NodeInfoPage() {
       {passwdUsers.length > 0 && (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-700/50 flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-lg font-semibold flex items-center gap-2"><Users className="w-5 h-5 text-violet-400" /> Accounts (passwd)</h3>
+            <h2 className="text-lg font-semibold flex items-center gap-2"><Users className="w-5 h-5 text-violet-400" /> Accounts (passwd)</h2>
             <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
               <input type="checkbox" checked={showSystemAccounts} onChange={(e) => setShowSystemAccounts(e.target.checked)} className="rounded border-slate-600 bg-slate-900" />
               Show system accounts (UID {'<'} 1000)
@@ -1618,11 +1618,11 @@ export default function NodeInfoPage() {
             <table className="w-full text-sm" aria-label="System users">
               <thead className="sticky top-0 bg-slate-800 z-10">
                 <tr className="text-left text-slate-400 border-b border-slate-700/50">
-                  <th className="px-6 py-3 font-medium">User</th>
-                  <th className="px-6 py-3 font-medium">UID</th>
-                  <th className="px-6 py-3 font-medium">GID</th>
-                  <th className="px-6 py-3 font-medium hidden lg:table-cell">Home</th>
-                  <th className="px-6 py-3 font-medium hidden md:table-cell">Shell</th>
+                  <th scope="col" className="px-6 py-3 font-medium">User</th>
+                  <th scope="col" className="px-6 py-3 font-medium">UID</th>
+                  <th scope="col" className="px-6 py-3 font-medium">GID</th>
+                  <th scope="col" className="px-6 py-3 font-medium hidden lg:table-cell">Home</th>
+                  <th scope="col" className="px-6 py-3 font-medium hidden md:table-cell">Shell</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/50">
@@ -1644,16 +1644,16 @@ export default function NodeInfoPage() {
       {groups.length > 0 && (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-700/50">
-            <h3 className="text-lg font-semibold flex items-center gap-2"><UserSquare className="w-5 h-5 text-fuchsia-400" /> Groups (first rows)</h3>
+            <h2 className="text-lg font-semibold flex items-center gap-2"><UserSquare className="w-5 h-5 text-fuchsia-400" /> Groups (first rows)</h2>
             <p className="text-xs text-slate-500 mt-1">Truncated list from getent/file; large LDAP domains may be incomplete.</p>
           </div>
           <div className="overflow-x-auto max-h-72 overflow-y-auto">
             <table className="w-full text-sm" aria-label="System groups">
               <thead className="sticky top-0 bg-slate-800 z-10">
                 <tr className="text-left text-slate-400 border-b border-slate-700/50">
-                  <th className="px-6 py-3 font-medium">Group</th>
-                  <th className="px-6 py-3 font-medium">GID</th>
-                  <th className="px-6 py-3 font-medium">Members</th>
+                  <th scope="col" className="px-6 py-3 font-medium">Group</th>
+                  <th scope="col" className="px-6 py-3 font-medium">GID</th>
+                  <th scope="col" className="px-6 py-3 font-medium">Members</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/50">
@@ -1671,12 +1671,12 @@ export default function NodeInfoPage() {
       )}
 
       <div>
-        <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Cockpit host inventory</h3>
+        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Cockpit host inventory</h2>
         <HostCockpitPanels classic section="all" />
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Host tools</h3>
+        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Host tools</h2>
         <ChoiceCardGrid>
           <ChoiceLinkCard to="/services" icon={<Server className="w-4 h-4" />} title="Systemd services" description="Unit status, start/stop, and journal tails." />
           <ChoiceLinkCard to="/logs" icon={<ScrollText className="w-4 h-4" />} title="Journal logs" description="Filter and follow messages on the hypervisor." />
@@ -1758,7 +1758,7 @@ function ResourceGauge({ icon, label, value, subtitle }: { icon: React.ReactNode
 function ChartCard({ title, color, dataKey, data, unit, domain }: { title: string; color: string; dataKey: string; data: StatsPoint[]; unit: string; domain?: [number, number] }) {
   return (
     <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50">
-      <h3 className="text-sm font-semibold text-white mb-3">{title}</h3>
+      <h2 className="text-sm font-semibold text-white mb-3">{title}</h2>
       <ResponsiveContainer width="100%" height={160}>
         <AreaChart data={data}>
           <defs>

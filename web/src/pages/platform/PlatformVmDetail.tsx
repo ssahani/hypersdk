@@ -2179,7 +2179,7 @@ export default function PlatformVmDetail() {
                   <p className="text-sm text-slate-500 mb-3">No schedules configured.</p>
                 ) : (
                   <table className="w-full text-sm mb-3">
-                    <thead><tr className="text-left text-xs text-slate-400 border-b border-slate-700/50"><th className="pb-1 pr-4">Action</th><th className="pb-1 pr-4">Every</th><th className="pb-1 pr-4">Next run</th><th className="pb-1 pr-4">Label</th><th /></tr></thead>
+                    <thead><tr className="text-left text-xs text-slate-400 border-b border-slate-700/50"><th scope="col" className="pb-1 pr-4">Action</th><th scope="col" className="pb-1 pr-4">Every</th><th scope="col" className="pb-1 pr-4">Next run</th><th scope="col" className="pb-1 pr-4">Label</th><th scope="col" /></tr></thead>
                     <tbody className="divide-y divide-slate-700/30">
                       {schedules.map((s) => (
                         <tr key={s.id}>

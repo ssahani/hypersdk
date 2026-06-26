@@ -181,7 +181,7 @@ export default function SettingsPage() {
       subtitle="RBAC, tokens, alerts, and schedules for the hypervisor control plane on this host."
       icon={<Settings className={`w-6 h-6 ${statusToneClass('info')}`} />}
       actions={
-        <button type="button" onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
+        <button type="button" onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" aria-hidden="true" /></button>
       }
       contentLoading={loading}
     >
@@ -706,11 +706,11 @@ export default function SettingsPage() {
               <option value="operator">Operator</option>
               <option value="readonly">Read-only</option>
             </select>
-            <button type="button" onClick={async () => { if (!newRoleUser) return; try { await setRole(newRoleUser, newRoleVal); toast.success('Role set'); setNewRoleUser(''); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} aria-label="Set role" title="Set role" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
+            <button type="button" onClick={async () => { if (!newRoleUser) return; try { await setRole(newRoleUser, newRoleVal); toast.success('Role set'); setNewRoleUser(''); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} aria-label="Set role" title="Set role" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" aria-hidden="true" /></button>
           </div>
           <div className="card overflow-x-auto max-w-full">
             <table className="w-full min-w-[28rem]" aria-label="User roles">
-              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">User</th><th className="px-6 py-3">Role</th><th className="px-6 py-3">Permissions</th></tr></thead>
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">User</th><th scope="col" className="px-6 py-3">Role</th><th scope="col" className="px-6 py-3">Permissions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {roles.map(r => (
                   <tr key={r.username} className="table-row-hover">
@@ -819,7 +819,7 @@ export default function SettingsPage() {
               <option value="operator">Operator</option>
               <option value="readonly">Read-only</option>
             </select>
-            <button type="button" onClick={async () => { if (!newTokenName || !newTokenUser) return; try { const t = await createToken(newTokenName, newTokenUser, newTokenRole); setCreatedToken(t.token); toast.success('Token created'); setNewTokenName(''); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} aria-label="Create token" title="Create token" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
+            <button type="button" onClick={async () => { if (!newTokenName || !newTokenUser) return; try { const t = await createToken(newTokenName, newTokenUser, newTokenRole); setCreatedToken(t.token); toast.success('Token created'); setNewTokenName(''); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} aria-label="Create token" title="Create token" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" aria-hidden="true" /></button>
           </div>
           {createdToken && (
             <div className={`p-3 rounded-lg border ${statusSurfaceClasses('ok')}`}>
@@ -829,7 +829,7 @@ export default function SettingsPage() {
           )}
           <div className="card overflow-x-auto max-w-full">
             <table className="w-full min-w-[36rem]" aria-label="API tokens">
-              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Name</th><th className="px-6 py-3">Token</th><th className="px-6 py-3">User</th><th className="px-6 py-3">Role</th><th className="px-6 py-3">Created</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">Name</th><th scope="col" className="px-6 py-3">Token</th><th scope="col" className="px-6 py-3">User</th><th scope="col" className="px-6 py-3">Role</th><th scope="col" className="px-6 py-3">Created</th><th scope="col" className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {tokens.map(t => (
                   <tr key={t.name} className="table-row-hover">
@@ -838,7 +838,7 @@ export default function SettingsPage() {
                     <td className="px-6 py-3 text-sm">{t.username}</td>
                     <td className="px-6 py-3 text-xs"><span className="px-2 py-0.5 bg-slate-700 rounded">{t.role}</span></td>
                     <td className="px-6 py-3 text-xs text-slate-500">{t.created}</td>
-                    <td className="px-6 py-3 text-right"><button onClick={async () => { try { await deleteToken(t.token); toast.success('Deleted'); load() } catch (e: unknown) { toast.error(formatUserError(e)) } }} aria-label="Delete token" title="Delete token" className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
+                    <td className="px-6 py-3 text-right"><button onClick={async () => { try { await deleteToken(t.token); toast.success('Deleted'); load() } catch (e: unknown) { toast.error(formatUserError(e)) } }} aria-label="Delete token" title="Delete token" className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} aria-hidden="true" /></button></td>
                   </tr>
                 ))}
                 {tokens.length === 0 && <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">No API tokens. Create one to authenticate scripts and automation.</td></tr>}
@@ -855,7 +855,7 @@ export default function SettingsPage() {
           <h3 className="text-sm font-semibold text-slate-300">Alert Rules</h3>
           <div className="card overflow-x-auto max-w-full">
             <table className="w-full min-w-[32rem]" aria-label="Alert rules">
-              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Rule</th><th className="px-6 py-3">Condition</th><th className="px-6 py-3">Threshold</th><th className="px-6 py-3">Enabled</th></tr></thead>
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">Rule</th><th scope="col" className="px-6 py-3">Condition</th><th scope="col" className="px-6 py-3">Threshold</th><th scope="col" className="px-6 py-3">Enabled</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {alertRules.map((r, i) => (
                   <tr key={r.id} className="table-row-hover">
@@ -892,18 +892,18 @@ export default function SettingsPage() {
         <div className="space-y-4">
           <div className="flex flex-col gap-2 min-w-0 sm:flex-row sm:items-center">
             <input aria-label="Webhook URL" value={newWebhookUrl} onChange={e => setNewWebhookUrl(e.target.value)} className="input-field flex-1 min-w-0" placeholder="https://example.com/webhook" />
-            <button type="button" onClick={() => { if (!newWebhookUrl) return; const next = [...webhooks, { id: `wh-${Date.now()}`, url: newWebhookUrl, events: ['*'], enabled: true }]; setWebhooks(next); setNewWebhookUrl(''); saveWebhooks(next).then(() => toast.success('Webhook added')).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Add webhook" title="Add webhook" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
+            <button type="button" onClick={() => { if (!newWebhookUrl) return; const next = [...webhooks, { id: `wh-${Date.now()}`, url: newWebhookUrl, events: ['*'], enabled: true }]; setWebhooks(next); setNewWebhookUrl(''); saveWebhooks(next).then(() => toast.success('Webhook added')).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Add webhook" title="Add webhook" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" aria-hidden="true" /></button>
           </div>
           <div className="card overflow-x-auto max-w-full">
             <table className="w-full min-w-[28rem]" aria-label="Webhook endpoints">
-              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">URL</th><th className="px-6 py-3">Events</th><th className="px-6 py-3">Enabled</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">URL</th><th scope="col" className="px-6 py-3">Events</th><th scope="col" className="px-6 py-3">Enabled</th><th scope="col" className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {webhooks.map((h, i) => (
                   <tr key={h.id} className="table-row-hover">
                     <td className={`px-6 py-3 text-sm font-mono truncate max-w-xs ${statusToneClass('info')}`}>{h.url}</td>
                     <td className="px-6 py-3 text-xs text-slate-400">{h.events.join(', ')}</td>
                     <td className="px-6 py-3"><input type="checkbox" checked={h.enabled} onChange={e => { const next = [...webhooks]; next[i].enabled = e.target.checked; setWebhooks(next); saveWebhooks(next).catch((e: unknown) => toast.error(formatUserError(e))) }} /></td>
-                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = webhooks.filter((_, j) => j !== i); setWebhooks(next); saveWebhooks(next).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Remove webhook" title="Remove webhook" className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
+                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = webhooks.filter((_, j) => j !== i); setWebhooks(next); saveWebhooks(next).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Remove webhook" title="Remove webhook" className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} aria-hidden="true" /></button></td>
                   </tr>
                 ))}
                 {webhooks.length === 0 && <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-500">No webhooks configured. Add one to receive VM event notifications.</td></tr>}
@@ -930,11 +930,11 @@ export default function SettingsPage() {
               <option value="snapshot">Snapshot</option>
             </select>
             <input type="time" aria-label="Schedule time" value={newSchedTime} onChange={e => setNewSchedTime(e.target.value)} className="input-field w-full shrink-0 sm:w-28" />
-            <button type="button" onClick={() => { if (!newSchedVm) return; const next = [...schedules, { id: `sched-${Date.now()}`, vm_name: newSchedVm, action: newSchedAction, schedule: `daily ${newSchedTime}`, enabled: true, last_run: '' }]; setSchedules(next); saveSchedules(next).then(() => toast.success('Schedule added')).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Add schedule" title="Add schedule" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
+            <button type="button" onClick={() => { if (!newSchedVm) return; const next = [...schedules, { id: `sched-${Date.now()}`, vm_name: newSchedVm, action: newSchedAction, schedule: `daily ${newSchedTime}`, enabled: true, last_run: '' }]; setSchedules(next); saveSchedules(next).then(() => toast.success('Schedule added')).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Add schedule" title="Add schedule" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" aria-hidden="true" /></button>
           </div>
           <div className="card overflow-x-auto max-w-full">
             <table className="w-full min-w-[40rem]" aria-label="VM schedules">
-              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">VM</th><th className="px-6 py-3">Action</th><th className="px-6 py-3">Schedule</th><th className="px-6 py-3">Enabled</th><th className="px-6 py-3">Last Run</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">VM</th><th scope="col" className="px-6 py-3">Action</th><th scope="col" className="px-6 py-3">Schedule</th><th scope="col" className="px-6 py-3">Enabled</th><th scope="col" className="px-6 py-3">Last Run</th><th scope="col" className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {schedules.map((s, i) => (
                   <tr key={s.id} className="table-row-hover">
@@ -943,7 +943,7 @@ export default function SettingsPage() {
                     <td className="px-6 py-3 text-sm font-mono text-slate-400">{s.schedule}</td>
                     <td className="px-6 py-3"><input type="checkbox" checked={s.enabled} onChange={e => { const next = [...schedules]; next[i].enabled = e.target.checked; setSchedules(next); saveSchedules(next).catch((e: unknown) => toast.error(formatUserError(e))) }} /></td>
                     <td className="px-6 py-3 text-xs text-slate-500">{s.last_run || 'never'}</td>
-                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = schedules.filter((_, j) => j !== i); setSchedules(next); saveSchedules(next).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Remove schedule" title="Remove schedule" className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
+                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = schedules.filter((_, j) => j !== i); setSchedules(next); saveSchedules(next).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Remove schedule" title="Remove schedule" className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} aria-hidden="true" /></button></td>
                   </tr>
                 ))}
                 {schedules.length === 0 && <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">No scheduled actions. Add one to auto start/stop VMs at specific times.</td></tr>}
@@ -964,11 +964,11 @@ export default function SettingsPage() {
               <option value="webhook">Webhook</option>
             </select>
             <input aria-label="Channel configuration" value={newNotifConfig} onChange={e => setNewNotifConfig(e.target.value)} className="input-field flex-1" placeholder={newNotifType === 'slack' ? 'Slack webhook URL' : newNotifType === 'email' ? 'recipient@example.com' : newNotifType === 'telegram' ? 'bot_token:chat_id' : 'https://example.com/hook'} />
-            <button onClick={() => { if (!newNotifConfig) return; const next = [...notificationChannels, { id: `notif-${Date.now()}`, channel_type: newNotifType, config: newNotifConfig, enabled: true }]; setNotificationChannels(next); setNewNotifConfig(''); saveNotificationChannels(next).then(() => toast.success('Channel added')).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Add channel" title="Add channel" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
+            <button onClick={() => { if (!newNotifConfig) return; const next = [...notificationChannels, { id: `notif-${Date.now()}`, channel_type: newNotifType, config: newNotifConfig, enabled: true }]; setNotificationChannels(next); setNewNotifConfig(''); saveNotificationChannels(next).then(() => toast.success('Channel added')).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Add channel" title="Add channel" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" aria-hidden="true" /></button>
           </div>
           <div className="card overflow-x-auto max-w-full">
             <table className="w-full min-w-[28rem]" aria-label="Notification channels">
-              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Type</th><th className="px-6 py-3">Config</th><th className="px-6 py-3">Enabled</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">Type</th><th scope="col" className="px-6 py-3">Config</th><th scope="col" className="px-6 py-3">Enabled</th><th scope="col" className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {notificationChannels.map((ch, i) => (
                   <tr key={ch.id} className="table-row-hover">
@@ -976,8 +976,8 @@ export default function SettingsPage() {
                     <td className="px-6 py-3 text-sm font-mono text-slate-400 truncate max-w-xs">{ch.config}</td>
                     <td className="px-6 py-3"><input type="checkbox" checked={ch.enabled} onChange={e => { const next = [...notificationChannels]; next[i].enabled = e.target.checked; setNotificationChannels(next); saveNotificationChannels(next).catch((e: unknown) => toast.error(formatUserError(e))) }} /></td>
                     <td className="px-6 py-3 text-right flex items-center justify-end gap-1">
-                      <button onClick={async () => { try { await testNotification(ch); toast.success('Test sent') } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} className="p-1 hover:bg-blue-600/20 rounded" title="Send test" aria-label="Send test"><Send className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
-                      <button onClick={() => { const next = notificationChannels.filter((_, j) => j !== i); setNotificationChannels(next); saveNotificationChannels(next).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Remove channel" title="Remove channel" className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
+                      <button onClick={async () => { try { await testNotification(ch); toast.success('Test sent') } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} className="p-1 hover:bg-blue-600/20 rounded" title="Send test" aria-label="Send test"><Send className={`w-4 h-4 ${statusToneClass('info')}`} aria-hidden="true" /></button>
+                      <button onClick={() => { const next = notificationChannels.filter((_, j) => j !== i); setNotificationChannels(next); saveNotificationChannels(next).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Remove channel" title="Remove channel" className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} aria-hidden="true" /></button>
                     </td>
                   </tr>
                 ))}
@@ -1004,11 +1004,11 @@ export default function SettingsPage() {
               <option value="24">Every 24h</option>
             </select>
             <input type="number" value={newSnapRetain} onChange={e => setNewSnapRetain(e.target.value)} aria-label="Retain count" className="input-field w-24" placeholder="Retain" min="1" max="100" />
-            <button onClick={() => { if (!newSnapVm) return; const next = [...snapshotSchedules, { id: `snap-${Date.now()}`, vm_name: newSnapVm, interval_hours: parseInt(newSnapInterval) || 24, retain_count: parseInt(newSnapRetain) || 5, enabled: true, last_run: '' }]; setSnapshotSchedules(next); setNewSnapVm(''); saveSnapshotSchedules(next).then(() => toast.success('Snapshot schedule added')).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Add snapshot schedule" title="Add snapshot schedule" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
+            <button onClick={() => { if (!newSnapVm) return; const next = [...snapshotSchedules, { id: `snap-${Date.now()}`, vm_name: newSnapVm, interval_hours: parseInt(newSnapInterval) || 24, retain_count: parseInt(newSnapRetain) || 5, enabled: true, last_run: '' }]; setSnapshotSchedules(next); setNewSnapVm(''); saveSnapshotSchedules(next).then(() => toast.success('Snapshot schedule added')).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Add snapshot schedule" title="Add snapshot schedule" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" aria-hidden="true" /></button>
           </div>
           <div className="card overflow-x-auto max-w-full">
             <table className="w-full min-w-[36rem]" aria-label="Snapshot schedules">
-              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">VM</th><th className="px-6 py-3">Interval</th><th className="px-6 py-3">Retain</th><th className="px-6 py-3">Last Run</th><th className="px-6 py-3">Enabled</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">VM</th><th scope="col" className="px-6 py-3">Interval</th><th scope="col" className="px-6 py-3">Retain</th><th scope="col" className="px-6 py-3">Last Run</th><th scope="col" className="px-6 py-3">Enabled</th><th scope="col" className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {snapshotSchedules.map((s, i) => (
                   <tr key={s.id} className="table-row-hover">
@@ -1017,7 +1017,7 @@ export default function SettingsPage() {
                     <td className="px-6 py-3 text-sm">{s.retain_count}</td>
                     <td className="px-6 py-3 text-xs text-slate-500">{s.last_run || 'never'}</td>
                     <td className="px-6 py-3"><input type="checkbox" checked={s.enabled} onChange={e => { const next = [...snapshotSchedules]; next[i].enabled = e.target.checked; setSnapshotSchedules(next); saveSnapshotSchedules(next).catch((e: unknown) => toast.error(formatUserError(e))) }} /></td>
-                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = snapshotSchedules.filter((_, j) => j !== i); setSnapshotSchedules(next); saveSnapshotSchedules(next).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Delete snapshot schedule" title="Delete snapshot schedule" className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
+                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = snapshotSchedules.filter((_, j) => j !== i); setSnapshotSchedules(next); saveSnapshotSchedules(next).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Delete snapshot schedule" title="Delete snapshot schedule" className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} aria-hidden="true" /></button></td>
                   </tr>
                 ))}
                 {snapshotSchedules.length === 0 && <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">No snapshot schedules. Add one to automatically snapshot VMs at regular intervals.</td></tr>}

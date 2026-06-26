@@ -63,7 +63,7 @@ export default function HelpDialog({ open, tab, onClose, onTabChange }: HelpDial
             className="p-1 hover:bg-white/5 rounded-lg transition text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             aria-label="Close help"
           >
-            <X className="w-4 h-4" strokeWidth={1.75} />
+            <X className="w-4 h-4" strokeWidth={1.75} aria-hidden="true" />
           </button>
         </div>
 

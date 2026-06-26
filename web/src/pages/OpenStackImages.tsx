@@ -133,12 +133,12 @@ function OpenStackImagesContent() {
         <table className="w-full text-sm" aria-label="Glance images">
           <thead className="bg-slate-900/80 text-slate-400 text-left">
             <tr>
-              <th className="px-4 py-3">Name</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Min disk</th>
-              <th className="px-4 py-3">Min RAM</th>
-              <th className="px-4 py-3">Size</th>
-              <th className="px-4 py-3 w-16" />
+              <th scope="col" className="px-4 py-3">Name</th>
+              <th scope="col" className="px-4 py-3">Status</th>
+              <th scope="col" className="px-4 py-3">Min disk</th>
+              <th scope="col" className="px-4 py-3">Min RAM</th>
+              <th scope="col" className="px-4 py-3">Size</th>
+              <th scope="col" className="px-4 py-3 w-16" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800">

@@ -121,10 +121,10 @@ function OpenStackHeatContent() {
           <table className="w-full text-sm" aria-label="Heat stacks">
             <thead className="bg-slate-900/80 text-slate-400 text-left">
               <tr>
-                <th className="px-3 py-2">Name</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Created</th>
-                <th className="px-3 py-2" />
+                <th scope="col" className="px-3 py-2">Name</th>
+                <th scope="col" className="px-3 py-2">Status</th>
+                <th scope="col" className="px-3 py-2">Created</th>
+                <th scope="col" className="px-3 py-2" />
               </tr>
             </thead>
             <tbody>

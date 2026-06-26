@@ -571,11 +571,11 @@ export default function DiskImagesPage() {
           <table className="w-full" aria-label="Disk images">
             <thead>
               <tr className="border-b border-slate-700/50 text-left text-xs text-slate-400 uppercase tracking-wide">
-                <th className="px-5 py-3">Name</th>
-                <th className="px-5 py-3">Format</th>
-                <th className="px-5 py-3">Size</th>
-                <th className="px-5 py-3 hidden md:table-cell">Path</th>
-                <th className="px-5 py-3 text-right">Actions</th>
+                <th scope="col" className="px-5 py-3">Name</th>
+                <th scope="col" className="px-5 py-3">Format</th>
+                <th scope="col" className="px-5 py-3">Size</th>
+                <th scope="col" className="px-5 py-3 hidden md:table-cell">Path</th>
+                <th scope="col" className="px-5 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/30">

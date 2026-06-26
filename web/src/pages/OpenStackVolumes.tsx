@@ -396,11 +396,11 @@ function OpenStackVolumesContent() {
             <table className="w-full text-sm" aria-label="OpenStack volumes">
               <thead className="bg-slate-900/80 text-slate-400 text-left">
                 <tr>
-                  <th className="px-3 py-2">Name</th>
-                  <th className="px-3 py-2">Size</th>
-                  <th className="px-3 py-2">Bootable</th>
-                  <th className="px-3 py-2">Attached</th>
-                  <th className="px-3 py-2">Actions</th>
+                  <th scope="col" className="px-3 py-2">Name</th>
+                  <th scope="col" className="px-3 py-2">Size</th>
+                  <th scope="col" className="px-3 py-2">Bootable</th>
+                  <th scope="col" className="px-3 py-2">Attached</th>
+                  <th scope="col" className="px-3 py-2">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
@@ -522,10 +522,10 @@ function OpenStackVolumesContent() {
               <table className="w-full text-sm" aria-label="Volume snapshots">
                 <thead className="bg-slate-900/80 text-slate-400 text-left">
                   <tr>
-                    <th className="px-3 py-2">Name</th>
-                    <th className="px-3 py-2">Volume</th>
-                    <th className="px-3 py-2">Size</th>
-                    <th className="px-3 py-2">Status</th>
+                    <th scope="col" className="px-3 py-2">Name</th>
+                    <th scope="col" className="px-3 py-2">Volume</th>
+                    <th scope="col" className="px-3 py-2">Size</th>
+                    <th scope="col" className="px-3 py-2">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 font-mono text-xs">

@@ -265,6 +265,11 @@ export default function VMList() {
             </select>
           </div>
         )}
+        {(search || tagFilter) && (
+          <span aria-live="polite" className="text-sm text-slate-400 shrink-0">
+            {filtered.length} VM{filtered.length !== 1 ? 's' : ''}
+          </span>
+        )}
       </div>
 
       {filtered.length === 0 ? (
@@ -296,14 +301,14 @@ export default function VMList() {
           <table className="w-full" aria-label="Virtual machines">
             <thead>
               <tr className="border-b border-slate-700/50 text-left text-sm text-slate-400">
-                <th className="px-3 py-3 w-8">
+                <th scope="col" className="px-3 py-3 w-8">
                   <input type="checkbox" checked={selectedVMs.size === filtered.length && filtered.length > 0} onChange={toggleAll} className="rounded border-slate-600 bg-slate-900" />
                 </th>
-                <th className="px-6 py-3">Name</th>
-                <th className="px-6 py-3">State</th>
-                <th className="px-6 py-3 hidden md:table-cell">vCPUs</th>
-                <th className="px-6 py-3 hidden md:table-cell">Memory</th>
-                <th className="px-6 py-3 text-right">Actions</th>
+                <th scope="col" className="px-6 py-3">Name</th>
+                <th scope="col" className="px-6 py-3">State</th>
+                <th scope="col" className="px-6 py-3 hidden md:table-cell">vCPUs</th>
+                <th scope="col" className="px-6 py-3 hidden md:table-cell">Memory</th>
+                <th scope="col" className="px-6 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/50">
