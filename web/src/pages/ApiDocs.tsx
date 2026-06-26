@@ -131,7 +131,7 @@ export default function ApiDocs() {
           placeholder="Search endpoints by path, method, or description..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className={`w-full pl-10 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 text-slate-200 ${search ? 'pr-8' : 'pr-4'}`}
+          className={`w-full pl-10 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 text-slate-200 ${search ? 'pr-8' : 'pr-4'}`}
         />
         {search && (
           <button type="button" aria-label="Clear search" onClick={() => setSearch('')}
@@ -212,12 +212,12 @@ export default function ApiDocs() {
                 <div className="bg-slate-900 border-t border-slate-700/30 px-5 py-4 space-y-3">
                   <div>
                     <label className="block text-xs text-slate-400 mb-1">URL</label>
-                    <input value={tryPath} onChange={e => setTryPath(e.target.value)} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 text-slate-200 font-mono text-xs" />
+                    <input value={tryPath} onChange={e => setTryPath(e.target.value)} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 text-slate-200 font-mono text-xs" />
                   </div>
                   {ep.method !== 'GET' && (
                     <div>
                       <label className="block text-xs text-slate-400 mb-1">Request Body (JSON)</label>
-                      <textarea value={tryBody} onChange={e => setTryBody(e.target.value)} rows={4} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 text-slate-200 font-mono text-xs" placeholder='{"key": "value"}' />
+                      <textarea value={tryBody} onChange={e => setTryBody(e.target.value)} rows={4} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 text-slate-200 font-mono text-xs" placeholder='{"key": "value"}' />
                     </div>
                   )}
                   <button onClick={() => tryIt(ep.method, tryPath, tryBody)} disabled={tryLoading} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg text-sm font-medium transition">

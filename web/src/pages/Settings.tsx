@@ -494,6 +494,7 @@ export default function SettingsPage() {
             <div>
               <label className="text-xs text-slate-500">OTLP interval (seconds)</label>
               <input
+                aria-label="OTLP interval in seconds"
                 type="number"
                 min={30}
                 className="input-field w-full mt-1"
@@ -512,6 +513,7 @@ export default function SettingsPage() {
             <div>
               <label className="text-xs text-slate-500">OTLP endpoint</label>
               <input
+                aria-label="OTLP endpoint"
                 className="input-field w-full mt-1"
                 value={obsSettings.otlp.endpoint}
                 onChange={(e) =>
@@ -528,6 +530,7 @@ export default function SettingsPage() {
                 OTLP authorization {obsSettings.otlp.authorization_set ? `(set: ${obsSettings.otlp.authorization})` : ''}
               </label>
               <input
+                aria-label="OTLP authorization"
                 className="input-field w-full mt-1"
                 type="password"
                 autoComplete="off"
@@ -539,6 +542,7 @@ export default function SettingsPage() {
             <div>
               <label className="text-xs text-slate-500">Metrics JSON remote_write URL</label>
               <input
+                aria-label="Metrics remote_write URL"
                 className="input-field w-full mt-1"
                 value={obsSettings.metrics_history.remote_write_url}
                 onChange={(e) =>
@@ -887,7 +891,7 @@ export default function SettingsPage() {
       {tab === 'webhooks' && (
         <div className="space-y-4">
           <div className="flex flex-col gap-2 min-w-0 sm:flex-row sm:items-center">
-            <input value={newWebhookUrl} onChange={e => setNewWebhookUrl(e.target.value)} className="input-field flex-1 min-w-0" placeholder="https://example.com/webhook" />
+            <input aria-label="Webhook URL" value={newWebhookUrl} onChange={e => setNewWebhookUrl(e.target.value)} className="input-field flex-1 min-w-0" placeholder="https://example.com/webhook" />
             <button type="button" onClick={() => { if (!newWebhookUrl) return; const next = [...webhooks, { id: `wh-${Date.now()}`, url: newWebhookUrl, events: ['*'], enabled: true }]; setWebhooks(next); setNewWebhookUrl(''); saveWebhooks(next).then(() => toast.success('Webhook added')).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Add webhook" title="Add webhook" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
           </div>
           <div className="card overflow-x-auto max-w-full">
@@ -925,7 +929,7 @@ export default function SettingsPage() {
               <option value="reboot">Reboot</option>
               <option value="snapshot">Snapshot</option>
             </select>
-            <input type="time" value={newSchedTime} onChange={e => setNewSchedTime(e.target.value)} className="input-field w-full shrink-0 sm:w-28" />
+            <input type="time" aria-label="Schedule time" value={newSchedTime} onChange={e => setNewSchedTime(e.target.value)} className="input-field w-full shrink-0 sm:w-28" />
             <button type="button" onClick={() => { if (!newSchedVm) return; const next = [...schedules, { id: `sched-${Date.now()}`, vm_name: newSchedVm, action: newSchedAction, schedule: `daily ${newSchedTime}`, enabled: true, last_run: '' }]; setSchedules(next); saveSchedules(next).then(() => toast.success('Schedule added')).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Add schedule" title="Add schedule" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
           </div>
           <div className="card overflow-x-auto max-w-full">
@@ -959,7 +963,7 @@ export default function SettingsPage() {
               <option value="telegram">Telegram</option>
               <option value="webhook">Webhook</option>
             </select>
-            <input value={newNotifConfig} onChange={e => setNewNotifConfig(e.target.value)} className="input-field flex-1" placeholder={newNotifType === 'slack' ? 'Slack webhook URL' : newNotifType === 'email' ? 'recipient@example.com' : newNotifType === 'telegram' ? 'bot_token:chat_id' : 'https://example.com/hook'} />
+            <input aria-label="Channel configuration" value={newNotifConfig} onChange={e => setNewNotifConfig(e.target.value)} className="input-field flex-1" placeholder={newNotifType === 'slack' ? 'Slack webhook URL' : newNotifType === 'email' ? 'recipient@example.com' : newNotifType === 'telegram' ? 'bot_token:chat_id' : 'https://example.com/hook'} />
             <button onClick={() => { if (!newNotifConfig) return; const next = [...notificationChannels, { id: `notif-${Date.now()}`, channel_type: newNotifType, config: newNotifConfig, enabled: true }]; setNotificationChannels(next); setNewNotifConfig(''); saveNotificationChannels(next).then(() => toast.success('Channel added')).catch((e: unknown) => toast.error(formatUserError(e))) }} aria-label="Add channel" title="Add channel" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
           </div>
           <div className="card overflow-x-auto max-w-full">

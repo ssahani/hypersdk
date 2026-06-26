@@ -97,7 +97,7 @@ export default function SecretsPage() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <input type="text" aria-label="Search secrets" placeholder="Search secrets..." value={search} onChange={(e) => setSearch(e.target.value)}
-          className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 ${search ? 'pr-8' : 'pr-4'}`} />
+          className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 ${search ? 'pr-8' : 'pr-4'}`} />
         {search && (
           <button type="button" aria-label="Clear search" onClick={() => setSearch('')}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
@@ -159,9 +159,9 @@ export default function SecretsPage() {
             </div>
             <div className="p-5 space-y-3 overflow-y-auto flex-1">
               <label className="block text-sm text-slate-400">Secret XML (<code className="text-slate-500">virSecretDefineXML</code>)</label>
-              <textarea value={defXml} onChange={(e) => setDefXml(e.target.value)} rows={8} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm font-mono text-slate-200 focus:outline-none focus:border-blue-500" placeholder={'<secret ephemeral=\'no\'>\n  <description>…</description>\n</secret>'} />
+              <textarea value={defXml} onChange={(e) => setDefXml(e.target.value)} rows={8} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm font-mono text-slate-200 focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50" placeholder={'<secret ephemeral=\'no\'>\n  <description>…</description>\n</secret>'} />
               <label className="block text-sm text-slate-400">Value (base64, optional)</label>
-              <textarea value={defValueB64} onChange={(e) => setDefValueB64(e.target.value)} rows={2} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm font-mono text-slate-200 focus:outline-none focus:border-blue-500" placeholder="Base64-encoded secret bytes (optional)" />
+              <textarea value={defValueB64} onChange={(e) => setDefValueB64(e.target.value)} rows={2} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm font-mono text-slate-200 focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50" placeholder="Base64-encoded secret bytes (optional)" />
               <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
                 <input type="checkbox" checked={defValidate} onChange={(e) => setDefValidate(e.target.checked)} />
                 Validate XML against schema

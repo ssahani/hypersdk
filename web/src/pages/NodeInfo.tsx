@@ -639,7 +639,7 @@ export default function NodeInfoPage() {
             ) : (
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium">{sysInfo.hostname}</span>
-                <button onClick={() => { setHostnameInput(sysInfo.hostname); setEditingHostname(true) }} className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition"><Pencil className="w-3.5 h-3.5" /></button>
+                <button aria-label="Edit hostname" onClick={() => { setHostnameInput(sysInfo.hostname); setEditingHostname(true) }} className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition"><Pencil className="w-3.5 h-3.5" /></button>
               </div>
             )}
           </div>
@@ -681,7 +681,7 @@ export default function NodeInfoPage() {
             ) : (
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium">{sysInfo.timezone}</span>
-                <button onClick={() => { setTimezoneInput(sysInfo.timezone); setEditingTimezone(true) }} className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition"><Pencil className="w-3.5 h-3.5" /></button>
+                <button aria-label="Edit timezone" onClick={() => { setTimezoneInput(sysInfo.timezone); setEditingTimezone(true) }} className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition"><Pencil className="w-3.5 h-3.5" /></button>
               </div>
             )}
           </div>

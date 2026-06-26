@@ -28,7 +28,7 @@ export default function Breadcrumb() {
     const fromRouteLabels = routeLabels[cumulative]
     const label =
       fromRouteLabels ||
-      (isLast && entityName && ID_PATTERN.test(seg) ? entityName : decodeURIComponent(seg))
+      (entityName && ID_PATTERN.test(seg) ? entityName : decodeURIComponent(seg))
     crumbs.push({ path: cumulative, label })
   }
 

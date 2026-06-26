@@ -102,7 +102,14 @@ export default function PlatformBlueprints() {
       title="Blueprint Studio"
       subtitle="macOS Shortcuts-style Launchpad — tap a blueprint to run automation across VM sets."
       icon={<Workflow className="w-6 h-6 text-slate-400" />}
-      actions={<PlatformRefreshButton onClick={() => void load()} />}
+      actions={
+        <div className="flex items-center gap-2">
+          <button type="button" className="btn-primary text-sm flex items-center gap-1.5" onClick={() => setTab('studio')}>
+            <Plus className="w-4 h-4" /> New blueprint
+          </button>
+          <PlatformRefreshButton onClick={() => void load()} />
+        </div>
+      }
       contentClassName="space-y-4"
     >
       {fleet && <p className="text-sm text-slate-400">{fleet.summary}</p>}

@@ -393,6 +393,10 @@ a.tahoe-context-app-title:hover {
   border-color: rgba(56, 189, 248, 0.35);
   background: rgba(56, 189, 248, 0.06);
 }
+.tahoe-mobile-jump-select:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.6);
+  outline-offset: 2px;
+}
 
 .tahoe-context-pill {
   display: inline-flex;
@@ -1267,8 +1271,11 @@ a.tahoe-context-app-title:hover {
 }
 
 .mac-finder-search:focus {
-  outline: none;
   border-color: rgba(56, 189, 248, 0.35);
+}
+.mac-finder-search:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.6);
+  outline-offset: 2px;
 }
 
 .mac-finder-path {
@@ -1676,6 +1683,11 @@ a.tahoe-context-app-title:hover {
   outline: none;
   border-color: rgba(59, 130, 246, 0.6);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+.login-input:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.7);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.35);
 }
 .login-field-icon {
   position: absolute;

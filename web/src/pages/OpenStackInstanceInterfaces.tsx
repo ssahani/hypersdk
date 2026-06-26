@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft, Loader2, Network } from 'lucide-react'
 import { getOpenStackInstance, listOpenStackNetworks, type OpenStackInstance, type OpenStackNetwork } from '../api/openstack'
@@ -35,6 +36,8 @@ function OpenStackInstanceInterfacesContent() {
   const [networks, setNetworks] = useState<OpenStackNetwork[]>([])
   const [attachNetId, setAttachNetId] = useState('')
   const [loading, setLoading] = useState(true)
+
+  useBreadcrumbName(inst?.name)
 
   const load = useCallback(async () => {
     if (!id) return

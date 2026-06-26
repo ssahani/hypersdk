@@ -2195,6 +2195,7 @@ export default function PlatformVmDetail() {
                               type="button"
                               className="p-1 hover:bg-red-600/20 rounded"
                               title="Delete schedule"
+                              aria-label="Delete schedule"
                               onClick={async () => {
                                 try { await deleteVmSchedule(id!, s.id); void loadSchedules() } catch (e: unknown) { toast.error(formatUserError(e)) }
                               }}

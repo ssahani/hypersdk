@@ -84,7 +84,7 @@ export default function AuditLogPage() {
             placeholder="Action contains…"
             value={actionInp}
             onChange={(e) => setActionInp(e.target.value)}
-            className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 ${actionInp ? 'pr-8' : 'pr-4'}`}
+            className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 ${actionInp ? 'pr-8' : 'pr-4'}`}
           />
           {actionInp && (
             <button type="button" aria-label="Clear action filter" onClick={() => setActionInp('')}
@@ -101,7 +101,7 @@ export default function AuditLogPage() {
             placeholder="Actor contains…"
             value={actorInp}
             onChange={(e) => setActorInp(e.target.value)}
-            className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 ${actorInp ? 'pr-8' : 'pr-4'}`}
+            className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 ${actorInp ? 'pr-8' : 'pr-4'}`}
           />
           {actorInp && (
             <button type="button" aria-label="Clear actor filter" onClick={() => setActorInp('')}
@@ -118,7 +118,7 @@ export default function AuditLogPage() {
             placeholder="Any field (action, target, result, actor)…"
             value={qInp}
             onChange={(e) => setQInp(e.target.value)}
-            className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 ${qInp ? 'pr-8' : 'pr-4'}`}
+            className={`w-full pl-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 ${qInp ? 'pr-8' : 'pr-4'}`}
           />
           {qInp && (
             <button type="button" aria-label="Clear search" onClick={() => setQInp('')}

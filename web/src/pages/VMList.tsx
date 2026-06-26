@@ -242,7 +242,7 @@ export default function VMList() {
             placeholder="Search VMs..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className={`w-full pl-10 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm focus:outline-none focus:border-blue-500 ${search ? 'pr-8' : 'pr-4'}`}
+            className={`w-full pl-10 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 ${search ? 'pr-8' : 'pr-4'}`}
           />
           {search && (
             <button type="button" aria-label="Clear search" onClick={() => setSearch('')}
@@ -258,7 +258,7 @@ export default function VMList() {
               value={tagFilter}
               onChange={(e) => setTagFilter(e.target.value)}
               aria-label="Filter by tag"
-              className="bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm py-2 px-3 focus:outline-none focus:border-blue-500 text-slate-300"
+              className="bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm py-2 px-3 focus:outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 text-slate-300"
             >
               <option value="">All tags</option>
               {allTagNames.map(t => <option key={t} value={t}>{t}</option>)}
@@ -314,7 +314,7 @@ export default function VMList() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <button onClick={(e) => { e.preventDefault(); togglePin(vmScopeKey(vm)); setPinnedRefresh(n => n + 1) }} className="p-1 hover:bg-yellow-600/20 rounded transition" title={isPinned(vmScopeKey(vm)) ? 'Unpin' : 'Pin'}>
+                      <button onClick={(e) => { e.preventDefault(); togglePin(vmScopeKey(vm)); setPinnedRefresh(n => n + 1) }} aria-label={isPinned(vmScopeKey(vm)) ? 'Unpin' : 'Pin'} className="p-1 hover:bg-yellow-600/20 rounded transition" title={isPinned(vmScopeKey(vm)) ? 'Unpin' : 'Pin'}>
                         <Star className={`w-3.5 h-3.5 ${isPinned(vmScopeKey(vm)) ? `${statusToneClass('warn')} fill-[var(--machina-status-warn)]` : 'text-slate-500'}`} />
                       </button>
                       <Link to={vmDetailRoute(vm.name, vm.libvirt_connection)} className={`font-medium ${statusActionLinkClasses('info')}`}>{vm.name}</Link>
@@ -394,7 +394,7 @@ export default function VMList() {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 min-w-0">
                   <input type="checkbox" checked={selectedVMs.has(vmScopeKey(vm))} onChange={() => toggleSelect(vmScopeKey(vm))} className="rounded border-slate-600 bg-slate-900 shrink-0" />
-                  <button onClick={(e) => { e.preventDefault(); togglePin(vmScopeKey(vm)); setPinnedRefresh(n => n + 1) }} className="p-1 hover:bg-yellow-600/20 rounded transition" title={isPinned(vmScopeKey(vm)) ? 'Unpin' : 'Pin'}>
+                  <button onClick={(e) => { e.preventDefault(); togglePin(vmScopeKey(vm)); setPinnedRefresh(n => n + 1) }} aria-label={isPinned(vmScopeKey(vm)) ? 'Unpin' : 'Pin'} className="p-1 hover:bg-yellow-600/20 rounded transition" title={isPinned(vmScopeKey(vm)) ? 'Unpin' : 'Pin'}>
                     <Star className={`w-3.5 h-3.5 ${isPinned(vmScopeKey(vm)) ? `${statusToneClass('warn')} fill-[var(--machina-status-warn)]` : 'text-slate-500'}`} />
                   </button>
                   <Link to={vmDetailRoute(vm.name, vm.libvirt_connection)} className={`font-semibold truncate ${statusActionLinkClasses('info')}`}>{vm.name}</Link>

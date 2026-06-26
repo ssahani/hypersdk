@@ -241,7 +241,7 @@ export default function BackupsPage() {
                 aria-label="VM (leave empty for all)"
                 value={vmName}
                 onChange={(e) => setVmName(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
               >
                 <option value="">All VMs</option>
                 {vms.map((vm) => (
@@ -252,21 +252,23 @@ export default function BackupsPage() {
             <div>
               <label className="block text-sm text-slate-400 mb-1">NFS Target (optional)</label>
               <input
+                aria-label="NFS target (optional)"
                 type="text"
                 value={nfsTarget}
                 onChange={(e) => setNfsTarget(e.target.value)}
                 placeholder="192.168.1.100:/backups"
-                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
               />
             </div>
             <div>
               <label className="block text-sm text-slate-400 mb-1">Retention (keep last N)</label>
               <input
+                aria-label="Retention count"
                 type="number"
                 value={retain}
                 onChange={(e) => setRetain(parseInt(e.target.value) || 0)}
                 min={0}
-                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
               />
             </div>
             <div className="flex flex-col gap-3 pt-4">
@@ -371,6 +373,7 @@ export default function BackupsPage() {
                           disabled={statusBusy === b.id}
                           className="p-1.5 hover:bg-slate-600/40 rounded transition"
                           title="Refresh live backup status"
+                          aria-label="Refresh live backup status"
                         >
                           {statusBusy === b.id ? (
                             <Loader2 className="w-4 h-4 animate-spin text-slate-300" />
@@ -385,6 +388,7 @@ export default function BackupsPage() {
                           disabled={verifying === b.id}
                           className="p-1.5 hover:bg-green-600/20 rounded transition"
                           title="Verify checksums"
+                          aria-label="Verify checksums"
                         >
                           {verifying === b.id ? (
                             <Loader2 className={`w-4 h-4 animate-spin ${statusToneClass('ok')}`} />
@@ -397,6 +401,7 @@ export default function BackupsPage() {
                         href={downloadBackupUrl(b.id)}
                         className="p-1.5 hover:bg-cyan-600/20 rounded transition"
                         title="Download as tar.gz"
+                        aria-label="Download as tar.gz"
                       >
                         <Download className="w-4 h-4 text-cyan-400" />
                       </a>
