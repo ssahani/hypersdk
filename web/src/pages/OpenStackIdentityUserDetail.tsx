@@ -16,6 +16,7 @@ import {
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 export default function OpenStackIdentityUserDetailPage() {
   return (
@@ -31,6 +32,7 @@ function OpenStackIdentityUserDetailContent() {
   const [user, setUser] = useState<OpenStackIdentityUser | null>(null)
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(true)
+  useBreadcrumbName(user?.name)
 
   const load = useCallback(async () => {
     if (!id) return

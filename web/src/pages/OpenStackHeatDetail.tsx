@@ -22,6 +22,7 @@ import {
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 type Tab = 'overview' | 'resources' | 'events' | 'template' | 'outputs'
 
@@ -45,6 +46,7 @@ function OpenStackHeatDetailContent() {
   const [template, setTemplate] = useState('')
   const [editTemplate, setEditTemplate] = useState('')
   const [tabLoading, setTabLoading] = useState(false)
+  useBreadcrumbName(stack?.stack_name)
 
   const loadStack = useCallback(async () => {
     if (!name || !id) return

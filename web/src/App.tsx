@@ -19,6 +19,7 @@ import ZeusSpotlight from './components/ai/ZeusSpotlight'
 import ZeusAssistant from './components/ai/ZeusAssistant'
 import ZeusAmbientBar from './components/ai/ZeusAmbientBar'
 import Breadcrumb from './components/Breadcrumb'
+import { BreadcrumbNameProvider } from './contexts/BreadcrumbNameContext'
 import HelpDialog, { type HelpTab } from './components/HelpDialog'
 import { OPEN_HELP_EVENT } from './utils/openHelp'
 import PageSkeleton from './components/PageSkeleton'
@@ -300,9 +301,11 @@ function AuthenticatedShell() {
     <WebSocketProvider>
       <PlatformInfoProvider>
         <BrowserRouter>
-          <AiProvider>
-            <AuthenticatedShellRoutes />
-          </AiProvider>
+          <BreadcrumbNameProvider>
+            <AiProvider>
+              <AuthenticatedShellRoutes />
+            </AiProvider>
+          </BreadcrumbNameProvider>
         </BrowserRouter>
       </PlatformInfoProvider>
     </WebSocketProvider>

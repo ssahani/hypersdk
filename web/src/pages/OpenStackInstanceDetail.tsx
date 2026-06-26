@@ -35,6 +35,7 @@ import { formatUserError } from '../utils/apiError'
 import { statusActionLinkClasses, statusBadgeClasses, statusBorderClass, statusDestructiveButtonClasses, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 import { openStackErrorHints } from '../utils/openstackHints'
 import ErrorBanner from '../components/ErrorBanner'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 function CopyBtn({ text }: { text: string }) {
   const toast = useToastContext()
@@ -79,6 +80,7 @@ function OpenStackInstanceDetailContent() {
   const [exportOpen, setExportOpen] = useState(false)
   const [heatStack, setHeatStack] = useState<{ stack_id?: string; stack_name?: string } | null>(null)
   const [actionError, setActionError] = useState<{ label: string; message: string } | null>(null)
+  useBreadcrumbName(inst?.name)
 
   const load = useCallback(async () => {
     if (!id) return

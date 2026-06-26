@@ -32,6 +32,7 @@ import {
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 export default function OpenStackLoadBalancerDetailPage() {
   return (
@@ -61,6 +62,7 @@ function OpenStackLoadBalancerDetailContent() {
   const [memberPort, setMemberPort] = useState('80')
   const [memberPoolId, setMemberPoolId] = useState('')
   const [monitorPoolId, setMonitorPoolId] = useState('')
+  useBreadcrumbName(lb?.name)
 
   const load = useCallback(async () => {
     if (!id) return

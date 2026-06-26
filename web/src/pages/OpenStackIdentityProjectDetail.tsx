@@ -23,6 +23,7 @@ import {
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 export default function OpenStackIdentityProjectDetailPage() {
   return (
@@ -42,6 +43,7 @@ function OpenStackIdentityProjectDetailContent() {
   const [grantUserId, setGrantUserId] = useState('')
   const [grantRoleId, setGrantRoleId] = useState('')
   const [loading, setLoading] = useState(true)
+  useBreadcrumbName(project?.name)
 
   const load = useCallback(async () => {
     if (!id) return

@@ -12,6 +12,7 @@ import PageSkeleton from '../components/PageSkeleton'
 import OpenStackImageSharingModal from '../components/OpenStackImageSharingModal'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 function formatBytes(n?: number) {
   if (n == null || n === 0) return '—'
@@ -34,6 +35,7 @@ function OpenStackImageDetailContent() {
   const [image, setImage] = useState<OpenStackImage | null>(null)
   const [loading, setLoading] = useState(true)
   const [shareOpen, setShareOpen] = useState(false)
+  useBreadcrumbName(image?.name)
 
   const load = useCallback(async () => {
     if (!id) return

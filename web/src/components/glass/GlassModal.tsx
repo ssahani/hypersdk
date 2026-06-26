@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from 'framer-motion'
 import { X } from 'lucide-react'
-import { type ReactNode, useEffect } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
 
 const spring = { type: 'spring' as const, stiffness: 320, damping: 28, mass: 0.85 }
 
@@ -17,12 +17,19 @@ export type GlassModalProps = {
 }
 
 export function GlassModal({ open, onClose, title, subtitle, children, wide, footer }: GlassModalProps) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [open, onClose])
+
+  // Move focus to close button when modal opens so keyboard users don't get lost
+  useEffect(() => {
+    if (open) closeButtonRef.current?.focus()
+  }, [open])
 
   return (
     <AnimatePresence>
@@ -57,6 +64,7 @@ export function GlassModal({ open, onClose, title, subtitle, children, wide, foo
                   {subtitle && <p className="text-sm text-[var(--text-secondary)] mt-0.5">{subtitle}</p>}
                 </div>
                 <button
+                  ref={closeButtonRef}
                   type="button"
                   onClick={onClose}
                   className="rounded-lg p-1.5 text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)] transition"

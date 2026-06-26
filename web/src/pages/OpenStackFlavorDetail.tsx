@@ -11,6 +11,7 @@ import PageLayout from '../components/PageLayout'
 import PageSkeleton from '../components/PageSkeleton'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 export default function OpenStackFlavorDetailPage() {
   return (
@@ -25,6 +26,7 @@ function OpenStackFlavorDetailContent() {
   const toast = useToastContext()
   const [flavor, setFlavor] = useState<OpenStackFlavor | null>(null)
   const [loading, setLoading] = useState(true)
+  useBreadcrumbName(flavor?.name)
 
   const load = useCallback(async () => {
     if (!id) return

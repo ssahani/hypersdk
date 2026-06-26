@@ -30,7 +30,7 @@
   --glass-tint: rgba(180, 200, 255, 0.015);
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-muted: #8898aa;
 }
 
 .light-glass {
@@ -42,7 +42,7 @@
   --glass-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
   --glass-highlight: rgba(255, 255, 255, 0.25);
   --text-primary: #0f172a;
-  --text-secondary: #475569;
+  --text-secondary: #374151;
   --text-muted: #64748b;
 }
 
@@ -1920,7 +1920,12 @@ a.tahoe-context-app-title:hover {
   color: #e2e8f0;
   transition: border-color 0.15s ease;
 }
-.input-field:focus {
+.input-field:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.6);
+  outline-offset: 2px;
+  border-color: #3b82f6;
+}
+.input-field:focus:not(:focus-visible) {
   outline: none;
   border-color: #3b82f6;
 }
