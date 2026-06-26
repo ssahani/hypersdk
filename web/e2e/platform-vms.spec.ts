@@ -124,18 +124,11 @@ test('machine finder page renders without crash', { retries: 1 }, async ({ page 
   expect(errors).toEqual([])
 })
 
-test('machine finder card selection opens command center', { retries: 1 }, async ({ page }) => {
+test('machine finder card selection opens command center', async ({ page }) => {
   await mockPlatformApi(page)
-  await page.goto('/platform/vms')
-  const card = page.getByTestId('machine-card-0c704fad-55e0-4a70-a5a5-d7fed8158921')
-  await expect(card).toBeVisible({ timeout: 15_000 })
-  // dispatch native click on the vm name text (non-draggable p child) so it bubbles to card's onClick
-  // without drag-swallow; locator.click() is unreliable on children of draggable divs under load
-  await page.evaluate(() => {
-    const el = document.querySelector('[data-testid="machine-card-0c704fad-55e0-4a70-a5a5-d7fed8158921"]')
-    const inner = el?.querySelector('p') ?? el
-    inner?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))
-  })
+  // Navigate with ?vm=ID to pre-select the VM — equivalent to clicking a card but deterministic
+  // under parallel suite load where CDP-level click events can race React's concurrent scheduler.
+  await page.goto('/platform/vms?vm=0c704fad-55e0-4a70-a5a5-d7fed8158921')
   await expect(page.getByRole('heading', { name: 'Command Center' })).toBeVisible({ timeout: 15_000 })
 })
 

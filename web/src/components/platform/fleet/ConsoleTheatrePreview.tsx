@@ -123,7 +123,7 @@ export default function ConsoleTheatrePreview({
         </div>
       ) : (
         <div className="px-3 py-3 text-xs text-slate-500">
-          {plan?.protocols.includes('spice') || plan?.protocols.includes('webrtc_spice')
+          {plan?.protocols?.includes('spice') || plan?.protocols?.includes('webrtc_spice')
             ? 'This VM uses SPICE — open SPICE or Performance above.'
             : 'Open VNC above or use ConsoleHub for serial/SSH lenses.'}
         </div>
