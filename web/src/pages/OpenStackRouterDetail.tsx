@@ -21,6 +21,7 @@ import PageLayout from '../components/PageLayout'
 import PageSkeleton from '../components/PageSkeleton'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 export default function OpenStackRouterDetailPage() {
   return (
@@ -39,6 +40,7 @@ function OpenStackRouterDetailContent() {
   const [subnets, setSubnets] = useState<OpenStackSubnet[]>([])
   const [linkSubnetId, setLinkSubnetId] = useState('')
   const [loading, setLoading] = useState(true)
+  useBreadcrumbName(router?.name)
 
   const load = useCallback(async () => {
     if (!id) return

@@ -35,6 +35,7 @@ import {
 } from '../../api/zeusSecurity'
 import { formatUserError } from '../../utils/apiError'
 import { useToastContext } from '../../contexts/ToastContext'
+import { useBreadcrumbName } from '../../contexts/BreadcrumbNameContext'
 import AskZeusButton from '../../components/ai/AskZeusButton'
 import DetailTabs from '../../components/platform/DetailTabs'
 import { statusPillClasses, hubLinkClasses } from '../../utils/semanticColors'
@@ -144,6 +145,8 @@ export default function PlatformMachineSecurity() {
       void getHostProcessGraph(hostId).then(setGraph).catch(() => setGraph(null))
     }
   }, [tab, hostId])
+
+  useBreadcrumbName((summary?.hostname as string) ?? '')
 
   if (!hostId) return null
 

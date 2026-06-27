@@ -58,6 +58,7 @@ export default function PlatformVmBuilder() {
     >
       <MacGlassPanel title="Prompt">
         <textarea
+          aria-label="Workload prompt"
           className="input w-full min-h-[5rem] text-sm"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}

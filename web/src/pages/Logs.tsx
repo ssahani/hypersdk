@@ -140,7 +140,7 @@ export default function LogsPage() {
           aria-label="Priority"
           value={priority}
           onChange={e => setPriority(e.target.value)}
-          className="bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
+          className="bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
         >
           <option value="">All priorities</option>
           {PRIORITIES.map(p => (
@@ -156,7 +156,7 @@ export default function LogsPage() {
             placeholder="Filter by unit (e.g. sshd, machina-daemon)"
             value={unit}
             onChange={e => setUnit(e.target.value)}
-            className={`w-full pl-10 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)] ${unit ? 'pr-8' : 'pr-4'}`}
+            className={`w-full pl-10 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)] ${unit ? 'pr-8' : 'pr-4'}`}
           />
           {unit && (
             <button type="button" aria-label="Clear unit filter" onClick={() => setUnit('')}
@@ -174,7 +174,7 @@ export default function LogsPage() {
             placeholder="Search log messages (like --grep)"
             value={grep}
             onChange={e => setGrep(e.target.value)}
-            className={`w-full pl-10 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)] ${grep ? 'pr-8' : 'pr-4'}`}
+            className={`w-full pl-10 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)] ${grep ? 'pr-8' : 'pr-4'}`}
           />
           {grep && (
             <button type="button" aria-label="Clear message filter" onClick={() => setGrep('')}
@@ -188,7 +188,7 @@ export default function LogsPage() {
           aria-label="Boot"
           value={boot}
           onChange={e => setBoot(e.target.value)}
-          className="bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
+          className="bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
         >
           {BOOT_FILTERS.map((b) => (
             <option key={b.label} value={b.value}>{b.label}</option>
@@ -206,7 +206,7 @@ export default function LogsPage() {
           placeholder='Since (e.g. "1 hour ago" or 2026-04-20 10:00:00)'
           value={since}
           onChange={e => setSince(e.target.value)}
-          className="min-w-[230px] bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
+          className="min-w-[230px] bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
         />
 
         <input
@@ -215,7 +215,7 @@ export default function LogsPage() {
           placeholder='Until (e.g. "now" or 2026-04-27 13:00:00)'
           value={until}
           onChange={e => setUntil(e.target.value)}
-          className="min-w-[230px] bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
+          className="min-w-[230px] bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
         />
 
         <input
@@ -225,7 +225,7 @@ export default function LogsPage() {
           placeholder="UID"
           value={uid}
           onChange={e => setUid(e.target.value)}
-          className="w-24 bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
+          className="w-24 bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
         />
 
         <input
@@ -235,14 +235,14 @@ export default function LogsPage() {
           placeholder="PID"
           value={pid}
           onChange={e => setPid(e.target.value)}
-          className="w-28 bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
+          className="w-28 bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
         />
 
         <select
           aria-label="Line count"
           value={lineCount}
           onChange={e => setLineCount(Number(e.target.value))}
-          className="bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
+          className="bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
         >
           {LINE_COUNTS.map(n => (
             <option key={n} value={n}>{n} lines</option>
@@ -254,7 +254,7 @@ export default function LogsPage() {
             type="checkbox"
             checked={autoRefresh}
             onChange={e => setAutoRefresh(e.target.checked)}
-            className="rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
+            className="rounded border-slate-600 bg-slate-800 text-blue-500 focus-visible:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
           />
           Auto-refresh
         </label>
@@ -264,7 +264,7 @@ export default function LogsPage() {
             type="checkbox"
             checked={kernelOnly}
             onChange={e => setKernelOnly(e.target.checked)}
-            className="rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
+            className="rounded border-slate-600 bg-slate-800 text-blue-500 focus-visible:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
           />
           Kernel only (-k)
         </label>
@@ -288,10 +288,10 @@ export default function LogsPage() {
             <table className="w-full" aria-label="System logs">
               <thead className="sticky top-0 bg-slate-800 z-10">
                 <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
-                  <th className="text-left px-3 py-2 whitespace-nowrap">Timestamp</th>
-                  <th className="text-left px-3 py-2">Priority</th>
-                  <th className="text-left px-3 py-2">Unit</th>
-                  <th className="text-left px-3 py-2">Message</th>
+                  <th scope="col" className="text-left px-3 py-2 whitespace-nowrap">Timestamp</th>
+                  <th scope="col" className="text-left px-3 py-2">Priority</th>
+                  <th scope="col" className="text-left px-3 py-2">Unit</th>
+                  <th scope="col" className="text-left px-3 py-2">Message</th>
                 </tr>
               </thead>
               <tbody>

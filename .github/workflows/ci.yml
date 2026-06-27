@@ -47,7 +47,7 @@ jobs:
       - run: npm ci
       - run: npm run generate-openapi:check
       - run: npx tsc --noEmit
-      - run: npm test
+      - run: npm run test:coverage
       - run: npm run build
       - run: npm run api-ux-coverage:check
       - run: npm run test:e2e:install

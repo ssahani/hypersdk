@@ -23,6 +23,7 @@ import {
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 export default function OpenStackIdentityProjectDetailPage() {
   return (
@@ -42,6 +43,7 @@ function OpenStackIdentityProjectDetailContent() {
   const [grantUserId, setGrantUserId] = useState('')
   const [grantRoleId, setGrantRoleId] = useState('')
   const [loading, setLoading] = useState(true)
+  useBreadcrumbName(project?.name)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -125,7 +127,7 @@ function OpenStackIdentityProjectDetailContent() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm" aria-label="Project role assignments">
             <thead className="text-slate-400 text-left">
-              <tr><th className="py-1">User</th><th className="py-1">Role</th><th /></tr>
+              <tr><th scope="col" className="py-1">User</th><th scope="col" className="py-1">Role</th><th scope="col" /></tr>
             </thead>
             <tbody>
               {assignments.map((a, i) => (

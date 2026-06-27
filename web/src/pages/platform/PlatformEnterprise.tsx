@@ -252,10 +252,10 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
             <table className="w-full text-sm text-left" aria-label="MFA-required users">
               <thead className="text-xs text-slate-500 border-b border-slate-700">
                 <tr>
-                  <th className="py-2 pr-4">User</th>
-                  <th className="py-2 pr-4">Role</th>
-                  <th className="py-2 pr-4">Method</th>
-                  <th className="py-2">Status</th>
+                  <th scope="col" className="py-2 pr-4">User</th>
+                  <th scope="col" className="py-2 pr-4">Role</th>
+                  <th scope="col" className="py-2 pr-4">Method</th>
+                  <th scope="col" className="py-2">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -327,11 +327,11 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
           <table className="w-full text-sm text-left" aria-label="Tenant isolation policies">
             <thead className="text-xs text-slate-500 border-b border-slate-700">
               <tr>
-                <th className="py-2 pr-4">Project</th>
-                <th className="py-2 pr-4">VMs</th>
-                <th className="py-2 pr-4">Network</th>
-                <th className="py-2 pr-4">Quotas</th>
-                <th className="py-2">Status</th>
+                <th scope="col" className="py-2 pr-4">Project</th>
+                <th scope="col" className="py-2 pr-4">VMs</th>
+                <th scope="col" className="py-2 pr-4">Network</th>
+                <th scope="col" className="py-2 pr-4">Quotas</th>
+                <th scope="col" className="py-2">Status</th>
               </tr>
             </thead>
             <tbody>

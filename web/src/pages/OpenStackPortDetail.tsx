@@ -12,6 +12,7 @@ import PageSkeleton from '../components/PageSkeleton'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { statusBadgeClasses } from '../utils/semanticColors'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 export default function OpenStackPortDetailPage() {
   return (
@@ -26,6 +27,7 @@ function OpenStackPortDetailContent() {
   const toast = useToastContext()
   const [port, setPort] = useState<OpenStackPort | null>(null)
   const [loading, setLoading] = useState(true)
+  useBreadcrumbName(port?.name)
 
   const load = useCallback(async () => {
     if (!id) return

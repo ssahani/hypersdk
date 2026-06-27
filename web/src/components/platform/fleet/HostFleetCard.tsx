@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { Monitor, Server, Wrench } from 'lucide-react'
 import type { FleetLinuxHostItem, PlatformHost } from '../../../api/platform'
 import { statusPillClasses } from '../../../utils/semanticColors'
+import { DetailPanel, MetricList, type MetricItem } from '../DetailPanel'
 
 type Props = {
   host: PlatformHost
@@ -59,32 +60,53 @@ export function HostCommandCenter({
 }) {
   if (!host) {
     return (
-      <aside className="w-full xl:w-72 shrink-0 rounded-xl border border-white/[0.06] bg-slate-950/50 p-4">
-        <p className="text-sm text-slate-500">Select a host for Command Center</p>
-      </aside>
+      <DetailPanel
+        empty
+        emptyMessage="Select a host for Command Center"
+        className="hidden xl:flex"
+        testId="host-command-center-empty"
+      />
     )
   }
+
+  const online = host.state === 'online' && !host.maintenance_mode
   const memPct = host.memory_total_mib && host.memory_total_mib > 0
     ? Math.round(((host.memory_used_mib ?? 0) / host.memory_total_mib) * 100)
     : null
+
+  const metrics: MetricItem[] = [
+    { label: 'State', value: <span className={online ? 'text-emerald-300' : 'text-amber-300'}>{host.maintenance_mode ? 'maintenance' : host.state}</span> },
+    { label: 'VMs', value: String(host.vm_count) },
+    { label: 'CPU', value: `${Math.round(host.cpu_percent ?? 0)}%` },
+    { label: 'Memory', value: memPct != null ? `${memPct}%` : '—' },
+    { label: 'Linux', value: linux?.status ?? '—', span: true },
+  ]
+
   return (
-    <aside className="w-full xl:w-72 shrink-0 rounded-xl border border-white/[0.06] bg-slate-950/50 overflow-hidden" data-testid="host-command-center">
-      <header className="px-4 py-3 border-b border-white/[0.06]">
-        <h2 className="font-semibold text-white">Host Command Center</h2>
-        <p className="text-xs text-slate-500 truncate">{host.hostname}</p>
-      </header>
-      <div className="p-4 space-y-3 text-sm">
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="rounded-lg bg-slate-900/60 p-2 border border-slate-800"><p className="text-slate-500">CPU</p><p>{Math.round(host.cpu_percent ?? 0)}%</p></div>
-          <div className="rounded-lg bg-slate-900/60 p-2 border border-slate-800"><p className="text-slate-500">Memory</p><p>{memPct != null ? `${memPct}%` : '—'}</p></div>
-          <div className="rounded-lg bg-slate-900/60 p-2 border border-slate-800 col-span-2"><p className="text-slate-500">Linux</p><p>{linux?.status ?? '—'}</p></div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link to={`/platform/vms?lens=topology&host=${encodeURIComponent(host.id)}`} className="btn-secondary text-xs flex-1 text-center">Machine Finder</Link>
-          <Link to="/platform/enroll" className="btn-secondary text-xs flex-1 text-center">Add VM</Link>
-        </div>
-        <Link to={`/platform/hosts/${host.id}`} className="btn-primary text-sm block text-center inline-flex items-center justify-center gap-1"><Wrench className="w-3.5 h-3.5" /> Open host detail</Link>
+    <DetailPanel
+      title="Host Command Center"
+      subtitle={host.hostname}
+      statusBadge={<span className={statusPillClasses(online ? 'ok' : 'warn')}>{online ? 'Healthy' : host.state}</span>}
+      footer={
+        <Link
+          to={`/platform/hosts/${host.id}`}
+          className="btn-primary text-sm w-full text-center inline-flex items-center justify-center gap-1.5"
+        >
+          <Wrench className="w-3.5 h-3.5" /> Open host detail
+        </Link>
+      }
+      testId="host-command-center"
+    >
+      <MetricList items={metrics} />
+      <div className="flex flex-wrap gap-2">
+        <Link
+          to={`/platform/vms?lens=topology&host=${encodeURIComponent(host.id)}`}
+          className="btn-secondary text-xs flex-1 text-center inline-flex items-center justify-center gap-1"
+        >
+          <Monitor className="w-3 h-3" /> Machine Finder
+        </Link>
+        <Link to="/platform/enroll" className="btn-secondary text-xs flex-1 text-center">Add VM</Link>
       </div>
-    </aside>
+    </DetailPanel>
   )
 }

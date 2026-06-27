@@ -204,7 +204,14 @@ export default function PlatformRuntimeEnforcement() {
       title="Runtime enforcement"
       subtitle="eBPF deny rules — process · DNS · port · IP · file · cap · namespace via Tetragon TracingPolicy"
       icon={<Shield className="w-6 h-6 text-slate-400" />}
-      actions={<PlatformRefreshButton onClick={() => void load()} />}
+      actions={
+        <div className="flex items-center gap-2">
+          <button type="button" className="btn-primary text-sm" onClick={createPolicy}>
+            Create policy
+          </button>
+          <PlatformRefreshButton onClick={() => void load()} />
+        </div>
+      }
       contentLoading={loading && !status}
       contentClassName="space-y-4"
     >
@@ -311,6 +318,7 @@ export default function PlatformRuntimeEnforcement() {
                   </button>
                   <button
                     type="button"
+                    aria-label="Delete"
                     className="btn-secondary text-xs text-red-300"
                     onClick={() => p.id && removePolicy(p.id)}
                   >

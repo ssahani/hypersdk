@@ -127,7 +127,8 @@ export default function PlatformBareMetal() {
                   value={hostname}
                   onChange={(e) => setHostname(e.target.value)}
                   placeholder="metal-01.example.com"
-                  className="w-full rounded border border-border/50 bg-background/60 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  aria-label="Hostname"
+                  className="w-full rounded border border-border/50 bg-background/60 px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 />
               </div>
               <div>
@@ -136,7 +137,8 @@ export default function PlatformBareMetal() {
                   value={bmcAddress}
                   onChange={(e) => setBmcAddress(e.target.value)}
                   placeholder="192.168.10.5"
-                  className="w-full rounded border border-border/50 bg-background/60 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  aria-label="BMC Address"
+                  className="w-full rounded border border-border/50 bg-background/60 px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 />
               </div>
               <div>
@@ -144,7 +146,8 @@ export default function PlatformBareMetal() {
                 <select
                   value={bmcType}
                   onChange={(e) => setBmcType(e.target.value)}
-                  className="w-full rounded border border-border/50 bg-background/60 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  aria-label="BMC Type"
+                  className="w-full rounded border border-border/50 bg-background/60 px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
                   <option value="redfish">Redfish</option>
                   <option value="ipmi">IPMI</option>

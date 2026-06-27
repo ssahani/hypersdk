@@ -316,10 +316,10 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
               <table className="w-full text-sm" aria-label="Project costs">
                 <thead>
                   <tr className="text-left text-slate-500 border-b border-white/[0.06]">
-                    <th className="py-2 pr-2">Project</th>
-                    <th className="py-2 pr-2">Cost</th>
-                    <th className="py-2 pr-2">Grade</th>
-                    <th className="py-2 pr-2">VMs</th>
+                    <th scope="col" className="py-2 pr-2">Project</th>
+                    <th scope="col" className="py-2 pr-2">Cost</th>
+                    <th scope="col" className="py-2 pr-2">Grade</th>
+                    <th scope="col" className="py-2 pr-2">VMs</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -418,10 +418,10 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
                   <table className="w-full text-xs" aria-label="VM migration readiness">
                     <thead>
                       <tr className="text-left text-slate-500">
-                        <th className="py-1 pr-2">VM</th>
-                        <th className="py-1 pr-2">Ready</th>
-                        <th className="py-1 pr-2">Assurance</th>
-                        <th className="py-1">Gaps</th>
+                        <th scope="col" className="py-1 pr-2">VM</th>
+                        <th scope="col" className="py-1 pr-2">Ready</th>
+                        <th scope="col" className="py-1 pr-2">Assurance</th>
+                        <th scope="col" className="py-1">Gaps</th>
                       </tr>
                     </thead>
                     <tbody>

@@ -252,6 +252,13 @@ export function useMachineFinder() {
 
   useEffect(() => { void load() }, [load])
 
+  // Apply ?vm=ID URL param to pre-select a VM after data has loaded.
+  const vmParamId = searchParams.get('vm')
+  useEffect(() => {
+    if (!vmParamId || vms.length === 0) return
+    if (vms.some((v) => v.id === vmParamId)) setSelectedVmId(vmParamId)
+  }, [vmParamId, vms])
+
   useEffect(() => {
     if (overlay !== 'security') return
     void getAiSecurity().then(setAiSecurity).catch(() => setAiSecurity(null))

@@ -60,7 +60,7 @@ export default function VmCpuTopologyModal({ open, vmId, vmName, onClose, onSave
   }
 
   return (
-    <MacSheet open={open} onClose={onClose} title={`CPU topology — ${vmName}`}>
+    <MacSheet open={open} onClose={onClose} title={`CPU topology — ${vmName}`} ariaLabel="CPU topology">
       {loading ? (
         <p className="text-sm text-slate-400">Loading topology…</p>
       ) : (

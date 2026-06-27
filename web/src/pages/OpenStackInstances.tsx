@@ -250,11 +250,11 @@ function OpenStackInstancesContent() {
         <table className="w-full text-sm" aria-label="OpenStack instances">
           <thead className="bg-slate-900/80 text-slate-400 text-left">
             <tr>
-              <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Flavor</th>
-              <th className="px-4 py-3 font-medium">IPs</th>
-              <th className="px-4 py-3 font-medium text-right">Actions</th>
+              <th scope="col" className="px-4 py-3 font-medium">Name</th>
+              <th scope="col" className="px-4 py-3 font-medium">Status</th>
+              <th scope="col" className="px-4 py-3 font-medium">Flavor</th>
+              <th scope="col" className="px-4 py-3 font-medium">IPs</th>
+              <th scope="col" className="px-4 py-3 font-medium text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800">

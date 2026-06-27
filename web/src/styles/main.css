@@ -30,7 +30,7 @@
   --glass-tint: rgba(180, 200, 255, 0.015);
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-muted: #8898aa;
 }
 
 .light-glass {
@@ -42,7 +42,7 @@
   --glass-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
   --glass-highlight: rgba(255, 255, 255, 0.25);
   --text-primary: #0f172a;
-  --text-secondary: #475569;
+  --text-secondary: #374151;
   --text-muted: #64748b;
 }
 
@@ -59,7 +59,7 @@ body {
   font-feature-settings: 'ss02', 'ss03';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #0f172a;
+  background-color: var(--page-bg, #0f172a);
   color: var(--text-primary);
 }
 
@@ -393,6 +393,10 @@ a.tahoe-context-app-title:hover {
   border-color: rgba(56, 189, 248, 0.35);
   background: rgba(56, 189, 248, 0.06);
 }
+.tahoe-mobile-jump-select:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.6);
+  outline-offset: 2px;
+}
 
 .tahoe-context-pill {
   display: inline-flex;
@@ -719,7 +723,11 @@ a.tahoe-context-app-title:hover {
 }
 
 .machine-finder-command-center {
-  max-height: calc(100dvh - 12rem);
+  position: sticky;
+  top: calc(var(--platform-chrome-top, 6.5rem) + 0.5rem);
+  align-self: flex-start;
+  max-height: calc(100dvh - var(--platform-chrome-top, 6.5rem) - 2rem);
+  overflow-y: auto;
 }
 
 .mission-control-page,
@@ -1267,8 +1275,11 @@ a.tahoe-context-app-title:hover {
 }
 
 .mac-finder-search:focus {
-  outline: none;
   border-color: rgba(56, 189, 248, 0.35);
+}
+.mac-finder-search:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.6);
+  outline-offset: 2px;
 }
 
 .mac-finder-path {
@@ -1677,6 +1688,11 @@ a.tahoe-context-app-title:hover {
   border-color: rgba(59, 130, 246, 0.6);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
+.login-input:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.7);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.35);
+}
 .login-field-icon {
   position: absolute;
   left: 0.875rem;
@@ -1920,7 +1936,12 @@ a.tahoe-context-app-title:hover {
   color: #e2e8f0;
   transition: border-color 0.15s ease;
 }
-.input-field:focus {
+.input-field:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.6);
+  outline-offset: 2px;
+  border-color: #3b82f6;
+}
+.input-field:focus:not(:focus-visible) {
   outline: none;
   border-color: #3b82f6;
 }
@@ -2043,6 +2064,7 @@ a.tahoe-context-app-title:hover {
 /* Aurora theme — void shell with prismatic accents (Machina signature) */
 .aurora-theme {
   color-scheme: dark;
+  --page-bg: #030712;
 }
 .aurora-theme body {
   background-color: #030712;
@@ -2168,14 +2190,57 @@ a.tahoe-context-app-title:hover {
   border: 1px solid rgba(236, 72, 153, 0.2);
 }
 
-.aurora-theme .bg-slate-950 { background-color: rgba(8, 6, 20, 0.92); }
+/* Aurora-theme: comprehensive surface overrides for hardcoded Tailwind bg classes */
+.aurora-theme .bg-slate-950,
+.aurora-theme .bg-slate-950\/95,
+.aurora-theme .bg-slate-950\/98 { background-color: rgba(8, 6, 20, 0.97); }
+.aurora-theme .bg-slate-950\/90 { background-color: rgba(8, 6, 20, 0.9); }
+.aurora-theme .bg-slate-950\/80 { background-color: rgba(8, 6, 20, 0.8); }
+.aurora-theme .bg-slate-950\/60 { background-color: rgba(8, 6, 20, 0.6); }
+.aurora-theme .bg-slate-950\/50 { background-color: rgba(8, 6, 20, 0.5); }
+.aurora-theme .bg-slate-950\/40 { background-color: rgba(8, 6, 20, 0.4); }
+.aurora-theme .bg-slate-950\/30 { background-color: rgba(8, 6, 20, 0.3); }
+
+.aurora-theme .bg-slate-900,
+.aurora-theme .bg-slate-900\/98,
+.aurora-theme .bg-slate-900\/95 { background-color: rgba(10, 8, 22, 0.97); }
 .aurora-theme .bg-slate-900\/80 { background-color: rgba(12, 8, 28, 0.88); }
-.aurora-theme .bg-slate-800\/50,
-.aurora-theme .bg-slate-800\/40,
-.aurora-theme .bg-slate-800 {
-  background-color: rgba(18, 12, 36, 0.75);
-  border-color: rgba(167, 139, 250, 0.12);
-}
+.aurora-theme .bg-slate-900\/70 { background-color: rgba(10, 8, 22, 0.7); }
+.aurora-theme .bg-slate-900\/60 { background-color: rgba(10, 8, 22, 0.6); }
+.aurora-theme .bg-slate-900\/50 { background-color: rgba(10, 8, 22, 0.5); }
+.aurora-theme .bg-slate-900\/40 { background-color: rgba(10, 8, 22, 0.4); }
+.aurora-theme .bg-slate-900\/35 { background-color: rgba(10, 8, 22, 0.35); }
+.aurora-theme .bg-slate-900\/30 { background-color: rgba(10, 8, 22, 0.3); }
+.aurora-theme .bg-slate-900\/25 { background-color: rgba(10, 8, 22, 0.25); }
+.aurora-theme .bg-slate-900\/20 { background-color: rgba(10, 8, 22, 0.2); }
+
+.aurora-theme .bg-slate-800,
+.aurora-theme .bg-slate-800\/95,
+.aurora-theme .bg-slate-800\/80 { background-color: rgba(18, 12, 36, 0.88); }
+.aurora-theme .bg-slate-800\/70 { background-color: rgba(18, 12, 36, 0.7); }
+.aurora-theme .bg-slate-800\/60 { background-color: rgba(18, 12, 36, 0.6); }
+.aurora-theme .bg-slate-800\/55 { background-color: rgba(18, 12, 36, 0.55); }
+.aurora-theme .bg-slate-800\/50 { background-color: rgba(18, 12, 36, 0.5); }
+.aurora-theme .bg-slate-800\/40 { background-color: rgba(18, 12, 36, 0.4); }
+.aurora-theme .bg-slate-800\/30 { background-color: rgba(18, 12, 36, 0.3); }
+.aurora-theme .bg-slate-800\/20 { background-color: rgba(18, 12, 36, 0.2); }
+
+.aurora-theme .bg-slate-700,
+.aurora-theme .bg-slate-700\/80 { background-color: rgba(24, 18, 50, 0.88); }
+.aurora-theme .bg-slate-700\/60 { background-color: rgba(24, 18, 50, 0.6); }
+.aurora-theme .bg-slate-700\/50 { background-color: rgba(24, 18, 50, 0.5); }
+.aurora-theme .bg-slate-700\/40 { background-color: rgba(24, 18, 50, 0.4); }
+.aurora-theme .bg-slate-700\/30 { background-color: rgba(24, 18, 50, 0.3); }
+.aurora-theme .bg-slate-700\/20 { background-color: rgba(24, 18, 50, 0.2); }
+
+.aurora-theme .bg-slate-600,
+.aurora-theme .bg-slate-600\/80 { background-color: rgba(38, 28, 72, 0.88); }
+.aurora-theme .bg-slate-600\/50 { background-color: rgba(38, 28, 72, 0.5); }
+.aurora-theme .bg-slate-600\/40 { background-color: rgba(38, 28, 72, 0.4); }
+.aurora-theme .bg-slate-600\/30 { background-color: rgba(38, 28, 72, 0.3); }
+
+.aurora-theme .bg-slate-500 { background-color: rgba(55, 42, 100, 0.85); }
+
 .aurora-theme .border-slate-700\/50,
 .aurora-theme .border-slate-700,
 .aurora-theme .border-slate-700\/30 { border-color: rgba(167, 139, 250, 0.15); }
@@ -2183,6 +2248,18 @@ a.tahoe-context-app-title:hover {
 /* Steel theme — dark steel dashboard shell + nav helpers */
 .steel-theme {
   color-scheme: dark;
+  --page-bg: #0b1017;
+
+  /* Kill liquid-glass system — override every design token */
+  --blur-liquid: 0px;
+  --glass-bg: rgba(16, 23, 34, 0.97);
+  --glass-bg-elevated: rgba(20, 28, 40, 0.97);
+  --glass-bg-strong: rgba(11, 16, 23, 0.99);
+  --glass-border: rgba(100, 130, 165, 0.2);
+  --glass-border-strong: rgba(120, 145, 180, 0.28);
+  --glass-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 1px 4px rgba(0, 0, 0, 0.35);
+  --glass-highlight: rgba(120, 145, 180, 0.04);
+  --glass-tint: rgba(100, 130, 165, 0.01);
 }
 .steel-theme body {
   background-color: #0b1017;
@@ -2373,6 +2450,162 @@ a.tahoe-context-app-title:hover {
 }
 .steel-theme ::-webkit-scrollbar-thumb:hover {
   background: #556274;
+}
+
+/* Steel-theme: comprehensive surface overrides for hardcoded Tailwind bg classes */
+.steel-theme .bg-slate-950,
+.steel-theme .bg-slate-950\/98,
+.steel-theme .bg-slate-950\/95 { background-color: rgba(6, 10, 18, 0.97); }
+.steel-theme .bg-slate-950\/90 { background-color: rgba(6, 10, 18, 0.9); }
+.steel-theme .bg-slate-950\/80 { background-color: rgba(6, 10, 18, 0.8); }
+.steel-theme .bg-slate-950\/60 { background-color: rgba(6, 10, 18, 0.6); }
+.steel-theme .bg-slate-950\/50 { background-color: rgba(6, 10, 18, 0.5); }
+.steel-theme .bg-slate-950\/40 { background-color: rgba(6, 10, 18, 0.4); }
+.steel-theme .bg-slate-950\/30 { background-color: rgba(6, 10, 18, 0.3); }
+
+.steel-theme .bg-slate-900,
+.steel-theme .bg-slate-900\/98,
+.steel-theme .bg-slate-900\/95 { background-color: rgba(11, 16, 23, 0.97); }
+.steel-theme .bg-slate-900\/80 { background-color: rgba(11, 16, 23, 0.8); }
+.steel-theme .bg-slate-900\/70 { background-color: rgba(11, 16, 23, 0.7); }
+.steel-theme .bg-slate-900\/60 { background-color: rgba(11, 16, 23, 0.6); }
+.steel-theme .bg-slate-900\/50 { background-color: rgba(11, 16, 23, 0.5); }
+.steel-theme .bg-slate-900\/40 { background-color: rgba(11, 16, 23, 0.4); }
+.steel-theme .bg-slate-900\/35 { background-color: rgba(11, 16, 23, 0.35); }
+.steel-theme .bg-slate-900\/30 { background-color: rgba(11, 16, 23, 0.3); }
+.steel-theme .bg-slate-900\/25 { background-color: rgba(11, 16, 23, 0.25); }
+.steel-theme .bg-slate-900\/20 { background-color: rgba(11, 16, 23, 0.2); }
+
+.steel-theme .bg-slate-800,
+.steel-theme .bg-slate-800\/95,
+.steel-theme .bg-slate-800\/80 { background-color: rgba(16, 23, 34, 0.88); }
+.steel-theme .bg-slate-800\/70 { background-color: rgba(16, 23, 34, 0.7); }
+.steel-theme .bg-slate-800\/60 { background-color: rgba(16, 23, 34, 0.6); }
+.steel-theme .bg-slate-800\/55 { background-color: rgba(16, 23, 34, 0.55); }
+.steel-theme .bg-slate-800\/50 { background-color: rgba(16, 23, 34, 0.5); }
+.steel-theme .bg-slate-800\/40 { background-color: rgba(16, 23, 34, 0.4); }
+.steel-theme .bg-slate-800\/30 { background-color: rgba(16, 23, 34, 0.3); }
+.steel-theme .bg-slate-800\/20 { background-color: rgba(16, 23, 34, 0.2); }
+
+.steel-theme .bg-slate-700,
+.steel-theme .bg-slate-700\/80 { background-color: rgba(22, 32, 44, 0.88); }
+.steel-theme .bg-slate-700\/60 { background-color: rgba(22, 32, 44, 0.6); }
+.steel-theme .bg-slate-700\/50 { background-color: rgba(22, 32, 44, 0.5); }
+.steel-theme .bg-slate-700\/40 { background-color: rgba(22, 32, 44, 0.4); }
+.steel-theme .bg-slate-700\/30 { background-color: rgba(22, 32, 44, 0.3); }
+.steel-theme .bg-slate-700\/20 { background-color: rgba(22, 32, 44, 0.2); }
+
+.steel-theme .bg-slate-600,
+.steel-theme .bg-slate-600\/80 { background-color: rgba(36, 50, 68, 0.88); }
+.steel-theme .bg-slate-600\/50 { background-color: rgba(36, 50, 68, 0.5); }
+.steel-theme .bg-slate-600\/40 { background-color: rgba(36, 50, 68, 0.4); }
+.steel-theme .bg-slate-600\/30 { background-color: rgba(36, 50, 68, 0.3); }
+
+.steel-theme .bg-slate-500 { background-color: rgba(60, 82, 108, 0.85); }
+
+.steel-theme .border-slate-700\/50,
+.steel-theme .border-slate-700,
+.steel-theme .border-slate-700\/30 { border-color: rgba(120, 145, 175, 0.15); }
+
+/* Steel: kill all backdrop blur — hardcoded values not covered by --blur-liquid var */
+.steel-theme .glass,
+.steel-theme .glass-elevated,
+.steel-theme .glass-strong,
+.steel-theme .glass-card,
+.steel-theme .tahoe-glass-card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.steel-theme .liquid-glass-navbar {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: linear-gradient(180deg, #0f141a 0%, #1a222d 50%, #0c1117 100%);
+  border-bottom-color: rgba(140, 160, 190, 0.18);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.steel-theme .liquid-glass-modal-panel {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: linear-gradient(160deg, #141c26 0%, #0f1722 100%);
+  border-color: rgba(120, 145, 175, 0.22);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.steel-theme .liquid-glass-modal-backdrop {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.steel-theme .liquid-glass-toast {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(16, 23, 34, 0.98);
+  border-color: rgba(120, 145, 175, 0.22);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.steel-theme .liquid-glass-breadcrumb {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Steel: suppress every backdrop-blur-* Tailwind utility */
+.steel-theme [class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Steel: replace transparent-white borders with steel-tinted borders */
+.steel-theme [class*="border-white"] {
+  border-color: rgba(100, 130, 165, 0.18);
+}
+
+/* Steel: replace transparent-white backgrounds with solid steel surface */
+.steel-theme [class*="bg-white\/"] {
+  background-color: rgba(16, 23, 34, 0.45);
+}
+
+/* Steel: kill hardcoded and calc() blur on platform shell components */
+/* These use blur(Xpx) or calc(var(--blur-liquid) + Xpx) — variable override alone isn't enough */
+.steel-theme .platform-mac-shell {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.steel-theme .platform-mac-panel,
+.steel-theme .platform-mac-stat {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(16, 23, 34, 0.95);
+}
+.steel-theme .platform-vm-card,
+.steel-theme .platform-action-card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.steel-theme .mac-finder-sidebar {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(11, 16, 23, 0.98);
+}
+.steel-theme .mac-dock-inner {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(16, 23, 34, 0.97);
+}
+.steel-theme .tahoe-context-bar {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(11, 16, 23, 0.95);
+  border-bottom-color: rgba(120, 145, 175, 0.18);
+}
+.steel-theme .platform-detail-tabs-sticky {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(11, 16, 23, 0.97);
+  border-bottom-color: rgba(120, 145, 175, 0.15);
 }
 
 /* ── VM detail: machine cockpit polish ─────────────────────────── */

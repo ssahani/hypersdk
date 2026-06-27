@@ -115,7 +115,7 @@ function OpenStackSecurityGroupsContent() {
       </div>
 
       <div className="rounded-xl border border-slate-700 p-4 flex flex-wrap gap-2 items-end text-sm">
-        <input id="new-sg-name" placeholder="New group name"
+        <input id="new-sg-name" placeholder="New group name" aria-label="New security group name"
           className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700" />
         <button type="button" className="px-3 py-1.5 rounded-lg bg-sky-600 text-white"
           onClick={async () => {
@@ -218,12 +218,12 @@ function OpenStackSecurityGroupsContent() {
                     <table className="w-full text-sm" aria-label="Security group rules">
                       <thead className="bg-slate-900 text-slate-400 text-left">
                         <tr>
-                          <th className="px-3 py-2">Direction</th>
-                          <th className="px-3 py-2">Protocol</th>
-                          <th className="px-3 py-2">Ports</th>
-                          <th className="px-3 py-2">Remote</th>
-                          <th className="px-3 py-2">Ether</th>
-                          <th className="px-3 py-2" />
+                          <th scope="col" className="px-3 py-2">Direction</th>
+                          <th scope="col" className="px-3 py-2">Protocol</th>
+                          <th scope="col" className="px-3 py-2">Ports</th>
+                          <th scope="col" className="px-3 py-2">Remote</th>
+                          <th scope="col" className="px-3 py-2">Ether</th>
+                          <th scope="col" className="px-3 py-2" />
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800 font-mono text-xs">

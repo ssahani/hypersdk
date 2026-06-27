@@ -11,6 +11,7 @@ import PageLayout from '../components/PageLayout'
 import PageSkeleton from '../components/PageSkeleton'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 export default function OpenStackSubnetDetailPage() {
   return (
@@ -26,6 +27,7 @@ function OpenStackSubnetDetailContent() {
   const toast = useToastContext()
   const [subnet, setSubnet] = useState<OpenStackSubnet | null>(null)
   const [loading, setLoading] = useState(true)
+  useBreadcrumbName(subnet?.name)
 
   const load = useCallback(async () => {
     if (!id) return

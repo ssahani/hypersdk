@@ -928,11 +928,11 @@ export default function K8sOverviewPage() {
                 <table className="w-full text-xs" aria-label="etcd pods">
                   <thead>
                     <tr className="text-left text-slate-500 border-b border-slate-700/40">
-                      <th className="px-3 py-2">Pod</th>
-                      <th className="px-3 py-2">Node</th>
-                      <th className="px-3 py-2">Plane</th>
-                      <th className="px-3 py-2">Phase</th>
-                      <th className="px-3 py-2">Tag</th>
+                      <th scope="col" className="px-3 py-2">Pod</th>
+                      <th scope="col" className="px-3 py-2">Node</th>
+                      <th scope="col" className="px-3 py-2">Plane</th>
+                      <th scope="col" className="px-3 py-2">Phase</th>
+                      <th scope="col" className="px-3 py-2">Tag</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700/30 text-slate-300">
@@ -962,11 +962,11 @@ export default function K8sOverviewPage() {
                 <table className="w-full text-xs" aria-label="Control plane pods">
                   <thead>
                     <tr className="text-left text-slate-500 border-b border-slate-700/40">
-                      <th className="px-3 py-2">Component</th>
-                      <th className="px-3 py-2">Pod</th>
-                      <th className="px-3 py-2">Node</th>
-                      <th className="px-3 py-2">Phase</th>
-                      <th className="px-3 py-2">Tag</th>
+                      <th scope="col" className="px-3 py-2">Component</th>
+                      <th scope="col" className="px-3 py-2">Pod</th>
+                      <th scope="col" className="px-3 py-2">Node</th>
+                      <th scope="col" className="px-3 py-2">Phase</th>
+                      <th scope="col" className="px-3 py-2">Tag</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700/30 text-slate-300">
@@ -1012,8 +1012,8 @@ export default function K8sOverviewPage() {
                       <table className="w-full text-xs" aria-label="Validating webhook configurations">
                         <thead>
                           <tr className="text-left text-slate-500 border-b border-slate-700/40">
-                            <th className="px-3 py-2">Name</th>
-                            <th className="px-3 py-2">Webhook rules</th>
+                            <th scope="col" className="px-3 py-2">Name</th>
+                            <th scope="col" className="px-3 py-2">Webhook rules</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-700/30">
@@ -1035,8 +1035,8 @@ export default function K8sOverviewPage() {
                       <table className="w-full text-xs" aria-label="Mutating webhook configurations">
                         <thead>
                           <tr className="text-left text-slate-500 border-b border-slate-700/40">
-                            <th className="px-3 py-2">Name</th>
-                            <th className="px-3 py-2">Webhook rules</th>
+                            <th scope="col" className="px-3 py-2">Name</th>
+                            <th scope="col" className="px-3 py-2">Webhook rules</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-700/30">
@@ -1058,9 +1058,9 @@ export default function K8sOverviewPage() {
                       <table className="w-full text-xs" aria-label="Addon DaemonSets">
                         <thead>
                           <tr className="text-left text-slate-500 border-b border-slate-700/40">
-                            <th className="px-3 py-2">Namespace</th>
-                            <th className="px-3 py-2">Name</th>
-                            <th className="px-3 py-2">Primary image</th>
+                            <th scope="col" className="px-3 py-2">Namespace</th>
+                            <th scope="col" className="px-3 py-2">Name</th>
+                            <th scope="col" className="px-3 py-2">Primary image</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-700/30">
@@ -1150,8 +1150,8 @@ export default function K8sOverviewPage() {
                     <table className="w-full text-[11px] text-left" aria-label="Node inventory snapshots">
                       <thead className="text-slate-500 border-b border-slate-700/50">
                         <tr>
-                          <th className="px-3 py-2">Snapshot</th>
-                          <th className="px-3 py-2">When</th>
+                          <th scope="col" className="px-3 py-2">Snapshot</th>
+                          <th scope="col" className="px-3 py-2">When</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1466,40 +1466,43 @@ export default function K8sOverviewPage() {
           <table className="w-full text-sm" aria-label="Cluster nodes">
             <thead>
               <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
-                <th className="text-left px-4 py-3">Node</th>
+                <th scope="col" className="text-left px-4 py-3">Node</th>
                 <th
+                  scope="col"
                   className="text-left px-4 py-3 hidden md:table-cell"
                   title="Machina daemon host system UUID matches this node"
                 >
                   This host
                 </th>
-                <th className="text-left px-4 py-3">Role</th>
+                <th scope="col" className="text-left px-4 py-3">Role</th>
                 <th
+                  scope="col"
                   className="text-left px-4 py-3 min-w-[9rem]"
                   title="Control plane (API/etcd) vs data plane (workloads), from node-role labels"
                 >
                   Control / data plane
                 </th>
-                <th className="text-left px-4 py-3 hidden md:table-cell">CPU cap / alloc</th>
-                <th className="text-left px-4 py-3 hidden lg:table-cell">Mem cap / alloc</th>
-                <th className="text-left px-4 py-3 hidden xl:table-cell">Topology hints</th>
+                <th scope="col" className="text-left px-4 py-3 hidden md:table-cell">CPU cap / alloc</th>
+                <th scope="col" className="text-left px-4 py-3 hidden lg:table-cell">Mem cap / alloc</th>
+                <th scope="col" className="text-left px-4 py-3 hidden xl:table-cell">Topology hints</th>
                 <th
+                  scope="col"
                   className="text-left px-4 py-3 hidden lg:table-cell min-w-[5rem]"
                   title="Memory / Disk / PID pressure &amp; NetworkUnavailable"
                 >
                   Pressure
                 </th>
-                <th className="text-left px-4 py-3 hidden md:table-cell" title="spec.unschedulable (cordon)">
+                <th scope="col" className="text-left px-4 py-3 hidden md:table-cell" title="spec.unschedulable (cordon)">
                   Schedule
                 </th>
-                <th className="text-left px-4 py-3 hidden xl:table-cell" title="Kubelet minor vs API server minor">
+                <th scope="col" className="text-left px-4 py-3 hidden xl:table-cell" title="Kubelet minor vs API server minor">
                   Ver skew
                 </th>
-                <th className="text-left px-4 py-3 hidden 2xl:table-cell max-w-[14rem]">Taints</th>
-                <th className="text-left px-4 py-3">Status</th>
-                <th className="text-left px-4 py-3 hidden lg:table-cell">Kubelet</th>
-                <th className="text-left px-4 py-3 hidden 2xl:table-cell">OS</th>
-                <th className="text-center px-4 py-3">Actions</th>
+                <th scope="col" className="text-left px-4 py-3 hidden 2xl:table-cell max-w-[14rem]">Taints</th>
+                <th scope="col" className="text-left px-4 py-3">Status</th>
+                <th scope="col" className="text-left px-4 py-3 hidden lg:table-cell">Kubelet</th>
+                <th scope="col" className="text-left px-4 py-3 hidden 2xl:table-cell">OS</th>
+                <th scope="col" className="text-center px-4 py-3">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/30">

@@ -65,7 +65,8 @@ export async function livePlatformVmId(page: Page, nameHint = liveVmId()): Promi
 export async function openLiveVmDetail(page: Page, vmId = liveVmId(), vmName = liveVmName()) {
   const live = liveBaseUrl()
   await setDesktopTier(page, 'power')
-  await ensureLoggedIn(page, live, '/platform')
+  // { navigate: false } avoids an intermediate /platform hop — we go straight to the VM page below
+  await ensureLoggedIn(page, live, { navigate: false })
   // Resolve UUID after login (API call needs auth cookie)
   const platformId = await livePlatformVmId(page, vmId)
   await page.goto(`${live}/platform/vms/${platformId}`, { waitUntil: 'domcontentloaded', timeout: 180_000 })

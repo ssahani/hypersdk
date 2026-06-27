@@ -16,6 +16,7 @@ import PageLayout from '../components/PageLayout'
 import PageSkeleton from '../components/PageSkeleton'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 export default function OpenStackVolumeSnapshotDetailPage() {
   return (
@@ -31,6 +32,7 @@ function OpenStackVolumeSnapshotDetailContent() {
   const [snapshot, setSnapshot] = useState<OpenStackVolumeSnapshot | null>(null)
   const [restoreName, setRestoreName] = useState('')
   const [loading, setLoading] = useState(true)
+  useBreadcrumbName(snapshot?.name)
 
   const load = useCallback(async () => {
     if (!id) return

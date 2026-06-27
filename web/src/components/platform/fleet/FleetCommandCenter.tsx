@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { type ReactNode, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import {
   Camera,
@@ -19,7 +19,8 @@ import { formatVmMemoryGiB } from '../../../utils/vmVisual'
 import { useToastContext } from '../../../contexts/ToastContext'
 import ConsoleTheatrePreview from './ConsoleTheatrePreview'
 import VmConsoleQuickLinks from './VmConsoleQuickLinks'
-import { cinemaHubPath, studioHubPath, cinemaPopoutPath } from '../../../utils/consoleExperienceMode'
+import { cinemaHubPath, studioHubPath } from '../../../utils/consoleExperienceMode'
+import { DetailPanel, MetricList, type MetricItem } from '../DetailPanel'
 import type { FleetCommandCenterProps } from './fleetCommandCenterTypes'
 
 export default function FleetCommandCenter({
@@ -54,111 +55,168 @@ export default function FleetCommandCenter({
 
   if (!selectedVm) {
     return (
-      <aside className={`machine-finder-command-center hidden xl:flex xl:w-72 shrink-0 flex-col rounded-xl border border-white/[0.06] bg-slate-950/50 p-4 ${className}`} data-testid={testId}>
-        <p className="text-sm text-slate-500">Select a machine to open Command Center</p>
-      </aside>
+      <DetailPanel
+        empty
+        emptyMessage="Select a machine to open Command Center"
+        className={`hidden xl:flex ${className}`}
+        testId={testId}
+      />
     )
   }
 
-  const running = selectedVm.observed_state === 'running'
+  const vmState = selectedVm.observed_state
+  const running = vmState === 'running'
+  const paused = vmState === 'paused'
+  const shutoff = vmState === 'shutoff' || vmState === 'shut off'
+
+  const metrics: MetricItem[] = [
+    { label: 'Health', value: healthLoading ? '…' : (healthScore != null ? `${healthScore}/100` : '—') },
+    { label: 'State', value: <VmStatusBadge state={vmState} /> },
+    { label: 'vCPU', value: `${selectedVm.vcpus} cores` },
+    { label: 'Memory', value: formatVmMemoryGiB(selectedVm.memory_mib) },
+    { label: 'Source', value: <span className="capitalize">{selectedVm.inventory_source ?? 'libvirt'}</span>, span: true },
+    ...(selectedVm.guest_ip ? [{ label: 'Guest IP', value: <span className="font-mono text-emerald-300/90">{selectedVm.guest_ip}</span>, span: true }] : []),
+  ]
+
+  const primaryPowerAction = running ? (
+    <button
+      type="button"
+      className="btn-secondary text-xs py-1.5 px-3 w-full inline-flex items-center justify-center gap-1.5 border-amber-500/30 text-amber-200 hover:bg-amber-500/10"
+      onClick={() => void onPower(selectedVm, 'shutdown')}
+    >
+      <Power className="w-3.5 h-3.5" /> Shutdown
+    </button>
+  ) : paused ? (
+    <button
+      type="button"
+      className="btn-secondary text-xs py-1.5 px-3 w-full inline-flex items-center justify-center gap-1.5 border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/10"
+      onClick={() => void onPower(selectedVm, 'resume')}
+    >
+      <Play className="w-3.5 h-3.5" /> Resume
+    </button>
+  ) : (
+    <button
+      type="button"
+      className="btn-secondary text-xs py-1.5 px-3 w-full inline-flex items-center justify-center gap-1.5 border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/10"
+      onClick={() => void onPower(selectedVm, 'start')}
+    >
+      <Play className="w-3.5 h-3.5" /> Start
+    </button>
+  )
 
   return (
-    <aside className={`machine-finder-command-center w-full xl:w-72 shrink-0 flex flex-col rounded-xl border border-white/[0.06] bg-slate-950/50 overflow-hidden ${className}`} data-testid={testId}>
-      <header className="px-4 py-3 border-b border-white/[0.06]">
-        <h2 className="font-semibold text-white">Command Center</h2>
-        <p className="text-xs text-slate-500 truncate">{selectedVm.name}</p>
-      </header>
+    <DetailPanel
+      title="Command Center"
+      subtitle={selectedVm.name}
+      statusBadge={<VmStatusBadge state={vmState} />}
+      footer={
+        <Link
+          to={cinemaHubPath(selectedVm.id)}
+          className="btn-primary text-sm w-full text-center inline-flex items-center justify-center gap-1.5"
+        >
+          <Monitor className="w-3.5 h-3.5" /> Open Cinema
+        </Link>
+      }
+      className={className}
+      testId={testId}
+    >
+      <MetricList items={metrics} />
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 text-sm">
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <Metric label="Health" value={healthLoading ? '…' : healthScore ?? '—'} />
-          <Metric label="State" value={<VmStatusBadge state={selectedVm.observed_state} />} />
-          <Metric label="vCPU" value={String(selectedVm.vcpus)} />
-          <Metric label="Memory" value={formatVmMemoryGiB(selectedVm.memory_mib)} />
-          <Metric label="Source" value={<span className="capitalize">{selectedVm.inventory_source ?? 'libvirt'}</span>} className="col-span-2" />
-          {selectedVm.guest_ip && (
-            <Metric label="Guest IP" value={<span className="font-mono text-emerald-300/90">{selectedVm.guest_ip}</span>} className="col-span-2" />
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-slate-400">Power</p>
+        {primaryPowerAction}
+        <div className="flex flex-wrap gap-1.5">
+          {running && (
+            <ActionBtn icon={Square} label="Stop" onClick={() => void onPower(selectedVm, 'stop')} />
+          )}
+          {running && (
+            <ActionBtn icon={Pause} label="Pause" onClick={() => void onPower(selectedVm, 'pause')} />
+          )}
+          {!running && !paused && !shutoff && (
+            <ActionBtn icon={Power} label="Shutdown" onClick={() => void onPower(selectedVm, 'shutdown')} />
+          )}
+          <ActionBtn icon={Camera} label="Snapshot" onClick={() => void onSnapshot(selectedVm)} />
+          {selectedVm.inventory_source !== 'kubevirt' && (
+            <ActionBtn icon={Terminal} label="SSH" onClick={() => onSsh(selectedVm)} />
           )}
         </div>
-
-        <div>
-          <p className="text-xs font-medium text-slate-400 mb-2">Quick actions</p>
-          <div className="flex flex-wrap gap-1.5">
-            <ActionBtn icon={Play} label="Start" onClick={() => void onPower(selectedVm, 'start')} />
-            <ActionBtn icon={Power} label="Shutdown" onClick={() => void onPower(selectedVm, 'shutdown')} />
-            <ActionBtn icon={Square} label="Stop" onClick={() => void onPower(selectedVm, 'stop')} />
-            <ActionBtn icon={Pause} label="Pause" onClick={() => void onPower(selectedVm, 'pause')} />
-            <ActionBtn icon={Camera} label="Snapshot" onClick={() => void onSnapshot(selectedVm)} />
-            <ActionBtn icon={Trash2} label="Delete" danger onClick={() => void onDelete(selectedVm)} />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-slate-400">Console</p>
-          <VmConsoleQuickLinks vmId={selectedVm.id} running={running} />
-          <div className="flex flex-wrap gap-2">
-            <Link to={cinemaHubPath(selectedVm.id)} className="btn-primary text-xs flex-1 text-center inline-flex items-center justify-center gap-1">
-              <Monitor className="w-3.5 h-3.5" /> Open Cinema
-            </Link>
-            <Link to={studioHubPath(selectedVm.id)} className="btn-secondary text-xs flex-1 text-center inline-flex items-center justify-center gap-1">
-              Studio
-            </Link>
-            {selectedVm.inventory_source !== 'kubevirt' && (
-              <button type="button" className="btn-secondary text-xs flex-1 inline-flex items-center justify-center gap-1" onClick={() => onSsh(selectedVm)}>
-                <Terminal className="w-3.5 h-3.5" /> SSH dialog
-              </button>
-            )}
-          </div>
-        </div>
-
-        {selectedVm.guest_ip && (
+        <div className="pt-1 border-t border-white/[0.06]">
           <button
             type="button"
-            className="btn-secondary text-xs w-full inline-flex items-center justify-center gap-1"
-            onClick={() => {
-              void navigator.clipboard.writeText(selectedVm.guest_ip!)
-              toast.success('Guest IP copied')
-            }}
+            className="btn-secondary text-xs w-full inline-flex items-center justify-center gap-1 border-red-500/30 text-red-300 hover:bg-red-500/10"
+            onClick={() => void onDelete(selectedVm)}
           >
-            <Copy className="w-3.5 h-3.5" /> Copy IP
+            <Trash2 className="w-3 h-3" /> Delete VM
           </button>
-        )}
-
-        <Link to={`/platform/vms/${selectedVm.id}`} className="btn-primary text-sm block text-center">Open VM detail</Link>
-
-        {selectedVm.host_id && hosts.length > 1 && (
-          <MigratePicker vm={selectedVm} hosts={hosts} hostMap={hostMap} onPick={(destId, destName) => onMigrate(selectedVm, destId, destName)} />
-        )}
-
-        {selectedVm.managed === false && (
-          <button type="button" className="btn-secondary text-xs w-full" onClick={() => void onAdopt(selectedVm)}>Adopt discovered VM</button>
-        )}
-
-        {showTheatrePreview && running && (
-          <ConsoleTheatrePreview vmId={selectedVm.id} vmName={selectedVm.name} />
-        )}
-
-        <div className="rounded-lg border border-emerald-900/40 bg-emerald-950/20 p-3 text-xs text-emerald-100/90">
-          <p className="font-medium text-emerald-200/90 mb-1">Zeus says</p>
-          <p>
-            {healthScore != null && healthScore < 70
-              ? 'Health score is low — review backups and guest agent connectivity.'
-              : selectedVm.guest_ip
-                ? 'Machine is reachable — console and SSH are ready.'
-                : 'No guest IP yet — check network and guest tools.'}
-          </p>
         </div>
       </div>
-    </aside>
-  )
-}
 
-function Metric({ label, value, className = '' }: { label: string; value: ReactNode; className?: string }) {
-  return (
-    <div className={`rounded-lg bg-slate-900/60 p-2 border border-slate-800 ${className}`}>
-      <p className="text-slate-500">{label}</p>
-      <div className="text-slate-100 mt-0.5">{value}</div>
-    </div>
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-slate-400">Console</p>
+        <VmConsoleQuickLinks vmId={selectedVm.id} running={running} />
+        <div className="flex flex-wrap gap-2">
+          <Link
+            to={studioHubPath(selectedVm.id)}
+            className="btn-secondary text-xs flex-1 text-center inline-flex items-center justify-center gap-1"
+          >
+            Studio
+          </Link>
+          <Link
+            to={`/platform/vms/${selectedVm.id}`}
+            className="btn-secondary text-xs flex-1 text-center inline-flex items-center justify-center gap-1"
+          >
+            Open VM detail
+          </Link>
+        </div>
+      </div>
+
+      {selectedVm.guest_ip && (
+        <button
+          type="button"
+          className="btn-secondary text-xs w-full inline-flex items-center justify-center gap-1"
+          onClick={() => {
+            void navigator.clipboard.writeText(selectedVm.guest_ip!)
+            toast.success('Guest IP copied')
+          }}
+        >
+          <Copy className="w-3.5 h-3.5" /> Copy IP
+        </button>
+      )}
+
+      {selectedVm.host_id && hosts.length > 1 && (
+        <MigratePicker
+          vm={selectedVm}
+          hosts={hosts}
+          hostMap={hostMap}
+          onPick={(destId, destName) => onMigrate(selectedVm, destId, destName)}
+        />
+      )}
+
+      {selectedVm.managed === false && (
+        <button
+          type="button"
+          className="btn-secondary text-xs w-full"
+          onClick={() => void onAdopt(selectedVm)}
+        >
+          Adopt discovered VM
+        </button>
+      )}
+
+      {showTheatrePreview && running && (
+        <ConsoleTheatrePreview vmId={selectedVm.id} vmName={selectedVm.name} />
+      )}
+
+      <div className="rounded-lg border border-emerald-900/40 bg-emerald-950/20 p-3 text-xs text-emerald-100/90">
+        <p className="font-medium text-emerald-200/90 mb-1">Zeus says</p>
+        <p>
+          {healthScore != null && healthScore < 70
+            ? 'Health score is low — review backups and guest agent connectivity.'
+            : selectedVm.guest_ip
+              ? 'Machine is reachable — console and SSH are ready.'
+              : 'No guest IP yet — check network and guest tools.'}
+        </p>
+      </div>
+    </DetailPanel>
   )
 }
 
@@ -166,15 +224,17 @@ function ActionBtn({
   icon: Icon,
   label,
   onClick,
-  danger,
 }: {
   icon: typeof Play
   label: string
   onClick: () => void
-  danger?: boolean
 }) {
   return (
-    <button type="button" className={`btn-secondary text-xs py-1 px-2 inline-flex items-center gap-1 ${danger ? 'border-red-500/30 text-red-200' : ''}`} onClick={onClick}>
+    <button
+      type="button"
+      className="btn-secondary text-xs py-1 px-2 inline-flex items-center gap-1"
+      onClick={onClick}
+    >
       <Icon className="w-3 h-3" /> {label}
     </button>
   )
@@ -211,7 +271,9 @@ function MigratePicker({
       >
         <option value="">Select host…</option>
         {candidates.map((h) => (
-          <option key={h.id} value={h.id}>{h.hostname} ({hostMap.get(h.id) ?? h.id.slice(0, 8)})</option>
+          <option key={h.id} value={h.id}>
+            {h.hostname} ({hostMap.get(h.id) ?? h.id.slice(0, 8)})
+          </option>
         ))}
       </select>
     </div>

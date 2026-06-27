@@ -535,15 +535,15 @@ export default function PlatformNetworks() {
                 <table className="w-full text-sm" aria-label="Network segments">
                   <thead>
                     <tr className="text-left text-slate-500 border-b border-white/[0.06]">
-                      <th className="py-2 px-2">Name</th>
-                      <th className="py-2 px-2">Tier</th>
-                      <th className="py-2 px-2">CIDR</th>
-                      <th className="py-2 px-2">East-west</th>
-                      <th className="py-2 px-2">Grade</th>
-                      <th className="py-2 px-2">VMs</th>
-                      <th className="py-2 px-2">Profile</th>
-                      <th className="py-2 px-2">Networks</th>
-                      <th className="py-2 px-2" />
+                      <th scope="col" className="py-2 px-2">Name</th>
+                      <th scope="col" className="py-2 px-2">Tier</th>
+                      <th scope="col" className="py-2 px-2">CIDR</th>
+                      <th scope="col" className="py-2 px-2">East-west</th>
+                      <th scope="col" className="py-2 px-2">Grade</th>
+                      <th scope="col" className="py-2 px-2">VMs</th>
+                      <th scope="col" className="py-2 px-2">Profile</th>
+                      <th scope="col" className="py-2 px-2">Networks</th>
+                      <th scope="col" className="py-2 px-2" />
                     </tr>
                   </thead>
                   <tbody>
@@ -619,12 +619,12 @@ export default function PlatformNetworks() {
               <table className="w-full text-sm" aria-label="IPAM pools">
                 <thead>
                   <tr className="text-left text-slate-500 border-b border-white/[0.06]">
-                    <th className="py-2 px-2">Segment</th>
-                    <th className="py-2 px-2">CIDR</th>
-                    <th className="py-2 px-2">Gateway</th>
-                    <th className="py-2 px-2">Next offset</th>
-                    <th className="py-2 px-2">Reservations</th>
-                    <th className="py-2 px-2" />
+                    <th scope="col" className="py-2 px-2">Segment</th>
+                    <th scope="col" className="py-2 px-2">CIDR</th>
+                    <th scope="col" className="py-2 px-2">Gateway</th>
+                    <th scope="col" className="py-2 px-2">Next offset</th>
+                    <th scope="col" className="py-2 px-2">Reservations</th>
+                    <th scope="col" className="py-2 px-2" />
                   </tr>
                 </thead>
                 <tbody>

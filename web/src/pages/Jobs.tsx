@@ -16,6 +16,7 @@ import {
   VM_CREATE_TIMELINE_LABELS,
 } from '../utils/buildProgress'
 import { useToastContext } from '../contexts/ToastContext'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 import { formatUserError } from '../utils/apiError'
 import EmptyState from '../components/EmptyState'
 import PageLayout from '../components/PageLayout'
@@ -34,6 +35,8 @@ export default function JobsPage() {
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const selectedId = jobId || null
+
+  useBreadcrumbName(detail?.title ?? '')
 
   const jobTimeline = useMemo(() => {
     if (!detail) return null

@@ -15,6 +15,13 @@ import { getFleetGeneral, type FleetGeneralOverview } from '../../api/platform'
 import { openPlatformDockEditor } from '../../utils/platformDockPins'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import PlatformDesktopTierPicker from './PlatformDesktopTierPicker'
+import { useTheme, type AppTheme } from '../../contexts/ThemeContext'
+
+const THEME_OPTIONS: { value: AppTheme; label: string; description: string; preview: string }[] = [
+  { value: 'dark', label: 'Liquid Glass', description: 'Modern translucent glass — macOS Tahoe style', preview: 'bg-gradient-to-br from-sky-950 via-slate-900 to-purple-950' },
+  { value: 'steel', label: 'Steel', description: 'Classic dark steel — high contrast, professional', preview: 'bg-gradient-to-br from-[#06080d] via-[#0b1017] to-[#101722]' },
+  { value: 'aurora', label: 'Aurora', description: 'Deep space purple — cosmic dark', preview: 'bg-gradient-to-br from-[#030712] via-[#0a0618] to-[#12082a]' },
+]
 
 const SWATCH_CLASS: Record<PlatformWallpaper, string> = {
   tahoe: 'mac-wallpaper-swatch-tahoe',
@@ -27,6 +34,7 @@ export default function PlatformAppearanceSettings() {
   const [wallpaper, setWallpaper] = useState<PlatformWallpaper>(() => loadPlatformWallpaper())
   const [general, setGeneral] = useState<FleetGeneralOverview | null>(null)
   const [tier, setTier] = usePlatformDesktopTier()
+  const { theme, setTheme } = useTheme()
 
   useEffect(() => {
     const onChange = () => setWallpaper(loadPlatformWallpaper())
@@ -78,25 +86,46 @@ export default function PlatformAppearanceSettings() {
 
       <MacSettingsGroup title="Appearance">
         <MacSettingsGroupBody>
-          <p className="text-sm text-slate-300 leading-relaxed">Desktop wallpaper for the Machina Platform shell (macOS Tahoe style).</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {(Object.keys(PLATFORM_WALLPAPER_LABELS) as PlatformWallpaper[]).map((key) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => pick(key)}
-                className={`rounded-xl border p-2 text-left transition ${
-                  wallpaper === key ? 'border-sky-400/50 ring-1 ring-sky-400/30' : 'border-white/[0.08] hover:border-white/20'
-                }`}
-              >
-                <div className={`h-16 rounded-lg mb-2 ${SWATCH_CLASS[key]}`} />
-                <span className="text-xs text-slate-200">{PLATFORM_WALLPAPER_LABELS[key]}</span>
-              </button>
-            ))}
+          <div>
+            <p className="text-sm text-slate-300 leading-relaxed mb-3">Color theme — applies everywhere across the platform.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {THEME_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setTheme(opt.value)}
+                  className={`rounded-xl border p-3 text-left transition ${
+                    theme === opt.value ? 'border-sky-400/50 ring-1 ring-sky-400/30' : 'border-white/[0.08] hover:border-white/20'
+                  }`}
+                >
+                  <div className={`h-12 rounded-lg mb-2 ${opt.preview}`} />
+                  <p className="text-xs font-medium text-slate-100">{opt.label}</p>
+                  <p className="text-[11px] text-slate-400 leading-snug mt-0.5">{opt.description}</p>
+                </button>
+              ))}
+            </div>
           </div>
-          <button type="button" className="btn-secondary text-sm" onClick={() => { resetPlatformWallpaper(); setWallpaper('tahoe') }}>
-            Reset to default
-          </button>
+          <div className="border-t border-white/[0.06] pt-4">
+            <p className="text-sm text-slate-300 leading-relaxed mb-3">Desktop wallpaper for the Machina Platform shell (macOS Tahoe style).</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {(Object.keys(PLATFORM_WALLPAPER_LABELS) as PlatformWallpaper[]).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => pick(key)}
+                  className={`rounded-xl border p-2 text-left transition ${
+                    wallpaper === key ? 'border-sky-400/50 ring-1 ring-sky-400/30' : 'border-white/[0.08] hover:border-white/20'
+                  }`}
+                >
+                  <div className={`h-16 rounded-lg mb-2 ${SWATCH_CLASS[key]}`} />
+                  <span className="text-xs text-slate-200">{PLATFORM_WALLPAPER_LABELS[key]}</span>
+                </button>
+              ))}
+            </div>
+            <button type="button" className="btn-secondary text-sm mt-2" onClick={() => { resetPlatformWallpaper(); setWallpaper('tahoe') }}>
+              Reset to default
+            </button>
+          </div>
         </MacSettingsGroupBody>
       </MacSettingsGroup>
     </>

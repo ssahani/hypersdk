@@ -64,6 +64,7 @@ pub mod vault_sync_scheduler;
 pub mod vm_health;
 pub mod vm_inventory;
 pub mod vm_lifecycle;
+pub mod vm_schedule_runner;
 pub mod webhook_worker;
 pub mod webhooks;
 pub mod zeus_firewall;

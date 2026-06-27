@@ -69,15 +69,15 @@ function OpenStackHeatContent() {
 
       <div className="rounded-xl border border-slate-700 p-4 space-y-3">
         <h2 className="text-sm font-medium text-slate-300 flex items-center gap-2"><Plus className="w-4 h-4" /> Create stack</h2>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Stack name"
+        <input aria-label="Stack name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Stack name"
           className="w-full max-w-md px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
-        <textarea aria-label="Heat template" value={template} onChange={(e) => setTemplate(e.target.value)} rows={8}
+        <textarea aria-label="Heat template" value={template} onChange={(e) => setTemplate(e.target.value)} rows={5}
           className="w-full font-mono text-xs px-3 py-2 rounded-lg bg-slate-900 border border-slate-700" />
         <label className="block text-xs text-slate-500">Parameters (JSON)</label>
         <textarea aria-label="Stack parameters (JSON)" value={parametersJson} onChange={(e) => setParametersJson(e.target.value)} rows={3}
           className="w-full font-mono text-xs px-3 py-2 rounded-lg bg-slate-900 border border-slate-700" />
         <div className="flex flex-wrap gap-3 items-center">
-          <input type="file" accept=".yaml,.yml,.json,.template" className="text-sm text-slate-400"
+          <input type="file" aria-label="Upload template file" accept=".yaml,.yml,.json,.template" className="text-sm text-slate-400"
             onChange={(e) => {
               const f = e.target.files?.[0]
               if (!f) return
@@ -121,10 +121,10 @@ function OpenStackHeatContent() {
           <table className="w-full text-sm" aria-label="Heat stacks">
             <thead className="bg-slate-900/80 text-slate-400 text-left">
               <tr>
-                <th className="px-3 py-2">Name</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Created</th>
-                <th className="px-3 py-2" />
+                <th scope="col" className="px-3 py-2">Name</th>
+                <th scope="col" className="px-3 py-2">Status</th>
+                <th scope="col" className="px-3 py-2">Created</th>
+                <th scope="col" className="px-3 py-2" />
               </tr>
             </thead>
             <tbody>

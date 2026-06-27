@@ -48,7 +48,7 @@ export default function MachineFinderTableLens({ state }: Props) {
       <table className="w-full text-sm" aria-label="Virtual machines">
         <thead>
           <tr className="text-left text-slate-400 border-b border-white/[0.04]">
-            <th className="p-3 w-10">
+            <th scope="col" className="p-3 w-10">
               <input
                 type="checkbox"
                 aria-label="Select all visible machines"
@@ -56,16 +56,16 @@ export default function MachineFinderTableLens({ state }: Props) {
                 onChange={toggleAllVisible}
               />
             </th>
-            <th className="p-3">Name</th>
-            <th className="p-3">Source</th>
-            <th className="p-3">State</th>
-            <th className="p-3">Host</th>
-            <th className="p-3">Guest IP</th>
-            <th className="p-3">Guest agent</th>
-            <th className="p-3">vCPU</th>
-            <th className="p-3">Memory</th>
-            <th className="p-3">Usage</th>
-            <th className="p-3 text-right">Access</th>
+            <th scope="col" className="p-3">Name</th>
+            <th scope="col" className="p-3">Source</th>
+            <th scope="col" className="p-3">State</th>
+            <th scope="col" className="p-3">Host</th>
+            <th scope="col" className="p-3">Guest IP</th>
+            <th scope="col" className="p-3">Guest agent</th>
+            <th scope="col" className="p-3">vCPU</th>
+            <th scope="col" className="p-3">Memory</th>
+            <th scope="col" className="p-3">Usage</th>
+            <th scope="col" className="p-3 text-right">Access</th>
           </tr>
         </thead>
         <tbody>

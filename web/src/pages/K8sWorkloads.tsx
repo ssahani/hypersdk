@@ -399,11 +399,11 @@ spec:
           <table className="w-full text-sm" aria-label="Deployments">
             <thead>
               <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
-                <th className="text-left px-4 py-3">Name</th>
-                <th className="text-left px-4 py-3">Namespace</th>
-                <th className="text-left px-4 py-3">Ready</th>
-                <th className="text-left px-4 py-3">Replicas</th>
-                <th className="text-center px-4 py-3">Actions</th>
+                <th scope="col" className="text-left px-4 py-3">Name</th>
+                <th scope="col" className="text-left px-4 py-3">Namespace</th>
+                <th scope="col" className="text-left px-4 py-3">Ready</th>
+                <th scope="col" className="text-left px-4 py-3">Replicas</th>
+                <th scope="col" className="text-center px-4 py-3">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/30">
@@ -477,7 +477,7 @@ spec:
           <div className="px-4 py-3 border-b border-slate-700/50 text-lg font-semibold">StatefulSets</div>
           <div className="overflow-x-auto max-h-72 overflow-y-auto">
             <table className="w-full text-sm" aria-label="StatefulSets">
-              <thead><tr className="text-slate-400 text-xs border-b border-slate-700/50"><th className="text-left px-3 py-2">Name</th><th className="text-left px-3 py-2">NS</th><th className="text-right px-3 py-2">Action</th></tr></thead>
+              <thead><tr className="text-slate-400 text-xs border-b border-slate-700/50"><th scope="col" className="text-left px-3 py-2">Name</th><th scope="col" className="text-left px-3 py-2">NS</th><th scope="col" className="text-right px-3 py-2">Action</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {statefulsets.map((d) => {
                   const key = `${d.metadata?.namespace || 'default'}/${d.metadata?.name}`
@@ -499,7 +499,7 @@ spec:
           <div className="px-4 py-3 border-b border-slate-700/50 text-lg font-semibold">DaemonSets</div>
           <div className="overflow-x-auto max-h-72 overflow-y-auto">
             <table className="w-full text-sm" aria-label="DaemonSets">
-              <thead><tr className="text-slate-400 text-xs border-b border-slate-700/50"><th className="text-left px-3 py-2">Name</th><th className="text-left px-3 py-2">NS</th><th className="text-right px-3 py-2">Action</th></tr></thead>
+              <thead><tr className="text-slate-400 text-xs border-b border-slate-700/50"><th scope="col" className="text-left px-3 py-2">Name</th><th scope="col" className="text-left px-3 py-2">NS</th><th scope="col" className="text-right px-3 py-2">Action</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {daemonsets.map((d) => {
                   const key = `${d.metadata?.namespace || 'default'}/${d.metadata?.name}`
@@ -523,7 +523,7 @@ spec:
         <div className="px-4 py-3 border-b border-slate-700/50 text-lg font-semibold">Jobs</div>
         <div className="overflow-x-auto max-h-56 overflow-y-auto">
           <table className="w-full text-sm" aria-label="Jobs">
-            <thead><tr className="text-slate-400 text-xs border-b border-slate-700/50"><th className="text-left px-3 py-2">Name</th><th className="text-left px-3 py-2">NS</th><th className="text-right px-3 py-2">Action</th></tr></thead>
+            <thead><tr className="text-slate-400 text-xs border-b border-slate-700/50"><th scope="col" className="text-left px-3 py-2">Name</th><th scope="col" className="text-left px-3 py-2">NS</th><th scope="col" className="text-right px-3 py-2">Action</th></tr></thead>
             <tbody className="divide-y divide-slate-700/30">
               {jobs.map((j) => {
                 const n = j.metadata?.name ?? ''
@@ -564,7 +564,7 @@ spec:
               <div className="overflow-x-auto rounded border border-slate-700">
                 <table className="w-full text-xs text-left" aria-label="Kubernetes events">
                   <thead className="text-slate-500 border-b border-slate-700">
-                    <tr><th className="px-2 py-1">Type</th><th className="px-2 py-1">Reason</th><th className="px-2 py-1">Message</th></tr>
+                    <tr><th scope="col" className="px-2 py-1">Type</th><th scope="col" className="px-2 py-1">Reason</th><th scope="col" className="px-2 py-1">Message</th></tr>
                   </thead>
                   <tbody>
                     {asArray(eventsItems).slice(0, 15).map((item, i) => {
@@ -743,17 +743,17 @@ spec:
           <table className="w-full text-sm min-w-[72rem]" aria-label="Services">
             <thead>
               <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
-                <th className="text-left px-4 py-3">Name</th>
-                <th className="text-left px-4 py-3">Namespace</th>
-                <th className="text-left px-4 py-3">Run / ready</th>
-                <th className="text-left px-4 py-3">VM status</th>
-                <th className="text-left px-4 py-3">VMI</th>
-                <th className="text-left px-4 py-3">Guest IP</th>
-                <th className="text-left px-4 py-3">Pod IP</th>
-                <th className="text-left px-4 py-3">Node</th>
-                <th className="text-left px-4 py-3">Node IP</th>
-                <th className="text-center px-4 py-3">Console / VNC / live</th>
-                <th className="text-center px-4 py-3">Lifecycle</th>
+                <th scope="col" className="text-left px-4 py-3">Name</th>
+                <th scope="col" className="text-left px-4 py-3">Namespace</th>
+                <th scope="col" className="text-left px-4 py-3">Run / ready</th>
+                <th scope="col" className="text-left px-4 py-3">VM status</th>
+                <th scope="col" className="text-left px-4 py-3">VMI</th>
+                <th scope="col" className="text-left px-4 py-3">Guest IP</th>
+                <th scope="col" className="text-left px-4 py-3">Pod IP</th>
+                <th scope="col" className="text-left px-4 py-3">Node</th>
+                <th scope="col" className="text-left px-4 py-3">Node IP</th>
+                <th scope="col" className="text-center px-4 py-3">Console / VNC / live</th>
+                <th scope="col" className="text-center px-4 py-3">Lifecycle</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/30">
@@ -900,13 +900,13 @@ spec:
           <table className="w-full text-sm" aria-label="Pods">
             <thead>
               <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
-                <th className="text-left px-4 py-3">Name</th>
-                <th className="text-left px-4 py-3">Namespace</th>
-                <th className="text-left px-4 py-3">Phase</th>
-                <th className="text-left px-4 py-3">Pod IP</th>
-                <th className="text-left px-4 py-3">Node</th>
-                <th className="text-left px-4 py-3">Node IP</th>
-                <th className="text-center px-4 py-3">Action</th>
+                <th scope="col" className="text-left px-4 py-3">Name</th>
+                <th scope="col" className="text-left px-4 py-3">Namespace</th>
+                <th scope="col" className="text-left px-4 py-3">Phase</th>
+                <th scope="col" className="text-left px-4 py-3">Pod IP</th>
+                <th scope="col" className="text-left px-4 py-3">Node</th>
+                <th scope="col" className="text-left px-4 py-3">Node IP</th>
+                <th scope="col" className="text-center px-4 py-3">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/30">

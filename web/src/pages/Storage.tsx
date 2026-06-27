@@ -154,7 +154,7 @@ export default function StoragePage() {
         ) : (
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
             <table className="w-full" aria-label="Storage volumes">
-              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Name</th><th className="px-6 py-3">Type</th><th className="px-6 py-3">Capacity</th><th className="px-6 py-3">Used</th><th className="px-6 py-3 hidden lg:table-cell">Path</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">Name</th><th scope="col" className="px-6 py-3">Type</th><th scope="col" className="px-6 py-3">Capacity</th><th scope="col" className="px-6 py-3">Used</th><th scope="col" className="px-6 py-3 hidden lg:table-cell">Path</th><th scope="col" className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/50">
                 {volumes.map((v) => (
                   <tr key={v.name} className="hover:bg-slate-700/50">
@@ -295,11 +295,11 @@ export default function StoragePage() {
             </div>
             <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-700/50">
               <Link to={`/storage/${encodeURIComponent(pool.name)}`} className="flex-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm transition text-center">Browse</Link>
-              {pool.state !== 'running' && <button onClick={() => poolAction(pool.name, startPool, 'Start pool')} className="p-1.5 hover:bg-green-600/20 rounded transition"><Play className={`w-4 h-4 ${statusToneClass('ok')}`} /></button>}
+              {pool.state !== 'running' && <button aria-label="Start pool" onClick={() => poolAction(pool.name, startPool, 'Start pool')} className="p-1.5 hover:bg-green-600/20 rounded transition"><Play className={`w-4 h-4 ${statusToneClass('ok')}`} /></button>}
               {pool.state === 'running' && (
                 <>
-                  <button onClick={() => poolAction(pool.name, refreshPool, 'Refresh pool')} className={`p-1.5 rounded transition ${statusBadgeClasses('info')} hover:opacity-80`}><RefreshCw className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
-                  <button onClick={() => poolAction(pool.name, stopPool, 'Stop pool')} className="p-1.5 hover:bg-red-600/20 rounded transition"><Square className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
+                  <button aria-label="Refresh pool" onClick={() => poolAction(pool.name, refreshPool, 'Refresh pool')} className={`p-1.5 rounded transition ${statusBadgeClasses('info')} hover:opacity-80`}><RefreshCw className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
+                  <button aria-label="Stop pool" onClick={() => poolAction(pool.name, stopPool, 'Stop pool')} className="p-1.5 hover:bg-red-600/20 rounded transition"><Square className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
                 </>
               )}
               <button onClick={() => togglePoolAutostart(pool)} className="p-1.5 hover:bg-blue-600/20 rounded transition" title={pool.autostart ? 'Disable Autostart' : 'Enable Autostart'} aria-label={pool.autostart ? 'Disable Autostart' : 'Enable Autostart'}>

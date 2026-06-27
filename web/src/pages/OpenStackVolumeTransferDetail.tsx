@@ -16,6 +16,7 @@ import PageSkeleton from '../components/PageSkeleton'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { statusBadgeClasses, statusDestructiveButtonClasses, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
+import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
 export default function OpenStackVolumeTransferDetailPage() {
   return (
@@ -30,6 +31,7 @@ function OpenStackVolumeTransferDetailContent() {
   const toast = useToastContext()
   const [transfer, setTransfer] = useState<OpenStackVolumeTransfer | null>(null)
   const [loading, setLoading] = useState(true)
+  useBreadcrumbName(transfer?.name)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -81,7 +83,7 @@ function OpenStackVolumeTransferDetailContent() {
         <div><dt className="text-xs text-slate-500 uppercase">Transfer ID</dt>
           <dd className="font-mono text-slate-200 mt-1 break-all flex items-start gap-2">
             {transfer.id}
-            <button type="button" className="text-slate-400 hover:text-sky-300 shrink-0" onClick={() => copy('Transfer ID', transfer.id)}>
+            <button type="button" aria-label="Copy Transfer ID" className="text-slate-400 hover:text-sky-300 shrink-0" onClick={() => copy('Transfer ID', transfer.id)}>
               <Copy className="w-3.5 h-3.5" />
             </button>
           </dd>
@@ -96,7 +98,7 @@ function OpenStackVolumeTransferDetailContent() {
             <dt className={`text-xs uppercase mb-1 ${statusToneClass('warn')}`}>Auth key (share with recipient)</dt>
             <dd className={`font-mono break-all flex items-start gap-2 ${statusToneClass('warn')}`}>
               {transfer.auth_key}
-              <button type="button" className={`shrink-0 hover:opacity-80 ${statusToneClass('warn')}`} onClick={() => copy('Auth key', transfer.auth_key!)}>
+              <button type="button" aria-label="Copy Auth key" className={`shrink-0 hover:opacity-80 ${statusToneClass('warn')}`} onClick={() => copy('Auth key', transfer.auth_key!)}>
                 <Copy className="w-3.5 h-3.5" />
               </button>
             </dd>

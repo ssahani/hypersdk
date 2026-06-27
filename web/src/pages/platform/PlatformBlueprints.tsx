@@ -102,7 +102,14 @@ export default function PlatformBlueprints() {
       title="Blueprint Studio"
       subtitle="macOS Shortcuts-style Launchpad — tap a blueprint to run automation across VM sets."
       icon={<Workflow className="w-6 h-6 text-slate-400" />}
-      actions={<PlatformRefreshButton onClick={() => void load()} />}
+      actions={
+        <div className="flex items-center gap-2">
+          <button type="button" className="btn-primary text-sm flex items-center gap-1.5" onClick={() => setTab('studio')}>
+            <Plus className="w-4 h-4" /> New blueprint
+          </button>
+          <PlatformRefreshButton onClick={() => void load()} />
+        </div>
+      }
       contentClassName="space-y-4"
     >
       {fleet && <p className="text-sm text-slate-400">{fleet.summary}</p>}
@@ -151,7 +158,7 @@ export default function PlatformBlueprints() {
       {tab === 'studio' && (
         <>
           <MacGlassPanel title="Generate from description">
-            <textarea className="input min-h-20" value={nlPrompt} onChange={(e) => setNlPrompt(e.target.value)} placeholder="Backup all Windows VMs every night" />
+            <textarea className="input min-h-20" aria-label="Describe your blueprint" value={nlPrompt} onChange={(e) => setNlPrompt(e.target.value)} placeholder="Backup all Windows VMs every night" />
             <div className="flex gap-2 flex-wrap">
               <button type="button" className="btn-primary text-sm" disabled={generating} onClick={async () => {
                 setGenerating(true)

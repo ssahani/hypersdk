@@ -156,16 +156,19 @@ function OpenStackVolumesContent() {
         <div>
           <label className="block text-xs text-slate-500 mb-1">Size (GB)</label>
           <input type="number" min={1} value={sizeGb} onChange={(e) => setSizeGb(e.target.value)}
+            aria-label="Size in GB"
             className="w-24 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
         </div>
         <div>
           <label className="block text-xs text-slate-500 mb-1">Name</label>
           <input value={name} onChange={(e) => setName(e.target.value)}
+            aria-label="Volume name"
             className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
         </div>
         <div>
           <label className="block text-xs text-slate-500 mb-1">Type</label>
           <select value={volumeType} onChange={(e) => setVolumeType(e.target.value)}
+            aria-label="Volume type"
             className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm">
             <option value="">Default</option>
             {types.map((t) => (
@@ -300,6 +303,7 @@ function OpenStackVolumesContent() {
             <select
               value={attachVolId}
               onChange={(e) => setAttachVolId(e.target.value)}
+              aria-label="Volume to attach"
               className="w-full px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm"
             >
               <option value="">Select volume…</option>
@@ -315,6 +319,7 @@ function OpenStackVolumesContent() {
             <select
               value={attachInstId}
               onChange={(e) => setAttachInstId(e.target.value)}
+              aria-label="Instance to attach to"
               className="w-full px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm"
             >
               <option value="">Select instance…</option>
@@ -350,6 +355,7 @@ function OpenStackVolumesContent() {
             <select
               value={restoreSnapId}
               onChange={(e) => setRestoreSnapId(e.target.value)}
+              aria-label="Snapshot"
               className="w-full px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm"
             >
               <option value="">Select snapshot…</option>
@@ -365,6 +371,7 @@ function OpenStackVolumesContent() {
             <input
               value={restoreName}
               onChange={(e) => setRestoreName(e.target.value)}
+              aria-label="New volume name"
               className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm"
               placeholder="optional"
             />
@@ -389,11 +396,11 @@ function OpenStackVolumesContent() {
             <table className="w-full text-sm" aria-label="OpenStack volumes">
               <thead className="bg-slate-900/80 text-slate-400 text-left">
                 <tr>
-                  <th className="px-3 py-2">Name</th>
-                  <th className="px-3 py-2">Size</th>
-                  <th className="px-3 py-2">Bootable</th>
-                  <th className="px-3 py-2">Attached</th>
-                  <th className="px-3 py-2">Actions</th>
+                  <th scope="col" className="px-3 py-2">Name</th>
+                  <th scope="col" className="px-3 py-2">Size</th>
+                  <th scope="col" className="px-3 py-2">Bootable</th>
+                  <th scope="col" className="px-3 py-2">Attached</th>
+                  <th scope="col" className="px-3 py-2">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
@@ -515,10 +522,10 @@ function OpenStackVolumesContent() {
               <table className="w-full text-sm" aria-label="Volume snapshots">
                 <thead className="bg-slate-900/80 text-slate-400 text-left">
                   <tr>
-                    <th className="px-3 py-2">Name</th>
-                    <th className="px-3 py-2">Volume</th>
-                    <th className="px-3 py-2">Size</th>
-                    <th className="px-3 py-2">Status</th>
+                    <th scope="col" className="px-3 py-2">Name</th>
+                    <th scope="col" className="px-3 py-2">Volume</th>
+                    <th scope="col" className="px-3 py-2">Size</th>
+                    <th scope="col" className="px-3 py-2">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 font-mono text-xs">

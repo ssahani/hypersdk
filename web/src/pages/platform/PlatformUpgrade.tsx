@@ -63,12 +63,34 @@ export default function PlatformUpgrade() {
 
   const onlineHosts = hosts.filter((h) => h.state === 'online')
 
+  const handleUpgradeAll = async () => {
+    for (const h of onlineHosts) {
+      try {
+        await upgradeHostAgent(h.id, matrix?.recommended_agent)
+      } catch { /* continue */ }
+    }
+    toast.success(`Upgrade queued for all ${onlineHosts.length} online hosts`)
+  }
+
   return (
     <PlatformPageChrome
       error={error}
       onErrorRetry={() => void load()}
       prepend={<PlatformBackLink to="/platform/settings" label="Settings" />}
-      actions={<PlatformRefreshButton onClick={() => void load()} />}
+      actions={
+        <div className="flex items-center gap-2">
+          {onlineHosts.length > 1 && (
+            <button
+              onClick={() => void handleUpgradeAll()}
+              className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 btn-primary"
+            >
+              <ArrowUpCircle className="w-4 h-4" />
+              Upgrade All Online Hosts
+            </button>
+          )}
+          <PlatformRefreshButton onClick={() => void load()} />
+        </div>
+      }
     >
       <div className="space-y-6">
         <div>
@@ -152,24 +174,6 @@ export default function PlatformUpgrade() {
           )}
         </MacGlassPanel>
 
-        {onlineHosts.length > 1 && (
-          <div className="flex justify-end">
-            <button
-              onClick={async () => {
-                for (const h of onlineHosts) {
-                  try {
-                    await upgradeHostAgent(h.id, matrix?.recommended_agent)
-                  } catch { /* continue */ }
-                }
-                toast.success(`Upgrade queued for all ${onlineHosts.length} online hosts`)
-              }}
-              className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              <ArrowUpCircle className="w-4 h-4" />
-              Upgrade All Online Hosts
-            </button>
-          </div>
-        )}
       </div>
     </PlatformPageChrome>
   )

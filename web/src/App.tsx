@@ -3,6 +3,7 @@
 // https://zyvor.dev · info@zyvor.dev
 
 import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router'
+import { MotionConfig } from 'framer-motion'
 import { ZyvorFooter } from './components/ZyvorBrand';
 import { Suspense, lazy, useState, useCallback, useMemo, useEffect } from 'react'
 import { ToastProvider, ToastRenderer } from './contexts/ToastContext'
@@ -19,6 +20,7 @@ import ZeusSpotlight from './components/ai/ZeusSpotlight'
 import ZeusAssistant from './components/ai/ZeusAssistant'
 import ZeusAmbientBar from './components/ai/ZeusAmbientBar'
 import Breadcrumb from './components/Breadcrumb'
+import { BreadcrumbNameProvider } from './contexts/BreadcrumbNameContext'
 import HelpDialog, { type HelpTab } from './components/HelpDialog'
 import { OPEN_HELP_EVENT } from './utils/openHelp'
 import PageSkeleton from './components/PageSkeleton'
@@ -27,6 +29,7 @@ import { useSequenceShortcuts } from './hooks/useSequenceShortcut'
 import { useKeyboardShortcut, isInputFocused } from './hooks/useKeyboardShortcut'
 import { useRecordRecentPage } from './hooks/useRecordRecentPage'
 import { usePlatformInfo } from './contexts/PlatformInfoContext'
+import { routeLabels } from './utils/routes'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const VMList = lazy(() => import('./pages/VMList'))
@@ -300,9 +303,11 @@ function AuthenticatedShell() {
     <WebSocketProvider>
       <PlatformInfoProvider>
         <BrowserRouter>
-          <AiProvider>
-            <AuthenticatedShellRoutes />
-          </AiProvider>
+          <BreadcrumbNameProvider>
+            <AiProvider>
+              <AuthenticatedShellRoutes />
+            </AiProvider>
+          </BreadcrumbNameProvider>
         </BrowserRouter>
       </PlatformInfoProvider>
     </WebSocketProvider>
@@ -315,6 +320,11 @@ function AuthenticatedShellRoutes() {
   const isPlatformRoute = location.pathname.startsWith('/platform')
   const [helpOpen, setHelpOpen] = useState(false)
   const [helpTab, setHelpTab] = useState<HelpTab>('shortcuts')
+
+  useEffect(() => {
+    const label = routeLabels[location.pathname] ?? routeLabels[location.pathname.replace(/\/[^/]+$/, '/:id')]
+    document.title = label ? `${label} — Machina` : 'Machina'
+  }, [location.pathname])
 
   const openHelp = useCallback((tab: HelpTab = 'shortcuts') => {
     setHelpTab(tab)
@@ -364,7 +374,6 @@ function AuthenticatedShellRoutes() {
                   ? 'platform-route-main flex-1 min-w-0 flex flex-col w-full'
                   : `app-shell tahoe-page-root platform-readable flex-1 min-w-0 py-6 lg:py-8${theme === 'steel' ? ' steel-content' : ''}${theme === 'aurora' ? ' aurora-content' : ''}`
               }
-              role="main"
             >
               {!isPlatformRoute && <Breadcrumb />}
               <Suspense fallback={<PageSkeleton />}>
@@ -540,13 +549,15 @@ function AuthenticatedShellRoutes() {
 
 function App() {
   return (
-    <ThemeProvider>
-      <ToastProvider>
-        <AuthProvider>
-          <AuthenticatedApp />
-        </AuthProvider>
-      </ToastProvider>
-    </ThemeProvider>
+    <MotionConfig reducedMotion="user">
+      <ThemeProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <AuthenticatedApp />
+          </AuthProvider>
+        </ToastProvider>
+      </ThemeProvider>
+    </MotionConfig>
   )
 }
 

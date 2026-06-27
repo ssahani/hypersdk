@@ -469,7 +469,7 @@ export default function HostNetworkingPage() {
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
             <table className="w-full" aria-label="Port forwarding rules">
-              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Protocol</th><th className="px-6 py-3">Host Port</th><th className="px-6 py-3">VM Destination</th><th className="px-6 py-3">Description</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">Protocol</th><th scope="col" className="px-6 py-3">Host Port</th><th scope="col" className="px-6 py-3">VM Destination</th><th scope="col" className="px-6 py-3">Description</th><th scope="col" className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {portForwards.map(r => (
                   <tr key={r.id} className="table-row-hover">
@@ -498,7 +498,12 @@ export default function HostNetworkingPage() {
               <div key={br.name} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <div className={`w-2.5 h-2.5 rounded-full ${statusBgClass(br.state === 'up' ? 'ok' : 'neutral')}`} />
+                    <div
+                      className={`w-2.5 h-2.5 rounded-full ${statusBgClass(br.state === 'up' ? 'ok' : 'neutral')}`}
+                      role="img"
+                      title={br.state === 'up' ? 'Up' : 'Down'}
+                      aria-label={br.state === 'up' ? 'Up' : 'Down'}
+                    />
                     <span className="font-semibold">{br.name}</span>
                   </div>
                   {!br.name.startsWith('virbr') && <button onClick={() => handleDeleteBridge(br.name)} className="p-1 hover:bg-red-600/20 rounded" title="Delete" aria-label="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>}
@@ -531,7 +536,7 @@ export default function HostNetworkingPage() {
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
             <div className="px-6 py-3 border-b border-slate-700/50"><span className="text-sm font-semibold text-slate-300">Host Interfaces</span></div>
             <table className="w-full" aria-label="Host network interfaces">
-              <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-6 py-2">Name</th><th className="px-6 py-2">Type</th><th className="px-6 py-2">State</th><th className="px-6 py-2">MAC</th><th className="px-6 py-2">IP</th><th className="px-6 py-2">MTU</th><th className="px-6 py-2">Master</th></tr></thead>
+              <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th scope="col" className="px-6 py-2">Name</th><th scope="col" className="px-6 py-2">Type</th><th scope="col" className="px-6 py-2">State</th><th scope="col" className="px-6 py-2">MAC</th><th scope="col" className="px-6 py-2">IP</th><th scope="col" className="px-6 py-2">MTU</th><th scope="col" className="px-6 py-2">Master</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30 text-sm">
                 {hostIfaces.map(i => (
                   <tr key={i.name} className="table-row-hover">
@@ -558,7 +563,7 @@ export default function HostNetworkingPage() {
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
             <table className="w-full" aria-label="Firewall rules">
-              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">VM IP</th><th className="px-6 py-3">Direction</th><th className="px-6 py-3">Protocol</th><th className="px-6 py-3">Port</th><th className="px-6 py-3">Action</th><th className="px-6 py-3">Description</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th scope="col" className="px-6 py-3">VM IP</th><th scope="col" className="px-6 py-3">Direction</th><th scope="col" className="px-6 py-3">Protocol</th><th scope="col" className="px-6 py-3">Port</th><th scope="col" className="px-6 py-3">Action</th><th scope="col" className="px-6 py-3">Description</th><th scope="col" className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {firewallRules.map(r => (
                   <tr key={r.id} className="table-row-hover">
@@ -731,10 +736,10 @@ export default function HostNetworkingPage() {
               <table className="w-full min-w-[640px]" aria-label="sysctl parameters">
                 <thead>
                   <tr className="border-b border-slate-700/50 text-left text-xs text-slate-500">
-                    <th className="px-4 py-3">Parameter</th>
-                    <th className="px-4 py-3">Recommended</th>
-                    <th className="px-4 py-3">Current (runtime)</th>
-                    <th className="px-4 py-3 w-24">Match</th>
+                    <th scope="col" className="px-4 py-3">Parameter</th>
+                    <th scope="col" className="px-4 py-3">Recommended</th>
+                    <th scope="col" className="px-4 py-3">Current (runtime)</th>
+                    <th scope="col" className="px-4 py-3 w-24">Match</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700/30 text-sm font-mono">
@@ -815,11 +820,11 @@ export default function HostNetworkingPage() {
                   <table className="w-full text-xs" aria-label="LLDP neighbors">
                     <thead>
                       <tr className="text-slate-500 border-b border-slate-700/40">
-                        <th className="text-left py-2 pr-3">Local IF</th>
-                        <th className="text-left py-2 pr-3">Chassis</th>
-                        <th className="text-left py-2 pr-3">System</th>
-                        <th className="text-left py-2 pr-3">Port</th>
-                        <th className="text-left py-2">Description</th>
+                        <th scope="col" className="text-left py-2 pr-3">Local IF</th>
+                        <th scope="col" className="text-left py-2 pr-3">Chassis</th>
+                        <th scope="col" className="text-left py-2 pr-3">System</th>
+                        <th scope="col" className="text-left py-2 pr-3">Port</th>
+                        <th scope="col" className="text-left py-2">Description</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -867,7 +872,7 @@ export default function HostNetworkingPage() {
                     value={ifaceFilter}
                     onChange={(e) => setIfaceFilter(e.target.value)}
                     placeholder="Filter by name, type, master, or IP…"
-                    className="w-full pl-10 pr-3 py-2 text-sm bg-slate-800/80 border border-slate-600 rounded-lg text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_40%,transparent)]"
+                    className="w-full pl-10 pr-3 py-2 text-sm bg-slate-800/80 border border-slate-600 rounded-lg text-slate-200 placeholder:text-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--machina-status-info)_40%,transparent)]"
                     aria-label="Filter interfaces"
                   />
                 </div>
@@ -931,7 +936,7 @@ export default function HostNetworkingPage() {
             <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-fade-in" onClick={e => e.stopPropagation()}>
               <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
                 <span className="text-lg font-semibold flex items-center gap-2"><Router className="w-5 h-5 text-orange-400" /> Create Bridge</span>
-                <button onClick={() => setDialog(null)} className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
+                <button onClick={() => setDialog(null)} aria-label="Close" className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
               </div>
               <div className="p-5 space-y-3">
                 <div><label htmlFor="br-name" className="block text-sm text-slate-400 mb-1">Bridge Name</label><input id="br-name" autoFocus value={brName} onChange={e => setBrName(e.target.value)} className="input-field" placeholder="br0" /></div>
@@ -962,7 +967,7 @@ export default function HostNetworkingPage() {
             <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-fade-in" onClick={e => e.stopPropagation()}>
               <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
                 <span className="text-lg font-semibold flex items-center gap-2"><ArrowRight className="w-5 h-5 text-cyan-400" /> Port Forward</span>
-                <button onClick={() => setDialog(null)} className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
+                <button onClick={() => setDialog(null)} aria-label="Close" className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
               </div>
               <div className="p-5 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
@@ -994,7 +999,7 @@ export default function HostNetworkingPage() {
             <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-fade-in" onClick={e => e.stopPropagation()}>
               <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
                 <span className="text-lg font-semibold flex items-center gap-2"><Shield className={`w-5 h-5 ${statusToneClass('error')}`} /> Firewall Rule</span>
-                <button onClick={() => setDialog(null)} className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
+                <button onClick={() => setDialog(null)} aria-label="Close" className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
               </div>
               <div className="p-5 space-y-3">
                 <div><label htmlFor="fw-vmip" className="block text-sm text-slate-400 mb-1">VM IP</label>
