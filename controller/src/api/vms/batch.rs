@@ -1,12 +1,11 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-use axum::extract::{Path, State};
+use axum::extract::State;
 use axum::Extension;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::api::tasks::TaskResponse;
 use crate::api::ApiError;
 use crate::auth::{require_operator, AuthUser};
 use crate::state::AppState;

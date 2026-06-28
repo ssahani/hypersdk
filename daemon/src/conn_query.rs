@@ -74,19 +74,8 @@ pub fn impersonation_prefers_session_only(actor: &RequestActor) -> bool {
         && cfg.libvirt.dual_connection
 }
 
-/// Run a libvirt call on the hypervisor selected by [`ConnQuery`] (blocking pool).
-pub async fn spawn_libvirt<R>(
-    manager: LibvirtManager,
-    conn_q: ConnQuery,
-    op: impl FnOnce(&Connect) -> Result<R, LibvirtError> + Send + 'static,
-) -> Result<R, AppError>
-where
-    R: Send + 'static,
-{
-    spawn_libvirt_actor(manager, None, conn_q, op).await
-}
-
-/// Like [`spawn_libvirt`] but applies session defaults for impersonated OIDC users.
+/// Run a libvirt call on the hypervisor selected by [`ConnQuery`], applying
+/// session defaults for impersonated OIDC users (blocking pool).
 pub async fn spawn_libvirt_actor<R>(
     manager: LibvirtManager,
     actor: Option<&RequestActor>,

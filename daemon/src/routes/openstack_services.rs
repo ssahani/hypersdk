@@ -4,7 +4,7 @@
 
 use axum::{
     extract::{Path, Query},
-    routing::{delete, get, post, put},
+    routing::{delete, get, post},
     Json, Router,
 };
 use machina_core::{

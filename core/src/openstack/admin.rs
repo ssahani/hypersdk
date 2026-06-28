@@ -56,10 +56,12 @@ pub async fn list_availability_zones(
 ) -> Result<Vec<OpenStackAvailabilityZone>, LibvirtError> {
     let session = connect_session(cfg).await?;
     #[derive(Deserialize)]
+    #[allow(non_snake_case)]
     struct Resp {
         availabilityZoneInfo: Vec<AzJson>,
     }
     #[derive(Deserialize)]
+    #[allow(non_snake_case)]
     struct AzJson {
         zoneName: String,
         zoneState: ZoneState,

@@ -16,7 +16,7 @@ use machina_core::{
     connection_status_skeleton, create_cinder_volume, create_flavor, create_floating_ip,
     create_instance, create_network, delete_cinder_volume, delete_flavor, delete_floating_ip,
     delete_glance_image, delete_instance, delete_network, detach_volume, dissociate_floating_ip,
-    enrich_instance_flavor, export_instance_plan, export_instance_to_disk, force_delete_instance,
+    enrich_instance_flavor, export_instance_plan, export_instance_to_disk,
     get_cinder_volume, get_console_output, get_flavor, get_floating_ip, get_image, get_instance,
     get_network, get_remote_console, get_security_group, is_openstack_configured,
     list_cinder_volumes, list_flavors, list_floating_ips, list_images, list_instance_floating_ips,

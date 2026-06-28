@@ -150,6 +150,7 @@ pub(crate) async fn fetch_unexported_alerts(
 }
 
 #[derive(Debug, sqlx::FromRow)]
+#[allow(dead_code)]
 pub(crate) struct AlertRow {
     pub id: Uuid,
     pub title: String,

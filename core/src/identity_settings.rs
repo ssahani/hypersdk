@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::config::{MachinaConfig, OidcConfig, OidcDefaultRole, SamlConfig};
+use crate::config::{MachinaConfig, OidcDefaultRole};
 
 fn config_path_display() -> String {
     if MachinaConfig::system_config_path().exists() {

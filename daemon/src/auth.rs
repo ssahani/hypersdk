@@ -350,6 +350,7 @@ fn browser_actor(
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct PlatformJwtClaims {
     sub: String,
     role: String,

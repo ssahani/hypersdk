@@ -468,10 +468,10 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
-    if (ql.contains("exposure cost")
+    if ql.contains("exposure cost")
         || ql.contains("firewall waste")
         || ql.contains("port waste")
-        || (ql.contains("exposure") && ql.contains("finops")))
+        || (ql.contains("exposure") && ql.contains("finops"))
     {
         intents.push(intent(
             "finops-exposure",

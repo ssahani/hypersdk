@@ -2,7 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
-use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 pub struct AutonomousPlanBody {

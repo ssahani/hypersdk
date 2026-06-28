@@ -31,11 +31,6 @@ impl DaemonStats {
         }
     }
 
-    /// Backward-compatible helper; prefer [`Self::inc_auth_attempt`].
-    pub fn inc_auth_failure(&self) {
-        self.inc_auth_attempt("unknown", "failure");
-    }
-
     pub fn inc_auth_attempt(&self, method: &str, result: &str) {
         let method = method.to_ascii_lowercase();
         let result = result.to_ascii_lowercase();

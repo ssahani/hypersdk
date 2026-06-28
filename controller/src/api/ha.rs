@@ -7,7 +7,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::api::ApiError;
-use crate::auth::{require_admin, require_operator, AuthUser};
+use crate::auth::{require_operator, AuthUser};
 use crate::engine::template::{get_ha_policy, upsert_ha_policy, HaPolicyRow};
 use crate::state::AppState;
 

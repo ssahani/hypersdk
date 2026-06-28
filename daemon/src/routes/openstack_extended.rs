@@ -4,15 +4,12 @@
 
 //! Extended OpenStack API routes (v2).
 
-use std::sync::Arc;
-
 use axum::{
     body::Body,
     extract::{Path, Query},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
-    routing::{delete, get, post, put},
-    Extension, Json, Router,
+    routing::{delete, get, post, put}, Json, Router,
 };
 use machina_core::{
     accept_volume_transfer, add_aggregate_host, add_image_member, add_router_interface,
@@ -51,14 +48,7 @@ use serde::Deserialize;
 
 use crate::error::AppError;
 use crate::openstack_runtime::{self, openstack_cfg};
-use crate::routes::events::{EventBus, MachinaEvent};
 use crate::routes::openstack::{ensure_openstack_enabled, log_audit};
-
-fn emit(bus: &Arc<EventBus>, kind: &str, target: &str, status: &str, message: &str) {
-    let mut ev = MachinaEvent::now(kind, target, status);
-    ev.message = message.chars().take(512).collect();
-    bus.emit(ev);
-}
 
 #[derive(Deserialize)]
 pub struct ConsoleQuery {

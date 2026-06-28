@@ -4,7 +4,7 @@
 
 use axum::{
     extract::{Path, Query},
-    routing::{get, post},
+    routing::get,
     Json, Router,
 };
 use machina_core::{GuestkitConfig, LibvirtError, LibvirtManager, MachinaConfig};

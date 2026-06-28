@@ -67,7 +67,7 @@ mod vms;
 mod webhooks;
 
 use axum::middleware;
-use axum::routing::{delete, get, patch, post, put};
+use axum::routing::{delete, get, patch, post};
 use axum::Router;
 
 use crate::auth::auth_middleware;

@@ -150,13 +150,6 @@ pub async fn get_provider(pool: &SqlitePool, id: Uuid) -> anyhow::Result<Option<
     ))
 }
 
-async fn clear_default(pool: &SqlitePool) -> anyhow::Result<()> {
-    sqlx::query("UPDATE ai_providers SET is_default = FALSE WHERE is_default = TRUE")
-        .execute(pool)
-        .await?;
-    Ok(())
-}
-
 pub async fn create_provider(
     pool: &SqlitePool,
     body: &CreateProviderBody,

@@ -11,7 +11,7 @@ use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Extension, Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{any, get, post, put};
+use axum::routing::{any, get, post};
 use axum::{Json, Router};
 use futures_util::{SinkExt, StreamExt};
 use libvirt_guac_bridge::{bridge_from_plan, GuacBridgeTarget, GuacamoleBridgeParams};
@@ -33,15 +33,8 @@ pub struct ConsoleSessionStore {
 
 #[derive(Clone)]
 struct LiveConsoleSession {
-    vm_id: Uuid,
-    actor: String,
-    protocol: String,
-    backend: String,
-    guac_token: Option<String>,
     agent_proxy_base: String,
-    emergency_url: Option<String>,
     expires: Instant,
-    audit_id: Uuid,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -787,15 +780,8 @@ pub async fn create_session(
         let session_id = state
             .console_sessions
             .insert(LiveConsoleSession {
-                vm_id: id,
-                actor: user.username.clone(),
-                protocol: protocol.clone(),
-                backend: "native".into(),
-                guac_token: None,
                 agent_proxy_base: String::new(),
-                emergency_url: None,
                 expires: Instant::now() + ttl,
-                audit_id,
             })
             .await;
         let ns = k8s_namespace.unwrap_or_else(|| "default".into());
@@ -916,15 +902,8 @@ pub async fn create_session(
     let session_id = state
         .console_sessions
         .insert(LiveConsoleSession {
-            vm_id: id,
-            actor: user.username.clone(),
-            protocol: protocol.clone(),
-            backend: backend.clone(),
-            guac_token: guac_token.clone(),
             agent_proxy_base: agent_proxy.clone(),
-            emergency_url: emergency_url.clone(),
             expires: Instant::now() + ttl,
-            audit_id,
         })
         .await;
 

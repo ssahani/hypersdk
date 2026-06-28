@@ -3141,7 +3141,7 @@ async fn k8s_kubevirt_delete_vm(
     }
     ensure_safe_name(&namespace, "namespace")?;
     ensure_safe_name(&name, "name")?;
-    let mut args = vec![
+    let args = vec![
         "delete".into(),
         "virtualmachine.kubevirt.io".into(),
         name.clone(),
@@ -3238,7 +3238,7 @@ async fn k8s_kubevirt_vm_lifecycle(
         })));
     }
     let patch = patch.expect("start/stop always have patch");
-    let mut args = vec![
+    let args = vec![
         "patch".into(),
         "virtualmachine.kubevirt.io".into(),
         name.clone(),

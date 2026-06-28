@@ -38,11 +38,8 @@ struct LiveConsoleSession {
     actor: String,
     protocol: String,
     backend: String,
-    guac_token: Option<String>,
     guacamole_base: String,
-    emergency_url: Option<String>,
     expires: Instant,
-    audit_id: Uuid,
 }
 
 #[derive(Clone, Serialize)]
@@ -235,7 +232,7 @@ async fn build_plan(
     let cfg = MachinaConfig::load();
     let name2 = vm_name.to_string();
     let conn_str = conn_q.connection.clone().unwrap_or_default();
-    let (vnc_host, vnc_port, console_type, serial_available, guest_ip, os_hint) =
+    let (_vnc_host, vnc_port, console_type, serial_available, guest_ip, os_hint) =
         spawn_libvirt_actor(manager.clone(), Some(actor), conn_q, move |conn| {
             let xml = machina_core::libvirt::domain::get_vm_xml(conn, &name2).unwrap_or_default();
             let has_spice = machina_core::libvirt::graphics_convert::domain_has_spice_graphics(&xml);
@@ -528,11 +525,8 @@ async fn create_session(
             actor: actor.username.clone(),
             protocol: protocol.clone(),
             backend: backend.clone(),
-            guac_token: guac_token.clone(),
             guacamole_base,
-            emergency_url: emergency_url.clone(),
             expires: Instant::now() + ttl,
-            audit_id,
         })
         .await;
 

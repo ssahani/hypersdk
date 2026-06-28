@@ -19,7 +19,6 @@ use tokio_util::sync::CancellationToken;
 
 use crate::obs_reload::observability_reload_generation;
 
-pub use machina_core::metrics_history::MetricsHistoryPoint as HistoryPoint;
 
 #[derive(Clone)]
 pub struct MetricsHistoryStore {

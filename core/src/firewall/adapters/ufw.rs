@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-use super::{default_posture, FirewallAdapter};
+use super::FirewallAdapter;
 use crate::firewall::detect::run_cmd;
 use crate::firewall::types::{FirewallBackend, FirewallPosture, FirewallRule, StealthLevel};
 use crate::LibvirtError;

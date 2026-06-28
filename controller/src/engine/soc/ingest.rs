@@ -176,7 +176,9 @@ async fn ingest_audit_logs(pool: &SqlitePool) -> anyhow::Result<usize> {
         Value,
         DateTime<Utc>,
     )> = sqlx::query_as(
-        "SELECT id, actor, action, resource_type, resource_id, detail,
+        "SELECT id, actor, action, resource_type,
+                CASE WHEN typeof(resource_id) = 'blob' AND length(resource_id) = 16 THEN resource_id END AS resource_id,
+                detail,
                 strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
              FROM audit_logs WHERE strftime('%Y-%m-%dT%H:%M:%SZ', created_at) > ? ORDER BY created_at ASC LIMIT 2000",
     )
@@ -246,7 +248,9 @@ async fn ingest_platform_events(pool: &SqlitePool) -> anyhow::Result<usize> {
         Value,
         DateTime<Utc>,
     )> = sqlx::query_as(
-        "SELECT id, kind, resource_type, resource_id, message, payload,
+        "SELECT id, kind, resource_type,
+                CASE WHEN typeof(resource_id) = 'blob' AND length(resource_id) = 16 THEN resource_id END AS resource_id,
+                message, payload,
                 strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS created_at
              FROM events WHERE strftime('%Y-%m-%dT%H:%M:%SZ', created_at) > ? ORDER BY created_at ASC LIMIT 1000",
     )

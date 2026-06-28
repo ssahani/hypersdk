@@ -13,7 +13,7 @@ const KUBEVIRT_MISSING: &str =
     "kubevirt_not_found: VirtualMachine no longer present in cluster inventory scan";
 
 #[derive(Debug, Deserialize)]
-struct KubeVirtInventoryResponse {
+pub struct KubeVirtInventoryResponse {
     #[serde(default)]
     rows: Vec<KubeVirtVmRow>,
     #[serde(default = "default_true")]

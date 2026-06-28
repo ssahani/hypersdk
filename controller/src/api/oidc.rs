@@ -41,14 +41,6 @@ pub struct OidcLoginResponse {
     pub state: String,
 }
 
-#[derive(Debug, Serialize)]
-pub struct OidcTokenResponse {
-    pub access_token: String,
-    pub token_type: String,
-    pub username: String,
-    pub role: String,
-}
-
 pub async fn get_oidc_settings(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,

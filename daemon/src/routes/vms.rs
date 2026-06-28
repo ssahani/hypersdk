@@ -1321,7 +1321,7 @@ async fn get_memtune_handler(
 
 async fn convert_spice_to_vnc_handler(
     State(manager): State<LibvirtManager>,
-    Extension(actor): Extension<RequestActor>,
+    Extension(_actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {

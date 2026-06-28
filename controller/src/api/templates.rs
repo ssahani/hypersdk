@@ -4,7 +4,6 @@ use axum::extract::{Path as AxumPath, Query, State};
 use axum::http::HeaderMap;
 use axum::Extension;
 use axum::Json;
-use machina_spec::VmTemplate;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -394,14 +393,4 @@ pub async fn approve_template(
     .fetch_one(&state.pool)
     .await?;
     Ok(Json(row))
-}
-
-pub fn template_to_spec(t: &TemplateRow) -> VmTemplate {
-    VmTemplate {
-        name: t.name.clone(),
-        version: t.version.clone(),
-        source_disk: t.source_disk.clone(),
-        cloud_init: t.cloud_init,
-        os_family: t.os_family.clone(),
-    }
 }

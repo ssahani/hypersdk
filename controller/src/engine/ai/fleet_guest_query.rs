@@ -121,7 +121,6 @@ pub async fn execute(
 
 struct SummaryOut {
     summary: String,
-    llm_powered: bool,
 }
 
 fn deterministic_summary(query: &str, matched: usize, scanned: usize) -> SummaryOut {
@@ -129,7 +128,6 @@ fn deterministic_summary(query: &str, matched: usize, scanned: usize) -> Summary
         summary: format!(
             "Fleet guest query \"{query}\": {matched} VM(s) matched of {scanned} scanned with guest-agent data."
         ),
-        llm_powered: false,
     }
 }
 

@@ -21,6 +21,7 @@ struct LocalSensor {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct PendingTetragonInstall {
     host_id: String,
     export_url: String,

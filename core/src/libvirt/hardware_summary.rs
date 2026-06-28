@@ -332,10 +332,10 @@ pub fn get_hardware_summary(conn: &Connect, name: &str) -> Result<VmHardwareSumm
     }
 
     let (firmware_value, secure_boot) = parse_firmware(&config_xml);
-    let mut fw_badges = vec!["restart_required".into()];
+    let fw_badges = vec!["restart_required".into()];
 
     let (tpm_value, tpm2) = parse_tpm(&config_xml);
-    let mut tpm_badges = if tpm_value == "Not configured" {
+    let tpm_badges = if tpm_value == "Not configured" {
         vec!["restart_required".into(), "windows_recommended".into()]
     } else {
         vec!["restart_required".into()]

@@ -5,6 +5,7 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(Debug, sqlx::FromRow)]
+#[allow(dead_code)]
 struct PlaybookRow {
     id: Uuid,
     name: String,
@@ -13,6 +14,7 @@ struct PlaybookRow {
 }
 
 #[derive(Debug, sqlx::FromRow)]
+#[allow(dead_code)]
 struct AlertRow {
     id: Uuid,
     title: String,

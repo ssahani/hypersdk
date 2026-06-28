@@ -377,6 +377,7 @@ pub async fn siem_export(
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct DriftQuery {
     pub target_kind: Option<String>,
 }

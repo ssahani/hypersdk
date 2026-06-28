@@ -4,7 +4,7 @@ use axum::extract::State;
 use axum::Extension;
 use axum::Json;
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::Value;
 
 use crate::api::topology::{build_topology, TopologyGraph};
 use crate::api::ApiError;

@@ -1874,7 +1874,7 @@ fn build_console_access_plan(
 ) -> Result<GetConsoleAccessPlanResponse, String> {
     use crate::guacamole_proxy::guacamole_configured;
 
-    let mut ctx = libvirt.lock().map_err(|e| format!("libvirt lock: {e}"))?;
+    let ctx = libvirt.lock().map_err(|e| format!("libvirt lock: {e}"))?;
 
     let xml = ctx.get_domain_xml(vm_name).unwrap_or_default();
     let has_spice = machina_core::libvirt::graphics_convert::domain_has_spice_graphics(&xml);
@@ -1930,7 +1930,7 @@ fn build_console_access_plan(
     let desktop_golden = xml_lower.contains("ubuntu-24.04-desktop")
         || xml_lower.contains("-desktop.qcow2")
         || xml_lower.contains("ubuntu-desktop");
-    let server_cloud_linux = linux_cloud_serial_preferred(&xml_lower, &os_hint, desktop_golden);
+    let _server_cloud_linux = linux_cloud_serial_preferred(&xml_lower, &os_hint, desktop_golden);
     let serial_available = resolve_console_pty(&xml).is_some();
 
     // Serial is always last resort — only when no graphical display and no SSH/RDP alternative.

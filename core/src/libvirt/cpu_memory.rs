@@ -51,7 +51,7 @@ pub fn has_vfio_hostdev(xml: &str) -> bool {
 }
 
 fn parse_topology(xml: &str) -> (u32, u32, u32) {
-    for block in crate::xml::split_blocks(xml, "topology") {
+    if let Some(block) = crate::xml::split_blocks(xml, "topology").into_iter().next() {
         let sockets = crate::xml::extract_attr(&block, "topology", "sockets")
             .and_then(|s| s.parse().ok())
             .unwrap_or(1);

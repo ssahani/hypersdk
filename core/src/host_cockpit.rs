@@ -385,13 +385,12 @@ fn ovs_inventory() -> HostOvsState {
         return st;
     }
     st.available = true;
-    let mut current_bridge = String::new();
     for line in stdout_lines(&o) {
         let trimmed = line.trim();
         if trimmed.starts_with("Bridge ") {
-            current_bridge = trimmed.trim_start_matches("Bridge ").to_string();
+            let current_bridge = trimmed.trim_start_matches("Bridge ").to_string();
             st.bridges.push(OvsBridgeRow {
-                name: current_bridge.clone(),
+                name: current_bridge,
                 ports: vec![],
             });
         } else if trimmed.starts_with("Port ") && !st.bridges.is_empty() {

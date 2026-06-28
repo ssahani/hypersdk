@@ -133,10 +133,6 @@ pub struct TimelineReplay {
     pub graph_changes: Vec<String>,
 }
 
-fn node_key(kind: &str, id: &str) -> String {
-    format!("{kind}:{id}")
-}
-
 pub async fn build(pool: &SqlitePool, scope: &GraphScope) -> anyhow::Result<InfraGraph> {
     let twin = super::digital_twin::build_graph(pool).await?;
     let mut nodes: Vec<GraphNode> = twin
@@ -1051,15 +1047,5 @@ pub fn merge_twin(twin: &DigitalTwinGraph) -> InfraGraph {
             .collect(),
         node_count: twin.node_count,
         edge_count: twin.edge_count,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn node_key_format() {
-        assert_eq!(node_key("vm", "abc"), "vm:abc");
     }
 }
