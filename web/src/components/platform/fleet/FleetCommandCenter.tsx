@@ -126,7 +126,7 @@ export default function FleetCommandCenter({
         <p className="text-xs font-medium text-slate-400">Power</p>
         {primaryPowerAction}
         <div className="flex flex-wrap gap-1.5">
-          {running && (
+          {(running || paused) && (
             <ActionBtn icon={Square} label="Stop" onClick={() => void onPower(selectedVm, 'stop')} />
           )}
           {running && (

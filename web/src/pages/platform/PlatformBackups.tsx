@@ -7,6 +7,7 @@ import { Archive, Clock, Database, RotateCcw } from 'lucide-react'
 import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
 import PlatformStandardView from '../../components/platform/tahoe/PlatformStandardView'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import {
   createBackupTarget,
   createVmBackupWithTarget,
@@ -45,6 +46,7 @@ export default function PlatformBackups() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [restoring, setRestoring] = useState<string | null>(null)
+  const [pendingRestore, setPendingRestore] = useState<BackupTimelineEntry | null>(null)
   const [targetName, setTargetName] = useState('nfs-primary')
   const [targetKind, setTargetKind] = useState('nfs')
   const [backupVmId, setBackupVmId] = useState('')
@@ -230,7 +232,7 @@ export default function PlatformBackups() {
                       </div>
                       <div className="flex flex-col gap-1 shrink-0">
                         {e.kind === 'backup' && e.status === 'completed' && (
-                          <button type="button" className="tahoe-btn-primary text-xs flex items-center gap-1" disabled={restoring === e.id} onClick={() => void restore(e)}>
+                          <button type="button" className="tahoe-btn-primary text-xs flex items-center gap-1" disabled={restoring === e.id} onClick={() => setPendingRestore(e)}>
                             <RotateCcw className="w-3 h-3" /> {restoring === e.id ? 'Queuing…' : 'Restore'}
                           </button>
                         )}
@@ -249,6 +251,19 @@ export default function PlatformBackups() {
       <MacGlassPanel title="Per-VM backups" subtitle="Full backup history and restore live on each VM detail page.">
         <Link to="/platform/vms" className={`text-sm hover:underline ${hubLinkClasses()}`}>Browse VMs →</Link>
       </MacGlassPanel>
+      <ConfirmDialog
+        open={pendingRestore !== null}
+        title="Restore VM from backup"
+        message={pendingRestore ? `Restore "${pendingRestore.vm_name}" from backup "${pendingRestore.label}"? The VM will be powered off and its disk replaced. This cannot be undone.` : ''}
+        confirmLabel="Restore"
+        variant="danger"
+        onCancel={() => setPendingRestore(null)}
+        onConfirm={async () => {
+          if (!pendingRestore) return
+          setPendingRestore(null)
+          await restore(pendingRestore)
+        }}
+      />
     </PlatformStandardView>
   )
 }

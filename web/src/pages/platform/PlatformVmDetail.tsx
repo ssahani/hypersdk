@@ -587,7 +587,7 @@ export default function PlatformVmDetail() {
   const loadSchedules = useCallback(async () => {
     if (!id) return
     setSchedulesLoading(true)
-    try { setSchedules(await listVmSchedules(id)) } catch { setSchedules([]) } finally { setSchedulesLoading(false) }
+    try { setSchedules(await listVmSchedules(id)) } catch (e: unknown) { setSchedules([]); toast.error(formatUserError(e)) } finally { setSchedulesLoading(false) }
   }, [id])
 
   useEffect(() => {
@@ -2191,7 +2191,7 @@ export default function PlatformVmDetail() {
                               ? `${s.interval_minutes / 60}h`
                               : `${s.interval_minutes / 1440}d`}
                           </td>
-                          <td className="py-1 pr-4 text-slate-400 text-xs">{new Date(s.next_run_at + 'Z').toLocaleString()}</td>
+                          <td className="py-1 pr-4 text-slate-400 text-xs">{s.next_run_at ? new Date(s.next_run_at.replace(' ', 'T') + 'Z').toLocaleString() : '—'}</td>
                           <td className="py-1 pr-4 text-slate-400">{s.label || '—'}</td>
                           <td className="py-1 text-right">
                             <button

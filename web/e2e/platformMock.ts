@@ -3450,6 +3450,17 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.match(/\/vms\/[^/]+\/backups/)) {
       return route.fulfill({ json: [] })
     }
+    if (url.match(/\/vms\/[^/]+\/schedules/) && route.request().method() !== 'DELETE') {
+      if (route.request().method() === 'POST') {
+        return route.fulfill({
+          json: { id: 'sched-mock-1', vm_id: 'v1', action: 'snapshot', interval_minutes: 1440, retention: 5, label: '', enabled: true, next_run_at: '2026-06-27 00:00:00', last_run_at: null, created_at: '2026-06-26 00:00:00' },
+        })
+      }
+      return route.fulfill({ json: [] })
+    }
+    if (url.match(/\/vms\/[^/]+\/schedules\/[^/]+/) && route.request().method() === 'DELETE') {
+      return route.fulfill({ json: { ok: true } })
+    }
     if (url.match(/\/vms\/[^/]+\/disks\/attach/) && route.request().method() === 'POST') {
       return route.fulfill({ json: { task_id: 'task-attach-disk-mock', status: 'pending' } })
     }

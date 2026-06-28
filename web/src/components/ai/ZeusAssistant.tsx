@@ -220,7 +220,7 @@ export default function ZeusAssistant() {
               <option key={a.id} value={a.id}>{a.name}</option>
             ))}
           </select>
-          <button type="button" onClick={closeCopilot} className="p-1 text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+          <button type="button" onClick={closeCopilot} className="p-1 text-slate-400 hover:text-white" aria-label="Close Zeus assistant"><X className="w-5 h-5" /></button>
         </header>
 
         {(contextVmIds.length > 0 || contextSummary || contextVmId) && (

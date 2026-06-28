@@ -61,7 +61,10 @@ export default function PlatformEnroll() {
             <div className="space-y-4">
               <div>
                 <div className="text-sm text-slate-400 mb-1">Token</div>
-                <code className="block p-2 bg-slate-900 rounded text-sm break-all">{token.token}</code>
+                <div className="flex gap-2 items-start">
+                  <code className="flex-1 p-2 bg-slate-900 rounded text-sm break-all">{token.token}</code>
+                  <CopyButton text={token.token} />
+                </div>
               </div>
               <div>
                 <div className="text-sm text-slate-400 mb-1 flex items-center gap-2">Install command <Copy className="w-3 h-3" /></div>

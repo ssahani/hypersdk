@@ -45,7 +45,7 @@ export default function MachineFinderCommandBar({ state }: Props) {
                 dispatchOpenSpotlight(search.trim() || undefined)
               }
             }}
-            placeholder="Search machines or ⌘K…"
+            placeholder="Search machines… (⌘K / Ctrl+K)"
             className="w-full pl-9 pr-3 py-2 rounded-lg bg-slate-900/60 border border-white/[0.08] text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus-visible:ring-1 focus-visible:ring-sky-500/40"
             data-testid="machine-finder-search"
           />

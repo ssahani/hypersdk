@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import ConfirmDialog from '../../components/ConfirmDialog'
-import { Key, Plus, Trash2 } from 'lucide-react'
+import { Copy, Key, Plus, Trash2 } from 'lucide-react'
 import GlassDataTable from '../../components/platform/GlassDataTable'
 import OperatingSurfaceLayout from '../../components/platform/OperatingSurfaceLayout'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
@@ -54,7 +54,17 @@ export default function PlatformApiKeys({ embedded }: { embedded?: boolean } = {
         {newToken && (
           <div className={`rounded-xl p-4 text-sm ${statusSurfaceClasses('warn')}`}>
             <p className={`mb-2 ${statusToneClass('warn')}`}>Copy this token now — it will not be shown again:</p>
-            <code className="block break-all text-xs text-slate-300">{newToken}</code>
+            <div className="flex items-start gap-2">
+              <code className="flex-1 break-all text-xs text-slate-300">{newToken}</code>
+              <button
+                type="button"
+                className="btn-secondary text-xs shrink-0 inline-flex items-center gap-1"
+                onClick={() => { void navigator.clipboard.writeText(newToken); toast.success('Token copied') }}
+                aria-label="Copy API token"
+              >
+                <Copy className="w-3.5 h-3.5" /> Copy
+              </button>
+            </div>
           </div>
         )}
 

@@ -61,14 +61,18 @@ async fn tick(state: &AppState) -> anyhow::Result<()> {
                     chrono::Utc::now().format("%Y%m%d-%H%M")
                 );
                 let record_id = Uuid::new_v4();
-                let _ = sqlx::query(
+                if let Err(e) = sqlx::query(
                     "INSERT INTO snapshot_records (id, vm_id, name, status) VALUES (?, ?, ?, 'pending')",
                 )
                 .bind(record_id)
                 .bind(vm_id)
                 .bind(&snap_name)
                 .execute(&state.pool)
-                .await;
+                .await
+                {
+                    tracing::warn!(schedule_id = %sched_id, vm_id = %vm_id, "failed to insert snapshot_record: {e:#}");
+                    continue;
+                }
 
                 enqueue_task(
                     state,
@@ -97,7 +101,7 @@ async fn tick(state: &AppState) -> anyhow::Result<()> {
             continue;
         }
 
-        let _ = sqlx::query(
+        if let Err(e) = sqlx::query(
             "UPDATE vm_schedules
              SET last_run_at = datetime('now'),
                  next_run_at = datetime(next_run_at, '+' || interval_minutes || ' minutes')
@@ -105,7 +109,10 @@ async fn tick(state: &AppState) -> anyhow::Result<()> {
         )
         .bind(sched_id)
         .execute(&state.pool)
-        .await;
+        .await
+        {
+            tracing::warn!(schedule_id = %sched_id, "failed to advance next_run_at: {e:#}");
+        }
     }
 
     Ok(())

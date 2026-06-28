@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useMemo, type ReactNode } from 'react'
 
 type BreadcrumbNameContextValue = {
   name: string | null
@@ -14,8 +14,9 @@ const BreadcrumbNameContext = createContext<BreadcrumbNameContextValue>({
 
 export function BreadcrumbNameProvider({ children }: { children: ReactNode }) {
   const [name, setName] = useState<string | null>(null)
+  const value = useMemo(() => ({ name, setName }), [name])
   return (
-    <BreadcrumbNameContext.Provider value={{ name, setName }}>
+    <BreadcrumbNameContext.Provider value={value}>
       {children}
     </BreadcrumbNameContext.Provider>
   )

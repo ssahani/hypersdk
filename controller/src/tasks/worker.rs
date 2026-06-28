@@ -914,6 +914,41 @@ async fn vm_snapshot(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> 
             .execute(&state.pool)
             .await?;
         state.emit_event("vm.snapshot", format!("Snapshot {} on {}", row.2, row.0));
+
+        // Prune old scheduled snapshots when the schedule has a retention limit.
+        if let Some(keep) = msg.payload["retention"].as_i64().filter(|&r| r > 0) {
+            let excess: Vec<(Uuid, String)> = sqlx::query_as(
+                "SELECT id, name FROM snapshot_records
+                 WHERE vm_id = ? AND name LIKE 'sched-%' AND status = 'completed'
+                   AND id NOT IN (
+                     SELECT id FROM snapshot_records
+                     WHERE vm_id = ? AND name LIKE 'sched-%' AND status = 'completed'
+                     ORDER BY created_at DESC LIMIT ?
+                   )",
+            )
+            .bind(vm_id)
+            .bind(vm_id)
+            .bind(keep)
+            .fetch_all(&state.pool)
+            .await
+            .unwrap_or_default();
+
+            for (old_id, old_name) in excess {
+                let _ = enqueue_task(
+                    state,
+                    "vm.snapshot.delete",
+                    serde_json::json!({ "vm_id": vm_id.to_string(), "snapshot_name": old_name }),
+                    Some("vm"),
+                    Some(vm_id),
+                    Some(host_id),
+                )
+                .await;
+                let _ = sqlx::query("DELETE FROM snapshot_records WHERE id = ?")
+                    .bind(old_id)
+                    .execute(&state.pool)
+                    .await;
+            }
+        }
     } else {
         sqlx::query("UPDATE snapshot_records SET status = 'failed', message = ? WHERE id = ?")
             .bind(&resp.message)

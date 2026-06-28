@@ -225,7 +225,7 @@ export default function PlatformControlCenter() {
           <div className="absolute right-0 top-full mt-2 z-50 w-[22rem] glass-strong rounded-liquid-lg overflow-hidden animate-fade-in">
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
               <span className="font-semibold text-sm">Control Center</span>
-              <button type="button" onClick={() => setOpen(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400">
+              <button type="button" onClick={() => setOpen(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400" aria-label="Close control center">
                 <X className="w-4 h-4" />
               </button>
             </div>
