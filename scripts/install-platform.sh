@@ -150,7 +150,7 @@ ensure_packetwolf_k8s_port_forward() {
   unit_src="${INSTALLER_ROOT}/contrib/packetwolf-api-port-forward.service"
   unit_dst="/usr/lib/systemd/system/packetwolf-api-port-forward.service"
   [[ -f "$unit_src" ]] || return 1
-  sed "s/-n cilium-system/-n ${ns}/" "$unit_src" >"$unit_dst"
+  sed "s/-n packetwolf/-n ${ns}/" "$unit_src" >"$unit_dst"
   systemctl daemon-reload
   systemctl enable packetwolf-api-port-forward >>"$LOG_FILE" 2>&1 || true
   systemctl restart packetwolf-api-port-forward >>"$LOG_FILE" 2>&1 || return 1

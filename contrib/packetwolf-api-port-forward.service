@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 EnvironmentFile=-/etc/packetwolf/config.env
 Environment=KUBECONFIG=/etc/packetwolf/k3s.yaml
-ExecStart=/usr/local/bin/kubectl --kubeconfig=/etc/packetwolf/k3s.yaml -n cilium-system port-forward svc/packetwolf-api 9191:9191 --address=127.0.0.1
+ExecStart=/usr/local/bin/kubectl --kubeconfig=/etc/packetwolf/k3s.yaml -n packetwolf port-forward svc/packetwolf-api 9191:9191 --address=127.0.0.1
 Restart=on-failure
 RestartSec=5
 
