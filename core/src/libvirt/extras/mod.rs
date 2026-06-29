@@ -794,13 +794,18 @@ fn list_host_filesystems_linux() -> Result<Vec<HostFilesystem>, LibvirtError> {
         .args(["-B1", "-T"])
         .output()
         .map_err(|e| LibvirtError::Operation(format!("df failed: {e}")))?;
-    if !output.status.success() {
+    // df exits non-zero when *any* single mount is inaccessible (e.g. a stale NFS
+    // or a broken guestfs FUSE mount: "Transport endpoint is not connected") yet
+    // still prints valid rows for every other filesystem. Parse whatever stdout we
+    // got instead of failing the whole listing; only error when there is nothing.
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if stdout.trim().is_empty() {
         return Err(LibvirtError::Operation(format!(
             "df failed: {}",
             String::from_utf8_lossy(&output.stderr)
         )));
     }
-    parse_df_bt_output(&String::from_utf8_lossy(&output.stdout))
+    parse_df_bt_output(&stdout)
 }
 
 #[cfg(target_os = "linux")]
