@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   cinemaHubPath,
   cinemaPopoutPath,
+  getDefaultLens,
+  getDefaultProtocol,
   loadConsoleModePreference,
   parseConsoleMode,
   resolveConsoleMode,
@@ -69,5 +71,49 @@ describe('consoleExperienceMode', () => {
     expect(popout.pathname).toBe('/platform/vms/v1/consolehub')
     expect(popout.searchParams.get('mode')).toBe('cinema')
     expect(popout.searchParams.get('popout')).toBe('1')
+  })
+
+  it('running graphical VM defaults to display', () => {
+    const plan = {
+      native: { console_type: 'vnc', available: true },
+      webrtc_spice_available: false,
+      protocols: ['novnc', 'serial'],
+      recommended: 'novnc',
+    }
+    expect(getDefaultLens(plan)).toBe('display')
+    expect(getDefaultProtocol(plan)).toBe('novnc')
+  })
+
+  it('shutoff graphical VM defaults to display via recommended (regression: must not drop to serial)', () => {
+    // Shutoff VM: no live VNC port, so native.available=false and console_type='unknown',
+    // but the backend still recommends a display protocol from the domain XML.
+    const vnc = {
+      native: { console_type: 'unknown', available: false },
+      webrtc_spice_available: false,
+      protocols: ['novnc', 'serial'],
+      recommended: 'novnc',
+    }
+    expect(getDefaultLens(vnc)).toBe('display')
+    expect(getDefaultProtocol(vnc)).toBe('novnc')
+
+    const rdp = {
+      native: { console_type: 'unknown', available: false },
+      webrtc_spice_available: false,
+      protocols: ['guacamole_rdp', 'serial'],
+      recommended: 'guacamole_rdp',
+    }
+    expect(getDefaultLens(rdp)).toBe('display')
+    expect(getDefaultProtocol(rdp)).toBe('guacamole_rdp')
+  })
+
+  it('serial-only VM (no display device) defaults to serial', () => {
+    const plan = {
+      native: { console_type: 'unknown', available: false },
+      webrtc_spice_available: false,
+      protocols: ['serial'],
+      recommended: 'serial',
+    }
+    expect(getDefaultLens(plan)).toBe('serial')
+    expect(getDefaultProtocol(plan)).toBe('serial')
   })
 })

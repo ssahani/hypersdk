@@ -49,6 +49,7 @@ interface PlanSnapshot {
   native: { console_type: string; available: boolean }
   webrtc_spice_available: boolean
   protocols: string[]
+  recommended?: string
 }
 
 /**
@@ -59,6 +60,11 @@ interface PlanSnapshot {
 export function getDefaultLens(plan: PlanSnapshot): 'display' | 'serial' {
   if (plan.native.available || plan.native.console_type === 'vnc') return 'display'
   if (plan.webrtc_spice_available || plan.native.console_type === 'spice') return 'display'
+  // A shutoff VM has no live VNC/SPICE port yet (autoport is assigned at start), so the
+  // capability checks above are all false even for a graphical VM. The backend still
+  // recommends a display protocol when the domain XML has a graphics device — honor it so
+  // a graphical VM doesn't default to serial just because it isn't running.
+  if (plan.recommended && isDisplayProtocol(plan.recommended)) return 'display'
   if ((plan.protocols ?? []).includes('serial')) return 'serial'
   return 'display'
 }
@@ -70,6 +76,9 @@ export function getDefaultLens(plan: PlanSnapshot): 'display' | 'serial' {
 export function getDefaultProtocol(plan: PlanSnapshot): string {
   if (plan.native.available || plan.native.console_type === 'vnc') return 'novnc'
   if (plan.webrtc_spice_available || plan.native.console_type === 'spice') return 'spice'
+  // Shutoff graphical VM: no live port yet, but trust the backend's display recommendation
+  // (e.g. novnc / spice / guacamole_rdp) so we don't drop to serial. See getDefaultLens.
+  if (plan.recommended && isDisplayProtocol(plan.recommended)) return plan.recommended
   if ((plan.protocols ?? []).includes('serial')) return 'serial'
   return 'novnc'
 }
