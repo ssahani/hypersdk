@@ -360,7 +360,7 @@ export default function EventsPage() {
                       <Tooltip
                         contentStyle={tooltipStyle}
                         labelStyle={{ color: '#94a3b8' }}
-                        formatter={(value: number) => [`${value}%`, '']}
+                        formatter={(value) => [`${value}%`, '']}
                       />
                       <Legend wrapperStyle={{ fontSize: 11, maxHeight: 72, overflowY: 'auto' }} />
                       {chartVmSubset.map((m, i) => (
@@ -405,7 +405,7 @@ export default function EventsPage() {
                       <Tooltip
                         contentStyle={tooltipStyle}
                         labelStyle={{ color: '#94a3b8' }}
-                        formatter={(value: number) => [`${value}%`, '']}
+                        formatter={(value) => [`${value}%`, '']}
                       />
                       <Legend wrapperStyle={{ fontSize: 11, maxHeight: 72, overflowY: 'auto' }} />
                       {chartVmSubset.map((m, i) => (
@@ -459,7 +459,7 @@ export default function EventsPage() {
                       <Tooltip
                         contentStyle={tooltipStyle}
                         labelStyle={{ color: '#94a3b8' }}
-                        formatter={(v: number) => formatThroughput(v)}
+                        formatter={(v) => formatThroughput(Number(v))}
                       />
                       <Legend />
                       <Area
@@ -519,7 +519,7 @@ export default function EventsPage() {
                       <Tooltip
                         contentStyle={tooltipStyle}
                         labelStyle={{ color: '#94a3b8' }}
-                        formatter={(v: number) => formatThroughput(v)}
+                        formatter={(v) => formatThroughput(Number(v))}
                       />
                       <Legend />
                       <Area
@@ -566,7 +566,7 @@ export default function EventsPage() {
                     <YAxis type="category" dataKey="label" width={148} stroke="#64748b" fontSize={10} tickLine={false} />
                     <Tooltip
                       contentStyle={tooltipStyle}
-                      formatter={(v: number) => [`${v}%`, 'Memory']}
+                      formatter={(v) => [`${v}%`, 'Memory']}
                       labelFormatter={(_, p) =>
                         (p?.[0]?.payload as { fullName?: string } | undefined)?.fullName ?? ''
                       }

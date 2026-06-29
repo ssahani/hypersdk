@@ -13,6 +13,10 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
     target: 'esnext',
+    // three.js ships as one large module (~720 kB / ~185 kB gzip) that can't be
+    // meaningfully split; raise the advisory limit so the legitimately-large,
+    // lazily-loaded vendor chunks don't emit a spurious warning.
+    chunkSizeWarningLimit: 1000,
   },
   server: {
     port: 3000,
