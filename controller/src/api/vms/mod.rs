@@ -996,6 +996,23 @@ pub(crate) async fn power_action(
         .0
         .ok_or_else(|| ApiError::bad_request("VM has no host assigned"))?;
 
+    // Record explicit user intent in desired_state so the reconcile loop doesn't
+    // immediately revert the action — e.g. without this, shutting a VM down leaves
+    // desired_state='running' and reconcile restarts it. Transient actions (pause)
+    // leave the desired power state unchanged.
+    let desired_state = match action {
+        "start" | "reboot" | "reset" | "resume" => Some("running"),
+        "stop" | "shutdown" => Some("stopped"),
+        _ => None,
+    };
+    if let Some(desired) = desired_state {
+        sqlx::query("UPDATE vms SET desired_state = ? WHERE id = ?")
+            .bind(desired)
+            .bind(vm_id)
+            .execute(&state.pool)
+            .await?;
+    }
+
     let mut payload = serde_json::json!({
         "vm_id": vm_id.to_string(),
         "action": action,
