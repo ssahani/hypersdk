@@ -256,7 +256,13 @@ pub fn list_api_tokens() -> Vec<ApiToken> {
     // Mask token values for listing
     for t in &mut list {
         if t.token.len() > 12 {
-            t.token = format!("{}...{}", &t.token[..8], &t.token[t.token.len() - 4..]);
+            // Char-based so a multi-byte token can't panic on a byte-offset slice.
+            let head: String = t.token.chars().take(8).collect();
+            let tail: String = {
+                let n = t.token.chars().count();
+                t.token.chars().skip(n.saturating_sub(4)).collect()
+            };
+            t.token = format!("{head}...{tail}");
         }
     }
     list

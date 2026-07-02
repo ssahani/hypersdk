@@ -230,7 +230,15 @@ export async function aiCopilotStream(
         if (!line.startsWith('data: ')) continue
         const payload = line.slice(6).trim()
         if (!payload) continue
-        onEvent(JSON.parse(payload) as CopilotStreamEvent)
+        // Skip a malformed frame rather than letting one bad byte reject the whole
+        // stream (which discards the streamed answer and forces a second LLM call).
+        let evt: CopilotStreamEvent
+        try {
+          evt = JSON.parse(payload) as CopilotStreamEvent
+        } catch {
+          continue
+        }
+        onEvent(evt)
       }
     }
   }

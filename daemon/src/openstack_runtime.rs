@@ -12,7 +12,7 @@ use machina_core::MachinaConfig;
 static CLOUD_OVERRIDE: RwLock<Option<String>> = RwLock::new(None);
 
 pub fn set_cloud_override(name: Option<String>) {
-    let mut g = CLOUD_OVERRIDE.write().expect("cloud override lock");
+    let mut g = CLOUD_OVERRIDE.write().unwrap_or_else(|e| e.into_inner());
     *g = name.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
 }
 

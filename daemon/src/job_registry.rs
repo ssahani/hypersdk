@@ -97,9 +97,9 @@ impl JobRegistry {
             },
             logs: Vec::new(),
         };
-        let mut g = self.inner.lock().expect("job registry");
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         g.insert(id, inner);
-        let mut o = self.order.lock().expect("job order");
+        let mut o = self.order.lock().unwrap_or_else(|e| e.into_inner());
         o.push_front(id);
         while o.len() > MAX_JOBS {
             if let Some(old) = o.pop_back() {
@@ -126,9 +126,9 @@ impl JobRegistry {
             },
             logs: Vec::new(),
         };
-        let mut g = self.inner.lock().expect("job registry");
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         g.insert(id, inner);
-        let mut o = self.order.lock().expect("job order");
+        let mut o = self.order.lock().unwrap_or_else(|e| e.into_inner());
         o.push_front(id);
         while o.len() > MAX_JOBS {
             if let Some(old) = o.pop_back() {
@@ -155,9 +155,9 @@ impl JobRegistry {
             },
             logs: Vec::new(),
         };
-        let mut g = self.inner.lock().expect("job registry");
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         g.insert(id, inner);
-        let mut o = self.order.lock().expect("job order");
+        let mut o = self.order.lock().unwrap_or_else(|e| e.into_inner());
         o.push_front(id);
         while o.len() > MAX_JOBS {
             if let Some(old) = o.pop_back() {
@@ -168,7 +168,7 @@ impl JobRegistry {
     }
 
     pub fn append_log(&self, id: Uuid, line: &str) {
-        let mut g = self.inner.lock().expect("job registry");
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let Some(j) = g.get_mut(&id) else {
             return;
         };
@@ -181,7 +181,7 @@ impl JobRegistry {
     }
 
     pub fn complete_virt_image(&self, id: Uuid, path: &str) {
-        let mut g = self.inner.lock().expect("job registry");
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let Some(j) = g.get_mut(&id) else {
             return;
         };
@@ -192,7 +192,7 @@ impl JobRegistry {
     }
 
     pub fn complete_packer_golden(&self, id: Uuid, qcow2_path: &str) {
-        let mut g = self.inner.lock().expect("job registry");
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let Some(j) = g.get_mut(&id) else {
             return;
         };
@@ -203,7 +203,7 @@ impl JobRegistry {
     }
 
     pub fn complete_vm_create(&self, id: Uuid, name: &str) {
-        let mut g = self.inner.lock().expect("job registry");
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let Some(j) = g.get_mut(&id) else {
             return;
         };
@@ -214,7 +214,7 @@ impl JobRegistry {
     }
 
     pub fn fail(&self, id: Uuid, err: &str) {
-        let mut g = self.inner.lock().expect("job registry");
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let Some(j) = g.get_mut(&id) else {
             return;
         };
@@ -224,15 +224,15 @@ impl JobRegistry {
     }
 
     pub fn list_summaries(&self) -> Vec<JobSummary> {
-        let o = self.order.lock().expect("job order");
-        let g = self.inner.lock().expect("job registry");
+        let o = self.order.lock().unwrap_or_else(|e| e.into_inner());
+        let g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         o.iter()
             .filter_map(|id| g.get(id).map(|j| j.summary.clone()))
             .collect()
     }
 
     pub fn get_detail(&self, id: &Uuid) -> Option<JobDetail> {
-        let g = self.inner.lock().expect("job registry");
+        let g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         g.get(id).map(|j| JobDetail {
             summary: j.summary.clone(),
             logs: j.logs.clone(),

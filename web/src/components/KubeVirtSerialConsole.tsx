@@ -24,7 +24,7 @@ export default function KubeVirtSerialConsole({ namespace, vmName }: Props) {
   const [connected, setConnected] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
 
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (isActive: () => boolean = () => true) => {
     if (!terminalRef.current) return
 
     xtermRef.current?.dispose()
@@ -59,11 +59,21 @@ export default function KubeVirtSerialConsole({ namespace, vmName }: Props) {
       return
     }
 
+    // Unmounted (or effect re-ran) during the token await — don't open an orphan socket.
+    if (!isActive()) {
+      term.dispose()
+      return
+    }
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const ws = new WebSocket(
       `${protocol}//${window.location.host}/ws/v1/k8s-kubevirt/${encodeURIComponent(namespace)}/${encodeURIComponent(vmName)}/console?token=${encodeURIComponent(token)}`,
     )
     ws.binaryType = 'arraybuffer'
+    if (!isActive()) {
+      ws.close()
+      term.dispose()
+      return
+    }
     wsRef.current = ws
 
     ws.onopen = () => {
@@ -91,10 +101,12 @@ export default function KubeVirtSerialConsole({ namespace, vmName }: Props) {
   }, [namespace, vmName])
 
   useEffect(() => {
-    void connect()
+    let cancelled = false
+    void connect(() => !cancelled)
     const handleResize = () => fitRef.current?.fit()
     window.addEventListener('resize', handleResize)
     return () => {
+      cancelled = true
       window.removeEventListener('resize', handleResize)
       wsRef.current?.close()
       xtermRef.current?.dispose()

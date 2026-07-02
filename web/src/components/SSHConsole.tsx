@@ -27,7 +27,7 @@ export default function SSHConsole({ host, sshUser = 'root', sshPort }: Props) {
   const [connected, setConnected] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
 
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (isActive: () => boolean = () => true) => {
     if (!terminalRef.current) return
 
     xtermRef.current?.dispose()
@@ -63,6 +63,12 @@ export default function SSHConsole({ host, sshUser = 'root', sshPort }: Props) {
       return
     }
 
+    // Unmounted during the token await — don't create a server-side SSH session we'd orphan.
+    if (!isActive()) {
+      term.dispose()
+      return
+    }
+
     let sessionId: string
     try {
       const body = await apiPost<{ session_id: string; expires_in_secs: number }>(
@@ -84,6 +90,12 @@ export default function SSHConsole({ host, sshUser = 'root', sshPort }: Props) {
       `${protocol}//${window.location.host}/ws/v1/terminal/${encodeURIComponent(sessionId)}?token=${encodeURIComponent(token)}`,
     )
     ws.binaryType = 'arraybuffer'
+    // Unmounted during the session-create await — close the socket so it doesn't leak.
+    if (!isActive()) {
+      ws.close()
+      term.dispose()
+      return
+    }
     wsRef.current = ws
 
     const sendResize = () => {
@@ -130,7 +142,8 @@ export default function SSHConsole({ host, sshUser = 'root', sshPort }: Props) {
   }, [host, sshUser, sshPort])
 
   useEffect(() => {
-    connect()
+    let cancelled = false
+    connect(() => !cancelled)
     const handleResize = () => {
       fitRef.current?.fit()
       const t = xtermRef.current
@@ -141,6 +154,7 @@ export default function SSHConsole({ host, sshUser = 'root', sshPort }: Props) {
     }
     window.addEventListener('resize', handleResize)
     return () => {
+      cancelled = true
       window.removeEventListener('resize', handleResize)
       wsRef.current?.close()
       xtermRef.current?.dispose()

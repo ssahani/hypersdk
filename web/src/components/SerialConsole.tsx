@@ -30,7 +30,7 @@ export default function SerialConsole({ vmName, libvirtConnection, wsUrl: wsUrlO
   const [connected, setConnected] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
 
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (isActive: () => boolean = () => true) => {
     if (!terminalRef.current) return
 
     xtermRef.current?.dispose()
@@ -67,11 +67,22 @@ export default function SerialConsole({ vmName, libvirtConnection, wsUrl: wsUrlO
         term.write(`\r\n❌ ${msg}\r\n`)
         return
       }
+      // Component may have unmounted (or the effect re-run) during the await —
+      // bail without opening a socket that cleanup already ran past and can't close.
+      if (!isActive()) {
+        term.dispose()
+        return
+      }
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       wsTarget = `${protocol}//${window.location.host}/ws/v1/console/${encodeURIComponent(vmName)}?token=${encodeURIComponent(token)}${wsConnQs(libvirtConnection)}`
     }
 
     const ws = new WebSocket(wsTarget)
+    if (!isActive()) {
+      ws.close()
+      term.dispose()
+      return
+    }
     wsRef.current = ws
 
     ws.onopen = () => {
@@ -92,10 +103,12 @@ export default function SerialConsole({ vmName, libvirtConnection, wsUrl: wsUrlO
   }, [vmName, libvirtConnection, wsUrlOverride])
 
   useEffect(() => {
-    connect()
+    let cancelled = false
+    connect(() => !cancelled)
     const handleResize = () => fitRef.current?.fit()
     window.addEventListener('resize', handleResize)
     return () => {
+      cancelled = true
       window.removeEventListener('resize', handleResize)
       wsRef.current?.close()
       xtermRef.current?.dispose()

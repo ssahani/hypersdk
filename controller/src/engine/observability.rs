@@ -199,7 +199,17 @@ pub async fn record_trace(
     status_code: i32,
     duration_ms: i32,
 ) {
-    let path = if path.len() > 256 { &path[..256] } else { path };
+    // Truncate on a UTF-8 char boundary — `path` is the untrusted request URI and a
+    // fixed byte-offset slice would panic if byte 256 splits a multi-byte char.
+    let path = if path.len() > 256 {
+        let mut end = 256;
+        while end > 0 && !path.is_char_boundary(end) {
+            end -= 1;
+        }
+        &path[..end]
+    } else {
+        path
+    };
     let _ = sqlx::query(
         "INSERT INTO api_trace_spans (id, method, path, status_code, duration_ms, recorded_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))",
     )

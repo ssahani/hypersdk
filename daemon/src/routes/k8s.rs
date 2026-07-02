@@ -581,11 +581,13 @@ fn truncate_snippet(text: &str) -> String {
     if t.len() <= SNIPPET_MAX_BYTES {
         return t.to_string();
     }
-    format!(
-        "{}\n… ({} more bytes)",
-        &t[..SNIPPET_MAX_BYTES],
-        t.len() - SNIPPET_MAX_BYTES
-    )
+    // Truncate on a UTF-8 char boundary — `t` is external command output that may
+    // contain multi-byte chars; a fixed byte-offset slice would panic.
+    let mut end = SNIPPET_MAX_BYTES;
+    while end > 0 && !t.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}\n… ({} more bytes)", &t[..end], t.len() - end)
 }
 
 async fn path_exists_async(p: &str) -> bool {

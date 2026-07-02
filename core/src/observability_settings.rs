@@ -75,7 +75,13 @@ fn mask_secret(value: &str) -> String {
     if v.len() <= 12 {
         return "***".into();
     }
-    format!("{}…{}", &v[..6], &v[v.len().saturating_sub(4)..])
+    // Char-based head/tail so a multi-byte secret can't panic on a byte-offset slice.
+    let head: String = v.chars().take(6).collect();
+    let tail: String = {
+        let n = v.chars().count();
+        v.chars().skip(n.saturating_sub(4)).collect()
+    };
+    format!("{head}…{tail}")
 }
 
 pub fn settings_view_from_config(cfg: &MachinaConfig) -> ObservabilitySettingsView {

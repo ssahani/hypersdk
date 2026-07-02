@@ -881,7 +881,13 @@ fn read_proc_cmdline(pid: u32) -> String {
                 .trim()
                 .to_string();
             if s.len() > 280 {
-                format!("{}...", &s[..277])
+                // Truncate on a UTF-8 char boundary — from_utf8_lossy inserts 3-byte
+                // replacement chars, so a fixed byte-offset slice would panic.
+                let mut end = 277;
+                while end > 0 && !s.is_char_boundary(end) {
+                    end -= 1;
+                }
+                format!("{}...", &s[..end])
             } else {
                 s
             }

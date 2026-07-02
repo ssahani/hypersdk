@@ -32,7 +32,7 @@ fn prune(map: &mut HashMap<String, Entry>) {
 
 pub fn issue_console_token(instance_id: &str, console_url: &str) -> String {
     let token = format!("{}-{}", instance_id, uuid_simple());
-    let mut map = store().lock().expect("console token store");
+    let mut map = store().lock().unwrap_or_else(|e| e.into_inner());
     prune(&mut map);
     map.insert(
         token.clone(),
@@ -45,7 +45,7 @@ pub fn issue_console_token(instance_id: &str, console_url: &str) -> String {
 }
 
 pub fn resolve_console_token(token: &str) -> Option<String> {
-    let mut map = store().lock().expect("console token store");
+    let mut map = store().lock().unwrap_or_else(|e| e.into_inner());
     prune(&mut map);
     map.get(token).map(|e| e.url.clone())
 }
