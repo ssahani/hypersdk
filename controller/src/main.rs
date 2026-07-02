@@ -43,7 +43,14 @@ async fn main() -> anyhow::Result<()> {
     }
     let config = Arc::new(config);
 
-    if config.jwt_secret.len() < 32 {
+    // The built-in default is exactly 32 bytes, so a length-only check never fires on
+    // it. Explicitly flag the known dev default (and short secrets) — a shipped default
+    // secret lets anyone forge an admin JWT.
+    if config.jwt_secret == "machina-dev-jwt-secret-change-me" {
+        tracing::error!(
+            "MACHINA_JWT_SECRET is unset — using the built-in DEV DEFAULT. Anyone can forge admin tokens. Set MACHINA_JWT_SECRET (>=32 random bytes) on the controller AND daemon."
+        );
+    } else if config.jwt_secret.len() < 32 {
         tracing::warn!(
             "MACHINA_JWT_SECRET is shorter than 32 bytes ({} bytes) — set a strong secret in production",
             config.jwt_secret.len()

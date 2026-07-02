@@ -770,6 +770,13 @@ pub fn validate_package_token(name: &str) -> Result<(), LibvirtError> {
     if s.len() > 200 {
         return Err(LibvirtError::Invalid("package name is too long".into()));
     }
+    // Bar a leading '-' so a token can't become a package-manager flag when passed
+    // as a positional argv element (e.g. apt-get install --allow-downgrades).
+    if s.starts_with('-') {
+        return Err(LibvirtError::Invalid(
+            "package name must not start with '-'".into(),
+        ));
+    }
     let ok = s.chars().all(|c| {
         c.is_ascii_alphanumeric()
             || matches!(

@@ -491,6 +491,13 @@ fn ensure_safe_name(value: &str, field: &str) -> Result<(), LibvirtError> {
     if value.is_empty() {
         return Err(LibvirtError::Invalid(format!("{field} is required")));
     }
+    // Bar a leading '-' so the value can't be interpreted as a kubectl flag when
+    // used as a positional argv element (e.g. name "--all" → `kubectl delete pod --all`).
+    if value.starts_with('-') {
+        return Err(LibvirtError::Invalid(format!(
+            "{field} must not start with '-'"
+        )));
+    }
     let ok = value
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.' || c == '_');

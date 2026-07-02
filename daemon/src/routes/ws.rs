@@ -679,16 +679,17 @@ async fn terminal_ws_handler(
 }
 
 async fn handle_ssh_proxy(socket: WebSocket, host: String) {
-    // Validate host: must be a hostname or IP, no path traversal or injection
-    if host.is_empty()
-        || host.contains('/')
-        || host.contains('\\')
-        || host.contains(' ')
-        || host.contains('\0')
-        || host.contains(';')
-        || host.contains('|')
-        || host.contains('&')
-    {
+    // Validate host with a strict allowlist: a hostname or IPv4/IPv6 literal only.
+    // This string is interpolated into the `script -qfc "ssh … {host}"` shell command
+    // below, so a blocklist is not safe — backtick/$()/newline etc. must be excluded.
+    // A leading '-' is also barred so it can't become an ssh flag.
+    let host_ok = !host.is_empty()
+        && host.len() <= 253
+        && !host.starts_with('-')
+        && host
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':' | '_'));
+    if !host_ok {
         info!("SSH: invalid host '{}'", host);
         let (mut sink, _) = socket.split();
         let _ = sink.close().await;

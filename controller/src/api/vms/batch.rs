@@ -92,8 +92,10 @@ fn default_true() -> bool {
 
 pub async fn batch_vm_snapshot(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Json(body): Json<BatchVmSnapshotBody>,
 ) -> Result<Json<BatchVmPowerResponse>, ApiError> {
+    require_operator(&actor)?;
     machina_spec::validate_name(&body.name).map_err(|e| ApiError::bad_request(e.to_string()))?;
     let mut results = Vec::with_capacity(body.vm_ids.len());
     for (i, vm_id) in body.vm_ids.into_iter().enumerate() {

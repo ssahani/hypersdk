@@ -53,6 +53,8 @@ fn validate_host(host: &str) -> bool {
 fn validate_ssh_user(user: &str) -> bool {
     !user.is_empty()
         && user.len() <= 32
+        // Bar a leading '-' so the user token can't become an ssh flag (e.g. -oProxyCommand=).
+        && !user.starts_with('-')
         && user
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
@@ -84,6 +86,14 @@ async fn create_session_handler(
     if actor.from_api_token {
         return Err(LibvirtError::Forbidden(
             "SSH browser terminal requires a browser session (API tokens cannot create terminal sessions)".into(),
+        )
+        .into());
+    }
+    // Interactive host SSH is at least as sensitive as USB/PCI passthrough — gate on
+    // operator/admin so a read-only session can't open a shell to configured hosts.
+    if !actor.role.can_write() {
+        return Err(LibvirtError::Forbidden(
+            "Opening an SSH terminal requires the operator or admin role.".into(),
         )
         .into());
     }

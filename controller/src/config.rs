@@ -62,8 +62,11 @@ impl Default for ControllerConfig {
                 .unwrap_or_else(|_| "qemu:///system".into()),
             disk_image_dir: PathBuf::from("/var/lib/libvirt/images"),
             backup_dir: PathBuf::from("/var/lib/machina/backups"),
-            admin_user: "admin".into(),
-            admin_password: "admin".into(),
+            // Bootstrap admin credentials — overridable so a deploy isn't stuck with
+            // admin/admin. Only used to seed the first user when the table is empty.
+            admin_user: std::env::var("MACHINA_ADMIN_USER").unwrap_or_else(|_| "admin".into()),
+            admin_password: std::env::var("MACHINA_ADMIN_PASSWORD")
+                .unwrap_or_else(|_| "admin".into()),
             jwt_secret: std::env::var("MACHINA_JWT_SECRET")
                 .unwrap_or_else(|_| "machina-dev-jwt-secret-change-me".into()),
             controller_id: std::env::var("MACHINA_CONTROLLER_ID")
