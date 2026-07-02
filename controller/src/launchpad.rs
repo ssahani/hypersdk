@@ -104,12 +104,29 @@ async fn launchpad_proxy(
         rb = rb.body(body_bytes.to_vec());
     }
 
-    let resp = rb.send().await.map_err(|e| ApiError {
-        status: StatusCode::BAD_GATEWAY,
-        message: format!("Hermes proxy error: {e}"),
-        error_code: Some("hermes_proxy_error".into()),
-        remediation: None,
-        object_ref: None,
+    let resp = rb.send().await.map_err(|e| {
+        // Hermes not installed / not reachable is a "launchpad unavailable" state the
+        // UI already handles gracefully — not a gateway fault. Only surface a 502 for
+        // genuine upstream protocol errors from a reachable Hermes.
+        if e.is_connect() || e.is_timeout() {
+            ApiError {
+                status: StatusCode::SERVICE_UNAVAILABLE,
+                message: "Launchpad backend (Hermes) is unreachable".into(),
+                error_code: Some("launchpad_unavailable".into()),
+                remediation: Some(
+                    "Install/start Hermes and set HERMES_API_BASE on machina-controller.".into(),
+                ),
+                object_ref: None,
+            }
+        } else {
+            ApiError {
+                status: StatusCode::BAD_GATEWAY,
+                message: format!("Hermes proxy error: {e}"),
+                error_code: Some("hermes_proxy_error".into()),
+                remediation: None,
+                object_ref: None,
+            }
+        }
     })?;
 
     let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);

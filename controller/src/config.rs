@@ -123,10 +123,12 @@ impl Default for ControllerConfig {
             consolehub_require_oidc: std::env::var("CONSOLEHUB_REQUIRE_OIDC")
                 .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
                 .unwrap_or(false),
-            hermes_api_base: std::env::var("HERMES_API_BASE")
-                .unwrap_or_else(|_| "http://127.0.0.1:31847/api/v1".into()),
-            hermes_public_base: std::env::var("HERMES_PUBLIC_BASE")
-                .unwrap_or_else(|_| "http://127.0.0.1:31847".into()),
+            // Launchpad/Hermes is opt-in: empty by default so `enabled` (config.rs
+            // launchpad handler) is false unless an operator explicitly points at a
+            // Hermes deployment. A non-empty localhost default made the UI render the
+            // Launchpad and then 502 on every call when Hermes wasn't installed.
+            hermes_api_base: std::env::var("HERMES_API_BASE").unwrap_or_default(),
+            hermes_public_base: std::env::var("HERMES_PUBLIC_BASE").unwrap_or_default(),
             hermes_path_prefix: std::env::var("HERMES_PATH_PREFIX")
                 .unwrap_or_else(|_| "/launchpad".into()),
         }

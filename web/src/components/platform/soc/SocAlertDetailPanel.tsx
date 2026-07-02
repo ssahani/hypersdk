@@ -112,11 +112,11 @@ export default function SocAlertDetailPanel({
           )}
         </div>
 
-        {detail.mitre_tags.length > 0 && (
+        {(detail.mitre_tags?.length ?? 0) > 0 && (
           <div>
             <p className="text-xs text-slate-400 mb-1">MITRE ATT&CK</p>
             <div className="flex flex-wrap gap-1">
-              {detail.mitre_tags.map((t) => (
+              {detail.mitre_tags!.map((t) => (
                 <span key={`${t.id}-${t.name}`} className={statusBadgeClasses('info')}>
                   {t.id}{t.name !== t.id ? ` · ${t.name}` : ''}
                 </span>
@@ -125,7 +125,7 @@ export default function SocAlertDetailPanel({
           </div>
         )}
 
-        {Object.keys(detail.detail_json).length > 0 && (
+        {Object.keys(detail.detail_json ?? {}).length > 0 && (
           <div>
             <p className="text-xs text-slate-400 mb-1">Detection context</p>
             <pre className="text-xs bg-black/30 rounded p-2 overflow-auto max-h-28 text-slate-300">
@@ -135,8 +135,8 @@ export default function SocAlertDetailPanel({
         )}
 
         <div>
-          <p className="text-xs text-slate-400 mb-1">Linked events ({detail.linked_events.length})</p>
-          {detail.linked_events.length === 0 ? (
+          <p className="text-xs text-slate-400 mb-1">Linked events ({detail.linked_events?.length ?? 0})</p>
+          {(detail.linked_events?.length ?? 0) === 0 ? (
             <p className="text-xs text-slate-500">No linked events stored for this alert.</p>
           ) : (
             <ul className="divide-y divide-white/5 max-h-48 overflow-auto">
@@ -152,11 +152,11 @@ export default function SocAlertDetailPanel({
           )}
         </div>
 
-        {detail.playbook_runs.length > 0 && (
+        {(detail.playbook_runs?.length ?? 0) > 0 && (
           <div>
             <p className="text-xs text-slate-400 mb-1">Playbook runs</p>
             <ul className="space-y-1 text-xs">
-              {detail.playbook_runs.map((r) => (
+              {detail.playbook_runs!.map((r) => (
                 <li key={r.id} className="text-slate-400">
                   {r.playbook_name ?? r.playbook_id.slice(0, 8)} —{' '}
                   <span className={statusToneClass(r.status === 'completed' ? 'ok' : r.status === 'failed' ? 'error' : 'neutral')}>

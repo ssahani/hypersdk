@@ -358,11 +358,11 @@ export default function FleetPage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
             <div>
               <div className="text-slate-500 text-xs">Local CPU</div>
-              <div className="text-slate-100">{metrics.local.host_cpu_percent.toFixed(1)}%</div>
+              <div className="text-slate-100">{(metrics.local.host_cpu_percent ?? 0).toFixed(1)}%</div>
             </div>
             <div>
               <div className="text-slate-500 text-xs">Local memory</div>
-              <div className="text-slate-100">{metrics.local.host_memory_percent.toFixed(1)}%</div>
+              <div className="text-slate-100">{(metrics.local.host_memory_percent ?? 0).toFixed(1)}%</div>
             </div>
             {metrics.local.host_disk_percent != null ? (
               <div>
@@ -378,7 +378,7 @@ export default function FleetPage() {
             </div>
             <div>
               <div className="text-slate-500 text-xs">Load (1m)</div>
-              <div className="text-slate-100">{metrics.local.load_1.toFixed(2)}</div>
+              <div className="text-slate-100">{(metrics.local.load_1 ?? 0).toFixed(2)}</div>
             </div>
             {metrics.local.capacity ? (
               <div>

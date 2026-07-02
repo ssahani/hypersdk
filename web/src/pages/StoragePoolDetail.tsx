@@ -162,15 +162,15 @@ export default function StoragePoolDetail() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50 text-center">
           <div className="text-sm text-slate-400 mb-1">Capacity</div>
-          <div className="text-2xl font-bold">{pool.capacity_gb.toFixed(1)} <span className="text-sm text-slate-400 font-normal">GB</span></div>
+          <div className="text-2xl font-bold">{(pool.capacity_gb ?? 0).toFixed(1)} <span className="text-sm text-slate-400 font-normal">GB</span></div>
         </div>
         <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50 text-center">
           <div className="text-sm text-slate-400 mb-1">Used</div>
-          <div className="text-2xl font-bold">{pool.allocation_gb.toFixed(1)} <span className="text-sm text-slate-400 font-normal">GB</span></div>
+          <div className="text-2xl font-bold">{(pool.allocation_gb ?? 0).toFixed(1)} <span className="text-sm text-slate-400 font-normal">GB</span></div>
         </div>
         <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50 text-center">
           <div className="text-sm text-slate-400 mb-1">Available</div>
-          <div className={`text-2xl font-bold ${statusToneClass('ok')}`}>{pool.available_gb.toFixed(1)} <span className="text-sm text-slate-400 font-normal">GB</span></div>
+          <div className={`text-2xl font-bold ${statusToneClass('ok')}`}>{(pool.available_gb ?? 0).toFixed(1)} <span className="text-sm text-slate-400 font-normal">GB</span></div>
         </div>
       </div>
 

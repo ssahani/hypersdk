@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
 use axum::Extension;
 use axum::Json;
 use serde::Deserialize;
@@ -10,6 +11,26 @@ use crate::api::ApiError;
 use crate::auth::{require_admin, require_operator, AuthUser};
 use crate::engine::guestkit_bridge;
 use crate::state::AppState;
+
+/// Map a GuestKit worker error to an API error: an unreachable worker (connection
+/// refused / timeout) is a typed 503 the UI can show as "worker offline" rather than
+/// a raw 400 with a reqwest error string; everything else stays a 400.
+fn worker_error(e: anyhow::Error) -> ApiError {
+    if let Some(re) = e.downcast_ref::<reqwest::Error>() {
+        if re.is_connect() || re.is_timeout() {
+            return ApiError {
+                status: StatusCode::SERVICE_UNAVAILABLE,
+                message: "GuestKit worker is unreachable".into(),
+                error_code: Some("guestkit_worker_unavailable".into()),
+                remediation: Some(
+                    "Start the GuestKit worker, set GUESTKIT_WORKER_URL, or disable with GUESTKIT_ENABLED=0.".into(),
+                ),
+                object_ref: None,
+            };
+        }
+    }
+    ApiError::bad_request(e.to_string())
+}
 
 pub async fn guestkit_status(
     State(state): State<AppState>,
@@ -132,7 +153,7 @@ pub async fn guestkit_submit_job(
     require_operator(&actor)?;
     guestkit_bridge::submit_inspect_job(&state.config, &body.image_path, &body.name)
         .await
-        .map_err(|e| ApiError::bad_request(e.to_string()))
+        .map_err(worker_error)
         .map(Json)
 }
 
@@ -144,6 +165,6 @@ pub async fn guestkit_job_status(
     require_operator(&actor)?;
     guestkit_bridge::get_worker_job_status(&state.config, &job_id)
         .await
-        .map_err(|e| ApiError::bad_request(e.to_string()))
+        .map_err(worker_error)
         .map(Json)
 }

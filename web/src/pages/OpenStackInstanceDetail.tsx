@@ -205,7 +205,7 @@ function OpenStackInstanceDetailContent() {
     )
   }
 
-  const statusUp = inst.status.toUpperCase()
+  const statusUp = (inst.status ?? '').toUpperCase()
   const canShelve = ['ACTIVE', 'SHUTOFF', 'PAUSED'].includes(statusUp)
   const canUnshelve = statusUp.startsWith('SHELVED')
 

@@ -1477,7 +1477,21 @@ async fn guac_http_proxy_impl(
         rb = rb.body(body_bytes.to_vec());
     }
 
-    let resp = rb.send().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
+    let resp = match rb.send().await {
+        Ok(r) => r,
+        // Host agent gateway down (VM console tab left open, agent restarting): return a
+        // typed 503 the console UI can render as a reconnect state instead of a bare 502.
+        Err(e) if e.is_connect() || e.is_timeout() => {
+            return Response::builder()
+                .status(StatusCode::SERVICE_UNAVAILABLE)
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"error":"Console gateway unreachable","error_code":"console_gateway_unavailable"}"#,
+                ))
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR);
+        }
+        Err(_) => return Err(StatusCode::BAD_GATEWAY),
+    };
     let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
     let mut out = Response::builder().status(status);
     let headers = out.headers_mut().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
