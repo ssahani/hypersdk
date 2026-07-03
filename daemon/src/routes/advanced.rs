@@ -929,15 +929,16 @@ async fn clone_volume_handler(
 
 async fn set_memory_balloon_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path((name, mb)): Path<(String, u64)>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    machina_core::validate::validate_memory_mb(mb)?;
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager
-            .with_conn(|conn| machina_core::libvirt::resize::set_memory_balloon(conn, &name2, mb))
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        machina_core::libvirt::resize::set_memory_balloon(conn, &name2, mb)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "name": name, "memory_mb": mb }),
     ))

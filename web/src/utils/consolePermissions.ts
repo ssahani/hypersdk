@@ -20,12 +20,15 @@ export function permissionsFromPlan(plan: ConsoleHubPlan | null | undefined): Pi
 > {
   const p = plan?.permissions
   if (!p) {
+    // Fail closed: if the plan carries no permissions (backend omission, or the
+    // pre-session-load render window), show the least-privileged view rather than
+    // flashing Power/Snapshot/Send-Keys controls a read-only user can't use.
     return {
-      readOnly: false,
-      canPower: true,
-      canSnapshot: true,
-      canSendKeys: true,
-      role: 'admin',
+      readOnly: true,
+      canPower: false,
+      canSnapshot: false,
+      canSendKeys: false,
+      role: 'readonly',
     }
   }
   return {

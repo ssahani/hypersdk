@@ -144,14 +144,15 @@ impl ConsoleSessionStore {
 
     async fn end(&self, id: Uuid, actor: &str) -> bool {
         let mut map = self.inner.write().await;
-        let removed = map.remove(&id);
-        drop(map);
-        let Some(session) = removed else {
-            return false;
-        };
-        if session.actor != actor {
-            return false;
+        // Verify ownership BEFORE removing, so a caller who only knows the
+        // session UUID cannot tear down another user's console.
+        match map.get(&id) {
+            None => return false,
+            Some(session) if session.actor != actor => return false,
+            Some(_) => {}
         }
+        map.remove(&id);
+        drop(map);
         let mut hist = self.history.write().await;
         if let Some(row) = hist
             .iter_mut()

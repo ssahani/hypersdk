@@ -56,9 +56,14 @@ pub async fn forward(
         format!("{url}/services/collector/event")
     };
 
+    let insecure_tls = integ
+        .config_json
+        .get("insecure_tls")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
-        .danger_accept_invalid_certs(true)
+        .danger_accept_invalid_certs(insecure_tls)
         .build()?;
 
     let events = fetch_unexported_events(pool, integ.id, 200).await?;
@@ -177,9 +182,13 @@ pub async fn test_connection(
     } else {
         format!("{}/services/collector/event", url.trim_end_matches('/'))
     };
+    let insecure_tls = config
+        .get("insecure_tls")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))
-        .danger_accept_invalid_certs(true)
+        .danger_accept_invalid_certs(insecure_tls)
         .build()?;
     let body = json!({
         "time": chrono::Utc::now().timestamp(),

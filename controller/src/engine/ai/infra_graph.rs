@@ -296,9 +296,12 @@ pub async fn build(pool: &SqlitePool, scope: &GraphScope) -> anyhow::Result<Infr
     // Health scores on hosts/vms from DNA/doctor heuristics
     for n in &mut nodes {
         if n.kind == "host" {
+            let Ok(host_id) = Uuid::parse_str(&n.id) else {
+                continue;
+            };
             if let Ok(st) =
                 sqlx::query_scalar::<_, String>("SELECT state FROM hosts WHERE id = ?")
-                    .bind(&n.id)
+                    .bind(host_id)
                     .fetch_optional(pool)
                     .await
             {
@@ -311,11 +314,14 @@ pub async fn build(pool: &SqlitePool, scope: &GraphScope) -> anyhow::Result<Infr
             }
         }
         if n.kind == "vm" {
+            let Ok(vm_id) = Uuid::parse_str(&n.id) else {
+                continue;
+            };
             if let Ok((st, mem, used)) = sqlx::query_as::<_, (String, i64, Option<i64>)>(
                 "SELECT v.observed_state, v.memory_mib, m.memory_used_mib FROM vms v
                  LEFT JOIN vm_metrics m ON m.vm_id = v.id WHERE v.id = ?",
             )
-            .bind(&n.id)
+            .bind(vm_id)
             .fetch_one(pool)
             .await
             {

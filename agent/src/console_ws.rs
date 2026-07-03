@@ -263,9 +263,11 @@ async fn handle_serial(socket: WebSocket, name: String, libvirt: Arc<Mutex<Libvi
         }
     });
 
+    let read_abort = read_task.abort_handle();
+    let write_abort = write_task.abort_handle();
     tokio::select! {
-        _ = read_task => {},
-        _ = write_task => {},
+        _ = read_task => { write_abort.abort(); },
+        _ = write_task => { read_abort.abort(); },
     }
 }
 

@@ -11,6 +11,9 @@ pub fn spawn(state: AppState) {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
         loop {
             interval.tick().await;
+            if !state.leader.is_leader() {
+                continue;
+            }
             if let Err(e) = tick(&state).await {
                 tracing::warn!("fleet snapshot scheduler: {e:#}");
             }

@@ -269,29 +269,34 @@ pub fn validate_label(name: &str) -> Result<(), SpecError> {
 
 pub fn parse_memory_mib(raw: &str) -> Result<u64, SpecError> {
     let s = raw.trim();
-    if let Some(num) = s.strip_suffix("Gi") {
+    let mib = if let Some(num) = s.strip_suffix("Gi") {
         let n: f64 = num
             .trim()
             .parse()
             .map_err(|e| SpecError::Memory(format!("{raw}: {e}")))?;
-        return Ok((n * 1024.0).round() as u64);
-    }
-    if let Some(num) = s.strip_suffix("Mi") {
-        let n: u64 = num
-            .trim()
-            .parse()
-            .map_err(|e| SpecError::Memory(format!("{raw}: {e}")))?;
-        return Ok(n);
-    }
-    if let Some(num) = s.strip_suffix("G") {
+        (n * 1024.0).round() as u64
+    } else if let Some(num) = s.strip_suffix("Mi") {
+        num.trim()
+            .parse::<u64>()
+            .map_err(|e| SpecError::Memory(format!("{raw}: {e}")))?
+    } else if let Some(num) = s.strip_suffix("G") {
         let n: f64 = num
             .trim()
             .parse()
             .map_err(|e| SpecError::Memory(format!("{raw}: {e}")))?;
-        return Ok((n * 1024.0).round() as u64);
+        (n * 1024.0).round() as u64
+    } else {
+        s.parse::<u64>()
+            .map_err(|e| SpecError::Memory(format!("{raw}: {e}")))?
+    };
+    // Reject non-positive memory (e.g. "0", "0Gi", or a negative like "-5Gi"
+    // which saturates to 0 via `as u64`); libvirt rejects <memory>0</memory>.
+    if mib == 0 {
+        return Err(SpecError::Memory(format!(
+            "{raw}: memory must be greater than 0"
+        )));
     }
-    s.parse::<u64>()
-        .map_err(|e| SpecError::Memory(format!("{raw}: {e}")))
+    Ok(mib)
 }
 
 pub fn parse_size_gib(raw: &str) -> Result<u64, SpecError> {

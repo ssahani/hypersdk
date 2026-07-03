@@ -643,14 +643,18 @@ async fn switch_isolate_impact(pool: &SqlitePool, target: &str) -> anyhow::Resul
     let vms: Vec<String> = if rows.is_empty() {
         vec![]
     } else {
-        let host_ids_json = serde_json::to_string(&rows.iter().map(|(id, _)| id.to_string()).collect::<Vec<_>>()).unwrap_or_default();
-        sqlx::query_scalar(
-            "SELECT name FROM vms WHERE host_id IN (SELECT value FROM json_each(?)) ORDER BY name LIMIT 50",
-        )
-        .bind(&host_ids_json)
-        .fetch_all(pool)
-        .await
-        .unwrap_or_default()
+        let placeholders = std::iter::repeat("?")
+            .take(rows.len())
+            .collect::<Vec<_>>()
+            .join(",");
+        let sql = format!(
+            "SELECT name FROM vms WHERE host_id IN ({placeholders}) ORDER BY name LIMIT 50"
+        );
+        let mut q = sqlx::query_scalar::<_, String>(&sql);
+        for (id, _) in &rows {
+            q = q.bind(id);
+        }
+        q.fetch_all(pool).await.unwrap_or_default()
     };
 
     let severity = if vms.len() >= 10 {

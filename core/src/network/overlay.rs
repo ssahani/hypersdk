@@ -94,8 +94,9 @@ pub fn ip_from_cidr_offset(cidr: &str, offset: u32) -> Result<String, String> {
     if host_bits == 0 {
         return Err("CIDR has no host bits".into());
     }
-    let max_hosts = (1u32 << host_bits).saturating_sub(2);
-    if offset == 0 || offset > max_hosts {
+    // Widen to u64 so a /0 CIDR (host_bits == 32) doesn't overflow `1 << 32`.
+    let max_hosts = (1u64 << host_bits).saturating_sub(2);
+    if offset == 0 || u64::from(offset) > max_hosts {
         return Err(format!(
             "offset {offset} out of range for {cidr} (max {max_hosts})"
         ));

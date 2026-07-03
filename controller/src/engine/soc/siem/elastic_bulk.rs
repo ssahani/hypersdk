@@ -33,10 +33,15 @@ pub async fn forward(
         return Ok(0);
     }
 
+    let insecure_tls = integ
+        .config_json
+        .get("insecure_tls")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     let bulk_url = format!("{url}/{index}/_bulk");
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
-        .danger_accept_invalid_certs(true)
+        .danger_accept_invalid_certs(insecure_tls)
         .build()?;
 
     let events = fetch_unexported_events(pool, integ.id, 200).await?;
@@ -86,8 +91,12 @@ pub async fn test_connection(config: &serde_json::Value) -> anyhow::Result<Strin
     if url.is_empty() {
         anyhow::bail!("url required");
     }
+    let insecure_tls = config
+        .get("insecure_tls")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
+        .danger_accept_invalid_certs(insecure_tls)
         .timeout(std::time::Duration::from_secs(10))
         .build()?;
     let res = client

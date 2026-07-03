@@ -28,7 +28,7 @@ use machina_core::{
     AssociateFloatingIpRequest, AttachVolumeRequest, AuditEvent, CreateFlavorRequest,
     CreateFloatingIpRequest, CreateInstanceRequest, CreateInstanceResponse, GlancePullRequest,
     GlancePullResult, GlanceUploadPreview, GlanceUploadRequest, GlanceUploadResult, LibvirtError,
-    LibvirtManager, ListInstancesParams, MachinaConfig, OpenStackConnectionStatus,
+    LibvirtManager, ListInstancesParams, OpenStackConnectionStatus,
     OpenStackCreateNetworkRequest, OpenStackCreateVolumeRequest, OpenStackInstance,
     RebuildInstanceRequest, ResizeInstanceRequest, UpdateMetadataRequest,
 };
@@ -494,7 +494,7 @@ async fn openstack_image_upload(
     }
     let prefixes = allowed_prefixes(&manager).await?;
     validate_qcow2_allowed(path, &prefixes)?;
-    let cfg = MachinaConfig::load().openstack;
+    let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     match upload_qcow2_to_glance(&cfg, &req).await {
         Ok(result) => {

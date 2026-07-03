@@ -94,8 +94,15 @@ async fn post_kernel_route_change(
 
 async fn create_bridge_handler(
     State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Json(req): Json<host_network::CreateBridgeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.can_write() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Creating host bridges requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     host_network::create_bridge(&req)?;
     Ok(Json(
         serde_json::json!({ "status": "created", "name": req.name }),
@@ -104,8 +111,15 @@ async fn create_bridge_handler(
 
 async fn delete_bridge_handler(
     State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.can_write() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Deleting host bridges requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     host_network::delete_bridge(&name)?;
     Ok(Json(
         serde_json::json!({ "status": "deleted", "name": name }),
@@ -123,8 +137,15 @@ async fn list_port_forwards(
 
 async fn create_port_forward(
     State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Json(req): Json<host_network::CreatePortForwardRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.can_write() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Creating port forwards requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     host_network::create_port_forward(&req)?;
     Ok(Json(
         serde_json::json!({ "status": "created", "host_port": req.host_port, "vm_ip": req.vm_ip, "vm_port": req.vm_port }),
@@ -141,8 +162,15 @@ struct DeletePortForwardRequest {
 
 async fn delete_port_forward(
     State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Json(req): Json<DeletePortForwardRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.can_write() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Deleting port forwards requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     host_network::delete_port_forward(&req.protocol, req.host_port, &req.vm_ip, req.vm_port)?;
     Ok(Json(serde_json::json!({ "status": "deleted" })))
 }
@@ -158,8 +186,15 @@ async fn list_firewall_rules(
 
 async fn create_firewall_rule(
     State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Json(req): Json<host_network::CreateFirewallRuleRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.can_write() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Creating firewall rules requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     host_network::create_firewall_rule(&req)?;
     Ok(Json(
         serde_json::json!({ "status": "created", "vm_ip": req.vm_ip, "action": req.action }),
@@ -168,8 +203,15 @@ async fn create_firewall_rule(
 
 async fn delete_firewall_rule(
     State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Json(req): Json<host_network::CreateFirewallRuleRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.can_write() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Deleting firewall rules requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     host_network::delete_firewall_rule(&req)?;
     Ok(Json(serde_json::json!({ "status": "deleted" })))
 }

@@ -200,6 +200,16 @@ pub fn provision_network(
             .replace('"', "&quot;")
             .replace('\'', "&apos;")
     }
+    // Path-safe form for the temp filename: `network_name` is request-controlled,
+    // so restrict it to a safe charset to prevent path traversal (e.g. a name of
+    // "../../etc/foo" would otherwise write/unlink an arbitrary host path as root).
+    let file_safe_name: String = network_name
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.') { c } else { '_' })
+        .collect();
+    if file_safe_name.is_empty() || file_safe_name == "." || file_safe_name == ".." {
+        anyhow::bail!("invalid network name");
+    }
     let safe_name = xml_escape(network_name);
     let safe_bridge = xml_escape(bridge_name);
     let xml = if vlan_id > 0 {
@@ -211,7 +221,7 @@ pub fn provision_network(
             "<network><name>{safe_name}</name><forward mode='bridge'/><bridge name='{safe_bridge}'/></network>"
         )
     };
-    let tmp = std::env::temp_dir().join(format!("machina-net-{network_name}.xml"));
+    let tmp = std::env::temp_dir().join(format!("machina-net-{file_safe_name}.xml"));
     std::fs::write(&tmp, xml)?;
     let define = Command::new("virsh")
         .args(["net-define", tmp.to_string_lossy().as_ref()])

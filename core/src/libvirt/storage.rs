@@ -148,6 +148,41 @@ pub fn assert_new_disk_output_parent_allowed(
     Ok(())
 }
 
+/// Ensures a request-supplied *source* file (e.g. a backup image to restore/read)
+/// is an absolute path under the allowed libvirt storage prefixes, with no `..`
+/// traversal. Confines unauthenticated agent file reads so a caller cannot slurp
+/// arbitrary host files (e.g. `/etc/shadow`) into a VM disk.
+pub fn assert_backup_source_within_pools(conn: &Connect, source: &str) -> Result<(), LibvirtError> {
+    let src = source.trim();
+    if src.is_empty() {
+        return Err(LibvirtError::Invalid("source path is empty".into()));
+    }
+    let pb = Path::new(src);
+    if !pb.is_absolute() {
+        return Err(LibvirtError::Invalid(
+            "source must be an absolute path".into(),
+        ));
+    }
+    if src.contains("/../") || src.ends_with("/..") || src.starts_with("../") {
+        return Err(LibvirtError::Invalid(
+            "source path must not contain '..'".into(),
+        ));
+    }
+    let canon = pb.canonicalize().map_err(|e| {
+        LibvirtError::Invalid(format!(
+            "source path does not exist or is inaccessible: {e}"
+        ))
+    })?;
+    let canon_s = canon.to_string_lossy().to_string();
+    let prefixes = disk_image_delete_allowed_prefixes(conn)?;
+    if !prefixes.iter().any(|pref| canon_s.starts_with(pref)) {
+        return Err(LibvirtError::Invalid(format!(
+            "source file must be under libvirt storage pool targets or default image dirs (path {canon_s})"
+        )));
+    }
+    Ok(())
+}
+
 /// Directory for new VM root disks: prefers pool `default`, then any path containing `images`, else first pool path.
 pub fn primary_vm_disk_base_dir(conn: &Connect) -> Option<String> {
     let pools = conn.list_all_storage_pools(0).ok()?;

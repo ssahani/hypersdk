@@ -2507,6 +2507,12 @@ async fn k8s_apply_manifest(
     Json(body): Json<K8sApplyRequest>,
 ) -> Result<Json<KubectlResult>, AppError> {
     require_browser_session_for_host_insight(&actor)?;
+    if !actor.role.can_write() {
+        return Err(LibvirtError::Forbidden(
+            "Applying manifests requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     if body.manifest.len() > KUBECTL_APPLY_MAX_MANIFEST_BYTES {
         return Err(LibvirtError::Invalid(format!(
             "manifest exceeds {} bytes",
@@ -3144,6 +3150,12 @@ async fn k8s_kubevirt_delete_vm(
     Query(q): Query<K8sOverviewQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_browser_session_for_host_insight(&actor)?;
+    if !actor.role.can_write() {
+        return Err(LibvirtError::Forbidden(
+            "Deleting a KubeVirt VM requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     let ctx = q.context.as_deref();
     if let Some(c) = ctx {
         ensure_k8s_context_name(c)?;
@@ -3185,6 +3197,12 @@ async fn k8s_kubevirt_vm_lifecycle(
     Json(body): Json<KubeVirtLifecycleBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_browser_session_for_host_insight(&actor)?;
+    if !actor.role.can_write() {
+        return Err(LibvirtError::Forbidden(
+            "Changing KubeVirt VM power state requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     let ctx = body.context.as_deref();
     if let Some(c) = ctx {
         ensure_k8s_context_name(c)?;
@@ -3289,6 +3307,12 @@ async fn k8s_kubevirt_vm_spec(
     Json(body): Json<KubeVirtSpecBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_browser_session_for_host_insight(&actor)?;
+    if !actor.role.can_write() {
+        return Err(LibvirtError::Forbidden(
+            "Editing KubeVirt VM specs requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     let ctx = body.context.as_deref();
     if let Some(c) = ctx {
         ensure_k8s_context_name(c)?;
@@ -3308,7 +3332,15 @@ async fn k8s_kubevirt_vm_spec(
         );
     }
     if let Some(mib) = body.memory_mib.filter(|&m| m > 0) {
-        let mem_gi = ((mib + 1023) / 1024).max(1);
+        // Reject absurd sizes and use saturating arithmetic so the MiB→GiB
+        // rounding below cannot overflow on attacker-controlled input.
+        const MAX_MEMORY_MIB: u64 = 4 * 1024 * 1024; // 4 TiB
+        if mib > MAX_MEMORY_MIB {
+            return Err(AppError::from(LibvirtError::Invalid(format!(
+                "memory_mib exceeds the maximum of {MAX_MEMORY_MIB} MiB (4 TiB)"
+            ))));
+        }
+        let mem_gi = (mib.saturating_add(1023) / 1024).max(1);
         domain.insert(
             "resources".into(),
             serde_json::json!({
@@ -3507,6 +3539,12 @@ async fn k8s_action(
     Json(req): Json<K8sActionRequest>,
 ) -> Result<Json<KubectlResult>, AppError> {
     require_browser_session_for_host_insight(&actor)?;
+    if !actor.role.can_write() {
+        return Err(LibvirtError::Forbidden(
+            "Cluster node/workload actions require the operator or admin role.".into(),
+        )
+        .into());
+    }
     ensure_safe_name(&req.name, "name")?;
     let ctx = req.context.as_deref();
     if let Some(c) = ctx {

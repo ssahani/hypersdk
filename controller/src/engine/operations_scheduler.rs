@@ -11,6 +11,9 @@ pub fn spawn(state: AppState) {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(600));
         loop {
             interval.tick().await;
+            if !state.leader.is_leader() {
+                continue;
+            }
             if let Err(e) = tick_triggers(&state.pool, &state.config).await {
                 tracing::warn!("runbook scheduler: {e:#}");
             }

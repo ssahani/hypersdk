@@ -948,8 +948,8 @@ pub async fn create_session(
     let spectator_token = Uuid::new_v4().to_string();
     if recording {
         let _ = sqlx::query("UPDATE console_sessions SET spectator_token = ? WHERE id = ?")
-            .bind(session_id)
             .bind(&spectator_token)
+            .bind(session_id)
             .execute(&state.pool)
             .await;
     }
@@ -1297,8 +1297,8 @@ pub async fn upload_session_replay(
 
     let path_str = path.to_string_lossy().into_owned();
     sqlx::query("UPDATE console_sessions SET recording_path = ? WHERE id = ?")
-        .bind(session_id)
         .bind(&path_str)
+        .bind(session_id)
         .execute(&state.pool)
         .await?;
 
@@ -1389,8 +1389,8 @@ pub async fn approve_access_request(
         "UPDATE console_access_requests SET status = 'approved', approved_by = ?, approved_at = datetime('now'), expires_at = datetime('now', '+4 hours')
          WHERE id = ? AND status = 'pending'",
     )
-    .bind(request_id)
     .bind(&user.username)
+    .bind(request_id)
     .execute(&state.pool)
     .await?;
     if updated.rows_affected() == 0 {

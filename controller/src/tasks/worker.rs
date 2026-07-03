@@ -334,7 +334,9 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
     let info = agent_client::get_host_info(&mut client).await.ok();
 
     sqlx::query(
-        "UPDATE hosts SET vm_count = ?, state = ?, last_heartbeat_at = datetime('now'),
+        // Clear any stale fence flag: a host that just heartbeated is alive and
+        // reachable, so a future failure must be fenced afresh before HA recovers it.
+        "UPDATE hosts SET vm_count = ?, state = ?, last_heartbeat_at = datetime('now'), fenced = 0,
          cpu_percent = ?, memory_used_mib = ?, memory_total_mib = ?,
          cpu_model = COALESCE(?, cpu_model),
          libvirt_version = COALESCE(?, libvirt_version),

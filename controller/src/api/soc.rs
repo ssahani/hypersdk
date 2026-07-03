@@ -973,14 +973,19 @@ async fn build_alert_detail(pool: &SqlitePool, id: Uuid) -> Result<Json<SocAlert
     let linked_events = if event_ids.is_empty() {
         vec![]
     } else {
-        let ids_json = serde_json::to_string(&event_ids.iter().map(|u| u.to_string()).collect::<Vec<_>>()).unwrap_or_default();
-        sqlx::query_as::<_, SocEventDetailRow>(
+        let placeholders = std::iter::repeat("?")
+            .take(event_ids.len())
+            .collect::<Vec<_>>()
+            .join(",");
+        let sql = format!(
             "SELECT id, occurred_at, source, category, severity, summary, ecs_json
-             FROM soc_events WHERE id IN (SELECT value FROM json_each(?)) ORDER BY occurred_at DESC LIMIT 50",
-        )
-        .bind(&ids_json)
-        .fetch_all(pool)
-        .await?
+             FROM soc_events WHERE id IN ({placeholders}) ORDER BY occurred_at DESC LIMIT 50"
+        );
+        let mut q = sqlx::query_as::<_, SocEventDetailRow>(&sql);
+        for id in &event_ids {
+            q = q.bind(id);
+        }
+        q.fetch_all(pool).await?
     };
 
     let mut mitre_tags = Vec::new();

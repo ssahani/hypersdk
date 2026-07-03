@@ -74,8 +74,16 @@ async fn mark_stale_hosts(state: &AppState) -> anyhow::Result<()> {
         tx.commit().await?;
 
         if needs_fence {
-            if let Err(e) = crate::engine::drs::fence_host(state, id).await {
-                tracing::error!(host_id = %id, "HA: fence_host failed — split-brain risk if host is still running VMs: {e:#}");
+            match crate::engine::drs::fence_host(state, id).await {
+                Ok(true) => {
+                    tracing::info!(host_id = %id, "HA: host {hostname} confirmed fenced — VMs eligible for recovery");
+                }
+                Ok(false) => {
+                    tracing::warn!(host_id = %id, "HA: skipping recovery — host {hostname} not confirmed fenced (split-brain risk): fence agent reported failure");
+                }
+                Err(e) => {
+                    tracing::warn!(host_id = %id, "HA: skipping recovery — host {hostname} not confirmed fenced (split-brain risk): {e:#}");
+                }
             }
         }
 
@@ -96,8 +104,9 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let victims: Vec<(Uuid, String, Uuid, i32, i32, String)> = sqlx::query_as(
-        "SELECT v.id, v.name, v.host_id, v.ha_recovery_count, hp.restart_attempts, v.desired_state
+    let victims: Vec<(Uuid, String, Uuid, i32, i32, String, bool, bool)> = sqlx::query_as(
+        "SELECT v.id, v.name, v.host_id, v.ha_recovery_count, hp.restart_attempts, v.desired_state,
+                h.fenced, hp.fence_on_failure
          FROM vms v
          JOIN ha_policies hp ON hp.vm_id = v.id AND hp.enabled = TRUE
          JOIN hosts h ON h.id = v.host_id
@@ -107,7 +116,21 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
     .fetch_all(&state.pool)
     .await?;
 
-    for (vm_id, vm_name, failed_host, recovery_count, max_attempts, desired) in victims {
+    for (vm_id, vm_name, failed_host, recovery_count, max_attempts, desired, host_fenced, fence_required)
+        in victims
+    {
+        // Split-brain guard: if this VM's policy requires fencing, only recover once the
+        // failed host has been confirmed fenced. An unfenced host may still be running the
+        // VM, so restarting it elsewhere would corrupt shared storage.
+        if fence_required && !host_fenced {
+            tracing::warn!(
+                vm_id = %vm_id,
+                host_id = %failed_host,
+                "HA: skipping recovery of VM {vm_name} — host not confirmed fenced (split-brain risk)"
+            );
+            continue;
+        }
+
         if recovery_count >= max_attempts {
             record_ha_event(
                 &state.pool,

@@ -2,13 +2,14 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use machina_core::libvirt::automation;
 use machina_core::LibvirtManager;
 use serde::Deserialize;
 
+use crate::auth::RequestActor;
 use crate::error::AppError;
 
 // ── RBAC ───────────────────────────────────────────────────────────
@@ -30,8 +31,15 @@ struct SetRoleRequest {
 
 async fn set_role(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Json(req): Json<SetRoleRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.is_admin() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Assigning user roles requires the admin role.".into(),
+        )
+        .into());
+    }
     automation::set_user_role(&req.username, req.role.clone())?;
     Ok(Json(
         serde_json::json!({"status": "ok", "username": req.username, "role": req.role}),
@@ -42,7 +50,14 @@ async fn set_role(
 
 async fn list_tokens(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.is_admin() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Listing API tokens requires the admin role.".into(),
+        )
+        .into());
+    }
     let tokens = automation::list_api_tokens();
     Ok(Json(serde_json::json!(tokens)))
 }
@@ -58,8 +73,15 @@ struct CreateTokenRequest {
 
 async fn create_token(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Json(req): Json<CreateTokenRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.is_admin() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Creating API tokens requires the admin role.".into(),
+        )
+        .into());
+    }
     let token =
         automation::create_api_token_scoped(&req.name, &req.username, req.role, req.scopes)?;
     Ok(Json(serde_json::json!(token)))
@@ -67,8 +89,15 @@ async fn create_token(
 
 async fn delete_token(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(token): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.is_admin() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Deleting API tokens requires the admin role.".into(),
+        )
+        .into());
+    }
     automation::delete_api_token(&token)?;
     Ok(Json(serde_json::json!({"status": "deleted"})))
 }
@@ -84,8 +113,15 @@ async fn list_alert_rules(
 
 async fn save_alert_rules_handler(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Json(rules): Json<Vec<automation::AlertRule>>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.can_write() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Saving alert rules requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     automation::save_alert_rules(&rules)?;
     Ok(Json(serde_json::json!({"status": "ok"})))
 }
@@ -99,8 +135,15 @@ async fn list_alerts(
 
 async fn acknowledge_alert_handler(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.can_write() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Acknowledging alerts requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     automation::acknowledge_alert(&id)?;
     Ok(Json(serde_json::json!({"status": "acknowledged"})))
 }
@@ -116,8 +159,15 @@ async fn list_webhooks(
 
 async fn save_webhooks_handler(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Json(hooks): Json<Vec<automation::WebhookConfig>>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.can_write() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Saving webhooks requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     automation::save_webhooks(&hooks)?;
     Ok(Json(serde_json::json!({"status": "ok"})))
 }
@@ -133,8 +183,15 @@ async fn list_schedules(
 
 async fn save_schedules_handler(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Json(schedules): Json<Vec<automation::ScheduledAction>>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.can_write() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Saving scheduled actions requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     automation::save_schedules(&schedules)?;
     Ok(Json(serde_json::json!({"status": "ok"})))
 }
@@ -150,8 +207,15 @@ async fn list_notifications(
 
 async fn save_notifications_handler(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Json(channels): Json<Vec<automation::NotificationChannel>>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.can_write() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Saving notification channels requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     automation::save_notification_channels(&channels)?;
     Ok(Json(serde_json::json!({"status": "ok"})))
 }
@@ -163,8 +227,15 @@ struct TestNotificationRequest {
 
 async fn test_notification(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Json(req): Json<TestNotificationRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.can_write() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Sending test notifications requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     automation::send_notification(
         &req.channel,
         "machina test",
@@ -184,8 +255,15 @@ async fn list_snapshot_schedules(
 
 async fn save_snapshot_schedules_handler(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Json(schedules): Json<Vec<automation::SnapshotSchedule>>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.can_write() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Saving snapshot schedules requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     automation::save_snapshot_schedules(&schedules)?;
     Ok(Json(serde_json::json!({"status": "ok"})))
 }

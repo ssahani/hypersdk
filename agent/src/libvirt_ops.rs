@@ -315,6 +315,24 @@ impl LibvirtCtx {
         if method == "ipmi" {
             return self.fence_ipmi(ipmi_address, ipmi_user, ipmi_pass);
         }
+        // SECURITY: `shell_command` is request-controlled and the agent gRPC surface
+        // is currently unauthenticated, so a caller could otherwise inject arbitrary
+        // root commands into the `sh -c` below. Reject shell metacharacters / command
+        // chaining on the request-provided template while still permitting a plain
+        // fence invocation (e.g. `fence_ipmilan -a 10.0.0.1 -o off {hostname}`). The
+        // admin-configured `MACHINA_FENCE_COMMAND` env fallback is trusted and not
+        // subject to this check. This is a mitigation, not a full fix — the real fix
+        // is authenticating the gRPC surface and/or pinning fencing to an operator
+        // allowlist rather than accepting a request-supplied shell string.
+        if !shell_command.is_empty() {
+            const FORBIDDEN: &[char] =
+                &[';', '|', '&', '$', '`', '(', ')', '<', '>', '\n', '\r', '\\'];
+            if shell_command.chars().any(|c| FORBIDDEN.contains(&c)) {
+                return Err(LibvirtError::Operation(
+                    "fence shell_command contains forbidden shell metacharacters".into(),
+                ));
+            }
+        }
         let template = if shell_command.is_empty() {
             std::env::var("MACHINA_FENCE_COMMAND").unwrap_or_default()
         } else {
@@ -632,6 +650,18 @@ impl LibvirtCtx {
     ) -> Result<(String, String), LibvirtError> {
         machina_spec::validate_name(new_name).map_err(|e| LibvirtError::Invalid(e.to_string()))?;
 
+        // SECURITY: `new_disk_path` is a request-controlled overwrite target on an
+        // unauthenticated gRPC surface. Confine it to the agent's allowed storage
+        // directories (rejecting `..` / escapes) so a caller cannot write the cloned
+        // disk to an arbitrary host path as root. Only relevant to the qemu-img path
+        // below; the revert-source branch clones via libvirt into a pool.
+        if !revert_source {
+            machina_core::libvirt::storage::assert_new_disk_output_parent_allowed(
+                &self.conn,
+                new_disk_path,
+            )?;
+        }
+
         if revert_source {
             self.revert_snapshot(vm_name, snap_name)?;
             let _uuid = self.clone_vm(vm_name, new_name, "full")?;
@@ -684,6 +714,13 @@ impl LibvirtCtx {
     }
 
     pub fn restore_vm_backup(&self, vm_name: &str, backup_path: &str) -> Result<(), LibvirtError> {
+        // SECURITY: `backup_path` is a request-controlled read source on an
+        // unauthenticated gRPC surface. Confine it to the agent's allowed storage
+        // directories so a caller cannot read arbitrary host files into a VM disk.
+        machina_core::libvirt::storage::assert_backup_source_within_pools(
+            &self.conn,
+            backup_path,
+        )?;
         let dom = Domain::lookup_by_name(&self.conn, vm_name)
             .map_err(|e| LibvirtError::NotFound(format!("VM '{vm_name}': {e}")))?;
         let was_running = dom.is_active().unwrap_or(false);
@@ -712,6 +749,13 @@ impl LibvirtCtx {
     }
 
     pub fn backup_vm_disk(&self, vm_name: &str, dest_path: &str) -> Result<String, LibvirtError> {
+        // SECURITY: `dest_path` is a request-controlled overwrite target on an
+        // unauthenticated gRPC surface. Confine it to the agent's allowed storage
+        // directories (rejecting `..` / escapes) so a caller cannot overwrite
+        // arbitrary host files as root.
+        machina_core::libvirt::storage::assert_new_disk_output_parent_allowed(
+            &self.conn, dest_path,
+        )?;
         let dom = Domain::lookup_by_name(&self.conn, vm_name)
             .map_err(|e| LibvirtError::NotFound(format!("VM '{vm_name}': {e}")))?;
         let xml = dom

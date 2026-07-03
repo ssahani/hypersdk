@@ -37,6 +37,9 @@ pub enum Role {
 }
 
 impl Role {
+    pub fn is_admin(&self) -> bool {
+        matches!(self, Role::Admin)
+    }
     pub fn can_write(&self) -> bool {
         matches!(self, Role::Admin | Role::Operator)
     }

@@ -50,12 +50,14 @@ export function useConsoleAccessPolicy(
     plan: plan
       ? {
           ...plan,
+          // Fail closed until the real role resolves: only admin/operator get
+          // write controls; an unknown/loading role is treated as read-only.
           permissions: plan.permissions ?? {
-            role: role ?? 'admin',
-            read_only: role === 'readonly',
-            can_power: role !== 'readonly',
-            can_snapshot: role !== 'readonly',
-            can_send_keys: role !== 'readonly',
+            role: role ?? 'readonly',
+            read_only: role !== 'admin' && role !== 'operator',
+            can_power: role === 'admin' || role === 'operator',
+            can_snapshot: role === 'admin' || role === 'operator',
+            can_send_keys: role === 'admin' || role === 'operator',
           },
         }
       : null,

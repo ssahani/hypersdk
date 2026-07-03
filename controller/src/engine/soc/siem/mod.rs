@@ -109,8 +109,8 @@ pub(crate) async fn integration_ok(pool: &SqlitePool, id: Uuid) -> anyhow::Resul
 
 pub(crate) async fn integration_err(pool: &SqlitePool, id: Uuid, err: &str) -> anyhow::Result<()> {
     sqlx::query("UPDATE soc_integrations SET last_error = ?, updated_at = datetime('now') WHERE id = ?")
-        .bind(id)
         .bind(err.chars().take(2000).collect::<String>())
+        .bind(id)
         .execute(pool)
         .await?;
     Ok(())

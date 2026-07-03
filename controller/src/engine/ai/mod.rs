@@ -343,8 +343,23 @@ pub fn chunk_text(text: &str, chunk_size: usize) -> Vec<String> {
             chunks.push(rest.to_string());
             break;
         }
-        let mut end = size;
-        if let Some(sp) = rest[..size].rfind(' ') {
+        // Snap the hard cut down to a UTF-8 char boundary so we never split a multibyte char.
+        let mut boundary = size;
+        while boundary > 0 && !rest.is_char_boundary(boundary) {
+            boundary -= 1;
+        }
+        if boundary == 0 {
+            // A single char is larger than `size`; take at least one whole char to make progress.
+            boundary = rest
+                .char_indices()
+                .nth(1)
+                .map(|(i, _)| i)
+                .unwrap_or(rest.len());
+        }
+        // Prefer breaking at the last word boundary within the safe slice. Space is ASCII,
+        // so `sp + 1` is always a valid char boundary.
+        let mut end = boundary;
+        if let Some(sp) = rest[..boundary].rfind(' ') {
             end = sp + 1;
         }
         chunks.push(rest[..end].to_string());

@@ -68,12 +68,21 @@ pub async fn generate(
     };
 
     let provider = req.provider.as_deref().unwrap_or("vmware");
-    let vm_ids_json = serde_json::to_string(&vm_ids.iter().map(|u| u.to_string()).collect::<Vec<_>>()).unwrap_or_default();
-    let meta: Vec<(Uuid, String, String)> =
-        sqlx::query_as("SELECT id, name, observed_state FROM vms WHERE id IN (SELECT value FROM json_each(?))")
-            .bind(&vm_ids_json)
-            .fetch_all(pool)
-            .await?;
+    let meta: Vec<(Uuid, String, String)> = if vm_ids.is_empty() {
+        Vec::new()
+    } else {
+        let placeholders = std::iter::repeat("?")
+            .take(vm_ids.len())
+            .collect::<Vec<_>>()
+            .join(",");
+        let sql =
+            format!("SELECT id, name, observed_state FROM vms WHERE id IN ({placeholders})");
+        let mut q = sqlx::query_as::<_, (Uuid, String, String)>(&sql);
+        for id in &vm_ids {
+            q = q.bind(id);
+        }
+        q.fetch_all(pool).await?
+    };
 
     let mut running_ids = Vec::new();
     let mut stopped_ids = Vec::new();

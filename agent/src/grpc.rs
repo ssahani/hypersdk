@@ -407,9 +407,15 @@ impl HostAgent for AgentService {
             "drain" => machina_spec::HostState::Draining,
             _ => machina_spec::HostState::Online,
         };
+        // NOTE: the agent does not orchestrate VM evacuation itself — it only flips
+        // this host's maintenance/drain state. Actual live-migration of guests off
+        // this host is driven by the controller (HA/DRS engines) via per-VM migrate
+        // calls, not by this handler. No VMs are evacuated in this code path, so the
+        // count is honestly 0 regardless of `req.evacuate` (the previous
+        // `if req.evacuate { 0 } else { 0 }` was a dead copy-paste ternary).
         Ok(Response::new(MaintenanceResponse {
             state: format!("{:?}", st.maintenance).to_ascii_lowercase(),
-            evacuated: if req.evacuate { 0 } else { 0 },
+            evacuated: 0,
         }))
     }
 
@@ -1841,7 +1847,15 @@ fn sniff_cloud_config_from_iso(iso_path: &str) -> Option<String> {
     let text = String::from_utf8_lossy(&data);
     let start = text.find("#cloud-config")?;
     let tail = &text[start..];
-    let end = tail.find('\0').unwrap_or(tail.len().min(16_384));
+    // `tail.find('\0')` yields a char boundary, but `tail.len().min(16_384)` is a
+    // raw byte cap that may land inside a multi-byte UTF-8 sequence. Slicing on a
+    // non-boundary panics; because this runs while the libvirt `Mutex` guard is
+    // held, that panic would poison the mutex and break all later libvirt ops.
+    // Snap the cap down to the nearest char boundary so the slice can never panic.
+    let mut end = tail.find('\0').unwrap_or_else(|| tail.len().min(16_384));
+    while end < tail.len() && !tail.is_char_boundary(end) {
+        end -= 1;
+    }
     Some(tail[..end].to_string())
 }
 
