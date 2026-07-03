@@ -89,9 +89,9 @@ set -euo pipefail
 CONTROLLER=""
 TOKEN=""
 while [[ $# -gt 0 ]]; do
-  case "?" in
-    --controller) CONTROLLER="?"; shift 2 ;;
-    --token) TOKEN="?"; shift 2 ;;
+  case "$1" in
+    --controller) CONTROLLER="$2"; shift 2 ;;
+    --token) TOKEN="$2"; shift 2 ;;
     *) shift ;;
   esac
 done
