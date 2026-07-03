@@ -442,7 +442,7 @@ export default function VMDetailsPage() {
     setVmXml('')
     setMetricsHistory([])
     prevMetricsRef.current = null
-  }, [name, conn])
+  }, [name])
 
   // Poll per-VM metrics every 5s for charts
   useEffect(() => {

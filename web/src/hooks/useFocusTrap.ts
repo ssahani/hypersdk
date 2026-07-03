@@ -13,6 +13,11 @@ function getFocusableElements(root: HTMLElement): HTMLElement[] {
   )
 }
 
+// Stack of currently-active traps (last = topmost). Escape only dismisses the
+// topmost surface, so pressing Escape on a nested drawer/modal doesn't also
+// close the parent underneath it.
+const trapStack: object[] = []
+
 /**
  * Trap Tab focus inside `containerRef` while `active`; restores focus on deactivate.
  * Pass `onEscape` to also close the dialog when the user presses Escape.
@@ -24,12 +29,16 @@ export function useFocusTrap(
 ) {
   const escapeRef = useRef(onEscape)
   escapeRef.current = onEscape
+  // Stable per-instance identity used to find this trap's position in the stack.
+  const tokenRef = useRef<object>({})
 
   useEffect(() => {
     if (!active || !containerRef.current) return
 
     const root = containerRef.current
     const previouslyFocused = document.activeElement as HTMLElement | null
+    const token = tokenRef.current
+    trapStack.push(token)
 
     const timer = window.setTimeout(() => {
       const nodes = getFocusableElements(root)
@@ -56,18 +65,21 @@ export function useFocusTrap(
     }
 
     // Escape is bound on the document so it works even before focus lands inside
-    // the panel; Tab handling stays scoped to the panel.
+    // the panel; Tab handling stays scoped to the panel. Only the topmost active
+    // trap responds, so Escape on a nested surface leaves the parent open.
     const onEscapeKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && escapeRef.current) {
-        e.preventDefault()
-        escapeRef.current()
-      }
+      if (e.key !== 'Escape' || !escapeRef.current) return
+      if (trapStack[trapStack.length - 1] !== token) return
+      e.preventDefault()
+      escapeRef.current()
     }
 
     root.addEventListener('keydown', onTab)
     document.addEventListener('keydown', onEscapeKey)
     return () => {
       window.clearTimeout(timer)
+      const i = trapStack.indexOf(token)
+      if (i !== -1) trapStack.splice(i, 1)
       root.removeEventListener('keydown', onTab)
       document.removeEventListener('keydown', onEscapeKey)
       previouslyFocused?.focus?.()
