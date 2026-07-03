@@ -235,6 +235,7 @@ export default function PlatformZeusSettings({ embedded }: { embedded?: boolean 
 
       <MacGlassPanel title="Agent marketplace" subtitle="Install specialist agents (AWS, Terraform, FinOps, …)">
         <div className="space-y-2">
+          {agents.length === 0 && <p className="text-sm text-slate-500">No marketplace agents available.</p>}
           {agents.map((a) => (
             <div key={a.slug} className="flex items-center gap-2 text-sm border border-white/[0.06] rounded-lg p-2">
               <div className="flex-1">

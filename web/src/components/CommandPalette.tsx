@@ -37,6 +37,7 @@ import {
 } from '../utils/platformCommands'
 import { aiSpotlight, runNlOps, type NlOpsPlan, type SpotlightIntent, type SpotlightResult } from '../api/ai'
 import { isInputFocused } from '../hooks/useKeyboardShortcut'
+import { consolePaletteShortcutActive } from './consolehub/ConsoleCommandPalette'
 import { loadPlatformDesktopTier } from '../utils/platformDesktopTier'
 import { operationsHubHref, tasksHubHref, activityHubHref } from '../utils/platformHubLinks'
 import { groupSpotlightByZone, spotlightNavForTier, spotlightPathSetForTier, spotlightZoneOrder } from '../utils/platformSpotlightNav'
@@ -91,6 +92,9 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
 
   const toggle = useCallback(() => {
     if (!open && isInputFocused()) return
+    // On console pages the console command palette owns ⌘/Ctrl+K; don't also open
+    // the global palette (the shortcut hook treats Ctrl and Meta interchangeably).
+    if (!open && consolePaletteShortcutActive()) return
     setOpen((o) => !o)
   }, [open])
 

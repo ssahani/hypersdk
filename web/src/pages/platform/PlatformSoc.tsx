@@ -405,6 +405,9 @@ export default function PlatformSoc() {
       {tab === 'detections' && (
         <MacGlassPanel title="Detection rules">
           <ul className="divide-y divide-white/5">
+            {rules.length === 0 && (
+              <li className="px-3 py-6 text-sm text-slate-500 text-center">No detection rules configured yet.</li>
+            )}
             {rules.map((r) => (
               <li key={r.id} className="px-3 py-3 flex flex-wrap items-center justify-between gap-2">
                 <div>

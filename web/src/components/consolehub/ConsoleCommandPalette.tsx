@@ -112,7 +112,22 @@ export default function ConsoleCommandPalette({ open, onClose, actions }: Props)
   )
 }
 
+// Tracks whether a console command palette is currently claiming ⌘/Ctrl+K on
+// this page, so the global CommandPalette can defer instead of both opening at
+// once (useKeyboardShortcut treats Ctrl and Meta interchangeably).
+let consolePaletteShortcutOwners = 0
+export function consolePaletteShortcutActive(): boolean {
+  return consolePaletteShortcutOwners > 0
+}
+
 export function useConsoleCommandPaletteShortcut(onOpen: () => void, enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return
+    consolePaletteShortcutOwners += 1
+    return () => {
+      consolePaletteShortcutOwners -= 1
+    }
+  }, [enabled])
   useKeyboardShortcut({
     key: 'k',
     meta: true,

@@ -161,6 +161,7 @@ export default function VMDetailsPage() {
           ? 'Enable upload_enabled in machina config'
           : null
   const prevMetricsRef = useRef<VmMetrics | null>(null)
+  const prevMetricsTsRef = useRef<number | null>(null)
   const lastLoadErrorToastAt = useRef(0)
 
   const conn = useMemo(
@@ -442,6 +443,7 @@ export default function VMDetailsPage() {
     setVmXml('')
     setMetricsHistory([])
     prevMetricsRef.current = null
+    prevMetricsTsRef.current = null
   }, [name])
 
   // Poll per-VM metrics every 5s for charts
@@ -452,17 +454,24 @@ export default function VMDetailsPage() {
         const m = await getVMMetrics(name, conn)
         setMetrics(m)
         const prev = prevMetricsRef.current
-        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-        // Calculate deltas for I/O rates
-        const diskRdDelta = prev ? Math.max(0, m.disk_rd_bytes - prev.disk_rd_bytes) : 0
-        const diskWrDelta = prev ? Math.max(0, m.disk_wr_bytes - prev.disk_wr_bytes) : 0
-        const netRxDelta = prev ? Math.max(0, m.net_rx_bytes - prev.net_rx_bytes) : 0
-        const netTxDelta = prev ? Math.max(0, m.net_tx_bytes - prev.net_tx_bytes) : 0
+        const now = Date.now()
+        const time = new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        // Normalize byte deltas to per-second rates over the actual elapsed wall
+        // time between polls, so the charts read as throughput (bytes/sec) rather
+        // than raw per-interval deltas mislabeled as absolute bytes.
+        const wallSec = prev && prevMetricsTsRef.current != null
+          ? Math.max(1, (now - prevMetricsTsRef.current) / 1000)
+          : 1
+        const diskRdBps = prev ? Math.max(0, m.disk_rd_bytes - prev.disk_rd_bytes) / wallSec : 0
+        const diskWrBps = prev ? Math.max(0, m.disk_wr_bytes - prev.disk_wr_bytes) / wallSec : 0
+        const netRxBps = prev ? Math.max(0, m.net_rx_bytes - prev.net_rx_bytes) / wallSec : 0
+        const netTxBps = prev ? Math.max(0, m.net_tx_bytes - prev.net_tx_bytes) / wallSec : 0
         prevMetricsRef.current = m
+        prevMetricsTsRef.current = now
         setMetricsHistory(h => [...h.slice(-59), {
           time, memory: parseFloat(m.memory_pct.toFixed(1)),
-          diskRd: diskRdDelta, diskWr: diskWrDelta,
-          netRx: netRxDelta, netTx: netTxDelta,
+          diskRd: diskRdBps, diskWr: diskWrBps,
+          netRx: netRxBps, netTx: netTxBps,
         }])
       } catch { /* VM may not be running */ }
     }
@@ -1658,8 +1667,8 @@ export default function VMDetailsPage() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                 <XAxis dataKey="time" stroke="#475569" fontSize={10} tickLine={false} />
-                <YAxis stroke="#475569" fontSize={10} tickLine={false} tickFormatter={(v: number) => formatBytes(v)} />
-                <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.5rem' }} labelStyle={{ color: '#94a3b8' }} formatter={(v) => formatBytes(Number(v))} />
+                <YAxis stroke="#475569" fontSize={10} tickLine={false} tickFormatter={(v: number) => `${formatBytes(v)}/s`} />
+                <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.5rem' }} labelStyle={{ color: '#94a3b8' }} formatter={(v) => `${formatBytes(Number(v))}/s`} />
                 <Area type="monotone" dataKey="diskRd" name="Read" stroke="#10b981" strokeWidth={1.5} fillOpacity={1} fill="url(#rdG)" />
                 <Area type="monotone" dataKey="diskWr" name="Write" stroke="#f59e0b" strokeWidth={1.5} fillOpacity={1} fill="url(#wrG)" />
               </AreaChart>
@@ -1675,8 +1684,8 @@ export default function VMDetailsPage() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                 <XAxis dataKey="time" stroke="#475569" fontSize={10} tickLine={false} />
-                <YAxis stroke="#475569" fontSize={10} tickLine={false} tickFormatter={(v: number) => formatBytes(v)} />
-                <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.5rem' }} labelStyle={{ color: '#94a3b8' }} formatter={(v) => formatBytes(Number(v))} />
+                <YAxis stroke="#475569" fontSize={10} tickLine={false} tickFormatter={(v: number) => `${formatBytes(v)}/s`} />
+                <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.5rem' }} labelStyle={{ color: '#94a3b8' }} formatter={(v) => `${formatBytes(Number(v))}/s`} />
                 <Area type="monotone" dataKey="netRx" name="RX" stroke="#06b6d4" strokeWidth={1.5} fillOpacity={1} fill="url(#rxG)" />
                 <Area type="monotone" dataKey="netTx" name="TX" stroke="#a855f7" strokeWidth={1.5} fillOpacity={1} fill="url(#txG)" />
               </AreaChart>

@@ -351,6 +351,9 @@ export default function PlatformNetworkCanvas() {
 
         <MacGlassPanel title="Machina fleet topology" subtitle="Hosts, VMs, and networks from controller inventory">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {nodes.length === 0 && (
+              <p className="text-sm text-slate-500 col-span-full py-4 text-center">No hosts, VMs, or networks in the controller inventory yet.</p>
+            )}
             {nodes.map((n) => (
               <div key={n.id} className="rounded-lg border border-slate-700/50 bg-slate-900/50 p-3 text-sm">
                 <span className="text-[10px] uppercase text-slate-500">{n.kind}</span>
