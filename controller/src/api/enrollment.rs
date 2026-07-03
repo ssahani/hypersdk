@@ -56,7 +56,14 @@ pub async fn create_enrollment_token(
     .execute(&state.pool)
     .await?;
 
-    let controller_base = format!("http://{}:{}", state.config.host, state.config.port);
+    // Use the configured public URL (MACHINA_PUBLIC_URL) for the join command —
+    // `state.config.host` is the bind address, which is typically 0.0.0.0 and thus
+    // not a usable URL for an agent to reach the controller.
+    let controller_base = state
+        .config
+        .public_base_url
+        .trim_end_matches('/')
+        .to_string();
     let install_command = format!(
         "curl -fsSL {controller_base}/install.sh | sudo bash -s -- --controller {controller_base} --token {token}"
     );
