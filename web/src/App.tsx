@@ -339,6 +339,15 @@ function AuthenticatedShellRoutes() {
     setHelpOpen(false)
   }, [location.pathname, location.search])
 
+  // Reset scroll to the top on navigation between pages (but honor in-page #hash
+  // anchors). Without this, opening a detail page lands mid-page at the previous
+  // list's scroll offset.
+  useEffect(() => {
+    if (location.hash) return
+    window.scrollTo(0, 0)
+    document.getElementById('main-content')?.scrollTo?.(0, 0)
+  }, [location.pathname])
+
   const shellClass =
     theme === 'steel'
       ? 'dashboard-steel min-h-screen flex flex-col text-[#d7dde5]'

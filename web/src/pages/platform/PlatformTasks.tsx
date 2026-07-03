@@ -26,6 +26,7 @@ export default function PlatformTasks() {
   const [filter, setFilter] = useState('')
   const [opFilter, setOpFilter] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [controllerHealth, setControllerHealth] = useState<{ status: string; leader?: boolean; controller_id?: string } | null>(null)
   const [taskDetail, setTaskDetail] = useState<PlatformTask | null>(null)
   const [detailBusy, setDetailBusy] = useState(false)
@@ -41,6 +42,8 @@ export default function PlatformTasks() {
       setControllerHealth(health)
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [filter, opFilter])
 
@@ -86,6 +89,7 @@ export default function PlatformTasks() {
 
   return (
     <PlatformPageChrome
+      loading={loading && rows.length === 0}
       error={error}
       onErrorRetry={() => void load()}
       prepend={<PlatformBackLink to="/platform/operations" label="Operations" />}

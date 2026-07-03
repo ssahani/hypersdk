@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { CheckCircle2, Circle, Loader2, Sparkles, X } from 'lucide-react'
 import {
@@ -15,6 +15,7 @@ import {
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { statusToneClass } from '../../utils/semanticColors'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 
 const WELCOME_KEY = 'zyvor-platform-welcome-done'
 
@@ -143,13 +144,16 @@ export default function PlatformWelcome({
     onDone?.()
   }
 
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, open, close)
+
   if (!open) return null
 
   const completed = STEPS.filter((s) => done[s.id]).length
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-slate-900/95 shadow-2xl overflow-hidden" role="dialog" aria-modal="true" aria-label="Welcome">
+      <div ref={panelRef} className="w-full max-w-lg rounded-2xl border border-white/10 bg-slate-900/95 shadow-2xl overflow-hidden" role="dialog" aria-modal="true" aria-label="Welcome">
         <div className="flex items-start justify-between p-6 border-b border-white/[0.06]">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80 flex items-center gap-1">

@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Cloud, Loader2, X } from 'lucide-react'
 import { Link } from 'react-router'
 import {
@@ -14,6 +14,7 @@ import {
 } from '../api/openstack'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type Props = {
   open: boolean
@@ -50,6 +51,8 @@ export default function OpenStackImageUploadModal({
   const [loading, setLoading] = useState(false)
   const [uploadBusy, setUploadBusy] = useState(false)
   const [uploadResult, setUploadResult] = useState<GlanceUploadResult | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, open, onClose)
 
   const requestBody = useCallback((): GlanceUploadRequest => {
     const body: GlanceUploadRequest = { qcow2_path: qcow2Path }
@@ -113,6 +116,7 @@ export default function OpenStackImageUploadModal({
       role="presentation"
     >
       <div
+        ref={panelRef}
         className="bg-slate-900 border border-slate-600 rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
         role="dialog"

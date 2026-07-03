@@ -49,6 +49,7 @@ export default function PlatformBackups() {
   const [pendingRestore, setPendingRestore] = useState<BackupTimelineEntry | null>(null)
   const [targetName, setTargetName] = useState('nfs-primary')
   const [targetKind, setTargetKind] = useState('nfs')
+  const [addingTarget, setAddingTarget] = useState(false)
   const [backupVmId, setBackupVmId] = useState('')
   const [backupTargetId, setBackupTargetId] = useState('')
   const [backupType, setBackupType] = useState<'full' | 'incremental'>('full')
@@ -93,12 +94,16 @@ export default function PlatformBackups() {
   }
 
   const addTarget = async () => {
+    if (!targetName.trim() || addingTarget) return
+    setAddingTarget(true)
     try {
-      await createBackupTarget({ name: targetName, kind: targetKind })
+      await createBackupTarget({ name: targetName.trim(), kind: targetKind })
       toast.success('Backup destination added')
       await load()
     } catch (e: unknown) {
       toast.error(formatUserError(e))
+    } finally {
+      setAddingTarget(false)
     }
   }
 
@@ -171,7 +176,7 @@ export default function PlatformBackups() {
                 <option value="s3">s3</option>
                 <option value="local">local</option>
               </select>
-              <button type="button" className="tahoe-btn-primary text-sm" onClick={() => void addTarget()}>Add destination</button>
+              <button type="button" disabled={addingTarget || !targetName.trim()} className="tahoe-btn-primary text-sm disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => void addTarget()}>{addingTarget ? 'Adding…' : 'Add destination'}</button>
             </div>
             <ul className="divide-y divide-white/[0.04]">
               {targets.map((t) => (

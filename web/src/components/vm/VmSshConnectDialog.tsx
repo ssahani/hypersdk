@@ -1,7 +1,8 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Terminal, X } from 'lucide-react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { formatUserError } from '../../utils/apiError'
 import { loadVmSshPrefs, saveVmSshPrefs } from '../../utils/vmSshPrefs'
 import { statusToneClass } from '../../utils/semanticColors'
@@ -58,6 +59,8 @@ export default function VmSshConnectDialog({
   const [ip, setIp] = useState(defaultIp)
   const [user, setUser] = useState(defaultUser)
   const [busy, setBusy] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, open, onClose)
 
   const natPort = sshNatHostPort(portForwardRules)
   const useNat = guestIpPrivate && Boolean(hypervisorAddress?.trim())
@@ -110,6 +113,7 @@ export default function VmSshConnectDialog({
 
   return (
     <div
+      ref={panelRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"

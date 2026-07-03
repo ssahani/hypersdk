@@ -7,6 +7,7 @@ import PageLayout from '../../components/PageLayout'
 import { listPlatformVms, type PlatformVm } from '../../api/platform'
 import ConsoleTheatrePreview from '../../components/platform/fleet/ConsoleTheatrePreview'
 import { cinemaHubPath } from '../../utils/consoleExperienceMode'
+import { formatUserError } from '../../utils/apiError'
 import VmStatusBadge from '../../components/VmStatusBadge'
 
 const MAX_LIVE = 6
@@ -14,14 +15,16 @@ const MAX_LIVE = 6
 export default function MissionControlLiveWall() {
   const [vms, setVms] = useState<PlatformVm[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const all = await listPlatformVms()
       setVms(all.filter((v) => (v.observed_state ?? '').toLowerCase().includes('run')).slice(0, MAX_LIVE))
-    } catch {
-      setVms([])
+    } catch (e: unknown) {
+      setError(formatUserError(e))
     } finally {
       setLoading(false)
     }
@@ -42,6 +45,11 @@ export default function MissionControlLiveWall() {
         </div>
         {loading ? (
           <p className="text-sm text-slate-500">Loading fleet previews…</p>
+        ) : error ? (
+          <div className="text-sm text-red-400">
+            Couldn&rsquo;t load fleet previews: {error}{' '}
+            <button type="button" className="underline hover:text-red-300" onClick={() => void load()}>Retry</button>
+          </div>
         ) : vms.length === 0 ? (
           <p className="text-sm text-slate-500">No running VMs to preview.</p>
         ) : (

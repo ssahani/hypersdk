@@ -1,7 +1,8 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Loader2, Monitor, X } from 'lucide-react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { Link } from 'react-router'
 import type { UseVmHardwareResult } from '../../hooks/useVmHardware'
 import type { VmHardwareSection as VmHardwareSectionDto, VmHardwareSummaryReport } from '../../api/platform'
@@ -68,6 +69,8 @@ export default function VmHardwareDrawer({
   const [compatOpen, setCompatOpen] = useState(false)
   const [attachOpen, setAttachOpen] = useState(false)
   const { loading, summary, report, pending, refresh, checkCompat, compat, domainCaps, compatLoading, compatError } = hardware
+  const panelRef = useRef<HTMLElement>(null)
+  useFocusTrap(panelRef, open, onClose)
 
   if (!open) return null
 
@@ -121,6 +124,7 @@ export default function VmHardwareDrawer({
     <>
       <button type="button" className="fixed inset-0 z-[75] bg-black/40 backdrop-blur-sm" aria-label="Close Hardware" onClick={onClose} />
       <aside
+        ref={panelRef}
         className="fixed top-0 right-0 z-[80] h-full w-full max-w-md bg-slate-950/95 border-l border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200"
         role="dialog"
         aria-modal="true"

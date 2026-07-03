@@ -57,6 +57,7 @@ function OpenStackVolumesContent() {
   const [sizeGb, setSizeGb] = useState('10')
   const [name, setName] = useState('')
   const [volumeType, setVolumeType] = useState('')
+  const [creating, setCreating] = useState(false)
   const [types, setTypes] = useState<{ id: string; name: string }[]>([])
   const [restoreSnapId, setRestoreSnapId] = useState('')
   const [restoreName, setRestoreName] = useState('')
@@ -108,11 +109,13 @@ function OpenStackVolumesContent() {
   }, [load])
 
   const handleCreate = async () => {
+    if (creating) return
     const size = Number.parseInt(sizeGb, 10)
     if (!Number.isFinite(size) || size < 1) {
       toast.warning('Enter valid size in GB')
       return
     }
+    setCreating(true)
     try {
       await createOpenStackVolume({
         size_gb: size,
@@ -123,6 +126,8 @@ function OpenStackVolumesContent() {
       void load()
     } catch (e: unknown) {
       toast.error(formatUserError(e))
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -176,9 +181,9 @@ function OpenStackVolumesContent() {
             ))}
           </select>
         </div>
-        <button type="button" onClick={() => void handleCreate()}
-          className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm text-white">
-          Create volume
+        <button type="button" onClick={() => void handleCreate()} disabled={creating}
+          className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed text-sm text-white">
+          {creating ? 'Creating…' : 'Create volume'}
         </button>
         <button type="button" onClick={() => void load()}
           className="ml-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-600 text-sm">

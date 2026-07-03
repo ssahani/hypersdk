@@ -21,6 +21,7 @@ const DEFAULT_FILTER_XML = `<filter name='my-filter' chain='root'>
 export default function NWFiltersPage() {
   const [filters, setFilters] = useState<NwfilterInfo[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [xmlContent, setXmlContent] = useState<string | null>(null)
@@ -33,13 +34,14 @@ export default function NWFiltersPage() {
   const load = useCallback(async () => {
     try {
       setLoading(true)
+      setLoadError(null)
       setFilters(await listNwfilters())
     } catch (e: unknown) {
-      toast.error(`${formatUserError(e)}`)
+      setLoadError(formatUserError(e))
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [])
 
   useEffect(() => { load() }, [load])
 
@@ -73,6 +75,10 @@ export default function NWFiltersPage() {
       title="Network Filters"
       icon={<Shield className="w-6 h-6" />}
       subtitle={`${filters.length} libvirt nwfilters`}
+      error={loadError}
+      errorTitle="Failed to load network filters"
+      onErrorRetry={load}
+      onErrorDismiss={() => setLoadError(null)}
       actions={
         <>
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition"><Plus className="w-4 h-4" />Create Filter</button>
@@ -96,7 +102,7 @@ export default function NWFiltersPage() {
         <div className="flex items-center justify-center h-32" aria-busy="true" aria-label="Loading network filters">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : loadError ? null : filtered.length === 0 ? (
         <EmptyState
           icon={<Shield className="w-6 h-6" />}
           title="No network filters"

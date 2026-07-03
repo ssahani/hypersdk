@@ -26,23 +26,29 @@ function SnapshotStateBadge({ state }: { state: string }) {
 export default function SnapshotsPage() {
   const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<SnapshotInfo | null>(null)
+  const [revertTarget, setRevertTarget] = useState<SnapshotInfo | null>(null)
   const toast = useToastContext()
 
   const load = useCallback(async () => {
     try {
       setLoading(true)
+      setLoadError(null)
       setSnapshots(await listAllSnapshots())
     } catch (e: unknown) {
-      toast.error(`${formatUserError(e)}`)
+      setLoadError(formatUserError(e))
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [])
 
   useEffect(() => { load() }, [load])
 
-  const handleRevert = async (snap: SnapshotInfo) => {
+  const handleRevert = async () => {
+    if (!revertTarget) return
+    const snap = revertTarget
+    setRevertTarget(null)
     try { await revertSnapshot(snap.vm_name, snap.name); toast.success(`Reverted '${snap.vm_name}' to '${snap.name}'`); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
   }
 
@@ -62,8 +68,12 @@ export default function SnapshotsPage() {
         </button>
       }
       contentLoading={loading}
+      error={loadError}
+      errorTitle="Failed to load snapshots"
+      onErrorRetry={load}
+      onErrorDismiss={() => setLoadError(null)}
     >
-      {snapshots.length === 0 ? (
+      {loadError ? null : snapshots.length === 0 ? (
         <EmptyState
           icon={<Camera className="w-6 h-6" />}
           title="No snapshots"
@@ -83,7 +93,7 @@ export default function SnapshotsPage() {
                   <td className="px-6 py-3">{s.is_current && <span className={`text-xs font-medium ${statusToneClass('ok')}`}>● Current</span>}</td>
                   <td className="px-6 py-3">
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => handleRevert(s)} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="Revert" aria-label="Revert"><RotateCcw className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
+                      <button onClick={() => setRevertTarget(s)} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="Revert" aria-label="Revert"><RotateCcw className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
                       <button onClick={() => setDeleteTarget(s)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete" aria-label="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
                     </div>
                   </td>
@@ -94,6 +104,7 @@ export default function SnapshotsPage() {
         </div>
       )}
       <ConfirmDialog open={!!deleteTarget} title="Delete Snapshot" message={`Delete snapshot '${deleteTarget?.name}' from VM '${deleteTarget?.vm_name}'?`} confirmLabel="Delete" onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
+      <ConfirmDialog open={!!revertTarget} variant="warning" title="Revert Snapshot" message={`Revert VM '${revertTarget?.vm_name}' to snapshot '${revertTarget?.name}'? The guest's current disk and memory state will be discarded.`} confirmLabel="Revert" onConfirm={handleRevert} onCancel={() => setRevertTarget(null)} />
     </PageLayout>
   )
 }

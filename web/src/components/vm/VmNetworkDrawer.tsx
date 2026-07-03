@@ -1,7 +1,9 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
+import { useRef } from 'react'
 import { X } from 'lucide-react'
 import VmPortForwardPanel from '../vm/VmPortForwardPanel'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 
 type Props = {
   open: boolean
@@ -26,12 +28,14 @@ export default function VmNetworkDrawer({
   onPlanRefresh,
   onNotify,
 }: Props) {
+  const panelRef = useRef<HTMLElement>(null)
+  useFocusTrap(panelRef, open, onClose)
   if (!open) return null
 
   return (
     <>
       <button type="button" className="fixed inset-0 z-[75] bg-black/40 backdrop-blur-sm" aria-label="Close Network" onClick={onClose} />
-      <aside className="fixed top-0 right-0 z-[80] h-full w-full max-w-md bg-slate-950/95 border-l border-white/10 shadow-2xl flex flex-col overflow-hidden" role="dialog" aria-modal="true" aria-label="Network settings" data-testid="vm-network-drawer">
+      <aside ref={panelRef} className="fixed top-0 right-0 z-[80] h-full w-full max-w-md bg-slate-950/95 border-l border-white/10 shadow-2xl flex flex-col overflow-hidden" role="dialog" aria-modal="true" aria-label="Network settings" data-testid="vm-network-drawer">
         <header className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
           <div>
             <h2 className="font-semibold text-slate-100">Network</h2>

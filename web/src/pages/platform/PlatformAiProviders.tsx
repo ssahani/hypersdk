@@ -57,6 +57,8 @@ export default function PlatformAiProviders({ embedded }: { embedded?: boolean }
   const [modelId, setModelId] = useState('gpt-4o-mini')
   const [apiKey, setApiKey] = useState('')
   const [deleteProviderId, setDeleteProviderId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const syncRuleDrafts = useCallback((rows: RoutingRuleRow[]) => {
     const drafts: Record<string, RuleDraft> = {}
@@ -72,18 +74,25 @@ export default function PlatformAiProviders({ embedded }: { embedded?: boolean }
   }, [])
 
   const load = useCallback(async () => {
-    const rows = await listAiProviders()
-    setProviders(rows)
-    const routing = await listAiRoutingRules().catch(() => [] as RoutingRuleRow[])
-    setRules(routing)
-    syncRuleDrafts(routing)
-    if (rows[0] && !selected) {
-      setSelected(rows[0].id)
-      setModels(await listAiProviderModels(rows[0].id).catch(() => []))
+    setError(null)
+    try {
+      const rows = await listAiProviders()
+      setProviders(rows)
+      const routing = await listAiRoutingRules().catch(() => [] as RoutingRuleRow[])
+      setRules(routing)
+      syncRuleDrafts(routing)
+      if (rows[0] && !selected) {
+        setSelected(rows[0].id)
+        setModels(await listAiProviderModels(rows[0].id).catch(() => []))
+      }
+    } catch (e: unknown) {
+      setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [selected, syncRuleDrafts])
 
-  useEffect(() => { void load().catch(() => {}) }, [load])
+  useEffect(() => { void load() }, [load])
 
   useEffect(() => {
     if (!selected) return
@@ -128,6 +137,9 @@ export default function PlatformAiProviders({ embedded }: { embedded?: boolean }
     <PlatformPageChrome
       hideHeader={embedded}
       compact={embedded}
+      loading={loading && providers.length === 0}
+      error={error}
+      onErrorRetry={() => void load()}
       title={embedded ? undefined : 'AI Providers'}
       subtitle={embedded ? undefined : 'Multi-LLM BYOK — OpenAI, Anthropic, Gemini, Ollama, vLLM, and custom endpoints'}
       icon={embedded ? undefined : <Bot className="w-6 h-6 text-slate-400" />}

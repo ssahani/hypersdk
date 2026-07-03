@@ -23,6 +23,8 @@ export default function StoragePoolDetail() {
   const [volumes, setVolumes] = useState<StorageVolumeInfo[]>([])
   const [poolXml, setPoolXml] = useState('')
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [creatingVol, setCreatingVol] = useState(false)
   const [showXml, setShowXml] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ pool: string; vol: string } | null>(null)
   const [resizeTarget, setResizeTarget] = useState<{ pool: string; vol: string } | null>(null)
@@ -38,6 +40,7 @@ export default function StoragePoolDetail() {
   const load = useCallback(async () => {
     if (!poolName) return
     try {
+      setLoadError(null)
       const pools = await listPools()
       const found = pools.find((p) => p.name === poolName)
       setPool(found || null)
@@ -46,11 +49,11 @@ export default function StoragePoolDetail() {
         try { setPoolXml(await getPoolXml(poolName)) } catch { setPoolXml('') }
       }
     } catch (e: unknown) {
-      toast.error(`Failed to load pool: ${formatUserError(e)}`)
+      setLoadError(formatUserError(e))
     } finally {
       setLoading(false)
     }
-  }, [poolName, toast])
+  }, [poolName])
 
   useEffect(() => { load() }, [load])
 
@@ -87,7 +90,8 @@ export default function StoragePoolDetail() {
   }
 
   const handleCreateVol = async () => {
-    if (!poolName || !newVolName.trim()) return
+    if (!poolName || !newVolName.trim() || creatingVol) return
+    setCreatingVol(true)
     try {
       await createVolume(poolName, { name: newVolName.trim(), capacity_gb: parseFloat(newVolCapacity), format: newVolFormat })
       toast.success(`Created volume '${newVolName.trim()}'`)
@@ -95,6 +99,7 @@ export default function StoragePoolDetail() {
       setNewVolName('')
       load()
     } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
+    finally { setCreatingVol(false) }
   }
 
   const downloadXml = () => {
@@ -107,6 +112,25 @@ export default function StoragePoolDetail() {
     a.click()
     URL.revokeObjectURL(url)
     toast.success('XML downloaded')
+  }
+
+  if (!loading && !pool && loadError) {
+    return (
+      <EmptyState
+        title="Failed to load storage pool"
+        description={loadError}
+        primaryAction={
+          <button type="button" onClick={() => { setLoading(true); void load() }} className="btn-primary text-sm inline-flex items-center gap-2">
+            <RefreshCw className="w-4 h-4" /> Retry
+          </button>
+        }
+        secondaryAction={
+          <Link to="/storage" className="btn-secondary text-sm inline-flex items-center gap-2">
+            <ArrowLeft className="w-4 h-4" /> Back to Storage
+          </Link>
+        }
+      />
+    )
   }
 
   if (!loading && !pool) {
@@ -330,7 +354,7 @@ export default function StoragePoolDetail() {
             </div>
             <div className="flex justify-end gap-3 px-5 pb-5">
               <button onClick={() => setShowCreateVol(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
-              <button onClick={handleCreateVol} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition">Create</button>
+              <button onClick={handleCreateVol} disabled={creatingVol || !newVolName.trim()} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm text-white font-medium transition">{creatingVol ? 'Creating…' : 'Create'}</button>
             </div>
           </div>
         </div>

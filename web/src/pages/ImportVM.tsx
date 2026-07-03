@@ -222,6 +222,7 @@ export default function ImportVMPage() {
           <div>
             <label htmlFor="cfg-network" className="block text-sm text-slate-400 mb-1">Network</label>
             <select id="cfg-network" value={network} onChange={e => setNetwork(e.target.value)} className="input-field">
+              {networks.length === 0 && <option value="default">default</option>}
               {networks.map(n => <option key={n.name} value={n.name}>{n.name}</option>)}
             </select>
           </div>

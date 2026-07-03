@@ -156,7 +156,9 @@ export default function Dashboard() {
 
   const running = vms.filter((v) => v.state === 'running').length
   const stopped = vms.filter((v) => v.state === 'shutoff').length
-  const paused = vms.length - running - stopped
+  // Count only genuinely-paused states; don't fold crashed/blocked/shutting-down
+  // VMs into "Paused" via a subtraction (they'd be mislabeled).
+  const paused = vms.filter((v) => v.state === 'paused' || v.state === 'pmsuspended').length
   const totalVcpus = vms.reduce((s, v) => s + v.vcpus, 0)
   const totalMemGB = (vms.reduce((s, v) => s + v.memory_mb, 0) / 1024).toFixed(1)
   const activeNets = networks.filter((n) => n.active).length

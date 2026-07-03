@@ -212,7 +212,7 @@ function OpenStackHeatDetailContent() {
             <p className={`text-xs ${statusToneClass('warn')}`}>Unsaved template changes</p>
           )}
         </div>
-      ) : (
+      ) : tab === 'outputs' ? (
         <div className="overflow-x-auto rounded-xl border border-slate-700">
           <table className="w-full text-sm" aria-label="Stack outputs">
             <thead className="bg-slate-900/80 text-slate-400 text-left">
@@ -234,7 +234,7 @@ function OpenStackHeatDetailContent() {
           </table>
           {(stack.outputs ?? []).length === 0 && <p className="p-4 text-slate-500 text-sm">No outputs.</p>}
         </div>
-      )}
+      ) : null}
 
       <button type="button" className="px-3 py-1.5 rounded-lg border border-red-600/50 text-red-300 text-sm inline-flex items-center gap-1"
         onClick={async () => {

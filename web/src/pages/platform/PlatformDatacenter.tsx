@@ -26,15 +26,21 @@ export default function PlatformDatacenter() {
   const toast = useToastContext()
   const [vms, setVms] = useState<PlatformVm[]>([])
   const [hosts, setHosts] = useState<PlatformHost[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [syncingKv, setSyncingKv] = useState(false)
   const [syncingPve, setSyncingPve] = useState(false)
   const [syncingVmware, setSyncingVmware] = useState(false)
 
   const reload = () => {
-    void Promise.all([listPlatformVms(), listPlatformHosts()]).then(([v, h]) => {
-      setVms(v)
-      setHosts(h)
-    })
+    setError(null)
+    void Promise.all([listPlatformVms(), listPlatformHosts()])
+      .then(([v, h]) => {
+        setVms(v)
+        setHosts(h)
+      })
+      .catch((e: unknown) => setError(formatUserError(e)))
+      .finally(() => setLoading(false))
   }
 
   useEffect(() => {
@@ -91,7 +97,7 @@ export default function PlatformDatacenter() {
 
   return (
     <PageLayout compact title="Datacenter" subtitle="Multi-hypervisor inventory (honest scope)">
-      <PlatformPageChrome>
+      <PlatformPageChrome loading={loading && hosts.length === 0 && vms.length === 0} error={error} onErrorRetry={reload}>
         <p className="text-sm text-slate-400 mb-4">
           libvirt/KVM is the system of record. VMware and KubeVirt appear as import/workload planes — not full parity with every vSphere feature.
         </p>

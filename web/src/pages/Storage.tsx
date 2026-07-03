@@ -38,6 +38,8 @@ export default function StoragePage() {
   const [newVolName, setNewVolName] = useState('')
   const [newVolCapacity, setNewVolCapacity] = useState('10')
   const [newVolFormat, setNewVolFormat] = useState('qcow2')
+  const [creatingPool, setCreatingPool] = useState(false)
+  const [creatingVol, setCreatingVol] = useState(false)
   const toast = useToastContext()
 
   const loadPools = useCallback(async () => {
@@ -85,7 +87,10 @@ export default function StoragePage() {
   }
 
   const handleCreatePool = async () => {
-    try { await createPool({ name: newPoolName, pool_type: newPoolType, target_path: newPoolPath }); toast.success(`Created pool '${newPoolName}'`); setShowCreatePool(false); setNewPoolName(''); setNewPoolPath(''); loadPools() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
+    if (!newPoolName.trim() || creatingPool) return
+    setCreatingPool(true)
+    try { await createPool({ name: newPoolName.trim(), pool_type: newPoolType, target_path: newPoolPath }); toast.success(`Created pool '${newPoolName.trim()}'`); setShowCreatePool(false); setNewPoolName(''); setNewPoolPath(''); loadPools() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
+    finally { setCreatingPool(false) }
   }
 
   const showPoolXml = async (name: string) => {
@@ -113,7 +118,8 @@ export default function StoragePage() {
   }
 
   const handleCreateVol = async () => {
-    if (!selectedPool || !newVolName.trim()) return
+    if (!selectedPool || !newVolName.trim() || creatingVol) return
+    setCreatingVol(true)
     try {
       await createVolume(selectedPool, { name: newVolName.trim(), capacity_gb: parseFloat(newVolCapacity), format: newVolFormat })
       toast.success(`Created volume '${newVolName.trim()}'`)
@@ -121,6 +127,7 @@ export default function StoragePage() {
       setNewVolName('')
       loadVolumes(selectedPool)
     } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
+    finally { setCreatingVol(false) }
   }
 
   if (selectedPool) {
@@ -240,7 +247,7 @@ export default function StoragePage() {
               </div>
               <div className="flex justify-end gap-3 px-5 pb-5">
                 <button onClick={() => setShowCreateVol(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
-                <button onClick={handleCreateVol} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition">Create</button>
+                <button onClick={handleCreateVol} disabled={creatingVol || !newVolName.trim()} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm text-white font-medium transition">{creatingVol ? 'Creating…' : 'Create'}</button>
               </div>
             </div>
           </div>
@@ -289,7 +296,7 @@ export default function StoragePage() {
               <div className="flex justify-between"><span className="text-slate-400">Available</span><span>{pool.available_gb.toFixed(1)} GB</span></div>
               {pool.capacity_gb > 0 && (
                 <div className="w-full bg-slate-700 rounded-full h-2 mt-2">
-                  <div className="bg-cyan-500 h-2 rounded-full" style={{ width: `${(pool.allocation_gb / pool.capacity_gb * 100).toFixed(0)}%` }} />
+                  <div className="bg-cyan-500 h-2 rounded-full" style={{ width: `${Math.min(100, pool.allocation_gb / pool.capacity_gb * 100).toFixed(0)}%` }} />
                 </div>
               )}
             </div>
@@ -343,7 +350,7 @@ export default function StoragePage() {
             </div>
             <div className="flex justify-end gap-3 px-5 pb-5">
               <button onClick={() => setShowCreatePool(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
-              <button onClick={handleCreatePool} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition">Create</button>
+              <button onClick={handleCreatePool} disabled={creatingPool || !newPoolName.trim()} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm text-white font-medium transition">{creatingPool ? 'Creating…' : 'Create'}</button>
             </div>
           </div>
         </div>

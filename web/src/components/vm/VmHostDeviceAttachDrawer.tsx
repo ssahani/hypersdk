@@ -18,6 +18,7 @@ import {
 } from '../../utils/nodeDeviceAttach'
 import { formatUserError } from '../../utils/apiError'
 import { useToastContext } from '../../contexts/ToastContext'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 
 type Props = {
   open: boolean
@@ -51,6 +52,7 @@ export default function VmHostDeviceAttachDrawer({
 }: Props) {
   const toast = useToastContext()
   const ignoreBackdropClose = useRef(false)
+  const panelRef = useRef<HTMLElement>(null)
   const [loading, setLoading] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [devices, setDevices] = useState<LibvirtNodeDevice[]>([])
@@ -92,6 +94,8 @@ export default function VmHostDeviceAttachDrawer({
       return () => window.clearTimeout(timer)
     }
   }, [open, refresh])
+
+  useFocusTrap(panelRef, open, onClose)
 
   if (!open) return null
 
@@ -155,6 +159,7 @@ export default function VmHostDeviceAttachDrawer({
         }}
       />
       <aside
+        ref={panelRef}
         className="fixed top-0 right-0 z-[95] h-full w-full max-w-lg bg-slate-950/98 border-l border-white/10 shadow-2xl flex flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"

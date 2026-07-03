@@ -21,6 +21,7 @@ export default function PlatformApiKeys({ embedded }: { embedded?: boolean } = {
   const [role, setRole] = useState('operator')
   const [newToken, setNewToken] = useState<string | null>(null)
   const [deleteKeyId, setDeleteKeyId] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
@@ -59,7 +60,10 @@ export default function PlatformApiKeys({ embedded }: { embedded?: boolean } = {
               <button
                 type="button"
                 className="btn-secondary text-xs shrink-0 inline-flex items-center gap-1"
-                onClick={() => { void navigator.clipboard.writeText(newToken); toast.success('Token copied') }}
+                onClick={async () => {
+                  try { await navigator.clipboard.writeText(newToken); toast.success('Token copied') }
+                  catch { toast.error('Copy failed — select the token and copy it manually') }
+                }}
                 aria-label="Copy API token"
               >
                 <Copy className="w-3.5 h-3.5" /> Copy
@@ -82,14 +86,17 @@ export default function PlatformApiKeys({ embedded }: { embedded?: boolean } = {
                 <option value="viewer">viewer</option>
               </select>
             </label>
-            <button type="button" className="btn-primary w-fit flex items-center gap-2 md:col-span-2" onClick={async () => {
+            <button type="button" disabled={creating || !name.trim()} className="btn-primary w-fit flex items-center gap-2 md:col-span-2 disabled:opacity-40 disabled:cursor-not-allowed" onClick={async () => {
+              if (creating || !name.trim()) return
+              setCreating(true)
               try {
-                const res = await createApiKey({ name, role })
+                const res = await createApiKey({ name: name.trim(), role })
                 setNewToken(res.token)
                 toast.success('API key created')
                 await load()
               } catch (e: unknown) { toast.error(formatUserError(e)) }
-            }}><Plus className="w-4 h-4" /> Create key</button>
+              finally { setCreating(false) }
+            }}><Plus className="w-4 h-4" /> {creating ? 'Creating…' : 'Create key'}</button>
           </div>
         </MacGlassPanel>
 

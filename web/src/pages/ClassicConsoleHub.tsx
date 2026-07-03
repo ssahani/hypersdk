@@ -93,6 +93,12 @@ export default function ClassicConsoleHub() {
         setSerialWsUrl(classicSerialWsUrl(hubPlan, token))
       }
     } catch (e: unknown) {
+      // Clear the previous VM's console artifacts so a failed load shows the
+      // "unavailable" state instead of the prior VM's still-connected session.
+      setPlan(null)
+      setSession(null)
+      setWsUrl(null)
+      setSerialWsUrl(null)
       setError(formatUserError(e))
     } finally {
       setLoading(false)

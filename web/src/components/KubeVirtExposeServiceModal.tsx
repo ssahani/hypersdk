@@ -2,10 +2,11 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Copy, Network, Plus, Trash2, X } from 'lucide-react'
 import type { K8sService } from '../api/k8s'
 import { statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 export type KubeVirtExposeVmContext = {
   name: string
@@ -143,6 +144,8 @@ export default function KubeVirtExposeServiceModal({ vm, services, onClose, onCo
   const [serviceName, setServiceName] = useState(`${vm.name}-ssh`)
   const [svcType, setSvcType] = useState<ServiceType>('NodePort')
   const [rows, setRows] = useState<ExposePortRow[]>(defaultRows)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, true, onClose)
 
   const matching = useMemo(
     () => services.filter((s) => kubeVirtExposeServiceMatchesVm(s, vm.namespace, vm.name)),
@@ -280,6 +283,7 @@ export default function KubeVirtExposeServiceModal({ vm, services, onClose, onCo
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="expose-title"

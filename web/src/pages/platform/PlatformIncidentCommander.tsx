@@ -71,8 +71,13 @@ export default function PlatformIncidentCommander() {
   }
 
   const acknowledge = async (id: string) => {
-    await ackIncident(id)
-    void load()
+    try {
+      await ackIncident(id)
+      toast.success('Incident acknowledged')
+      void load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    }
   }
 
   const runPlaybook = async () => {

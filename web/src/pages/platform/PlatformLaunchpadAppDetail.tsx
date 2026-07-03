@@ -148,7 +148,9 @@ export default function PlatformLaunchpadAppDetail() {
                     type="button"
                     className="btn-secondary text-xs inline-flex items-center gap-1.5"
                     onClick={() =>
-                      void pinLaunchpadApp(app).then(() => toast.success('Pinned to dock favorites'))
+                      void pinLaunchpadApp(app)
+                        .then(() => toast.success('Pinned to dock favorites'))
+                        .catch((e: unknown) => toast.error(formatUserError(e)))
                     }
                   >
                     <Pin className="w-3.5 h-3.5" />

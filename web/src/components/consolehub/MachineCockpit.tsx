@@ -248,7 +248,7 @@ function CockpitInner({
       toast.success(`${effectiveAction === 'start' ? 'start' : action} queued`)
       onPlanRefresh?.()
     } catch (e: unknown) {
-      toast.error(String(e))
+      toast.error(formatUserError(e))
     }
   }
 
@@ -264,7 +264,7 @@ function CockpitInner({
       })
       toast.success('Snapshot queued')
     } catch (e: unknown) {
-      toast.error(String(e))
+      toast.error(formatUserError(e))
     }
   }
 
@@ -285,7 +285,7 @@ function CockpitInner({
       window.open(url, '_blank', 'noopener,noreferrer')
       setTimeout(() => URL.revokeObjectURL(url), 60_000)
     } catch (e: unknown) {
-      toast.error(String(e))
+      toast.error(formatUserError(e))
     }
   }, [toast])
 
@@ -311,7 +311,7 @@ function CockpitInner({
       await navigator.clipboard.writeText(`${window.location.origin}${link}`)
       toast.success('Collaborator link copied — viewers get read-only access')
     } catch (e: unknown) {
-      toast.error(String(e))
+      toast.error(formatUserError(e))
     } finally {
       setShareBusy(false)
     }

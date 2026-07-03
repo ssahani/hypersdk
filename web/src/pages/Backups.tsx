@@ -98,17 +98,25 @@ export default function BackupsPage() {
     }
   }, [])
 
-  // Poll live status for running backups (GET /backups/{id}/status)
+  // Poll live status for running backups (GET /backups/{id}/status).
+  // Depend on the *set* of running ids (a stable string), not the whole
+  // `backups` array — otherwise each status update mutates `backups`, re-runs
+  // the effect, and re-fires the poll immediately, bypassing the 3s interval.
+  const runningIdsKey = backups
+    .filter((b) => b.status === 'running')
+    .map((b) => b.id)
+    .sort()
+    .join(',')
   useEffect(() => {
-    const running = backups.filter((b) => b.status === 'running')
-    if (!running.length) return
+    if (!runningIdsKey) return
+    const ids = runningIdsKey.split(',')
     const poll = () => {
-      void Promise.all(running.map((b) => refreshBackupStatus(b.id))).catch(() => undefined)
+      void Promise.all(ids.map((id) => refreshBackupStatus(id))).catch(() => undefined)
     }
     poll()
     const interval = setInterval(poll, 3000)
     return () => clearInterval(interval)
-  }, [backups, refreshBackupStatus])
+  }, [runningIdsKey, refreshBackupStatus])
 
   const handleBackup = async () => {
     setRunning(true)
@@ -369,7 +377,7 @@ export default function BackupsPage() {
                         <button
                           type="button"
                           data-testid={`backup-status-${b.id}`}
-                          onClick={() => void refreshBackupStatus(b.id)}
+                          onClick={() => void refreshBackupStatus(b.id).catch((e: unknown) => toast.error(formatUserError(e)))}
                           disabled={statusBusy === b.id}
                           className="p-1.5 hover:bg-slate-600/40 rounded transition"
                           title="Refresh live backup status"

@@ -2,12 +2,13 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Download, Loader2, X } from 'lucide-react'
 import { Link } from 'react-router'
 import { pullGlanceImage, type OpenStackImage } from '../api/openstack'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type Props = {
   open: boolean
@@ -22,6 +23,8 @@ export default function GlancePullModal({ open, image, defaultDestDir, onClose }
   const [waitActive, setWaitActive] = useState(true)
   const [busy, setBusy] = useState(false)
   const [pulledPath, setPulledPath] = useState<string | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, open, onClose)
 
   if (!open || !image) return null
 
@@ -49,6 +52,7 @@ export default function GlancePullModal({ open, image, defaultDestDir, onClose }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label="Pull to hypervisor"

@@ -30,6 +30,7 @@ export default function PlatformWebhooks({ embedded }: { embedded?: boolean } = 
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [url, setUrl] = useState('https://example.com/hook')
+  const [adding, setAdding] = useState(false)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [showRemoveTest, setShowRemoveTest] = useState(false)
 
@@ -78,18 +79,28 @@ export default function PlatformWebhooks({ embedded }: { embedded?: boolean } = 
           />
           <button
             type="button"
-            className="btn-primary flex items-center gap-2 shrink-0"
+            disabled={adding || !url.trim()}
+            className="btn-primary flex items-center gap-2 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={async () => {
+              const target = url.trim()
+              if (!target || adding) return
+              if (!/^https?:\/\/.+/i.test(target)) {
+                toast.error('Enter a valid http(s) webhook URL')
+                return
+              }
+              setAdding(true)
               try {
-                await createWebhook({ url, events: ['vm.create', 'vm.delete', 'ha.recover'] })
+                await createWebhook({ url: target, events: ['vm.create', 'vm.delete', 'ha.recover'] })
                 toast.success('Webhook added')
                 await load()
               } catch (e: unknown) {
                 toast.error(formatUserError(e))
+              } finally {
+                setAdding(false)
               }
             }}
           >
-            <Plus className="w-4 h-4" /> Add endpoint
+            <Plus className="w-4 h-4" /> {adding ? 'Adding…' : 'Add endpoint'}
           </button>
           <PlatformRefreshButton onClick={() => void load()} />
         </>

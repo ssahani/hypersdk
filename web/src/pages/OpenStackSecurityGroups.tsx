@@ -74,14 +74,20 @@ function OpenStackSecurityGroupsContent() {
       setDetail(null)
       return
     }
+    // Clear the previous group's rules immediately and guard against an
+    // out-of-order response committing stale detail after a fast re-selection.
+    let cancelled = false
+    setDetail(null)
     setDetailLoading(true)
     getOpenStackSecurityGroup(selectedId)
-      .then((r) => setDetail(r.security_group))
+      .then((r) => { if (!cancelled) setDetail(r.security_group) })
       .catch((e: unknown) => {
+        if (cancelled) return
         toast.error(formatUserError(e))
         setDetail(null)
       })
-      .finally(() => setDetailLoading(false))
+      .finally(() => { if (!cancelled) setDetailLoading(false) })
+    return () => { cancelled = true }
   }, [selectedId, toast])
 
   const active = detail ?? groups.find((g) => g.id === selectedId) ?? null

@@ -25,6 +25,7 @@ import ErrorBanner from '../components/ErrorBanner'
 import PageLayout from '../components/PageLayout'
 import { openStackErrorHints } from '../utils/openstackHints'
 import { libvirtErrorHints } from '../utils/libvirtHints'
+import { formatUserError } from '../utils/apiError'
 import {
   CHECK_CATEGORY_LABELS,
   CHECK_CATEGORY_ORDER,
@@ -199,7 +200,7 @@ export default function SystemCheckPage() {
       setResults(r)
       setPlatform(p)
     } catch (e: unknown) {
-      toast.error(`System check failed: ${String(e)}`)
+      toast.error(`System check failed: ${formatUserError(e)}`)
     } finally {
       setRunning(false)
       setProgressLabel(null)
@@ -238,7 +239,7 @@ export default function SystemCheckPage() {
         return merged
       })
     } catch (e: unknown) {
-      toast.error(String(e))
+      toast.error(formatUserError(e))
     } finally {
       setDeepRunning(false)
       setProgressLabel(null)

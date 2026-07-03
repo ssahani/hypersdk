@@ -1,7 +1,8 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { Bell } from 'lucide-react'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
@@ -39,12 +40,15 @@ export default function PlatformNotifications() {
   const [tier] = usePlatformDesktopTier()
   const [rows, setRows] = useState<NotificationRow[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [undeliveredOnly, setUndeliveredOnly] = useState(true)
   const [runbook, setRunbook] = useState<{ title: string; steps: string[] } | null>(null)
+  const runbookRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(runbookRef, runbook !== null, () => setRunbook(null))
 
   const load = useCallback(async () => {
     setError(null)
-    try { setRows(await listNotifications(undeliveredOnly)) } catch (e: unknown) { setError(formatUserError(e)) }
+    try { setRows(await listNotifications(undeliveredOnly)) } catch (e: unknown) { setError(formatUserError(e)) } finally { setLoading(false) }
   }, [undeliveredOnly])
 
   useEffect(() => { void load() }, [load])
@@ -53,6 +57,7 @@ export default function PlatformNotifications() {
 
   return (
     <PlatformPageChrome
+      loading={loading && rows.length === 0}
       error={error}
       onErrorRetry={() => void load()}
       prepend={<PlatformBackLink to="/platform/operations" label="Operations" />}
@@ -134,7 +139,7 @@ export default function PlatformNotifications() {
       )}
       {runbook && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50" onClick={() => setRunbook(null)}>
-          <div className="max-w-lg w-full rounded-2xl bg-slate-900 border border-white/10 p-5" role="dialog" aria-modal="true" aria-label={runbook.title} onClick={(e) => e.stopPropagation()}>
+          <div ref={runbookRef} className="max-w-lg w-full rounded-2xl bg-slate-900 border border-white/10 p-5" role="dialog" aria-modal="true" aria-label={runbook.title} onClick={(e) => e.stopPropagation()}>
             <h3 className="font-semibold mb-2">{runbook.title}</h3>
             <ol className="text-sm text-slate-300 space-y-2 list-decimal pl-5">{runbook.steps.map((s) => <li key={s}>{s}</li>)}</ol>
             <button type="button" className="btn-secondary mt-4 w-full" onClick={() => setRunbook(null)}>Close</button>

@@ -43,6 +43,7 @@ pub async fn create_keypair(
     struct KpJson {
         name: String,
         fingerprint: Option<String>,
+        private_key: Option<String>,
     }
     let resp = session
         .post(COMPUTE, &["os-keypairs"])
@@ -54,6 +55,7 @@ pub async fn create_keypair(
     Ok(OpenStackKeyPair {
         name: parsed.keypair.name,
         fingerprint: parsed.keypair.fingerprint,
+        private_key: parsed.keypair.private_key,
     })
 }
 

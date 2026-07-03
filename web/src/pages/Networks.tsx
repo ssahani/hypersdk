@@ -2,8 +2,9 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { listNetworks, createNetwork, startNetwork, stopNetwork, deleteNetwork, setNetworkAutostart, getNetworkXml, setNetworkXml, NetworkInfo } from '../api/network'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 import { listDhcpLeases, DhcpLease, serviceAction } from '../api/extras'
 import { getHostLibvirtBoot, type LibvirtBootStatus } from '../api/host'
 import { useToastContext } from '../contexts/ToastContext'
@@ -22,6 +23,9 @@ export default function NetworksPage() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const createRef = useRef<HTMLDivElement>(null)
+  const editRef = useRef<HTMLDivElement>(null)
   const [newName, setNewName] = useState('')
   const [newSubnet, setNewSubnet] = useState('192.168.100')
   const [newDhcpStart, setNewDhcpStart] = useState('192.168.100.100')
@@ -33,6 +37,8 @@ export default function NetworksPage() {
   const [editXmlLoading, setEditXmlLoading] = useState(false)
   const [editXmlSaving, setEditXmlSaving] = useState(false)
   const toast = useToastContext()
+  useFocusTrap(createRef, showCreate, () => setShowCreate(false))
+  useFocusTrap(editRef, editTarget !== null, () => { if (!editXmlSaving) setEditTarget(null) })
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -70,12 +76,14 @@ export default function NetworksPage() {
   }
 
   const handleCreate = async () => {
-    if (!newName.trim()) return
+    if (!newName.trim() || creating) return
+    setCreating(true)
     try {
       await createNetwork({ name: newName.trim(), subnet: newSubnet, dhcp_start: newDhcpStart, dhcp_end: newDhcpEnd })
       toast.success(`Network '${newName}' created`)
       setShowCreate(false); setNewName(''); load()
     } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
+    finally { setCreating(false) }
   }
 
   const openEditXml = async (net: NetworkInfo) => {
@@ -232,7 +240,7 @@ export default function NetworksPage() {
       {/* Edit network XML */}
       {editTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" role="dialog" aria-modal="true" onClick={() => !editXmlSaving && setEditTarget(null)}>
-          <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div ref={editRef} className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="p-5 border-b border-slate-700/50 flex items-center justify-between shrink-0">
               <div>
                 <span className="text-lg font-semibold flex items-center gap-2"><Network className={`w-5 h-5 ${statusToneClass('info')}`} /> Edit network XML</span>
@@ -280,7 +288,7 @@ export default function NetworksPage() {
       {/* Create Network Dialog */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" role="dialog" aria-modal="true" onClick={() => setShowCreate(false)}>
-          <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+          <div ref={createRef} className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
             <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
               <span className="text-lg font-semibold flex items-center gap-2"><Network className={`w-5 h-5 ${statusToneClass('info')}`} /> Create Network</span>
               <button aria-label="Close" onClick={() => setShowCreate(false)} className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
@@ -296,7 +304,7 @@ export default function NetworksPage() {
             </div>
             <div className="flex justify-end gap-3 px-5 pb-5">
               <button onClick={() => setShowCreate(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
-              <button onClick={handleCreate} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition">Create</button>
+              <button onClick={handleCreate} disabled={creating || !newName.trim()} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm text-white font-medium transition">{creating ? 'Creating…' : 'Create'}</button>
             </div>
           </div>
         </div>

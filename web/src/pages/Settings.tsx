@@ -84,6 +84,7 @@ export default function SettingsPage() {
   const [osUserCap, setOsUserCap] = useState<OsUserCapability | null>(null)
   const [newOsUsername, setNewOsUsername] = useState('')
   const [newOsPassword, setNewOsPassword] = useState('')
+  const [creatingOsUser, setCreatingOsUser] = useState(false)
   const [deleteOsUsername, setDeleteOsUsername] = useState('')
   const [confirmDeleteOsUser, setConfirmDeleteOsUser] = useState(false)
   const [addOsUserToLibvirt, setAddOsUserToLibvirt] = useState(true)
@@ -760,8 +761,11 @@ export default function SettingsPage() {
                         <input value={newOsPassword} onChange={e => setNewOsPassword(e.target.value)} type="password" aria-label="Initial password" className="input-field flex-1" placeholder="Initial password" autoComplete="new-password" />
                         <button
                           type="button"
+                          disabled={creatingOsUser || !newOsUsername.trim() || !newOsPassword}
                           onClick={async () => {
                             if (!newOsUsername.trim() || !newOsPassword) { toast.error('Username and password required'); return }
+                            if (creatingOsUser) return
+                            setCreatingOsUser(true)
                             try {
                               const r = await createOsUser(newOsUsername.trim(), newOsPassword, addOsUserToLibvirt)
                               const extra = r.libvirt_group_attached ? ' (added to libvirt group)' : ''
@@ -771,11 +775,13 @@ export default function SettingsPage() {
                               setNewOsPassword('')
                             } catch (e: unknown) {
                               toast.error(formatUserError(e))
+                            } finally {
+                              setCreatingOsUser(false)
                             }
                           }}
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition whitespace-nowrap"
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm transition whitespace-nowrap"
                         >
-                          Create UNIX user
+                          {creatingOsUser ? 'Creating…' : 'Create UNIX user'}
                         </button>
                       </div>
                     </>

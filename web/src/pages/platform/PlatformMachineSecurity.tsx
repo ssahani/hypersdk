@@ -90,6 +90,9 @@ export default function PlatformMachineSecurity() {
     if (!hostId) return
     setError(null)
     setLoading(true)
+    // Clear the shared per-tab collection so the previous tab's rows don't
+    // render under the new tab's header while its fetch is in flight.
+    setItems([])
     try {
       const sum = await getHostSecuritySummary(hostId)
       setSummary(sum)

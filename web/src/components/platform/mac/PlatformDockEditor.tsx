@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, GripVertical, Plus, RotateCcw, Trash2, X } from 'lucide-react'
 import {
   defaultDockPathsForTier,
@@ -10,6 +10,7 @@ import {
   PLATFORM_SIDEBAR_FLAT,
 } from '../../../utils/platformDockPins'
 import { isPathAllowedForTier, loadPlatformDesktopTier } from '../../../utils/platformDesktopTier'
+import { useFocusTrap } from '../../../hooks/useFocusTrap'
 
 interface PlatformDockEditorProps {
   open: boolean
@@ -35,6 +36,9 @@ export default function PlatformDockEditor({ open, onClose }: PlatformDockEditor
     () => catalog.filter((i) => !paths.includes(i.path)),
     [paths, catalog],
   )
+
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, open, onClose)
 
   if (!open) return null
 
@@ -62,7 +66,7 @@ export default function PlatformDockEditor({ open, onClose }: PlatformDockEditor
   return (
     <div className="fixed inset-0 z-[400] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-hidden />
-      <div className="mac-menu-panel relative w-full max-w-md p-5 space-y-4" role="dialog" aria-modal="true" aria-labelledby="dock-editor-title">
+      <div ref={panelRef} className="mac-menu-panel relative w-full max-w-md p-5 space-y-4" role="dialog" aria-modal="true" aria-labelledby="dock-editor-title">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 id="dock-editor-title" className="text-lg font-semibold text-white">Customize Dock</h2>

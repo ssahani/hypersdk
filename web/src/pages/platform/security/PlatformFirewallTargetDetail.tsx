@@ -104,6 +104,10 @@ export default function PlatformFirewallTargetDetail() {
 
   useEffect(() => { void load() }, [load])
 
+  // Clear the previous target's detail on navigation so its name/score/posture
+  // don't flash under the new target (contentLoading gates on !detail).
+  useEffect(() => { setDetail(null) }, [id])
+
   const applyWithPreview = async (body: Record<string, unknown>, confirmMsg: string) => {
     if (!id) return
     try {

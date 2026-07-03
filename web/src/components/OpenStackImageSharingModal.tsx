@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2, X } from 'lucide-react'
 import type { OpenStackImage } from '../api/openstack'
 import {
@@ -14,6 +14,7 @@ import {
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { statusActionLinkClasses } from '../utils/semanticColors'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type Props = {
   image: OpenStackImage | null
@@ -28,6 +29,8 @@ export default function OpenStackImageSharingModal({ image, onClose }: Props) {
   const [metaKey, setMetaKey] = useState('')
   const [metaValue, setMetaValue] = useState('')
   const [visibility, setVisibility] = useState('private')
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, image != null, onClose)
 
   const load = useCallback(async () => {
     if (!image) return
@@ -51,7 +54,7 @@ export default function OpenStackImageSharingModal({ image, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-      <div className="w-full max-w-lg rounded-xl border border-slate-700 bg-slate-900 shadow-xl" role="dialog" aria-modal="true">
+      <div ref={panelRef} className="w-full max-w-lg rounded-xl border border-slate-700 bg-slate-900 shadow-xl" role="dialog" aria-modal="true">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
           <h2 className="font-semibold text-slate-100 truncate pr-2">
             Image sharing · {image.name || image.id.slice(0, 8)}

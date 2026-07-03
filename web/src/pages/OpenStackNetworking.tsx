@@ -68,6 +68,7 @@ function OpenStackNetworkingContent() {
   const [portNetId, setPortNetId] = useState('')
   const [portName, setPortName] = useState('')
   const [fipExtNet, setFipExtNet] = useState('')
+  const [allocatingFip, setAllocatingFip] = useState(false)
   const [floatingIps, setFloatingIps] = useState<OpenStackFloatingIp[]>([])
 
   const load = useCallback(async () => {
@@ -393,19 +394,23 @@ function OpenStackNetworkingContent() {
           </div>
           <button
             type="button"
-            className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm"
+            disabled={!fipExtNet || allocatingFip}
+            className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={async () => {
-              if (!fipExtNet) return
+              if (!fipExtNet || allocatingFip) return
+              setAllocatingFip(true)
               try {
                 await createOpenStackFloatingIp(fipExtNet)
                 toast.success('Floating IP allocated')
                 void load()
               } catch (e: unknown) {
                 toast.error(formatUserError(e))
+              } finally {
+                setAllocatingFip(false)
               }
             }}
           >
-            Allocate FIP
+            {allocatingFip ? 'Allocating…' : 'Allocate FIP'}
           </button>
         </div>
       </div>

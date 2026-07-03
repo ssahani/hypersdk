@@ -36,6 +36,7 @@ function OpenStackFloatingIpsContent() {
   const [instances, setInstances] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [extNet, setExtNet] = useState('')
+  const [allocating, setAllocating] = useState(false)
   const [assocFip, setAssocFip] = useState('')
   const [assocInst, setAssocInst] = useState('')
 
@@ -87,14 +88,17 @@ function OpenStackFloatingIpsContent() {
             ))}
           </select>
         </div>
-        <button type="button" disabled={!extNet} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white"
+        <button type="button" disabled={!extNet || allocating} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white disabled:opacity-40 disabled:cursor-not-allowed"
           onClick={async () => {
+            if (!extNet || allocating) return
+            setAllocating(true)
             try {
               await createOpenStackFloatingIp(extNet)
               toast.success('Floating IP allocated')
               void load()
             } catch (e: unknown) { toast.error(formatUserError(e)) }
-          }}>Allocate</button>
+            finally { setAllocating(false) }
+          }}>{allocating ? 'Allocating…' : 'Allocate'}</button>
         <button type="button" onClick={() => void load()}
           className="ml-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-600">
           <RefreshCw className="w-4 h-4" /> Refresh

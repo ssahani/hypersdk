@@ -1,7 +1,8 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, Loader2, X } from 'lucide-react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 import type { UseVmHardwareResult } from '../../hooks/useVmHardware'
 import type { VmHardwareSummaryReport } from '../../api/platform'
 import HardwareApplyBadge from './HardwareApplyBadge'
@@ -72,6 +73,8 @@ export default function VmEditHardwareDrawer({
   const [xmlDraft, setXmlDraft] = useState('')
   const [xmlSaving, setXmlSaving] = useState(false)
   const [uefiBusy, setUefiBusy] = useState(false)
+  const panelRef = useRef<HTMLElement>(null)
+  useFocusTrap(panelRef, open, onClose)
 
   if (!open) return null
 
@@ -129,6 +132,7 @@ export default function VmEditHardwareDrawer({
     <>
       <button type="button" className="fixed inset-0 z-[85] bg-black/50 backdrop-blur-sm" aria-label="Close Edit Hardware" onClick={onClose} />
       <aside
+        ref={panelRef}
         className="fixed top-0 right-0 z-[90] h-full w-full max-w-lg bg-slate-950/98 border-l border-white/10 shadow-2xl flex flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"

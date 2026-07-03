@@ -131,14 +131,17 @@ export default function PlatformFirewallCompliance() {
                     onClick={() => void approveFirewallChange(a.id).then((r: FirewallApprovalApplyResult) => {
                       toast.success(r.message)
                       return loadApprovals()
-                    })}
+                    }).catch((e: unknown) => toast.error(formatUserError(e)))}
                   >
                     Approve
                   </button>
                   <button
                     type="button"
                     className="text-xs px-2 py-1 rounded bg-slate-700 text-slate-200"
-                    onClick={() => void rejectFirewallChange(a.id).then(() => loadApprovals())}
+                    onClick={() => void rejectFirewallChange(a.id).then(() => {
+                      toast.success('Firewall change rejected')
+                      return loadApprovals()
+                    }).catch((e: unknown) => toast.error(formatUserError(e)))}
                   >
                     Reject
                   </button>

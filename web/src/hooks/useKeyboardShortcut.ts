@@ -33,6 +33,11 @@ export function useKeyboardShortcut({ key, ctrl, meta, handler, enabled = true }
       if (wantMeta && !e.metaKey && !e.ctrlKey) return
       if (e.key.toLowerCase() !== key.toLowerCase()) return
 
+      // Bare-key shortcuts (no Ctrl/Meta) must not hijack typing in form fields —
+      // otherwise printable keys like "?" never reach the focused input/textarea.
+      // Guard BEFORE preventDefault so the keystroke still lands in the field.
+      if (!wantCtrl && !wantMeta && isInputFocused()) return
+
       e.preventDefault()
       handler(e)
     }

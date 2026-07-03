@@ -2,8 +2,9 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { listSecrets, deleteSecret, getSecretXml, defineSecret, SecretInfo } from '../api/advanced'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EmptyState from '../components/EmptyState'
@@ -24,6 +25,10 @@ export default function SecretsPage() {
   const [defValueB64, setDefValueB64] = useState('')
   const [defValidate, setDefValidate] = useState(false)
   const [defSaving, setDefSaving] = useState(false)
+  const defineRef = useRef<HTMLDivElement>(null)
+  const xmlRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(defineRef, defineOpen, () => { if (!defSaving) setDefineOpen(false) })
+  useFocusTrap(xmlRef, xmlContent !== null, () => setXmlContent(null))
   const toast = useToastContext()
 
   const load = useCallback(async () => {
@@ -152,7 +157,7 @@ export default function SecretsPage() {
 
       {defineOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" role="dialog" aria-modal="true" onClick={() => !defSaving && setDefineOpen(false)}>
-          <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div ref={defineRef} className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-slate-700/50">
               <span className="text-lg font-semibold">Define libvirt secret</span>
               <button type="button" aria-label="Close" disabled={defSaving} onClick={() => setDefineOpen(false)} className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition"><X className="w-4 h-4" /></button>
@@ -177,8 +182,8 @@ export default function SecretsPage() {
       )}
 
       {xmlContent !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setXmlContent(null)}>
-          <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-3xl mx-4 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" role="dialog" aria-modal="true" onClick={() => setXmlContent(null)}>
+          <div ref={xmlRef} className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-3xl mx-4 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-slate-700/50">
               <span className="text-lg font-semibold font-mono">{xmlUuid}</span>
               <button aria-label="Close" onClick={() => setXmlContent(null)} className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition"><X className="w-4 h-4" /></button>

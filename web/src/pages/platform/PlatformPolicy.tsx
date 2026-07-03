@@ -15,6 +15,7 @@ export default function PlatformPolicy({ embedded }: { embedded?: boolean } = {}
   const [rules, setRules] = useState<PolicyRule[]>([])
   const [quotas, setQuotas] = useState<Awaited<ReturnType<typeof listProjectQuotas>>>([])
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [project, setProject] = useState('default')
   const [maxVms, setMaxVms] = useState(50)
 
@@ -26,6 +27,8 @@ export default function PlatformPolicy({ embedded }: { embedded?: boolean } = {}
       setQuotas(q)
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -67,6 +70,7 @@ export default function PlatformPolicy({ embedded }: { embedded?: boolean } = {}
     <PlatformPageChrome
       hideHeader={embedded}
       compact={embedded}
+      loading={loading && rules.length === 0 && quotas.length === 0}
       error={error}
       onErrorRetry={() => void load()}
       title={embedded ? undefined : 'Policy & Quotas'}

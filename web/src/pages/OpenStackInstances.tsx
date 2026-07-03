@@ -23,6 +23,7 @@ import OpenStackStatusBar from '../components/OpenStackStatusBar'
 import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import EmptyState from '../components/EmptyState'
 import PageLayout from '../components/PageLayout'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { formatUserError } from '../utils/apiError'
 import { openStackErrorHints } from '../utils/openstackHints'
 import { openstackStatusTone, statusBadgeClasses, statusBorderClass, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
@@ -105,6 +106,13 @@ function OpenStackInstancesContent() {
     if (!lastEvent) return
     if (lastEvent.kind.startsWith('openstack.instance')) void load()
   }, [refreshKey, lastEvent, load])
+
+  const [pendingAction, setPendingAction] = useState<{
+    inst: OpenStackInstance
+    fn: (id: string) => Promise<unknown>
+    label: string
+    message: string
+  } | null>(null)
 
   const runAction = async (
     inst: OpenStackInstance,
@@ -312,7 +320,7 @@ function OpenStackInstancesContent() {
                     <button
                       type="button"
                       title="Stop"
-                      onClick={() => runAction(inst, stopOpenStackInstance, 'Stop')}
+                      onClick={() => setPendingAction({ inst, fn: stopOpenStackInstance, label: 'Stop', message: `Stop instance '${inst.name}'? The guest OS will be powered off.` })}
                       className={`p-2 rounded hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)] ${statusToneClass('error')}`}
                     >
                       <Square className="w-4 h-4" />
@@ -320,7 +328,7 @@ function OpenStackInstancesContent() {
                     <button
                       type="button"
                       title="Reboot"
-                      onClick={() => runAction(inst, (id) => rebootOpenStackInstance(id, 'hard'), 'Reboot')}
+                      onClick={() => setPendingAction({ inst, fn: (id) => rebootOpenStackInstance(id, 'hard'), label: 'Reboot', message: `Hard reboot instance '${inst.name}'? This is equivalent to pulling the power — unsaved guest state will be lost.` })}
                       className={`p-2 rounded hover:bg-[color-mix(in_srgb,var(--machina-status-warn)_25%,transparent)] ${statusToneClass('warn')}`}
                     >
                       <RotateCcw className="w-4 h-4" />
@@ -356,6 +364,19 @@ function OpenStackInstancesContent() {
       )}
 
       <OpenStackFooter />
+      <ConfirmDialog
+        open={pendingAction !== null}
+        variant="warning"
+        title={`${pendingAction?.label ?? ''} Instance`}
+        message={pendingAction?.message ?? ''}
+        confirmLabel={pendingAction?.label ?? 'Confirm'}
+        onCancel={() => setPendingAction(null)}
+        onConfirm={() => {
+          const p = pendingAction
+          setPendingAction(null)
+          if (p) void runAction(p.inst, p.fn, p.label)
+        }}
+      />
     </PageLayout>
   )
 }

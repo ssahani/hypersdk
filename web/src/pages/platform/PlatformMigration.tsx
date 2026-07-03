@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { Link, useNavigate } from 'react-router'
 import { ArrowRightLeft, CheckCircle2, AlertTriangle, XCircle, ExternalLink, Play, Loader2 } from 'lucide-react'
@@ -53,6 +53,10 @@ export default function PlatformMigration() {
   const openstack = Boolean(info?.openstack?.enabled)
   const [gkStatus, setGkStatus] = useState<Awaited<ReturnType<typeof getGuestkitStatus>> | null>(null)
   const [diskPath, setDiskPath] = useState('')
+  // Mirror diskPath into a ref so scanSource (a stable useCallback) reads the
+  // latest typed value without re-subscribing its effects on every keystroke.
+  const diskPathRef = useRef('')
+  useEffect(() => { diskPathRef.current = diskPath }, [diskPath])
   const [gkSummary, setGkSummary] = useState<string | null>(null)
   const [status, setStatus] = useState<{ reachable?: boolean } | null>(null)
   const [scan, setScan] = useState<ScanVm[]>([])
@@ -77,7 +81,7 @@ export default function PlatformMigration() {
       const list = await Promise.all((vms.vms ?? []).slice(0, 10).map(async (v) => {
         let advisor: MigrationAdvisorReport | undefined
         try {
-          advisor = await getMigrationAdvisor(v.name, p, undefined, diskPath.trim() || undefined)
+          advisor = await getMigrationAdvisor(v.name, p, undefined, diskPathRef.current.trim() || undefined)
         } catch { /* optional */ }
         return {
           name: v.name,
@@ -425,8 +429,8 @@ export default function PlatformMigration() {
           </ul>
         )}
         <p className="text-xs text-slate-600 flex flex-wrap gap-3">
-          <Link to="/import" className={`$inline-flex items-center gap-1 ${hubLinkClasses()}`}>Single-VM import <ExternalLink className="w-3 h-3" /></Link>
-          {openstack && <Link to="/openstack/migrations" className={`$inline-flex items-center gap-1 ${hubLinkClasses()}`}>OpenStack migrations <ExternalLink className="w-3 h-3" /></Link>}
+          <Link to="/import" className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>Single-VM import <ExternalLink className="w-3 h-3" /></Link>
+          {openstack && <Link to="/openstack/migrations" className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>OpenStack migrations <ExternalLink className="w-3 h-3" /></Link>}
           <Link to="/platform/integrations" className={hubLinkClasses()}>All migration tools →</Link>
           <Link to={tasksHubHref(tier)} className={hubLinkClasses()}>View migration tasks →</Link>
         </p>

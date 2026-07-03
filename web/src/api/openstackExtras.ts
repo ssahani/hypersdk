@@ -96,7 +96,7 @@ export function listOpenStackServerGroups(): Promise<{ server_groups: OpenStackS
 export function createOpenStackKeypair(body: {
   name: string
   public_key?: string
-}): Promise<{ keypair: { name: string; fingerprint?: string } }> {
+}): Promise<{ keypair: { name: string; fingerprint?: string; private_key?: string } }> {
   return apiPost(`${API}/openstack/keypairs`, body)
 }
 

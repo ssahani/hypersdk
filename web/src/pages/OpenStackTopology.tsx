@@ -103,7 +103,12 @@ function OpenStackTopologyContent() {
         </Link>
       }
     >
-      {!loading && (
+      {!loading && laid.length === 0 && !error && (
+        <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-8 text-center text-sm text-slate-500">
+          No networks or instances to graph yet. Create a network or launch an instance to see the topology.
+        </div>
+      )}
+      {!loading && laid.length > 0 && (
         <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-4 overflow-x-auto">
           <svg width="960" height={maxY} className="w-full min-w-[640px]" viewBox={`0 0 960 ${maxY}`}>
             {edges.map((e, i) => {

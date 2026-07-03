@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useEffect, type RefObject } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -13,8 +13,18 @@ function getFocusableElements(root: HTMLElement): HTMLElement[] {
   )
 }
 
-/** Trap Tab focus inside `containerRef` while `active`; restores focus on deactivate. */
-export function useFocusTrap(containerRef: RefObject<HTMLElement | null>, active: boolean) {
+/**
+ * Trap Tab focus inside `containerRef` while `active`; restores focus on deactivate.
+ * Pass `onEscape` to also close the dialog when the user presses Escape.
+ */
+export function useFocusTrap(
+  containerRef: RefObject<HTMLElement | null>,
+  active: boolean,
+  onEscape?: () => void,
+) {
+  const escapeRef = useRef(onEscape)
+  escapeRef.current = onEscape
+
   useEffect(() => {
     if (!active || !containerRef.current) return
 
@@ -26,7 +36,7 @@ export function useFocusTrap(containerRef: RefObject<HTMLElement | null>, active
       nodes[0]?.focus()
     }, 0)
 
-    const onKeyDown = (e: KeyboardEvent) => {
+    const onTab = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return
       const nodes = getFocusableElements(root)
       if (nodes.length === 0) return
@@ -45,10 +55,21 @@ export function useFocusTrap(containerRef: RefObject<HTMLElement | null>, active
       }
     }
 
-    root.addEventListener('keydown', onKeyDown)
+    // Escape is bound on the document so it works even before focus lands inside
+    // the panel; Tab handling stays scoped to the panel.
+    const onEscapeKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && escapeRef.current) {
+        e.preventDefault()
+        escapeRef.current()
+      }
+    }
+
+    root.addEventListener('keydown', onTab)
+    document.addEventListener('keydown', onEscapeKey)
     return () => {
       window.clearTimeout(timer)
-      root.removeEventListener('keydown', onKeyDown)
+      root.removeEventListener('keydown', onTab)
+      document.removeEventListener('keydown', onEscapeKey)
       previouslyFocused?.focus?.()
     }
   }, [active, containerRef])

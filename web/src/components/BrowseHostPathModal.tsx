@@ -2,11 +2,12 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useCallback, useEffect, useId, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { browseDir, BrowseDirResponse } from '../api/extras'
 import { FolderOpen } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
 import { statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 export function isIsoFileName(name: string): boolean {
   return name.toLowerCase().endsWith('.iso')
@@ -51,6 +52,8 @@ export function BrowseHostPathModal({
   pickDirectory = false,
 }: BrowseHostPathModalProps) {
   const titleId = useId()
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, open, onClose)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [data, setData] = useState<BrowseDirResponse | null>(null)
@@ -79,6 +82,7 @@ export function BrowseHostPathModal({
 
   return (
     <div
+      ref={panelRef}
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60"
       role="dialog"
       aria-modal="true"

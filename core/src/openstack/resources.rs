@@ -50,6 +50,10 @@ pub struct OpenStackImage {
 pub struct OpenStackKeyPair {
     pub name: String,
     pub fingerprint: Option<String>,
+    /// Private key material. Nova returns this exactly once, at generate time
+    /// (when no public key was supplied). Never populated on list.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub private_key: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
@@ -267,6 +271,7 @@ pub async fn list_keypairs(cfg: &OpenStackConfig) -> Result<Vec<OpenStackKeyPair
         out.push(OpenStackKeyPair {
             name: kp.name().clone(),
             fingerprint: Some(kp.fingerprint().to_string()),
+            private_key: None,
         });
     }
     out.sort_by(|a, b| a.name.cmp(&b.name));

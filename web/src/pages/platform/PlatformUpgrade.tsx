@@ -64,12 +64,23 @@ export default function PlatformUpgrade() {
   const onlineHosts = hosts.filter((h) => h.state === 'online')
 
   const handleUpgradeAll = async () => {
+    let ok = 0
+    const failed: string[] = []
     for (const h of onlineHosts) {
       try {
         await upgradeHostAgent(h.id, matrix?.recommended_agent)
-      } catch { /* continue */ }
+        ok += 1
+      } catch {
+        failed.push(h.hostname)
+      }
     }
-    toast.success(`Upgrade queued for all ${onlineHosts.length} online hosts`)
+    if (failed.length === 0) {
+      toast.success(`Upgrade queued for all ${ok} online host${ok === 1 ? '' : 's'}`)
+    } else if (ok === 0) {
+      toast.error(`Upgrade failed for all ${failed.length} host${failed.length === 1 ? '' : 's'}: ${failed.join(', ')}`)
+    } else {
+      toast.warning(`Upgrade queued for ${ok} host${ok === 1 ? '' : 's'}; ${failed.length} failed: ${failed.join(', ')}`)
+    }
   }
 
   return (

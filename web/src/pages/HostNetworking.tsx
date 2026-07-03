@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { listVMs, VmInfo, getInterfaces, GuestIpAddress, vmScopeKey } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
@@ -28,6 +28,7 @@ import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 import ConfirmDialog from '../components/ConfirmDialog'
 import PageLayout from '../components/PageLayout'
 import { formatUserError } from '../utils/apiError'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 import { statusBgClass, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
 type Tab = 'topology' | 'portforward' | 'bridges' | 'firewall' | 'routing' | 'sysctl' | 'systemd'
@@ -43,6 +44,9 @@ export default function HostNetworkingPage() {
   const [searchParams] = useSearchParams()
   const [tab, setTab] = useState<Tab>('topology')
   const [dialog, setDialog] = useState<Dialog>(null)
+  const [submittingNet, setSubmittingNet] = useState(false)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(dialogRef, dialog !== null, () => setDialog(null))
   const [loading, setLoading] = useState(true)
   const toast = useToastContext()
 
@@ -314,11 +318,13 @@ export default function HostNetworkingPage() {
   // ── Handlers ───────────────────────────────────────────────────
 
   const handleCreateBridge = async () => {
-    if (!brName.trim()) return
+    if (!brName.trim() || submittingNet) return
+    setSubmittingNet(true)
     try {
       await createBridge({ name: brName.trim(), interfaces: brIfaces, mtu: brMtu, stp: brStp })
       toast.success(`Bridge '${brName}' created`); setDialog(null); setBrName(''); setBrIfaces([]); load()
     } catch (e: unknown) { toast.error(`Failed: ${formatUserError(e)}`) }
+    finally { setSubmittingNet(false) }
   }
 
   const handleDeleteBridge = async (name: string) => {
@@ -327,11 +333,13 @@ export default function HostNetworkingPage() {
   }
 
   const handleCreatePortForward = async () => {
-    if (!pfVmIp || pfHostPort === 0 || pfVmPort === 0) return
+    if (!pfVmIp || pfHostPort === 0 || pfVmPort === 0 || submittingNet) return
+    setSubmittingNet(true)
     try {
       await createPortForward({ protocol: pfProto, host_port: pfHostPort, vm_ip: pfVmIp, vm_port: pfVmPort, description: pfDesc })
       toast.success(`Port forward ${pfHostPort} -> ${pfVmIp}:${pfVmPort} created`); setDialog(null); load()
     } catch (e: unknown) { toast.error(`Failed: ${formatUserError(e)}`) }
+    finally { setSubmittingNet(false) }
   }
 
   const handleDeletePortForward = async (r: PortForwardRule) => {
@@ -340,11 +348,13 @@ export default function HostNetworkingPage() {
   }
 
   const handleCreateFirewallRule = async () => {
-    if (!fwVmIp) return
+    if (!fwVmIp || submittingNet) return
+    setSubmittingNet(true)
     try {
       await createFirewallRule({ vm_ip: fwVmIp, direction: fwDir, protocol: fwProto, port: fwPort, action: fwAction, description: fwDesc })
       toast.success('Firewall rule created'); setDialog(null); load()
     } catch (e: unknown) { toast.error(`Failed: ${formatUserError(e)}`) }
+    finally { setSubmittingNet(false) }
   }
 
   const handleDeleteFirewallRule = async (r: FirewallRule) => {
@@ -930,7 +940,7 @@ export default function HostNetworkingPage() {
 
       {/* ── Dialogs ───────────────────────────────────────────── */}
       {dialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in" role="dialog" aria-modal="true" onClick={() => setDialog(null)}>
+        <div ref={dialogRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in" role="dialog" aria-modal="true" onClick={() => setDialog(null)}>
 
           {dialog === 'bridge' && (
             <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-fade-in" onClick={e => e.stopPropagation()}>
@@ -958,7 +968,7 @@ export default function HostNetworkingPage() {
               </div>
               <div className="flex justify-end gap-3 px-5 pb-5">
                 <button onClick={() => setDialog(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
-                <button onClick={handleCreateBridge} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition">Create</button>
+                <button onClick={handleCreateBridge} disabled={submittingNet || !brName.trim()} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm text-white font-medium transition">{submittingNet ? 'Creating…' : 'Create'}</button>
               </div>
             </div>
           )}
@@ -990,7 +1000,7 @@ export default function HostNetworkingPage() {
               </div>
               <div className="flex justify-end gap-3 px-5 pb-5">
                 <button onClick={() => setDialog(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
-                <button onClick={handleCreatePortForward} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition">Create</button>
+                <button onClick={handleCreatePortForward} disabled={submittingNet || !pfVmIp || pfHostPort === 0 || pfVmPort === 0} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm text-white font-medium transition">{submittingNet ? 'Creating…' : 'Create'}</button>
               </div>
             </div>
           )}
@@ -1028,7 +1038,7 @@ export default function HostNetworkingPage() {
               </div>
               <div className="flex justify-end gap-3 px-5 pb-5">
                 <button onClick={() => setDialog(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
-                <button onClick={handleCreateFirewallRule} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition">Create</button>
+                <button onClick={handleCreateFirewallRule} disabled={submittingNet || !fwVmIp} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm text-white font-medium transition">{submittingNet ? 'Creating…' : 'Create'}</button>
               </div>
             </div>
           )}

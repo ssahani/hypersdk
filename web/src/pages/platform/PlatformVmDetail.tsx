@@ -289,6 +289,7 @@ export default function PlatformVmDetail() {
   const [vmConfirmOp, setVmConfirmOp] = useState<'delete' | 'delete_kubevirt' | 'remove_stale' | 'retire' | null>(null)
   const [snapConfirmMsg, setSnapConfirmMsg] = useState<{ message: string; action: string } | null>(null)
   const snapActionRef = useRef<(() => Promise<void>) | null>(null)
+  const [snapDestructiveConfirm, setSnapDestructiveConfirm] = useState<{ snapName: string; action: 'delete' | 'revert'; run: () => Promise<unknown>; label: string } | null>(null)
 
   const migrationDisks = useMemo(
     () => (libvirtDetails?.disks ?? []).filter((d) => d.device === 'disk' && d.source),
@@ -341,7 +342,11 @@ export default function PlatformVmDetail() {
 
   useEffect(() => {
     if (tab !== 'topology' || !id) return
-    void getVmTopology(id).then(setTopology).catch(() => setTopology(null))
+    let cancelled = false
+    void getVmTopology(id)
+      .then((t) => { if (!cancelled) setTopology(t) })
+      .catch(() => { if (!cancelled) setTopology(null) })
+    return () => { cancelled = true }
   }, [tab, id])
 
   const runHealth = useCallback(async () => {
@@ -369,6 +374,15 @@ export default function PlatformVmDetail() {
   }, [id])
 
   useEffect(() => { void load() }, [load])
+
+  // Reset per-VM state on navigation between VMs so the previous VM's details,
+  // topology, and migration history don't flash under the new id. Clearing `vm`
+  // re-triggers the contentLoading spinner (see contentLoading={!vm && !error}).
+  useEffect(() => {
+    setVm(null)
+    setTopology(null)
+    setMigrations([])
+  }, [id])
 
   useEffect(() => {
     getSession()
@@ -434,7 +448,11 @@ export default function PlatformVmDetail() {
 
   useEffect(() => {
     if (!id || tab !== 'events') return
-    void getVmMigrations(id).then(setMigrations).catch(() => setMigrations([]))
+    let cancelled = false
+    void getVmMigrations(id)
+      .then((m) => { if (!cancelled) setMigrations(m) })
+      .catch(() => { if (!cancelled) setMigrations([]) })
+    return () => { cancelled = true }
   }, [id, tab])
 
   const loadGuestPorts = useCallback(async () => {
@@ -1899,7 +1917,7 @@ export default function PlatformVmDetail() {
                             className="btn-secondary text-xs"
                             onClick={() => {
                               const name = e.label.replace(/^Snapshot:\s*/, '')
-                              void runSnapshotAction(name, 'revert', () => revertVmSnapshot(id, name), 'Revert queued')
+                              setSnapDestructiveConfirm({ snapName: name, action: 'revert', run: () => revertVmSnapshot(id, name), label: 'Revert queued' })
                             }}
                           >
                             Revert
@@ -1996,8 +2014,8 @@ export default function PlatformVmDetail() {
                   <li key={s.id} className="flex flex-col gap-2 text-slate-400 border-b border-white/5 pb-2">
                     <span>{s.name} ({s.status})</span>
                     <span className="flex flex-wrap gap-1">
-                      <button type="button" className="btn-secondary text-xs" onClick={() => void runSnapshotAction(s.name, 'revert', () => revertVmSnapshot(id, s.name), 'Revert queued')}>Revert</button>
-                      <button type="button" className="btn-secondary text-xs" onClick={() => void runSnapshotAction(s.name, 'delete', () => deleteVmSnapshot(id, s.name), 'Delete queued')}>Delete</button>
+                      <button type="button" className="btn-secondary text-xs" onClick={() => setSnapDestructiveConfirm({ snapName: s.name, action: 'revert', run: () => revertVmSnapshot(id, s.name), label: 'Revert queued' })}>Revert</button>
+                      <button type="button" className="btn-secondary text-xs" onClick={() => setSnapDestructiveConfirm({ snapName: s.name, action: 'delete', run: () => deleteVmSnapshot(id, s.name), label: 'Delete queued' })}>Delete</button>
                     </span>
                     <button
                       type="button"
@@ -2644,6 +2662,21 @@ export default function PlatformVmDetail() {
         variant="warning"
         onCancel={() => setVmConfirmOp(null)}
         onConfirm={() => { setVmConfirmOp(null); if (id) void act('VM retired', () => retirePlatformVm(id, true)) }}
+      />
+      <ConfirmDialog
+        open={snapDestructiveConfirm !== null}
+        title={snapDestructiveConfirm?.action === 'delete' ? 'Delete Snapshot' : 'Revert Snapshot'}
+        message={snapDestructiveConfirm?.action === 'delete'
+          ? `Permanently delete snapshot '${snapDestructiveConfirm?.snapName}'? This cannot be undone.`
+          : `Revert this VM to snapshot '${snapDestructiveConfirm?.snapName}'? The guest's current disk and memory state will be discarded.`}
+        confirmLabel={snapDestructiveConfirm?.action === 'delete' ? 'Delete' : 'Revert'}
+        variant={snapDestructiveConfirm?.action === 'delete' ? 'danger' : 'warning'}
+        onCancel={() => setSnapDestructiveConfirm(null)}
+        onConfirm={() => {
+          const c = snapDestructiveConfirm
+          setSnapDestructiveConfirm(null)
+          if (c) void runSnapshotAction(c.snapName, c.action, c.run, c.label)
+        }}
       />
       <ConfirmDialog
         open={snapConfirmMsg !== null}

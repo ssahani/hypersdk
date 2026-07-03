@@ -1,12 +1,13 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { ListTodo, X, RefreshCw } from 'lucide-react'
 import { listPlatformTasks, getControllerBase, type PlatformTask } from '../api/platform'
 import { usePlatformDesktopTier } from '../hooks/usePlatformDesktopTier'
 import { operationsHubHref } from '../utils/platformHubLinks'
 import { statusActionLinkClasses, statusBadgeClasses, statusBgClass, taskStatusTone } from '../utils/semanticColors'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 interface PlatformTaskDrawerProps {
   open: boolean
@@ -18,6 +19,8 @@ export default function PlatformTaskDrawer({ open, onClose }: PlatformTaskDrawer
   const [loading, setLoading] = useState(false)
   const [tier] = usePlatformDesktopTier()
   const operationsHref = operationsHubHref(tier)
+  const panelRef = useRef<HTMLElement>(null)
+  useFocusTrap(panelRef, open, onClose)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -53,7 +56,7 @@ export default function PlatformTaskDrawer({ open, onClose }: PlatformTaskDrawer
   return (
     <div className="fixed inset-0 z-[90] flex justify-end">
       <button type="button" className="absolute inset-0 bg-black/50" aria-label="Close task drawer" onClick={onClose} />
-      <aside className="relative w-full max-w-md bg-slate-950/95 backdrop-blur-xl border-l border-white/[0.08] shadow-xl flex flex-col" role="dialog" aria-modal="true" aria-label="Active tasks">
+      <aside ref={panelRef} className="relative w-full max-w-md bg-slate-950/95 backdrop-blur-xl border-l border-white/[0.08] shadow-xl flex flex-col" role="dialog" aria-modal="true" aria-label="Active tasks">
         <div className="flex items-center justify-between p-4 border-b border-white/[0.08]">
           <h2 className="font-semibold flex items-center gap-2">
             <ListTodo className="w-5 h-5" /> Active tasks

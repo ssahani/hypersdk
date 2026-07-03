@@ -55,26 +55,31 @@ export default function FleetPage() {
 
   const load = useCallback(async () => {
     setLoadError(null)
-    try {
-      const [st, vmRows, met, alerts] = await Promise.all([
-        getFleetStatus(),
-        getFleetVms(),
-        getFleetMetrics(),
-        getFleetAlerts(),
-      ])
+    // Fetch independently: a single down secondary endpoint (metrics/alerts)
+    // must not hide an otherwise-healthy fleet. Only a failed core status query
+    // surfaces as a page-level error.
+    const [stRes, vmRes, metRes, alertsRes] = await Promise.allSettled([
+      getFleetStatus(),
+      getFleetVms(),
+      getFleetMetrics(),
+      getFleetAlerts(),
+    ])
+    if (stRes.status === 'fulfilled') {
+      const st = stRes.value
       setEnabled(Boolean(st.enabled))
       setPrimaryPeer(st.primary_peer ?? '')
       setStandbyPeer(st.standby_peer ?? '')
       setPeers(st.peers ?? [])
-      setVms(vmRows.vms ?? [])
-      setMetrics(met)
-      setFleetAlerts(alerts.peers ?? [])
-      setFleetAlertsTotal(alerts.total_unacknowledged ?? 0)
-    } catch (e: unknown) {
-      setLoadError(formatUserError(e))
-    } finally {
-      setLoading(false)
+    } else {
+      setLoadError(formatUserError(stRes.reason))
     }
+    if (vmRes.status === 'fulfilled') setVms(vmRes.value.vms ?? [])
+    if (metRes.status === 'fulfilled') setMetrics(metRes.value)
+    if (alertsRes.status === 'fulfilled') {
+      setFleetAlerts(alertsRes.value.peers ?? [])
+      setFleetAlertsTotal(alertsRes.value.total_unacknowledged ?? 0)
+    }
+    setLoading(false)
   }, [])
 
   useEffect(() => {
@@ -320,6 +325,8 @@ export default function FleetPage() {
                 )
                 if (res.action === 'create_local') {
                   toast.info(res.message ?? 'Create this VM on the local host via VMs → Create')
+                } else if (typeof res.status === 'number' && res.status >= 400) {
+                  toast.error(`Create failed on ${res.peer} (HTTP ${res.status})${res.message ? `: ${res.message}` : ''}`)
                 } else {
                   toast.success(`Create proxied to ${res.peer} (HTTP ${res.status ?? '?'})`)
                 }

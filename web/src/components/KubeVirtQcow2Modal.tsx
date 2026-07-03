@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Boxes, Copy, Loader2, X } from 'lucide-react'
 import {
   getQcow2KubeVirtBundle,
@@ -17,6 +17,7 @@ import {
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { statusToneClass } from '../utils/semanticColors'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type Props = {
   open: boolean
@@ -36,6 +37,8 @@ export default function KubeVirtQcow2Modal({ open, qcow2Path, onClose }: Props) 
   const [loading, setLoading] = useState(false)
   const [execBusy, setExecBusy] = useState<'apply' | 'upload' | 'start' | null>(null)
   const [execLast, setExecLast] = useState<KubeVirtClusterExecResult | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, open, onClose)
 
   const requestBody = useCallback((): Qcow2KubeVirtRequest => {
     const mb = parseInt(memoryMb, 10)
@@ -91,7 +94,7 @@ export default function KubeVirtQcow2Modal({ open, qcow2Path, onClose }: Props) 
 
   return (
     <ModalBackdrop onClose={onClose}>
-      <ModalShell onClose={onClose} qcow2Path={qcow2Path}>
+      <ModalShell onClose={onClose} qcow2Path={qcow2Path} panelRef={panelRef}>
         <GuestOsFields
           guestOs={guestOs}
           setGuestOs={setGuestOs}
@@ -144,13 +147,16 @@ function ModalShell({
   children,
   onClose,
   qcow2Path,
+  panelRef,
 }: {
   children: ReactNode
   onClose: () => void
   qcow2Path: string
+  panelRef: RefObject<HTMLDivElement | null>
 }) {
   return (
     <div
+      ref={panelRef}
       className="bg-slate-900 border border-slate-600 rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col"
       onClick={(e) => e.stopPropagation()}
       role="dialog"

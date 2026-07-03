@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Link, useParams } from 'react-router'
 import { Activity, ChevronLeft, RefreshCw } from 'lucide-react'
 import { BuildStepTimeline } from '../components/BuildStepTimeline'
@@ -74,14 +74,18 @@ export default function JobsPage() {
       })
   }, [toast])
 
+  // Monotonic request id so an out-of-order response for a previously-selected
+  // job can't overwrite the currently-selected job's detail pane.
+  const detailReqRef = useRef(0)
   const refreshDetail = useCallback(() => {
     if (!selectedId) {
       setDetail(null)
       return
     }
+    const reqId = ++detailReqRef.current
     getJob(selectedId)
-      .then(setDetail)
-      .catch((e: unknown) => toast.error(formatUserError(e)))
+      .then((d) => { if (detailReqRef.current === reqId) setDetail(d) })
+      .catch((e: unknown) => { if (detailReqRef.current === reqId) toast.error(formatUserError(e)) })
   }, [selectedId, toast])
 
   useEffect(() => {
@@ -95,6 +99,9 @@ export default function JobsPage() {
   }, [refreshList])
 
   useEffect(() => {
+    // Clear the previous job's detail immediately on switch so its logs/status
+    // don't linger under the new selection while the fetch is in flight.
+    setDetail(null)
     refreshDetail()
   }, [refreshDetail])
 

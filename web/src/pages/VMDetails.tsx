@@ -271,6 +271,7 @@ export default function VMDetailsPage() {
   const [detachDiskTarget, setDetachDiskTarget] = useState<string | null>(null)
   const [detachNicMac, setDetachNicMac] = useState<string | null>(null)
   const [deleteSnapName, setDeleteSnapName] = useState<string | null>(null)
+  const [revertSnapName, setRevertSnapName] = useState<string | null>(null)
 
   const [tuneDiskTarget, setTuneDiskTarget] = useState('')
   const [tuneBus, setTuneBus] = useState('')
@@ -431,6 +432,17 @@ export default function VMDetailsPage() {
     if (dialog !== 'cdrom') setCdromBrowseOpen(false)
     if (dialog !== 'attach-disk') setAttachDiskBrowseOpen(false)
   }, [dialog])
+
+  // Reset per-VM state when navigating between VMs (this component instance is
+  // reused across /vms/:name changes). Without this the previous VM's cached XML,
+  // metrics history, and detail linger under the new name, and the first metrics
+  // delta is computed against the prior VM's byte counters (a bogus spike).
+  useEffect(() => {
+    setVM(null)
+    setVmXml('')
+    setMetricsHistory([])
+    prevMetricsRef.current = null
+  }, [name, conn])
 
   // Poll per-VM metrics every 5s for charts
   useEffect(() => {
@@ -1089,6 +1101,10 @@ export default function VMDetailsPage() {
 
   const confirmDeleteSnapshot = async () => {
     if (deleteSnapName) { await handleDeleteSnapshot(deleteSnapName); setDeleteSnapName(null) }
+  }
+
+  const confirmRevertSnapshot = async () => {
+    if (revertSnapName) { const n = revertSnapName; setRevertSnapName(null); await handleRevertSnapshot(n) }
   }
 
   const toggleAutostart = async () => {
@@ -1881,7 +1897,7 @@ export default function VMDetailsPage() {
                   <SnapshotTableRows
                     nodes={snapshotRoots}
                     depth={0}
-                    onRevert={handleRevertSnapshot}
+                    onRevert={(n) => setRevertSnapName(n)}
                     onDelete={(n) => setDeleteSnapName(n)}
                   />
                 </tbody>
@@ -3172,6 +3188,15 @@ export default function VMDetailsPage() {
         confirmLabel="Delete"
         onConfirm={confirmDeleteSnapshot}
         onCancel={() => setDeleteSnapName(null)}
+      />
+      <ConfirmDialog
+        open={revertSnapName !== null}
+        variant="warning"
+        title="Revert Snapshot"
+        message={`This will revert the VM to snapshot '${revertSnapName}'. The guest's current disk and memory state will be discarded.`}
+        confirmLabel="Revert"
+        onConfirm={confirmRevertSnapshot}
+        onCancel={() => setRevertSnapName(null)}
       />
 
       <VmSshConnectDialog

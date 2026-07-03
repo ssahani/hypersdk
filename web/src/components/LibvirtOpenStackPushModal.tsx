@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Cloud, Loader2, X } from 'lucide-react'
 import { Link } from 'react-router'
 import {
@@ -19,6 +19,7 @@ import { useHypersdkConnection } from '../hooks/useHypersdkConnection'
 import HypersdkStatusBanner from './HypersdkStatusBanner'
 import { formatUserError } from '../utils/apiError'
 import { statusToneClass } from '../utils/semanticColors'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 type Props = {
   open: boolean
@@ -60,6 +61,8 @@ export default function LibvirtOpenStackPushModal({
   const [guestFix, setGuestFix] = useState(true)
   const [result, setResult] = useState<{ mode: string; native?: GlanceUploadResult } | null>(null)
   const [deployStatus, setDeployStatus] = useState<string | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, open, onClose)
 
   const loadPreview = useCallback(async () => {
     setLoading(true)
@@ -163,6 +166,7 @@ export default function LibvirtOpenStackPushModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label="Push to OpenStack"

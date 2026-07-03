@@ -334,8 +334,8 @@ export default function PlatformHostDetailPage() {
                     >
                       Validate now
                     </button>
-                    <button type="button" className="btn-secondary text-sm" onClick={() => void enqueueValidateHost(id).then(() => { toast.success('Validation queued'); return load() })}>Queue validate</button>
-                    <button type="button" className="btn-secondary text-sm" onClick={() => void hostMaintenance(id, 'enter').then(() => toast.success('Maintenance'))}>Maintenance</button>
+                    <button type="button" className="btn-secondary text-sm" onClick={() => void enqueueValidateHost(id).then(() => { toast.success('Validation queued'); return load() }).catch((e: unknown) => toast.error(formatUserError(e)))}>Queue validate</button>
+                    <button type="button" className="btn-secondary text-sm" onClick={() => void hostMaintenance(id, 'enter').then(() => { toast.success('Maintenance mode entered'); return load() }).catch((e: unknown) => toast.error(formatUserError(e)))}>Maintenance</button>
                     <button type="button" className="btn-danger text-sm" onClick={() => setShowFenceConfirm(true)}>Fence</button>
                   </div>
                 </MacSettingsGroup>
@@ -400,6 +400,7 @@ export default function PlatformHostDetailPage() {
                           rack: rack.trim(),
                           rack_u: parsedU != null && !Number.isNaN(parsedU) ? parsedU : null,
                         }).then(() => { toast.success('Location saved'); return load() })
+                          .catch((e: unknown) => toast.error(formatUserError(e)))
                       }}
                     >
                       Save location
@@ -409,7 +410,7 @@ export default function PlatformHostDetailPage() {
                 <MacSettingsGroup title="Notes">
                   <div className="p-3 space-y-2">
                     <textarea className="input min-h-20 text-sm w-full" aria-label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-                    <button type="button" className="btn-secondary text-sm" onClick={() => void patchHost(id, { notes }).then(() => { toast.success('Notes saved'); return load() })}>Save</button>
+                    <button type="button" className="btn-secondary text-sm" onClick={() => void patchHost(id, { notes }).then(() => { toast.success('Notes saved'); return load() }).catch((e: unknown) => toast.error(formatUserError(e)))}>Save</button>
                   </div>
                 </MacSettingsGroup>
                 <MacSettingsGroup title="Danger zone">

@@ -20,6 +20,7 @@ export type GlassModalProps = {
 export function GlassModal({ open, onClose, title, subtitle, children, wide, footer, ariaLabel }: GlassModalProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const prevFocusRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -28,9 +29,19 @@ export function GlassModal({ open, onClose, title, subtitle, children, wide, foo
     return () => document.removeEventListener('keydown', handler)
   }, [open, onClose])
 
-  // Move focus to close button when modal opens so keyboard users don't get lost
+  // On open, remember what was focused and move focus into the modal (close
+  // button, or the panel itself for a title-less modal that has no close button).
+  // On close, restore focus to the element that had it before, so keyboard users
+  // aren't dumped at the top of the page.
   useEffect(() => {
-    if (open) closeButtonRef.current?.focus()
+    if (open) {
+      prevFocusRef.current = document.activeElement as HTMLElement | null
+      if (closeButtonRef.current) closeButtonRef.current.focus()
+      else panelRef.current?.focus()
+    } else if (prevFocusRef.current) {
+      prevFocusRef.current.focus?.()
+      prevFocusRef.current = null
+    }
   }, [open])
 
   useEffect(() => {
@@ -71,6 +82,7 @@ export function GlassModal({ open, onClose, title, subtitle, children, wide, foo
             ref={panelRef}
             role="dialog"
             aria-modal="true"
+            tabIndex={-1}
             aria-label={!title ? ariaLabel : undefined}
             aria-labelledby={title ? 'glass-modal-title' : undefined}
             className={`liquid-glass-modal-panel relative w-full ${wide ? 'max-w-2xl' : 'max-w-lg'} overflow-hidden`}

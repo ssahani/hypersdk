@@ -1,7 +1,8 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Copy, Loader2, Monitor, X } from 'lucide-react'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { Link } from 'react-router'
 import type { UseKubevirtHardwareResult } from '../../hooks/useKubevirtHardware'
 import { patchK8sKubevirtVmSpec } from '../../api/k8s'
@@ -33,6 +34,8 @@ export default function VmKubevirtHardwareDrawer({ open, onClose, vmId, vmName, 
   const [vcpusDraft, setVcpusDraft] = useState('')
   const [memoryGiDraft, setMemoryGiDraft] = useState('')
   const [saving, setSaving] = useState(false)
+  const panelRef = useRef<HTMLElement>(null)
+  useFocusTrap(panelRef, open, onClose)
 
   useEffect(() => {
     if (!vm) return
@@ -90,6 +93,7 @@ export default function VmKubevirtHardwareDrawer({ open, onClose, vmId, vmName, 
     <>
       <button type="button" className="fixed inset-0 z-[75] bg-black/40 backdrop-blur-sm" aria-label="Close Hardware" onClick={onClose} />
       <aside
+        ref={panelRef}
         className="fixed top-0 right-0 z-[80] h-full w-full max-w-md bg-slate-950/95 border-l border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200"
         role="dialog"
         aria-modal="true"
