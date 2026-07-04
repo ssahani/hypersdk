@@ -531,11 +531,33 @@ pub async fn patch_host(
             .await?;
     }
     if let Some(v) = &body.agent_grpc_addr {
-        sqlx::query("UPDATE hosts SET agent_grpc_addr = ? WHERE id = ?")
-            .bind(v)
-            .bind(id)
-            .execute(&mut *tx)
-            .await?;
+        let incoming_loopback =
+            v.is_empty() || v.starts_with("127.0.0.1:") || v.starts_with("localhost:");
+        let existing_addr: String =
+            sqlx::query_scalar("SELECT COALESCE(address, '') FROM hosts WHERE id = ?")
+                .bind(id)
+                .fetch_one(&mut *tx)
+                .await
+                .unwrap_or_default();
+        let host_is_remote = !existing_addr.is_empty()
+            && existing_addr != "127.0.0.1"
+            && existing_addr != "localhost"
+            && !existing_addr.starts_with("127.");
+        // Don't let a patch downgrade a managed *remote* host's agent address to a
+        // loopback/empty default (an accidental value from a form or an automated
+        // sync) — that silently points the controller at its own local agent.
+        if incoming_loopback && host_is_remote {
+            tracing::warn!(
+                host_id = %id, actor = %actor.username, agent_grpc_addr = %v,
+                "ignoring host patch that would downgrade a routable agent address to loopback"
+            );
+        } else {
+            sqlx::query("UPDATE hosts SET agent_grpc_addr = ? WHERE id = ?")
+                .bind(v)
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
+        }
     }
     if let Some(v) = &body.libvirt_uri {
         sqlx::query("UPDATE hosts SET libvirt_uri = ? WHERE id = ?")
