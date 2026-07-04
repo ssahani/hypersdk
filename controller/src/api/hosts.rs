@@ -324,17 +324,6 @@ pub async fn join_host(
     State(state): State<AppState>,
     Json(req): Json<JoinHostRequest>,
 ) -> Result<Json<HostRow>, ApiError> {
-    let row: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT cluster_id FROM enrollment_tokens
-         WHERE token = ? AND used_at IS NULL
-           AND (expires_at IS NULL OR expires_at > datetime('now'))",
-    )
-    .bind(&req.token)
-    .fetch_optional(&state.pool)
-    .await?;
-
-    let (cluster_id,) =
-        row.ok_or_else(|| ApiError::bad_request("invalid or expired join token"))?;
     let id = Uuid::new_v4();
     let console_addr = req
         .agent_console_addr
@@ -355,6 +344,22 @@ pub async fn join_host(
     }
 
     let mut tx = state.pool.begin().await?;
+    // Atomically consume the single-use token inside the transaction so two
+    // concurrent joins can't both observe it unused and each enroll a host
+    // (the old flow validated with a read outside any tx, then stamped used_at
+    // unconditionally — a TOCTOU that let one token enroll N hosts).
+    let consumed: Option<(Uuid,)> = sqlx::query_as(
+        "UPDATE enrollment_tokens SET used_at = datetime('now')
+         WHERE token = ? AND used_at IS NULL
+           AND (expires_at IS NULL OR expires_at > datetime('now'))
+         RETURNING cluster_id",
+    )
+    .bind(&req.token)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let (cluster_id,) =
+        consumed.ok_or_else(|| ApiError::bad_request("invalid or expired join token"))?;
+
     sqlx::query(
         "INSERT INTO hosts (id, cluster_id, hostname, address, agent_grpc_addr, agent_console_addr, libvirt_uri, state, validation_status)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'pending_validation', 'pending')
@@ -385,11 +390,6 @@ pub async fn join_host(
     .bind(&libvirt_uri)
     .execute(&mut *tx)
     .await?;
-
-    sqlx::query("UPDATE enrollment_tokens SET used_at = datetime('now') WHERE token = ?")
-        .bind(&req.token)
-        .execute(&mut *tx)
-        .await?;
 
     let host_id: Uuid =
         sqlx::query_scalar("SELECT id FROM hosts WHERE cluster_id = ? AND hostname = ?")

@@ -186,9 +186,14 @@ async fn proxy_to_agent_vnc(socket: WebSocket, state: AppState, vm_id: Uuid) {
         }
     });
 
+    // Abort the surviving direction when either ends, so a client that closes
+    // its tab doesn't leave the guest->client task blocked forever holding the
+    // upstream agent VNC/SPICE/serial connection (an fd + libvirt console leak).
+    let c2a_abort = c2a.abort_handle();
+    let a2c_abort = a2c.abort_handle();
     tokio::select! {
-        _ = c2a => {},
-        _ = a2c => {},
+        _ = c2a => { a2c_abort.abort(); },
+        _ = a2c => { c2a_abort.abort(); },
     }
 }
 
@@ -251,9 +256,14 @@ async fn proxy_to_agent_serial(socket: WebSocket, state: AppState, vm_id: Uuid) 
         }
     });
 
+    // Abort the surviving direction when either ends, so a client that closes
+    // its tab doesn't leave the guest->client task blocked forever holding the
+    // upstream agent VNC/SPICE/serial connection (an fd + libvirt console leak).
+    let c2a_abort = c2a.abort_handle();
+    let a2c_abort = a2c.abort_handle();
     tokio::select! {
-        _ = c2a => {},
-        _ = a2c => {},
+        _ = c2a => { a2c_abort.abort(); },
+        _ = a2c => { c2a_abort.abort(); },
     }
 }
 
@@ -347,9 +357,14 @@ async fn proxy_to_agent_spice(socket: WebSocket, state: AppState, vm_id: Uuid) {
         }
     });
 
+    // Abort the surviving direction when either ends, so a client that closes
+    // its tab doesn't leave the guest->client task blocked forever holding the
+    // upstream agent VNC/SPICE/serial connection (an fd + libvirt console leak).
+    let c2a_abort = c2a.abort_handle();
+    let a2c_abort = a2c.abort_handle();
     tokio::select! {
-        _ = c2a => {},
-        _ = a2c => {},
+        _ = c2a => { a2c_abort.abort(); },
+        _ = a2c => { c2a_abort.abort(); },
     }
 }
 

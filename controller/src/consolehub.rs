@@ -1592,9 +1592,12 @@ async fn proxy_guac_ws(client: WebSocket, target: String) {
         }
     });
 
+    // Abort the surviving direction so a closed tab doesn't leak the upstream task/socket.
+    let c2u_abort = c2u.abort_handle();
+    let u2c_abort = u2c.abort_handle();
     tokio::select! {
-        _ = c2u => {},
-        _ = u2c => {},
+        _ = c2u => { u2c_abort.abort(); },
+        _ = u2c => { c2u_abort.abort(); },
     }
 }
 

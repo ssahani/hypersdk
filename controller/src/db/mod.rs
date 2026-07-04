@@ -31,6 +31,21 @@ pub async fn ensure_bootstrap(
     admin_user: &str,
     admin_password: &str,
 ) -> anyhow::Result<()> {
+    // Reap tasks left 'running' by a worker that died or was restarted mid-task.
+    // Nothing else transitions running->failed, so without this they stay
+    // 'running' forever (never retried, since a re-publish only matches 'pending')
+    // and block reconcile from healing the affected VM.
+    let reaped = sqlx::query(
+        "UPDATE tasks SET status = 'failed', error = 'controller restarted while task was running' \
+         WHERE status = 'running'",
+    )
+    .execute(pool)
+    .await?
+    .rows_affected();
+    if reaped > 0 {
+        tracing::warn!("reaped {reaped} task(s) left in 'running' state after restart");
+    }
+
     let cluster_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM clusters")
         .fetch_one(pool)
         .await?;

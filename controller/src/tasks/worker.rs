@@ -17,9 +17,22 @@ use crate::tasks::TaskMessage;
 pub fn spawn(state: AppState, mut rx: mpsc::UnboundedReceiver<TaskMessage>) {
     tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
-            if let Err(e) = process_one(&state, &msg).await {
-                tracing::error!(task_id = %msg.task_id, op = %msg.operation, "task failed: {e:#}");
-                on_task_failure(&state, &msg, &e.to_string()).await;
+            // Run each task in its own spawned task so a panic in a handler
+            // (an unwrap, an index/arith panic) is captured as a JoinError rather
+            // than unwinding and permanently killing this single worker loop —
+            // which would silently stop all task processing cluster-wide.
+            let st = state.clone();
+            let m = msg.clone();
+            match tokio::spawn(async move { process_one(&st, &m).await }).await {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => {
+                    tracing::error!(task_id = %msg.task_id, op = %msg.operation, "task failed: {e:#}");
+                    on_task_failure(&state, &msg, &e.to_string()).await;
+                }
+                Err(join_err) => {
+                    tracing::error!(task_id = %msg.task_id, op = %msg.operation, "task handler panicked: {join_err} — worker recovered");
+                    on_task_failure(&state, &msg, "task handler panicked").await;
+                }
             }
         }
     });
@@ -328,10 +341,19 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
         .ok_or_else(|| anyhow::anyhow!("host_id missing"))?;
 
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
-    let mut client = agent_client::connect(&agent_addr).await?;
-    let hb = agent_client::heartbeat(&mut client, &host_id.to_string()).await?;
-    let list = agent_client::list_vms(&mut client).await?;
-    let info = agent_client::get_host_info(&mut client).await.ok();
+    // Cap the inventory RPCs: a host whose libvirtd is wedged accepts the TCP
+    // connection but never returns from heartbeat/list_vms, which would otherwise
+    // block this single serial worker (and thus every other host's tasks) forever.
+    let inv = tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        let mut client = agent_client::connect(&agent_addr).await?;
+        let hb = agent_client::heartbeat(&mut client, &host_id.to_string()).await?;
+        let list = agent_client::list_vms(&mut client).await?;
+        let info = agent_client::get_host_info(&mut client).await.ok();
+        Ok::<_, anyhow::Error>((hb, list, info))
+    })
+    .await
+    .map_err(|_| anyhow::anyhow!("agent inventory RPC timed out for host {host_id}"))??;
+    let (hb, list, info) = inv;
 
     sqlx::query(
         // Clear any stale fence flag: a host that just heartbeated is alive and

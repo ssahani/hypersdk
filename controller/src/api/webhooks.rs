@@ -50,26 +50,51 @@ fn validate_webhook_url(url: &str) -> Result<(), ApiError> {
     let host = parsed
         .host_str()
         .ok_or_else(|| ApiError::bad_request("webhook url has no host"))?;
-    // Reject loopback / private / link-local to prevent SSRF.
-    let blocked = matches!(
-        host,
-        "localhost" | "127.0.0.1" | "::1" | "0.0.0.0"
-    ) || host.starts_with("10.")
-        || host.starts_with("192.168.")
-        || host.starts_with("169.254.")
-        || host.starts_with("fc")
-        || host.starts_with("fd");
-    // Also block 172.16.0.0/12 range.
-    let blocked = blocked || {
-        if let Some(rest) = host.strip_prefix("172.") {
-            rest.split('.')
-                .next()
-                .and_then(|s| s.parse::<u8>().ok())
-                .is_some_and(|n| (16..=31).contains(&n))
-        } else {
-            false
+
+    // If the host is an IP literal, classify it properly so alternate encodings
+    // (decimal 2130706433, hex 0x7f000001, short 127.1, IPv6, IPv4-mapped) can't
+    // slip a private/loopback target past a string-prefix check. url::Url already
+    // canonicalizes bracketed IPv6; try to parse the host as an IpAddr.
+    if let Ok(ip) = host.trim_start_matches('[').trim_end_matches(']').parse::<std::net::IpAddr>() {
+        let blocked = match ip {
+            std::net::IpAddr::V4(v4) => {
+                v4.is_loopback()
+                    || v4.is_private()
+                    || v4.is_link_local()
+                    || v4.is_unspecified()
+                    || v4.is_broadcast()
+                    || v4.is_multicast()
+                    // carrier-grade NAT 100.64.0.0/10
+                    || (v4.octets()[0] == 100 && (64..=127).contains(&v4.octets()[1]))
+            }
+            std::net::IpAddr::V6(v6) => {
+                v6.is_loopback()
+                    || v6.is_unspecified()
+                    || v6.is_multicast()
+                    // unique-local fc00::/7 and link-local fe80::/10
+                    || (v6.segments()[0] & 0xfe00) == 0xfc00
+                    || (v6.segments()[0] & 0xffc0) == 0xfe80
+                    // IPv4-mapped/compat — re-check the embedded v4
+                    || v6.to_ipv4().is_some_and(|v4| v4.is_loopback() || v4.is_private() || v4.is_link_local() || v4.is_unspecified())
+            }
+        };
+        if blocked {
+            return Err(ApiError::bad_request(
+                "webhook url must not target private, loopback, or link-local addresses",
+            ));
         }
-    };
+        return Ok(());
+    }
+
+    // Non-IP host. Reject obvious localhost aliases and all-numeric hosts (which
+    // hyper may interpret as an integer-encoded IPv4). DNS names that resolve to
+    // internal IPs (rebinding) are additionally mitigated by redirect(none) in the
+    // delivery worker and should be firewalled at the egress.
+    let lower = host.to_ascii_lowercase();
+    let blocked = lower == "localhost"
+        || lower.ends_with(".localhost")
+        || lower.starts_with("0x")
+        || host.chars().all(|c| c.is_ascii_digit());
     if blocked {
         return Err(ApiError::bad_request(
             "webhook url must not target private or loopback addresses",

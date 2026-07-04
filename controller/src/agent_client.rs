@@ -22,7 +22,11 @@ pub async fn connect(addr: &str) -> anyhow::Result<HostAgentClient<Channel>> {
     } else {
         format!("http://{normalized}")
     };
-    let mut endpoint = Endpoint::from_shared(endpoint_url)?;
+    // Bound the TCP/TLS dial so an unreachable or blackholed host can't hang the
+    // (single, serial) task worker forever waiting to connect. Per-call timeouts
+    // for hot-path RPCs are applied at the call sites (e.g. host.inventory).
+    let mut endpoint =
+        Endpoint::from_shared(endpoint_url)?.connect_timeout(std::time::Duration::from_secs(10));
     if let Some(ca_path) = use_tls {
         let ca = tokio::fs::read_to_string(&ca_path).await?;
         let mut tls = ClientTlsConfig::new().ca_certificate(Certificate::from_pem(ca));

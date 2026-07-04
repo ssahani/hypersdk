@@ -10,6 +10,10 @@ pub fn spawn(pool: SqlitePool, leader: LeaderHandle) {
     tokio::spawn(async move {
         let client = match reqwest::Client::builder()
             .timeout(Duration::from_secs(10))
+            // Don't follow redirects: the create-time SSRF filter only vets the
+            // original URL, so a 302 to http://169.254.169.254/… would otherwise
+            // reach cloud metadata / internal services.
+            .redirect(reqwest::redirect::Policy::none())
             .build()
         {
             Ok(c) => c,
