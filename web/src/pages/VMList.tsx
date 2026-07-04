@@ -12,6 +12,7 @@ import { deleteVmWithNvramRetry } from '../utils/deleteVmWithNvramRetry'
 import { purgeVmShortcuts } from '../utils/vmShortcuts'
 import { getStateBadgeClasses } from '../utils/vm'
 import { useToastContext } from '../contexts/ToastContext'
+import { copyText } from '../utils/copyText'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { getAllTags, getVmTags } from '../api/extras'
@@ -349,7 +350,7 @@ export default function VMList() {
                           {vm.guest_ip && (
                             <button
                               type="button"
-                              onClick={() => { void navigator.clipboard.writeText(vm.guest_ip!); toast.success('Guest IP copied') }}
+                              onClick={async () => { if (await copyText(vm.guest_ip!)) toast.success('Guest IP copied'); else toast.error('Copy failed — check clipboard permissions') }}
                               className="p-1.5 hover:bg-slate-600/30 rounded transition"
                               title="Copy guest IP"
                               aria-label="Copy guest IP"
@@ -426,7 +427,7 @@ export default function VMList() {
                     <Link to={vmConsoleRoute(vm.name, vm.libvirt_connection)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="VNC" aria-label="VNC"><Monitor className="w-4 h-4 text-slate-300" /></Link>
                     <button type="button" onClick={() => setSshVm(vm)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="SSH" aria-label="SSH"><Terminal className="w-4 h-4 text-slate-300" /></button>
                     {vm.guest_ip && (
-                      <button type="button" onClick={() => { void navigator.clipboard.writeText(vm.guest_ip!); toast.success('Guest IP copied') }} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Copy IP" aria-label="Copy IP"><Copy className="w-4 h-4 text-slate-300" /></button>
+                      <button type="button" onClick={async () => { if (await copyText(vm.guest_ip!)) toast.success('Guest IP copied'); else toast.error('Copy failed — check clipboard permissions') }} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Copy IP" aria-label="Copy IP"><Copy className="w-4 h-4 text-slate-300" /></button>
                     )}
                     <button onClick={() => action(vm, shutdownVM, 'Shutdown')} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-warn)_25%,transparent)]`} title="Shutdown" aria-label="Shutdown"><Power className={`w-4 h-4 ${statusToneClass('warn')}`} /></button>
                     <button onClick={() => action(vm, stopVM, 'Stop')} className={`p-1.5 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)]`} title="Force Stop" aria-label="Force Stop"><Square className={`w-4 h-4 ${statusToneClass('error')}`} /></button>

@@ -7,6 +7,8 @@ import PlatformPageChrome from '../../components/platform/PlatformPageChrome'
 import { validateCloudInit } from '../../api/platformCloudInit'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
+import { useToastContext } from '../../contexts/ToastContext'
+import { copyText } from '../../utils/copyText'
 
 const DEFAULT_YAML = `#cloud-config
 hostname: my-vm
@@ -20,6 +22,7 @@ packages:
 `
 
 export default function CloudInitStudio() {
+  const toast = useToastContext()
   const [yaml, setYaml] = useState(DEFAULT_YAML)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<{ valid: boolean; issues: string[]; preview_hostname?: string | null } | null>(null)
@@ -43,6 +46,7 @@ export default function CloudInitStudio() {
           <Link to="/platform/templates" className={hubLinkClasses()}>Templates</Link> to deploy with this payload.
         </p>
         <textarea
+          aria-label="cloud-init YAML"
           className="input w-full font-mono text-xs min-h-[320px]"
           value={yaml}
           onChange={(e) => setYaml(e.target.value)}
@@ -52,7 +56,7 @@ export default function CloudInitStudio() {
           <button type="button" className="btn-primary text-sm" disabled={busy} onClick={() => void validate()}>
             {busy ? 'Validating…' : 'Validate'}
           </button>
-          <button type="button" className="btn-secondary text-sm" onClick={() => void navigator.clipboard.writeText(yaml)}>
+          <button type="button" className="btn-secondary text-sm" onClick={async () => { if (await copyText(yaml)) toast.success('YAML copied'); else toast.error('Copy failed') }}>
             Copy YAML
           </button>
         </div>

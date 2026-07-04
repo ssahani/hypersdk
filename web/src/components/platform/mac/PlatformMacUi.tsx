@@ -99,7 +99,7 @@ export function MacSheet({
 }) {
   return (
     <GlassModal open={open} onClose={onClose} title={title} subtitle={subtitle} wide={wide} ariaLabel={ariaLabel}>
-      <div className="max-h-none overflow-visible -mx-1 px-1">{children}</div>
+      <div className="-mx-1 px-1">{children}</div>
     </GlassModal>
   )
 }

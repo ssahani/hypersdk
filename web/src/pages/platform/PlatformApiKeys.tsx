@@ -73,7 +73,18 @@ export default function PlatformApiKeys({ embedded }: { embedded?: boolean } = {
         )}
 
         <MacGlassPanel title="Create API key" subtitle="Keys inherit RBAC role and appear as machina_* bearer tokens.">
-          <div className="grid gap-3 md:grid-cols-4 md:items-end">
+          <form className="grid gap-3 md:grid-cols-4 md:items-end" onSubmit={async (e) => {
+            e.preventDefault()
+            if (creating || !name.trim()) return
+            setCreating(true)
+            try {
+              const res = await createApiKey({ name: name.trim(), role })
+              setNewToken(res.token)
+              toast.success('API key created')
+              await load()
+            } catch (err: unknown) { toast.error(formatUserError(err)) }
+            finally { setCreating(false) }
+          }}>
             <label className="block space-y-1">
               <span className="text-xs text-slate-400">Name</span>
               <input className="input w-full" placeholder="automation" value={name} onChange={(e) => setName(e.target.value)} />
@@ -86,18 +97,8 @@ export default function PlatformApiKeys({ embedded }: { embedded?: boolean } = {
                 <option value="viewer">viewer</option>
               </select>
             </label>
-            <button type="button" disabled={creating || !name.trim()} className="btn-primary w-fit flex items-center gap-2 md:col-span-2 disabled:opacity-40 disabled:cursor-not-allowed" onClick={async () => {
-              if (creating || !name.trim()) return
-              setCreating(true)
-              try {
-                const res = await createApiKey({ name: name.trim(), role })
-                setNewToken(res.token)
-                toast.success('API key created')
-                await load()
-              } catch (e: unknown) { toast.error(formatUserError(e)) }
-              finally { setCreating(false) }
-            }}><Plus className="w-4 h-4" /> {creating ? 'Creating…' : 'Create key'}</button>
-          </div>
+            <button type="submit" disabled={creating || !name.trim()} className="btn-primary w-fit flex items-center gap-2 md:col-span-2 disabled:opacity-40 disabled:cursor-not-allowed"><Plus className="w-4 h-4" /> {creating ? 'Creating…' : 'Create key'}</button>
+          </form>
         </MacGlassPanel>
 
         <GlassDataTable

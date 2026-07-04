@@ -85,14 +85,14 @@ export function GlassModal({ open, onClose, title, subtitle, children, wide, foo
             tabIndex={-1}
             aria-label={!title ? ariaLabel : undefined}
             aria-labelledby={title ? 'glass-modal-title' : undefined}
-            className={`liquid-glass-modal-panel relative w-full ${wide ? 'max-w-2xl' : 'max-w-lg'} overflow-hidden`}
+            className={`liquid-glass-modal-panel relative w-full ${wide ? 'max-w-2xl' : 'max-w-lg'} max-h-[90vh] flex flex-col overflow-hidden`}
             initial={{ opacity: 0, scale: 0.96, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 12 }}
             transition={spring}
           >
             {(title || subtitle) && (
-              <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-white/[0.06]">
+              <div className="shrink-0 flex items-start justify-between gap-3 px-5 py-4 border-b border-white/[0.06]">
                 <div>
                   {title && (
                     <h3 id="glass-modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
@@ -112,8 +112,8 @@ export function GlassModal({ open, onClose, title, subtitle, children, wide, foo
                 </button>
               </div>
             )}
-            <div className="p-5">{children}</div>
-            {footer && <div className="px-5 py-4 border-t border-white/[0.06]">{footer}</div>}
+            <div className="p-5 flex-1 min-h-0 overflow-y-auto">{children}</div>
+            {footer && <div className="shrink-0 px-5 py-4 border-t border-white/[0.06]">{footer}</div>}
           </motion.div>
         </div>
       )}

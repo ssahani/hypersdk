@@ -621,8 +621,8 @@ export default function Dashboard() {
       {/* Shutdown Confirmation */}
       {showShutdownConfirm && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center animate-fade-in" onClick={() => setShowShutdownConfirm(false)}>
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-white mb-2">Confirm Host Shutdown</h3>
+          <div role="dialog" aria-modal="true" aria-labelledby="host-shutdown-title" className="bg-slate-800 border border-slate-700 rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 id="host-shutdown-title" className="text-lg font-bold text-white mb-2">Confirm Host Shutdown</h3>
             <p className="text-sm text-slate-400 mb-6">Are you sure you want to shut down this host? All running VMs will be stopped and the system will power off.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowShutdownConfirm(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">Cancel</button>
@@ -635,8 +635,8 @@ export default function Dashboard() {
       {/* Reboot Confirmation */}
       {showRebootConfirm && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center animate-fade-in" onClick={() => setShowRebootConfirm(false)}>
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-white mb-2">Confirm Host Reboot</h3>
+          <div role="dialog" aria-modal="true" aria-labelledby="host-reboot-title" className="bg-slate-800 border border-slate-700 rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 id="host-reboot-title" className="text-lg font-bold text-white mb-2">Confirm Host Reboot</h3>
             <p className="text-sm text-slate-400 mb-6">Are you sure you want to reboot this host? All running VMs will be stopped and the system will restart.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowRebootConfirm(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">Cancel</button>

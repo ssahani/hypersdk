@@ -115,6 +115,10 @@ export default function LivingMachineCard({
     <div
       ref={rootRef}
       draggable
+      role="button"
+      tabIndex={0}
+      aria-label={`Machine ${vm.name}`}
+      aria-pressed={selected}
       onDragStart={(e) => {
         e.dataTransfer.setData('application/x-platform-vm', vm.id)
         e.dataTransfer.effectAllowed = 'move'
@@ -124,6 +128,15 @@ export default function LivingMachineCard({
       onDoubleClick={(e) => {
         e.preventDefault()
         onDoubleClickTheatre()
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          // First activation selects; activating an already-selected card opens
+          // the console theatre (mirrors click → double-click for keyboard users).
+          if (selected) onDoubleClickTheatre()
+          else onSelect()
+        }
       }}
       className={`machine-finder-card cursor-grab active:cursor-grabbing rounded-2xl p-3 transition ${auraRing} ${
         selected ? 'ring-2 ring-sky-400/50 bg-sky-500/5' : 'hover:bg-white/[0.03]'

@@ -6,6 +6,8 @@ import JsonInspector from './JsonInspector'
 import { getControllerBase, platformFetch, platformHeaders } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
 import { statusToneClass } from '../../utils/semanticColors'
+import { useToastContext } from '../../contexts/ToastContext'
+import { copyText } from '../../utils/copyText'
 
 type ApiTarget = 'controller' | 'host'
 type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'PUT'
@@ -101,6 +103,7 @@ async function executeHost(path: string, init: RequestInit) {
 }
 
 export default function PlatformApiConsole() {
+  const toast = useToastContext()
   const [target, setTarget] = useState<ApiTarget>('controller')
   const [spec, setSpec] = useState<OpenApiSpec | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -164,7 +167,10 @@ export default function PlatformApiConsole() {
     const url = path.startsWith('http') ? path : `${base}${path.startsWith('/') ? path : `/${path}`}`
     const lines = [`curl -fsS -X ${method} '${url}'`]
     if (method !== 'GET' && method !== 'DELETE') lines.push("  -H 'Content-Type: application/json' -d '{}'")
-    void navigator.clipboard.writeText(lines.join(' \\\n'))
+    void copyText(lines.join(' \\\n')).then((ok) => {
+      if (ok) toast.success('curl command copied')
+      else toast.error('Copy failed')
+    })
   }
 
   const execute = async () => {

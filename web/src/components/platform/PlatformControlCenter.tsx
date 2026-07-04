@@ -212,11 +212,13 @@ export default function PlatformControlCenter() {
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700/60 text-sm text-slate-200 hover:bg-slate-700/80 transition"
         aria-label="Control Center"
+        aria-haspopup="menu"
+        aria-expanded={open}
       >
         <SlidersHorizontal className="w-4 h-4" />
         <span className="hidden sm:inline">Control Center</span>
         {(warnings > 0 || fwCritical > 0 || metalCritical > 0) && (
-          <span className="w-2 h-2 rounded-full bg-[var(--machina-status-warn)] animate-pulse-dot" />
+          <span className="w-2 h-2 rounded-full bg-[var(--machina-status-warn)] animate-pulse-dot" role="status" aria-label="Active alerts present" />
         )}
       </button>
       {open && (

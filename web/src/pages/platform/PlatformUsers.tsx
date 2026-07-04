@@ -166,7 +166,7 @@ export default function PlatformUsers({ embedded }: { embedded?: boolean } = {})
               title="Add platform user"
               subtitle="Controller database accounts (separate from OS/PAM users)."
             >
-              <div id="users-add-form" className="grid gap-3 md:grid-cols-4 md:items-end">
+              <form id="users-add-form" className="grid gap-3 md:grid-cols-4 md:items-end" onSubmit={(e) => { e.preventDefault(); void handleAddUser() }}>
                 <label className="block space-y-1">
                   <span className="text-xs text-slate-400">Username</span>
                   <input
@@ -197,14 +197,13 @@ export default function PlatformUsers({ embedded }: { embedded?: boolean } = {})
                   </select>
                 </label>
                 <button
-                  type="button"
+                  type="submit"
                   className="btn-primary w-fit flex items-center gap-2"
                   disabled={addBusy}
-                  onClick={() => void handleAddUser()}
                 >
                   <Plus className="w-4 h-4" /> {addBusy ? 'Adding…' : 'Add user'}
                 </button>
-              </div>
+              </form>
               {formError && (
                 <p className="text-sm text-red-300 mt-3" role="alert">{formError}</p>
               )}

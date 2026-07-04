@@ -250,7 +250,7 @@ export default function GuestAgentDiagnosticsPanel({
                     <td className="px-3 py-2 font-mono text-slate-300">{fs.mountpoint}</td>
                     <td className="px-3 py-2 text-right text-slate-400">{pct}%</td>
                     <td className="px-3 py-2 text-right text-slate-500">
-                      {(fs.used_bytes / 1e9).toFixed(1)} / {(fs.total_bytes / 1e9).toFixed(1)} GiB
+                      {(fs.used_bytes / 1024 ** 3).toFixed(1)} / {(fs.total_bytes / 1024 ** 3).toFixed(1)} GiB
                     </td>
                   </tr>
                 )

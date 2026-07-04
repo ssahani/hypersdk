@@ -317,7 +317,7 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
         aria-label="Theme"
         value={theme}
         onChange={(e) => setTheme(e.target.value as AppTheme)}
-        className={`text-xs rounded-xl border px-1.5 sm:px-2 py-1.5 max-w-[6.5rem] sm:max-w-[7.5rem] cursor-pointer outline-none transition min-w-0 ${
+        className={`text-xs rounded-xl border px-1.5 sm:px-2 py-1.5 max-w-[6.5rem] sm:max-w-[7.5rem] cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 transition min-w-0 ${
           steel
             ? 'nav-steel-select text-[#d7dde5]'
             : aurora

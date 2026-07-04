@@ -398,6 +398,7 @@ function OpenStackVolumesContent() {
         <>
           <div className="rounded-xl border border-slate-700 overflow-hidden">
             <div className="px-3 py-2 bg-slate-900 text-xs text-slate-500 uppercase">Volumes</div>
+            <div className="overflow-x-auto">
             <table className="w-full text-sm" aria-label="OpenStack volumes">
               <thead className="bg-slate-900/80 text-slate-400 text-left">
                 <tr>
@@ -489,8 +490,13 @@ function OpenStackVolumesContent() {
                         onClick={async () => {
                           const n = prompt('New size (GB)', String(v.size_gb + 1))
                           if (!n) return
+                          const size = Number.parseInt(n, 10)
+                          if (!Number.isFinite(size) || size <= v.size_gb) {
+                            toast.warning(`Enter a whole number of GB greater than ${v.size_gb}`)
+                            return
+                          }
                           try {
-                            await extendOpenStackVolume(v.id, Number.parseInt(n, 10))
+                            await extendOpenStackVolume(v.id, size)
                             toast.success('Extended')
                             void load()
                           } catch (e: unknown) {
@@ -513,6 +519,7 @@ function OpenStackVolumesContent() {
                 ))}
               </tbody>
             </table>
+            </div>
             {volumes.length === 0 && (
               <p className="p-6 text-center text-slate-500 text-sm">No volumes in this project.</p>
             )}
@@ -524,6 +531,7 @@ function OpenStackVolumesContent() {
                 <span>Snapshots</span>
                 <Link to="/openstack/volume-snapshots" className="text-sky-400 hover:underline normal-case">View all</Link>
               </div>
+              <div className="overflow-x-auto">
               <table className="w-full text-sm" aria-label="Volume snapshots">
                 <thead className="bg-slate-900/80 text-slate-400 text-left">
                   <tr>
@@ -562,6 +570,7 @@ function OpenStackVolumesContent() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </>

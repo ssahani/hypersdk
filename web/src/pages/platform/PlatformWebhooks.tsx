@@ -70,38 +70,40 @@ export default function PlatformWebhooks({ embedded }: { embedded?: boolean } = 
       icon={embedded ? undefined : <Webhook className="w-6 h-6 text-slate-400" />}
       actions={embedded ? undefined : (
         <>
-          <input
-            aria-label="Webhook URL"
-            className="input text-sm w-64"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://example.com/hook"
-          />
-          <button
-            type="button"
-            disabled={adding || !url.trim()}
-            className="btn-primary flex items-center gap-2 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-            onClick={async () => {
-              const target = url.trim()
-              if (!target || adding) return
-              if (!/^https?:\/\/.+/i.test(target)) {
-                toast.error('Enter a valid http(s) webhook URL')
-                return
-              }
-              setAdding(true)
-              try {
-                await createWebhook({ url: target, events: ['vm.create', 'vm.delete', 'ha.recover'] })
-                toast.success('Webhook added')
-                await load()
-              } catch (e: unknown) {
-                toast.error(formatUserError(e))
-              } finally {
-                setAdding(false)
-              }
-            }}
-          >
-            <Plus className="w-4 h-4" /> {adding ? 'Adding…' : 'Add endpoint'}
-          </button>
+          <form className="contents" onSubmit={async (e) => {
+            e.preventDefault()
+            const target = url.trim()
+            if (!target || adding) return
+            if (!/^https?:\/\/.+/i.test(target)) {
+              toast.error('Enter a valid http(s) webhook URL')
+              return
+            }
+            setAdding(true)
+            try {
+              await createWebhook({ url: target, events: ['vm.create', 'vm.delete', 'ha.recover'] })
+              toast.success('Webhook added')
+              await load()
+            } catch (err: unknown) {
+              toast.error(formatUserError(err))
+            } finally {
+              setAdding(false)
+            }
+          }}>
+            <input
+              aria-label="Webhook URL"
+              className="input text-sm w-64"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://example.com/hook"
+            />
+            <button
+              type="submit"
+              disabled={adding || !url.trim()}
+              className="btn-primary flex items-center gap-2 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Plus className="w-4 h-4" /> {adding ? 'Adding…' : 'Add endpoint'}
+            </button>
+          </form>
           <PlatformRefreshButton onClick={() => void load()} />
         </>
       )}

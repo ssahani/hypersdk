@@ -6,6 +6,8 @@ import { Copy, Monitor, Server, Terminal } from 'lucide-react'
 import { navigateVmSshSession } from '../vm/VmSshConnectDialog'
 import type { FleetMissionOverview, MissionHost, PlatformVm } from '../../api/platform'
 import { hostStateTone, hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
+import { useToastContext } from '../../contexts/ToastContext'
+import { copyText } from '../../utils/copyText'
 import { UNASSIGNED_RACK, UNASSIGNED_SITE } from '../../utils/machineFinderSelection'
 import { cinemaHubPath } from '../../utils/consoleExperienceMode'
 
@@ -106,6 +108,7 @@ function HostInspector({ host, vms, onSelectVm }: { host: MissionHost; vms: Plat
 }
 
 function VmInspector({ vm }: { vm: PlatformVm }) {
+  const toast = useToastContext()
   const running = vm.observed_state === 'running'
   const libvirt = vm.inventory_source !== 'kubevirt'
   const ip = vm.guest_ip?.trim() ?? ''
@@ -144,7 +147,7 @@ function VmInspector({ vm }: { vm: PlatformVm }) {
               type="button"
               className="btn-secondary text-sm px-2"
               title="Copy guest IP"
-              onClick={() => void navigator.clipboard.writeText(ip)}
+              onClick={async () => { if (await copyText(ip)) toast.success('Guest IP copied'); else toast.error('Copy failed') }}
             >
               <Copy className="w-3.5 h-3.5" />
             </button>
