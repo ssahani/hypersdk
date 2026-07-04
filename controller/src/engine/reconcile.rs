@@ -57,6 +57,21 @@ async fn reconcile_once(state: &AppState) -> anyhow::Result<()> {
             continue;
         };
 
+        // Don't pile up power tasks: if a vm.power for this VM is already pending
+        // or running, skip this tick. Otherwise a VM that never converges (a start
+        // that keeps failing, or a guest ignoring ACPI shutdown) would accrue a
+        // fresh task — and a task_failed webhook — every 60s indefinitely.
+        let inflight: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM tasks WHERE resource_id = ? AND operation = 'vm.power' AND status IN ('pending', 'running')",
+        )
+        .bind(vm_id)
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(0);
+        if inflight > 0 {
+            continue;
+        }
+
         if let Err(e) = enqueue_task(
             &state,
             "vm.power",

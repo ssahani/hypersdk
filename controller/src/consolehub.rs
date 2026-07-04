@@ -614,6 +614,11 @@ pub async fn consolehub_plan(
     Extension(user): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ConsoleHubPlan>, ApiError> {
+    // Stamp the ws-token with the caller's actual capability: a viewer/read-only
+    // user gets a read-only grant the proxies enforce server-side (input frames
+    // dropped, serial refused) — the plan's `permissions` object alone is only a
+    // frontend hint and does not gate the token→proxy path.
+    let read_only = console_permissions_for(&user).read_only;
     let policy = |plan: &mut ConsoleHubPlan| {
         plan.session_recording_enabled = state.config.consolehub_recording_enabled;
         plan.permissions = console_permissions_for(&user);
@@ -621,7 +626,7 @@ pub async fn consolehub_plan(
     let (vm_name, _host_id, source, k8s_namespace) = vm_meta(&state, id).await?;
     if source == "kubevirt" {
         let ns = k8s_namespace.unwrap_or_else(|| "default".into());
-        let ws_token = state.ws_tokens.issue(id).await;
+        let ws_token = state.ws_tokens.issue(id, read_only).await;
         let mut plan = kubevirt_plan_enriched(
             &state.pool,
             &state.config.daemon_base_url,
@@ -659,7 +664,7 @@ pub async fn consolehub_plan(
             .await
             .ok()
             .flatten();
-    let ws_token = state.ws_tokens.issue(id).await;
+    let ws_token = state.ws_tokens.issue(id, read_only).await;
     let mut plan = plan_from_agent(
         id,
         &vm_name,
@@ -773,7 +778,10 @@ pub async fn create_session(
                 .get("x-zeus-device-posture")
                 .and_then(|v| v.to_str().ok()),
         )?;
-        let ws_token = state.ws_tokens.issue(id).await;
+        let ws_token = state
+            .ws_tokens
+            .issue(id, console_permissions_for(&user).read_only)
+            .await;
         let audit_id = Uuid::new_v4();
         let ttl = Duration::from_secs(state.config.consolehub_session_ttl_secs);
         let expires_at = chrono::Utc::now() + chrono::Duration::seconds(ttl.as_secs() as i64);
@@ -844,7 +852,10 @@ pub async fn create_session(
         .await?;
     }
 
-    let ws_token = state.ws_tokens.issue(id).await;
+    let ws_token = state
+        .ws_tokens
+        .issue(id, console_permissions_for(&user).read_only)
+        .await;
     let audit_id = Uuid::new_v4();
     let ttl = Duration::from_secs(state.config.consolehub_session_ttl_secs);
     let expires_at = chrono::Utc::now() + chrono::Duration::seconds(ttl.as_secs() as i64);
@@ -1242,7 +1253,7 @@ pub async fn end_session(
     let replay_path = session_replay_path(&state, session_id)
         .to_string_lossy()
         .into_owned();
-    sqlx::query(
+    let res = sqlx::query(
         "UPDATE console_sessions SET ended_at = datetime('now'),
          recording_path = CASE WHEN recording_enabled THEN ? ELSE recording_path END
          WHERE id = ? AND actor = ?",
@@ -1252,6 +1263,13 @@ pub async fn end_session(
     .bind(&user.username)
     .execute(&state.pool)
     .await?;
+    // Also drop the in-memory proxy authorization (the guac reverse-proxy gates on
+    // this store) so ending a session actually stops the console immediately,
+    // rather than staying proxyable until the TTL lapses. Only when the caller
+    // owned the session (rows_affected > 0), matching the DB guard.
+    if res.rows_affected() > 0 {
+        state.console_sessions.remove(session_id).await;
+    }
     Ok(Json(
         serde_json::json!({ "ended": true, "session_id": session_id.to_string() }),
     ))

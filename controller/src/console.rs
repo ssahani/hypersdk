@@ -61,7 +61,8 @@ pub async fn vm_console(
             ApiError::internal(msg)
         }
     })?;
-    let ws_token = state.ws_tokens.issue(id).await;
+    // require_operator above guarantees write capability, so this token is not read-only.
+    let ws_token = state.ws_tokens.issue(id, false).await;
     Ok(Json(ConsoleInfo {
         vm_id: id.to_string(),
         vm_name: row.0,
@@ -80,7 +81,7 @@ pub async fn issue_ws_token(
         .bind(id)
         .fetch_one(&state.pool)
         .await?;
-    let token = state.ws_tokens.issue(id).await;
+    let token = state.ws_tokens.issue(id, false).await;
     Ok(Json(serde_json::json!({ "token": token })))
 }
 
@@ -90,11 +91,11 @@ pub async fn vnc_ws_proxy(
     Path(vm_id): Path<Uuid>,
     Query(q): Query<WsTokenQuery>,
 ) -> impl IntoResponse {
-    let validated = state.ws_tokens.validate(&q.token).await;
-    if validated != Some(vm_id) {
+    let Some(grant) = state.ws_tokens.validate(&q.token).await.filter(|g| g.vm_id == vm_id) else {
         return (axum::http::StatusCode::UNAUTHORIZED, "invalid token").into_response();
-    }
-    ws.on_upgrade(move |socket| proxy_to_agent_vnc(socket, state, vm_id))
+    };
+    let read_only = grant.read_only;
+    ws.on_upgrade(move |socket| proxy_to_agent_vnc(socket, state, vm_id, read_only))
 }
 
 pub async fn serial_ws_proxy(
@@ -103,11 +104,19 @@ pub async fn serial_ws_proxy(
     Path(vm_id): Path<Uuid>,
     Query(q): Query<WsTokenQuery>,
 ) -> impl IntoResponse {
-    let validated = state.ws_tokens.validate(&q.token).await;
-    if validated != Some(vm_id) {
+    let Some(grant) = state.ws_tokens.validate(&q.token).await.filter(|g| g.vm_id == vm_id) else {
         return (axum::http::StatusCode::UNAUTHORIZED, "invalid token").into_response();
+    };
+    // A serial console is inherently interactive input; a read-only/viewer grant
+    // must not open one (matches check_console_rbac's intent).
+    if grant.read_only {
+        return (
+            axum::http::StatusCode::FORBIDDEN,
+            "read-only session may not open an interactive serial console",
+        )
+            .into_response();
     }
-    ws.on_upgrade(move |socket| proxy_to_agent_serial(socket, state, vm_id))
+    ws.on_upgrade(move |socket| proxy_to_agent_serial(socket, state, vm_id, false))
 }
 
 async fn vm_agent_target(state: &AppState, vm_id: Uuid) -> Option<(String, String)> {
@@ -127,7 +136,7 @@ async fn vm_agent_target(state: &AppState, vm_id: Uuid) -> Option<(String, Strin
     Some((name, agent_console))
 }
 
-async fn proxy_to_agent_vnc(socket: WebSocket, state: AppState, vm_id: Uuid) {
+async fn proxy_to_agent_vnc(socket: WebSocket, state: AppState, vm_id: Uuid, read_only: bool) {
     let Some((name, agent_console)) = vm_agent_target(&state, vm_id).await else {
         let (mut sink, _) = socket.split();
         let _ = sink.close().await;
@@ -155,8 +164,10 @@ async fn proxy_to_agent_vnc(socket: WebSocket, state: AppState, vm_id: Uuid) {
     let c2a = tokio::spawn(async move {
         while let Some(Ok(msg)) = client_stream.next().await {
             let up = match msg {
-                Message::Binary(b) => TsMessage::Binary(bytes::Bytes::from(b.to_vec())),
-                Message::Text(t) => TsMessage::Text(t.to_string().into()),
+                // Read-only grant: drop client input frames (keyboard/mouse/
+                // clipboard) so a viewer can watch but not drive the guest.
+                Message::Binary(b) if !read_only => TsMessage::Binary(bytes::Bytes::from(b.to_vec())),
+                Message::Text(t) if !read_only => TsMessage::Text(t.to_string().into()),
                 Message::Close(_) => {
                     let _ = agent_sink.send(TsMessage::Close(None)).await;
                     break;
@@ -197,7 +208,7 @@ async fn proxy_to_agent_vnc(socket: WebSocket, state: AppState, vm_id: Uuid) {
     }
 }
 
-async fn proxy_to_agent_serial(socket: WebSocket, state: AppState, vm_id: Uuid) {
+async fn proxy_to_agent_serial(socket: WebSocket, state: AppState, vm_id: Uuid, read_only: bool) {
     let Some((name, agent_console)) = vm_agent_target(&state, vm_id).await else {
         let (mut sink, _) = socket.split();
         let _ = sink.close().await;
@@ -225,8 +236,10 @@ async fn proxy_to_agent_serial(socket: WebSocket, state: AppState, vm_id: Uuid) 
     let c2a = tokio::spawn(async move {
         while let Some(Ok(msg)) = client_stream.next().await {
             let up = match msg {
-                Message::Binary(b) => TsMessage::Binary(bytes::Bytes::from(b.to_vec())),
-                Message::Text(t) => TsMessage::Text(t.to_string().into()),
+                // Read-only grant: drop client input frames (keyboard/mouse/
+                // clipboard) so a viewer can watch but not drive the guest.
+                Message::Binary(b) if !read_only => TsMessage::Binary(bytes::Bytes::from(b.to_vec())),
+                Message::Text(t) if !read_only => TsMessage::Text(t.to_string().into()),
                 Message::Close(_) => {
                     let _ = agent_sink.send(TsMessage::Close(None)).await;
                     break;
@@ -291,14 +304,14 @@ pub async fn spice_ws_proxy(
     Path(vm_id): Path<Uuid>,
     Query(q): Query<WsTokenQuery>,
 ) -> impl IntoResponse {
-    let validated = state.ws_tokens.validate(&q.token).await;
-    if validated != Some(vm_id) {
+    let Some(grant) = state.ws_tokens.validate(&q.token).await.filter(|g| g.vm_id == vm_id) else {
         return (axum::http::StatusCode::UNAUTHORIZED, "invalid token").into_response();
-    }
-    ws.on_upgrade(move |socket| proxy_to_agent_spice(socket, state, vm_id))
+    };
+    let read_only = grant.read_only;
+    ws.on_upgrade(move |socket| proxy_to_agent_spice(socket, state, vm_id, read_only))
 }
 
-async fn proxy_to_agent_spice(socket: WebSocket, state: AppState, vm_id: Uuid) {
+async fn proxy_to_agent_spice(socket: WebSocket, state: AppState, vm_id: Uuid, read_only: bool) {
     let Some((name, agent_console)) = vm_agent_target(&state, vm_id).await else {
         let (mut sink, _) = socket.split();
         let _ = sink.close().await;
@@ -326,8 +339,10 @@ async fn proxy_to_agent_spice(socket: WebSocket, state: AppState, vm_id: Uuid) {
     let c2a = tokio::spawn(async move {
         while let Some(Ok(msg)) = client_stream.next().await {
             let up = match msg {
-                Message::Binary(b) => TsMessage::Binary(bytes::Bytes::from(b.to_vec())),
-                Message::Text(t) => TsMessage::Text(t.to_string().into()),
+                // Read-only grant: drop client input frames (keyboard/mouse/
+                // clipboard) so a viewer can watch but not drive the guest.
+                Message::Binary(b) if !read_only => TsMessage::Binary(bytes::Bytes::from(b.to_vec())),
+                Message::Text(t) if !read_only => TsMessage::Text(t.to_string().into()),
                 Message::Close(_) => {
                     let _ = agent_sink.send(TsMessage::Close(None)).await;
                     break;
