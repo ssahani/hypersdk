@@ -343,13 +343,34 @@ pub async fn join_host(
         .libvirt_uri
         .unwrap_or_else(|| state.config.default_libvirt_uri.clone());
 
+    if req.agent_grpc_addr.is_empty()
+        || req.agent_grpc_addr.starts_with("127.0.0.1:")
+        || req.agent_grpc_addr.starts_with("localhost:")
+    {
+        tracing::warn!(
+            hostname = %req.hostname,
+            agent_grpc_addr = %req.agent_grpc_addr,
+            "host join carrying a loopback/empty agent address; any existing routable address is preserved — investigate the caller if this is a managed remote host"
+        );
+    }
+
     let mut tx = state.pool.begin().await?;
     sqlx::query(
         "INSERT INTO hosts (id, cluster_id, hostname, address, agent_grpc_addr, agent_console_addr, libvirt_uri, state, validation_status)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'pending_validation', 'pending')
          ON CONFLICT (cluster_id, hostname) DO UPDATE SET
            address = EXCLUDED.address,
-           agent_grpc_addr = EXCLUDED.agent_grpc_addr,
+           -- Never downgrade an already-routable agent address to a loopback/empty
+           -- default: a stray re-join carrying 127.0.0.1 (the agent's bind default)
+           -- must not clobber the reachable address the fleet is managing the host by.
+           agent_grpc_addr = CASE
+             WHEN (EXCLUDED.agent_grpc_addr = '' OR EXCLUDED.agent_grpc_addr LIKE '127.0.0.1:%' OR EXCLUDED.agent_grpc_addr LIKE 'localhost:%')
+                  AND hosts.agent_grpc_addr <> ''
+                  AND hosts.agent_grpc_addr NOT LIKE '127.0.0.1:%'
+                  AND hosts.agent_grpc_addr NOT LIKE 'localhost:%'
+               THEN hosts.agent_grpc_addr
+             ELSE EXCLUDED.agent_grpc_addr
+           END,
            agent_console_addr = EXCLUDED.agent_console_addr,
            libvirt_uri = EXCLUDED.libvirt_uri,
            state = 'pending_validation',
