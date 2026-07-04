@@ -37,7 +37,7 @@ pub async fn enqueue_task(
         // The task row was already committed as 'pending'. If the bus publish fails no worker
         // will ever pick it up, so mark it terminally failed instead of leaving it stuck.
         if let Err(mark_err) = sqlx::query(
-            "UPDATE tasks SET status = 'failed', error = ? WHERE id = ? AND status = 'pending'",
+            "UPDATE tasks SET status = 'failed', message = ? WHERE id = ? AND status = 'pending'",
         )
         .bind(format!("task bus publish failed: {e}"))
         .bind(task_id)

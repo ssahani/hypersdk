@@ -36,8 +36,8 @@ pub async fn ensure_bootstrap(
     // 'running' forever (never retried, since a re-publish only matches 'pending')
     // and block reconcile from healing the affected VM.
     let reaped = sqlx::query(
-        "UPDATE tasks SET status = 'failed', error = 'controller restarted while task was running' \
-         WHERE status = 'running'",
+        "UPDATE tasks SET status = 'failed', message = 'controller restarted while task was running', \
+         updated_at = datetime('now') WHERE status = 'running'",
     )
     .execute(pool)
     .await?
