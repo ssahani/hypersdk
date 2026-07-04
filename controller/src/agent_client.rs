@@ -3,7 +3,33 @@
 use machina_agent::pb::host_agent_client::HostAgentClient;
 use machina_agent::pb::*;
 use std::path::Path;
+use tonic::service::interceptor::InterceptedService;
 use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint, Identity};
+
+/// Attaches the shared agent bearer token (MACHINA_AGENT_TOKEN) to every request
+/// so the agent can authenticate the controller. If the token is unset the
+/// header is omitted (backward-compatible with an agent that isn't enforcing).
+#[derive(Clone)]
+pub struct AgentAuth {
+    token: Option<String>,
+}
+
+impl tonic::service::Interceptor for AgentAuth {
+    fn call(
+        &mut self,
+        mut req: tonic::Request<()>,
+    ) -> Result<tonic::Request<()>, tonic::Status> {
+        if let Some(t) = &self.token {
+            if let Ok(val) = format!("Bearer {t}").parse() {
+                req.metadata_mut().insert("authorization", val);
+            }
+        }
+        Ok(req)
+    }
+}
+
+/// Authenticated agent client type (channel wrapped with the auth interceptor).
+pub type AgentClient = HostAgentClient<InterceptedService<Channel, AgentAuth>>;
 
 pub fn normalize_agent_addr(addr: &str) -> String {
     let s = addr.trim();
@@ -12,7 +38,7 @@ pub fn normalize_agent_addr(addr: &str) -> String {
     s.to_string()
 }
 
-pub async fn connect(addr: &str) -> anyhow::Result<HostAgentClient<Channel>> {
+pub async fn connect(addr: &str) -> anyhow::Result<AgentClient> {
     let normalized = normalize_agent_addr(addr);
     let use_tls = std::env::var("MACHINA_AGENT_CA")
         .ok()
@@ -43,15 +69,21 @@ pub async fn connect(addr: &str) -> anyhow::Result<HostAgentClient<Channel>> {
         endpoint = endpoint.tls_config(tls)?;
     }
     let channel = endpoint.connect().await?;
-    Ok(HostAgentClient::new(channel))
+    let token = std::env::var("MACHINA_AGENT_TOKEN")
+        .ok()
+        .filter(|s| !s.is_empty());
+    Ok(HostAgentClient::with_interceptor(
+        channel,
+        AgentAuth { token },
+    ))
 }
 
-pub async fn list_vms(client: &mut HostAgentClient<Channel>) -> anyhow::Result<ListVmsResponse> {
+pub async fn list_vms(client: &mut AgentClient) -> anyhow::Result<ListVmsResponse> {
     Ok(client.list_vms(ListVmsRequest {}).await?.into_inner())
 }
 
 pub async fn list_networks(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
 ) -> anyhow::Result<ListNetworksResponse> {
     Ok(client
         .list_networks(ListNetworksRequest {})
@@ -60,7 +92,7 @@ pub async fn list_networks(
 }
 
 pub async fn list_storage_pools(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
 ) -> anyhow::Result<ListStoragePoolsResponse> {
     Ok(client
         .list_storage_pools(ListStoragePoolsRequest {})
@@ -69,7 +101,7 @@ pub async fn list_storage_pools(
 }
 
 pub async fn apply_vm(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     spec_json: &str,
     disk_path: &str,
     template_source: Option<&str>,
@@ -91,7 +123,7 @@ pub async fn apply_vm(
 }
 
 pub async fn vm_power(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     action: &str,
     mode: Option<&str>,
@@ -107,7 +139,7 @@ pub async fn vm_power(
 }
 
 pub async fn guest_agent_action(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     action: &str,
 ) -> anyhow::Result<serde_json::Value> {
@@ -125,7 +157,7 @@ pub async fn guest_agent_action(
 }
 
 pub async fn get_domain_xml(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
 ) -> anyhow::Result<String> {
     Ok(client
@@ -137,7 +169,7 @@ pub async fn get_domain_xml(
         .xml)
 }
 
-pub async fn delete_vm(client: &mut HostAgentClient<Channel>, vm_name: &str) -> anyhow::Result<()> {
+pub async fn delete_vm(client: &mut AgentClient, vm_name: &str) -> anyhow::Result<()> {
     client
         .delete_vm(DeleteVmRequest {
             vm_name: vm_name.to_string(),
@@ -147,7 +179,7 @@ pub async fn delete_vm(client: &mut HostAgentClient<Channel>, vm_name: &str) -> 
 }
 
 pub async fn heartbeat(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     host_id: &str,
 ) -> anyhow::Result<HeartbeatResponse> {
     Ok(client
@@ -159,7 +191,7 @@ pub async fn heartbeat(
 }
 
 pub async fn get_console(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
 ) -> anyhow::Result<GetConsoleResponse> {
     Ok(client
@@ -171,7 +203,7 @@ pub async fn get_console(
 }
 
 pub async fn get_console_access_plan(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
 ) -> anyhow::Result<GetConsoleAccessPlanResponse> {
     Ok(client
@@ -183,7 +215,7 @@ pub async fn get_console_access_plan(
 }
 
 pub async fn migrate_vm(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     dest_uri: &str,
     live: bool,
@@ -213,7 +245,7 @@ pub async fn migrate_vm(
 }
 
 pub async fn clone_vm(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     source: &str,
     new_name: &str,
     clone_mode: &str,
@@ -230,7 +262,7 @@ pub async fn clone_vm(
 }
 
 pub async fn maintenance(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     action: &str,
     evacuate: bool,
 ) -> anyhow::Result<MaintenanceResponse> {
@@ -244,7 +276,7 @@ pub async fn maintenance(
 }
 
 pub async fn get_host_info(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
 ) -> anyhow::Result<GetHostInfoResponse> {
     Ok(client
         .get_host_info(GetHostInfoRequest {})
@@ -253,7 +285,7 @@ pub async fn get_host_info(
 }
 
 pub async fn precheck_migrate(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     dest_cpu_model: &str,
     dest_libvirt_version: &str,
@@ -269,7 +301,7 @@ pub async fn precheck_migrate(
 }
 
 pub async fn fence_host(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     hostname: &str,
     method: &str,
     ipmi_address: &str,
@@ -292,7 +324,7 @@ pub async fn fence_host(
 }
 
 pub async fn create_snapshot(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     snapshot_name: &str,
     description: &str,
@@ -314,7 +346,7 @@ pub async fn create_snapshot(
 }
 
 pub async fn delete_snapshot(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     snapshot_name: &str,
 ) -> anyhow::Result<DeleteSnapshotResponse> {
@@ -328,7 +360,7 @@ pub async fn delete_snapshot(
 }
 
 pub async fn list_snapshots(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
 ) -> anyhow::Result<ListSnapshotsResponse> {
     Ok(client
@@ -340,7 +372,7 @@ pub async fn list_snapshots(
 }
 
 pub async fn backup_vm(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     dest_path: &str,
 ) -> anyhow::Result<BackupVmResponse> {
@@ -354,7 +386,7 @@ pub async fn backup_vm(
 }
 
 pub async fn revert_snapshot(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     snapshot_name: &str,
 ) -> anyhow::Result<RevertSnapshotResponse> {
@@ -368,7 +400,7 @@ pub async fn revert_snapshot(
 }
 
 pub async fn restore_vm_backup(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     backup_path: &str,
 ) -> anyhow::Result<RestoreVmBackupResponse> {
@@ -382,7 +414,7 @@ pub async fn restore_vm_backup(
 }
 
 pub async fn clone_from_snapshot(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     snapshot_name: &str,
     new_name: &str,
@@ -402,7 +434,7 @@ pub async fn clone_from_snapshot(
 }
 
 pub async fn provision_storage_pool(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     pool_name: &str,
     backend: &str,
     path: &str,
@@ -423,7 +455,7 @@ pub async fn provision_storage_pool(
 }
 
 pub async fn provision_network(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     network_name: &str,
     backend: &str,
     vlan_id: i32,
@@ -446,7 +478,7 @@ pub async fn provision_network(
 }
 
 pub async fn attach_disk(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     disk_path: &str,
     target_dev: &str,
@@ -471,7 +503,7 @@ fn vm_op_response(ok: bool, message: &str) -> anyhow::Result<()> {
 }
 
 pub async fn detach_disk(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     target_dev: &str,
 ) -> anyhow::Result<()> {
@@ -486,7 +518,7 @@ pub async fn detach_disk(
 }
 
 pub async fn resize_disk(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     target_dev: &str,
     size_gb: u64,
@@ -503,7 +535,7 @@ pub async fn resize_disk(
 }
 
 pub async fn attach_nic(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     network: &str,
     model: &str,
@@ -520,7 +552,7 @@ pub async fn attach_nic(
 }
 
 pub async fn detach_nic(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     mac_address: &str,
 ) -> anyhow::Result<()> {
@@ -535,7 +567,7 @@ pub async fn detach_nic(
 }
 
 pub async fn set_autostart(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     enabled: bool,
 ) -> anyhow::Result<()> {
@@ -550,7 +582,7 @@ pub async fn set_autostart(
 }
 
 pub async fn set_vcpus(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     count: u32,
 ) -> anyhow::Result<()> {
@@ -565,7 +597,7 @@ pub async fn set_vcpus(
 }
 
 pub async fn set_memory(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     memory_mb: u64,
 ) -> anyhow::Result<()> {
@@ -580,7 +612,7 @@ pub async fn set_memory(
 }
 
 pub async fn vm_libvirt_query(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     action: &str,
     payload: &serde_json::Value,
@@ -601,7 +633,7 @@ pub async fn vm_libvirt_query(
 }
 
 pub async fn vm_libvirt_invoke(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
     action: &str,
     payload: &serde_json::Value,
@@ -622,7 +654,7 @@ pub async fn vm_libvirt_invoke(
 }
 
 pub async fn host_libvirt_query(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     action: &str,
     payload: &serde_json::Value,
 ) -> anyhow::Result<serde_json::Value> {
@@ -642,7 +674,7 @@ pub async fn host_libvirt_query(
 }
 
 pub async fn host_libvirt_invoke(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     action: &str,
     payload: &serde_json::Value,
 ) -> anyhow::Result<serde_json::Value> {
@@ -662,7 +694,7 @@ pub async fn host_libvirt_invoke(
 }
 
 pub async fn get_vm_details(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
 ) -> anyhow::Result<machina_core::state::VmDetails> {
     let resp = client
@@ -696,7 +728,7 @@ pub struct GuestHealthResult {
 }
 
 pub async fn get_guest_health(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
 ) -> anyhow::Result<GuestHealthResult> {
     let resp = client
@@ -739,7 +771,7 @@ pub async fn get_guest_health(
 }
 
 pub async fn get_guest_observability(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
 ) -> anyhow::Result<serde_json::Value> {
     let resp = client
@@ -757,7 +789,7 @@ pub async fn get_guest_observability(
 }
 
 pub async fn install_guest_tools(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
     vm_name: &str,
 ) -> anyhow::Result<()> {
     let resp = client
@@ -1110,7 +1142,7 @@ pub async fn delete_port_forward(
 }
 
 pub async fn list_host_gpus(
-    client: &mut HostAgentClient<Channel>,
+    client: &mut AgentClient,
 ) -> anyhow::Result<ListHostGpusResponse> {
     Ok(client
         .list_host_gpus(ListHostGpusRequest {})

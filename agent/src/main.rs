@@ -102,6 +102,19 @@ async fn run_join(
     run_serve(cli).await
 }
 
+/// Constant-time byte comparison for the shared agent token (avoids leaking
+/// length/prefix match timing).
+fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
 async fn run_serve(cli: &Cli) -> anyhow::Result<()> {
     let hostname = cli.hostname.clone().unwrap_or_else(|| {
         std::env::var("HOSTNAME")
@@ -124,6 +137,37 @@ async fn run_serve(cli: &Cli) -> anyhow::Result<()> {
     info!("machina-agent gRPC on {grpc_addr}, console proxy on {console_addr}");
     tokio::try_join!(
         async {
+            // Shared-secret auth for the gRPC surface. When MACHINA_AGENT_TOKEN is
+            // set, every RPC must carry `authorization: Bearer <token>` (the
+            // controller attaches it via agent_client). Unset = accept unauthenticated
+            // (dev/backward-compat) with a loud warning.
+            let expected_token = std::env::var("MACHINA_AGENT_TOKEN")
+                .ok()
+                .filter(|s| !s.is_empty());
+            if expected_token.is_none() {
+                tracing::warn!(
+                    "MACHINA_AGENT_TOKEN not set — agent gRPC accepts UNAUTHENTICATED requests; \
+                     set a shared token on the controller and this agent to require auth"
+                );
+            }
+            let auth = move |req: tonic::Request<()>| -> Result<tonic::Request<()>, tonic::Status> {
+                match &expected_token {
+                    None => Ok(req),
+                    Some(exp) => {
+                        let provided = req
+                            .metadata()
+                            .get("authorization")
+                            .and_then(|v| v.to_str().ok())
+                            .and_then(|s| s.strip_prefix("Bearer "));
+                        match provided {
+                            Some(t) if ct_eq(t.as_bytes(), exp.as_bytes()) => Ok(req),
+                            _ => Err(tonic::Status::unauthenticated(
+                                "invalid or missing agent token",
+                            )),
+                        }
+                    }
+                }
+            };
             let mut builder = Server::builder();
             match (
                 std::env::var("MACHINA_AGENT_TLS_CERT"),
@@ -146,7 +190,7 @@ async fn run_serve(cli: &Cli) -> anyhow::Result<()> {
                 }
             }
             builder
-                .add_service(HostAgentServer::new(service))
+                .add_service(HostAgentServer::with_interceptor(service, auth))
                 .serve(grpc_addr)
                 .await
                 .map_err(anyhow::Error::from)
