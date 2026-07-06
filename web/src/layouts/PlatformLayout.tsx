@@ -27,7 +27,6 @@ import { platformPageLabel, upsertPlatformDesktopTab } from '../utils/platformDe
 import { OPEN_PLATFORM_DOCK_EDITOR_EVENT } from '../utils/platformDockPins'
 import { usePlatformDesktopTier } from '../hooks/usePlatformDesktopTier'
 import PlatformDockEditor from '../components/platform/mac/PlatformDockEditor'
-import { usePlatformTierRouteGuard } from '../hooks/usePlatformTierRouteGuard'
 import { useKeyboardShortcut, isInputFocused } from '../hooks/useKeyboardShortcut'
 import { suppressContextBar } from '../utils/platformNavRegistry'
 import { contextNavForPath, shouldShowContextBar } from '../utils/platformContextNav'
@@ -43,7 +42,6 @@ function PlatformDesktopShell() {
   const { sidebarVisible, cinemaChromeHidden } = usePlatformMacDesktop()
   const [tier] = usePlatformDesktopTier()
   const { openMissionControl, closeMissionControl } = useMissionControl()
-  usePlatformTierRouteGuard()
 
   const navEpoch = useRef(0)
   const cinemaRoute = location.pathname.includes('/consolehub') && cinemaChromeHidden

@@ -152,13 +152,6 @@ export function tierAtLeast(current: PlatformDesktopTier, min: PlatformDesktopTi
   return TIER_RANK[current] >= TIER_RANK[min]
 }
 
-/** Lowest desktop tier from which `path` is reachable (ascending Normal → Advanced). */
-export function minTierForPath(path: string): PlatformDesktopTier {
-  if (isPathAllowedForTier(path, 'normal')) return 'normal'
-  if (isPathAllowedForTier(path, 'power')) return 'power'
-  return 'advanced'
-}
-
 export function defaultSidebarVisibleForTier(tier: PlatformDesktopTier): boolean {
   try {
     const raw = localStorage.getItem('machina-jarvis-shell')
