@@ -224,7 +224,7 @@ export default function CinemaShell({
             displayProtocols={displayProtocols}
             activeProtocol={activeProtocol}
             onProtocolChange={onProtocolChange}
-            onRecord={() => onNotify?.(recordingActive ? 'Session is being recorded for audit' : 'Enable CONSOLEHUB_RECORDING_ENABLED on controller for audit recording')}
+            onRecord={() => onNotify?.(recordingActive ? 'Session is being recorded for audit' : 'Audit session recording isn’t enabled on this controller — ask an administrator to turn it on.')}
             onShareView={onShareView}
             shareBusy={shareBusy}
             spiceAudioEnabled={spiceAudioEnabled}

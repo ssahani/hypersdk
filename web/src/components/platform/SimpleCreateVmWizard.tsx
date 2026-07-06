@@ -504,8 +504,9 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
           )}
           {!info?.guestkit?.enabled && (
             <p className="text-xs text-orange-200/80 rounded-lg border border-orange-500/25 bg-orange-500/10 px-3 py-2">
-              GuestKit offline assurance is disabled. Migrated or stopped VMs can be scored on disk via{' '}
-              <span className="font-mono">GUESTKIT_ENABLED=1</span> (see VM → Guest health).
+              Heads up: offline disk assurance (GuestKit) isn't enabled on this controller, so this VM's
+              disk won't be scored for migration readiness until an administrator turns it on. Creation
+              is unaffected.
             </p>
           )}
 

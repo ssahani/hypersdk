@@ -86,8 +86,12 @@ export default function GuestkitOfflineAssurancePanel({ vmId, vmState, guestkitE
           Offline disk assurance (GuestKit)
         </p>
         <p className="text-xs text-slate-500 mt-2">
-          GuestKit is disabled on this controller. Set <span className="font-mono">GUESTKIT_ENABLED=1</span> to
-          score stopped VM disks for KVM migration without powering the guest on.
+          Offline disk assurance isn't active on this controller. When an administrator enables it,
+          stopped VM disks are scored for KVM migration — boot blockers, drivers, and readiness —
+          without powering the guest on.
+        </p>
+        <p className="text-[10px] text-slate-600 mt-1">
+          Administrator setting: <span className="font-mono">GUESTKIT_ENABLED=1</span> on the controller.
         </p>
         <Link to="/platform/migration" className={`text-xs mt-2 inline-block ${hubLinkClasses()}`}>
           Migration hub →
