@@ -8,7 +8,7 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
 use futures_util::{SinkExt, StreamExt};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use crate::guacamole_proxy::GuacamoleProxyState;
 use crate::libvirt_ops::LibvirtCtx;
@@ -271,42 +271,19 @@ async fn handle_serial(socket: WebSocket, name: String, libvirt: Arc<Mutex<Libvi
     }
 }
 
-fn resolve_spice_endpoint(xml: &str) -> Option<(String, u16)> {
-    for block in machina_core::xml::split_blocks(xml, "graphics") {
-        if machina_core::xml::extract_attr(&block, "graphics", "type").as_deref() != Some("spice") {
-            continue;
-        }
-        let port: i32 = machina_core::xml::extract_attr(&block, "graphics", "port")
-            .and_then(|p| p.parse().ok())
-            .unwrap_or(0);
-        if port <= 0 {
-            continue;
-        }
-        let port = u16::try_from(port).ok()?;
-        let listen = machina_core::xml::extract_attr(&block, "graphics", "listen")
-            .or_else(|| machina_core::xml::extract_attr(&block, "listen", "address"))
-            .unwrap_or_default();
-        let host = match listen.trim() {
-            "" | "0.0.0.0" | "::" | "[::]" => "127.0.0.1".to_string(),
-            h => h.to_string(),
-        };
-        return Some((host, port));
-    }
-    None
-}
-
 async fn handle_spice(socket: WebSocket, name: String, libvirt: Arc<Mutex<LibvirtCtx>>) {
-    let endpoint = tokio::task::spawn_blocking(move || {
+    let lookup = tokio::task::spawn_blocking(move || {
         let ctx = libvirt
             .lock()
             .map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
         let xml = ctx.get_domain_xml(&name)?;
-        resolve_spice_endpoint(&xml)
-            .ok_or_else(|| machina_core::LibvirtError::Operation(format!("no SPICE port for VM '{name}'")))
+        machina_core::libvirt::spice::resolve_spice_endpoint(&name, &xml).ok_or_else(|| {
+            machina_core::LibvirtError::Operation(format!("no SPICE endpoint for VM '{name}'"))
+        })
     })
     .await;
 
-    let (host, port) = match endpoint {
+    let endpoint = match lookup {
         Ok(Ok(ep)) => ep,
         _ => {
             let (mut sink, _) = socket.split();
@@ -315,23 +292,48 @@ async fn handle_spice(socket: WebSocket, name: String, libvirt: Arc<Mutex<Libvir
         }
     };
 
-    let tcp = match tokio::net::TcpStream::connect(format!("{host}:{port}")).await {
-        Ok(s) => s,
-        Err(_) => {
-            let (mut sink, _) = socket.split();
-            let _ = sink.close().await;
-            return;
+    // Bridge to whichever transport the SPICE server actually exposes: a TCP
+    // autoport listen or (libvirt's modern default) a local unix socket. The
+    // old resolver only understood a numeric TCP port, so socket/TLS-only guests
+    // fell through to a closed WebSocket ("Disconnected · SPICE").
+    use machina_core::libvirt::spice::SpiceEndpoint;
+    match endpoint {
+        SpiceEndpoint::Tcp(host, port) => {
+            match tokio::net::TcpStream::connect(format!("{host}:{port}")).await {
+                Ok(tcp) => {
+                    let _ = tcp.set_nodelay(true);
+                    bridge_ws_stream(socket, tcp).await;
+                }
+                Err(_) => {
+                    let (mut sink, _) = socket.split();
+                    let _ = sink.close().await;
+                }
+            }
         }
-    };
-    let _ = tcp.set_nodelay(true);
+        SpiceEndpoint::Unix(path) => match tokio::net::UnixStream::connect(&path).await {
+            Ok(sock) => bridge_ws_stream(socket, sock).await,
+            Err(_) => {
+                let (mut sink, _) = socket.split();
+                let _ = sink.close().await;
+            }
+        },
+    }
+}
 
-    let (mut tcp_read, mut tcp_write) = tcp.into_split();
+/// Pump bytes both ways between a client WebSocket and an upstream byte stream
+/// (TCP or unix socket). Either side closing aborts the other so we never leak
+/// the upstream console connection.
+async fn bridge_ws_stream<S>(socket: WebSocket, stream: S)
+where
+    S: AsyncRead + AsyncWrite + Send + 'static,
+{
+    let (mut rd, mut wr) = tokio::io::split(stream);
     let (mut ws_sink, mut ws_stream) = socket.split();
 
     let read_task = tokio::spawn(async move {
         let mut buf = [0u8; 65536];
         loop {
-            match tcp_read.read(&mut buf).await {
+            match rd.read(&mut buf).await {
                 Ok(0) => break,
                 Ok(n) => {
                     if ws_sink
@@ -351,12 +353,12 @@ async fn handle_spice(socket: WebSocket, name: String, libvirt: Arc<Mutex<Libvir
         while let Some(Ok(msg)) = ws_stream.next().await {
             match msg {
                 Message::Binary(data) => {
-                    if tcp_write.write_all(&data).await.is_err() {
+                    if wr.write_all(&data).await.is_err() {
                         break;
                     }
                 }
                 Message::Text(text) => {
-                    if tcp_write.write_all(text.as_bytes()).await.is_err() {
+                    if wr.write_all(text.as_bytes()).await.is_err() {
                         break;
                     }
                 }
