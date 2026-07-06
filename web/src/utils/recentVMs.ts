@@ -12,7 +12,8 @@ export function addRecentVM(name: string) {
 
 export function getRecentVMs(): string[] {
   try {
-    return JSON.parse(localStorage.getItem(KEY) || '[]')
+    const parsed = JSON.parse(localStorage.getItem(KEY) || '[]')
+    return Array.isArray(parsed) ? parsed.filter((n): n is string => typeof n === 'string') : []
   } catch { return [] }
 }
 

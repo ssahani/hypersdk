@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import {
   loadPlatformDesktopTier,
   PLATFORM_DESKTOP_TIER_EVENT,
+  PLATFORM_DESKTOP_TIER_KEY,
   savePlatformDesktopTier,
   type PlatformDesktopTier,
 } from '../utils/platformDesktopTier'
@@ -14,7 +15,16 @@ export function usePlatformDesktopTier(): [PlatformDesktopTier, (t: PlatformDesk
   useEffect(() => {
     const onChange = () => setTier(loadPlatformDesktopTier())
     window.addEventListener(PLATFORM_DESKTOP_TIER_EVENT, onChange)
-    return () => window.removeEventListener(PLATFORM_DESKTOP_TIER_EVENT, onChange)
+    // The CustomEvent above only fires in the tab that made the change; the
+    // native `storage` event covers other tabs so their nav can't disagree.
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === PLATFORM_DESKTOP_TIER_KEY) setTier(loadPlatformDesktopTier())
+    }
+    window.addEventListener('storage', onStorage)
+    return () => {
+      window.removeEventListener(PLATFORM_DESKTOP_TIER_EVENT, onChange)
+      window.removeEventListener('storage', onStorage)
+    }
   }, [])
   const save = (next: PlatformDesktopTier) => {
     savePlatformDesktopTier(next)

@@ -331,14 +331,16 @@ export default function PlatformVmDetail() {
         setDestHost(h.find((x) => x.id !== v.host_id)?.id || h[0]?.id || '')
       }
     } catch (e: unknown) {
-      if (isPlatformNotFoundError(e)) {
-        toast.info('This virtual machine was removed.')
-        navigate('/platform/vms', { replace: true })
-        return
-      }
-      setError(formatUserError(e))
+      // Render the state inline (with Retry) instead of bouncing to the VM list.
+      // The old redirect fired on a fuzzy "not found" substring match, so an
+      // unrelated transient error could yank the user off the page entirely.
+      setError(
+        isPlatformNotFoundError(e)
+          ? 'This virtual machine no longer exists — it may have been removed.'
+          : formatUserError(e),
+      )
     }
-  }, [id, destHost, navigate, toast])
+  }, [id, destHost])
 
   useEffect(() => {
     if (tab !== 'topology' || !id) return

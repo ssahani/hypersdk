@@ -130,7 +130,6 @@ export default function PlatformControlCenter() {
   const fwDrift = zeus?.firewall_drift_hosts ?? 0
   const metalCritical = zeus?.baremetal_critical_count ?? 0
   const showPower = tierAtLeast(tier, 'power')
-  const showAdvanced = tier === 'advanced'
   const hubTiles = hubTilesForTier(tier)
   const closePanel = () => setOpen(false)
 
@@ -293,7 +292,7 @@ export default function PlatformControlCenter() {
                 </div>
               )}
 
-              {showAdvanced && operatorSummary && (
+              {operatorSummary && (
                 <Row
                   icon={<Sparkles className="w-4 h-4 text-violet-400" />}
                   label="AI operator"
@@ -303,7 +302,7 @@ export default function PlatformControlCenter() {
                   onNavigate={closePanel}
                 />
               )}
-              {(showPower && (desktop?.pressure_hosts ?? linuxHealth?.pressure_hosts ?? 0) > 0) && (
+              {((desktop?.pressure_hosts ?? linuxHealth?.pressure_hosts ?? 0) > 0) && (
                 <Row
                   icon={<Activity className={`w-4 h-4 ${statusToneClass('warn')}`} />}
                   label="Linux pressure"
