@@ -197,12 +197,12 @@ export default function StoragePage() {
                 <div className="text-sm text-slate-400">Volume: <span className="text-white font-medium">{resizeTarget.vol}</span></div>
                 <div>
                   <label className="block text-sm text-slate-400 mb-1">New Size (GB)</label>
-                  <input type="number" step="0.01" value={resizeGb} onChange={(e) => setResizeGb(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
+                  <input type="number" step="0.01" min="0.01" value={resizeGb} onChange={(e) => setResizeGb(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
                 </div>
               </div>
               <div className="flex justify-end gap-3 px-5 pb-5">
                 <button onClick={() => setResizeTarget(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
-                <button onClick={handleResize} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition">Resize</button>
+                <button onClick={handleResize} disabled={!(parseFloat(resizeGb) > 0)} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm text-white font-medium transition">Resize</button>
               </div>
             </div>
           </div>
@@ -238,7 +238,7 @@ export default function StoragePage() {
                 </div>
                 <div>
                   <label className="block text-sm text-slate-400 mb-1">Capacity (GB)</label>
-                  <input type="number" step="0.01" value={newVolCapacity} onChange={(e) => setNewVolCapacity(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
+                  <input type="number" step="0.01" min="0.01" value={newVolCapacity} onChange={(e) => setNewVolCapacity(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
                 </div>
                 <div>
                   <label className="block text-sm text-slate-400 mb-1">Format</label>
@@ -251,7 +251,7 @@ export default function StoragePage() {
               </div>
               <div className="flex justify-end gap-3 px-5 pb-5">
                 <button onClick={() => setShowCreateVol(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
-                <button onClick={handleCreateVol} disabled={creatingVol || !newVolName.trim()} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm text-white font-medium transition">{creatingVol ? 'Creating…' : 'Create'}</button>
+                <button onClick={handleCreateVol} disabled={creatingVol || !newVolName.trim() || !(parseFloat(newVolCapacity) > 0)} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm text-white font-medium transition">{creatingVol ? 'Creating…' : 'Create'}</button>
               </div>
             </div>
           </div>

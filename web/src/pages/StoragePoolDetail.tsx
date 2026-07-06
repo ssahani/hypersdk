@@ -303,7 +303,7 @@ export default function StoragePoolDetail() {
             </div>
             <div className="flex justify-end gap-3 px-5 pb-5">
               <button onClick={() => setResizeTarget(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
-              <button onClick={handleResize} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition">Resize</button>
+              <button onClick={handleResize} disabled={!(parseFloat(resizeGb) > 0)} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm text-white font-medium transition">Resize</button>
             </div>
           </div>
         </div>
@@ -358,7 +358,7 @@ export default function StoragePoolDetail() {
             </div>
             <div className="flex justify-end gap-3 px-5 pb-5">
               <button onClick={() => setShowCreateVol(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
-              <button onClick={handleCreateVol} disabled={creatingVol || !newVolName.trim()} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm text-white font-medium transition">{creatingVol ? 'Creating…' : 'Create'}</button>
+              <button onClick={handleCreateVol} disabled={creatingVol || !newVolName.trim() || !(parseFloat(newVolCapacity) > 0)} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm text-white font-medium transition">{creatingVol ? 'Creating…' : 'Create'}</button>
             </div>
           </div>
         </div>
