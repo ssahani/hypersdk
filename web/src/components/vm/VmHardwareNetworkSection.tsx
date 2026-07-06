@@ -10,6 +10,7 @@ import {
   type VmPendingConfig,
 } from '../../api/platform'
 import { invokeVmLibvirt } from '../../api/platformVmLibvirt'
+import { formatUserError } from '../../utils/apiError'
 import VmPendingBadge from '../platform/VmPendingBadge'
 import { MacGlassPanel } from '../platform/mac/PlatformMacUi'
 
@@ -56,7 +57,7 @@ export default function VmHardwareNetworkSection({
       onNotify?.(label)
       onChanged?.()
     } catch (e: unknown) {
-      onError?.(String(e))
+      onError?.(formatUserError(e))
     } finally {
       setBusy(false)
     }

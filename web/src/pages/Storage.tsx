@@ -99,7 +99,9 @@ export default function StoragePage() {
 
   const handleResize = async () => {
     if (!resizeTarget) return
-    try { await resizeVolume(resizeTarget.pool, resizeTarget.vol, parseFloat(resizeGb)); toast.success(`Resized volume '${resizeTarget.vol}'`); loadVolumes(resizeTarget.pool) } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
+    const gb = parseFloat(resizeGb)
+    if (!Number.isFinite(gb) || gb <= 0) { toast.error('Enter a size in GB greater than 0'); return }
+    try { await resizeVolume(resizeTarget.pool, resizeTarget.vol, gb); toast.success(`Resized volume '${resizeTarget.vol}'`); loadVolumes(resizeTarget.pool) } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
     setResizeTarget(null); setResizeGb('')
   }
 
@@ -119,9 +121,11 @@ export default function StoragePage() {
 
   const handleCreateVol = async () => {
     if (!selectedPool || !newVolName.trim() || creatingVol) return
+    const cap = parseFloat(newVolCapacity)
+    if (!Number.isFinite(cap) || cap <= 0) { toast.error('Enter a capacity in GB greater than 0'); return }
     setCreatingVol(true)
     try {
-      await createVolume(selectedPool, { name: newVolName.trim(), capacity_gb: parseFloat(newVolCapacity), format: newVolFormat })
+      await createVolume(selectedPool, { name: newVolName.trim(), capacity_gb: cap, format: newVolFormat })
       toast.success(`Created volume '${newVolName.trim()}'`)
       setShowCreateVol(false)
       setNewVolName('')

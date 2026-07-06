@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   getVmDomainXml,
   getVmGuestHealth,
@@ -101,6 +101,9 @@ export function useVmHardware({
   const [compatLoading, setCompatLoading] = useState(false)
   const [compatError, setCompatError] = useState<string | null>(null)
 
+  // Monotonic request token: a slow response for a previous vmId must not
+  // overwrite the current one after fast navigation (A→B shows A's hardware).
+  const reqId = useRef(0)
   const refresh = useCallback(async (force = false) => {
     if (!vmId || !libvirt) {
       setDetails(null)
@@ -136,6 +139,7 @@ export function useVmHardware({
       return
     }
 
+    const myReq = ++reqId.current
     setLoading(true)
     setError(null)
     try {
@@ -147,6 +151,7 @@ export function useVmHardware({
         getVmGuestHealth(vmId).catch(() => null),
         getVmHardwareSummary(vmId).catch(() => null),
       ])
+      if (reqId.current !== myReq) return // superseded by a newer vmId / unmount
       const snapshot: HardwareSnapshot = {
         details: d,
         domainXml: xmlRes.xml ?? '',
@@ -158,9 +163,9 @@ export function useVmHardware({
       applySnapshot(snapshot, setters)
       hardwareCache.set(vmId, { at: Date.now(), snapshot })
     } catch (e: unknown) {
-      setError(formatUserError(e))
+      if (reqId.current === myReq) setError(formatUserError(e))
     } finally {
-      setLoading(false)
+      if (reqId.current === myReq) setLoading(false)
     }
   }, [vmId, libvirt])
 
@@ -184,6 +189,7 @@ export function useVmHardware({
 
   useEffect(() => {
     void refresh(false)
+    return () => { reqId.current++ } // invalidate any in-flight refresh on unmount / vmId change
   }, [refresh])
 
   const summary = useMemo(() => {

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Clock, GitBranch, Sparkles } from 'lucide-react'
 import { analyzeIncident, getInfraGraphAt, getTimelineReplay, type IncidentAnalysis } from '../../api/ai'
 import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
@@ -13,7 +13,10 @@ export default function MachinaInfrastructureTimeline({ hours = 4 }: { hours?: n
   const [graphDiff, setGraphDiff] = useState<{ summary: string; added: string[]; removed: string[]; nodeDelta: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const windowEnd = Date.now()
+  // Freeze the window end per replay-window change. Computing Date.now() in the
+  // render body made windowStart/scrubTs new every render, so `load` (and its
+  // effect) fired on every commit → an infinite refetch loop hammering the API.
+  const windowEnd = useMemo(() => Date.now(), [replayHours])
   const windowStart = windowEnd - replayHours * 3600_000
   const scrubTs = new Date(windowStart + ((windowEnd - windowStart) * scrubPct) / 100).toISOString()
 

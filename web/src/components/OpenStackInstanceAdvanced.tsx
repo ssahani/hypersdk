@@ -139,7 +139,10 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
     setMetadataText(lines)
   }, [inst.metadata, inst.id])
 
+  const [running, setRunning] = useState(false)
   const run = async (fn: () => Promise<unknown>, ok: string) => {
+    if (running) return // in-flight lock: a second click can't fire a duplicate mutation
+    setRunning(true)
     try {
       await fn()
       toast.success(ok)
@@ -147,6 +150,8 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
       void loadExtras()
     } catch (e: unknown) {
       toast.error(formatUserError(e))
+    } finally {
+      setRunning(false)
     }
   }
 

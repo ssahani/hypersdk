@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { GitBranch } from 'lucide-react'
 import { getInfraGraphAt } from '../../api/ai'
 import { statusToneClass } from '../../utils/semanticColors'
@@ -26,7 +26,10 @@ export default function InfraGraphScrubberPanel({
   const [busy, setBusy] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const windowEnd = Date.now()
+  // Freeze the window end per replay-window change — Date.now() in render made
+  // scrubTs new every commit, re-arming the debounced fetch forever (perpetual
+  // self-polling the user never triggered).
+  const windowEnd = useMemo(() => Date.now(), [replayHours])
   const windowStart = windowEnd - replayHours * 3600_000
   const scrubTs = new Date(windowStart + ((windowEnd - windowStart) * scrubPct) / 100).toISOString()
 

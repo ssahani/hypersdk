@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getPlatformVm, type PlatformVm } from '../api/platform'
 import { getK8sKubevirtVmSummary, type KubeVirtVmSummaryRow } from '../api/k8s'
 import { formatUserError } from '../utils/apiError'
@@ -36,6 +36,9 @@ export function useKubevirtHardware({
   const [vm, setVm] = useState<PlatformVm | null>(null)
   const [row, setRow] = useState<KubeVirtVmSummaryRow | null>(null)
 
+  // Monotonic request token so a slow response for a previous vmId can't
+  // overwrite the current selection after fast navigation.
+  const reqId = useRef(0)
   const refresh = useCallback(async (force = false) => {
     if (!vmId || !active) {
       setVm(null)
@@ -53,11 +56,11 @@ export function useKubevirtHardware({
       return
     }
 
+    const myReq = ++reqId.current
     setLoading(true)
     setError(null)
     try {
       const vmRow = await getPlatformVm(vmId)
-      setVm(vmRow)
       const ns = vmRow.k8s_namespace ?? 'default'
       let summaryRow: KubeVirtVmSummaryRow | null = null
       try {
@@ -66,17 +69,20 @@ export function useKubevirtHardware({
       } catch {
         summaryRow = null
       }
+      if (reqId.current !== myReq) return // superseded by a newer vmId / unmount
+      setVm(vmRow)
       setRow(summaryRow)
       kubevirtHardwareCache.set(vmId, { at: Date.now(), vm: vmRow, row: summaryRow })
     } catch (e: unknown) {
-      setError(formatUserError(e))
+      if (reqId.current === myReq) setError(formatUserError(e))
     } finally {
-      setLoading(false)
+      if (reqId.current === myReq) setLoading(false)
     }
   }, [vmId, active])
 
   useEffect(() => {
     void refresh(false)
+    return () => { reqId.current++ } // invalidate any in-flight refresh on unmount / vmId change
   }, [refresh])
 
   const summary = useMemo(

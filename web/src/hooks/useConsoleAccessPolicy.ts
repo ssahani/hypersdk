@@ -21,9 +21,11 @@ export function useConsoleAccessPolicy(
   const spectatorSessionId = search.get('session')
 
   useEffect(() => {
+    let cancelled = false
     void getSession().then((s) => {
-      if (s.role) setRole(s.role)
+      if (!cancelled && s.role) setRole(s.role)
     })
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {

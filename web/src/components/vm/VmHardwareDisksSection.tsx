@@ -11,6 +11,7 @@ import {
   type VmPendingConfig,
 } from '../../api/platform'
 import { invokeVmLibvirt } from '../../api/platformVmLibvirt'
+import { formatUserError } from '../../utils/apiError'
 import { listIsos, type ImageFile } from '../../api/extras'
 import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../BrowseHostPathModal'
 import VmPendingBadge from '../platform/VmPendingBadge'
@@ -73,7 +74,7 @@ export default function VmHardwareDisksSection({
       onNotify?.(label)
       onChanged?.()
     } catch (e: unknown) {
-      onError?.(String(e))
+      onError?.(formatUserError(e))
     } finally {
       setBusy(false)
     }

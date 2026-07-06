@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import type { ReactNode } from 'react'
+import { useEffect, useId, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 export type PlatformStepWizardProps = {
@@ -42,6 +42,15 @@ export default function PlatformStepWizard({
   onFinish,
   onNext,
 }: PlatformStepWizardProps) {
+  const titleId = useId()
+  // Escape closes the modal wizard (keyboard users couldn't dismiss it before).
+  useEffect(() => {
+    if (!open || embedded) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, embedded, onClose])
+
   if (!open) return null
 
   const isLast = step >= steps.length - 1
@@ -51,10 +60,11 @@ export default function PlatformStepWizard({
         className={`w-full ${maxWidthClass} ${embedded ? '' : 'max-h-[min(90vh,720px)]'} flex flex-col rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl overflow-hidden`}
         role={embedded ? undefined : 'dialog'}
         aria-modal={embedded ? undefined : true}
+        aria-labelledby={embedded ? undefined : titleId}
         onClick={embedded ? undefined : (e) => e.stopPropagation()}
       >
         <div className="shrink-0 px-6 py-4 border-b border-slate-800">
-          <h2 className="text-xl font-semibold">{title}</h2>
+          <h2 id={titleId} className="text-xl font-semibold">{title}</h2>
           {subtitle && <p className="text-sm text-slate-400 mt-0.5">{subtitle}</p>}
           <p className="text-sm text-slate-500 mt-1">
             Step {step + 1} of {steps.length} — {steps[step]}
