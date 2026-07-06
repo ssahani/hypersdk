@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { describe, expect, it } from 'vitest'
-import { isPathAllowedForTier } from './platformDesktopTier'
+import { isPathAllowedForTier, minTierForPath } from './platformDesktopTier'
 
 describe('isPathAllowedForTier', () => {
   it('allows observability and placement on power tier', () => {
@@ -29,5 +29,15 @@ describe('isPathAllowedForTier', () => {
     expect(isPathAllowedForTier('/platform/infrastructure', 'power')).toBe(true)
     expect(isPathAllowedForTier('/platform/workloads', 'power')).toBe(true)
     expect(isPathAllowedForTier('/platform/administration', 'power')).toBe(true)
+  })
+})
+
+describe('minTierForPath', () => {
+  it('returns the lowest tier that can reach a path', () => {
+    expect(minTierForPath('/platform/vms')).toBe('normal')
+    expect(minTierForPath('/platform/infrastructure')).toBe('power')
+    expect(minTierForPath('/platform/observability')).toBe('power')
+    expect(minTierForPath('/platform/developer')).toBe('advanced')
+    expect(minTierForPath('/platform/zeus/security/policies')).toBe('advanced')
   })
 })
