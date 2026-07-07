@@ -70,6 +70,7 @@ export default function SettingsPage() {
   const [newTokenName, setNewTokenName] = useState('')
   const [newTokenUser, setNewTokenUser] = useState('')
   const [newTokenRole, setNewTokenRole] = useState('readonly')
+  const [creatingToken, setCreatingToken] = useState(false)
   const [createdToken, setCreatedToken] = useState('')
   const [newWebhookUrl, setNewWebhookUrl] = useState('')
   const [newSchedVm, setNewSchedVm] = useState('')
@@ -825,7 +826,7 @@ export default function SettingsPage() {
               <option value="operator">Operator</option>
               <option value="readonly">Read-only</option>
             </select>
-            <button type="button" onClick={async () => { if (!newTokenName || !newTokenUser) return; try { const t = await createToken(newTokenName, newTokenUser, newTokenRole); setCreatedToken(t.token); toast.success('Token created'); setNewTokenName(''); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} aria-label="Create token" title="Create token" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" aria-hidden="true" /></button>
+            <button type="button" disabled={creatingToken || !newTokenName.trim() || !newTokenUser.trim()} onClick={async () => { if (!newTokenName.trim() || !newTokenUser.trim()) { toast.error('Token name and user are required'); return } if (creatingToken) return; setCreatingToken(true); try { const t = await createToken(newTokenName, newTokenUser, newTokenRole); setCreatedToken(t.token); toast.success('Token created'); setNewTokenName(''); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } finally { setCreatingToken(false) } }} aria-label="Create token" title="Create token" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" aria-hidden="true" /></button>
           </div>
           {createdToken && (
             <div className={`p-3 rounded-lg border ${statusSurfaceClasses('ok')}`}>

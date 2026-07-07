@@ -267,12 +267,17 @@ export function useMachineFinder() {
     if (lastEvent.kind.startsWith('vm.') || lastEvent.kind.startsWith('ha.')) void load()
   }, [refreshKey, lastEvent, load])
 
-  // Apply ?vm=ID URL param to pre-select a VM after data has loaded.
+  // Apply ?vm=ID URL param to pre-select a VM after data has loaded, then drop
+  // the param — otherwise every live vm.*/ha.* reload re-fires this and re-opens
+  // the detail panel after the user dismissed it (vms changes on each event).
   const vmParamId = searchParams.get('vm')
   useEffect(() => {
     if (!vmParamId || vms.length === 0) return
     if (vms.some((v) => v.id === vmParamId)) setSelectedVmId(vmParamId)
-  }, [vmParamId, vms])
+    const next = new URLSearchParams(searchParams)
+    next.delete('vm')
+    setSearchParams(next, { replace: true })
+  }, [vmParamId, vms, searchParams, setSearchParams])
 
   useEffect(() => {
     if (overlay !== 'security') return

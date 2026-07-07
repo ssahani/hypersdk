@@ -161,6 +161,10 @@ export default function AdminSessionsPage() {
 }
 
 function formatDuration(secs: number): string {
+  // An already-expired session has negative expires_in_secs — show "expired"
+  // rather than "-42s". (age_secs is never negative, so this only affects the
+  // remaining-time column.)
+  if (secs < 0) return 'expired'
   if (secs < 60) return `${secs}s`
   if (secs < 3600) return `${Math.floor(secs / 60)}m`
   return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`

@@ -101,7 +101,7 @@ export default function PlatformHostDetailPage() {
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [tier] = usePlatformDesktopTier()
   const toast = useToastContext()
   const { openCopilot, setContextHostId } = useAi()
@@ -288,7 +288,17 @@ export default function PlatformHostDetailPage() {
       )}
       {host && (
         <>
-          <HostDetailTabs active={section} onChange={setSection} />
+          <HostDetailTabs
+            active={section}
+            onChange={(s) => {
+              // Write the tab to the URL too, else it diverges from the visible
+              // pane and a refresh jumps back to the stale ?tab= value.
+              setSection(s)
+              const next = new URLSearchParams(searchParams)
+              next.set('tab', s)
+              setSearchParams(next, { replace: true })
+            }}
+          />
             {section === 'general' && (
               <>
               <MachinaExplainObjectPanel kind="host" id={id!} name={host.hostname} />
