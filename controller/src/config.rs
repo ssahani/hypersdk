@@ -100,8 +100,11 @@ impl Default for ControllerConfig {
             guacamole_enabled: std::env::var("GUACAMOLE_ENABLED")
                 .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
                 .unwrap_or_else(|_| {
+                    // Match the agent's gate (guacamole_proxy: len >= 32) — a
+                    // shorter/empty secret would make the controller advertise
+                    // console sessions the agent then refuses as unconfigured.
                     std::env::var("GUACAMOLE_JSON_SECRET_HEX")
-                        .map(|s| !s.trim().is_empty())
+                        .map(|s| s.trim().len() >= 32)
                         .unwrap_or(false)
                 }),
             guacamole_json_secret_hex: std::env::var("GUACAMOLE_JSON_SECRET_HEX")

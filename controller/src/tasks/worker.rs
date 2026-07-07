@@ -676,8 +676,23 @@ async fn vm_clone(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     .await?;
 
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
-    let mut client = agent_client::connect(&agent_addr).await?;
-    let resp = agent_client::clone_vm(&mut client, &row.0, &new_name, &clone_mode).await?;
+    let resp = match async {
+        let mut client = agent_client::connect(&agent_addr).await?;
+        agent_client::clone_vm(&mut client, &row.0, &new_name, &clone_mode).await
+    }
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            // Remove the placeholder row so a failed clone doesn't leave a VM
+            // stuck in observed_state='creating' forever (nothing else clears it).
+            let _ = sqlx::query("DELETE FROM vms WHERE id = ? AND observed_state = 'creating'")
+                .bind(new_id)
+                .execute(&state.pool)
+                .await;
+            return Err(e.into());
+        }
+    };
 
     sqlx::query("UPDATE vms SET uuid = ?, observed_state = 'defined' WHERE id = ?")
         .bind(&resp.uuid)
@@ -726,6 +741,15 @@ async fn host_maintenance(state: &AppState, msg: &TaskMessage) -> anyhow::Result
             .fetch_optional(&state.pool)
             .await?;
 
+            // Don't report a successful drain when there's nowhere to evacuate to
+            // — the host would enter maintenance with its VMs still running while
+            // the task claimed success.
+            if !vm_ids.is_empty() && dest.is_none() {
+                anyhow::bail!(
+                    "cannot evacuate {} running VM(s) from host {host_id} — no other online host is available",
+                    vm_ids.len()
+                );
+            }
             if let Some(dest_id) = dest {
                 for (vm_id, _name) in vm_ids {
                     if let Err(e) = enqueue_task(
@@ -1720,12 +1744,24 @@ async fn host_enforcement_apply(state: &AppState, msg: &TaskMessage) -> anyhow::
         &format!("rendering Tetragon TracingPolicy for {policy_id}"),
     )
     .await?;
-    let _result = crate::engine::packetwolf_bridge::apply_enforcement_policy(
+    let result = crate::engine::packetwolf_bridge::apply_enforcement_policy(
         &state.config,
         policy_id,
         &[host_id.to_string()],
     )
     .await;
+    // Don't report "enforcement active" when the fabric push actually failed.
+    // The non-production path returns the fabric result directly (ok:false on
+    // failure); the production path nests them under "packetwolf".
+    let apply_failed = result.get("ok").and_then(|v| v.as_bool()) == Some(false)
+        || result
+            .get("packetwolf")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().any(|r| r.get("ok").and_then(|v| v.as_bool()) == Some(false)))
+            .unwrap_or(false);
+    if apply_failed {
+        anyhow::bail!("enforcement policy {policy_id} failed to apply on the fabric");
+    }
     update_task_progress(
         &state.pool,
         msg.task_id,
