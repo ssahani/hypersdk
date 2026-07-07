@@ -2,10 +2,11 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Maximize, Minimize, Monitor } from 'lucide-react'
 import { getWsToken } from '../api/client'
 import { DEFAULT_DAEMON_PORT } from '../constants'
+import { useConsoleViewportOptional } from './consolehub/ConsoleViewportContext'
 
 function wsConnQs(libvirtConnection?: string | null): string {
   if (!libvirtConnection || libvirtConnection === 'system') return ''
@@ -38,6 +39,16 @@ export default function SPICEViewer({
   const [fullscreen, setFullscreen] = useState(false)
   const [token, setToken] = useState<string | null>(platformSpiceWsPath ? 'platform' : null)
   const [tokenError, setTokenError] = useState(false)
+
+  // Report console state to the viewport HUD. SPICE is an iframe (spice-html5),
+  // so unlike VNCViewer it can't observe the RFB connect event or guest size —
+  // without this the floating HUD was stuck on "Disconnected · —" on a live
+  // SPICE console. The context value's identity changes on every state update,
+  // so we reach it via a ref to keep the unmount cleanup a one-shot.
+  const vp = useConsoleViewportOptional()
+  const vpRef = useRef(vp)
+  vpRef.current = vp
+  useEffect(() => () => { vpRef.current?.setConnected(false) }, [])
 
   useEffect(() => {
     if (platformSpiceWsPath) {
@@ -115,6 +126,7 @@ export default function SPICEViewer({
         allow="clipboard-read; clipboard-write; autoplay"
         data-testid="spice-console-iframe"
         data-audio={enableAudio ? 'on' : 'off'}
+        onLoad={() => { vp?.setConnected(true); vp?.setResolution('—') }}
       />
     </div>
   )

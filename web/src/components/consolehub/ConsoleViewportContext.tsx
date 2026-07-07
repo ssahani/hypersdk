@@ -6,6 +6,7 @@ import { inferConsoleMonitors } from '../../utils/consoleMonitors'
 
 export type ViewportMode = 'fit' | 'fill' | 'native' | 'scroll' | 'zoom' | 'stretch'
 export type ZoomLevel = 75 | 100 | 125 | 150 | 200
+export type ConsoleKeyPreset = 'esc' | 'ctrl_alt_del' | 'alt_tab'
 
 export type ViewportState = {
   mode: ViewportMode
@@ -39,6 +40,13 @@ type ViewportCtx = ViewportState & {
   /** noVNC-native Ctrl+Alt+Del, registered by VNCViewer when connected. */
   sendCtrlAltDel: (() => void) | null
   registerCtrlAltDel: (fn: (() => void) | null) => void
+  /**
+   * Send a key preset natively over the connected VNC channel. Returns true if
+   * it was handled (a VNC viewer is connected), false otherwise — so callers can
+   * fall back to the qemu-guest-agent HTTP path.
+   */
+  sendKeyPreset: (preset: ConsoleKeyPreset) => boolean
+  registerSendKeyPreset: (fn: ((preset: ConsoleKeyPreset) => boolean) | null) => void
 }
 
 const defaultState: ViewportState = {
@@ -157,6 +165,12 @@ export function ConsoleViewportProvider({ children }: { children: ReactNode }) {
 
   const sendCtrlAltDel = useCallback(() => ctrlAltDelRef.current?.(), [])
 
+  const keyPresetRef = useRef<((preset: ConsoleKeyPreset) => boolean) | null>(null)
+  const registerSendKeyPreset = useCallback((fn: ((preset: ConsoleKeyPreset) => boolean) | null) => {
+    keyPresetRef.current = fn
+  }, [])
+  const sendKeyPreset = useCallback((preset: ConsoleKeyPreset) => keyPresetRef.current?.(preset) ?? false, [])
+
   const value = useMemo(
     () => ({
       ...state,
@@ -173,8 +187,10 @@ export function ConsoleViewportProvider({ children }: { children: ReactNode }) {
       setActiveMonitor,
       sendCtrlAltDel,
       registerCtrlAltDel,
+      sendKeyPreset,
+      registerSendKeyPreset,
     }),
-    [state, setMode, setZoom, setScaledFit, setGuestSize, setScroll, setViewportSize, setConnected, setProtocol, setResolution, setMonitors, setActiveMonitor, sendCtrlAltDel, registerCtrlAltDel],
+    [state, setMode, setZoom, setScaledFit, setGuestSize, setScroll, setViewportSize, setConnected, setProtocol, setResolution, setMonitors, setActiveMonitor, sendCtrlAltDel, registerCtrlAltDel, sendKeyPreset, registerSendKeyPreset],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

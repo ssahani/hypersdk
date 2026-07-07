@@ -221,7 +221,7 @@ export default function VNCViewer({
   )
   const scaleWrapperRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const rfbRef = useRef<{ disconnect: () => void; sendCtrlAltDel?: () => void; clipboardPasteFrom?: (text: string) => void; showDotCursor: boolean; clipViewport?: boolean; scaleViewport?: boolean; addEventListener?: (type: string, fn: (e: Event) => void) => void; removeEventListener?: (type: string, fn: (e: Event) => void) => void } | null>(null)
+  const rfbRef = useRef<{ disconnect: () => void; sendCtrlAltDel?: () => void; sendKey?: (keysym: number, code: string, down?: boolean) => void; clipboardPasteFrom?: (text: string) => void; showDotCursor: boolean; clipViewport?: boolean; scaleViewport?: boolean; addEventListener?: (type: string, fn: (e: Event) => void) => void; removeEventListener?: (type: string, fn: (e: Event) => void) => void } | null>(null)
   const clip = useConsoleClipboardOptional()
   const clipRef = useRef(clip)
   clipRef.current = clip
@@ -298,6 +298,22 @@ export default function VNCViewer({
             setStatus('connected')
             vp?.setConnected(true)
             vp?.registerCtrlAltDel?.(() => rfbRef.current?.sendCtrlAltDel?.())
+            vp?.registerSendKeyPreset?.((preset) => {
+              const active = rfbRef.current
+              if (!active) return false
+              // X11 keysyms: Escape 0xff1b, Tab 0xff09, Alt_L 0xffe9.
+              if (preset === 'ctrl_alt_del') {
+                active.sendCtrlAltDel?.()
+              } else if (preset === 'esc') {
+                active.sendKey?.(0xff1b, 'Escape')
+              } else {
+                active.sendKey?.(0xffe9, 'AltLeft', true)
+                active.sendKey?.(0xff09, 'Tab', true)
+                active.sendKey?.(0xff09, 'Tab', false)
+                active.sendKey?.(0xffe9, 'AltLeft', false)
+              }
+              return true
+            })
             syncGuestSize(rfb)
             if (cockpitMode) {
               scheduleCockpitViewportRefresh(rfb, scrollRef.current, () => cancelled)
@@ -334,6 +350,7 @@ export default function VNCViewer({
             setStatus('disconnected')
             vp?.setConnected(false)
             vp?.registerCtrlAltDel?.(null)
+            vp?.registerSendKeyPreset?.(null)
             vp?.setGuestSize(0, 0)
             onCanvasReady?.(null)
             if (clipRef.current) {
