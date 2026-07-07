@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { getControllerBase, platformFetch } from './platform'
+import { getControllerBase, platformFetch, downloadControllerExport } from './platform'
 import { readJsonObject } from './client'
 
 const DAEMON_API = '/api/v1'
@@ -363,6 +363,9 @@ export const getFirewallExposureFinOps = () =>
 
 export const getFirewallExposureFinOpsExportUrl = () =>
   `${getControllerBase()}/api/v1/zeus-firewall/finops/exposure/export.csv`
+
+export const downloadFirewallExposureFinOpsExport = () =>
+  downloadControllerExport('/api/v1/zeus-firewall/finops/exposure/export.csv', 'machina-firewall-exposure.csv')
 
 export interface MultisiteOverview {
   sites: Array<{

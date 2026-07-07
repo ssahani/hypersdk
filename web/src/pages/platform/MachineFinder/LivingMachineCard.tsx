@@ -20,6 +20,7 @@ type Props = {
   overlay: MachineFinderOverlay
   onSelect: () => void
   onDragStart: () => void
+  onDragEnd?: () => void
   onSsh: () => void
   onDoubleClickTheatre: () => void
   guestIp?: string
@@ -32,6 +33,7 @@ export default function LivingMachineCard({
   overlay,
   onSelect,
   onDragStart,
+  onDragEnd,
   onSsh,
   onDoubleClickTheatre,
   guestIp,
@@ -124,6 +126,7 @@ export default function LivingMachineCard({
         e.dataTransfer.effectAllowed = 'move'
         onDragStart()
       }}
+      onDragEnd={() => onDragEnd?.()}
       onClick={onSelect}
       onDoubleClick={(e) => {
         e.preventDefault()

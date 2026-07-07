@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, Loader2, X } from 'lucide-react'
 import { useFocusTrap } from '../../hooks/useFocusTrap'
 import type { UseVmHardwareResult } from '../../hooks/useVmHardware'
@@ -75,6 +75,20 @@ export default function VmEditHardwareDrawer({
   const [uefiBusy, setUefiBusy] = useState(false)
   const panelRef = useRef<HTMLElement>(null)
   useFocusTrap(panelRef, open, onClose)
+
+  // `expanded` was only a useState initializer, so opening via "Advanced XML"
+  // (initialSection='xml') still showed the CPU pane because the drawer mounted
+  // earlier with the default 'cpu'. Sync it whenever the drawer opens or the
+  // requested section changes.
+  useEffect(() => {
+    if (open) setExpanded(initialSection)
+  }, [open, initialSection])
+
+  // Drop any unsaved XML draft when (re)opening or switching VM, so VM A's edit
+  // doesn't bleed over VM B's domain (the component stays mounted across nav).
+  useEffect(() => {
+    if (open) setXmlDraft('')
+  }, [open, vmId])
 
   if (!open) return null
 

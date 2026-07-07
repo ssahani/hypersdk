@@ -55,6 +55,7 @@ export default function HostMachinePanels({ state }: Props) {
                     overlay="default"
                     onSelect={() => setSelectedVmId(vm.id)}
                     onDragStart={() => setDragVmId(vm.id)}
+                    onDragEnd={() => setDragVmId(null)}
                     onSsh={() => setSshVm(vm)}
                     onDoubleClickTheatre={() => openCenterPopout(cinemaPopoutPath(vm.id))}
                   />
@@ -82,6 +83,7 @@ export default function HostMachinePanels({ state }: Props) {
                 overlay="default"
                 onSelect={() => setSelectedVmId(vm.id)}
                 onDragStart={() => setDragVmId(vm.id)}
+                onDragEnd={() => setDragVmId(null)}
                 onSsh={() => setSshVm(vm)}
                 onDoubleClickTheatre={() => openCenterPopout(cinemaPopoutPath(vm.id))}
               />

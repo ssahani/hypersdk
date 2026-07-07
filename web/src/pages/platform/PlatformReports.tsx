@@ -34,16 +34,11 @@ import {
   downloadAiCostExport,
   downloadCostAttributionExport,
   getAiCapacity,
-  getAiCapacityExportUrl,
   getAiCompliance,
-  getAiComplianceExportUrl,
-  getAiCompliancePdfUrl,
   getAiCost,
-  getAiCostExportUrl,
   getAiSecurity,
   getAutopilotHistory,
   getCostAttribution,
-  getCostAttributionExportUrl,
   getCostBudget,
   migrationReadinessReport,
   runAutopilotSafe,
@@ -56,7 +51,7 @@ import {
   type MigrationReadinessReport,
   type SecurityReport,
 } from '../../api/ai'
-import { getFirewallExposureFinOps, getFirewallExposureFinOpsExportUrl, type ExposureFinOpsReport } from '../../api/zeusFirewall'
+import { getFirewallExposureFinOps, downloadFirewallExposureFinOpsExport, type ExposureFinOpsReport } from '../../api/zeusFirewall'
 import { formatUserError } from '../../utils/apiError'
 import { installStateTone } from '../../components/platform/GuestAgentDiagnosticsPanel'
 import { statusPillClasses, statusToneClass } from '../../utils/semanticColors'
@@ -290,12 +285,12 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
             <p className="text-sm text-slate-400 mt-1">Fleet compliance grade: {showback.fleet_grade}</p>
             {compliance && (
               <div className="flex flex-wrap gap-2 mt-3">
-                <a className="btn-secondary text-xs" href={getAiComplianceExportUrl()} target="_blank" rel="noreferrer" data-testid="reports-compliance-export-url">
-                  Open compliance export URL
-                </a>
-                <a className="btn-secondary text-xs" href={getAiCompliancePdfUrl()} download data-testid="reports-compliance-pdf-url">
-                  Compliance PDF URL
-                </a>
+                <button type="button" className="btn-secondary text-xs" onClick={() => void downloadAiComplianceExport().catch((e: unknown) => toast.error(formatUserError(e)))} data-testid="reports-compliance-export-url">
+                  Compliance export (HTML)
+                </button>
+                <button type="button" className="btn-secondary text-xs" onClick={() => void downloadAiCompliancePdf().catch((e: unknown) => toast.error(formatUserError(e)))} data-testid="reports-compliance-pdf-url">
+                  Compliance PDF
+                </button>
                 <button
                   type="button"
                   className="btn-secondary text-xs"
@@ -536,12 +531,12 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
             >
               Download Markdown
             </button>
-            <a className="btn-secondary text-xs" href={getAiComplianceExportUrl()} target="_blank" rel="noreferrer" data-testid="reports-compliance-export-url">
-              Export URL (HTML)
-            </a>
-            <a className="btn-secondary text-xs" href={getAiCompliancePdfUrl()} download data-testid="reports-compliance-pdf-url">
-              Export URL (PDF)
-            </a>
+            <button type="button" className="btn-secondary text-xs" onClick={() => void downloadAiComplianceExport().catch((e: unknown) => toast.error(formatUserError(e)))} data-testid="reports-compliance-export-url">
+              Export HTML
+            </button>
+            <button type="button" className="btn-secondary text-xs" onClick={() => void downloadAiCompliancePdf().catch((e: unknown) => toast.error(formatUserError(e)))} data-testid="reports-compliance-pdf-url">
+              Export PDF
+            </button>
             <button
               type="button"
               className="btn-secondary text-xs"
@@ -595,9 +590,9 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
             </ul>
           )}
           <div className="flex flex-wrap gap-2 mt-3">
-            <a className="btn-secondary text-xs" href={getFirewallExposureFinOpsExportUrl()} download>
+            <button type="button" className="btn-secondary text-xs" onClick={() => void downloadFirewallExposureFinOpsExport().catch((e: unknown) => toast.error(formatUserError(e)))}>
               Export exposure CSV
-            </a>
+            </button>
           </div>
         </MacGlassPanel>
       )}
@@ -618,9 +613,9 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
             <ul className="mt-3 text-xs text-slate-400 space-y-1">{cost.suggestions.map((s) => <li key={s}>• {s}</li>)}</ul>
           )}
           <div className="flex flex-wrap gap-2 mt-3">
-            <a className="btn-secondary text-xs" href={getAiCostExportUrl()} download data-testid="reports-cost-export-url">
-              Export cost CSV URL
-            </a>
+            <button type="button" className="btn-secondary text-xs" onClick={() => void downloadAiCostExport().catch((e: unknown) => toast.error(formatUserError(e)))} data-testid="reports-cost-export-url">
+              Export cost CSV
+            </button>
             <button
               type="button"
               className="btn-secondary text-xs"
@@ -642,9 +637,9 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
             ))}
           </ul>
           <div className="flex flex-wrap gap-2 mt-3">
-            <a className="btn-secondary text-xs" href={getCostAttributionExportUrl()} download data-testid="reports-attribution-export-url">
-              Attribution CSV URL
-            </a>
+            <button type="button" className="btn-secondary text-xs" onClick={() => void downloadCostAttributionExport().catch((e: unknown) => toast.error(formatUserError(e)))} data-testid="reports-attribution-export-url">
+              Attribution CSV
+            </button>
             <button
               type="button"
               className="btn-secondary text-xs"
@@ -702,9 +697,9 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
             <ul className="mt-3 text-xs text-slate-400 space-y-1">{aiCap.recommendations.map((r) => <li key={r}>• {r}</li>)}</ul>
           )}
           <div className="flex flex-wrap gap-2 mt-3">
-            <a className="btn-secondary text-xs" href={getAiCapacityExportUrl()} download data-testid="reports-capacity-export-url">
-              Capacity CSV URL
-            </a>
+            <button type="button" className="btn-secondary text-xs" onClick={() => void downloadAiCapacityExport().catch((e: unknown) => toast.error(formatUserError(e)))} data-testid="reports-capacity-export-url">
+              Capacity CSV
+            </button>
             <button
               type="button"
               className="btn-secondary text-xs"

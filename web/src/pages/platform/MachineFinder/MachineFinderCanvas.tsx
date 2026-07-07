@@ -90,6 +90,7 @@ function GridLens({ state, compact }: { state: MachineFinderState; compact?: boo
                 overlay={state.overlay}
                 onSelect={() => state.setSelectedVmId(vm.id)}
                 onDragStart={() => state.setDragVmId(vm.id)}
+                onDragEnd={() => { state.setDragVmId(null); state.setDropHost(null) }}
                 onSsh={() => state.setSshVm(vm)}
                 guestIp={state.displayGuestIp(vm)}
                 onDoubleClickTheatre={() => openCenterPopout(cinemaPopoutPath(vm.id))}
