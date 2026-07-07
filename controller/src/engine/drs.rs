@@ -54,6 +54,21 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
             }
         };
 
+        // Skip if a migration for this VM is already pending/running. DRS re-runs
+        // every 120s against metrics that don't change until the (slow) live
+        // migration completes, so it would otherwise re-select the same VM and
+        // enqueue duplicate, competing migrations. Mirrors reconcile's guard.
+        let inflight: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM tasks WHERE resource_id = ? AND operation = 'vm.migrate' AND status IN ('pending', 'running')",
+        )
+        .bind(vm_id)
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(0);
+        if inflight > 0 {
+            continue;
+        }
+
         let pre = crate::engine::migrate_precheck::run_migrate_precheck(
             &state.pool,
             vm_id,

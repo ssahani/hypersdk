@@ -92,8 +92,13 @@ pub async fn patch_ai_settings(
             .await?;
     }
     if let Some(v) = &patch.api_key {
+        // Encrypt at rest like the providers path does — this legacy settings
+        // route was binding the raw key, defeating MACHINA_API_KEY_MASTER_KEY.
+        // legacy_resolve reads it back through crypto::load_api_key, which
+        // transparently handles both encrypted and (dev/legacy) plaintext values.
+        let stored = super::crypto::store_api_key(v.trim())?;
         sqlx::query("UPDATE clusters SET ai_api_key = ?")
-            .bind(v)
+            .bind(stored)
             .execute(&mut *tx)
             .await?;
     }

@@ -11,6 +11,12 @@ use axum::response::Response;
 use base64::Engine;
 use std::net::SocketAddr;
 
+/// Cap on distinct tracked keys before we sweep expired buckets. The key is
+/// derived from the (unverified) Authorization header, so an unauthenticated
+/// caller can present a unique key per request — without a sweep the map grows
+/// unbounded (OOM). One window's worth of keys stays well under this.
+const MAX_TRACKED_KEYS: usize = 50_000;
+
 struct Bucket {
     window_start: Instant,
     count: u32,
@@ -55,6 +61,10 @@ impl RateLimiter {
             Ok(guard) => guard,
             Err(poisoned) => poisoned.into_inner(),
         };
+        // Evict fully-expired buckets before the map can grow without bound.
+        if map.len() > MAX_TRACKED_KEYS {
+            map.retain(|_, b| now.duration_since(b.window_start) < self.window);
+        }
         let bucket = map.entry(key.to_string()).or_insert(Bucket {
             window_start: now,
             count: 0,

@@ -112,10 +112,23 @@ pub fn apply_plan(
         }
         let bin = parts[0];
         let args: Vec<&str> = parts[1..].to_vec();
-        std::process::Command::new(bin)
+        // `.status()` returns Ok even on a non-zero exit; without checking
+        // success() a failed op (e.g. the default-deny `-P INPUT DROP`) is
+        // silently ignored and the host is reported "hardened" while its INPUT
+        // chain stays at its default ACCEPT — fail-open. Surface it as an error.
+        let status = std::process::Command::new(bin)
             .args(&args)
             .status()
             .map_err(LibvirtError::map_op(&format!("apply {op}")))?;
+        if !status.success() {
+            return Err(LibvirtError::Operation(format!(
+                "firewall op failed (exit {}): {op}",
+                status
+                    .code()
+                    .map(|c| c.to_string())
+                    .unwrap_or_else(|| "signal".into()),
+            )));
+        }
     }
     Ok(plan)
 }

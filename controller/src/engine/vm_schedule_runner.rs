@@ -102,9 +102,13 @@ async fn tick(state: &AppState) -> anyhow::Result<()> {
         }
 
         if let Err(e) = sqlx::query(
+            // Advance from max(next_run_at, now): if the schedule fell far behind
+            // (controller downtime), advancing from the stale next_run_at leaves
+            // it in the past and it re-fires every tick until it catches up — a
+            // backfill storm (e.g. a day idle at 5-min interval = ~288 runs).
             "UPDATE vm_schedules
              SET last_run_at = datetime('now'),
-                 next_run_at = datetime(next_run_at, '+' || interval_minutes || ' minutes')
+                 next_run_at = datetime(max(next_run_at, datetime('now')), '+' || interval_minutes || ' minutes')
              WHERE id = ?",
         )
         .bind(sched_id)
