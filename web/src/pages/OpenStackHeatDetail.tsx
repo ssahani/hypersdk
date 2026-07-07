@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import { usePlatformTabState } from '../hooks/usePlatformTabState'
 import { Link, useNavigate, useParams } from 'react-router'
 import { ArrowLeft, Layers, Loader2, Save, Trash2 } from 'lucide-react'
 import OpenStackGate from '../components/OpenStackGate'
@@ -24,7 +25,8 @@ import { formatUserError } from '../utils/apiError'
 import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 
-type Tab = 'overview' | 'resources' | 'events' | 'template' | 'outputs'
+const HEAT_TABS = ['overview', 'resources', 'events', 'template', 'outputs'] as const
+type Tab = (typeof HEAT_TABS)[number]
 
 export default function OpenStackHeatDetailPage() {
   return (
@@ -39,7 +41,7 @@ function OpenStackHeatDetailContent() {
   const toast = useToastContext()
   const navigate = useNavigate()
   const [stack, setStack] = useState<OpenStackHeatStack | null>(null)
-  const [tab, setTab] = useState<Tab>('overview')
+  const [tab, setTab] = usePlatformTabState(HEAT_TABS, { defaultTab: 'overview' })
   const [loading, setLoading] = useState(true)
   const [resources, setResources] = useState<OpenStackHeatResource[]>([])
   const [events, setEvents] = useState<OpenStackHeatEvent[]>([])

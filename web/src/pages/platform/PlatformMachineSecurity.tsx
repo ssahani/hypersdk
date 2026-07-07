@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import { usePlatformTabState } from '../../hooks/usePlatformTabState'
 import PageLayout from '../../components/PageLayout'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft, Radar, Shield } from 'lucide-react'
@@ -41,7 +42,8 @@ import DetailTabs from '../../components/platform/DetailTabs'
 import { statusPillClasses, hubLinkClasses } from '../../utils/semanticColors'
 import EbpfActionMenu from '../../components/platform/EbpfActionMenu'
 
-type TabId = 'processes' | 'connections' | 'dns' | 'ports' | 'files' | 'events' | 'containers' | 'users' | 'graph' | 'enforcement'
+const MACHINE_SECURITY_TABS = ['processes', 'connections', 'dns', 'ports', 'files', 'events', 'containers', 'users', 'graph', 'enforcement'] as const
+type TabId = (typeof MACHINE_SECURITY_TABS)[number]
 
 const PRIMARY_TABS: Array<{ id: TabId; label: string }> = [
   { id: 'processes', label: 'Processes' },
@@ -71,7 +73,7 @@ function eventSub(e: SecurityEvent) {
 export default function PlatformMachineSecurity() {
   const { hostId } = useParams<{ hostId: string }>()
   const toast = useToastContext()
-  const [tab, setTab] = useState<TabId>('processes')
+  const [tab, setTab] = usePlatformTabState(MACHINE_SECURITY_TABS, { defaultTab: 'processes' })
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null)
   const [items, setItems] = useState<SecurityEvent[]>([])
   const [ports, setPorts] = useState<Array<Record<string, unknown>>>([])

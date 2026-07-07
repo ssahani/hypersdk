@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import { usePlatformTabState } from '../../hooks/usePlatformTabState'
 import { Link } from 'react-router'
 import { Code2, Package, Shield, Terminal, Wrench } from 'lucide-react'
 import PlatformApiConsole from '../../components/platform/PlatformApiConsole'
@@ -19,10 +20,11 @@ import { formatUserError } from '../../utils/apiError'
 import CopyButton from '../../components/CopyButton'
 import { hubLinkClasses } from '../../utils/semanticColors'
 
-type DevTab = 'sdk' | 'console'
+const DEV_TABS = ['sdk', 'console'] as const
+type DevTab = (typeof DEV_TABS)[number]
 
 export default function PlatformDeveloper() {
-  const [tab, setTab] = useState<DevTab>('sdk')
+  const [tab, setTab] = usePlatformTabState(DEV_TABS, { defaultTab: 'sdk' })
   const [overview, setOverview] = useState<DeveloperOverview | null>(null)
   const [schemas, setSchemas] = useState<TerraformResourceSchema[]>([])
   const [error, setError] = useState<string | null>(null)

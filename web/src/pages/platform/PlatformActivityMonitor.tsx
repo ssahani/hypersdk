@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import { usePlatformTabState } from '../../hooks/usePlatformTabState'
 import { Link } from 'react-router'
 import { Activity, Server, Terminal } from 'lucide-react'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
@@ -11,7 +12,8 @@ import { getFleetActivity, type FleetActivityOverview } from '../../api/platform
 import { formatUserError } from '../../utils/apiError'
 import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, utilizationBarClass, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 
-type Tab = 'vms' | 'hosts'
+const ACTIVITY_TABS = ['vms', 'hosts'] as const
+type Tab = (typeof ACTIVITY_TABS)[number]
 
 function bar(label: string, value: number, tone: 'cpu' | 'mem' | 'io' | 'thermal') {
   // Thermal is a temperature in °C, not a percentage — its own thresholds and
@@ -31,7 +33,7 @@ function bar(label: string, value: number, tone: 'cpu' | 'mem' | 'io' | 'thermal
 }
 
 export default function PlatformActivityMonitor() {
-  const [tab, setTab] = useState<Tab>('vms')
+  const [tab, setTab] = usePlatformTabState(ACTIVITY_TABS, { defaultTab: 'vms' })
   const [data, setData] = useState<FleetActivityOverview | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)

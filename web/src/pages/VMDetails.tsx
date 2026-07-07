@@ -48,6 +48,7 @@ import PageSkeleton from '../components/PageSkeleton'
 import ConfirmDialog from '../components/ConfirmDialog'
 import LibvirtOpenStackPushModal from '../components/LibvirtOpenStackPushModal'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import { usePlatformTabState } from '../hooks/usePlatformTabState'
 import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../components/BrowseHostPathModal'
@@ -112,7 +113,8 @@ function SnapshotTableRows({
   )
 }
 
-type Tab = 'overview' | 'disks' | 'network' | 'snapshots' | 'devices' | 'xml' | 'logs' | 'advanced'
+const VM_DETAIL_TABS = ['overview', 'disks', 'network', 'snapshots', 'devices', 'xml', 'logs', 'advanced'] as const
+type Tab = (typeof VM_DETAIL_TABS)[number]
 type Dialog = null | 'cdrom' | 'clone' | 'rename' | 'migrate' | 'snapshot' | 'boot-order' | 'vcpus' | 'memory' | 'balloon' | 'attach-disk' | 'resize-disk' | 'attach-nic' | 'attach-usb' | 'save-template'
   | 'delete-vm' | 'scheduler-tune' | 'memtune' | 'numa-tune' | 'emulator-pin' | 'pin-vcpu' | 'block-commit'
   | 'disk-tune' | 'nic-tune' | 'firmware' | 'watchdog' | 'sound' | 'serial' | 'video'
@@ -144,7 +146,7 @@ export default function VMDetailsPage() {
   const [hasSave, setHasSave] = useState(false)
   const [vmXml, setVmXml] = useState('')
   const [backingUp, setBackingUp] = useState(false)
-  const [tab, setTab] = useState<Tab>('overview')
+  const [tab, setTab] = usePlatformTabState(VM_DETAIL_TABS, { defaultTab: 'overview' })
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [dialog, setDialog] = useState<Dialog>(null)

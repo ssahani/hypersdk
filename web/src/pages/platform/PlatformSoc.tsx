@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import { usePlatformTabState } from '../../hooks/usePlatformTabState'
 import { Link } from 'react-router'
 import { Plus, Radar, Shield, ShieldAlert } from 'lucide-react'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
@@ -42,7 +43,8 @@ import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusBadgeClasses, statusToneClass } from '../../utils/semanticColors'
 
-type Tab = 'overview' | 'alerts' | 'detections' | 'asm' | 'integrations' | 'playbooks'
+const SOC_TABS = ['overview', 'alerts', 'detections', 'asm', 'integrations', 'playbooks'] as const
+type Tab = (typeof SOC_TABS)[number]
 
 function integrationStatusLabel(i: SocIntegration): { tone: 'ok' | 'error' | 'neutral'; text: string } {
   if (i.last_error) return { tone: 'error', text: i.last_error }
@@ -54,7 +56,7 @@ function integrationStatusLabel(i: SocIntegration): { tone: 'ok' | 'error' | 'ne
 
 export default function PlatformSoc() {
   const toast = useToastContext()
-  const [tab, setTab] = useState<Tab>('overview')
+  const [tab, setTab] = usePlatformTabState(SOC_TABS, { defaultTab: 'overview' })
   const [overview, setOverview] = useState<SocOverview | null>(null)
   const [threatScore, setThreatScore] = useState<number | null>(null)
   const [alerts, setAlerts] = useState<SocAlert[]>([])

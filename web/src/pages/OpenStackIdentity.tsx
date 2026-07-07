@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import { usePlatformTabState } from '../hooks/usePlatformTabState'
 import { Link } from 'react-router'
 import { KeyRound, Loader2, Plus, Users } from 'lucide-react'
 import OpenStackGate from '../components/OpenStackGate'
@@ -20,7 +21,8 @@ import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 
-type Tab = 'projects' | 'users'
+const IDENTITY_TABS = ['projects', 'users'] as const
+type Tab = (typeof IDENTITY_TABS)[number]
 
 export default function OpenStackIdentityPage() {
   return (
@@ -32,7 +34,7 @@ export default function OpenStackIdentityPage() {
 
 function OpenStackIdentityContent() {
   const toast = useToastContext()
-  const [tab, setTab] = useState<Tab>('projects')
+  const [tab, setTab] = usePlatformTabState(IDENTITY_TABS, { defaultTab: 'projects' })
   const [projects, setProjects] = useState<OpenStackProject[]>([])
   const [users, setUsers] = useState<OpenStackIdentityUser[]>([])
   const [loading, setLoading] = useState(true)

@@ -20,6 +20,7 @@ import { listOpenStackClouds, selectOpenStackCloud } from '../api/openstackExtra
 import OpenStackQuotasPanel from '../components/OpenStackQuotasPanel'
 import { getIntegrationsStatus, type IntegrationsStatus } from '../api/integrations'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import { usePlatformTabState } from '../hooks/usePlatformTabState'
 import { useHypersdkConnection } from '../hooks/useHypersdkConnection'
 import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { isOpenStackConfigured } from '../utils/routes'
@@ -43,10 +44,11 @@ import {
 } from '../api/observability'
 import IdentitySsoPanel from '../components/IdentitySsoPanel'
 import { getMetricsTraces, type HttpTraceSpan } from '../api/metrics'
-type Tab = 'roles' | 'tokens' | 'alerts' | 'webhooks' | 'schedules' | 'notifications' | 'snapshots'
+const SETTINGS_TABS = ['roles', 'tokens', 'alerts', 'webhooks', 'schedules', 'notifications', 'snapshots'] as const
+type Tab = (typeof SETTINGS_TABS)[number]
 
 export default function SettingsPage() {
-  const [tab, setTab] = useState<Tab>('roles')
+  const [tab, setTab] = usePlatformTabState(SETTINGS_TABS, { defaultTab: 'roles' })
   const [loading, setLoading] = useState(true)
   const toast = useToastContext()
   const { info } = usePlatformInfo()
