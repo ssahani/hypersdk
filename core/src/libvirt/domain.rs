@@ -488,10 +488,14 @@ fn delete_disk_files(paths: &[String], vm_name: &str) {
 
 /// Replace persistent domain XML (virsh define). The `<name>` in XML must match `name`.
 pub fn replace_domain_xml(conn: &Connect, name: &str, xml: &str) -> Result<(), LibvirtError> {
-    if let Some(xml_name) = crate::xml::extract_attr(xml, "domain", "name") {
-        if xml_name != name {
+    // The domain name is a `<name>` child element, not a `name=` attribute — the
+    // old extract_attr always returned None, so the guard never fired and a body
+    // with a different <name> would define/overwrite a DIFFERENT domain.
+    if let Some(xml_name) = crate::xml::extract_text(xml, "name") {
+        if xml_name.trim() != name {
             return Err(LibvirtError::Invalid(format!(
-                "XML domain name '{xml_name}' does not match '{name}'"
+                "XML domain name '{}' does not match '{name}'",
+                xml_name.trim()
             )));
         }
     }

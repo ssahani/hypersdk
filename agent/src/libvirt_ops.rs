@@ -728,24 +728,33 @@ impl LibvirtCtx {
             dom.destroy()
                 .map_err(|e| LibvirtError::Operation(format!("stop for restore: {e}")))?;
         }
-        let xml = dom
-            .get_xml_desc(0)
-            .map_err(|e| LibvirtError::Operation(e.to_string()))?;
-        let disk_path = extract_disk_path(&xml).ok_or_else(|| {
-            LibvirtError::Operation(format!("no disk path found for VM '{vm_name}'"))
-        })?;
-        let status = Command::new("qemu-img")
-            .args(["convert", "-O", "qcow2", backup_path, &disk_path])
-            .status()
-            .map_err(|e| LibvirtError::Operation(format!("qemu-img restore: {e}")))?;
-        if !status.success() {
-            return Err(LibvirtError::Operation("qemu-img restore failed".into()));
-        }
+        let result = (|| -> Result<(), LibvirtError> {
+            let xml = dom
+                .get_xml_desc(0)
+                .map_err(|e| LibvirtError::Operation(e.to_string()))?;
+            let disk_path = extract_disk_path(&xml).ok_or_else(|| {
+                LibvirtError::Operation(format!("no disk path found for VM '{vm_name}'"))
+            })?;
+            let status = Command::new("qemu-img")
+                .args(["convert", "-O", "qcow2", backup_path, &disk_path])
+                .status()
+                .map_err(|e| LibvirtError::Operation(format!("qemu-img restore: {e}")))?;
+            if !status.success() {
+                return Err(LibvirtError::Operation("qemu-img restore failed".into()));
+            }
+            Ok(())
+        })();
+        // Restart whether or not the restore succeeded, so a failed restore (e.g.
+        // qemu-img error) doesn't leave a previously-running guest powered off.
         if was_running {
-            dom.create()
-                .map_err(|e| LibvirtError::Operation(format!("start after restore: {e}")))?;
+            if let Err(e) = dom.create() {
+                // Only surface the restart error when the restore itself succeeded.
+                if result.is_ok() {
+                    return Err(LibvirtError::Operation(format!("start after restore: {e}")));
+                }
+            }
         }
-        Ok(())
+        result
     }
 
     pub fn backup_vm_disk(&self, vm_name: &str, dest_path: &str) -> Result<String, LibvirtError> {

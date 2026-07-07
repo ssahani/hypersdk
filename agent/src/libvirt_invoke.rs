@@ -616,20 +616,22 @@ pub fn host_invoke(
                 return Err(LibvirtError::Invalid("packages required".into()));
             }
             let res = machina_core::host_platform::package_install(pkgs)?;
-            let message = if !res.ok {
+            if !res.ok {
+                // Previously returned status:"ok" even on a non-zero apt/dnf run —
+                // a failed install reported success. Surface it as an error.
                 let detail = res.stderr.trim();
-                if detail.is_empty() {
+                let msg = if detail.is_empty() {
                     format!("{} failed (exit {})", res.command, res.exit_code)
                 } else {
                     detail.lines().next().unwrap_or(detail).to_string()
-                }
+                };
+                return Err(LibvirtError::Operation(msg));
+            }
+            let out = res.stdout.trim();
+            let message = if out.is_empty() {
+                format!("{} succeeded", res.command)
             } else {
-                let out = res.stdout.trim();
-                if out.is_empty() {
-                    format!("{} succeeded", res.command)
-                } else {
-                    out.lines().last().unwrap_or(out).to_string()
-                }
+                out.lines().last().unwrap_or(out).to_string()
             };
             Ok(serde_json::json!({ "status": "ok", "message": message, "result": res }))
         }
@@ -648,20 +650,20 @@ pub fn host_invoke(
             }
             let purge = payload_bool(payload, "purge");
             let res = machina_core::host_platform::package_remove(pkgs, purge)?;
-            let message = if !res.ok {
+            if !res.ok {
                 let detail = res.stderr.trim();
-                if detail.is_empty() {
+                let msg = if detail.is_empty() {
                     format!("{} failed (exit {})", res.command, res.exit_code)
                 } else {
                     detail.lines().next().unwrap_or(detail).to_string()
-                }
+                };
+                return Err(LibvirtError::Operation(msg));
+            }
+            let out = res.stdout.trim();
+            let message = if out.is_empty() {
+                format!("{} succeeded", res.command)
             } else {
-                let out = res.stdout.trim();
-                if out.is_empty() {
-                    format!("{} succeeded", res.command)
-                } else {
-                    out.lines().last().unwrap_or(out).to_string()
-                }
+                out.lines().last().unwrap_or(out).to_string()
             };
             Ok(serde_json::json!({ "status": "ok", "message": message, "result": res }))
         }

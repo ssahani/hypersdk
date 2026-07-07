@@ -479,8 +479,17 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
         }
     }
 
-    crate::engine::vm_inventory::reconcile_libvirt_host(state, host_id, cluster_id, &seen_names)
-        .await?;
+    // Treat a successful-but-empty scan as inconclusive rather than authoritative:
+    // libvirtd can return an empty list right after a reconnect/restart, and a
+    // hard RPC failure already errored out above. Reconciling on empty would
+    // DELETE every unmanaged VM and mark managed ones 'missing' on one bad tick
+    // (the KubeVirt path guards the same way). Skip prune when nothing was seen.
+    if seen_names.is_empty() {
+        tracing::warn!(%host_id, "libvirt inventory returned no VMs — skipping prune/mark-missing this tick");
+    } else {
+        crate::engine::vm_inventory::reconcile_libvirt_host(state, host_id, cluster_id, &seen_names)
+            .await?;
+    }
 
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     if let Err(e) =
@@ -962,7 +971,12 @@ async fn vm_snapshot(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> 
             .await
             .unwrap_or_default();
 
-            for (old_id, old_name) in excess {
+            for (_old_id, old_name) in excess {
+                // Enqueue the delete only. The vm.snapshot.delete handler removes
+                // the snapshot_records row *after* libvirt confirms the deletion.
+                // Deleting the record eagerly here orphaned the libvirt snapshot
+                // (and its overlay files) whenever the delete task later failed —
+                // untracked, so retention counts drifted and it leaked forever.
                 let _ = enqueue_task(
                     state,
                     "vm.snapshot.delete",
@@ -972,10 +986,6 @@ async fn vm_snapshot(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> 
                     Some(host_id),
                 )
                 .await;
-                let _ = sqlx::query("DELETE FROM snapshot_records WHERE id = ?")
-                    .bind(old_id)
-                    .execute(&state.pool)
-                    .await;
             }
         }
     } else {
@@ -1504,18 +1514,13 @@ async fn host_validate_task(state: &AppState, msg: &TaskMessage) -> anyhow::Resu
 }
 
 async fn kubevirt_inventory_task(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
+    // Only accept an explicit cluster_id — a missing one falls through to the
+    // first-cluster default below. (Previously fell back to payload["host_id"]
+    // parsed as a cluster UUID, which would sync a nonexistent/wrong cluster.)
     let cluster_id: Uuid = msg.payload["cluster_id"]
         .as_str()
         .and_then(|s| Uuid::parse_str(s).ok())
-        .or_else(|| {
-            msg.payload["host_id"]
-                .as_str()
-                .and_then(|s| Uuid::parse_str(s).ok())
-        })
-        .unwrap_or_else(|| {
-            // fallback: first cluster
-            Uuid::nil()
-        });
+        .unwrap_or(Uuid::nil());
 
     let cluster_id = if cluster_id.is_nil() {
         sqlx::query_scalar("SELECT id FROM clusters ORDER BY created_at LIMIT 1")

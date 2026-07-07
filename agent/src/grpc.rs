@@ -540,12 +540,13 @@ impl HostAgent for AgentService {
                 quiesce,
                 &storage_mode,
             )?;
-            let dom = virt::domain::Domain::lookup_by_name(&ctx.conn, &vm_name)
-                .map_err(|e| machina_core::LibvirtError::Operation(e.to_string()))?;
-            let xml = dom
-                .get_xml_desc(0)
-                .map_err(|e| machina_core::LibvirtError::Operation(e.to_string()))?;
-            let disk_path = libvirt_ops::disk_path_from_xml(&xml).unwrap_or_default();
+            // Best-effort disk_path — the snapshot already succeeded, so a failure
+            // to read it back must not turn a real success into a reported failure.
+            let disk_path = virt::domain::Domain::lookup_by_name(&ctx.conn, &vm_name)
+                .ok()
+                .and_then(|dom| dom.get_xml_desc(0).ok())
+                .and_then(|xml| libvirt_ops::disk_path_from_xml(&xml))
+                .unwrap_or_default();
             Ok::<_, machina_core::LibvirtError>(disk_path)
         })
         .await

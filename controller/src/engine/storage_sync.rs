@@ -50,8 +50,12 @@ pub async fn sync_host_storage(
              ON CONFLICT (cluster_id, name) DO UPDATE SET
                backend = EXCLUDED.backend,
                path = COALESCE(EXCLUDED.path, storage_pools.path),
+               -- Gate both on a valid capacity read (>0). Guarding used_gib on
+               -- `used > 0` meant a pool that legitimately dropped to 0 usage
+               -- never recorded it; a fully-failed read (all zeros) still keeps
+               -- the old values via the capacity guard.
                capacity_gib = CASE WHEN EXCLUDED.capacity_gib > 0 THEN EXCLUDED.capacity_gib ELSE storage_pools.capacity_gib END,
-               used_gib = CASE WHEN EXCLUDED.used_gib > 0 THEN EXCLUDED.used_gib ELSE storage_pools.used_gib END",
+               used_gib = CASE WHEN EXCLUDED.capacity_gib > 0 THEN EXCLUDED.used_gib ELSE storage_pools.used_gib END",
         )
         .bind(Uuid::new_v4())
         .bind(cluster_id)
