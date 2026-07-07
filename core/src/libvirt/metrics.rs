@@ -10,11 +10,13 @@ use tracing::warn;
 use virt::connect::Connect;
 use virt::domain::Domain;
 
-// libvirt memory stat tag constants
+// libvirt virDomainMemoryStatTags — these were numerically wrong (AVAILABLE=6,
+// ACTUAL_BALLOON=8, RSS=9), so the collector read USABLE/LAST_UPDATE and produced
+// garbage per-VM memory_used/memory_pct. Real enum values:
 const VIR_DOMAIN_MEMORY_STAT_UNUSED: u32 = 4;
-const VIR_DOMAIN_MEMORY_STAT_AVAILABLE: u32 = 6;
-const VIR_DOMAIN_MEMORY_STAT_ACTUAL_BALLOON: u32 = 8;
-const VIR_DOMAIN_MEMORY_STAT_RSS: u32 = 9;
+const VIR_DOMAIN_MEMORY_STAT_AVAILABLE: u32 = 5;
+const VIR_DOMAIN_MEMORY_STAT_ACTUAL_BALLOON: u32 = 6;
+const VIR_DOMAIN_MEMORY_STAT_RSS: u32 = 7;
 
 pub fn domain_state_label(state: u32) -> &'static str {
     match state {
@@ -99,7 +101,7 @@ fn collect_domain_metrics(domain: &Domain, name: &str) -> Result<VmMetrics, Libv
     let state = domain_state_label(info.state).to_string();
     let cpu_time_ns = info.cpu_time;
 
-    // flags=0 — tag 8 is VIR_DOMAIN_MEMORY_STAT_ACTUAL_BALLOON, not a collection flag.
+    // flags=0 — no special collection flags.
     let mem_stats = match domain.memory_stats(0) {
         Ok(stats) => stats,
         Err(e) => {
@@ -114,9 +116,12 @@ fn collect_domain_metrics(domain: &Domain, name: &str) -> Result<VmMetrics, Libv
 
     for stat in &mem_stats {
         match stat.tag {
+            // actual_kb = balloon (memory allocated to the guest) → total.
+            // available_kb = memory the guest sees as usable; unused = free;
+            // used = available − unused.
             VIR_DOMAIN_MEMORY_STAT_UNUSED => unused_kb = stat.val,
-            VIR_DOMAIN_MEMORY_STAT_AVAILABLE => actual_kb = stat.val,
-            VIR_DOMAIN_MEMORY_STAT_ACTUAL_BALLOON => available_kb = stat.val,
+            VIR_DOMAIN_MEMORY_STAT_ACTUAL_BALLOON => actual_kb = stat.val,
+            VIR_DOMAIN_MEMORY_STAT_AVAILABLE => available_kb = stat.val,
             VIR_DOMAIN_MEMORY_STAT_RSS => rss_kb = stat.val,
             _ => {}
         }

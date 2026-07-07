@@ -528,7 +528,10 @@ fn default_guestkit_base_url() -> String {
 }
 
 fn default_guestkit_insecure_tls() -> bool {
-    true
+    // Secure by default (matches LdapConfig). A deployment terminating GuestKit
+    // over HTTPS with a self-signed cert must opt in explicitly. The default
+    // base_url is HTTP, where this flag is a no-op.
+    false
 }
 
 impl Default for GuestkitConfig {
@@ -556,7 +559,8 @@ fn default_packetwolf_base_url() -> String {
 }
 
 fn default_packetwolf_insecure_tls() -> bool {
-    true
+    // Secure by default; opt in for a self-signed PacketWolf fabric over HTTPS.
+    false
 }
 
 impl Default for OpenStackConfig {

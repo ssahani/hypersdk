@@ -82,7 +82,9 @@ impl Default for ControllerConfig {
                 .unwrap_or_else(|_| "http://127.0.0.1:8080".into()),
             guestkit_insecure_tls: std::env::var("GUESTKIT_INSECURE_TLS")
                 .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
-                .unwrap_or(true),
+                // Secure by default — set GUESTKIT_INSECURE_TLS=1 for a self-signed
+                // HTTPS worker. Default worker URL is HTTP, where TLS doesn't apply.
+                .unwrap_or(false),
             packetwolf_enabled: std::env::var("PACKETWOLF_ENABLED")
                 .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
                 .unwrap_or(false),
@@ -91,7 +93,8 @@ impl Default for ControllerConfig {
             packetwolf_api_key: std::env::var("PACKETWOLF_API_KEY").ok(),
             packetwolf_insecure_tls: std::env::var("PACKETWOLF_INSECURE_TLS")
                 .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
-                .unwrap_or(true),
+                // Secure by default — set PACKETWOLF_INSECURE_TLS=1 for a self-signed fabric.
+                .unwrap_or(false),
             daemon_base_url: std::env::var("MACHINA_DAEMON_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:5092".into()),
             guacamole_enabled: std::env::var("GUACAMOLE_ENABLED")

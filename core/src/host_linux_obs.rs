@@ -100,31 +100,42 @@ fn io_err(msg: impl Into<String>) -> LibvirtError {
 }
 
 #[cfg(target_os = "linux")]
-fn parse_pressure_line(line: &str) -> PressureAvg {
+fn read_pressure(path: &str) -> PressureAvg {
+    // /proc/pressure/* is two lines:
+    //   some avg10=X avg60=Y avg300=Z total=N
+    //   full avg10=X avg60=Y avg300=Z total=N
+    // The old parser looked for `some=`/`full=` tokens that don't exist (the
+    // token is a bare `some`, then `avgN=`/`total=`), so some/full were always
+    // 0 and only the first line was read — the host never showed any pressure.
+    // Report avg10 (most-recent 10s window, a %) for some/full and the some
+    // line's total stall counter.
+    let content = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return PressureAvg::default(),
+    };
     let mut out = PressureAvg::default();
-    for part in line.split_whitespace() {
-        if let Some(rest) = part.strip_prefix("some") {
-            if let Some(v) = rest.strip_prefix('=') {
-                out.some = v.trim_end_matches('%').parse().unwrap_or(0.0);
+    for line in content.lines() {
+        let mut tokens = line.split_whitespace();
+        let kind = tokens.next().unwrap_or("");
+        let mut avg10 = 0.0f64;
+        let mut total = 0.0f64;
+        for t in tokens {
+            if let Some(v) = t.strip_prefix("avg10=") {
+                avg10 = v.parse().unwrap_or(0.0);
+            } else if let Some(v) = t.strip_prefix("total=") {
+                total = v.parse().unwrap_or(0.0);
             }
-        } else if let Some(rest) = part.strip_prefix("full") {
-            if let Some(v) = rest.strip_prefix('=') {
-                out.full = v.trim_end_matches('%').parse().unwrap_or(0.0);
+        }
+        match kind {
+            "some" => {
+                out.some = avg10;
+                out.total = total;
             }
-        } else if let Some(rest) = part.strip_prefix("total") {
-            if let Some(v) = rest.strip_prefix('=') {
-                out.total = v.parse().unwrap_or(0.0);
-            }
+            "full" => out.full = avg10,
+            _ => {}
         }
     }
     out
-}
-
-#[cfg(target_os = "linux")]
-fn read_pressure(path: &str) -> PressureAvg {
-    fs::read_to_string(path)
-        .map(|s| parse_pressure_line(s.lines().next().unwrap_or("")))
-        .unwrap_or_default()
 }
 
 pub fn read_host_pressure() -> HostPressureStats {
