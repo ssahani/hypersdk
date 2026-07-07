@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { MacGlassPanel } from './mac/PlatformMacUi'
 import CollapsibleCodeBlock from '../CollapsibleCodeBlock'
@@ -54,6 +54,9 @@ export default function PlatformVmAdvanced({
   const [pciBdf, setPciBdf] = useState('')
   const [uefi, setUefi] = useState(false)
   const [domainXml, setDomainXml] = useState('')
+  // Once the user edits the Domain XML, don't let a background refetch (fired by
+  // any sibling Apply / hardware refresh) clobber their unsaved edits.
+  const xmlDirty = useRef(false)
   const [isos, setIsos] = useState<Array<{ name: string; path?: string; size_bytes?: number }>>([])
   const [usbDevices, setUsbDevices] = useState<Array<{ vendor_id: string; product_id: string; description?: string }>>([])
   const [pciDevices, setPciDevices] = useState<Array<{ address: string; name?: string }>>([])
@@ -81,7 +84,7 @@ export default function PlatformVmAdvanced({
         queryVmLibvirt<{ hard_limit_kb?: number; soft_limit_kb?: number; swap_hard_limit_kb?: number }>(vmId, 'memtune.get').catch(() => null),
         queryVmLibvirt<{ boot_devices: string[]; firmware: string }>(vmId, 'boot.get').catch(() => null),
       ])
-      setDomainXml(xml.xml ?? '')
+      if (!xmlDirty.current) setDomainXml(xml.xml ?? '')
       setCputune(ct)
       if (mt) setMemtune(mt)
       if (boot) {
@@ -115,6 +118,11 @@ export default function PlatformVmAdvanced({
   useEffect(() => {
     void load()
   }, [load])
+
+  // Switching to a different VM clears the dirty guard so its XML loads fresh.
+  useEffect(() => {
+    xmlDirty.current = false
+  }, [vmId])
 
   const refreshBlockJob = () =>
     void queryVmLibvirt(vmId, 'block.job', { disk: blockDisk })
@@ -307,12 +315,12 @@ export default function PlatformVmAdvanced({
           aria-label="Domain XML"
           className="input w-full font-mono text-xs min-h-[16rem]"
           value={domainXml}
-          onChange={(e) => setDomainXml(e.target.value)}
+          onChange={(e) => { xmlDirty.current = true; setDomainXml(e.target.value) }}
           spellCheck={false}
         />
         <div className="flex gap-2 mt-2">
-          <button type="button" className="btn-secondary text-sm" disabled={disabled} onClick={() => void run('Domain XML updated', () => putVmDomainXml(vmId, domainXml))}>Save XML (define)</button>
-          <button type="button" className="btn-secondary text-sm" onClick={() => void load()}>Reload</button>
+          <button type="button" className="btn-secondary text-sm" disabled={disabled} onClick={() => { xmlDirty.current = false; void run('Domain XML updated', () => putVmDomainXml(vmId, domainXml)) }}>Save XML (define)</button>
+          <button type="button" className="btn-secondary text-sm" onClick={() => { xmlDirty.current = false; void load() }}>Reload</button>
         </div>
         <CollapsibleCodeBlock title="XML preview" content={domainXml} className="mt-3" />
       </MacGlassPanel>

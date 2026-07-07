@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { Link, useNavigate, useParams, useLocation, useSearchParams } from 'react-router'
 import { ArrowLeft, ExternalLink, Network, Shield, Server, Activity, FileWarning, Bot, Cpu } from 'lucide-react'
@@ -119,6 +119,8 @@ export default function PlatformHostDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [notes, setNotes] = useState('')
+  // Don't let a load() triggered by an unrelated action wipe unsaved notes.
+  const notesDirty = useRef(false)
   const [localFw, setLocalFw] = useState<Record<string, unknown> | null>(null)
   const [site, setSite] = useState('')
   const [rack, setRack] = useState('')
@@ -151,7 +153,7 @@ export default function PlatformHostDetailPage() {
     try {
       const h = await getPlatformHostDetail(id)
       setHost(h)
-      setNotes(h.notes || '')
+      if (!notesDirty.current) setNotes(h.notes || '')
       setSite(h.site || '')
       setRack(h.rack || '')
       setRackU(h.rack_u != null ? String(h.rack_u) : '')
@@ -409,8 +411,8 @@ export default function PlatformHostDetailPage() {
                 </MacSettingsGroup>
                 <MacSettingsGroup title="Notes">
                   <div className="p-3 space-y-2">
-                    <textarea className="input min-h-20 text-sm w-full" aria-label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-                    <button type="button" className="btn-secondary text-sm" onClick={() => void patchHost(id, { notes }).then(() => { toast.success('Notes saved'); return load() }).catch((e: unknown) => toast.error(formatUserError(e)))}>Save</button>
+                    <textarea className="input min-h-20 text-sm w-full" aria-label="Notes" value={notes} onChange={(e) => { notesDirty.current = true; setNotes(e.target.value) }} />
+                    <button type="button" className="btn-secondary text-sm" onClick={() => void patchHost(id, { notes }).then(() => { notesDirty.current = false; toast.success('Notes saved'); return load() }).catch((e: unknown) => toast.error(formatUserError(e)))}>Save</button>
                   </div>
                 </MacSettingsGroup>
                 <MacSettingsGroup title="Danger zone">

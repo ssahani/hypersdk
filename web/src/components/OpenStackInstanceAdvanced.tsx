@@ -132,12 +132,16 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
     void loadExtras()
   }, [loadExtras])
 
+  // Hydrate the metadata editor only when switching to a different instance —
+  // keying on inst.metadata re-ran this on every background refetch and wiped
+  // the user's unsaved edits (a new inst object arrives on any daemon event).
   useEffect(() => {
     const lines = Object.entries(inst.metadata || {})
       .map(([k, v]) => `${k}=${v}`)
       .join('\n')
     setMetadataText(lines)
-  }, [inst.metadata, inst.id])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inst.id])
 
   const [running, setRunning] = useState(false)
   const run = async (fn: () => Promise<unknown>, ok: string) => {
