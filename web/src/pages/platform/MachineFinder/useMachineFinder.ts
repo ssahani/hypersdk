@@ -23,6 +23,7 @@ import { fleetGuestQuery, getAiSecurity, type FleetGuestQueryReport, type Securi
 import { useAi } from '../../../contexts/AiContext'
 import { useToastContext } from '../../../contexts/ToastContext'
 import { usePlatformDesktopTier } from '../../../hooks/usePlatformDesktopTier'
+import { usePlatformInfo } from '../../../contexts/PlatformInfoContext'
 import { formatUserError } from '../../../utils/apiError'
 import { pruneMissingPlatformVms } from '../../../api/platformVmLifecycle'
 import { purgeVmShortcuts } from '../../../utils/vmShortcuts'
@@ -60,6 +61,7 @@ export function useMachineFinder() {
   const toast = useToastContext()
   const { openCopilot, setContextVmIds, setContextSummary } = useAi()
   const [tier] = usePlatformDesktopTier()
+  const { lastEvent, refreshKey } = usePlatformInfo()
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -116,8 +118,11 @@ export function useMachineFinder() {
     )
   }, [vms, search, folder])
 
+  // Resolve against the full list, not filteredVms — otherwise typing a search
+  // query (or switching folder) that excludes the open VM makes its detail panel
+  // vanish mid-interaction.
   const selectedVm = selectedVmId
-    ? filteredVms.find((v) => v.id === selectedVmId) ?? null
+    ? vms.find((v) => v.id === selectedVmId) ?? null
     : null
 
   const statsSubtitle = useMemo(() => {
@@ -251,6 +256,16 @@ export function useMachineFinder() {
   }, [folder, tag, project, source])
 
   useEffect(() => { void load() }, [load])
+
+  // Power/create/snapshot/migrate actions queue an async task, so the immediate
+  // load() after them still reads the pre-change state (card stays "running"
+  // after Stop; a new VM doesn't appear). These vm.* events are emitted by the
+  // worker AFTER the task runs and the DB is updated, so reloading on them
+  // reflects the real state. Mirrors the OpenStackInstances pattern.
+  useEffect(() => {
+    if (!lastEvent) return
+    if (lastEvent.kind.startsWith('vm.') || lastEvent.kind.startsWith('ha.')) void load()
+  }, [refreshKey, lastEvent, load])
 
   // Apply ?vm=ID URL param to pre-select a VM after data has loaded.
   const vmParamId = searchParams.get('vm')
@@ -520,6 +535,9 @@ export function useMachineFinder() {
       const fail = r.results.filter((x) => x.error).length
       if (ok > 0) toast.success(`${action} queued for ${ok} VM(s)`)
       if (fail > 0) toast.error(`${fail} VM(s) could not be updated`)
+      // Neither queued nor errored (e.g. already in the requested state) — still
+      // give feedback so the click doesn't look like it did nothing.
+      if (ok === 0 && fail === 0) toast.info(`No power changes needed for the selected VM(s)`)
       setSelectedVmIds(new Set())
       await load()
     } catch (e: unknown) {

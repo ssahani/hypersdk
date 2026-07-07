@@ -231,7 +231,13 @@ export default function VmHardwareDisksSection({
           <label className="text-xs text-slate-500">
             ISO path
             <div className="mt-1 flex gap-2 min-w-[14rem]">
-              <input className="input flex-1 font-mono text-xs" value={isoPath} onChange={(e) => setIsoPath(e.target.value)} />
+              <input list="vm-hw-iso-list" className="input flex-1 font-mono text-xs" value={isoPath} onChange={(e) => setIsoPath(e.target.value)} />
+              <datalist id="vm-hw-iso-list">
+                {isoFiles.map((f) => {
+                  const p = f.path ?? f.name
+                  return <option key={p} value={p}>{f.name}</option>
+                })}
+              </datalist>
               {canBrowseHost ? (
                 <button type="button" className="btn-secondary shrink-0 text-xs" onClick={() => setIsoBrowseOpen(true)}>
                   <FolderOpen className="w-3.5 h-3.5" />
