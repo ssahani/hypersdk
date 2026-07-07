@@ -69,6 +69,9 @@ function OpenStackNetworkingContent() {
   const [portName, setPortName] = useState('')
   const [fipExtNet, setFipExtNet] = useState('')
   const [allocatingFip, setAllocatingFip] = useState(false)
+  // Shared in-flight guard for the create buttons (network/subnet/router/port/
+  // link) — prevents a double-click from creating duplicate Neutron resources.
+  const [busyNet, setBusyNet] = useState(false)
   const [floatingIps, setFloatingIps] = useState<OpenStackFloatingIp[]>([])
 
   const load = useCallback(async () => {
@@ -153,10 +156,12 @@ function OpenStackNetworkingContent() {
           </label>
           <button
             type="button"
-            className="px-3 py-1.5 rounded-lg bg-sky-600 text-white text-sm"
+            disabled={busyNet}
+            className="px-3 py-1.5 rounded-lg bg-sky-600 text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={async () => {
               const name = newNetName.trim()
-              if (!name) return
+              if (!name || busyNet) return
+              setBusyNet(true)
               try {
                 await createOpenStackNetwork({ name, external: newNetExternal })
                 toast.success(`Network ${name} created`)
@@ -164,6 +169,8 @@ function OpenStackNetworkingContent() {
                 void load()
               } catch (e: unknown) {
                 toast.error(formatUserError(e))
+              } finally {
+                setBusyNet(false)
               }
             }}
           >
@@ -205,9 +212,11 @@ function OpenStackNetworkingContent() {
           </div>
           <button
             type="button"
-            className="px-3 py-1.5 rounded-lg bg-sky-600 text-white text-sm"
+            disabled={busyNet}
+            className="px-3 py-1.5 rounded-lg bg-sky-600 text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={async () => {
-              if (!subnetNetId || !subnetCidr.trim()) return
+              if (!subnetNetId || !subnetCidr.trim() || busyNet) return
+              setBusyNet(true)
               try {
                 await createOpenStackSubnet({
                   network_id: subnetNetId,
@@ -218,6 +227,8 @@ function OpenStackNetworkingContent() {
                 void load()
               } catch (e: unknown) {
                 toast.error(formatUserError(e))
+              } finally {
+                setBusyNet(false)
               }
             }}
           >
@@ -251,10 +262,12 @@ function OpenStackNetworkingContent() {
           </div>
           <button
             type="button"
-            className="px-3 py-1.5 rounded-lg bg-sky-600 text-white text-sm"
+            disabled={busyNet}
+            className="px-3 py-1.5 rounded-lg bg-sky-600 text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={async () => {
               const name = routerName.trim()
-              if (!name) return
+              if (!name || busyNet) return
+              setBusyNet(true)
               try {
                 await createOpenStackRouter({
                   name,
@@ -265,6 +278,8 @@ function OpenStackNetworkingContent() {
                 void load()
               } catch (e: unknown) {
                 toast.error(formatUserError(e))
+              } finally {
+                setBusyNet(false)
               }
             }}
           >
@@ -300,9 +315,11 @@ function OpenStackNetworkingContent() {
           </div>
           <button
             type="button"
-            className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-sm"
+            disabled={busyNet}
+            className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={async () => {
-              if (!linkRouterId || !linkSubnetId) return
+              if (!linkRouterId || !linkSubnetId || busyNet) return
+              setBusyNet(true)
               try {
                 await addOpenStackRouterInterface({
                   router_id: linkRouterId,
@@ -312,6 +329,8 @@ function OpenStackNetworkingContent() {
                 void load()
               } catch (e: unknown) {
                 toast.error(formatUserError(e))
+              } finally {
+                setBusyNet(false)
               }
             }}
           >
@@ -360,9 +379,11 @@ function OpenStackNetworkingContent() {
           />
           <button
             type="button"
-            className="px-3 py-1.5 rounded-lg bg-sky-600 text-white text-sm"
+            disabled={busyNet}
+            className="px-3 py-1.5 rounded-lg bg-sky-600 text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={async () => {
-              if (!portNetId) return
+              if (!portNetId || busyNet) return
+              setBusyNet(true)
               try {
                 await createOpenStackPort({
                   network_id: portNetId,
@@ -372,6 +393,8 @@ function OpenStackNetworkingContent() {
                 void load()
               } catch (e: unknown) {
                 toast.error(formatUserError(e))
+              } finally {
+                setBusyNet(false)
               }
             }}
           >

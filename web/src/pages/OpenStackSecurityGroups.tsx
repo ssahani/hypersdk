@@ -46,6 +46,8 @@ function OpenStackSecurityGroupsContent() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [deleteGroupTarget, setDeleteGroupTarget] = useState<OpenStackSecurityGroup | null>(null)
   const [deletingGroup, setDeletingGroup] = useState(false)
+  const [newSgName, setNewSgName] = useState('')
+  const [creatingSg, setCreatingSg] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -122,20 +124,25 @@ function OpenStackSecurityGroupsContent() {
 
       <div className="rounded-xl border border-slate-700 p-4 flex flex-wrap gap-2 items-end text-sm">
         <input id="new-sg-name" placeholder="New group name" aria-label="New security group name"
+          value={newSgName} onChange={(e) => setNewSgName(e.target.value)}
           className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700" />
-        <button type="button" className="px-3 py-1.5 rounded-lg bg-sky-600 text-white"
+        <button type="button" disabled={creatingSg || !newSgName.trim()}
+          className="px-3 py-1.5 rounded-lg bg-sky-600 text-white disabled:opacity-40 disabled:cursor-not-allowed"
           onClick={async () => {
-            const el = document.getElementById('new-sg-name') as HTMLInputElement
-            const name = el?.value?.trim()
-            if (!name) return
+            const name = newSgName.trim()
+            if (!name || creatingSg) return
+            setCreatingSg(true)
             try {
               await createOpenStackSecurityGroup({ name })
               toast.success('Security group created')
+              setNewSgName('')
               void load()
             } catch (e: unknown) {
               toast.error(formatUserError(e))
+            } finally {
+              setCreatingSg(false)
             }
-          }}>Create group</button>
+          }}>{creatingSg ? 'Creating…' : 'Create group'}</button>
         <Link to="/openstack/instances" className="text-sky-400 hover:underline ml-auto text-xs">
           Attach on instance detail
         </Link>

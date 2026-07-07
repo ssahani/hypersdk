@@ -56,13 +56,22 @@ function OpenStackFlavorsContent() {
       toast.error('Name is required')
       return
     }
+    // Empty → sensible default; but a typed negative previously passed straight
+    // through (Number('-4') is truthy) and 0 was silently coerced to the default.
+    const vcpusN = vcpus.trim() ? Number(vcpus) : 1
+    const ramN = ram.trim() ? Number(ram) : 512
+    const diskN = disk.trim() ? Number(disk) : 0
+    if (!Number.isFinite(vcpusN) || vcpusN < 1 || !Number.isFinite(ramN) || ramN < 1 || !Number.isFinite(diskN) || diskN < 0) {
+      toast.error('vCPUs and RAM must be at least 1; disk must be 0 or more')
+      return
+    }
     setCreating(true)
     try {
       await createOpenStackFlavor({
         name: name.trim(),
-        vcpus: Number(vcpus) || 1,
-        ram_mb: Number(ram) || 512,
-        disk_gb: Number(disk) || 0,
+        vcpus: vcpusN,
+        ram_mb: ramN,
+        disk_gb: diskN,
         is_public: true,
       })
       toast.success('Flavor created')

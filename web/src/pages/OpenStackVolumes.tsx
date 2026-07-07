@@ -58,6 +58,7 @@ function OpenStackVolumesContent() {
   const [name, setName] = useState('')
   const [volumeType, setVolumeType] = useState('')
   const [creating, setCreating] = useState(false)
+  const [creatingFromImage, setCreatingFromImage] = useState(false)
   const [types, setTypes] = useState<{ id: string; name: string }[]>([])
   const [restoreSnapId, setRestoreSnapId] = useState('')
   const [restoreName, setRestoreName] = useState('')
@@ -206,9 +207,11 @@ function OpenStackVolumesContent() {
             className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
           <input aria-label="Size in GB" value={fromImageSize} onChange={(e) => setFromImageSize(e.target.value)} placeholder="Size GB (opt)"
             className="w-28 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
-          <button type="button" disabled={!fromImageId}
-            className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-sm disabled:opacity-40"
+          <button type="button" disabled={!fromImageId || creatingFromImage}
+            className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={async () => {
+              if (!fromImageId || creatingFromImage) return
+              setCreatingFromImage(true)
               try {
                 const sz = fromImageSize.trim() ? Number.parseInt(fromImageSize, 10) : undefined
                 await createOpenStackVolumeFromImage({
@@ -217,9 +220,11 @@ function OpenStackVolumesContent() {
                   size_gb: Number.isFinite(sz) && sz! > 0 ? sz : undefined,
                 })
                 toast.success('Volume created from image')
+                setFromImageName('')
+                setFromImageSize('')
                 void load()
-              } catch (e: unknown) { toast.error(formatUserError(e)) }
-            }}>Create</button>
+              } catch (e: unknown) { toast.error(formatUserError(e)) } finally { setCreatingFromImage(false) }
+            }}>{creatingFromImage ? 'Creating…' : 'Create'}</button>
         </div>
       </div>
 
