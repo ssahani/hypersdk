@@ -1,9 +1,11 @@
 // Integration smoke test: fresh SQLite DB → migrate → bootstrap → hit every GET route.
 // Run with: cargo test -p machina-controller --test routes_smoke
 
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::body::Body;
+use axum::extract::connect_info::MockConnectInfo;
 use http::{Request, StatusCode};
 use machina_controller::{
     api,
@@ -34,7 +36,12 @@ async fn build_app_with_pool() -> (axum::Router, sqlx::SqlitePool) {
     let task_bus = task_bus as Arc<dyn TaskBus>;
     let leader = leader::spawn(pool.clone(), "test-controller".into());
     let state = AppState::new(pool.clone(), config, task_bus, leader);
-    (api::router(state), pool)
+    // The rate-limit middleware extracts ConnectInfo<SocketAddr> (client IP); the
+    // real server provides it via into_make_service_with_connect_info, but
+    // `oneshot` does not — inject a mock so routes don't 500 on a missing
+    // extension.
+    let app = api::router(state).layer(MockConnectInfo(SocketAddr::from(([127, 0, 0, 1], 0))));
+    (app, pool)
 }
 
 async fn get(app: &axum::Router, path: &str) -> StatusCode {
@@ -81,7 +88,7 @@ async fn migrate_creates_all_tables() {
         "clusters", "users", "hosts", "vms", "tasks", "events",
         "firewall_sites", "firewall_site_policies",
         "soc_detection_rules", "soc_alerts", "slo_policies",
-        "ai_providers", "ai_prompts", "ai_actions", "ai_memory",
+        "ai_providers", "ai_prompts", "ai_actions", "ai_memory_entries",
         "storage_pools", "networks", "network_segments",
         "vault_providers", "mfa_policies",
         "vm_schedules",
