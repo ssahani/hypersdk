@@ -13,17 +13,19 @@ import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusB
 
 type Tab = 'vms' | 'hosts'
 
-function bar(label: string, pct: number, tone: 'cpu' | 'mem' | 'io' | 'thermal') {
-  const thresholds = tone === 'io' || tone === 'thermal'
-    ? { warn: 20, error: 50 }
-    : { warn: 60, error: 85 }
+function bar(label: string, value: number, tone: 'cpu' | 'mem' | 'io' | 'thermal') {
+  // Thermal is a temperature in °C, not a percentage — its own thresholds and
+  // unit. (It was using the IO/PSI thresholds, so a normal 30°C read as red.)
+  const thresholds =
+    tone === 'thermal' ? { warn: 70, error: 85 } : tone === 'io' ? { warn: 20, error: 50 } : { warn: 60, error: 85 }
+  const unit = tone === 'thermal' ? '°C' : '%'
   return (
     <div className="flex items-center gap-2 text-[10px] text-slate-500">
       <span className="w-14 shrink-0">{label}</span>
       <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
-        <div className={`h-full rounded-full ${utilizationBarClass(pct, thresholds)}`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+        <div className={`h-full rounded-full ${utilizationBarClass(value, thresholds)}`} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
       </div>
-      <span className="w-10 text-right">{pct.toFixed(0)}%</span>
+      <span className="w-10 text-right">{value.toFixed(0)}{unit}</span>
     </div>
   )
 }
@@ -48,8 +50,6 @@ export default function PlatformActivityMonitor() {
   }, [])
 
   useEffect(() => { void load() }, [load])
-
-  const maxVmMem = Math.max(1, ...(data?.top_vms.map((v) => v.memory_used_mib) ?? [1]))
 
   return (
     <PlatformPageChrome
@@ -84,7 +84,10 @@ export default function PlatformActivityMonitor() {
         data?.top_vms.length ? (
           <ul className="space-y-2">
             {data.top_vms.map((vm) => {
-              const memPct = Math.min(100, (vm.memory_used_mib / maxVmMem) * 100)
+              // Per-VM utilization (used / this VM's own allocation) — matches
+              // the "used / total MiB" text beside the bar. Previously divided by
+              // the fleet's peak VM, so the bar contradicted its own label.
+              const memPct = Math.min(100, (vm.memory_used_mib / Math.max(1, vm.memory_mib)) * 100)
               return (
                 <li key={vm.vm_id} className="platform-mac-stat rounded-xl border border-white/[0.06] bg-slate-900/50 p-4">
                   <div className="flex justify-between items-center mb-2">

@@ -133,15 +133,17 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
       ])
       setNetworks(nets)
       setHosts(hostList.filter((h) => h.state === 'online'))
-      if (nets.length > 0 && !nets.some((n) => n.name === network)) {
-        setNetwork(nets[0].name)
-      }
+      // Functional update so this callback doesn't close over `network` — a
+      // `network` dep made loadCatalog unstable, which re-ran the reset effect
+      // below and threw the user back to step 0 (and cleared the placement host)
+      // whenever they touched the Network select on the final step.
+      setNetwork((cur) => (nets.length > 0 && !nets.some((n) => n.name === cur) ? nets[0].name : cur))
     } catch {
       setTemplates([])
       setNetworks([])
       setHosts([])
     }
-  }, [network])
+  }, [])
 
   useEffect(() => {
     if (!open) return

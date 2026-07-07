@@ -77,6 +77,48 @@ export default function MissionControlPage() {
 
   const handleCreate = async (payload: VmWizardPayload) => {
     try {
+      // The launchpad opens the full wizard, so a user can pick Custom ISO, PXE/
+      // URL install, or Windows. Without these branches those choices fell through
+      // to the generic path and created a broken diskless/BIOS VM. Mirrors the
+      // canonical handler in MachineFinder/useMachineFinder.ts:handleCreate.
+      if (payload.os === 'custom-iso') {
+        navigate(`/platform/create-iso?name=${encodeURIComponent(payload.name)}`)
+        return
+      }
+      if (payload.os === 'custom-virt-install') {
+        const q = new URLSearchParams({ name: payload.name })
+        if (payload.network) q.set('network', payload.network)
+        navigate(`/platform/create-advanced?${q}`)
+        return
+      }
+      if (payload.windows) {
+        const wspec = sizeToSpec(payload.size)
+        const labels: Record<string, string> = { os_family: 'windows' }
+        if (payload.windows.tpm) labels.tpm = 'true'
+        if (payload.windows.secureBoot) labels.secure_boot = 'true'
+        if (payload.windows.virtio) {
+          labels.virtio_win = 'true'
+          if (payload.windows.virtioIsoPath.trim()) labels.virtio_win_iso = payload.windows.virtioIsoPath.trim()
+        }
+        if (payload.windows.rdp) labels.rdp = 'true'
+        const wbody: CreatePlatformVmBody = {
+          api_version: 'virt.zyvor.dev/v1',
+          kind: 'VirtualMachine',
+          metadata: { name: payload.name, labels },
+          tags: ['windows', payload.os, payload.network],
+          spec: {
+            cpu: { sockets: 1, cores: wspec.cores },
+            memory: wspec.memory,
+            firmware: payload.windows.uefi ? 'uefi' : 'bios',
+            storage: [{ name: 'root', size: wspec.disk, class: 'silver' }],
+            network: [{ network: payload.network, ip_mode: 'dhcp' }],
+          },
+        }
+        const wr = await createPlatformVm(wbody)
+        toastQueuedOperation(toast, `Creating ${payload.name}`, wr.task_id, tier)
+        await state.load()
+        return
+      }
       const spec = sizeToSpec(payload.size, payload.customSpec)
       if (payload.fromTemplate) {
         const r = await createFromTemplate({
