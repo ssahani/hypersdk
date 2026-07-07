@@ -87,6 +87,19 @@ pub fn materialize_cloud_init_seed_if_requested(
             "cloud_init_ssh_pubkey must be a single-line OpenSSH public key".into(),
         ));
     }
+    // The key and password are interpolated into the NoCloud user-data YAML; an
+    // embedded newline lets a value break out of its block and inject top-level
+    // cloud-config (e.g. `runcmd:`) that runs as root in the guest.
+    if key.contains('\n') || key.contains('\r') {
+        return Err(LibvirtError::Invalid(
+            "cloud_init_ssh_pubkey must be a single line".into(),
+        ));
+    }
+    if pass.contains('\n') || pass.contains('\r') {
+        return Err(LibvirtError::Invalid(
+            "cloud_init_password must not contain newlines".into(),
+        ));
+    }
 
     let seed_dir = pick_seed_dir();
     ensure_dir(&seed_dir)?;

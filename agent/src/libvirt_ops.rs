@@ -1034,13 +1034,17 @@ fn randomize_mac_addresses(xml: &str) -> String {
 }
 
 fn replace_disk_path(xml: &str, new_path: &str) -> String {
+    // Escape the path — a filename may legally contain ' < > & on Linux, which
+    // would otherwise break out of the file='…' attribute and inject arbitrary
+    // devices into a root-defined domain. Mirrors core::libvirt::clone.
+    let escaped = machina_core::xml::escape(new_path);
     let mut out = String::new();
     let mut replaced = false;
     for line in xml.lines() {
         let t = line.trim();
         if !replaced && t.starts_with("<source file='") {
             let indent: String = line.chars().take_while(|c| c.is_whitespace()).collect();
-            out.push_str(&format!("{indent}<source file='{new_path}'/>\n"));
+            out.push_str(&format!("{indent}<source file='{escaped}'/>\n"));
             replaced = true;
         } else {
             out.push_str(line);

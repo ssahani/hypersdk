@@ -287,6 +287,8 @@ pub fn list_volumes(
 }
 
 pub fn delete_volume(conn: &Connect, pool_name: &str, vol_name: &str) -> Result<(), LibvirtError> {
+    // Match create_volume's validation — reject names outside [alnum._-].
+    crate::validate::validate_name(vol_name)?;
     let pool = lookup_pool(conn, pool_name)?;
     let vol = StorageVol::lookup_by_name(&pool, vol_name)
         .map_err(|e| LibvirtError::NotFound(format!("Volume '{vol_name}' not found: {e}")))?;

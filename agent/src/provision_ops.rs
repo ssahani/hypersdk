@@ -51,6 +51,11 @@ fn parse_zfs_dataset(path: &str) -> anyhow::Result<(String, String)> {
 }
 
 pub fn provision_storage_pool(pool_name: &str, backend: &str, path: &str) -> anyhow::Result<()> {
+    // `pool_name` is request-controlled and reaches both `virsh pool-define-as`
+    // (leading-dash → argument injection) and root-owned filesystem paths like
+    // /var/lib/machina/nfs/{pool_name} (../ → path traversal / create_dir_all as
+    // root). Reject anything outside [alnum._-] up front.
+    machina_core::validate::validate_name(pool_name).map_err(|e| anyhow::anyhow!("{e}"))?;
     let backend = backend.trim().to_ascii_lowercase();
     let path = path.trim();
 
@@ -142,6 +147,13 @@ pub fn provision_storage_pool(pool_name: &str, backend: &str, path: &str) -> any
                     "directory backend cannot use host:path NFS syntax — use backend nfs"
                 );
             }
+            // create_dir_all runs as root — require an absolute path with no `..`
+            // so a relative/traversal path can't create dirs outside the target.
+            if !std::path::Path::new(path).is_absolute()
+                || path.split('/').any(|c| c == "..")
+            {
+                anyhow::bail!("directory pool path must be an absolute path without '..'");
+            }
             std::fs::create_dir_all(path)?;
             Command::new("virsh")
                 .args(["pool-define-as", pool_name, "dir", "--target", path])
@@ -192,6 +204,11 @@ pub fn provision_network(
     vlan_id: i32,
     bridge: &str,
 ) -> anyhow::Result<()> {
+    // `network_name` reaches `virsh net-start`/`net-autostart` as a positional
+    // argument (leading-dash → argument injection); reject anything outside
+    // [alnum._-] up front. The escaping/file-safe logic below is kept as
+    // defense-in-depth.
+    machina_core::validate::validate_name(network_name).map_err(|e| anyhow::anyhow!("{e}"))?;
     let bridge_name = if bridge.is_empty() { "virbr0" } else { bridge };
     fn xml_escape(s: &str) -> String {
         s.replace('&', "&amp;")
