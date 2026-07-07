@@ -1303,14 +1303,21 @@ pub async fn adopt_vm(
         "stopped" => crate::engine::vm_lifecycle::PHASE_STOPPED,
         _ => crate::engine::vm_lifecycle::PHASE_IDLE,
     };
-    sqlx::query(
-        "UPDATE vms SET managed = TRUE, desired_state = ?, lifecycle_phase = ?, last_error = '', updated_at = datetime('now') WHERE id = ?",
+    // `AND managed = FALSE` makes the flip atomic: of two concurrent adopts only
+    // one affects a row and proceeds to write the audit/event; the loser gets the
+    // same "already managed" error instead of a duplicate audit entry (TOCTOU on
+    // the SELECT-then-UPDATE above).
+    let adopted = sqlx::query(
+        "UPDATE vms SET managed = TRUE, desired_state = ?, lifecycle_phase = ?, last_error = '', updated_at = datetime('now') WHERE id = ? AND managed = FALSE",
     )
     .bind(desired)
     .bind(lifecycle)
     .bind(id)
     .execute(&state.pool)
     .await?;
+    if adopted.rows_affected() == 0 {
+        return Err(ApiError::bad_request("VM is already managed"));
+    }
     crate::tasks::enqueue::write_audit(
         &state,
         &actor.username,

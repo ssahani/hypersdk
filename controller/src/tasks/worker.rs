@@ -389,11 +389,16 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
     .execute(&state.pool)
     .await?;
 
-    let cluster_id: Uuid = sqlx::query_scalar("SELECT cluster_id FROM hosts WHERE id = ?")
-        .bind(host_id)
-        .fetch_optional(&state.pool)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("host {} not found or has no cluster", host_id))?;
+    // cluster_id is nullable; select as Option so a NULL decodes to None (a
+    // non-Option Uuid would raise a ColumnDecode error) — then .flatten() folds
+    // "no row" and "NULL cluster" into the same not-found error.
+    let cluster_id: Uuid =
+        sqlx::query_scalar::<_, Option<Uuid>>("SELECT cluster_id FROM hosts WHERE id = ?")
+            .bind(host_id)
+            .fetch_optional(&state.pool)
+            .await?
+            .flatten()
+            .ok_or_else(|| anyhow::anyhow!("host {} not found or has no cluster", host_id))?;
 
     let mut seen_names: HashSet<String> = HashSet::new();
 

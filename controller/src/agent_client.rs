@@ -78,26 +78,44 @@ pub async fn connect(addr: &str) -> anyhow::Result<AgentClient> {
     ))
 }
 
+/// Bound read-only inventory RPCs. These list calls are expected to return in
+/// well under a second, so a wedged agent (TCP accepted, then stuck in libvirt)
+/// must not block the single serial task worker forever. Mutating/long-running
+/// ops (apply/migrate/backup/snapshot) are intentionally NOT bounded here — they
+/// legitimately run for minutes.
+const READ_RPC_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+async fn read_rpc<T>(
+    label: &str,
+    fut: impl std::future::Future<Output = Result<tonic::Response<T>, tonic::Status>>,
+) -> anyhow::Result<T> {
+    match tokio::time::timeout(READ_RPC_TIMEOUT, fut).await {
+        Ok(res) => Ok(res?.into_inner()),
+        Err(_) => Err(anyhow::anyhow!(
+            "agent {label} timed out after {}s",
+            READ_RPC_TIMEOUT.as_secs()
+        )),
+    }
+}
+
 pub async fn list_vms(client: &mut AgentClient) -> anyhow::Result<ListVmsResponse> {
-    Ok(client.list_vms(ListVmsRequest {}).await?.into_inner())
+    read_rpc("list_vms", client.list_vms(ListVmsRequest {})).await
 }
 
 pub async fn list_networks(
     client: &mut AgentClient,
 ) -> anyhow::Result<ListNetworksResponse> {
-    Ok(client
-        .list_networks(ListNetworksRequest {})
-        .await?
-        .into_inner())
+    read_rpc("list_networks", client.list_networks(ListNetworksRequest {})).await
 }
 
 pub async fn list_storage_pools(
     client: &mut AgentClient,
 ) -> anyhow::Result<ListStoragePoolsResponse> {
-    Ok(client
-        .list_storage_pools(ListStoragePoolsRequest {})
-        .await?
-        .into_inner())
+    read_rpc(
+        "list_storage_pools",
+        client.list_storage_pools(ListStoragePoolsRequest {}),
+    )
+    .await
 }
 
 pub async fn apply_vm(

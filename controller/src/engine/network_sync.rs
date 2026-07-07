@@ -11,10 +11,18 @@ pub async fn sync_host_networks(
     host_id: Uuid,
     agent_addr: &str,
 ) -> anyhow::Result<usize> {
-    let cluster_id: Uuid = sqlx::query_scalar("SELECT cluster_id FROM hosts WHERE id = ?")
-        .bind(host_id)
-        .fetch_one(pool)
-        .await?;
+    // cluster_id is nullable — a host not yet assigned to a cluster decodes to
+    // None; skip rather than erroring the sync loop (decoding NULL into a
+    // non-Option Uuid would raise a ColumnDecode error).
+    let cluster_id: Option<Uuid> =
+        sqlx::query_scalar::<_, Option<Uuid>>("SELECT cluster_id FROM hosts WHERE id = ?")
+            .bind(host_id)
+            .fetch_optional(pool)
+            .await?
+            .flatten();
+    let Some(cluster_id) = cluster_id else {
+        return Ok(0);
+    };
 
     let mut client = agent_client::connect(agent_addr).await?;
     let list = agent_client::list_networks(&mut client).await?;
