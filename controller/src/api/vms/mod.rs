@@ -242,7 +242,11 @@ pub async fn create_vm(
     .bind(cluster_id)
     .bind(host_id)
     .bind(&body.vm.metadata.name)
-    .bind(&body.vm.metadata.project)
+    // Store the SAME resolved project the quota policy was evaluated against.
+    // Binding the raw Option left project=NULL when metadata.project was None
+    // (evaluated as "default"), so the VM then failed project=default list
+    // filters and per-project quota accounting.
+    .bind(&project)
     .bind(&spec_json)
     .bind(&body.desired_state)
     .bind(vcpus)

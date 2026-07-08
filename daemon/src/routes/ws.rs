@@ -708,7 +708,10 @@ async fn handle_ssh_proxy(socket: WebSocket, host: String) {
         ])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        // Discard stderr rather than pipe it: nothing takes/drains child.stderr, so
+        // a piped stderr's ~64 KiB kernel buffer could fill (chatty ssh
+        // diagnostics) and block the child mid-session.
+        .stderr(std::process::Stdio::null())
         .spawn()
     {
         Ok(c) => c,

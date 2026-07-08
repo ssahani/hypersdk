@@ -221,8 +221,10 @@ fn deterministic_insights(s: &GuestAiSnapshot, focus: Option<&str>) -> Determini
 }
 
 fn extract_json(text: &str) -> String {
-    if let Some(start) = text.find('{') {
-        if let Some(end) = text.rfind('}') {
+    // Guard start <= end so a stray '}' before the first '{' (malformed LLM
+    // output) can't panic text[start..=end] with an inverted slice range.
+    if let (Some(start), Some(end)) = (text.find('{'), text.rfind('}')) {
+        if start <= end {
             return text[start..=end].to_string();
         }
     }
@@ -267,5 +269,15 @@ mod tests {
             .recommendations
             .iter()
             .any(|r| r.action == "guest.sync_time"));
+    }
+
+    #[test]
+    fn extract_json_handles_inverted_braces() {
+        // Well-formed: returns the object span.
+        assert_eq!(extract_json("noise {\"a\":1} tail"), "{\"a\":1}");
+        // Inverted: a '}' before the first '{' must NOT panic (start > end).
+        assert_eq!(extract_json("ok} then {name"), "ok} then {name");
+        // No braces at all: passthrough.
+        assert_eq!(extract_json("plain text"), "plain text");
     }
 }

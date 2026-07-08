@@ -109,13 +109,13 @@ mod tests {
     }
 
     #[test]
-    #[test]
     fn inject_peer_label_adds_label() {
         let out = inject_peer_label("machina_host_cpu_percent 42\n", "peer-a");
         assert!(out.contains("machina_peer=\"peer-a\""));
         assert!(out.contains("machina_host_cpu_percent"));
     }
 
+    #[test]
     fn extracts_host_triplet() {
         let body = "machina_host_cpu_percent 10\nmachina_host_memory_percent 20\nmachina_host_disk_percent 30\n";
         let (c, m, d) = host_percents_from_samples(&parse_prometheus_text(body)).unwrap();

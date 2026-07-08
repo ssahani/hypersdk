@@ -304,8 +304,12 @@ fn snapshot_to_row(s: &GuestAiSnapshot) -> FleetVmGuestRow {
 }
 
 fn extract_json_obj(text: &str) -> String {
-    if let Some(start) = text.find('{') {
-        if let Some(end) = text.rfind('}') {
+    // Guard start <= end: `find('{')` is the FIRST brace, `rfind('}')` the LAST.
+    // On malformed/adversarial LLM output like "ok} ... {name" the last '}'
+    // precedes the first '{', and text[start..=end] would panic ("slice index
+    // starts at N but ends at M").
+    if let (Some(start), Some(end)) = (text.find('{'), text.rfind('}')) {
+        if start <= end {
             return text[start..=end].to_string();
         }
     }

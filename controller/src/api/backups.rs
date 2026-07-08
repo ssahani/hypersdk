@@ -65,6 +65,19 @@ pub async fn create_vm_backup(
         .await?;
 
     let id = Uuid::new_v4();
+    // Insert the record BEFORE enqueuing: the worker looks up backup_records by
+    // this id and hard-fails "backup record not found" if absent, so a worker
+    // (possibly another node) must never dequeue vm.backup before the row commits.
+    // Compensate with a delete if the enqueue fails. Mirrors create_vm_snapshot.
+    sqlx::query(
+        "INSERT INTO backup_records (id, vm_id, backup_type, status) VALUES (?, ?, ?, 'pending')",
+    )
+    .bind(id)
+    .bind(vm_id)
+    .bind(&body.backup_type)
+    .execute(&state.pool)
+    .await?;
+
     let task_id = enqueue_task(
         &state,
         "vm.backup",
@@ -77,16 +90,17 @@ pub async fn create_vm_backup(
         Some(vm_id),
         host_id,
     )
-    .await?;
-
-    sqlx::query(
-        "INSERT INTO backup_records (id, vm_id, backup_type, status) VALUES (?, ?, ?, 'pending')",
-    )
-    .bind(id)
-    .bind(vm_id)
-    .bind(&body.backup_type)
-    .execute(&state.pool)
-    .await?;
+    .await
+    .map_err(|e| {
+        let pool = state.pool.clone();
+        tokio::spawn(async move {
+            let _ = sqlx::query("DELETE FROM backup_records WHERE id = ?")
+                .bind(id)
+                .execute(&pool)
+                .await;
+        });
+        e
+    })?;
 
     Ok(Json(TaskResponse {
         task_id: task_id.to_string(),

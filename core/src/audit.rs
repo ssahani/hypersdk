@@ -128,7 +128,7 @@ fn maybe_rotate_audit_log(cfg: &AuditLogConfig) {
         let oldest = parent.join(format!("audit.log.{keep}"));
         let _ = fs::remove_file(oldest);
     }
-    for i in (1..keep).rev() {
+    for i in (1..=keep).rev() {
         let from = if i == 1 {
             path.clone()
         } else {
@@ -172,6 +172,40 @@ pub fn write_audit_event(event: &AuditEvent) {
     crate::audit_ship::ship_audit_event(event);
 }
 
+/// Parse one stored audit line into an event. Strips the optional
+/// `sha256:<hex>\t` signature prefix first — without this, a signed line's
+/// leading hash column shifted every field by one (timestamp="sha256:…",
+/// actor=result, …), corrupting every read/export precisely when tamper-evident
+/// signing was enabled. Mirrors verify_signed_audit_line's prefix handling.
+fn parse_audit_line(line: &str) -> Option<AuditEvent> {
+    let line = line
+        .strip_prefix("sha256:")
+        .and_then(|rest| rest.split_once('\t'))
+        .map(|(_hash, payload)| payload)
+        .unwrap_or(line);
+    let parts: Vec<&str> = line.split('\t').collect();
+    match parts.len() {
+        4 => Some(AuditEvent {
+            timestamp: parts[0].to_string(),
+            action: parts[1].to_string(),
+            target: parts[2].to_string(),
+            result: parts[3].to_string(),
+            actor: String::new(),
+        }),
+        n if n >= 5 => Some(AuditEvent {
+            timestamp: parts[0].to_string(),
+            action: parts[1].to_string(),
+            target: parts[2].to_string(),
+            result: parts[3].to_string(),
+            actor: parts[4].to_string(),
+        }),
+        _ => {
+            tracing::debug!("Skipping malformed audit line: {}", line);
+            None
+        }
+    }
+}
+
 pub fn load_audit_events(max: usize) -> Vec<AuditEvent> {
     let path = audit_log_path();
     let content = match fs::read_to_string(&path) {
@@ -183,29 +217,7 @@ pub fn load_audit_events(max: usize) -> Vec<AuditEvent> {
         .lines()
         .rev()
         .take(max)
-        .filter_map(|line| {
-            let parts: Vec<&str> = line.split('\t').collect();
-            match parts.len() {
-                4 => Some(AuditEvent {
-                    timestamp: parts[0].to_string(),
-                    action: parts[1].to_string(),
-                    target: parts[2].to_string(),
-                    result: parts[3].to_string(),
-                    actor: String::new(),
-                }),
-                n if n >= 5 => Some(AuditEvent {
-                    timestamp: parts[0].to_string(),
-                    action: parts[1].to_string(),
-                    target: parts[2].to_string(),
-                    result: parts[3].to_string(),
-                    actor: parts[4].to_string(),
-                }),
-                _ => {
-                    tracing::debug!("Skipping malformed audit line: {}", line);
-                    None
-                }
-            }
-        })
+        .filter_map(parse_audit_line)
         .collect::<Vec<_>>()
         .into_iter()
         .rev()
@@ -242,5 +254,28 @@ mod tests {
         let mut signed = maybe_sign_audit_line(raw, true);
         signed = signed.replace("vm.stop", "vm.start");
         assert!(!verify_signed_audit_line(&signed));
+    }
+
+    #[test]
+    fn parse_audit_line_unsigned_and_signed_agree() {
+        // Unsigned, no actor.
+        let e = parse_audit_line("2026-05-26T12:00:00Z\tvm.start\tmy-vm\tok").unwrap();
+        assert_eq!(e.timestamp, "2026-05-26T12:00:00Z");
+        assert_eq!(e.action, "vm.start");
+        assert_eq!(e.target, "my-vm");
+        assert_eq!(e.result, "ok");
+        assert_eq!(e.actor, "");
+
+        // With actor.
+        let e = parse_audit_line("2026-05-26T12:00:00Z\tvm.start\tmy-vm\tok\talice").unwrap();
+        assert_eq!(e.actor, "alice");
+
+        // Signed line must parse to the SAME fields (prefix stripped), not shifted.
+        let signed = maybe_sign_audit_line("2026-05-26T12:00:00Z\tvm.start\tmy-vm\tok\n", true);
+        let e = parse_audit_line(signed.trim_end()).unwrap();
+        assert_eq!(e.timestamp, "2026-05-26T12:00:00Z");
+        assert_eq!(e.action, "vm.start");
+        assert_eq!(e.target, "my-vm");
+        assert_eq!(e.result, "ok");
     }
 }

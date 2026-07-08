@@ -89,12 +89,27 @@ pub async fn forecast(pool: &SqlitePool) -> anyhow::Result<SreForecastReport> {
         });
     }
 
+    // Rank by severity numerically, not by string: lexicographically "high" >
+    // "critical" (h > c), so a raw descending string compare sorted `high` ahead
+    // of `critical` — and with truncate(20) genuine critical forecasts could be
+    // dropped while high ones were kept.
+    fn severity_rank(s: &str) -> u8 {
+        match s {
+            "critical" => 0,
+            "high" => 1,
+            "medium" => 2,
+            "low" => 3,
+            _ => 4,
+        }
+    }
     forecasts.sort_by(|a, b| {
-        b.severity.cmp(&a.severity).then_with(|| {
-            a.hours_until_critical
-                .partial_cmp(&b.hours_until_critical)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
+        severity_rank(&a.severity)
+            .cmp(&severity_rank(&b.severity))
+            .then_with(|| {
+                a.hours_until_critical
+                    .partial_cmp(&b.hours_until_critical)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
     });
     forecasts.truncate(20);
 

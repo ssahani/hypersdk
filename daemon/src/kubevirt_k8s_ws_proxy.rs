@@ -207,7 +207,17 @@ pub async fn proxy_kubevirt_ws(
         }
     });
 
-    let _ = tokio::join!(up_task, down_task);
+    // Abort the surviving direction when either ends. join! waited for BOTH, so a
+    // browser tab closing on an idle console left down_task parked on
+    // up_recv.next() forever — leaking the upstream WS, both tasks, AND the
+    // KubectlProxy child (its Drop/start_kill runs only after this returns).
+    // Mirrors relay_platform_ws / proxy_guac_ws.
+    let up_abort = up_task.abort_handle();
+    let down_abort = down_task.abort_handle();
+    tokio::select! {
+        _ = up_task => { down_abort.abort(); }
+        _ = down_task => { up_abort.abort(); }
+    }
     drop(proxy);
     info!("KubeVirt {tail} WS closed for {namespace}/{name}");
 }

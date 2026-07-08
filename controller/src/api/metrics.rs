@@ -67,14 +67,21 @@ pub async fn prometheus_metrics(
          # TYPE machina_platform_hosts_offline gauge\n\
          machina_platform_hosts_offline {offline}\n"
     );
-    for row in vm_rows {
-        let name = row.name.replace('"', "\\\"");
-        body.push_str(&format!(
+    // HELP/TYPE must appear exactly once per metric family — emitting them inside
+    // the loop produced a second TYPE line at ≥2 VMs, which the Prometheus parser
+    // rejects, failing the ENTIRE scrape. Emit the headers once, then only samples.
+    if !vm_rows.is_empty() {
+        body.push_str(
             "# HELP machina_vm_memory_used_mib VM memory used (MiB)\n\
              # TYPE machina_vm_memory_used_mib gauge\n\
-             machina_vm_memory_used_mib{{vm=\"{name}\",vm_id=\"{}\"}} {}\n\
              # HELP machina_vm_cpu_percent VM CPU percent (0 when unavailable)\n\
-             # TYPE machina_vm_cpu_percent gauge\n\
+             # TYPE machina_vm_cpu_percent gauge\n",
+        );
+    }
+    for row in vm_rows {
+        let name = row.name.replace('\\', "\\\\").replace('"', "\\\"");
+        body.push_str(&format!(
+            "machina_vm_memory_used_mib{{vm=\"{name}\",vm_id=\"{}\"}} {}\n\
              machina_vm_cpu_percent{{vm=\"{name}\",vm_id=\"{}\"}} {}\n",
             row.vm_id, row.memory_used_mib, row.vm_id, row.cpu_percent,
         ));
