@@ -133,7 +133,10 @@ fn run_task(
             Ok(Ok(())) => {}
             Ok(Err(e)) => {
                 tracing::error!(task_id = %msg.task_id, op = %msg.operation, "task failed: {e:#}");
-                on_task_failure(&st, &msg, &e.to_string()).await;
+                // Pass the FULL error chain ({e:#}) so on_task_failure can see a
+                // connect-level cause (e.g. "connection refused") that the top-level
+                // context message alone would hide.
+                on_task_failure(&st, &msg, &format!("{e:#}")).await;
             }
             Err(join_err) => {
                 tracing::error!(task_id = %msg.task_id, op = %msg.operation, "task handler panicked: {join_err} — worker recovered");
@@ -145,7 +148,7 @@ fn run_task(
 }
 
 async fn process_one(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
-    if !claim_task(&state.pool, msg.task_id).await? {
+    if !claim_task(&state.pool, msg.task_id, &state.config.controller_id).await? {
         tracing::debug!(task_id = %msg.task_id, "task already claimed; skipping");
         return Ok(());
     }
@@ -1007,12 +1010,13 @@ fn disk_path_for(cfg: &ControllerConfig, name: &str) -> String {
         .into_owned()
 }
 
-async fn claim_task(pool: &SqlitePool, id: Uuid) -> anyhow::Result<bool> {
+async fn claim_task(pool: &SqlitePool, id: Uuid, owner: &str) -> anyhow::Result<bool> {
     let claimed: Option<Uuid> = sqlx::query_scalar(
-        "UPDATE tasks SET status = 'running', updated_at = datetime('now')
+        "UPDATE tasks SET status = 'running', claimed_by = ?, updated_at = datetime('now')
          WHERE id = ? AND status = 'pending'
          RETURNING id",
     )
+    .bind(owner)
     .bind(id)
     .fetch_optional(pool)
     .await?;
@@ -1620,7 +1624,82 @@ fn vm_id_from_payload(msg: &TaskMessage) -> Option<Uuid> {
         .and_then(|s| Uuid::parse_str(s).ok())
 }
 
+/// Max total attempts (initial + retries) before a task fails terminally.
+const MAX_TASK_ATTEMPTS: i64 = 3;
+
+/// Only connection-ESTABLISHMENT failures are retried: if we never reached the
+/// agent, the operation provably did not run, so a retry is safe even for
+/// destructive ops (vm.delete/migrate). Deliberately does NOT match mid-call
+/// transport drops or app-level errors (ambiguous — the op may have partly run),
+/// nor a handler panic (a bug, not transient).
+fn is_transient_connect_error(err: &str) -> bool {
+    let e = err.to_ascii_lowercase();
+    const MARKERS: [&str; 7] = [
+        "tcp connect error",
+        "connection refused",
+        "error trying to connect",
+        "dns error",
+        "no route to host",
+        "failed to lookup address",
+        "network is unreachable",
+    ];
+    MARKERS.iter().any(|m| e.contains(m))
+}
+
 async fn on_task_failure(state: &AppState, msg: &TaskMessage, err: &str) {
+    // Count this attempt. Retry transient connect failures with backoff instead of
+    // failing terminally, so a momentary agent restart / network blip during a
+    // user op (vm.power/migrate) doesn't permanently fail it.
+    let attempts: i64 = sqlx::query_scalar(
+        "UPDATE tasks SET attempts = attempts + 1, updated_at = datetime('now')
+         WHERE id = ? RETURNING attempts",
+    )
+    .bind(msg.task_id)
+    .fetch_optional(&state.pool)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or(MAX_TASK_ATTEMPTS);
+
+    if attempts < MAX_TASK_ATTEMPTS && is_transient_connect_error(err) {
+        // Reset to pending (clearing the owner) and re-publish after a linear
+        // backoff. The failed run already released its scheduler key, so the
+        // re-published task dispatches cleanly on its next arrival.
+        let reset = sqlx::query(
+            "UPDATE tasks SET status = 'pending', claimed_by = NULL, message = ?, updated_at = datetime('now')
+             WHERE id = ? AND status = 'running'",
+        )
+        .bind(format!(
+            "retry {attempts}/{MAX_TASK_ATTEMPTS} after transient error: {err}"
+        ))
+        .bind(msg.task_id)
+        .execute(&state.pool)
+        .await;
+        if reset.is_ok() {
+            let backoff = std::time::Duration::from_secs(5 * attempts as u64);
+            let bus = state.task_bus.clone();
+            let pool = state.pool.clone();
+            let msg = msg.clone();
+            tracing::warn!(task_id = %msg.task_id, op = %msg.operation,
+                "transient failure; retry {attempts}/{MAX_TASK_ATTEMPTS} scheduled in {backoff:?}");
+            tokio::spawn(async move {
+                tokio::time::sleep(backoff).await;
+                if let Err(e) = bus.publish("machina.tasks", &msg).await {
+                    // Re-publish failed → no worker will pick it up; fail terminally.
+                    let _ = sqlx::query(
+                        "UPDATE tasks SET status = 'failed', message = ? WHERE id = ? AND status = 'pending'",
+                    )
+                    .bind(format!("retry re-publish failed: {e}"))
+                    .bind(msg.task_id)
+                    .execute(&pool)
+                    .await;
+                }
+            });
+            return;
+        }
+        // Fall through to terminal failure if the reset UPDATE itself failed.
+    }
+
     let _ = mark_task_failed(&state.pool, msg.task_id, err).await;
     if let Some(vm_id) = vm_id_from_payload(msg) {
         let _ = vm_lifecycle::set_vm_error(&state.pool, vm_id, err).await;
@@ -2336,6 +2415,26 @@ mod scheduler_tests {
     fn completing_unknown_key_is_noop() {
         let mut s = Scheduler::default();
         assert!(s.on_complete("vm_id:ghost").is_none());
+    }
+
+    #[test]
+    fn transient_classifier_matches_only_connect_failures() {
+        use super::is_transient_connect_error;
+        // Connection-establishment failures → retry (op never ran).
+        assert!(is_transient_connect_error(
+            "connect to agent: transport error: tcp connect error: Connection refused (os error 111)"
+        ));
+        assert!(is_transient_connect_error("error trying to connect: dns error"));
+        assert!(is_transient_connect_error("Network is unreachable"));
+        // App-level / ambiguous failures → do NOT retry (op may have run).
+        assert!(!is_transient_connect_error(
+            "status: NotFound, message: domain 'x' not found"
+        ));
+        assert!(!is_transient_connect_error("task handler panicked"));
+        assert!(!is_transient_connect_error("invalid memory spec"));
+        assert!(!is_transient_connect_error(
+            "status: DeadlineExceeded, message: timed out"
+        ));
     }
 
     #[test]

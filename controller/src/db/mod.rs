@@ -35,13 +35,31 @@ pub async fn ensure_bootstrap(
     // Nothing else transitions running->failed, so without this they stay
     // 'running' forever (never retried, since a re-publish only matches 'pending')
     // and block reconcile from healing the affected VM.
-    let reaped = sqlx::query(
-        "UPDATE tasks SET status = 'failed', message = 'controller restarted while task was running', \
-         updated_at = datetime('now') WHERE status = 'running'",
-    )
-    .execute(pool)
-    .await?
-    .rows_affected();
+    //
+    // When a STABLE controller id is configured (MACHINA_CONTROLLER_ID), reap only
+    // OUR own orphans (+ legacy NULL-owner rows) so we never fail a peer
+    // controller's in-flight task in a multi-controller deployment. Without a
+    // configured id the process picks a fresh random id each boot, so owner-scoping
+    // would orphan our own prior-run tasks — in that (single-controller) mode reap
+    // all 'running' rows as before.
+    let reaped = if let Some(id) = std::env::var("MACHINA_CONTROLLER_ID").ok().filter(|s| !s.is_empty()) {
+        sqlx::query(
+            "UPDATE tasks SET status = 'failed', message = 'controller restarted while task was running', \
+             updated_at = datetime('now') WHERE status = 'running' AND (claimed_by = ? OR claimed_by IS NULL)",
+        )
+        .bind(id)
+        .execute(pool)
+        .await?
+        .rows_affected()
+    } else {
+        sqlx::query(
+            "UPDATE tasks SET status = 'failed', message = 'controller restarted while task was running', \
+             updated_at = datetime('now') WHERE status = 'running'",
+        )
+        .execute(pool)
+        .await?
+        .rows_affected()
+    };
     if reaped > 0 {
         tracing::warn!("reaped {reaped} task(s) left in 'running' state after restart");
     }
