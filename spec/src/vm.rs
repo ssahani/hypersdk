@@ -267,24 +267,32 @@ pub fn validate_label(name: &str) -> Result<(), SpecError> {
     Ok(())
 }
 
+/// Upper bound on parsed memory (64 TiB in MiB). Beyond rejecting absurd specs,
+/// this keeps downstream KiB math (`memory_mib * 1024`) from overflowing u64.
+const MAX_MEMORY_MIB: u64 = 64 * 1024 * 1024;
+
 pub fn parse_memory_mib(raw: &str) -> Result<u64, SpecError> {
     let s = raw.trim();
-    let mib = if let Some(num) = s.strip_suffix("Gi") {
+    // f64 parse accepts "inf"/"nan"; reject them and negatives up front so they
+    // can't saturate to u64::MAX (inf) or 0 (nan) via `as u64`.
+    let parse_gib = |num: &str| -> Result<u64, SpecError> {
         let n: f64 = num
             .trim()
             .parse()
             .map_err(|e| SpecError::Memory(format!("{raw}: {e}")))?;
-        (n * 1024.0).round() as u64
+        if !n.is_finite() || n < 0.0 {
+            return Err(SpecError::Memory(format!("{raw}: invalid memory value")));
+        }
+        Ok((n * 1024.0).round() as u64)
+    };
+    let mib = if let Some(num) = s.strip_suffix("Gi") {
+        parse_gib(num)?
     } else if let Some(num) = s.strip_suffix("Mi") {
         num.trim()
             .parse::<u64>()
             .map_err(|e| SpecError::Memory(format!("{raw}: {e}")))?
     } else if let Some(num) = s.strip_suffix("G") {
-        let n: f64 = num
-            .trim()
-            .parse()
-            .map_err(|e| SpecError::Memory(format!("{raw}: {e}")))?;
-        (n * 1024.0).round() as u64
+        parse_gib(num)?
     } else {
         s.parse::<u64>()
             .map_err(|e| SpecError::Memory(format!("{raw}: {e}")))?
@@ -294,6 +302,11 @@ pub fn parse_memory_mib(raw: &str) -> Result<u64, SpecError> {
     if mib == 0 {
         return Err(SpecError::Memory(format!(
             "{raw}: memory must be greater than 0"
+        )));
+    }
+    if mib > MAX_MEMORY_MIB {
+        return Err(SpecError::Memory(format!(
+            "{raw}: memory exceeds maximum of {MAX_MEMORY_MIB} MiB"
         )));
     }
     Ok(mib)
@@ -333,6 +346,20 @@ mod tests {
     fn parse_memory_units() {
         assert_eq!(parse_memory_mib("512Mi").unwrap(), 512);
         assert_eq!(parse_memory_mib("2Gi").unwrap(), 2048);
+    }
+
+    #[test]
+    fn parse_memory_rejects_overflow_and_non_finite() {
+        // Previously "infGi" saturated to u64::MAX and slipped past the ==0
+        // guard, overflowing downstream memory_mib*1024.
+        assert!(parse_memory_mib("infGi").is_err());
+        assert!(parse_memory_mib("NaNGi").is_err());
+        assert!(parse_memory_mib("-5Gi").is_err());
+        assert!(parse_memory_mib("0Gi").is_err());
+        assert!(parse_memory_mib("18446744073709551615Mi").is_err()); // u64::MAX Mi > cap
+        assert!(parse_memory_mib("99999999Gi").is_err()); // > 64 TiB
+        // Sane values still parse.
+        assert_eq!(parse_memory_mib("1.5Gi").unwrap(), 1536);
     }
 
     #[test]

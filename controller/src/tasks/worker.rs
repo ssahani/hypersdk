@@ -428,12 +428,17 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
         };
 
         if let Some((id, _managed)) = existing {
+            // Refresh `name` too: we now match on uuid, so a domain renamed in
+            // place (same uuid, new name) must adopt the new name — otherwise the
+            // name-keyed reconcile below would treat the stale name as absent and
+            // mark this VM 'missing' / prune it.
             sqlx::query(
-                "UPDATE vms SET host_id = ?, observed_state = ?, uuid = COALESCE(NULLIF(?, ''), uuid),
+                "UPDATE vms SET host_id = ?, name = ?, observed_state = ?, uuid = COALESCE(NULLIF(?, ''), uuid),
                  vcpus = ?, memory_mib = ?, guest_ip = CASE WHEN ? != '' THEN ? ELSE guest_ip END,
                  last_seen_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
             )
             .bind(host_id)
+            .bind(&vm.name)
             .bind(&vm.state)
             .bind(&vm.uuid)
             .bind(vm.vcpus as i32)

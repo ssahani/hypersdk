@@ -38,21 +38,25 @@ pub fn extract_attr(xml: &str, tag: &str, attr: &str) -> Option<String> {
             }
         }
         let after = &xml[abs..];
-        let end = after.find('>')?;
+        // No closing '>' after this '<tag' → no complete tag remains; stop.
+        let Some(end) = after.find('>') else { break };
         let tag_content = &after[..end];
-        // Try double quotes
+        // Try double quotes. A malformed value (opening quote never closed within
+        // this tag) must skip to the NEXT candidate, not abort the whole search.
         let dq_pattern = format!("{}=\"", attr);
         if let Some(attr_start) = tag_content.find(&dq_pattern) {
             let value_start = attr_start + dq_pattern.len();
-            let value_end = tag_content[value_start..].find('"')?;
-            return Some(tag_content[value_start..value_start + value_end].to_string());
+            if let Some(value_end) = tag_content[value_start..].find('"') {
+                return Some(tag_content[value_start..value_start + value_end].to_string());
+            }
         }
         // Try single quotes
         let sq_pattern = format!("{}='", attr);
         if let Some(attr_start) = tag_content.find(&sq_pattern) {
             let value_start = attr_start + sq_pattern.len();
-            let value_end = tag_content[value_start..].find('\'')?;
-            return Some(tag_content[value_start..value_start + value_end].to_string());
+            if let Some(value_end) = tag_content[value_start..].find('\'') {
+                return Some(tag_content[value_start..value_start + value_end].to_string());
+            }
         }
         search_from = after_tag;
     }
@@ -132,6 +136,26 @@ mod tests {
         let xml = "<domain><name>myvm</name></domain>";
         assert_eq!(extract_text(xml, "name"), Some("myvm".to_string()));
         assert_eq!(extract_text(xml, "missing"), None);
+    }
+
+    #[test]
+    fn extract_attr_basic() {
+        let xml = "<graphics type='vnc' port='5900'/>";
+        assert_eq!(extract_attr(xml, "graphics", "type"), Some("vnc".into()));
+        assert_eq!(extract_attr(xml, "graphics", "port"), Some("5900".into()));
+        assert_eq!(extract_attr(xml, "graphics", "missing"), None);
+    }
+
+    #[test]
+    fn extract_attr_skips_malformed_earlier_tag() {
+        // The first <disk> has no attr; a malformed <disk> (unterminated quote)
+        // must not abort the search — the well-formed one after it should match.
+        // Previously the `?` on the missing closing quote returned None outright.
+        let xml = "<disk device='cdrom'/><disk device='disk'/>";
+        assert_eq!(extract_attr(xml, "disk", "device"), Some("cdrom".into()));
+        // Attribute present only on a later occurrence.
+        let xml2 = "<disk/><disk bus='virtio'/>";
+        assert_eq!(extract_attr(xml2, "disk", "bus"), Some("virtio".into()));
     }
 
     #[test]

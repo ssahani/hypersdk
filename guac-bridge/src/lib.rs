@@ -68,6 +68,16 @@ pub enum DisplayEndpoint {
 
 /// Run `virsh domdisplay <vm>` and parse `vnc://` / `spice://`.
 pub fn get_libvirt_display(vm: &str) -> Result<DisplayEndpoint> {
+    // `vm` is externally supplied; reject a leading '-' (virsh would read it as a
+    // flag — argument injection) and anything outside plausible domain-name chars.
+    if vm.is_empty()
+        || vm.starts_with('-')
+        || !vm
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+    {
+        bail!("invalid VM name: {vm:?}");
+    }
     let output = Command::new("virsh")
         .args(["domdisplay", vm])
         .output()

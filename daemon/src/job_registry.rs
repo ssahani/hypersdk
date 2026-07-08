@@ -224,8 +224,11 @@ impl JobRegistry {
     }
 
     pub fn list_summaries(&self) -> Vec<JobSummary> {
-        let o = self.order.lock().unwrap_or_else(|e| e.into_inner());
+        // Lock inner-then-order, matching the start_* functions — the reverse
+        // order here was an AB-BA inversion that could deadlock two worker
+        // threads when a GET /jobs raced a job-start POST.
         let g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let o = self.order.lock().unwrap_or_else(|e| e.into_inner());
         o.iter()
             .filter_map(|id| g.get(id).map(|j| j.summary.clone()))
             .collect()

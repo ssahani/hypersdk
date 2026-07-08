@@ -79,9 +79,14 @@ async fn relay_platform_ws(socket: WebSocket, upstream_path: String, token: Stri
         }
     });
 
+    // Abort the surviving direction when either ends — dropping a JoinHandle
+    // detaches rather than cancels, so without this a closed client tab left the
+    // u2c task blocked on upstream.next(), leaking the upstream WS + task.
+    let c2u_abort = c2u.abort_handle();
+    let u2c_abort = u2c.abort_handle();
     tokio::select! {
-        _ = c2u => {},
-        _ = u2c => {},
+        _ = c2u => { u2c_abort.abort(); },
+        _ = u2c => { c2u_abort.abort(); },
     }
 }
 
