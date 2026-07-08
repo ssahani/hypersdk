@@ -48,7 +48,13 @@ pub async fn authenticate(
     let Some((hash, role)) = row else {
         return Ok(None);
     };
-    if bcrypt::verify(password, &hash)? {
+    // bcrypt::verify is deliberately expensive (~50-100ms at default cost). Run it
+    // on the blocking pool so it doesn't stall an async runtime worker thread —
+    // otherwise a burst of Basic-auth requests could starve the executor.
+    let password = password.to_string();
+    let verified =
+        tokio::task::spawn_blocking(move || bcrypt::verify(&password, &hash)).await??;
+    if verified {
         Ok(Some(AuthUser {
             username: username.to_string(),
             role,

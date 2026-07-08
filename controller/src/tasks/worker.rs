@@ -1,10 +1,11 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::Arc;
 
 use machina_spec::VirtualMachine;
 use sqlx::SqlitePool;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Semaphore};
 use uuid::Uuid;
 
 use crate::agent_client;
@@ -14,27 +15,132 @@ use crate::state::AppState;
 use crate::tasks::enqueue::enqueue_task;
 use crate::tasks::TaskMessage;
 
+/// Max tasks executing concurrently across the whole controller. Bounds the fan-out
+/// of long agent RPCs (backup/migrate) and keeps SQLite-writer contention sane
+/// (pool max is 4). Tasks for the *same* resource still run strictly one at a time.
+const MAX_CONCURRENT_TASKS: usize = 8;
+
+/// Serialization key for a task: two tasks with the same key never run
+/// concurrently (preserving per-VM / per-host ordering and avoiding races), while
+/// different keys run in parallel. Derived from the payload since TaskMessage has
+/// no dedicated resource field. Tasks with no known resource key on their own
+/// task_id → full concurrency.
+fn resource_key(msg: &TaskMessage) -> String {
+    for field in ["vm_id", "host_id", "cluster_id"] {
+        if let Some(v) = msg.payload.get(field).and_then(|v| v.as_str()) {
+            if !v.is_empty() {
+                return format!("{field}:{v}");
+            }
+        }
+    }
+    format!("task:{}", msg.task_id)
+}
+
+/// Pure scheduling state: which resource keys are executing, and the FIFO backlog
+/// of tasks waiting behind an active same-key task. Extracted so the ordering
+/// logic is unit-testable independently of the async runtime.
+#[derive(Default)]
+struct Scheduler {
+    active: HashSet<String>,
+    queued: HashMap<String, VecDeque<TaskMessage>>,
+}
+
+impl Scheduler {
+    /// A task arrived. Returns Some(msg) to dispatch now, or None if it was queued
+    /// behind an already-running task for the same key.
+    fn on_arrival(&mut self, msg: TaskMessage) -> Option<TaskMessage> {
+        let key = resource_key(&msg);
+        if self.active.contains(&key) {
+            self.queued.entry(key).or_default().push_back(msg);
+            None
+        } else {
+            self.active.insert(key);
+            Some(msg)
+        }
+    }
+
+    /// A task for `key` finished. Returns the next queued task for that key to
+    /// dispatch (key stays active), or None if the key is now idle.
+    fn on_complete(&mut self, key: &str) -> Option<TaskMessage> {
+        if let Some(q) = self.queued.get_mut(key) {
+            if let Some(next) = q.pop_front() {
+                if q.is_empty() {
+                    self.queued.remove(key);
+                }
+                return Some(next);
+            }
+            self.queued.remove(key);
+        }
+        self.active.remove(key);
+        None
+    }
+}
+
 pub fn spawn(state: AppState, mut rx: mpsc::UnboundedReceiver<TaskMessage>) {
     tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            // Run each task in its own spawned task so a panic in a handler
-            // (an unwrap, an index/arith panic) is captured as a JoinError rather
-            // than unwinding and permanently killing this single worker loop —
-            // which would silently stop all task processing cluster-wide.
-            let st = state.clone();
-            let m = msg.clone();
-            match tokio::spawn(async move { process_one(&st, &m).await }).await {
-                Ok(Ok(())) => {}
-                Ok(Err(e)) => {
-                    tracing::error!(task_id = %msg.task_id, op = %msg.operation, "task failed: {e:#}");
-                    on_task_failure(&state, &msg, &e.to_string()).await;
+        // Process tasks CONCURRENTLY (up to MAX_CONCURRENT_TASKS) instead of one
+        // at a time. Previously the loop awaited each spawned task to completion,
+        // so a single multi-minute backup/migration blocked ALL task processing
+        // cluster-wide (including the host.inventory sweep). Tasks for the same
+        // resource key are still serialized in FIFO order to avoid races.
+        let sem = Arc::new(Semaphore::new(MAX_CONCURRENT_TASKS));
+        let mut sched = Scheduler::default();
+        let (done_tx, mut done_rx) = mpsc::unbounded_channel::<String>();
+        loop {
+            tokio::select! {
+                biased;
+                // Drain completions first so queued same-key work dispatches promptly.
+                Some(key) = done_rx.recv() => {
+                    if let Some(next) = sched.on_complete(&key) {
+                        run_task(&state, &sem, next, done_tx.clone());
+                    }
                 }
-                Err(join_err) => {
-                    tracing::error!(task_id = %msg.task_id, op = %msg.operation, "task handler panicked: {join_err} — worker recovered");
-                    on_task_failure(&state, &msg, "task handler panicked").await;
+                maybe = rx.recv() => {
+                    match maybe {
+                        Some(msg) => {
+                            if let Some(m) = sched.on_arrival(msg) {
+                                run_task(&state, &sem, m, done_tx.clone());
+                            }
+                        }
+                        None => break, // task bus closed → shutdown
+                    }
                 }
             }
         }
+    });
+}
+
+/// Spawn one task: acquire a concurrency permit, run it with panic isolation, then
+/// always signal completion of its resource key (even on panic) so the next queued
+/// same-key task can proceed.
+fn run_task(
+    state: &AppState,
+    sem: &Arc<Semaphore>,
+    msg: TaskMessage,
+    done_tx: mpsc::UnboundedSender<String>,
+) {
+    let st = state.clone();
+    let sem = sem.clone();
+    let key = resource_key(&msg);
+    tokio::spawn(async move {
+        let _permit = sem.acquire_owned().await;
+        // Inner spawn captures a handler panic as a JoinError instead of unwinding,
+        // guaranteeing we still send the completion signal below (else the key would
+        // stay active forever and wedge all same-key tasks).
+        let st_run = st.clone();
+        let m = msg.clone();
+        match tokio::spawn(async move { process_one(&st_run, &m).await }).await {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => {
+                tracing::error!(task_id = %msg.task_id, op = %msg.operation, "task failed: {e:#}");
+                on_task_failure(&st, &msg, &e.to_string()).await;
+            }
+            Err(join_err) => {
+                tracing::error!(task_id = %msg.task_id, op = %msg.operation, "task handler panicked: {join_err} — worker recovered");
+                on_task_failure(&st, &msg, "task handler panicked").await;
+            }
+        }
+        let _ = done_tx.send(key);
     });
 }
 
@@ -2168,4 +2274,86 @@ async fn run_incremental_backup(
         }
     }
     Ok(resp)
+}
+
+#[cfg(test)]
+mod scheduler_tests {
+    use super::{resource_key, Scheduler, TaskMessage};
+    use serde_json::json;
+    use uuid::Uuid;
+
+    fn msg(op: &str, payload: serde_json::Value) -> TaskMessage {
+        TaskMessage {
+            task_id: Uuid::new_v4(),
+            operation: op.into(),
+            payload,
+        }
+    }
+
+    #[test]
+    fn resource_key_prefers_vm_then_host_then_cluster() {
+        assert_eq!(
+            resource_key(&msg("vm.power", json!({"vm_id": "abc"}))),
+            "vm_id:abc"
+        );
+        assert_eq!(
+            resource_key(&msg("host.inventory", json!({"host_id": "h1"}))),
+            "host_id:h1"
+        );
+        assert_eq!(
+            resource_key(&msg("kubevirt.inventory", json!({"cluster_id": "c1"}))),
+            "cluster_id:c1"
+        );
+        // Empty id is ignored; falls through to a per-task unique key.
+        let m = msg("vm.power", json!({"vm_id": ""}));
+        assert_eq!(resource_key(&m), format!("task:{}", m.task_id));
+    }
+
+    #[test]
+    fn same_key_serializes_fifo_different_keys_parallel() {
+        let mut s = Scheduler::default();
+        let a1 = msg("vm.power", json!({"vm_id": "A"}));
+        let a2 = msg("vm.stop", json!({"vm_id": "A"}));
+        let b1 = msg("vm.power", json!({"vm_id": "B"}));
+
+        // First task for A dispatches immediately.
+        assert!(s.on_arrival(a1.clone()).is_some());
+        // Second task for A is held (A active).
+        assert!(s.on_arrival(a2.clone()).is_none());
+        // A different resource B runs in parallel.
+        assert!(s.on_arrival(b1.clone()).is_some());
+
+        // When A's first task finishes, the queued A task dispatches next (FIFO).
+        let next = s.on_complete("vm_id:A").expect("queued A task should dispatch");
+        assert_eq!(next.task_id, a2.task_id);
+        // A still active (running a2); completing again idles it.
+        assert!(s.on_complete("vm_id:A").is_none());
+        // B idles independently.
+        assert!(s.on_complete("vm_id:B").is_none());
+    }
+
+    #[test]
+    fn completing_unknown_key_is_noop() {
+        let mut s = Scheduler::default();
+        assert!(s.on_complete("vm_id:ghost").is_none());
+    }
+
+    #[test]
+    fn deep_queue_drains_in_order() {
+        let mut s = Scheduler::default();
+        let first = msg("vm.power", json!({"vm_id": "A"}));
+        assert!(s.on_arrival(first).is_some());
+        let queued: Vec<_> = (0..3)
+            .map(|_| msg("vm.power", json!({"vm_id": "A"})))
+            .collect();
+        for m in &queued {
+            assert!(s.on_arrival(m.clone()).is_none());
+        }
+        for expected in &queued {
+            let next = s.on_complete("vm_id:A").expect("should drain queued task");
+            assert_eq!(next.task_id, expected.task_id);
+        }
+        // Backlog empty → next completion idles the key.
+        assert!(s.on_complete("vm_id:A").is_none());
+    }
 }
