@@ -23,6 +23,15 @@ pub fn spawn(state: AppState) {
     });
 }
 
+/// Minutes to wait since the last power attempt before retrying a chronically
+/// failing reconcile op: 2^fails minutes, capped at 30. `fails == 0` → no wait.
+fn reconcile_backoff_minutes(recent_fails: i64) -> i64 {
+    if recent_fails <= 0 {
+        return 0;
+    }
+    (1i64 << recent_fails.min(5)).min(30)
+}
+
 async fn reconcile_once(state: &AppState) -> anyhow::Result<()> {
     let rows: Vec<(Uuid, String, String, String)> = sqlx::query_as(
         "SELECT id, name, desired_state, observed_state FROM vms
@@ -46,8 +55,12 @@ async fn reconcile_once(state: &AppState) -> anyhow::Result<()> {
             continue;
         };
 
-        let action = if desired == "running" && !matches!(observed.as_str(), "running" | "blocked")
-        {
+        let action = if desired == "running" && observed == "paused" {
+            // A running-but-paused domain must be RESUMED, not started. `start`
+            // errors with "domain already running", so the VM would never
+            // converge and would re-enqueue a failing task every tick.
+            "resume"
+        } else if desired == "running" && !matches!(observed.as_str(), "running" | "blocked") {
             "start"
         } else if desired == "stopped"
             && matches!(observed.as_str(), "running" | "blocked" | "paused")
@@ -72,6 +85,38 @@ async fn reconcile_once(state: &AppState) -> anyhow::Result<()> {
             continue;
         }
 
+        // Exponential backoff on a chronically-failing power op. The overlap guard
+        // above only prevents *concurrent* tasks; a start/stop that fails fast
+        // leaves the pending/running set immediately, so without backoff a VM that
+        // never converges would re-enqueue — and fire a task_failed webhook —
+        // every 60s forever. Space attempts by 2^fails minutes (capped at 30)
+        // measured from the last attempt; recent_fails == 0 → no delay.
+        let recent_fails: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM tasks
+             WHERE resource_id = ? AND operation = 'vm.power' AND status = 'failed'
+               AND created_at > datetime('now', '-1 hour')",
+        )
+        .bind(vm_id)
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(0);
+        if recent_fails > 0 {
+            let backoff_min = reconcile_backoff_minutes(recent_fails);
+            let too_soon: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM tasks
+                 WHERE resource_id = ? AND operation = 'vm.power'
+                   AND created_at > datetime('now', ?))",
+            )
+            .bind(vm_id)
+            .bind(format!("-{backoff_min} minutes"))
+            .fetch_one(&state.pool)
+            .await
+            .unwrap_or(false);
+            if too_soon {
+                continue;
+            }
+        }
+
         if let Err(e) = enqueue_task(
             &state,
             "vm.power",
@@ -94,4 +139,20 @@ async fn reconcile_once(state: &AppState) -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::reconcile_backoff_minutes;
+
+    #[test]
+    fn backoff_schedule() {
+        assert_eq!(reconcile_backoff_minutes(0), 0); // healthy → retry immediately
+        assert_eq!(reconcile_backoff_minutes(1), 2);
+        assert_eq!(reconcile_backoff_minutes(2), 4);
+        assert_eq!(reconcile_backoff_minutes(3), 8);
+        assert_eq!(reconcile_backoff_minutes(4), 16);
+        assert_eq!(reconcile_backoff_minutes(5), 30); // 32 capped to 30
+        assert_eq!(reconcile_backoff_minutes(20), 30); // stays capped, no shift overflow
+    }
 }

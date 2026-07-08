@@ -104,9 +104,9 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let victims: Vec<(Uuid, String, Uuid, i32, i32, String, bool, bool)> = sqlx::query_as(
+    let victims: Vec<(Uuid, String, Uuid, i32, i32, String, bool, bool, i64)> = sqlx::query_as(
         "SELECT v.id, v.name, v.host_id, v.ha_recovery_count, hp.restart_attempts, v.desired_state,
-                h.fenced, hp.fence_on_failure
+                h.fenced, hp.fence_on_failure, v.memory_mib
          FROM vms v
          JOIN ha_policies hp ON hp.vm_id = v.id AND hp.enabled = TRUE
          JOIN hosts h ON h.id = v.host_id
@@ -116,8 +116,22 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
     .fetch_all(&state.pool)
     .await?;
 
-    for (vm_id, vm_name, failed_host, recovery_count, max_attempts, desired, host_fenced, fence_required)
-        in victims
+    // Memory (MiB) already promised to each candidate destination earlier in this
+    // scan, so a burst of victims from one failed host isn't all piled onto the
+    // single least-loaded survivor.
+    let mut reserved: std::collections::HashMap<Uuid, i64> = std::collections::HashMap::new();
+
+    for (
+        vm_id,
+        vm_name,
+        failed_host,
+        recovery_count,
+        max_attempts,
+        desired,
+        host_fenced,
+        fence_required,
+        vm_memory_mib,
+    ) in victims
     {
         // Split-brain guard: if this VM's policy requires fencing, only recover once the
         // failed host has been confirmed fenced. An unfenced host may still be running the
@@ -143,14 +157,23 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
             continue;
         }
 
-        let dest: Option<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM hosts
+        // Capacity-aware destination: pick the least-loaded online host that
+        // actually has enough free memory for the victim, accounting for other
+        // victims already assigned to it earlier in THIS scan. Without this, HA
+        // piled every victim of a failed host onto the single least-loaded
+        // survivor and could push it into memory over-commit / OOM — ha.recover
+        // calls apply_vm directly with no precheck (unlike vm.migrate). We gate on
+        // memory (the hard OOM constraint) and leave CPU soft so an emergency
+        // recovery isn't stranded merely because the surviving hosts run warm.
+        let candidates: Vec<(Uuid, i64)> = sqlx::query_as(
+            "SELECT id, (memory_total_mib - memory_used_mib) AS headroom FROM hosts
              WHERE id != ? AND state = 'online' AND maintenance_mode = FALSE
-             ORDER BY vm_count, memory_used_mib LIMIT 1",
+             ORDER BY vm_count, memory_used_mib",
         )
         .bind(failed_host)
-        .fetch_optional(&state.pool)
+        .fetch_all(&state.pool)
         .await?;
+        let dest = pick_ha_dest(&candidates, &reserved, vm_memory_mib);
 
         let Some(dest_host) = dest else {
             record_ha_event_deduped(
@@ -158,11 +181,12 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
                 Some(vm_id),
                 Some(failed_host),
                 "ha.no_capacity",
-                &format!("No online host to recover VM {vm_name}"),
+                &format!("No online host with capacity to recover VM {vm_name}"),
             )
             .await?;
             continue;
         };
+        *reserved.entry(dest_host).or_insert(0) += vm_memory_mib;
 
         let mut tx = state.pool.begin().await?;
         sqlx::query(
@@ -248,6 +272,23 @@ async fn record_ha_event_deduped(
     record_ha_event(pool, vm_id, host_id, action, message).await
 }
 
+/// Pick the first candidate host (candidates are pre-ordered least-loaded first)
+/// whose free memory — minus memory already reserved to it earlier in this scan —
+/// covers `need_mib`. Returns None when no online host can fit the VM.
+fn pick_ha_dest(
+    candidates: &[(Uuid, i64)],
+    reserved: &std::collections::HashMap<Uuid, i64>,
+    need_mib: i64,
+) -> Option<Uuid> {
+    candidates
+        .iter()
+        .find(|(id, headroom)| {
+            let used = reserved.get(id).copied().unwrap_or(0);
+            headroom.saturating_sub(used) >= need_mib
+        })
+        .map(|(id, _)| *id)
+}
+
 async fn record_ha_event(
     pool: &SqlitePool,
     vm_id: Option<Uuid>,
@@ -304,4 +345,45 @@ pub struct HaEventRow {
     pub action: String,
     pub message: String,
     pub created_at: DateTime<Utc>,
+}
+
+#[cfg(test)]
+mod ha_dest_tests {
+    use super::pick_ha_dest;
+    use std::collections::HashMap;
+    use uuid::Uuid;
+
+    #[test]
+    fn picks_first_host_that_fits() {
+        let a = Uuid::from_u128(1);
+        let b = Uuid::from_u128(2);
+        // a is least-loaded (first) but only 512 MiB free; b has 4096.
+        let candidates = vec![(a, 512i64), (b, 4096i64)];
+        let reserved = HashMap::new();
+        // 2 GiB VM cannot fit on a, must land on b.
+        assert_eq!(pick_ha_dest(&candidates, &reserved, 2048), Some(b));
+        // 256 MiB VM fits on the least-loaded a.
+        assert_eq!(pick_ha_dest(&candidates, &reserved, 256), Some(a));
+    }
+
+    #[test]
+    fn respects_in_scan_reservation() {
+        let a = Uuid::from_u128(1);
+        let b = Uuid::from_u128(2);
+        let candidates = vec![(a, 4096i64), (b, 4096i64)];
+        // a already promised 3072 MiB earlier this scan → only 1024 left.
+        let mut reserved = HashMap::new();
+        reserved.insert(a, 3072i64);
+        // A 2 GiB victim can't fit on a anymore; overflow to b.
+        assert_eq!(pick_ha_dest(&candidates, &reserved, 2048), Some(b));
+    }
+
+    #[test]
+    fn none_when_nothing_fits() {
+        let a = Uuid::from_u128(1);
+        let candidates = vec![(a, 1024i64)];
+        assert_eq!(pick_ha_dest(&candidates, &HashMap::new(), 8192), None);
+        // Empty candidate set (no online hosts) → None.
+        assert_eq!(pick_ha_dest(&[], &HashMap::new(), 1), None);
+    }
 }
