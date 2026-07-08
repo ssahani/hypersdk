@@ -404,14 +404,28 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
 
     for vm in list.vms {
         seen_names.insert(vm.name.clone());
-        let existing: Option<(Uuid, bool)> = sqlx::query_as(
-            "SELECT id, managed FROM vms
-             WHERE cluster_id = ? AND name = ? AND inventory_source = 'libvirt'",
-        )
-        .bind(cluster_id)
-        .bind(&vm.name)
-        .fetch_optional(&state.pool)
-        .await?;
+        // Match on the libvirt UUID (the VM's stable identity) when reported, so
+        // a migrated VM updates its own row and two same-name VMs on different
+        // hosts stay distinct. Fall back to name only when no uuid is available.
+        let existing: Option<(Uuid, bool)> = if !vm.uuid.trim().is_empty() {
+            sqlx::query_as(
+                "SELECT id, managed FROM vms
+                 WHERE cluster_id = ? AND uuid = ? AND inventory_source = 'libvirt'",
+            )
+            .bind(cluster_id)
+            .bind(vm.uuid.trim())
+            .fetch_optional(&state.pool)
+            .await?
+        } else {
+            sqlx::query_as(
+                "SELECT id, managed FROM vms
+                 WHERE cluster_id = ? AND name = ? AND inventory_source = 'libvirt'",
+            )
+            .bind(cluster_id)
+            .bind(&vm.name)
+            .fetch_optional(&state.pool)
+            .await?
+        };
 
         if let Some((id, _managed)) = existing {
             sqlx::query(

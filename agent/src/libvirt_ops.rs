@@ -795,15 +795,26 @@ impl LibvirtCtx {
                 "disk not found: {disk_path}"
             )));
         }
+        // Hot-plug on a running domain: without --live the disk is only written to
+        // persistent config (visible after reboot) while the op reports success,
+        // so callers wrongly believe it was live-attached.
+        let running = Domain::lookup_by_name(&self.conn, vm_name)
+            .ok()
+            .and_then(|d| d.is_active().ok())
+            .unwrap_or(false);
+        let mut args = vec![
+            "attach-disk",
+            vm_name,
+            disk_path,
+            target_dev,
+            "--config",
+            "--persistent",
+        ];
+        if running {
+            args.push("--live");
+        }
         let out = Command::new("virsh")
-            .args([
-                "attach-disk",
-                vm_name,
-                disk_path,
-                target_dev,
-                "--config",
-                "--persistent",
-            ])
+            .args(&args)
             .output()
             .map_err(|e| LibvirtError::Operation(format!("virsh attach-disk: {e}")))?;
         if !out.status.success() {
