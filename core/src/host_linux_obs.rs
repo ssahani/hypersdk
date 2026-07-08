@@ -99,20 +99,16 @@ fn io_err(msg: impl Into<String>) -> LibvirtError {
     LibvirtError::Operation(msg.into())
 }
 
-#[cfg(target_os = "linux")]
-fn read_pressure(path: &str) -> PressureAvg {
-    // /proc/pressure/* is two lines:
-    //   some avg10=X avg60=Y avg300=Z total=N
-    //   full avg10=X avg60=Y avg300=Z total=N
-    // The old parser looked for `some=`/`full=` tokens that don't exist (the
-    // token is a bare `some`, then `avgN=`/`total=`), so some/full were always
-    // 0 and only the first line was read — the host never showed any pressure.
-    // Report avg10 (most-recent 10s window, a %) for some/full and the some
-    // line's total stall counter.
-    let content = match fs::read_to_string(path) {
-        Ok(c) => c,
-        Err(_) => return PressureAvg::default(),
-    };
+/// Parse the two-line `/proc/pressure/*` (PSI) format into a PressureAvg.
+///
+///   some avg10=X avg60=Y avg300=Z total=N
+///   full avg10=X avg60=Y avg300=Z total=N
+///
+/// The old parser looked for `some=`/`full=` tokens that don't exist (the token
+/// is a bare `some`, then `avgN=`/`total=`) and only read the first line, so
+/// some/full were always 0 — the host never showed any pressure. Report avg10
+/// (most-recent 10s window, a %) for some/full and the some line's total counter.
+fn parse_pressure(content: &str) -> PressureAvg {
     let mut out = PressureAvg::default();
     for line in content.lines() {
         let mut tokens = line.split_whitespace();
@@ -136,6 +132,45 @@ fn read_pressure(path: &str) -> PressureAvg {
         }
     }
     out
+}
+
+#[cfg(target_os = "linux")]
+fn read_pressure(path: &str) -> PressureAvg {
+    fs::read_to_string(path)
+        .map(|c| parse_pressure(&c))
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod pressure_tests {
+    use super::parse_pressure;
+
+    #[test]
+    fn parses_avg10_from_both_lines() {
+        let sample = "some avg10=0.49 avg60=0.61 avg300=0.67 total=22668891778\n\
+                      full avg10=0.10 avg60=0.05 avg300=0.02 total=42359297\n";
+        let p = parse_pressure(sample);
+        assert!((p.some - 0.49).abs() < 1e-9, "some avg10 = {}", p.some);
+        assert!((p.full - 0.10).abs() < 1e-9, "full avg10 = {}", p.full);
+        assert!((p.total - 22668891778.0).abs() < 1.0, "some total = {}", p.total);
+    }
+
+    #[test]
+    fn zero_pressure_is_zero_not_garbage() {
+        let sample = "some avg10=0.00 avg60=0.00 avg300=0.00 total=0\n\
+                      full avg10=0.00 avg60=0.00 avg300=0.00 total=0\n";
+        let p = parse_pressure(sample);
+        assert_eq!(p.some, 0.0);
+        assert_eq!(p.full, 0.0);
+        assert_eq!(p.total, 0.0);
+    }
+
+    #[test]
+    fn empty_or_malformed_input_defaults_to_zero() {
+        let p = parse_pressure("");
+        assert_eq!(p.some, 0.0);
+        assert_eq!(p.full, 0.0);
+    }
 }
 
 pub fn read_host_pressure() -> HostPressureStats {

@@ -18,6 +18,68 @@ const VIR_DOMAIN_MEMORY_STAT_AVAILABLE: u32 = 5;
 const VIR_DOMAIN_MEMORY_STAT_ACTUAL_BALLOON: u32 = 6;
 const VIR_DOMAIN_MEMORY_STAT_RSS: u32 = 7;
 
+/// Compute (total_mb, used_mb, pct) from libvirt memory-stat values (all KiB).
+/// used = available − unused (guest usable RAM minus free), falling back to RSS
+/// then 0; total = balloon (allocation), falling back to the info memory.
+fn compute_memory_mb(
+    actual_balloon_kb: u64,
+    available_kb: u64,
+    unused_kb: u64,
+    rss_kb: u64,
+    info_memory_kb: u64,
+) -> (u64, u64, f64) {
+    let total_mb = if actual_balloon_kb > 0 {
+        actual_balloon_kb / 1024
+    } else {
+        info_memory_kb / 1024
+    };
+    let used_mb = if available_kb > 0 && unused_kb > 0 {
+        available_kb.saturating_sub(unused_kb) / 1024
+    } else if rss_kb > 0 {
+        rss_kb / 1024
+    } else {
+        0
+    };
+    let pct = if total_mb > 0 {
+        (used_mb as f64 / total_mb as f64 * 100.0).min(100.0)
+    } else {
+        0.0
+    };
+    (total_mb, used_mb, pct)
+}
+
+#[cfg(test)]
+mod memory_tests {
+    use super::compute_memory_mb;
+
+    #[test]
+    fn used_is_available_minus_unused() {
+        // 2 GiB balloon, guest sees 2 GiB usable, 512 MiB free → 1.5 GiB used.
+        let (total, used, pct) =
+            compute_memory_mb(2 * 1024 * 1024, 2 * 1024 * 1024, 512 * 1024, 0, 0);
+        assert_eq!(total, 2048);
+        assert_eq!(used, 1536);
+        assert!((pct - 75.0).abs() < 0.1, "pct = {pct}");
+    }
+
+    #[test]
+    fn falls_back_to_rss_then_info_memory() {
+        // No available/unused → use RSS for used; no balloon → use info.memory.
+        let (total, used, _pct) = compute_memory_mb(0, 0, 0, 800 * 1024, 4 * 1024 * 1024);
+        assert_eq!(total, 4096);
+        assert_eq!(used, 800);
+    }
+
+    #[test]
+    fn pct_clamped_and_zero_safe() {
+        assert_eq!(compute_memory_mb(0, 0, 0, 0, 0), (0, 0, 0.0));
+        // used > total would clamp to 100%.
+        let (_t, _u, pct) = compute_memory_mb(1024 * 1024, 2 * 1024 * 1024, 0, 0, 0);
+        // available>0 but unused==0 → falls back (rss 0) → used 0 here.
+        assert_eq!(pct, 0.0);
+    }
+}
+
 pub fn domain_state_label(state: u32) -> &'static str {
     match state {
         0 => "nostate",
@@ -127,25 +189,8 @@ fn collect_domain_metrics(domain: &Domain, name: &str) -> Result<VmMetrics, Libv
         }
     }
 
-    let memory_total_mb = if actual_kb > 0 {
-        actual_kb / 1024
-    } else {
-        info.memory / 1024
-    };
-
-    let memory_used_mb = if available_kb > 0 && unused_kb > 0 {
-        (available_kb.saturating_sub(unused_kb)) / 1024
-    } else if rss_kb > 0 {
-        rss_kb / 1024
-    } else {
-        0
-    };
-
-    let memory_pct = if memory_total_mb > 0 {
-        (memory_used_mb as f64 / memory_total_mb as f64 * 100.0).min(100.0)
-    } else {
-        0.0
-    };
+    let (memory_total_mb, memory_used_mb, memory_pct) =
+        compute_memory_mb(actual_kb, available_kb, unused_kb, rss_kb, info.memory);
 
     let (disks, disk_rd_bytes, disk_wr_bytes, disk_rd_ops, disk_wr_ops) =
         collect_block_stats(domain);
