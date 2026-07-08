@@ -239,12 +239,14 @@ function CockpitInner({
     }
   }
 
-  const handlePower = async (action: 'shutdown' | 'reboot' | 'stop') => {
+  const handlePower = async (action: 'shutdown' | 'reboot' | 'stop' | 'start') => {
     if (!access.canPower) {
       toast.info('Read-only session — power actions disabled')
       return
     }
     const offline = vmSemanticKind(vmState ?? undefined) === 'stopped'
+    // 'start' now arrives directly from the control strip; keep the legacy
+    // reboot+offline→start remap for any other caller.
     const effectiveAction =
       action === 'reboot' && offline ? ('start' as const) : action
     try {

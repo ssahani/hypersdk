@@ -954,7 +954,23 @@ pub async fn create_session(
     .bind(id)
     .bind(SqlxJson(serde_json::json!({ "protocol": protocol, "backend": backend, "session_id": session_id.to_string() })))
     .execute(&state.pool)
-    .await?;
+    .await
+    .map_err(|e| {
+        // Roll back the just-created session if the audit insert fails. Without
+        // this the DB-insert path was cleaned up but the audit path was not,
+        // leaking a live, proxyable console session (in-memory entry + DB row +
+        // any provisioned guac bridge) while returning an error to the caller.
+        let pool = state.pool.clone();
+        let sessions = state.console_sessions.clone();
+        tokio::spawn(async move {
+            sessions.remove(session_id).await;
+            let _ = sqlx::query("DELETE FROM console_sessions WHERE id = ?")
+                .bind(session_id)
+                .execute(&pool)
+                .await;
+        });
+        ApiError::internal(e.to_string())
+    })?;
 
     let spectator_token = Uuid::new_v4().to_string();
     if recording {

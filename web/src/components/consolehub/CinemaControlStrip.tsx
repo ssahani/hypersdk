@@ -31,7 +31,7 @@ type Props = {
   libvirt?: boolean
   onCtrlAltDel?: () => void
   onSendKey?: (preset: 'esc' | 'ctrl_alt_del' | 'alt_tab') => void
-  onPower?: (action: 'shutdown' | 'reboot' | 'stop') => void
+  onPower?: (action: 'shutdown' | 'reboot' | 'stop' | 'start') => void
   onScreenshot?: () => void
   onOpenAi?: () => void
   onOpenOpsShelf?: () => void
@@ -131,7 +131,10 @@ export default function CinemaControlStrip({
   if (!visible || !vp) return null
 
   const offline = vmSemanticKind(vmState ?? undefined) === 'stopped'
-  const powerQuickAction = offline ? ('reboot' as const) : ('reboot' as const)
+  // Emit the semantically-correct action instead of always 'reboot' and relying
+  // on the consumer to reverse-map reboot+offline→start. The button labels itself
+  // "Start" for a stopped VM, so it must actually send 'start'.
+  const powerQuickAction = offline ? ('start' as const) : ('reboot' as const)
   const powerQuickLabel = offline ? 'Start' : 'Reboot'
   const PowerQuickIcon = offline ? Play : RotateCcw
   const spiceDisplay = activeProtocol === 'spice' || activeProtocol === 'webrtc_spice'
@@ -200,7 +203,7 @@ export default function CinemaControlStrip({
                   type="button"
                   className="block w-full text-left px-2 py-1.5 text-xs text-slate-200 hover:bg-white/10 rounded capitalize"
                   onClick={() => {
-                    onPower?.(a === 'start' ? 'reboot' : a)
+                    onPower?.(a)
                     setPowerOpen(false)
                   }}
                 >

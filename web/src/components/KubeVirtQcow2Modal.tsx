@@ -54,15 +54,23 @@ export default function KubeVirtQcow2Modal({ open, qcow2Path, onClose }: Props) 
     }
   }, [qcow2Path, guestOs, namespace, k8sName, memoryMb, vcpus, virtioCdrom])
 
+  // Monotonic request id: editing memory/vCPU/namespace/name re-fires loadBundle
+  // while a prior bundle build is still in flight, so without this guard a slower
+  // older response (e.g. for "409") could overwrite the newer one (for "4096"),
+  // previewing a manifest the user never settled on.
+  const bundleReqRef = useRef(0)
+
   const loadBundle = useCallback(async () => {
     if (!qcow2Path) return
+    const myReq = ++bundleReqRef.current
     setLoading(true)
     try {
-      setBundle(await getQcow2KubeVirtBundle(requestBody()))
+      const b = await getQcow2KubeVirtBundle(requestBody())
+      if (bundleReqRef.current === myReq) setBundle(b)
     } catch (e: unknown) {
-      toast.error(formatUserError(e))
+      if (bundleReqRef.current === myReq) toast.error(formatUserError(e))
     } finally {
-      setLoading(false)
+      if (bundleReqRef.current === myReq) setLoading(false)
     }
   }, [qcow2Path, requestBody, toast])
 

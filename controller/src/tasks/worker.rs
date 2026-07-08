@@ -850,6 +850,15 @@ async fn ha_recover(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     )
     .await?;
 
+    // Power-on RPC BEFORE opening the write transaction. SQLite has a single
+    // writer + 5s busy_timeout, so holding an open write tx across a multi-second
+    // gRPC start would block every other writer — including the 5s leader-lease
+    // renewal — risking spurious leadership loss. Both UPDATEs below are fast local
+    // writes, so the tx is held only briefly. (Mirrors vm_apply / vm_migrate.)
+    if desired == "running" {
+        agent_client::vm_power(&mut client, &row.0, "start", None).await?;
+    }
+
     let mut tx = state.pool.begin().await?;
     sqlx::query(
         "UPDATE vms SET uuid = ?, host_id = ?, observed_state = 'defined', updated_at = datetime('now') WHERE id = ?",
@@ -861,7 +870,6 @@ async fn ha_recover(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     .await?;
 
     if desired == "running" {
-        agent_client::vm_power(&mut client, &row.0, "start", None).await?;
         if let Err(e) = sqlx::query("UPDATE vms SET observed_state = 'running' WHERE id = ?")
             .bind(vm_id)
             .execute(&mut *tx)

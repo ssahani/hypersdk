@@ -305,15 +305,32 @@ fn pump_virt_builder_stream<R: Read + Send + 'static>(
     prefix: &'static str,
     tx: mpsc::Sender<String>,
 ) {
-    let br = BufReader::new(r);
-    for line in br.lines().map_while(Result::ok) {
-        let msg = if prefix.is_empty() {
-            line
-        } else {
-            format!("{prefix}{line}")
-        };
-        if tx.send(msg).is_err() {
-            break;
+    // Read raw bytes and decode per line with from_utf8_lossy. Using
+    // BufRead::lines() (Result<String>) + map_while(Result::ok) stopped the whole
+    // pump at the FIRST non-UTF-8 byte — common in virt-builder/libguestfs output
+    // (progress spinners, localized text) — silently dropping the rest of the
+    // stream and closing the pipe early (EPIPE to the child).
+    let mut br = BufReader::new(r);
+    let mut buf = Vec::new();
+    loop {
+        buf.clear();
+        match br.read_until(b'\n', &mut buf) {
+            Ok(0) => break, // EOF
+            Ok(_) => {
+                while matches!(buf.last(), Some(b'\n' | b'\r')) {
+                    buf.pop();
+                }
+                let text = String::from_utf8_lossy(&buf);
+                let msg = if prefix.is_empty() {
+                    text.into_owned()
+                } else {
+                    format!("{prefix}{text}")
+                };
+                if tx.send(msg).is_err() {
+                    break;
+                }
+            }
+            Err(_) => break,
         }
     }
 }
@@ -370,8 +387,31 @@ fn run_virt_builder_child(
     let h_err = thread::spawn(move || pump_virt_builder_stream(stderr, "[stderr] ", tx_e));
     drop(tx);
 
-    for line in rx {
-        log(&line);
+    // Drain logs and enforce the wall-clock deadline CONCURRENTLY. Previously the
+    // blocking `for line in rx` had to complete first (both pumps reach EOF), and
+    // the timeout/kill logic ran only afterwards — so a hung virt-builder holding
+    // its pipes open blocked the drain forever and the deadline could never fire,
+    // making the advertised wall-clock limit non-functional in exactly the case it
+    // exists for.
+    let limit = timeout.filter(|d| !d.is_zero());
+    let deadline = limit.map(|d| Instant::now() + d);
+    loop {
+        match rx.recv_timeout(Duration::from_millis(200)) {
+            Ok(line) => log(&line),
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                if let (Some(end), Some(lim)) = (deadline, limit) {
+                    if Instant::now() >= end {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        let _ = h_out.join();
+                        let _ = h_err.join();
+                        let _ = fs::remove_file(out_path);
+                        bail!("virt-builder exceeded time limit of {lim:?}");
+                    }
+                }
+            }
+        }
     }
     let _ = h_out.join();
     let _ = h_err.join();

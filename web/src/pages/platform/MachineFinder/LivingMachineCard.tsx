@@ -87,7 +87,12 @@ export default function LivingMachineCard({
         }
         if (overlay === 'health' || overlay === 'default') {
           const h = await runVmHealthCheck(vm.id).catch(() => null)
-          if (!cancelled && h?.score != null) setHealthScore(Number(h.score) || null)
+          // Number(x) || null drops a legitimate score of 0 (worst health) — the
+          // very case that matters most. Keep any finite number, including 0.
+          if (!cancelled && h?.score != null) {
+            const n = Number(h.score)
+            setHealthScore(Number.isFinite(n) ? n : null)
+          }
         }
         if (overlay === 'backup' || overlay === 'default') {
           const backups = await listVmBackups(vm.id).catch(() => [])

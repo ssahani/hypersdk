@@ -72,16 +72,14 @@ pub fn domain_xml_from_spec(
         .filter(|s| !s.is_empty());
 
     let os_xml = if is_uefi {
-        let boot_cd = if install_iso.is_some() {
-            "\n    <boot dev='cdrom'/>\n    <boot dev='hd'/>"
-        } else {
-            ""
-        };
+        // UEFI expresses boot order with per-device <boot order> (below), never
+        // with <os><boot dev>. libvirt rejects a domain that mixes the two, so the
+        // UEFI <os> must NOT carry <boot dev> even when an install ISO is present.
         format!(
             r#"<os>
     <type arch='x86_64' machine='q35'>hvm</type>
     <loader readonly='yes' type='pflash'>/usr/share/edk2/ovmf/OVMF_CODE.fd</loader>
-    <nvram template='/usr/share/edk2/ovmf/OVMF_VARS.fd'>/var/lib/libvirt/qemu/nvram/{name}_VARS.fd</nvram>{boot_cd}
+    <nvram template='/usr/share/edk2/ovmf/OVMF_VARS.fd'>/var/lib/libvirt/qemu/nvram/{name}_VARS.fd</nvram>
   </os>"#
         )
     } else if install_iso.is_some() {
@@ -99,8 +97,15 @@ pub fn domain_xml_from_spec(
             .into()
     };
 
+    // UEFI boot order is per-device. When an install ISO is present the cdrom
+    // takes order 1 and the root disk order 2 (install-then-boot-installed-OS);
+    // otherwise the disk is the sole bootable device at order 1.
     let disk_boot = if is_uefi {
-        "\n      <boot order='1'/>"
+        if install_iso.is_some() {
+            "\n      <boot order='2'/>"
+        } else {
+            "\n      <boot order='1'/>"
+        }
     } else {
         ""
     };
@@ -108,12 +113,13 @@ pub fn domain_xml_from_spec(
     let install_iso_xml = install_iso
         .map(|iso| {
             let iso_esc = esc(iso);
+            let cdrom_boot = if is_uefi { "\n      <boot order='1'/>" } else { "" };
             format!(
                 r#"    <disk type='file' device='cdrom'>
       <driver name='qemu' type='raw'/>
       <source file='{iso_esc}'/>
       <target dev='hdc' bus='ide'/>
-      <readonly/>
+      <readonly/>{cdrom_boot}
     </disk>
 "#
             )
@@ -217,5 +223,25 @@ mod tests {
         .unwrap();
         assert!(xml.contains("boot dev='cdrom'"));
         assert!(xml.contains("ubuntu.iso"));
+    }
+
+    #[test]
+    fn uefi_install_iso_uses_per_device_boot_not_os_boot() {
+        // libvirt rejects a domain mixing <os><boot dev> with per-device
+        // <boot order>. For UEFI + install ISO we must use per-device boot only.
+        let mut vm = VirtualMachine::new("winst", "4Gi");
+        vm.spec.firmware = "uefi".into();
+        vm.metadata.labels = Some(std::collections::HashMap::from([(
+            "install_iso".into(),
+            "/var/lib/libvirt/images/win.iso".into(),
+        )]));
+        let xml =
+            domain_xml_from_spec(&vm, "/var/lib/libvirt/images/winst.qcow2", "qcow2", None).unwrap();
+        // No os/boot elements at all in the UEFI path.
+        assert!(!xml.contains("<boot dev="), "UEFI must not emit <os><boot dev>");
+        // cdrom boots first (order 1), installed disk second (order 2).
+        assert!(xml.contains("<boot order='1'/>"));
+        assert!(xml.contains("<boot order='2'/>"));
+        assert!(xml.contains("pflash")); // still UEFI
     }
 }

@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import {
@@ -60,11 +60,18 @@ function OpenStackInstancesContent() {
   const toast = useToastContext()
   const { lastEvent, refreshKey } = usePlatformInfo()
 
+  // Monotonic request id: rapid pagination or an openstack.instance.* SSE event
+  // can fire load() while a prior fetch is in flight; without this the
+  // last-resolved response wins and the grid could show a page that doesn't match
+  // the current marker/search.
+  const reqRef = useRef(0)
+
   const load = useCallback(async () => {
     if (!computeLive) {
       setLoading(false)
       return
     }
+    const myReq = ++reqRef.current
     try {
       setLoadError(null)
       const [conn, list] = await Promise.all([
@@ -76,6 +83,7 @@ function OpenStackInstancesContent() {
           marker,
         }),
       ])
+      if (reqRef.current !== myReq) return
       setStatus(conn)
       setInstances(list.instances)
       setNextMarker(list.next_marker)
@@ -83,11 +91,12 @@ function OpenStackInstancesContent() {
       setSearchTruncated(Boolean(list.search_truncated))
       setTotal(list.total)
     } catch (e: unknown) {
+      if (reqRef.current !== myReq) return
       const msg = formatUserError(e)
       setLoadError(msg)
       toast.error(`Failed to load OpenStack instances: ${msg}`)
     } finally {
-      setLoading(false)
+      if (reqRef.current === myReq) setLoading(false)
     }
   }, [search, statusFilter, marker, toast, computeLive])
 

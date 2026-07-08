@@ -41,6 +41,21 @@ async fn sync_all_hosts(state: &AppState) -> anyhow::Result<()> {
         .await?;
 
     for host_id in host_ids {
+        // Skip if a host.inventory for this host is already pending/running. Every
+        // tick mints a NEW task_id, so the per-id NATS-echo dedup doesn't apply
+        // across ticks; without this guard, a worker that can't drain 200 hosts
+        // within the interval (each dead host costs up to the connect timeout)
+        // accumulates an ever-growing backlog in the task table + channel.
+        let inflight: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM tasks WHERE resource_id = ? AND operation = 'host.inventory' AND status IN ('pending', 'running')",
+        )
+        .bind(host_id)
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(0);
+        if inflight > 0 {
+            continue;
+        }
         if let Err(e) = enqueue_task(
             state,
             "host.inventory",
@@ -65,6 +80,18 @@ async fn sync_kubevirt_inventory(state: &AppState) -> anyhow::Result<()> {
     let Some(cluster_id) = cluster_id else {
         return Ok(());
     };
+    // Same anti-backlog guard as host.inventory: don't stack a fresh
+    // kubevirt.inventory when one is already pending/running.
+    let inflight: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM tasks WHERE resource_id = ? AND operation = 'kubevirt.inventory' AND status IN ('pending', 'running')",
+    )
+    .bind(cluster_id)
+    .fetch_one(&state.pool)
+    .await
+    .unwrap_or(0);
+    if inflight > 0 {
+        return Ok(());
+    }
     if let Err(e) = enqueue_task(
         state,
         "kubevirt.inventory",

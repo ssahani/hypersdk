@@ -48,7 +48,11 @@ export default function FleetCommandCenter({
     }
     setHealthLoading(true)
     void runVmHealthCheck(selectedVm.id)
-      .then((h) => setHealthScore(h.score != null ? Number(h.score) || null : null))
+      // Number(x) || null would drop a real score of 0 (worst health). Keep 0.
+      .then((h) => {
+        const n = h.score != null ? Number(h.score) : NaN
+        setHealthScore(Number.isFinite(n) ? n : null)
+      })
       .catch(() => setHealthScore(null))
       .finally(() => setHealthLoading(false))
   }, [selectedVm?.id])

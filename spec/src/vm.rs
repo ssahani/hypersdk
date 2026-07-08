@@ -221,10 +221,16 @@ impl VirtualMachine {
     }
 
     pub fn root_disk_gib(&self) -> Result<u64, SpecError> {
+        // Prefer a volume literally named "root"; otherwise fall back to the first
+        // volume. validate() only requires >=1 volume (not one named "root"), so
+        // without this fallback a validated spec whose sole disk is named e.g.
+        // "os"/"data" passed validation yet failed translation with "root volume
+        // required".
         self.spec
             .storage
             .iter()
             .find(|v| v.name == "root")
+            .or_else(|| self.spec.storage.first())
             .map(|v| parse_size_gib(&v.size))
             .transpose()?
             .ok_or_else(|| SpecError::Validation("root volume required".into()))
