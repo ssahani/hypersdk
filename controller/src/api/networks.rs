@@ -78,6 +78,22 @@ pub async fn create_network(
     let cluster_id: Uuid = sqlx::query_scalar("SELECT id FROM clusters LIMIT 1")
         .fetch_one(&state.pool)
         .await?;
+    // Validate segment_id references an existing segment before inserting. The
+    // PATCH path validates via network_overlay::bind_network, but create bound the
+    // raw column with no check, so a bogus segment_id silently produced a dangling
+    // overlay reference.
+    if let Some(seg_id) = body.segment_id {
+        let exists: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM network_segments WHERE id = ?)")
+                .bind(seg_id)
+                .fetch_one(&state.pool)
+                .await?;
+        if !exists {
+            return Err(ApiError::bad_request(
+                "segment_id does not reference an existing network segment",
+            ));
+        }
+    }
     let id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO networks (id, cluster_id, name, backend, vlan_id, bridge, segment_id)

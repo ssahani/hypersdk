@@ -1670,8 +1670,11 @@ fn render_context_menu(frame: &mut Frame, area: Rect, state: &AppState) {
 
     let height = (items.len() + 2).min(area.height as usize) as u16;
     let menu_area = Rect {
-        x: area.width / 2 - 15,
-        y: area.height / 2 - height / 2,
+        // saturating_sub: on a terminal narrower than 30 cols (or shorter than the
+        // menu) the u16 subtraction would underflow — debug panic / release
+        // wrap-to-~65521 placing the menu off-screen.
+        x: (area.width / 2).saturating_sub(15),
+        y: (area.height / 2).saturating_sub(height / 2),
         width: 30,
         height,
     };

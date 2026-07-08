@@ -348,12 +348,11 @@ pub async fn migration_advisor(
     Query(q): Query<MigrationAdvisorQuery>,
 ) -> Result<Json<ai::migration::MigrationAdvisorReport>, ApiError> {
     require_operator(&actor)?;
-    let provider = q.provider.as_deref().unwrap_or("vmware");
-    let mut report = if provider == "vmware" {
-        ai::migration::advise_vmware_vm(&q.vm, q.os.as_deref().unwrap_or("linux"), q.has_rdm)
-    } else {
-        ai::migration::advise_vmware_vm(&q.vm, "linux", false)
-    };
+    // Score with the caller-supplied os/has_rdm. Previously the non-vmware branch
+    // hardcoded "linux"/false, so ?provider=hyperv&os=windows&has_rdm=true was
+    // advised against wrong inputs (both branches call the same advisor).
+    let os = q.os.as_deref().unwrap_or("linux");
+    let mut report = ai::migration::advise_vmware_vm(&q.vm, os, q.has_rdm);
 
     if let Some(disk_path) = q.disk_path.filter(|p| !p.is_empty()) {
         if state.config.guestkit_enabled {

@@ -78,34 +78,32 @@ pub async fn list_templates(
     Query(q): Query<ListTemplatesQuery>,
 ) -> Result<Json<Vec<TemplateRow>>, ApiError> {
     require_operator(&actor)?;
-    let rows = match (q.marketplace, q.featured) {
-        (Some(true), Some(true)) => {
-            sqlx::query_as::<_, TemplateRow>(&format!(
-            "{TEMPLATE_SELECT} WHERE marketplace = TRUE AND featured = TRUE ORDER BY name, version"
-        ))
-            .fetch_all(&state.pool)
-            .await?
-        }
-        (Some(true), _) => {
-            sqlx::query_as::<_, TemplateRow>(&format!(
-                "{TEMPLATE_SELECT} WHERE marketplace = TRUE ORDER BY featured DESC, name, version"
-            ))
-            .fetch_all(&state.pool)
-            .await?
-        }
-        (_, Some(true)) => {
-            sqlx::query_as::<_, TemplateRow>(&format!(
-                "{TEMPLATE_SELECT} WHERE featured = TRUE ORDER BY name, version"
-            ))
-            .fetch_all(&state.pool)
-            .await?
-        }
-        _ => {
-            sqlx::query_as::<_, TemplateRow>(&format!("{TEMPLATE_SELECT} ORDER BY name, version"))
-                .fetch_all(&state.pool)
-                .await?
-        }
+    // Build the filter from the ACTUAL boolean values. The old match only handled
+    // the Some(true) arms, so ?marketplace=false (Some(false)) fell through to the
+    // no-filter arm and returned every template instead of only non-marketplace
+    // ones. Predicates are static literals (no user data interpolated → no
+    // injection).
+    let mut preds: Vec<&str> = Vec::new();
+    match q.marketplace {
+        Some(true) => preds.push("marketplace = TRUE"),
+        Some(false) => preds.push("marketplace = FALSE"),
+        None => {}
+    }
+    match q.featured {
+        Some(true) => preds.push("featured = TRUE"),
+        Some(false) => preds.push("featured = FALSE"),
+        None => {}
+    }
+    let where_clause = if preds.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", preds.join(" AND "))
     };
+    let rows = sqlx::query_as::<_, TemplateRow>(&format!(
+        "{TEMPLATE_SELECT}{where_clause} ORDER BY featured DESC, name, version"
+    ))
+    .fetch_all(&state.pool)
+    .await?;
     Ok(Json(rows))
 }
 

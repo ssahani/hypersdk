@@ -28,7 +28,10 @@ pub async fn validate_cloud_init(
     if !text.contains("#cloud-config") && !text.starts_with("#cloud-config") {
         issues.push("Missing #cloud-config header (first line)".into());
     }
-    if text.contains("passwd:") && text.contains("password:") {
+    // Flag EITHER plaintext-password form (chpasswd's `passwd:` or a `password:`
+    // key). The old `&&` required both substrings, so a normal config with just
+    // one never triggered the warning.
+    if text.contains("passwd:") || text.contains("password:") || text.contains("chpasswd") {
         issues.push("Avoid plain-text passwords in user_data — use ssh_authorized_keys".into());
     }
     let preview_hostname = text

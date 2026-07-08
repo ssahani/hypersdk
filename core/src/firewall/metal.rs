@@ -265,14 +265,21 @@ fn profile_rules_as_firewall_rules(profile_name: &str) -> Vec<FirewallRule> {
 
 fn is_public_bmc(addr: &str) -> bool {
     let a = addr.trim();
-    a.is_empty()
-        || a == "0.0.0.0"
-        || a.starts_with("203.")
-        || a.starts_with("185.")
-        || !a.starts_with("10.")
-            && !a.starts_with("192.168.")
-            && !a.starts_with("172.")
-            && !a.contains('.')
+    // Empty / listen-all → treat as exposed (unknown or all-interfaces).
+    if a.is_empty() || a == "0.0.0.0" {
+        return true;
+    }
+    // Public = a real IPv4 literal NOT in a private / loopback / link-local range.
+    // Parse to Ipv4Addr rather than string-prefix matching: the old
+    // `!a.contains('.')` clause was dead (every IPv4 has dots, and so do
+    // hostnames), so any public BMC outside 203.*/185.* was misclassified as
+    // private (fail-open). std's predicates cover 10/8, 172.16/12, 192.168/16,
+    // 127/8, 169.254/16 precisely. A hostname / non-IPv4 doesn't parse → not
+    // classified public here.
+    match a.parse::<std::net::Ipv4Addr>() {
+        Ok(ip) => !(ip.is_private() || ip.is_loopback() || ip.is_link_local()),
+        Err(_) => false,
+    }
 }
 
 fn probe_tcp(host: &str, port: u16) -> bool {
@@ -298,4 +305,38 @@ pub fn metal_preset_temporary_pxe() -> (i32, i32, String, i32) {
 
 pub fn metal_preset_temporary_bmc() -> (i32, i32, String, i32) {
     (623, 443, "tcp".into(), 4)
+}
+
+#[cfg(test)]
+mod bmc_tests {
+    use super::is_public_bmc;
+
+    #[test]
+    fn private_ranges_are_not_public() {
+        for a in [
+            "10.0.0.5", "192.168.1.10", "172.16.0.1", "172.31.255.254", "127.0.0.1",
+            "169.254.1.1",
+        ] {
+            assert!(!is_public_bmc(a), "{a} should be private");
+        }
+    }
+
+    #[test]
+    fn public_ipv4_is_public() {
+        // The old dead `!contains('.')` clause misclassified all of these as private.
+        for a in ["8.8.8.8", "1.2.3.4", "52.10.20.30", "203.0.113.5", "172.15.0.1", "172.32.0.1"] {
+            assert!(is_public_bmc(a), "{a} should be public");
+        }
+    }
+
+    #[test]
+    fn empty_and_listen_all_are_exposed() {
+        assert!(is_public_bmc(""));
+        assert!(is_public_bmc("0.0.0.0"));
+    }
+
+    #[test]
+    fn hostname_is_not_classified_public() {
+        assert!(!is_public_bmc("bmc.internal.example"));
+    }
 }

@@ -115,7 +115,12 @@ fn parse_ss_output(text: &str) -> Vec<GuestListeningPort> {
         });
         out.push(GuestListeningPort {
             port,
-            protocol: if parts[0].contains('6') { "tcp" } else { "tcp" }.into(),
+            // Derive the family from the bind address: `ss` brackets/colon-separates
+            // IPv6 hosts (e.g. "[::]"), while IPv4 binds ("0.0.0.0", "*") have no
+            // colon (the port was already split off). parts[0] is the State column
+            // ("LISTEN"), so the old `parts[0].contains('6')` was always false —
+            // and both ternary branches returned "tcp" anyway.
+            protocol: if bind.contains(':') { "tcp6" } else { "tcp" }.into(),
             bind_address: bind.into(),
             process,
         });

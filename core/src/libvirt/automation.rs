@@ -564,6 +564,14 @@ pub fn send_notification(
         "slack" => {
             let body = serde_json::json!({ "text": format!("{subject}: {message}") }).to_string();
             let url = channel.config.clone();
+            // Validate scheme + pass "--" so a config value starting with '-' can't be
+            // read by curl as an option (e.g. -o/path → arbitrary file write as the
+            // daemon user). Mirrors fire_webhook.
+            if !url.starts_with("http://") && !url.starts_with("https://") {
+                return Err(LibvirtError::Invalid(
+                    "Slack webhook URL must start with http:// or https://".into(),
+                ));
+            }
             std::process::Command::new("curl")
                 .args([
                     "-sf",
@@ -573,6 +581,7 @@ pub fn send_notification(
                     "Content-Type: application/json",
                     "-d",
                     &body,
+                    "--",
                     &url,
                 ])
                 .output()
@@ -639,6 +648,13 @@ pub fn send_notification(
         "webhook" => {
             let body = serde_json::json!({ "subject": subject, "message": message }).to_string();
             let url = channel.config.clone();
+            // Validate scheme + "--" so a config starting with '-' can't be parsed by
+            // curl as an option (arbitrary file write/read as the daemon user).
+            if !url.starts_with("http://") && !url.starts_with("https://") {
+                return Err(LibvirtError::Invalid(
+                    "Webhook URL must start with http:// or https://".into(),
+                ));
+            }
             std::process::Command::new("curl")
                 .args([
                     "-sf",
@@ -648,6 +664,7 @@ pub fn send_notification(
                     "Content-Type: application/json",
                     "-d",
                     &body,
+                    "--",
                     &url,
                 ])
                 .output()

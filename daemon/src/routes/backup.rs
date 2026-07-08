@@ -330,7 +330,19 @@ async fn trigger_backup(
         validate_nfs_target(nfs)?;
     }
 
-    let backup_id = generate_timestamp();
+    // Append sub-second precision. generate_timestamp() has 1-second resolution, so
+    // two POSTs in the same wall-clock second (double-click / automation) produced
+    // the SAME id → both backup.sh runs wrote into the same directory and corrupted
+    // each other. Microseconds are digit-only, so the id still passes
+    // validate_backup_id.
+    let backup_id = format!(
+        "{}-{:06}",
+        generate_timestamp(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .subsec_micros()
+    );
     let mut cmd = tokio::process::Command::new("bash");
     cmd.arg(&script);
     cmd.env(
@@ -412,7 +424,12 @@ async fn get_backup_status(
     let dir = dir
         .canonicalize()
         .map_err(|_| machina_core::LibvirtError::NotFound(format!("Backup '{}' not found", id)))?;
-    if !dir.starts_with(backup_dir()) || !dir.is_dir() {
+    // Canonicalize the base too before comparing: if the configured backup dir has
+    // a symlinked component (e.g. /var → /private/var), a canonicalized child would
+    // not start with the raw base and every valid backup would 404.
+    let base = backup_dir();
+    let base = base.canonicalize().unwrap_or(base);
+    if !dir.starts_with(&base) || !dir.is_dir() {
         return Err(
             machina_core::LibvirtError::NotFound(format!("Backup '{}' not found", id)).into(),
         );
@@ -458,7 +475,12 @@ async fn verify_backup(
     let dir = dir
         .canonicalize()
         .map_err(|_| machina_core::LibvirtError::NotFound(format!("Backup '{}' not found", id)))?;
-    if !dir.starts_with(backup_dir()) || !dir.is_dir() {
+    // Canonicalize the base too before comparing: if the configured backup dir has
+    // a symlinked component (e.g. /var → /private/var), a canonicalized child would
+    // not start with the raw base and every valid backup would 404.
+    let base = backup_dir();
+    let base = base.canonicalize().unwrap_or(base);
+    if !dir.starts_with(&base) || !dir.is_dir() {
         return Err(
             machina_core::LibvirtError::NotFound(format!("Backup '{}' not found", id)).into(),
         );
