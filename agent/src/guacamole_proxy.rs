@@ -208,8 +208,14 @@ async fn proxy_ws(client: WebSocket, target: String) {
         }
     });
 
+    // Abort the surviving direction when either ends. Dropping a JoinHandle
+    // detaches rather than cancels, so without this a closed browser tab left the
+    // u2c task blocked on up_stream.next(), leaking the task + the upstream guacd
+    // tunnel FD for the life of the process. (Mirrors console_ws.rs.)
+    let c2u_abort = c2u.abort_handle();
+    let u2c_abort = u2c.abort_handle();
     tokio::select! {
-        _ = c2u => {},
-        _ = u2c => {},
+        _ = c2u => u2c_abort.abort(),
+        _ = u2c => c2u_abort.abort(),
     }
 }

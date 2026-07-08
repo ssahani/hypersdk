@@ -132,7 +132,7 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
         }
 
         if recovery_count >= max_attempts {
-            record_ha_event(
+            record_ha_event_deduped(
                 &state.pool,
                 Some(vm_id),
                 Some(failed_host),
@@ -153,7 +153,7 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
         .await?;
 
         let Some(dest_host) = dest else {
-            record_ha_event(
+            record_ha_event_deduped(
                 &state.pool,
                 Some(vm_id),
                 Some(failed_host),
@@ -218,6 +218,34 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
         );
     }
     Ok(())
+}
+
+/// Record an HA event, but suppress a duplicate when the most recent event for
+/// this VM already carries the same action. `recover_vms` re-scans every 45s and
+/// re-selects every VM still pointing at an offline host, so a VM stuck in the
+/// `ha.exhausted` / `ha.no_capacity` state would otherwise insert an identical
+/// row on every tick forever (unbounded ha_events growth + log spam). We only
+/// want to record the *transition* into that state once; a later `ha.recover`
+/// (or manual intervention) resets the last-action so a fresh episode records.
+async fn record_ha_event_deduped(
+    pool: &SqlitePool,
+    vm_id: Option<Uuid>,
+    host_id: Option<Uuid>,
+    action: &str,
+    message: &str,
+) -> anyhow::Result<()> {
+    if let Some(vid) = vm_id {
+        let last: Option<String> = sqlx::query_scalar(
+            "SELECT action FROM ha_events WHERE vm_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1",
+        )
+        .bind(vid)
+        .fetch_optional(pool)
+        .await?;
+        if last.as_deref() == Some(action) {
+            return Ok(());
+        }
+    }
+    record_ha_event(pool, vm_id, host_id, action, message).await
 }
 
 async fn record_ha_event(

@@ -28,7 +28,10 @@ function dayLabel(iso: string) {
   const today = new Date()
   const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
   const day = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-  const diff = (start.getTime() - day.getTime()) / 86_400_000
+  // Round: on DST-transition days the local-midnight delta is 23h or 25h, so a
+  // raw division yields 0.958 / 1.041 and the strict === 1 check would miss
+  // "Yesterday". Rounding maps each calendar day to a whole-number offset.
+  const diff = Math.round((start.getTime() - day.getTime()) / 86_400_000)
   if (diff === 0) return 'Today'
   if (diff === 1) return 'Yesterday'
   return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })

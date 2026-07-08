@@ -63,8 +63,11 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const vm = params.id && location.pathname.includes('/vms/') ? params.id : null
     const host = params.id && location.pathname.includes('/hosts/') ? params.id : null
-    if (vm) setContextVmId(vm)
-    if (host) setContextHostId(host)
+    // Set unconditionally so the context CLEARS when you leave the VM/host page.
+    // Guarding with `if (vm)` left a stale vm_id stuck for the whole session, so
+    // the AI copilot answered about the wrong VM on every unrelated page.
+    setContextVmId(vm)
+    setContextHostId(host)
   }, [location.pathname, params.id])
 
   useEffect(() => {

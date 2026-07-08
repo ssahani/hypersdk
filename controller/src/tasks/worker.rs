@@ -754,7 +754,7 @@ async fn host_maintenance(state: &AppState, msg: &TaskMessage) -> anyhow::Result
             .await?;
 
             let dest: Option<Uuid> = sqlx::query_scalar(
-                "SELECT id FROM hosts WHERE id != ? AND maintenance_mode = FALSE ORDER BY vm_count LIMIT 1",
+                "SELECT id FROM hosts WHERE id != ? AND state = 'online' AND maintenance_mode = FALSE ORDER BY vm_count LIMIT 1",
             )
             .bind(host_id)
             .fetch_optional(&state.pool)

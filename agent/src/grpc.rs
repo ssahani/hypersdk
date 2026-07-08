@@ -91,7 +91,15 @@ impl HostAgent for AgentService {
         request: Request<HeartbeatRequest>,
     ) -> Result<Response<HeartbeatResponse>, Status> {
         let _ = request.into_inner();
-        let st = self.state.read().await;
+        // Read the maintenance flag into a local and drop the guard before the
+        // blocking libvirt call. tokio's RwLock is write-preferring, so holding
+        // the read guard across the (potentially slow) list_vms would stall a
+        // concurrent register/maintenance writer — and every reader behind it —
+        // for the whole call.
+        let maintenance_state = {
+            let st = self.state.read().await;
+            format!("{:?}", st.maintenance).to_ascii_lowercase()
+        };
         let libvirt = self.libvirt.clone();
         let (vms, stats) = tokio::task::spawn_blocking(move || {
             let mut ctx = libvirt
@@ -105,7 +113,7 @@ impl HostAgent for AgentService {
         .map_err(|e| Status::internal(e.to_string()))?
         .map_err(|e| Status::internal(e.to_string()))?;
         Ok(Response::new(HeartbeatResponse {
-            state: format!("{:?}", st.maintenance).to_ascii_lowercase(),
+            state: maintenance_state,
             vm_count: vms.len() as u32,
             cpu_percent: stats.0,
             memory_used_mib: stats.1,

@@ -42,6 +42,15 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
         tracing::warn!("DRS: failed to persist placement recommendations: {e:#}");
     }
 
+    // Hosts already receiving a migration in this pass. compute_recommendations
+    // picks each hot VM's best destination independently, so several recs often
+    // share the same coolest host. run_migrate_precheck reads DB metrics that
+    // don't yet reflect an enqueued-but-not-started (slow, live) migration, so
+    // without this guard DRS would pile 2-3 migrations onto one host in a single
+    // tick and overcommit it — the exact anti-goal of DRS. Cap at one inbound
+    // migration per destination per pass; the next tick reconsiders.
+    let mut targeted_dests: std::collections::HashSet<Uuid> = std::collections::HashSet::new();
+
     for rec in recs.into_iter().take(3) {
         if rec.score < 20.0 {
             continue;
@@ -53,6 +62,10 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
                 continue;
             }
         };
+
+        if targeted_dests.contains(&dest_id) {
+            continue;
+        }
 
         // Skip if a migration for this VM is already pending/running. DRS re-runs
         // every 120s against metrics that don't change until the (slow) live
@@ -86,6 +99,7 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
             .await?
             .flatten();
 
+        targeted_dests.insert(dest_id);
         if let Err(e) = enqueue_task(
             state,
             "vm.migrate",

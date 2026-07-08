@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { Link } from 'react-router'
 import { Boxes, Copy, ExternalLink, Monitor, Network, Play, RefreshCw, RotateCw, Square, Terminal, Trash2 } from 'lucide-react'
@@ -141,8 +141,13 @@ spec:
   const [explorerJson, setExplorerJson] = useState<unknown>(null)
 
   const nsValue = namespace === 'all' ? undefined : namespace
+  // Monotonic request id: switching namespace/context fires a new load while the
+  // previous one may still be in flight. Without this guard a slow older response
+  // could resolve last and render namespace A's workloads under namespace B.
+  const reqRef = useRef(0)
 
   const load = useCallback(async (background = false) => {
+    const myReq = ++reqRef.current
     if (background) setRefreshing(true)
     try {
       const [ns, dep, pod, svc, sts, ds, jb] = await Promise.all([
@@ -154,6 +159,7 @@ spec:
         getK8sDaemonSets(nsValue, ctxTrim),
         getK8sJobs(nsValue, ctxTrim),
       ])
+      if (reqRef.current !== myReq) return
       setConnectionError(null)
       setNamespaces(
         (ns.items ?? [])
@@ -169,16 +175,21 @@ spec:
       setKubevirtListError(null)
       try {
         const rows = await getK8sKubevirtVmSummary(nsValue, ctxTrim)
+        if (reqRef.current !== myReq) return
         setKubevirtRows(Array.isArray(rows) ? rows : [])
       } catch (e: unknown) {
+        if (reqRef.current !== myReq) return
         setKubevirtRows([])
         setKubevirtListError(formatUserError(e))
       }
     } catch (e: unknown) {
+      if (reqRef.current !== myReq) return
       setConnectionError(formatUserError(e))
     } finally {
-      setLoading(false)
-      setRefreshing(false)
+      if (reqRef.current === myReq) {
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
   }, [nsValue, ctxTrim])
 

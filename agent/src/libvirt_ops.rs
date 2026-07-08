@@ -1174,12 +1174,48 @@ fn parse_cpu_model(caps: &str) -> Option<String> {
 }
 
 fn parse_domain_cpu(xml: &str) -> Option<String> {
-    if let Some(start) = xml.find("<cpu") {
-        if let Some(model_start) = xml[start..].find("model='") {
-            let rest = &xml[start + model_start + 7..];
-            return rest.split('\'').next().map(str::to_string);
+    // Locate the real <cpu> element. Require the char after "<cpu" to be a tag
+    // delimiter so we don't match <cputune>/<cpuset>, and confine the model search
+    // to the <cpu>…</cpu> span so we don't pick up an unrelated device's
+    // model='…' (e.g. <tpm model='tpm-crb'>, <memballoon model='virtio'>).
+    let mut search = 0;
+    let cpu_open = loop {
+        let rel = xml[search..].find("<cpu")?;
+        let abs = search + rel;
+        match xml[abs + 4..].chars().next() {
+            Some(' ' | '>' | '\n' | '\t' | '\r' | '/') => break abs,
+            _ => search = abs + 4,
+        }
+    };
+    let gt = xml[cpu_open..].find('>')? + cpu_open;
+    let open_tag = &xml[cpu_open..gt];
+    let span_end = xml[gt..].find("</cpu>").map(|e| gt + e).unwrap_or(gt);
+    let inner = &xml[gt..span_end];
+
+    // Preferred form: <model fallback='allow'>Skylake-Client-IBRS</model> child.
+    if let Some(ms) = inner.find("<model") {
+        let rest = &inner[ms..];
+        if let Some(tag_end) = rest.find('>') {
+            let after = &rest[tag_end + 1..];
+            if let Some(close) = after.find("</model>") {
+                let text = after[..close].trim();
+                if !text.is_empty() {
+                    return Some(text.to_string());
+                }
+            }
         }
     }
+    // Fallback: model='…' / model="…" attribute on the <cpu> open tag itself.
+    for (pat, quote) in [("model='", '\''), ("model=\"", '"')] {
+        if let Some(attr) = open_tag.find(pat) {
+            let rest = &open_tag[attr + pat.len()..];
+            let val = rest.split(quote).next().unwrap_or("");
+            if !val.is_empty() {
+                return Some(val.to_string());
+            }
+        }
+    }
+    // host-passthrough / host-model with no explicit model → no comparable name.
     None
 }
 
@@ -1342,4 +1378,42 @@ fn create_request_from_vm(
         req.virtio_win_iso = virtio_win_iso;
     }
     Ok(req)
+}
+
+#[cfg(test)]
+mod cpu_parse_tests {
+    use super::parse_domain_cpu;
+
+    #[test]
+    fn model_child_element() {
+        let xml = "<domain><cputune><shares>1024</shares></cputune>\
+                   <cpu mode='custom' match='exact'>\
+                   <model fallback='allow'>Skylake-Client-IBRS</model>\
+                   </cpu>\
+                   <devices><tpm model='tpm-crb'/><memballoon model='virtio'/></devices></domain>";
+        assert_eq!(parse_domain_cpu(xml).as_deref(), Some("Skylake-Client-IBRS"));
+    }
+
+    #[test]
+    fn host_passthrough_has_no_model() {
+        // No CPU model to compare — must NOT fall through to a device's model=.
+        let xml = "<domain><cpu mode='host-passthrough' check='none'/>\
+                   <devices><controller model='virtio-scsi'/></devices></domain>";
+        assert_eq!(parse_domain_cpu(xml), None);
+    }
+
+    #[test]
+    fn cputune_prefix_is_not_the_cpu_element() {
+        // Only <cputune> present — the old code matched "<cpu" here then grabbed a
+        // later device model. There is no real <cpu> element, so expect None.
+        let xml = "<domain><cputune><shares>512</shares></cputune>\
+                   <devices><tpm model='tpm-crb'/></devices></domain>";
+        assert_eq!(parse_domain_cpu(xml), None);
+    }
+
+    #[test]
+    fn model_attribute_on_cpu_tag() {
+        let xml = "<domain><cpu model='EPYC-Rome'/></domain>";
+        assert_eq!(parse_domain_cpu(xml).as_deref(), Some("EPYC-Rome"));
+    }
 }
