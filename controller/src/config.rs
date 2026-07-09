@@ -25,6 +25,28 @@ pub struct ControllerConfig {
     pub packetwolf_base_url: String,
     pub packetwolf_api_key: Option<String>,
     pub packetwolf_insecure_tls: bool,
+    /// Atlas — Zyvor storage control plane (Ceph/NFS/ZFS) used to provision
+    /// VM disks as backend volumes and route snapshot/backup/restore.
+    pub atlas_enabled: bool,
+    pub atlas_base_url: String,
+    /// Service-account JWT minted by Atlas (`POST /auth/tokens`); sent as a
+    /// bearer token when Atlas runs with `ATLAS_AUTH_REQUIRED=1`.
+    pub atlas_token: Option<String>,
+    pub atlas_insecure_tls: bool,
+    /// Default tenant recorded on Atlas volumes created for machina VMs.
+    pub atlas_tenant_id: String,
+    /// Default intent → placement policy for VM root disks (e.g. `database`,
+    /// `general`); resolved to a StorageClass by atlas-policy.
+    pub atlas_default_policy: String,
+    /// Bound Atlas RGW bucket id used as the default target for VM backups.
+    pub atlas_backup_bucket_id: Option<String>,
+    /// Cluster-wide Ceph connection params used to attach Atlas RBD volumes as
+    /// libvirt network disks. Atlas supplies the per-volume pool/image; these
+    /// supply the monitor hosts and cephx credentials (a libvirt `ceph` secret).
+    /// Comma-separated `host:port` list; empty = rely on the host's ceph.conf.
+    pub atlas_rbd_mon_hosts: String,
+    pub atlas_rbd_auth_user: Option<String>,
+    pub atlas_rbd_secret_uuid: Option<String>,
     /// Co-located machina-daemon base URL for KubeVirt inventory sync.
     pub daemon_base_url: String,
     /// ConsoleHub / Guacamole (optional protocol gateway on hypervisors).
@@ -95,6 +117,30 @@ impl Default for ControllerConfig {
                 .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
                 // Secure by default — set PACKETWOLF_INSECURE_TLS=1 for a self-signed fabric.
                 .unwrap_or(false),
+            atlas_enabled: std::env::var("ATLAS_ENABLED")
+                .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
+                .unwrap_or(false),
+            atlas_base_url: std::env::var("ATLAS_BASE_URL")
+                .unwrap_or_else(|_| "http://127.0.0.1:5110".into()),
+            atlas_token: std::env::var("ATLAS_TOKEN").ok().filter(|s| !s.is_empty()),
+            atlas_insecure_tls: std::env::var("ATLAS_INSECURE_TLS")
+                .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
+                // Secure by default — set ATLAS_INSECURE_TLS=1 for a self-signed gateway.
+                .unwrap_or(false),
+            atlas_tenant_id: std::env::var("ATLAS_TENANT_ID")
+                .unwrap_or_else(|_| "machina".into()),
+            atlas_default_policy: std::env::var("ATLAS_DEFAULT_POLICY")
+                .unwrap_or_else(|_| "general".into()),
+            atlas_backup_bucket_id: std::env::var("ATLAS_BACKUP_BUCKET_ID")
+                .ok()
+                .filter(|s| !s.is_empty()),
+            atlas_rbd_mon_hosts: std::env::var("ATLAS_RBD_MON_HOSTS").unwrap_or_default(),
+            atlas_rbd_auth_user: std::env::var("ATLAS_RBD_AUTH_USER")
+                .ok()
+                .filter(|s| !s.is_empty()),
+            atlas_rbd_secret_uuid: std::env::var("ATLAS_RBD_SECRET_UUID")
+                .ok()
+                .filter(|s| !s.is_empty()),
             daemon_base_url: std::env::var("MACHINA_DAEMON_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:5092".into()),
             guacamole_enabled: std::env::var("GUACAMOLE_ENABLED")

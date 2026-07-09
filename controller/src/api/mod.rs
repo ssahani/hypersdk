@@ -3,6 +3,7 @@
 pub mod apikeys;
 mod ai;
 mod applications;
+mod atlas;
 mod audit;
 mod backups;
 mod backup_targets;
@@ -327,6 +328,46 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/guestkit/vms/{id}/migrate-plan", get(guestkit::guestkit_vm_migrate_plan))
         .route("/api/v1/guestkit/jobs", post(guestkit::guestkit_submit_job))
         .route("/api/v1/guestkit/jobs/{id}", get(guestkit::guestkit_job_status))
+        // Atlas storage control plane
+        .route("/api/v1/atlas/status", get(atlas::atlas_status))
+        .route("/api/v1/atlas/backends", get(atlas::atlas_backends))
+        .route("/api/v1/atlas/clusters", get(atlas::atlas_clusters))
+        .route("/api/v1/atlas/pools", get(atlas::atlas_pools))
+        .route("/api/v1/atlas/policies", get(atlas::atlas_policies))
+        .route("/api/v1/atlas/metrics/summary", get(atlas::atlas_metrics_summary))
+        .route(
+            "/api/v1/atlas/volumes",
+            get(atlas::atlas_volumes).post(atlas::atlas_create_volume),
+        )
+        .route(
+            "/api/v1/atlas/volumes/{id}",
+            get(atlas::atlas_volume).delete(atlas::atlas_delete_volume),
+        )
+        .route("/api/v1/atlas/volumes/{id}/expand", post(atlas::atlas_expand_volume))
+        .route("/api/v1/atlas/volumes/{id}/snapshots", post(atlas::atlas_snapshot_volume))
+        .route("/api/v1/atlas/snapshots", get(atlas::atlas_snapshots))
+        .route("/api/v1/atlas/snapshots/{id}/clone", post(atlas::atlas_clone_snapshot))
+        .route("/api/v1/atlas/snapshots/{id}/restore", post(atlas::atlas_restore_snapshot))
+        .route("/api/v1/atlas/snapshots/{id}", delete(atlas::atlas_delete_snapshot))
+        .route(
+            "/api/v1/atlas/buckets",
+            get(atlas::atlas_buckets).post(atlas::atlas_create_bucket),
+        )
+        .route(
+            "/api/v1/atlas/backups",
+            get(atlas::atlas_backups).post(atlas::atlas_backup_volume),
+        )
+        .route("/api/v1/atlas/backups/{id}", delete(atlas::atlas_delete_backup))
+        .route("/api/v1/atlas/restore-jobs", post(atlas::atlas_restore_backup))
+        .route("/api/v1/atlas/jobs", get(atlas::atlas_jobs))
+        .route("/api/v1/atlas/jobs/{id}", get(atlas::atlas_job))
+        // VM ↔ Atlas volume orchestration
+        .route(
+            "/api/v1/atlas/vms/{id}/volumes",
+            get(atlas::atlas_vm_volumes).post(atlas::atlas_provision_vm_volume),
+        )
+        .route("/api/v1/atlas/vms/{id}/snapshot", post(atlas::atlas_snapshot_vm))
+        .route("/api/v1/atlas/vms/{id}/backup", post(atlas::atlas_backup_vm))
         .route("/api/v1/zeus-firewall/status", get(zeus_firewall::status))
         .route("/api/v1/zeus-firewall/overview", get(zeus_firewall::overview))
         .route("/api/v1/zeus-firewall/profiles", get(zeus_firewall::list_profiles))

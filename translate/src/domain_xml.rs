@@ -31,6 +31,86 @@ fn graphics_block(listen: &str, graphics_type: &str) -> String {
     lines.join("\n    ")
 }
 
+/// Parse an RBD (Ceph) disk source and render a libvirt `<disk type='network'>`
+/// block. The source is set by the Atlas storage integration when a VM's root
+/// disk is an Atlas-provisioned RBD volume. Format:
+///
+/// ```text
+/// rbd:<pool>/<image>[?mon=host1:6789,host2:6789&auth=<cephx-user>&secret=<libvirt-secret-uuid>]
+/// ```
+///
+/// `mon` (Ceph monitor hosts) and `auth`/`secret` (cephx user + the UUID of a
+/// libvirt `ceph` secret holding the key) are optional — omit them when the
+/// hypervisor's `/etc/ceph/ceph.conf` + keyring already supply them. Returns
+/// `None` when `source` is not an rbd reference (caller falls back to a file disk).
+fn rbd_disk_xml(source: &str, disk_boot: &str) -> Option<String> {
+    let rest = source
+        .strip_prefix("rbd://")
+        .or_else(|| source.strip_prefix("rbd:"))?;
+    let (name, query) = match rest.split_once('?') {
+        Some((n, q)) => (n, Some(q)),
+        None => (rest, None),
+    };
+    if name.is_empty() {
+        return None;
+    }
+    let name_esc = esc(name);
+
+    let mut mons: Vec<(String, String)> = Vec::new();
+    let mut auth_user: Option<String> = None;
+    let mut secret_uuid: Option<String> = None;
+    if let Some(q) = query {
+        for pair in q.split('&') {
+            let Some((k, v)) = pair.split_once('=') else {
+                continue;
+            };
+            match k {
+                "mon" | "mons" | "hosts" => {
+                    for h in v.split(',').map(str::trim).filter(|h| !h.is_empty()) {
+                        let (host, port) = match h.rsplit_once(':') {
+                            Some((hh, pp)) if !pp.is_empty() && pp.bytes().all(|b| b.is_ascii_digit()) => {
+                                (hh, pp)
+                            }
+                            _ => (h, "6789"),
+                        };
+                        mons.push((host.to_string(), port.to_string()));
+                    }
+                }
+                "auth" | "user" | "username" => auth_user = Some(v.to_string()),
+                "secret" | "secret_uuid" => secret_uuid = Some(v.to_string()),
+                _ => {}
+            }
+        }
+    }
+
+    let auth_xml = match (auth_user.as_deref(), secret_uuid.as_deref()) {
+        (Some(u), Some(s)) => format!(
+            "\n      <auth username='{}'>\n        <secret type='ceph' uuid='{}'/>\n      </auth>",
+            esc(u),
+            esc(s)
+        ),
+        _ => String::new(),
+    };
+    let hosts_xml = if mons.is_empty() {
+        String::new()
+    } else {
+        let mut s = String::from("\n");
+        for (h, p) in &mons {
+            s.push_str(&format!("        <host name='{}' port='{}'/>\n", esc(h), esc(p)));
+        }
+        s.push_str("      ");
+        s
+    };
+
+    Some(format!(
+        r#"<disk type='network' device='disk'>
+      <driver name='qemu' type='raw'/>{auth_xml}
+      <source protocol='rbd' name='{name_esc}'>{hosts_xml}</source>
+      <target dev='vda' bus='virtio'/>{disk_boot}
+    </disk>"#
+    ))
+}
+
 /// Generate libvirt domain XML from a declarative VM spec (operators never see this).
 pub fn domain_xml_from_spec(
     vm: &VirtualMachine,
@@ -110,6 +190,26 @@ pub fn domain_xml_from_spec(
         ""
     };
 
+    // Root disk: an Atlas-provisioned RBD volume (when the root storage spec
+    // carries an `rbd:` source) is attached as a libvirt network disk; otherwise
+    // the local qcow2/raw file created by the agent is used.
+    let root_disk_xml = vm
+        .spec
+        .storage
+        .first()
+        .and_then(|s| s.source.as_deref())
+        .filter(|s| !s.is_empty())
+        .and_then(|src| rbd_disk_xml(src, disk_boot))
+        .unwrap_or_else(|| {
+            format!(
+                r#"<disk type='file' device='disk'>
+      <driver name='qemu' type='{disk_driver_esc}'/>
+      <source file='{disk_path_esc}'/>
+      <target dev='vda' bus='virtio'/>{disk_boot}
+    </disk>"#
+            )
+        });
+
     let install_iso_xml = install_iso
         .map(|iso| {
             let iso_esc = esc(iso);
@@ -168,11 +268,7 @@ pub fn domain_xml_from_spec(
   <on_crash>destroy</on_crash>
   <devices>
     <emulator>{emulator}</emulator>
-    <disk type='file' device='disk'>
-      <driver name='qemu' type='{disk_driver_esc}'/>
-      <source file='{disk_path_esc}'/>
-      <target dev='vda' bus='virtio'/>{disk_boot}
-    </disk>
+    {root_disk_xml}
 {install_iso_xml}{cloud_iso_xml}    <interface type='network'>
       <source network='{network}'/>
       <model type='virtio'/>
@@ -205,6 +301,47 @@ mod tests {
         assert!(xml.contains("type='qcow2'"));
         assert!(xml.contains("type='vnc'"));
         assert!(xml.contains("type='spice'"));
+    }
+
+    #[test]
+    fn atlas_rbd_source_renders_network_disk() {
+        let mut vm = VirtualMachine::new("cephvm", "2Gi");
+        vm.spec.storage[0].source = Some(
+            "rbd:rbd-nvme-prod/csi-vol-abc?mon=10.0.0.1:6789,10.0.0.2:6789&auth=machina&secret=1a2b3c"
+                .into(),
+        );
+        let xml =
+            domain_xml_from_spec(&vm, "/var/lib/libvirt/images/cephvm.qcow2", "qcow2", None).unwrap();
+        assert!(xml.contains("<disk type='network' device='disk'>"));
+        assert!(xml.contains("protocol='rbd' name='rbd-nvme-prod/csi-vol-abc'"));
+        assert!(xml.contains("<host name='10.0.0.1' port='6789'/>"));
+        assert!(xml.contains("<host name='10.0.0.2' port='6789'/>"));
+        assert!(xml.contains("<auth username='machina'>"));
+        assert!(xml.contains("<secret type='ceph' uuid='1a2b3c'/>"));
+        // The local file disk must NOT be emitted for an RBD root.
+        assert!(!xml.contains("source file='/var/lib/libvirt/images/cephvm.qcow2'"));
+    }
+
+    #[test]
+    fn atlas_rbd_source_without_mons_omits_hosts_and_auth() {
+        let mut vm = VirtualMachine::new("cephvm2", "2Gi");
+        vm.spec.storage[0].source = Some("rbd:pool/img".into());
+        let xml = domain_xml_from_spec(&vm, "/tmp/unused.qcow2", "qcow2", None).unwrap();
+        assert!(xml.contains("protocol='rbd' name='pool/img'"));
+        assert!(!xml.contains("<host "));
+        assert!(!xml.contains("<auth "));
+    }
+
+    #[test]
+    fn non_rbd_source_falls_back_to_file_disk() {
+        let mut vm = VirtualMachine::new("filevm", "2Gi");
+        vm.spec.storage[0].source = Some("/some/other/path.qcow2".into());
+        let xml = domain_xml_from_spec(&vm, "/var/lib/libvirt/images/filevm.qcow2", "qcow2", None)
+            .unwrap();
+        assert!(xml.contains("<disk type='file' device='disk'>"));
+        assert!(xml.contains("source file='/var/lib/libvirt/images/filevm.qcow2'"));
+        // (the NIC is always `<interface type='network'>`; assert no network *disk*)
+        assert!(!xml.contains("<disk type='network'"));
     }
 
     #[test]

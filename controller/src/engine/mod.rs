@@ -1,6 +1,8 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 pub mod ai;
+pub mod atlas_bridge;
+pub mod atlas_vm;
 pub mod baremetal;
 pub mod developer;
 pub mod drs;

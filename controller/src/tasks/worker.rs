@@ -434,6 +434,20 @@ async fn vm_delete(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         // No host assigned — inventory row only.
     }
 
+    // Best-effort: delete any Atlas backend volumes bound to this VM before the
+    // vms row (and its bindings, via CASCADE) is removed, to avoid orphaning
+    // storage on the Atlas side.
+    if let Ok(client) = crate::engine::atlas_bridge::require_client(&state.config) {
+        let bound = crate::engine::atlas_vm::list_vm_volumes(&state.pool, vm_id)
+            .await
+            .unwrap_or_default();
+        for v in bound {
+            if let Err(e) = client.delete_volume(&v.volume_id).await {
+                tracing::warn!(volume_id = %v.volume_id, error = %e, "atlas volume delete failed on vm delete");
+            }
+        }
+    }
+
     sqlx::query("DELETE FROM vms WHERE id = ?")
         .bind(vm_id)
         .execute(&state.pool)
@@ -1070,6 +1084,28 @@ async fn vm_snapshot(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> 
         .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
     vm_lifecycle::set_vm_phase(&state.pool, vm_id, vm_lifecycle::PHASE_SNAPSHOTTING).await?;
 
+    // Atlas-backed VMs snapshot their backend volumes through the Atlas control
+    // plane instead of a libvirt snapshot on the agent.
+    if crate::engine::atlas_vm::vm_is_atlas_backed(&state.pool, vm_id).await {
+        let snap_name = msg.payload["name"].as_str().map(str::to_string);
+        let jobs = crate::engine::atlas_vm::snapshot_vm(state, vm_id, snap_name.as_deref()).await?;
+        let ids: Vec<&str> = jobs.iter().filter_map(|j| j.job_id()).collect();
+        let summary = ids.join(",");
+        sqlx::query(
+            "UPDATE snapshot_records SET status = 'completed', message = ?, snapshot_path = ? WHERE id = ?",
+        )
+        .bind(format!("Atlas snapshot job(s): {summary}"))
+        .bind(&summary)
+        .bind(record_id)
+        .execute(&state.pool)
+        .await?;
+        state.emit_event(
+            "vm.snapshot",
+            format!("Atlas snapshot ({} job(s)) for VM {vm_id}", ids.len()),
+        );
+        return Ok(());
+    }
+
     let row: (String, Option<Uuid>, String) = sqlx::query_as(
         "SELECT v.name, v.host_id, s.name FROM vms v JOIN snapshot_records s ON s.id = ? AND s.vm_id = v.id",
     )
@@ -1222,6 +1258,35 @@ async fn vm_backup(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
             .fetch_optional(&state.pool)
             .await?
             .ok_or_else(|| anyhow::anyhow!("backup record {} not found", record_id))?;
+
+    // Atlas-backed VMs back up their backend volumes to an Atlas RGW bucket
+    // (RBD export-diff → S3) instead of a local qcow2 copy on the agent.
+    if crate::engine::atlas_vm::vm_is_atlas_backed(&state.pool, vm_id).await {
+        let mode = msg.payload["mode"].as_str().unwrap_or("data");
+        let keep = msg.payload["keep"].as_i64().unwrap_or(0);
+        let bucket = msg.payload["bucket_id"].as_str();
+        let jobs = crate::engine::atlas_vm::backup_vm(state, vm_id, bucket, mode, keep).await?;
+        let job_ids: Vec<&str> = jobs.iter().filter_map(|j| j.job_id()).collect();
+        // Persist the Atlas backup id(s) (not the job id) so restore can target
+        // them; comma-joined when a VM has multiple Atlas volumes.
+        let backup_ids: Vec<String> = jobs.iter().filter_map(|j| j.resource_backup_id()).collect();
+        let stored = backup_ids.join(",");
+        sqlx::query(
+            "UPDATE backup_records SET status = 'completed', message = ?, backup_path = ? WHERE id = ?",
+        )
+        .bind(format!("Atlas backup job(s): {}", job_ids.join(",")))
+        .bind(&stored)
+        .bind(record_id)
+        .execute(&state.pool)
+        .await?;
+        state.emit_event(
+            "vm.backup",
+            format!("Atlas backup ({} job(s)) for VM {vm_id}", job_ids.len()),
+        );
+        update_task_progress(&state.pool, msg.task_id, 100, "atlas backup queued").await?;
+        return Ok(());
+    }
+
     let dest = state
         .config
         .backup_dir
@@ -1510,6 +1575,46 @@ async fn vm_backup_restore(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
             .fetch_optional(&state.pool)
             .await?
             .ok_or_else(|| anyhow::anyhow!("backup record {} not found", record_id))?;
+    // Atlas-backed VMs restore from an Atlas backup (`backup_path` holds the
+    // Atlas backup id(s)) via the control plane, provisioning a new volume.
+    if crate::engine::atlas_vm::vm_is_atlas_backed(&state.pool, vm_id).await {
+        let backup_id = backup_path
+            .split(',')
+            .map(str::trim)
+            .find(|s| !s.is_empty())
+            .ok_or_else(|| anyhow::anyhow!("backup record has no Atlas backup id"))?;
+        let mode = msg.payload["mode"].as_str().unwrap_or("snapshot");
+        sqlx::query("UPDATE backup_records SET restore_status = 'running' WHERE id = ?")
+            .bind(record_id)
+            .execute(&state.pool)
+            .await?;
+        let client = crate::engine::atlas_bridge::require_client(&state.config)?;
+        match client.restore_backup(backup_id, None, mode).await {
+            Ok(job) => {
+                sqlx::query("UPDATE backup_records SET restore_status = 'completed' WHERE id = ?")
+                    .bind(record_id)
+                    .execute(&state.pool)
+                    .await?;
+                state.emit_event(
+                    "vm.backup.restore",
+                    format!(
+                        "Atlas restore job {} for VM {vm_id}",
+                        job.job_id().unwrap_or("?")
+                    ),
+                );
+            }
+            Err(e) => {
+                sqlx::query("UPDATE backup_records SET restore_status = 'failed' WHERE id = ?")
+                    .bind(record_id)
+                    .execute(&state.pool)
+                    .await?;
+                anyhow::bail!("atlas restore failed: {e}");
+            }
+        }
+        update_task_progress(&state.pool, msg.task_id, 100, "atlas restore queued").await?;
+        return Ok(());
+    }
+
     let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(vm_id)
         .fetch_optional(&state.pool)

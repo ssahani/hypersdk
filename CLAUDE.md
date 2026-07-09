@@ -256,5 +256,14 @@ Frontend polls `/api/v1/tasks/{task_id}`.
 - `MACHINA_GUACAMOLE_JSON_SECRET_HEX` — Guacamole JSON-auth token secret
 - `MACHINA_API_KEY_MASTER_KEY` — 64-char hex (32 bytes) AES-256-GCM master key for encrypting LLM provider API keys at rest. Unset = plaintext (dev/legacy). Generate: `openssl rand -hex 32`
 
+**Atlas storage integration** (controller ↔ `../atlas` Zyvor storage control plane; VM disks as Ceph/NFS/ZFS volumes, snapshot/backup/restore via Atlas):
+- `ATLAS_ENABLED=1` — enable the Atlas integration (default off). Surfaces the Platform → **Storage (Atlas)** page and `/api/v1/atlas/*`.
+- `ATLAS_BASE_URL` — Atlas gateway URL (default `http://127.0.0.1:5110`)
+- `ATLAS_TOKEN` — service-account JWT (Atlas `POST /auth/tokens`), sent as bearer when Atlas runs with `ATLAS_AUTH_REQUIRED=1`
+- `ATLAS_INSECURE_TLS=1` — accept a self-signed Atlas gateway cert
+- `ATLAS_TENANT_ID` (default `machina`), `ATLAS_DEFAULT_POLICY` (default `general`) — recorded on VM volumes / intent→placement
+- `ATLAS_BACKUP_BUCKET_ID` — default bound RGW bucket for VM backups
+- `ATLAS_RBD_MON_HOSTS` (comma `host:port`), `ATLAS_RBD_AUTH_USER`, `ATLAS_RBD_SECRET_UUID` — Ceph connection params used to attach an Atlas RBD volume as a libvirt network disk. Atlas supplies the per-volume `pool/image`; these supply the monitors + cephx secret (a libvirt `ceph` secret). Empty = rely on the hypervisor's `ceph.conf`/keyring. Create a VM on Atlas storage by passing `atlas_root_disk: true` (+ optional `atlas_policy`) to `POST /api/v1/vms`.
+
 **Web (Vite)**:
 - `VITE_MACHINA_CONTROLLER_URL` — point the web UI directly at the controller (bypasses daemon proxy; useful for standalone web dev)

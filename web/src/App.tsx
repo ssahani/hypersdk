@@ -127,6 +127,7 @@ const PlatformPlacement = lazyWithRetry(() => import('./pages/platform/PlatformP
 const PlatformTasks = lazyWithRetry(() => import('./pages/platform/PlatformTasks'))
 const PlatformEvents = lazyWithRetry(() => import('./pages/platform/PlatformEvents'))
 const PlatformStorage = lazyWithRetry(() => import('./pages/platform/PlatformStorage'))
+const PlatformAtlasStorage = lazyWithRetry(() => import('./pages/platform/PlatformAtlasStorage'))
 const PlatformNetworks = lazyWithRetry(() => import('./pages/platform/PlatformNetworks'))
 const PlatformHostDetail = lazyWithRetry(() => import('./pages/platform/PlatformHostDetail'))
 const PlatformUsers = lazyWithRetry(() => import('./pages/platform/PlatformUsers'))
@@ -469,6 +470,7 @@ function AuthenticatedShellRoutes() {
                   <Route path="blueprints" element={<PlatformBlueprints />} />
                   <Route path="support" element={<PlatformSupport />} />
                   <Route path="storage" element={<PlatformStorage />} />
+                  <Route path="storage-atlas" element={<PlatformAtlasStorage />} />
                   <Route path="gpu" element={<PlatformGpuCommandCenter />} />
                   <Route path="networks" element={<PlatformNetworks />} />
                   <Route path="users" element={<PlatformUsers />} />

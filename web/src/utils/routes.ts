@@ -188,6 +188,7 @@ export const navGroups: NavGroup[] = [
         label: 'Resources',
         items: [
           { to: '/platform/storage', icon: React.createElement(HardDrive, { className: 'w-4 h-4' }), label: 'Disk Utility' },
+          { to: '/platform/storage-atlas', icon: React.createElement(Database, { className: 'w-4 h-4' }), label: 'Storage (Atlas)' },
           { to: '/platform/storage-tiers', icon: React.createElement(Layers, { className: 'w-4 h-4' }), label: 'Storage Tiers' },
           { to: '/platform/networks', icon: React.createElement(Network, { className: 'w-4 h-4' }), label: 'Networks' },
           { to: '/platform/content', icon: React.createElement(Package, { className: 'w-4 h-4' }), label: 'Images & ISOs' },
@@ -451,6 +452,7 @@ export const routeLabels: Record<string, string> = {
   '/platform/enroll': 'Add Host',
   '/platform/placement': 'Disaster Recovery',
   '/platform/storage': 'Disk Utility',
+  '/platform/storage-atlas': 'Storage (Atlas)',
   '/platform/networks': 'Networks',
   '/platform/tasks': 'Tasks',
   '/platform/events': 'Event Log',

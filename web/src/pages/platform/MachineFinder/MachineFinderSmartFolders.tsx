@@ -74,7 +74,7 @@ export default function MachineFinderSmartFolders({ state }: Props) {
   }
 
   return (
-    <aside className="machine-finder-sidebar w-full xl:w-52 shrink-0 space-y-4" data-testid="machine-finder-smart-folders">
+    <aside className="machine-finder-sidebar w-full xl:w-56 shrink-0 space-y-4" data-testid="machine-finder-smart-folders">
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40 flex items-center gap-1 mb-2">
           <FolderOpen className="w-3 h-3" /> Smart Folders

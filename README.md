@@ -39,7 +39,7 @@ Unified control plane for **VMs, networks, storage, snapshots, and day-two opera
 | **TUI** | ratatui terminal client — `tui/` |
 | **Core** | libvirt bindings, types — `core/` |
 | **CLI** | `machinactl` deploy/verify/health — root |
-| **Integrations** | OpenStack, Guacamole, PacketWolf — `docs/` |
+| **Integrations** | OpenStack, Guacamole, PacketWolf, Atlas storage — `docs/` |
 
 ---
 
@@ -87,6 +87,7 @@ flowchart TB
 |------|----------|
 | Docs index | [docs/README.md](docs/README.md) |
 | User stories | [docs/USER_STORIES.md](docs/USER_STORIES.md) |
+| Atlas storage integration | [docs/atlas-storage.md](docs/atlas-storage.md) |
 | Guacamole bridge | [docs/guacamole-integration.md](docs/guacamole-integration.md) |
 
 ## Zyvor Platform Stack
@@ -101,6 +102,7 @@ flowchart TB
 | **hypersdk / hyper2kvm** | Multi-cloud VM migration |
 | **guestkit** | Offline VM migration assurance |
 | **packetwolf** | Kernel-native network intelligence |
+| **atlas** | Storage control plane (Ceph/NFS/ZFS) — VM disks, snapshots, backups |
 | **Aether** | Universal runtime portability |
 | **Veyron** | KubeVirt VM command center |
 | **IronWolf** | Metal3 bare-metal automation |
