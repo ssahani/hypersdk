@@ -723,11 +723,10 @@ a.tahoe-context-app-title:hover {
 }
 
 .machine-finder-command-center {
-  position: sticky;
-  top: calc(var(--platform-chrome-top, 6.5rem) + 0.5rem);
+  /* Flow with the page (single page scroll) instead of a nested inner
+     scrollbar. A sticky panel taller than the viewport re-introduces the
+     cutoff/scroll, so it stays top-aligned but not sticky. */
   align-self: flex-start;
-  max-height: calc(100dvh - var(--platform-chrome-top, 6.5rem) - 2rem);
-  overflow-y: auto;
 }
 
 .mission-control-page,

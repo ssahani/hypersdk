@@ -175,6 +175,13 @@ pub struct CreateVmBody {
     pub tags: Vec<String>,
     #[serde(default = "default_desired")]
     pub desired_state: String,
+    /// Provision the VM's root disk as an Atlas backend volume (Ceph RBD) instead
+    /// of a local qcow2 file, and attach it as a libvirt network disk.
+    #[serde(default)]
+    pub atlas_root_disk: bool,
+    /// Atlas intent → placement policy for the root volume (default from config).
+    #[serde(default)]
+    pub atlas_policy: Option<String>,
 }
 
 fn default_desired() -> String {
@@ -271,6 +278,68 @@ pub async fn create_vm(
     }
 
     tx.commit().await?;
+
+    // Atlas-backed root disk: provision an Atlas backend volume bound to this VM
+    // and rewrite the stored spec so `vm.apply` attaches it as an RBD network
+    // disk. Done after commit so the volume's FK/owner binding resolves.
+    if body.atlas_root_disk {
+        let root_size_gib = body
+            .vm
+            .spec
+            .storage
+            .first()
+            .map(|s| s.size.clone())
+            .and_then(|s| machina_spec::parse_size_gib(&s).ok())
+            .unwrap_or(10) as i64;
+        match crate::engine::atlas_vm::provision_vm_volume(
+            &state,
+            vm_id,
+            root_size_gib,
+            body.atlas_policy.as_deref(),
+            "root_disk",
+            None,
+        )
+        .await
+        {
+            Ok(vol) => {
+                if let Some(native) = vol.backend_native_id.as_deref().filter(|s| !s.is_empty()) {
+                    let source = crate::engine::atlas_vm::rbd_source(&state.config, native);
+                    let mut spec = spec_json.clone();
+                    if let Some(first) = spec
+                        .pointer_mut("/spec/storage")
+                        .and_then(|v| v.as_array_mut())
+                        .and_then(|a| a.first_mut())
+                    {
+                        first["source"] = serde_json::json!(source);
+                    }
+                    let _ = sqlx::query("UPDATE vms SET spec_json = ? WHERE id = ?")
+                        .bind(&spec)
+                        .bind(vm_id)
+                        .execute(&state.pool)
+                        .await;
+                }
+            }
+            Err(e) => {
+                // The operator explicitly asked for Atlas storage; don't silently
+                // fall back to a local disk. Roll back the VM row and fail.
+                let _ = sqlx::query("DELETE FROM vm_disks WHERE vm_id = ?")
+                    .bind(vm_id)
+                    .execute(&state.pool)
+                    .await;
+                let _ = sqlx::query("DELETE FROM vms WHERE id = ?")
+                    .bind(vm_id)
+                    .execute(&state.pool)
+                    .await;
+                return Err(ApiError::internal(format!(
+                    "Atlas volume provisioning failed: {e}"
+                ))
+                .with_code("atlas_provision_failed")
+                .with_remediation(
+                    "Check the Atlas gateway and ATLAS_* config, or create the VM without Atlas storage.",
+                ));
+            }
+        }
+    }
 
     if body.vm.spec.ha.enabled {
         upsert_ha_policy(
@@ -418,6 +487,8 @@ pub async fn create_from_template(
         host_id: body.host_id,
         tags: vec![],
         desired_state: body.desired_state,
+        atlas_root_disk: false,
+        atlas_policy: None,
     };
     create_vm(State(state), Extension(actor), Json(create_body)).await
 }
@@ -496,6 +567,8 @@ pub async fn create_from_iso(
         host_id: body.host_id,
         tags: vec!["iso-install".into()],
         desired_state: body.desired_state,
+        atlas_root_disk: false,
+        atlas_policy: None,
     };
     create_vm(State(state), Extension(actor), Json(create_body)).await
 }
@@ -713,6 +786,8 @@ pub async fn create_from_virt_install(
         host_id: body.host_id,
         tags: vec![tag.into(), "virt-install".into()],
         desired_state: body.desired_state,
+        atlas_root_disk: false,
+        atlas_policy: None,
     };
     create_vm(State(state), Extension(actor), Json(create_body)).await
 }

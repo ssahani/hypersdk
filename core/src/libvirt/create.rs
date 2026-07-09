@@ -438,6 +438,80 @@ pub(crate) fn has_spice() -> bool {
     false
 }
 
+/// Render a libvirt `<disk type='network'>` block for an Atlas RBD (Ceph) volume
+/// when `disk_path` is an rbd reference (`rbd:<pool>/<image>[?mon=..&auth=..&secret=..]`).
+/// Mirrors `machina_translate::domain_xml`. Returns `None` for a normal file path.
+fn rbd_disk_xml_from_path(disk_path: &str, disk_boot_order: &str) -> Option<String> {
+    let rest = disk_path
+        .strip_prefix("rbd://")
+        .or_else(|| disk_path.strip_prefix("rbd:"))?;
+    let (name, query) = match rest.split_once('?') {
+        Some((n, q)) => (n, Some(q)),
+        None => (rest, None),
+    };
+    if name.is_empty() {
+        return None;
+    }
+    let name_esc = crate::xml::escape(name);
+    let mut mons: Vec<(String, String)> = Vec::new();
+    let mut auth_user: Option<String> = None;
+    let mut secret_uuid: Option<String> = None;
+    if let Some(q) = query {
+        for pair in q.split('&') {
+            let Some((k, v)) = pair.split_once('=') else {
+                continue;
+            };
+            match k {
+                "mon" | "mons" | "hosts" => {
+                    for h in v.split(',').map(str::trim).filter(|h| !h.is_empty()) {
+                        let (host, port) = match h.rsplit_once(':') {
+                            Some((hh, pp))
+                                if !pp.is_empty() && pp.bytes().all(|b| b.is_ascii_digit()) =>
+                            {
+                                (hh, pp)
+                            }
+                            _ => (h, "6789"),
+                        };
+                        mons.push((host.to_string(), port.to_string()));
+                    }
+                }
+                "auth" | "user" | "username" => auth_user = Some(v.to_string()),
+                "secret" | "secret_uuid" => secret_uuid = Some(v.to_string()),
+                _ => {}
+            }
+        }
+    }
+    let auth_xml = match (auth_user.as_deref(), secret_uuid.as_deref()) {
+        (Some(u), Some(s)) => format!(
+            "\n      <auth username='{}'>\n        <secret type='ceph' uuid='{}'/>\n      </auth>",
+            crate::xml::escape(u),
+            crate::xml::escape(s)
+        ),
+        _ => String::new(),
+    };
+    let hosts_xml = if mons.is_empty() {
+        String::new()
+    } else {
+        let mut s = String::from("\n");
+        for (h, p) in &mons {
+            s.push_str(&format!(
+                "        <host name='{}' port='{}'/>\n",
+                crate::xml::escape(h),
+                crate::xml::escape(p)
+            ));
+        }
+        s.push_str("      ");
+        s
+    };
+    Some(format!(
+        r#"<disk type='network' device='disk'>
+      <driver name='qemu' type='raw'/>{auth_xml}
+      <source protocol='rbd' name='{name_esc}'>{hosts_xml}</source>
+      <target dev='vda' bus='virtio'/>{disk_boot_order}
+    </disk>"#
+    ))
+}
+
 fn generate_domain_xml(
     req: &CreateVmRequest,
     disk_path: &str,
@@ -499,6 +573,18 @@ fn generate_domain_xml(
     } else {
         ""
     };
+
+    // Root disk: an Atlas RBD volume (rbd: disk_path) attaches as a libvirt
+    // network disk; otherwise the local qcow2/raw file is used.
+    let root_disk_xml = rbd_disk_xml_from_path(disk_path, disk_boot_order).unwrap_or_else(|| {
+        format!(
+            r#"<disk type='file' device='disk'>
+      <driver name='qemu' type='{disk_driver_esc}'/>
+      <source file='{disk_path_esc}'/>
+      <target dev='vda' bus='virtio'/>{disk_boot_order}
+    </disk>"#
+        )
+    });
 
     let cdrom_xml = if !iso_path.is_empty() {
         let cdrom_boot = if is_uefi {
@@ -575,11 +661,7 @@ fn generate_domain_xml(
   <on_crash>restart</on_crash>
   <devices>
     <emulator>{emulator}</emulator>
-    <disk type='file' device='disk'>
-      <driver name='qemu' type='{disk_driver}'/>
-      <source file='{disk_path}'/>
-      <target dev='vda' bus='virtio'/>{disk_boot_order}
-    </disk>{cdrom_xml}{virtio_win_cdrom_xml}{cloud_init_cdrom_xml}
+    {root_disk_xml}{cdrom_xml}{virtio_win_cdrom_xml}{cloud_init_cdrom_xml}
     <interface type='network'>
       <source network='{network}'/>
       <model type='virtio'/>
@@ -610,9 +692,6 @@ fn generate_domain_xml(
         memory_kib = memory_kib,
         vcpus = req.vcpus,
         os_xml = os_xml,
-        disk_driver = disk_driver_esc,
-        disk_path = disk_path_esc,
-        disk_boot_order = disk_boot_order,
         cdrom_xml = cdrom_xml,
         virtio_win_cdrom_xml = virtio_win_cdrom_xml,
         cloud_init_cdrom_xml = cloud_init_cdrom_xml,

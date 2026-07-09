@@ -54,7 +54,7 @@ export function DetailPanel({
   if (empty) {
     return (
       <aside
-        className={`machine-finder-command-center xl:w-96 shrink-0 rounded-xl border border-white/[0.06] bg-slate-950/50 flex items-center justify-center p-4 ${className}`}
+        className={`machine-finder-command-center xl:w-[30rem] shrink-0 rounded-xl border border-white/[0.06] bg-slate-950/50 flex items-center justify-center p-4 ${className}`}
         data-testid={testId}
       >
         <p className="text-sm text-slate-500">{emptyMessage ?? 'Nothing selected'}</p>
@@ -64,7 +64,7 @@ export function DetailPanel({
 
   return (
     <aside
-      className={`machine-finder-command-center w-full xl:w-96 shrink-0 flex flex-col rounded-xl border border-white/[0.06] bg-slate-950/50 ${className}`}
+      className={`machine-finder-command-center w-full xl:w-[30rem] shrink-0 flex flex-col rounded-xl border border-white/[0.06] bg-slate-950/50 ${className}`}
       data-testid={testId}
     >
       <header className="px-4 py-3 border-b border-white/[0.06] shrink-0 flex items-start justify-between gap-2">
@@ -75,7 +75,7 @@ export function DetailPanel({
         {statusBadge && <div className="shrink-0">{statusBadge}</div>}
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 text-sm min-h-0">
+      <div className="flex-1 p-4 space-y-4 text-sm min-h-0">
         {children}
       </div>
 

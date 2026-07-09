@@ -439,6 +439,10 @@ pub async fn prune_stale_marketplace_templates(pool: &SqlitePool) -> anyhow::Res
 /// Insert bundled marketplace templates (idempotent).
 pub async fn seed_default_templates(pool: &SqlitePool) -> anyhow::Result<usize> {
     let mut inserted = 0usize;
+    // Seed the whole catalog in ONE transaction. Committing each row separately
+    // meant N fsyncs at boot (one insert tripped the >1s slow-query log); a single
+    // commit collapses that to one durable write.
+    let mut tx = pool.begin().await?;
     for t in CATALOG {
         let fw = catalog_firewall_profile(t);
         let result = sqlx::query(
@@ -467,12 +471,13 @@ pub async fn seed_default_templates(pool: &SqlitePool) -> anyhow::Result<usize> 
         .bind(t.featured)
         .bind(t.icon)
         .bind(fw)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
         if result.rows_affected() > 0 {
             inserted += 1;
         }
     }
+    tx.commit().await?;
     let _ = prune_stale_marketplace_templates(pool).await?;
     Ok(inserted)
 }
