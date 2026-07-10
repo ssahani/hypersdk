@@ -152,6 +152,7 @@ export function platformHeaders(extra?: HeadersInit): Headers {
 }
 
 import { formatHttpErrorBody } from '../utils/apiError'
+import { redirectToLoginOnce } from './authRedirect'
 
 export interface PlatformApiError extends Error {
   error_code?: string
@@ -222,6 +223,12 @@ export async function platformFetch<T>(path: string, init?: RequestInit): Promis
     localStorage.removeItem(LS_JWT)
     localStorage.removeItem(LS_BASIC)
     res = await fetch(url, buildInit(init))
+  }
+  // A 401 that survives the token-clear/retry means the session is truly expired. Send the
+  // user to login instead of throwing a raw "401 " that a non-catching caller would surface
+  // as an uncaught pageerror ("Application error").
+  if (res!.status === 401) {
+    redirectToLoginOnce()
   }
   if (!res!.ok) {
     const body = await res!.text().catch(() => '')

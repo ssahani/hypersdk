@@ -3,13 +3,15 @@
 // https://zyvor.dev · info@zyvor.dev
 
 import { formatHttpErrorBody, formatUserError } from '../utils/apiError'
+import { redirectToLoginOnce } from './authRedirect'
 
 const defaultOpts: RequestInit = { credentials: 'same-origin' }
 
 /** fetch() throws TypeError / "NetworkError" when DNS fails, CORS blocks, TLS errors, or daemon is down. */
 async function fetchApi(url: string, init?: RequestInit): Promise<Response> {
+  let res: Response
   try {
-    return await fetch(url, init)
+    res = await fetch(url, init)
   } catch (e: unknown) {
     const msg = formatUserError(e)
     if (
@@ -24,6 +26,14 @@ async function fetchApi(url: string, init?: RequestInit): Promise<Response> {
     }
     throw e
   }
+  // A 401 means the session expired / isn't authenticated. Redirect to login (debounced,
+  // no-op on the login page) so a non-catching caller doesn't surface a raw "401 " as an
+  // uncaught pageerror. The Response is still returned so callers that handle 401 (e.g.
+  // getWsToken) keep working until navigation happens.
+  if (res.status === 401) {
+    redirectToLoginOnce()
+  }
+  return res
 }
 
 /**
