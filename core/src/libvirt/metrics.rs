@@ -205,6 +205,27 @@ fn collect_domain_metrics(domain: &Domain, name: &str) -> Result<VmMetrics, Libv
         }
     };
 
+    // Reliable host-side memory fallback. Guest balloon stats (available/unused) require the
+    // virtio-balloon stats period to be enabled, and RSS isn't reported by every qemu — when
+    // both are missing, memory_used reads 0 even for a busy VM, which silently breaks
+    // threshold alerts, capacity/rightsizing, and the memory-based watchdog signal. The VM's
+    // cgroup memory.current is always available on cgroup-v2 hosts, so fall back to it.
+    let (memory_used_mb, memory_pct) = if memory_used_mb == 0 {
+        let cg_used_mb = cgroup
+            .as_ref()
+            .and_then(|c| c.memory_current_bytes)
+            .map(|b| b / 1024 / 1024)
+            .unwrap_or(0);
+        let pct = if memory_total_mb > 0 && cg_used_mb > 0 {
+            (cg_used_mb as f64 / memory_total_mb as f64 * 100.0).min(100.0)
+        } else {
+            memory_pct
+        };
+        (cg_used_mb, pct)
+    } else {
+        (memory_used_mb, memory_pct)
+    };
+
     Ok(VmMetrics {
         name: name.to_string(),
         state,
