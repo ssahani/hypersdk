@@ -252,11 +252,16 @@ pub fn domain_xml_from_spec(
         ""
     };
 
+    // Boot `vcpus` but declare a higher maximum so online CPU hotplug (set_vcpus with
+    // AFFECT_LIVE) can hot-add without a reboot — libvirt forbids raising vCPUs above the
+    // domain's defined maximum. Headroom is 4x capped at 16, never below the boot count.
+    // (Mirrors core::libvirt::create::vcpu_max_for; inlined to keep `translate` core-free.)
+    let vcpu_max = vcpus.max(vcpus.saturating_mul(4).min(16));
     Ok(format!(
         r#"<domain type='kvm'>
   <name>{name}</name>
   <memory unit='KiB'>{memory_kib}</memory>
-  <vcpu placement='static'>{vcpus}</vcpu>
+  <vcpu placement='static' current='{vcpus}'>{vcpu_max}</vcpu>
   {os_xml}
   <features>
     <acpi/>
