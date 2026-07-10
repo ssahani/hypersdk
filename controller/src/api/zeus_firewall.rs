@@ -456,12 +456,16 @@ pub struct PolicyBody {
 
 pub async fn list_policies(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+    // Firewall rule internals are operator-sensitive; gate reads like every
+    // sibling handler (create/update/delete all require_operator). Also surface
+    // DB errors instead of swallowing them into an empty 200.
+    require_operator(&actor)?;
     let rows: Vec<(Uuid, String, String)> =
         sqlx::query_as("SELECT id, name, spec_yaml FROM firewall_policies ORDER BY name")
             .fetch_all(&state.pool)
-            .await
-            .unwrap_or_default();
+            .await?;
     Ok(Json(
         rows.into_iter()
             .map(|(id, name, spec_yaml)| serde_json::json!({ "id": id, "name": name, "spec_yaml": spec_yaml }))

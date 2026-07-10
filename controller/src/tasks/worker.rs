@@ -899,7 +899,7 @@ async fn host_maintenance(state: &AppState, msg: &TaskMessage) -> anyhow::Result
             .await?;
 
             let dest: Option<Uuid> = sqlx::query_scalar(
-                "SELECT id FROM hosts WHERE id != ? AND state = 'online' AND maintenance_mode = FALSE ORDER BY vm_count LIMIT 1",
+                "SELECT id FROM hosts WHERE id != ? AND state = 'online' AND maintenance_mode = FALSE AND schedulable = TRUE ORDER BY vm_count LIMIT 1",
             )
             .bind(host_id)
             .fetch_optional(&state.pool)
@@ -1634,12 +1634,26 @@ async fn vm_backup_restore(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
 
-    let backup_path: String =
-        sqlx::query_scalar("SELECT backup_path FROM backup_records WHERE id = ?")
-            .bind(record_id)
-            .fetch_optional(&state.pool)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("backup record {} not found", record_id))?;
+    // SAFETY: require the backup to belong to THIS vm and to be in a completed
+    // state. Without the vm_id match, a caller could restore VM A's image onto
+    // VM B — destroying B's disk and cross-loading another tenant's data. Without
+    // the status filter, a partial/failed record's truncated image could be
+    // converted over a live disk.
+    let backup_path: String = sqlx::query_scalar(
+        "SELECT backup_path FROM backup_records
+         WHERE id = ? AND vm_id = ? AND status IN ('completed', 'succeeded')",
+    )
+    .bind(record_id)
+    .bind(vm_id)
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or_else(|| {
+        anyhow::anyhow!(
+            "backup record {} not found for VM {}, or not in a completed state",
+            record_id,
+            vm_id
+        )
+    })?;
     // Atlas-backed VMs restore from an Atlas backup (`backup_path` holds the
     // Atlas backup id(s)) via the control plane, provisioning a new volume.
     if crate::engine::atlas_vm::vm_is_atlas_backed(&state.pool, vm_id).await {

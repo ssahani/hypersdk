@@ -174,10 +174,25 @@ pub fn assert_backup_source_within_pools(conn: &Connect, source: &str) -> Result
         ))
     })?;
     let canon_s = canon.to_string_lossy().to_string();
-    let prefixes = disk_image_delete_allowed_prefixes(conn)?;
+    let mut prefixes = disk_image_delete_allowed_prefixes(conn)?;
+    // Backups are a legitimate restore *source* but are written outside the image
+    // pools (the agent's backup dir, MACHINA_BACKUP_DIR, default
+    // /var/lib/machina/backups). Include it here — scoped to the source allow-list
+    // only, NOT the disk-delete/new-disk policy — so restore-from-backup works
+    // out of the box instead of failing "must be under storage pool targets".
+    let backup_dir =
+        std::env::var("MACHINA_BACKUP_DIR").unwrap_or_else(|_| "/var/lib/machina/backups".into());
+    let backup_pref = if backup_dir.ends_with('/') {
+        backup_dir
+    } else {
+        format!("{backup_dir}/")
+    };
+    if !prefixes.iter().any(|p| p == &backup_pref) {
+        prefixes.push(backup_pref);
+    }
     if !prefixes.iter().any(|pref| canon_s.starts_with(pref)) {
         return Err(LibvirtError::Invalid(format!(
-            "source file must be under libvirt storage pool targets or default image dirs (path {canon_s})"
+            "source file must be under libvirt storage pool targets, default image dirs, or the backup dir (path {canon_s})"
         )));
     }
     Ok(())

@@ -111,6 +111,7 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
          JOIN ha_policies hp ON hp.vm_id = v.id AND hp.enabled = TRUE
          JOIN hosts h ON h.id = v.host_id
          WHERE h.state = 'offline'
+           AND v.desired_state = 'running'
          LIMIT 100",
     )
     .fetch_all(&state.pool)
@@ -167,7 +168,7 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
         // recovery isn't stranded merely because the surviving hosts run warm.
         let candidates: Vec<(Uuid, i64)> = sqlx::query_as(
             "SELECT id, (memory_total_mib - memory_used_mib) AS headroom FROM hosts
-             WHERE id != ? AND state = 'online' AND maintenance_mode = FALSE
+             WHERE id != ? AND state = 'online' AND maintenance_mode = FALSE AND schedulable = TRUE
              ORDER BY vm_count, memory_used_mib",
         )
         .bind(failed_host)

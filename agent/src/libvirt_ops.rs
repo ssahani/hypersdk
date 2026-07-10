@@ -727,6 +727,13 @@ impl LibvirtCtx {
             let xml = dom
                 .get_xml_desc(0)
                 .map_err(|e| LibvirtError::Operation(e.to_string()))?;
+            let disks = count_data_disks(&xml);
+            if disks > 1 {
+                return Err(LibvirtError::Operation(format!(
+                    "VM '{vm_name}' has {disks} data disks; multi-disk restore is not supported \
+                     (restoring only the first disk would leave the others stale). Refusing."
+                )));
+            }
             let disk_path = extract_disk_path(&xml).ok_or_else(|| {
                 LibvirtError::Operation(format!("no disk path found for VM '{vm_name}'"))
             })?;
@@ -765,6 +772,13 @@ impl LibvirtCtx {
         let xml = dom
             .get_xml_desc(0)
             .map_err(|e| LibvirtError::Operation(e.to_string()))?;
+        let disks = count_data_disks(&xml);
+        if disks > 1 {
+            return Err(LibvirtError::Operation(format!(
+                "VM '{vm_name}' has {disks} data disks; multi-disk backup is not supported \
+                 (backing up only the first disk would silently lose the others). Refusing."
+            )));
+        }
         let disk_path = extract_disk_path(&xml).ok_or_else(|| {
             LibvirtError::Operation(format!("no disk path found for VM '{vm_name}'"))
         })?;
@@ -950,6 +964,15 @@ fn extract_disk_path(xml: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// Count file-backed *data* disks (device='disk'), ignoring cdrom/floppy. Backup
+/// and restore only handle the first disk (`extract_disk_path`); if a VM has more,
+/// silently touching only disk 1 loses/leaves-stale every other disk's data. We
+/// use this to FAIL LOUDLY on multi-disk VMs instead of producing a backup that
+/// looks successful but is missing data.
+fn count_data_disks(xml: &str) -> usize {
+    xml.matches("device='disk'").count() + xml.matches("device=\"disk\"").count()
 }
 
 fn define_cloned_domain(

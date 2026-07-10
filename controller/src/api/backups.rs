@@ -233,6 +233,23 @@ pub async fn restore_vm_backup(
     Path((vm_id, backup_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<TaskResponse>, ApiError> {
     require_operator(&actor)?;
+    // Reject up-front (clean 404) if the backup doesn't belong to this VM or
+    // isn't completed — the worker enforces the same guard, but this gives the
+    // caller a proper error instead of a task that fails asynchronously, and
+    // prevents restoring one VM's image onto another (data loss + cross-tenant).
+    let owns_backup: Option<i64> = sqlx::query_scalar(
+        "SELECT 1 FROM backup_records
+         WHERE id = ? AND vm_id = ? AND status IN ('completed', 'succeeded')",
+    )
+    .bind(backup_id)
+    .bind(vm_id)
+    .fetch_optional(&state.pool)
+    .await?;
+    if owns_backup.is_none() {
+        return Err(ApiError::not_found(format!(
+            "completed backup {backup_id} not found for VM {vm_id}"
+        )));
+    }
     let host_id: Option<Uuid> = sqlx::query_scalar("SELECT host_id FROM vms WHERE id = ?")
         .bind(vm_id)
         .fetch_one(&state.pool)
@@ -297,4 +314,68 @@ pub async fn list_backup_timeline(
     .fetch_all(&state.pool)
     .await?;
     Ok(Json(rows))
+}
+
+#[cfg(test)]
+mod tests {
+    use uuid::Uuid;
+
+    // The restore path must never hand a backup to a VM it doesn't belong to,
+    // and must never restore from a non-completed record. This guards the exact
+    // SQL predicate used by both the API handler (restore_vm_backup) and the
+    // worker (vm_backup_restore) — a cross-VM restore is data loss + cross-tenant
+    // exposure, so a regression here is catastrophic.
+    async fn owns_completed(pool: &sqlx::SqlitePool, backup: Uuid, vm: Uuid) -> bool {
+        let hit: Option<i64> = sqlx::query_scalar(
+            "SELECT 1 FROM backup_records
+             WHERE id = ? AND vm_id = ? AND status IN ('completed', 'succeeded')",
+        )
+        .bind(backup)
+        .bind(vm)
+        .fetch_optional(pool)
+        .await
+        .unwrap();
+        hit.is_some()
+    }
+
+    #[tokio::test]
+    async fn restore_guard_rejects_cross_vm_and_incomplete_backups() {
+        let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::migrate!().run(&pool).await.unwrap();
+
+        let vm_a = Uuid::new_v4();
+        let vm_b = Uuid::new_v4();
+        for (id, name) in [(vm_a, "vm-a"), (vm_b, "vm-b")] {
+            sqlx::query("INSERT INTO vms (id, name) VALUES (?, ?)")
+                .bind(id)
+                .bind(name)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+
+        let good = Uuid::new_v4(); // completed backup of vm_a
+        let pending = Uuid::new_v4(); // pending backup of vm_a
+        sqlx::query("INSERT INTO backup_records (id, vm_id, status) VALUES (?, ?, 'completed')")
+            .bind(good)
+            .bind(vm_a)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO backup_records (id, vm_id, status) VALUES (?, ?, 'pending')")
+            .bind(pending)
+            .bind(vm_a)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        // Owner + completed => allowed.
+        assert!(owns_completed(&pool, good, vm_a).await);
+        // Same backup, DIFFERENT vm => rejected (the cross-VM data-loss case).
+        assert!(!owns_completed(&pool, good, vm_b).await);
+        // Owner but not completed => rejected (truncated/partial image).
+        assert!(!owns_completed(&pool, pending, vm_a).await);
+        // Unknown backup id => rejected.
+        assert!(!owns_completed(&pool, Uuid::new_v4(), vm_a).await);
+    }
 }
