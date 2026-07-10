@@ -667,7 +667,7 @@ fn generate_domain_xml(
     // with AFFECT_LIVE) can add vCPUs without a reboot. Without max > current, libvirt
     // rejects any live increase. Headroom is 4x capped at 16 (QEMU reserves only light
     // per-vCPU state for the ceiling), never below the requested count.
-    let vcpu_max = vcpus.max(vcpus.saturating_mul(4).min(16));
+    let vcpu_max = req.vcpus.max(req.vcpus.saturating_mul(4).min(16));
     format!(
         r#"<domain type='kvm'>
   <name>{name}</name>
