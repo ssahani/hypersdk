@@ -431,6 +431,18 @@ pub async fn restore_vm_backup(
         .into_inner())
 }
 
+pub async fn delete_backup(
+    client: &mut AgentClient,
+    backup_path: &str,
+) -> anyhow::Result<DeleteBackupResponse> {
+    Ok(client
+        .delete_backup(DeleteBackupRequest {
+            backup_path: backup_path.to_string(),
+        })
+        .await?
+        .into_inner())
+}
+
 pub async fn clone_from_snapshot(
     client: &mut AgentClient,
     vm_name: &str,

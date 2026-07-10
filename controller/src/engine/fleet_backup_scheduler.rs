@@ -46,7 +46,7 @@ async fn tick(state: &AppState) -> anyhow::Result<()> {
             .execute(&state.pool)
             .await?;
         if retain_count > 0 {
-            prune_retained_backups(&state.pool, &project, &tag_filter, retain_count).await?;
+            prune_retained_backups(state, &project, &tag_filter, retain_count).await?;
         }
     }
     Ok(())
@@ -127,22 +127,19 @@ async fn enqueue_backups_for_schedule(
     Ok(())
 }
 
-/// Retention: keep only the newest `retain_count` completed backup_records per VM in the
-/// schedule's scope; drop older catalog rows so the backup history stays bounded.
-///
-/// NOTE: this prunes the DB catalog. Reclaiming the on-disk backup *files* on the host is
-/// the separate storage-GC gap (no vm.backup.delete agent path exists yet); tracked as a
-/// day-2 storage item. Pruning the record still bounds the restore catalog and metadata.
+/// Retention: keep only the newest `retain_count` completed backups per VM in the schedule's
+/// scope; for older ones, enqueue `vm.backup.delete` which removes the on-disk file via the
+/// agent AND the catalog row — so backup storage is actually reclaimed (not just the DB row).
 async fn prune_retained_backups(
-    pool: &SqlitePool,
+    app: &AppState,
     project: &str,
     tag_filter: &str,
     retain_count: i32,
 ) -> anyhow::Result<()> {
-    let vms = select_vms(pool, project, tag_filter).await?;
-    for (vm_id, _name, _host) in vms {
-        sqlx::query(
-            "DELETE FROM backup_records
+    let vms = select_vms(&app.pool, project, tag_filter).await?;
+    for (vm_id, _name, host_id) in vms {
+        let prunable: Vec<(Uuid,)> = sqlx::query_as(
+            "SELECT id FROM backup_records
              WHERE vm_id = ? AND status IN ('completed', 'succeeded')
                AND id NOT IN (
                    SELECT id FROM backup_records
@@ -153,8 +150,19 @@ async fn prune_retained_backups(
         .bind(vm_id)
         .bind(vm_id)
         .bind(retain_count)
-        .execute(pool)
+        .fetch_all(&app.pool)
         .await?;
+        for (backup_id,) in prunable {
+            let _ = enqueue_task(
+                app,
+                "vm.backup.delete",
+                serde_json::json!({ "backup_id": backup_id.to_string() }),
+                Some("vm"),
+                Some(vm_id),
+                host_id,
+            )
+            .await;
+        }
     }
     Ok(())
 }

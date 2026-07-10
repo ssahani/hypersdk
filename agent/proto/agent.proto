@@ -25,6 +25,7 @@ service HostAgent {
   rpc BackupVm(BackupVmRequest) returns (BackupVmResponse);
   rpc RevertSnapshot(RevertSnapshotRequest) returns (RevertSnapshotResponse);
   rpc RestoreVmBackup(RestoreVmBackupRequest) returns (RestoreVmBackupResponse);
+  rpc DeleteBackup(DeleteBackupRequest) returns (DeleteBackupResponse);
   rpc CloneFromSnapshot(CloneFromSnapshotRequest) returns (CloneFromSnapshotResponse);
   rpc ProvisionStoragePool(ProvisionStoragePoolRequest) returns (ProvisionStoragePoolResponse);
   rpc ProvisionNetwork(ProvisionNetworkRequest) returns (ProvisionNetworkResponse);
@@ -372,6 +373,15 @@ message RestoreVmBackupRequest {
 }
 
 message RestoreVmBackupResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message DeleteBackupRequest {
+  string backup_path = 1;
+}
+
+message DeleteBackupResponse {
   bool ok = 1;
   string message = 2;
 }

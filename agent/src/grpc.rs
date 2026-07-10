@@ -656,6 +656,38 @@ impl HostAgent for AgentService {
         }
     }
 
+    async fn delete_backup(
+        &self,
+        request: Request<DeleteBackupRequest>,
+    ) -> Result<Response<DeleteBackupResponse>, Status> {
+        let path = request.into_inner().backup_path;
+        // Safety: only ever delete a regular file under the managed backup directory, and
+        // never a path containing traversal. This is invoked by retention (fleet_backup
+        // scheduler) to reclaim on-disk backups, so it must not be a general file-delete.
+        let backup_root = std::env::var("MACHINA_BACKUP_DIR")
+            .unwrap_or_else(|_| "/var/lib/machina/backups".into());
+        let msg = if path.contains("..") || !path.starts_with('/') {
+            Some("refused: backup_path must be an absolute path without '..'".to_string())
+        } else if !std::path::Path::new(&path).starts_with(&backup_root) {
+            Some(format!("refused: backup_path is not under {backup_root}"))
+        } else if !std::path::Path::new(&path).is_file() {
+            // Already gone (or never a file) — treat as success so retention converges.
+            None
+        } else {
+            match std::fs::remove_file(&path) {
+                Ok(()) => None,
+                Err(e) => Some(format!("delete failed: {e}")),
+            }
+        };
+        match msg {
+            None => Ok(Response::new(DeleteBackupResponse {
+                ok: true,
+                message: "deleted".into(),
+            })),
+            Some(m) => Ok(Response::new(DeleteBackupResponse { ok: false, message: m })),
+        }
+    }
+
     async fn revert_snapshot(
         &self,
         request: Request<RevertSnapshotRequest>,

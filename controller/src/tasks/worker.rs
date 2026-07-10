@@ -177,6 +177,7 @@ async fn process_one(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> 
         "vm.snapshot.clone" => vm_snapshot_clone(state, msg).await?,
         "vm.backup" => vm_backup(state, msg).await?,
         "vm.backup.restore" => vm_backup_restore(state, msg).await?,
+        "vm.backup.delete" => vm_backup_delete(state, msg).await?,
         "vm.disk.attach" => vm_disk_attach(state, msg).await?,
         "vm.disk.detach" => vm_disk_detach(state, msg).await?,
         "vm.disk.resize" => vm_disk_resize(state, msg).await?,
@@ -1577,6 +1578,49 @@ async fn vm_snapshot_clone(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
         "clone from snapshot complete",
     )
     .await?;
+    Ok(())
+}
+
+/// Retention GC: delete a backup's on-disk file (via the host agent) or its Atlas backup, then
+/// drop the catalog row. Enqueued by fleet_backup_scheduler so backup storage is reclaimed.
+async fn vm_backup_delete(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
+    let record_id: Uuid = msg.payload["backup_id"]
+        .as_str()
+        .and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or_else(|| anyhow::anyhow!("backup_id missing"))?;
+
+    let row: Option<(String, Option<Uuid>, Uuid)> = sqlx::query_as(
+        "SELECT COALESCE(br.backup_path, ''), v.host_id, br.vm_id
+         FROM backup_records br JOIN vms v ON v.id = br.vm_id WHERE br.id = ?",
+    )
+    .bind(record_id)
+    .fetch_optional(&state.pool)
+    .await?;
+
+    if let Some((path, host_id, vm_id)) = row {
+        if !path.is_empty() {
+            if crate::engine::atlas_vm::vm_is_atlas_backed(&state.pool, vm_id).await {
+                // Atlas-backed: backup_path holds the Atlas backup id(s); delete via control plane.
+                if let Ok(client) = crate::engine::atlas_bridge::require_client(&state.config) {
+                    for bid in path.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+                        let _ = client.delete_backup(bid).await;
+                    }
+                }
+            } else if let Some(hid) = host_id {
+                // Local file backup: the host agent removes the file (guarded to the backup dir).
+                if let Ok(addr) = host_agent_addr(&state.pool, hid).await {
+                    if let Ok(mut client) = agent_client::connect(&addr).await {
+                        let _ = agent_client::delete_backup(&mut client, &path).await;
+                    }
+                }
+            }
+        }
+    }
+    // Remove the catalog row regardless — the file may already be gone, and retention must converge.
+    sqlx::query("DELETE FROM backup_records WHERE id = ?")
+        .bind(record_id)
+        .execute(&state.pool)
+        .await?;
     Ok(())
 }
 
