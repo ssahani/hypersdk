@@ -14,6 +14,14 @@ use crate::LibvirtError;
 
 use super::subprocess::{self, VmCreateLogSink};
 
+/// Maximum vCPU count to declare at creation so online CPU hotplug (`set_vcpus` with
+/// AFFECT_LIVE) can hot-add without a reboot. libvirt forbids raising vCPUs above the
+/// domain's defined maximum, so a VM created with max == current can never grow live.
+/// Headroom is 4x the boot count, capped at 16, and never below the boot count.
+pub(crate) fn vcpu_max_for(vcpus: u32) -> u32 {
+    vcpus.max(vcpus.saturating_mul(4).min(16))
+}
+
 /// [`CreateVmRequest::mkosi_workspace`] set means a Bootable=yes style image (EFI/GPT); BIOS would hang at SeaBIOS.
 fn ensure_uefi_for_mkosi_workspace(req: &mut CreateVmRequest) {
     if req.mkosi_workspace.trim().is_empty() {
@@ -667,7 +675,7 @@ fn generate_domain_xml(
     // with AFFECT_LIVE) can add vCPUs without a reboot. Without max > current, libvirt
     // rejects any live increase. Headroom is 4x capped at 16 (QEMU reserves only light
     // per-vCPU state for the ceiling), never below the requested count.
-    let vcpu_max = req.vcpus.max(req.vcpus.saturating_mul(4).min(16));
+    let vcpu_max = vcpu_max_for(req.vcpus);
     format!(
         r#"<domain type='kvm'>
   <name>{name}</name>
@@ -729,4 +737,22 @@ fn generate_domain_xml(
         graphics_xml = graphics_xml,
         video_model = video_model,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::vcpu_max_for;
+
+    #[test]
+    fn vcpu_headroom_gives_room_to_hotplug_but_stays_capped() {
+        // 4x headroom for small VMs where hotplug matters most...
+        assert_eq!(vcpu_max_for(1), 4);
+        assert_eq!(vcpu_max_for(2), 8);
+        assert_eq!(vcpu_max_for(4), 16);
+        // ...capped at 16 so we don't reserve absurd per-vCPU state...
+        assert_eq!(vcpu_max_for(8), 16);
+        // ...but never below the requested boot count (large VMs).
+        assert_eq!(vcpu_max_for(24), 24);
+        assert_eq!(vcpu_max_for(32), 32);
+    }
 }
