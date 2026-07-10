@@ -139,6 +139,8 @@ const OPERATIONS_ITEMS: ContextNavItem[] = [
   { to: '/platform/maintenance', label: 'Upgrades' },
   { to: '/platform/tasks', label: 'Tasks' },
   { to: '/platform/notifications', label: 'Alerts' },
+  { to: '/platform/alert-rules', label: 'Alert Rules' },
+  { to: '/platform/scheduled-jobs', label: 'Scheduled Jobs' },
   { to: '/platform/migration', label: 'Migration' },
   { to: '/platform/fleet-snapshots', label: 'Fleet Snapshots' },
   { to: '/platform/network-canvas', label: 'Network Canvas' },
@@ -259,6 +261,8 @@ export const HUB_DEFINITIONS: ContextDefinition[] = [
       p === '/platform/operations'
       || p.startsWith('/platform/tasks')
       || p.startsWith('/platform/notifications')
+      || p.startsWith('/platform/alert-rules')
+      || p.startsWith('/platform/scheduled-jobs')
       || p.startsWith('/platform/activity')
       || p.startsWith('/platform/events')
       || p.startsWith('/platform/migration')

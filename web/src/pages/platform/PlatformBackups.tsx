@@ -1,10 +1,10 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Camera } from 'lucide-react'
-import { Archive, Clock, Database, RotateCcw } from 'lucide-react'
-import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
+import { Archive, CalendarClock, Clock, Database, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { MacGlassPanel, MacListRow } from '../../components/platform/mac/PlatformMacUi'
 import PlatformStandardView from '../../components/platform/tahoe/PlatformStandardView'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import ConfirmDialog from '../../components/ConfirmDialog'
@@ -19,6 +19,12 @@ import {
   type BackupTimelineEntry,
   type FleetBackupOverview,
 } from '../../api/platform'
+import {
+  createBackupSchedule,
+  deleteBackupSchedule,
+  listBackupSchedules,
+  type BackupSchedule,
+} from '../../api/day2'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
@@ -37,15 +43,21 @@ function dayLabel(iso: string) {
   return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
 }
 
-type TabId = 'timeline' | 'destinations'
+type TabId = 'timeline' | 'destinations' | 'schedules'
+
+function tabFromParam(value: string | null): TabId {
+  if (value === 'destinations' || value === 'schedules') return value
+  return 'timeline'
+}
 
 export default function PlatformBackups() {
   const toast = useToastContext()
   const [searchParams, setSearchParams] = useSearchParams()
-  const tab: TabId = searchParams.get('tab') === 'destinations' ? 'destinations' : 'timeline'
+  const tab: TabId = tabFromParam(searchParams.get('tab'))
   const [timeline, setTimeline] = useState<BackupTimelineEntry[]>([])
   const [targets, setTargets] = useState<BackupTarget[]>([])
   const [fleet, setFleet] = useState<FleetBackupOverview | null>(null)
+  const [schedules, setSchedules] = useState<BackupSchedule[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [restoring, setRestoring] = useState<string | null>(null)
@@ -56,18 +68,36 @@ export default function PlatformBackups() {
   const [backupVmId, setBackupVmId] = useState('')
   const [backupTargetId, setBackupTargetId] = useState('')
   const [backupType, setBackupType] = useState<'full' | 'incremental'>('full')
+  const [schedName, setSchedName] = useState('nightly-backup')
+  const [schedProject, setSchedProject] = useState('')
+  const [schedTag, setSchedTag] = useState('')
+  const [schedIntervalHours, setSchedIntervalHours] = useState('24')
+  const [schedRetainCount, setSchedRetainCount] = useState('7')
+  const [schedEnabled, setSchedEnabled] = useState(true)
+  const [addingSchedule, setAddingSchedule] = useState(false)
+  const [deleteScheduleId, setDeleteScheduleId] = useState<string | null>(null)
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setError(null)
     try {
-      const [t, f, tg] = await Promise.all([listBackupTimeline(), getFleetBackups(), listBackupTargets()])
+      const [t, f, tg, sc] = await Promise.all([
+        listBackupTimeline(),
+        getFleetBackups(),
+        listBackupTargets(),
+        listBackupSchedules().catch(() => [] as BackupSchedule[]),
+      ])
+      if (!alive()) return
       setTimeline(t)
       setFleet(f)
       setTargets(tg)
+      setSchedules(sc)
     } catch (e: unknown) {
-      setError(formatUserError(e))
+      if (alive()) setError(formatUserError(e))
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [])
 
@@ -124,6 +154,37 @@ export default function PlatformBackups() {
     }
   }
 
+  const addSchedule = async () => {
+    if (!schedName.trim() || addingSchedule) return
+    setAddingSchedule(true)
+    try {
+      await createBackupSchedule({
+        name: schedName.trim(),
+        project: schedProject.trim() || undefined,
+        tag_filter: schedTag.trim() || undefined,
+        interval_hours: Number(schedIntervalHours) || 24,
+        retain_count: Number(schedRetainCount) || 0,
+        enabled: schedEnabled,
+      })
+      toast.success('Backup schedule created')
+      await load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setAddingSchedule(false)
+    }
+  }
+
+  const removeSchedule = async (id: string) => {
+    try {
+      await deleteBackupSchedule(id)
+      toast.success('Backup schedule deleted')
+      await load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    }
+  }
+
   return (
     <PlatformStandardView
       className="space-y-6 max-w-3xl"
@@ -152,6 +213,7 @@ export default function PlatformBackups() {
         {([
           ['timeline', 'Timeline', Archive],
           ['destinations', 'Destinations', Database],
+          ['schedules', 'Schedules', CalendarClock],
         ] as const).map(([id, label, Icon]) => (
           <button
             key={id}
@@ -204,6 +266,50 @@ export default function PlatformBackups() {
               </select>
               <button type="button" className="btn-secondary text-sm" onClick={() => void queueBackup()}>Queue backup</button>
             </div>
+          </MacGlassPanel>
+        </div>
+      )}
+
+      {tab === 'schedules' && (
+        <div className="space-y-4">
+          <MacGlassPanel title="New backup schedule" subtitle="Recurring fleet backups by project or tag, with retention.">
+            <div className="grid gap-3 md:grid-cols-2 max-w-2xl">
+              <input className="input text-sm" aria-label="Schedule name" placeholder="Name" value={schedName} onChange={(e) => setSchedName(e.target.value)} />
+              <input className="input text-sm" aria-label="Project" placeholder="Project (optional)" value={schedProject} onChange={(e) => setSchedProject(e.target.value)} />
+              <input className="input text-sm" aria-label="Tag filter" placeholder="Tag filter (optional)" value={schedTag} onChange={(e) => setSchedTag(e.target.value)} />
+              <input className="input text-sm" aria-label="Interval hours" type="number" min={1} max={720} placeholder="Interval (hours)" value={schedIntervalHours} onChange={(e) => setSchedIntervalHours(e.target.value)} />
+              <input className="input text-sm" aria-label="Retain count" type="number" min={0} max={1000} placeholder="Retain count" value={schedRetainCount} onChange={(e) => setSchedRetainCount(e.target.value)} />
+              <label className="flex items-center gap-2 text-sm text-slate-300">
+                <input type="checkbox" checked={schedEnabled} onChange={(e) => setSchedEnabled(e.target.checked)} /> Enabled
+              </label>
+            </div>
+            <button type="button" className="btn-primary text-sm mt-3 flex items-center gap-1.5" disabled={addingSchedule || !schedName.trim()} onClick={() => void addSchedule()}>
+              <Plus className="w-4 h-4" /> {addingSchedule ? 'Saving…' : 'Add schedule'}
+            </button>
+          </MacGlassPanel>
+          <MacGlassPanel title="Active schedules" subtitle={loading ? 'Loading…' : `${schedules.length} schedule(s)`}>
+            {schedules.length === 0 && !loading ? (
+              <PlatformEmptyState
+                icon={CalendarClock}
+                title="No backup schedules yet"
+                subtitle="Add a recurring schedule to back up managed VMs by project or tag."
+              />
+            ) : (
+              <ul className="divide-y divide-white/[0.04] -mx-1">
+                {schedules.map((s) => (
+                  <MacListRow
+                    key={s.id}
+                    title={s.name}
+                    subtitle={`${s.project || 'all projects'} · tag=${s.tag_filter || '*'} · ${s.backup_type || 'full'} · every ${s.interval_hours}h · retain ${s.retain_count}${s.enabled ? '' : ' · disabled'} · last run ${s.last_run_at ? new Date(s.last_run_at).toLocaleString() : 'never'}`}
+                    badge={
+                      <button type="button" className="btn-secondary text-xs p-1.5" aria-label="Delete" onClick={() => setDeleteScheduleId(s.id)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    }
+                  />
+                ))}
+              </ul>
+            )}
           </MacGlassPanel>
         </div>
       )}
@@ -270,6 +376,19 @@ export default function PlatformBackups() {
           if (!pendingRestore) return
           setPendingRestore(null)
           await restore(pendingRestore)
+        }}
+      />
+      <ConfirmDialog
+        open={deleteScheduleId !== null}
+        title="Delete Backup Schedule"
+        message={`Delete backup schedule "${schedules.find((s) => s.id === deleteScheduleId)?.name}"? Future backups will no longer run on this schedule.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onCancel={() => setDeleteScheduleId(null)}
+        onConfirm={async () => {
+          const id = deleteScheduleId
+          setDeleteScheduleId(null)
+          if (id) await removeSchedule(id)
         }}
       />
     </PlatformStandardView>

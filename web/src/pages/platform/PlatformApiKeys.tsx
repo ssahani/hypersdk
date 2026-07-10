@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import ConfirmDialog from '../../components/ConfirmDialog'
-import { Copy, Key, Plus, Trash2 } from 'lucide-react'
+import { Copy, Key, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import GlassDataTable from '../../components/platform/GlassDataTable'
 import OperatingSurfaceLayout from '../../components/platform/OperatingSurfaceLayout'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import { MacGlassPanel, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
 import { createApiKey, deleteApiKey, listApiKeys, type ApiKeyRow } from '../../api/platform'
+import { rotateApiKey } from '../../api/day2'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { statusSurfaceClasses, statusToneClass } from '../../utils/semanticColors'
@@ -22,6 +23,8 @@ export default function PlatformApiKeys({ embedded }: { embedded?: boolean } = {
   const [newToken, setNewToken] = useState<string | null>(null)
   const [deleteKeyId, setDeleteKeyId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [rotateKeyId, setRotateKeyId] = useState<string | null>(null)
+  const [rotatingId, setRotatingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -124,12 +127,44 @@ export default function PlatformApiKeys({ embedded }: { embedded?: boolean } = {
               <td className="p-3 capitalize">{k.role}</td>
               <td className="p-3 text-slate-500">{k.last_used_at ? new Date(k.last_used_at).toLocaleString() : '—'}</td>
               <td className="p-3 text-right">
-                <button type="button" className="btn-secondary text-xs" aria-label="Delete API key" onClick={() => setDeleteKeyId(k.id)}><Trash2 className="w-3 h-3 inline" /></button>
+                <div className="inline-flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn-secondary text-xs inline-flex items-center gap-1"
+                    aria-label="Rotate API key"
+                    disabled={rotatingId === k.id}
+                    onClick={() => setRotateKeyId(k.id)}
+                  >
+                    <RotateCcw className="w-3 h-3" /> {rotatingId === k.id ? 'Rotating…' : 'Rotate'}
+                  </button>
+                  <button type="button" className="btn-secondary text-xs" aria-label="Delete API key" onClick={() => setDeleteKeyId(k.id)}><Trash2 className="w-3 h-3 inline" /></button>
+                </div>
               </td>
             </tr>
           ))}
         </GlassDataTable>
       </OperatingSurfaceLayout>
+      <ConfirmDialog
+        open={rotateKeyId !== null}
+        title="Rotate API Key"
+        message={`Rotate API key "${rows.find((k) => k.id === rotateKeyId)?.name}"? A new token is issued and the current token stops working immediately. Update any integrations using it.`}
+        confirmLabel="Rotate"
+        variant="warning"
+        onCancel={() => setRotateKeyId(null)}
+        onConfirm={async () => {
+          const id = rotateKeyId
+          setRotateKeyId(null)
+          if (!id) return
+          setRotatingId(id)
+          try {
+            const res = await rotateApiKey(id)
+            setNewToken(res.token)
+            toast.success('API key rotated — copy the new token now')
+            await load()
+          } catch (e: unknown) { toast.error(formatUserError(e)) }
+          finally { setRotatingId(null) }
+        }}
+      />
       <ConfirmDialog
         open={deleteKeyId !== null}
         title="Delete API Key"

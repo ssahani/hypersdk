@@ -62,6 +62,8 @@ const POWER_PATHS = [
   '/platform/content',
   '/platform/tasks',
   '/platform/activity',
+  '/platform/alert-rules',
+  '/platform/scheduled-jobs',
   '/platform/migration',
   '/platform/blueprints',
   '/platform/projects',

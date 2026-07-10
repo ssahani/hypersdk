@@ -283,6 +283,7 @@ export interface PlatformHost {
   memory_used_mib: number
   memory_total_mib: number
   fenced: boolean
+  schedulable: boolean
   validation_status: string
   last_heartbeat_at?: string | null
   site: string

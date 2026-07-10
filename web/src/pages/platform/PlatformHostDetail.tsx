@@ -51,6 +51,7 @@ import {
   type HostLldpInventory,
   type HostOsDiagnoseReport,
 } from '../../api/platform'
+import { cordonHost } from '../../api/day2'
 import { getFirewallTarget, type FirewallTargetDetail } from '../../api/zeusFirewall'
 import { useAi } from '../../contexts/AiContext'
 import { useBreadcrumbName } from '../../contexts/BreadcrumbNameContext'
@@ -144,6 +145,7 @@ export default function PlatformHostDetailPage() {
   const [upgradePreview, setUpgradePreview] = useState<string | null>(null)
   const [linuxOpsBusy, setLinuxOpsBusy] = useState(false)
   const [linuxSystemCockpit, setLinuxSystemCockpit] = useState<HostCockpitSystem | null>(null)
+  const [cordonBusy, setCordonBusy] = useState(false)
   const [showFenceConfirm, setShowFenceConfirm] = useState(false)
   const [confirmRemoveHost, setConfirmRemoveHost] = useState(false)
   const [confirmApplyUpgrade, setConfirmApplyUpgrade] = useState(false)
@@ -255,6 +257,19 @@ export default function PlatformHostDetailPage() {
 
   if (!id) return null
 
+  const toggleCordon = () => {
+    if (!host || cordonBusy) return
+    const nextCordon = host.schedulable // cordon when currently schedulable
+    setCordonBusy(true)
+    void cordonHost(id, nextCordon)
+      .then(() => {
+        toast.success(nextCordon ? 'Host cordoned — no new VMs will be scheduled' : 'Host uncordoned — scheduling resumed')
+        return load()
+      })
+      .catch((e: unknown) => toast.error(formatUserError(e)))
+      .finally(() => setCordonBusy(false))
+  }
+
   const cpuPsi = (linuxObs?.pressure?.cpu?.some ?? 0) * 100
   const memPsi = (linuxObs?.pressure?.memory?.some ?? 0) * 100
   const ioPsi = (linuxObs?.pressure?.io?.some ?? 0) * 100
@@ -275,6 +290,7 @@ export default function PlatformHostDetailPage() {
         <span className="flex flex-wrap items-center gap-2 text-sm">
           <span className={statusPillClasses(hostTone)}>{host.state}</span>
           <span className={statusPillClasses(host.validation_status === 'valid' ? 'ok' : 'warn')}>{host.validation_status || 'pending'}</span>
+          <span className={statusPillClasses(host.schedulable ? 'ok' : 'warn')}>{host.schedulable ? 'Schedulable' : 'Cordoned'}</span>
           {host.fenced && <span className={statusPillClasses('error')}>Fenced</span>}
           <span className="text-slate-500">·</span>
           <span className="text-slate-400">{host.vm_count ?? 0} VMs</span>
@@ -284,6 +300,9 @@ export default function PlatformHostDetailPage() {
       actions={host ? (
         <div className="flex flex-wrap gap-2">
           <button type="button" className="btn-secondary text-sm" onClick={() => void syncHost(id).then(() => toast.success('Sync queued')).catch((e: unknown) => toast.error(formatUserError(e)))}>Sync</button>
+          <button type="button" className="btn-secondary text-sm" disabled={cordonBusy} onClick={toggleCordon}>
+            {host.schedulable ? 'Cordon' : 'Uncordon'}
+          </button>
           <AskZeusButton onClick={() => void runDiagnose('host health and pressure')} />
           <Link to={`/platform/zeus/security/firewall/${id}`} className="btn-secondary text-sm inline-flex items-center gap-1">
             <Shield className="w-4 h-4" /> Firewall

@@ -122,6 +122,8 @@ const CloudInitStudio = lazyWithRetry(() => import('./pages/platform/CloudInitSt
 const PlatformNetworkCanvas = lazyWithRetry(() => import('./pages/platform/PlatformNetworkCanvas'))
 const PlatformDatacenter = lazyWithRetry(() => import('./pages/platform/PlatformDatacenter'))
 const PlatformFleetSnapshots = lazyWithRetry(() => import('./pages/platform/PlatformFleetSnapshots'))
+const PlatformAlertRules = lazyWithRetry(() => import('./pages/platform/PlatformAlertRules'))
+const PlatformScheduledJobs = lazyWithRetry(() => import('./pages/platform/PlatformScheduledJobs'))
 const PlatformEnroll = lazyWithRetry(() => import('./pages/platform/PlatformEnroll'))
 const PlatformPlacement = lazyWithRetry(() => import('./pages/platform/PlatformPlacement'))
 const PlatformTasks = lazyWithRetry(() => import('./pages/platform/PlatformTasks'))
@@ -424,6 +426,8 @@ function AuthenticatedShellRoutes() {
                   <Route path="migration" element={<PlatformMigration />} />
                   <Route path="backups" element={<PlatformBackups />} />
                   <Route path="fleet-snapshots" element={<PlatformFleetSnapshots />} />
+                  <Route path="alert-rules" element={<PlatformAlertRules />} />
+                  <Route path="scheduled-jobs" element={<PlatformScheduledJobs />} />
                   <Route path="enroll" element={<PlatformEnroll />} />
                   <Route path="placement" element={<PlatformPlacement />} />
                   <Route path="tasks" element={<PlatformTasks />} />
