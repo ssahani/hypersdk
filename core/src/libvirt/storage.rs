@@ -85,6 +85,18 @@ pub fn collect_image_scan_directories(
             out.push(pb);
         }
     }
+    // The agent's backup dir (MACHINA_BACKUP_DIR, default /var/lib/machina/backups)
+    // is a legitimate machina-managed location that backup WRITES to and restore
+    // READS from. Include it so both paths work out of the box — without this,
+    // local backups fail "output directory must be under storage pool targets"
+    // and local restores fail the mirror check. It stays a machina-owned dir, so
+    // it doesn't widen the surface to arbitrary host files.
+    let backup_dir =
+        std::env::var("MACHINA_BACKUP_DIR").unwrap_or_else(|_| "/var/lib/machina/backups".into());
+    let bpb = std::path::PathBuf::from(&backup_dir);
+    if !out.iter().any(|p| p == &bpb) {
+        out.push(bpb);
+    }
     Ok(out)
 }
 
@@ -174,22 +186,9 @@ pub fn assert_backup_source_within_pools(conn: &Connect, source: &str) -> Result
         ))
     })?;
     let canon_s = canon.to_string_lossy().to_string();
-    let mut prefixes = disk_image_delete_allowed_prefixes(conn)?;
-    // Backups are a legitimate restore *source* but are written outside the image
-    // pools (the agent's backup dir, MACHINA_BACKUP_DIR, default
-    // /var/lib/machina/backups). Include it here — scoped to the source allow-list
-    // only, NOT the disk-delete/new-disk policy — so restore-from-backup works
-    // out of the box instead of failing "must be under storage pool targets".
-    let backup_dir =
-        std::env::var("MACHINA_BACKUP_DIR").unwrap_or_else(|_| "/var/lib/machina/backups".into());
-    let backup_pref = if backup_dir.ends_with('/') {
-        backup_dir
-    } else {
-        format!("{backup_dir}/")
-    };
-    if !prefixes.iter().any(|p| p == &backup_pref) {
-        prefixes.push(backup_pref);
-    }
+    // Allowed prefixes now include the agent backup dir (see
+    // collect_image_scan_directories), so restore-from-backup is accepted.
+    let prefixes = disk_image_delete_allowed_prefixes(conn)?;
     if !prefixes.iter().any(|pref| canon_s.starts_with(pref)) {
         return Err(LibvirtError::Invalid(format!(
             "source file must be under libvirt storage pool targets, default image dirs, or the backup dir (path {canon_s})"
