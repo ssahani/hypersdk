@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePlatformTabState } from '../../hooks/usePlatformTabState'
 import PageLayout from '../../components/PageLayout'
 import { Link, useParams } from 'react-router'
@@ -87,9 +87,15 @@ export default function PlatformMachineSecurity() {
   const [explain, setExplain] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
     if (!hostId) return
+    // Last-response-wins: rapid navigation between hosts/tabs can leave stale
+    // awaits in flight; only the newest load may commit state so one host's
+    // data can't interleave into another's.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setError(null)
     setLoading(true)
     // Clear the shared per-tab collection so the previous tab's rows don't
@@ -97,49 +103,58 @@ export default function PlatformMachineSecurity() {
     setItems([])
     try {
       const sum = await getHostSecuritySummary(hostId)
+      if (!alive()) return
       setSummary(sum)
       void getHostFabricStatus(hostId)
-        .then(setFabricStatus)
-        .catch(() => setFabricStatus(null))
+        .then((s) => { if (alive()) setFabricStatus(s) })
+        .catch(() => { if (alive()) setFabricStatus(null) })
       if (tab === 'processes') {
         const r = await getHostProcesses(hostId)
-        setItems(r.processes ?? [])
+        if (alive()) setItems(r.processes ?? [])
       } else if (tab === 'connections') {
         const r = await getHostConnections(hostId)
-        setItems(r.connections ?? [])
+        if (alive()) setItems(r.connections ?? [])
       } else if (tab === 'dns') {
         const r = await getHostDns(hostId)
-        setItems(r.dns ?? [])
+        if (alive()) setItems(r.dns ?? [])
       } else if (tab === 'files') {
         const r = await getHostSecurityFiles(hostId)
-        setItems(r.files ?? [])
+        if (alive()) setItems(r.files ?? [])
       } else if (tab === 'ports') {
         const r = await getHostSecurityPorts(hostId)
-        setPorts(r.ports ?? [])
-        setItems([])
+        if (alive()) {
+          setPorts(r.ports ?? [])
+          setItems([])
+        }
       } else if (tab === 'events') {
         const r = await getHostSecurityTimeline(hostId)
-        setTimeline(r.events ?? [])
-        setItems(r.events ?? [])
+        if (alive()) {
+          setTimeline(r.events ?? [])
+          setItems(r.events ?? [])
+        }
       } else if (tab === 'containers') {
         const r = await getHostContainers(hostId)
-        setContainers(r as Record<string, unknown>)
-        setItems([])
+        if (alive()) {
+          setContainers(r as Record<string, unknown>)
+          setItems([])
+        }
       } else if (tab === 'enforcement') {
         const [enf, pol] = await Promise.all([
           getHostEnforcement(hostId).catch(() => null),
           getEnforcementPolicies().catch(() => ({ policies: [] as EnforcementPolicy[] })),
         ])
-        setHostEnforcement(enf)
-        setEnforcementPolicies(pol.policies ?? [])
-        setItems([])
+        if (alive()) {
+          setHostEnforcement(enf)
+          setEnforcementPolicies(pol.policies ?? [])
+          setItems([])
+        }
       } else {
-        setItems([])
+        if (alive()) setItems([])
       }
     } catch (e: unknown) {
-      setError(formatUserError(e))
+      if (alive()) setError(formatUserError(e))
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [hostId, tab])
 

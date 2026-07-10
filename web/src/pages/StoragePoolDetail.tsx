@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, Link } from 'react-router'
 import { listPools, listVolumes, startPool, stopPool, refreshPool, deleteVolume, setPoolAutostart, createVolume, StoragePoolInfo, StorageVolumeInfo } from '../api/storage'
 import { getPoolXml, resizeVolume, cloneVolume } from '../api/advanced'
@@ -36,22 +36,28 @@ export default function StoragePoolDetail() {
   const [newVolCapacity, setNewVolCapacity] = useState('10')
   const [newVolFormat, setNewVolFormat] = useState('qcow2')
   const toast = useToastContext()
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
     if (!poolName) return
+    // Last-response-wins: rapid navigation between pools can leave stale awaits
+    // in flight; only the newest load may commit so pool A can't overwrite B.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     try {
       setLoadError(null)
       const pools = await listPools()
+      if (!alive()) return
       const found = pools.find((p) => p.name === poolName)
       setPool(found || null)
       if (found) {
-        try { setVolumes(await listVolumes(poolName)) } catch { setVolumes([]) }
-        try { setPoolXml(await getPoolXml(poolName)) } catch { setPoolXml('') }
+        try { const v = await listVolumes(poolName); if (alive()) setVolumes(v) } catch { if (alive()) setVolumes([]) }
+        try { const x = await getPoolXml(poolName); if (alive()) setPoolXml(x) } catch { if (alive()) setPoolXml('') }
       }
     } catch (e: unknown) {
-      setLoadError(formatUserError(e))
+      if (alive()) setLoadError(formatUserError(e))
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [poolName])
 

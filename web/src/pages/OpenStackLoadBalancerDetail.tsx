@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { ArrowLeft, Loader2, Plus, Scale, Trash2 } from 'lucide-react'
 import OpenStackGate from '../components/OpenStackGate'
@@ -64,8 +64,14 @@ function OpenStackLoadBalancerDetailContent() {
   const [monitorPoolId, setMonitorPoolId] = useState('')
   useBreadcrumbName(lb?.name)
 
+  const loadSeq = useRef(0)
+
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: only the newest load may commit so a stale fetch for a
+    // prior load balancer can't interleave into the one now shown.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     try {
       const [{ loadbalancer }, ls, ps] = await Promise.all([
@@ -73,6 +79,7 @@ function OpenStackLoadBalancerDetailContent() {
         listOpenStackLbListeners(id).catch(() => ({ listeners: [] as OpenStackLbListener[] })),
         listOpenStackLbPools(id).catch(() => ({ pools: [] as OpenStackLbPool[] })),
       ])
+      if (!alive()) return
       setLb(loadbalancer)
       setListeners(ls.listeners ?? [])
       setPools(ps.pools ?? [])
@@ -82,10 +89,11 @@ function OpenStackLoadBalancerDetailContent() {
         setMonitorPoolId(ps.pools[0].id)
       }
     } catch (e: unknown) {
+      if (!alive()) return
       toast.error(formatUserError(e))
       setLb(null)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id, toast])
 

@@ -1567,6 +1567,13 @@ async fn guac_http_proxy_impl(
             headers.insert(k, val);
         }
     }
+    // The console session id is a capability carried in this proxy's URL path. Prevent
+    // it leaking to third parties via the Referer header when the console page loads
+    // any external asset — strip referrers entirely for console traffic.
+    headers.insert(
+        "referrer-policy",
+        HeaderValue::from_static("no-referrer"),
+    );
     let bytes = resp.bytes().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
     out.body(Body::from(bytes))
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)

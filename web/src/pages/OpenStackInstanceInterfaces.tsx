@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useBreadcrumbName } from '../contexts/BreadcrumbNameContext'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft, Loader2, Network } from 'lucide-react'
@@ -39,8 +39,14 @@ function OpenStackInstanceInterfacesContent() {
 
   useBreadcrumbName(inst?.name)
 
+  const loadSeq = useRef(0)
+
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: only the newest load may commit so a stale fetch for a
+    // prior instance can't interleave into the one now shown.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     try {
       const [instance, ifc, nets] = await Promise.all([
@@ -48,14 +54,16 @@ function OpenStackInstanceInterfacesContent() {
         listOpenStackInstanceInterfaces(id),
         listOpenStackNetworks().catch(() => ({ networks: [] as OpenStackNetwork[] })),
       ])
+      if (!alive()) return
       setInst(instance)
       setIfaces(ifc.interfaces)
       setNetworks(nets.networks)
     } catch (e: unknown) {
+      if (!alive()) return
       toast.error(formatUserError(e))
       setInst(null)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id, toast])
 

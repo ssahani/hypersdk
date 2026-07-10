@@ -121,6 +121,9 @@ export default function PlatformHostDetailPage() {
   const [notes, setNotes] = useState('')
   // Don't let a load() triggered by an unrelated action wipe unsaved notes.
   const notesDirty = useRef(false)
+  // Last-response-wins guards: separate seqs since load + loadOs run concurrently.
+  const loadSeq = useRef(0)
+  const loadOsSeq = useRef(0)
   const [localFw, setLocalFw] = useState<Record<string, unknown> | null>(null)
   const [site, setSite] = useState('')
   const [rack, setRack] = useState('')
@@ -148,29 +151,37 @@ export default function PlatformHostDetailPage() {
 
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: only the newest load may commit so a slow fetch for a
+    // prior host can't overwrite the host the user navigated to.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setError(null)
     setLoading(true)
     try {
       const h = await getPlatformHostDetail(id)
+      if (!alive()) return
       setHost(h)
       if (!notesDirty.current) setNotes(h.notes || '')
       setSite(h.site || '')
       setRack(h.rack || '')
       setRackU(h.rack_u != null ? String(h.rack_u) : '')
     } catch (e: unknown) {
-      setError(formatUserError(e))
+      if (alive()) setError(formatUserError(e))
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id])
 
   const loadOs = useCallback(async () => {
     if (!id) return
+    const seq = ++loadOsSeq.current
+    const alive = () => seq === loadOsSeq.current
     if (section === 'network') {
       const [d, l] = await Promise.all([
         getHostNetworkDiag(id).catch(() => null),
         getHostLldp(id).catch(() => null),
       ])
+      if (!alive()) return
       setNetDiag(d)
       setLldp(l)
     }
@@ -182,6 +193,7 @@ export default function PlatformHostDetailPage() {
         getHostLinuxProcesses(id, 'memory', 15).catch(() => ({ processes: [] })),
         getHostCockpitInventory(id, 'system').then((r) => r.system ?? null).catch(() => null),
       ])
+      if (!alive()) return
       setLinuxObs(obs)
       setLinuxUpdates(updates)
       setFilesystems(fs.filesystems ?? [])
@@ -191,21 +203,27 @@ export default function PlatformHostDetailPage() {
       setGpuError(null)
       try {
         const g = await getHostGpus(id)
-        setGpus(g.devices ?? [])
-        setGpuSummary(g.nvidia_smi_summary?.trim() ?? '')
+        if (alive()) {
+          setGpus(g.devices ?? [])
+          setGpuSummary(g.nvidia_smi_summary?.trim() ?? '')
+        }
       } catch (e: unknown) {
-        setGpus([])
-        setGpuSummary('')
-        setGpuError(formatUserError(e))
+        if (alive()) {
+          setGpus([])
+          setGpuSummary('')
+          setGpuError(formatUserError(e))
+        }
       } finally {
-        setGpuLoading(false)
+        if (alive()) setGpuLoading(false)
       }
     }
     if (section === 'audit') {
-      setAudit(await getHostLinuxAudit(id).catch(() => null))
+      const a = await getHostLinuxAudit(id).catch(() => null)
+      if (alive()) setAudit(a)
     }
     if (section === 'security') {
-      setFirewall(await getFirewallTarget(id).catch(() => null))
+      const f = await getFirewallTarget(id).catch(() => null)
+      if (alive()) setFirewall(f)
     }
   }, [id, section])
 

@@ -298,8 +298,18 @@ export default function PlatformVmDetail() {
 
   const canBrowseHost = sessionRole === 'admin'
 
+  const loadSeq = useRef(0)
+  // Guards the one-time auto-pick of a migration destination. Keeping destHost
+  // out of load's deps stops setDestHost() from recreating load and refetching
+  // every endpoint a second time on mount.
+  const destHostAutoSetRef = useRef(false)
+
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: rapid navigation between VMs can leave stale awaits in
+    // flight; only the newest load may commit state so VM A can't overwrite VM B.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setError(null)
     try {
       const [v, h, policy, spec, snaps, bks, tline, dsk, mtr] = await Promise.all([
@@ -313,6 +323,7 @@ export default function PlatformVmDetail() {
         getVmDisks(id).catch(() => [] as VmDiskRow[]),
         getPlatformVmMetrics(id).catch(() => null),
       ])
+      if (!alive()) return
       setVm(v)
       setHosts(h)
       setHa(policy)
@@ -327,10 +338,12 @@ export default function PlatformVmDetail() {
       setTimeline(tline)
       setDisks(dsk)
       setMetrics(mtr)
-      if (!destHost && h.length > 1) {
-        setDestHost(h.find((x) => x.id !== v.host_id)?.id || h[0]?.id || '')
+      if (!destHostAutoSetRef.current && h.length > 1) {
+        destHostAutoSetRef.current = true
+        setDestHost((prev) => prev || h.find((x) => x.id !== v.host_id)?.id || h[0]?.id || '')
       }
     } catch (e: unknown) {
+      if (!alive()) return
       // Render the state inline (with Retry) instead of bouncing to the VM list.
       // The old redirect fired on a fuzzy "not found" substring match, so an
       // unrelated transient error could yank the user off the page entirely.
@@ -340,7 +353,7 @@ export default function PlatformVmDetail() {
           : formatUserError(e),
       )
     }
-  }, [id, destHost])
+  }, [id])
 
   useEffect(() => {
     if (tab !== 'topology' || !id) return
@@ -384,6 +397,8 @@ export default function PlatformVmDetail() {
     setVm(null)
     setTopology(null)
     setMigrations([])
+    // Let the next VM auto-pick its own migration destination.
+    destHostAutoSetRef.current = false
   }, [id])
 
   useEffect(() => {

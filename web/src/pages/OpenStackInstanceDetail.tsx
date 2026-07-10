@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import {
   getOpenStackInstance,
@@ -81,9 +81,15 @@ function OpenStackInstanceDetailContent() {
   const [heatStack, setHeatStack] = useState<{ stack_id?: string; stack_name?: string } | null>(null)
   const [actionError, setActionError] = useState<{ label: string; message: string } | null>(null)
   useBreadcrumbName(inst?.name)
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: rapid navigation between instances can leave stale
+    // awaits in flight; only the newest load may commit so instance A can't
+    // overwrite instance B.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoadError(null)
     setLoading(true)
     try {
@@ -92,18 +98,20 @@ function OpenStackInstanceDetailContent() {
         listOpenStackInstanceVolumes(id).catch(() => ({ volumes: [] as OpenStackAttachedVolume[] })),
         getOpenStackInstanceStack(id).catch(() => ({ stack: null })),
       ])
+      if (!alive()) return
       setInst(data)
       setVolumes(vols.volumes)
       setHeatStack(stackR.stack)
       setActionError(null)
       if (!snapshotName) setSnapshotName(`${data.name}-snap`)
     } catch (e: unknown) {
+      if (!alive()) return
       const msg = formatUserError(e)
       setLoadError(msg)
       setInst(null)
       toast.error(`Failed to load instance: ${msg}`)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id, toast])
 

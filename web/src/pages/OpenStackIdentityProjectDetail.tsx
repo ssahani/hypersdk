@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft, KeyRound, Loader2 } from 'lucide-react'
 import OpenStackGate from '../components/OpenStackGate'
@@ -45,8 +45,14 @@ function OpenStackIdentityProjectDetailContent() {
   const [loading, setLoading] = useState(true)
   useBreadcrumbName(project?.name)
 
+  const loadSeq = useRef(0)
+
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: only the newest load may commit so a stale fetch for a
+    // prior project can't interleave into the one now shown.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     try {
       const [p, a, r, u] = await Promise.all([
@@ -55,15 +61,17 @@ function OpenStackIdentityProjectDetailContent() {
         listOpenStackIdentityRoles(),
         listOpenStackIdentityUsers(),
       ])
+      if (!alive()) return
       setProject(p.project)
       setAssignments(a.role_assignments ?? [])
       setRoles(r.roles ?? [])
       setUsers(u.users ?? [])
     } catch (e: unknown) {
+      if (!alive()) return
       toast.error(formatUserError(e))
       setProject(null)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id, toast])
 

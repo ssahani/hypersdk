@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { ArrowLeft, GitBranch, Loader2, Trash2 } from 'lucide-react'
 import { listOpenStackNetworks, type OpenStackNetwork } from '../api/openstack'
@@ -42,8 +42,14 @@ function OpenStackRouterDetailContent() {
   const [loading, setLoading] = useState(true)
   useBreadcrumbName(router?.name)
 
+  const loadSeq = useRef(0)
+
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: only the newest load may commit so a stale fetch for a
+    // prior router can't interleave into the one now shown.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     try {
       const [{ router: r }, nets, subs] = await Promise.all([
@@ -51,15 +57,17 @@ function OpenStackRouterDetailContent() {
         listOpenStackNetworks().catch(() => ({ networks: [] as OpenStackNetwork[] })),
         listOpenStackSubnets().catch(() => ({ subnets: [] as OpenStackSubnet[] })),
       ])
+      if (!alive()) return
       setRouter(r)
       setNetworks(nets.networks)
       setSubnets(subs.subnets)
       if (subs.subnets.length > 0) setLinkSubnetId(subs.subnets[0].id)
     } catch (e: unknown) {
+      if (!alive()) return
       toast.error(formatUserError(e))
       setRouter(null)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id, toast])
 
