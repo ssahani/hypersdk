@@ -3,6 +3,7 @@
 pub mod alerts;
 pub mod apikeys;
 pub mod scheduled_jobs;
+pub mod watchdog;
 mod ai;
 mod applications;
 mod atlas;
@@ -853,6 +854,10 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/v1/scheduled-jobs/{id}",
             delete(scheduled_jobs::delete_scheduled_job),
+        )
+        .route(
+            "/api/v1/vms/{id}/watchdog",
+            get(watchdog::get_vm_watchdog).post(watchdog::set_vm_watchdog),
         )
         .route("/api/v1/webhooks", get(webhooks::list_webhooks).post(webhooks::create_webhook))
         .route("/api/v1/webhooks/{id}", delete(webhooks::delete_webhook))

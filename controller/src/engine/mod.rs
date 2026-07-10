@@ -22,6 +22,7 @@ pub mod fleet_mission;
 pub mod fleet_network;
 pub mod fleet_shortcuts;
 pub mod alert_evaluator;
+pub mod health_watchdog;
 pub mod fleet_backup_scheduler;
 pub mod scheduled_jobs_runner;
 pub mod fleet_snapshot_scheduler;
