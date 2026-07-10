@@ -43,7 +43,11 @@ pub async fn cert_status(path: &str) -> Option<(String, i64)> {
 
 pub fn spawn(state: AppState) {
     tokio::spawn(async move {
-        // Check every 6h. Cert expiry moves on a scale of days, so frequent polling is wasteful.
+        // A tokio interval's first tick fires immediately, which races leader election on a
+        // fresh start — the startup cert check would be skipped and not retried for 6h. Delay
+        // the first check so leadership is settled, then poll every 6h (cert expiry moves on a
+        // scale of days, so frequent polling is wasteful).
+        tokio::time::sleep(Duration::from_secs(45)).await;
         let mut interval = tokio::time::interval(Duration::from_secs(6 * 3600));
         loop {
             interval.tick().await;
