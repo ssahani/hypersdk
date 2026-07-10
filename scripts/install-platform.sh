@@ -100,9 +100,14 @@ install_binaries() {
   local agent="$INSTALLER_ROOT/target/release/machina-agent"
   [[ -x "$ctrl" ]] || fail "Missing $ctrl — run make release first"
   [[ -x "$agent" ]] || fail "Missing $agent — run make release first"
+  # Keep the previous binaries so a bad deploy can be rolled back:
+  #   cp /usr/local/bin/machina-controller.prev /usr/local/bin/machina-controller && \
+  #     systemctl restart machina-controller   (same for machina-agent)
+  [[ -x /usr/local/bin/machina-controller ]] && cp -f /usr/local/bin/machina-controller /usr/local/bin/machina-controller.prev
+  [[ -x /usr/local/bin/machina-agent ]] && cp -f /usr/local/bin/machina-agent /usr/local/bin/machina-agent.prev
   install -Dm755 "$ctrl" /usr/local/bin/machina-controller
   install -Dm755 "$agent" /usr/local/bin/machina-agent
-  ok "Installed machina-controller + machina-agent"
+  ok "Installed machina-controller + machina-agent (previous kept as .prev for rollback)"
 }
 
 ensure_platform_env_var() {
@@ -213,12 +218,47 @@ ensure_ingest_key_env() {
   ok "Generated MACHINA_INGEST_KEY for Tetragon export → controller ingest"
 }
 
+ensure_platform_secrets() {
+  local file="/etc/default/machina-platform"
+  # Generate strong secrets on first install and NEVER overwrite existing ones. Without these
+  # the controller's boot-guard refuses to start on the dev-default JWT secret / 'admin'
+  # password, so a fresh deploy would fail to come up.
+  if ! grep -q '^MACHINA_JWT_SECRET=' "$file" 2>/dev/null; then
+    echo "MACHINA_JWT_SECRET=$(openssl rand -hex 48)" >>"$file"
+    ok "Generated MACHINA_JWT_SECRET"
+  fi
+  if ! grep -q '^MACHINA_AGENT_TOKEN=' "$file" 2>/dev/null; then
+    echo "MACHINA_AGENT_TOKEN=$(openssl rand -hex 32)" >>"$file"
+    ok "Generated MACHINA_AGENT_TOKEN (controller↔agent gRPC + console auth)"
+  fi
+  if ! grep -q '^MACHINA_ADMIN_PASSWORD=' "$file" 2>/dev/null; then
+    local pw
+    pw="$(openssl rand -base64 18 | tr -d '/+=')"
+    echo "MACHINA_ADMIN_PASSWORD=${pw}" >>"$file"
+    warn "Generated bootstrap MACHINA_ADMIN_PASSWORD: ${pw}  (shown once — save it)"
+  fi
+}
+
 write_platform_env() {
   step "Platform configuration"
-  local ip pub
+  local ip pub file="/etc/default/machina-platform"
   ip="$(primary_ipv4)"
   pub="${PUBLIC_URL:-http://${ip}:5093}"
-  install -Dm644 "$INSTALLER_ROOT/contrib/machina-platform.env" /etc/default/machina-platform
+  if [[ -f "$file" ]]; then
+    # PRESERVE the existing env file — operator/generated secrets live here. Only append keys
+    # the template introduces that are missing; never clobber existing values. (This function
+    # previously ran `install -Dm644 <template>` unconditionally, WIPING secrets on every
+    # re-deploy — the reason a --platform redeploy took the controller down.)
+    local tline tkey
+    while IFS= read -r tline; do
+      [[ "$tline" =~ ^[[:space:]]*# || -z "${tline//[[:space:]]/}" ]] && continue
+      tkey="${tline%%=*}"
+      grep -q "^${tkey}=" "$file" || printf '%s\n' "$tline" >>"$file"
+    done < "$INSTALLER_ROOT/contrib/machina-platform.env"
+  else
+    install -Dm644 "$INSTALLER_ROOT/contrib/machina-platform.env" "$file"
+  fi
+  ensure_platform_secrets
   grep -q '^MACHINA_CONTROLLER_ID=' /etc/default/machina-platform \
     || echo 'MACHINA_CONTROLLER_ID=ctrl-primary' >>/etc/default/machina-platform
   sed -i "s|^MACHINA_PUBLIC_URL=.*|MACHINA_PUBLIC_URL=${pub}|" /etc/default/machina-platform
