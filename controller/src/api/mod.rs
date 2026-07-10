@@ -3,6 +3,7 @@
 pub mod alerts;
 pub mod apikeys;
 pub mod scheduled_jobs;
+pub mod cert;
 pub mod notification_channels;
 pub mod watchdog;
 mod ai;
@@ -860,6 +861,7 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/notification-channels/{id}/test",
             post(notification_channels::test_channel),
         )
+        .route("/api/v1/cert-status", get(cert::get_cert_status))
         .route(
             "/api/v1/scheduled-jobs",
             get(scheduled_jobs::list_scheduled_jobs).post(scheduled_jobs::create_scheduled_job),
