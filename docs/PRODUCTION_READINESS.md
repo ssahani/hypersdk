@@ -102,8 +102,6 @@ These are real gaps observed in verification — a customer should know them up 
   agent reports it; on VMs without a fully-reporting agent it can read 0 intermittently. This
   makes **threshold alerts, capacity/rightsizing, and the memory-based watchdog signal**
   unreliable until guest tooling is consistently installed and reporting.
-- **Backup retention prunes the DB catalog only** — on-disk backup files are not GC'd yet, so
-  backup storage grows unbounded. Monitor the backup target's disk.
 - **Live JWT-signing-key / agent-token rotation is not automated.** API-key rotation exists;
   rotating the JWT key or agent token requires a coordinated manual change + restart.
 - **Some UI is API-only**: the health watchdog, notification channels, and cert status have
@@ -111,6 +109,48 @@ These are real gaps observed in verification — a customer should know them up 
 - **Snapshots require qcow2 disks** (internal snapshots); raw disks will fail snapshot ops.
 - The full e2e suite still has a few failing/peripheral phases; don't treat "e2e green" as a
   release gate until those are triaged.
+
+## 7a. KNOWN CRITICAL correctness gaps — data-path audit 2026-07-11 (read before a customer deploy)
+
+A focused audit of the code paths that decide where VMs run and how their data is protected
+found architectural issues that are **not yet fixed** (they need design work, not one-line
+patches). The bounded, high-confidence ones from the same audit **were** fixed (commit
+`a6c0153f`: restore ownership/completeness guard, restore path allow-list, multi-disk
+refuse-instead-of-lose, HA/evac `schedulable` + `desired_state` filters, firewall authz).
+What remains:
+
+- **HA can split-brain a VM under a network partition (CRITICAL).** A host is marked `offline`
+  purely on heartbeat loss (>90s). A controller↔agent partition (VMs still running) then makes
+  HA re-create + start those VMs on a survivor while they run on the partitioned host — both
+  writing the same shared storage → corruption. Fencing does not save this today because…
+- **Fencing is routed through the *target host's own agent* (CRITICAL).** A truly-dead host
+  can't be fenced (its agent is gone), so `fence_on_failure` VMs are never recovered on real
+  hardware death, while non-fenced VMs split-brain. Real fencing must originate from the
+  controller/BMC, independent of the failed host.
+- **Migration/evacuation never undefines the source domain.** With `PERSIST_DEST`, an evacuated
+  VM with libvirt autostart can boot on the source at next power-on while running on the
+  destination → split-brain. Evacuation should undefine the source.
+- **`host.maintenance` reports the host "drained" while evacuations are async/best-effort.** An
+  operator can pull a host that still has running VMs. Don't power-cycle a host on the strength
+  of the maintenance flag alone — confirm no running VMs remain first.
+- **Backups of a running VM are crash-consistent only by luck.** `qemu-img convert` copies the
+  live qcow2 with no `FSFreeze`/snapshot/pause, and integrity is not verified before the record
+  is marked `completed`. Treat backups of busy/DB VMs as potentially inconsistent; prefer
+  snapshot-then-backup, and test-restore before relying on any backup.
+- **"Incremental" backups build a fragile chain and retention can delete the base**, making the
+  retained incremental unrestorable. Use full backups until this is reworked.
+- **Deleting an external snapshot of a running VM leaks the overlay qcow2 on disk** (metadata-
+  only delete). With scheduled snapshots this slowly consumes the pool; monitor pool usage.
+- **Two active leaders are possible** if the leader-lease renewal stalls past the lease (the
+  cached `is_leader()` isn't re-validated against `lease_until`), which would duplicate
+  HA/DRS/reconcile actions. Low probability, no fencing token to stop the loser's writes.
+- No anti-affinity (replicas can be co-located, defeating HA); DRS has no hysteresis (ping-pong
+  risk). Both are feature gaps, not regressions.
+
+**Bottom line for a customer:** single-host or quiet multi-host operation is in reasonable
+shape after the fixes, but **HA/fencing under a real host failure or network partition is not
+safe yet**, and **backup/restore of busy VMs is not proven**. Do a restore drill and avoid
+relying on automatic HA failover until the fencing model is reworked.
 
 ## 8. Upgrade procedure
 
