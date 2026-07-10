@@ -122,15 +122,11 @@ async fn fire(state: &AppState, rule: &Rule, violations: &[(String, f64)]) -> an
             .map(|(vm, v)| serde_json::json!({ "vm": vm, "value": v }))
             .collect::<Vec<_>>(),
         "count": violations.len(),
-    })
-    .to_string();
+    });
     let kind = format!("alert.{}", rule.severity);
-    sqlx::query("INSERT INTO notification_outbox (id, kind, payload) VALUES (?, ?, ?)")
-        .bind(Uuid::new_v4())
-        .bind(&kind)
-        .bind(&payload)
-        .execute(&state.pool)
-        .await?;
+    // Route through the central dispatcher: in-app notification_outbox + signed webhooks +
+    // notification channels (Slack/email/webhook), each filtered by its event list.
+    crate::engine::webhooks::dispatch_webhooks(&state.pool, &kind, payload).await;
     sqlx::query("UPDATE alert_rules SET last_fired_at = datetime('now') WHERE id = ?")
         .bind(rule.id)
         .execute(&state.pool)

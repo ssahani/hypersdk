@@ -42,6 +42,66 @@ pub async fn dispatch_webhooks(pool: &SqlitePool, event_kind: &str, payload: ser
         .bind(&payload)
         .execute(pool)
         .await;
+
+    dispatch_channels(pool, event_kind, &payload).await;
+}
+
+/// Fan an event out to configured notification channels (Slack/email/webhook), filtered by
+/// each channel's event list. Creates channel_deliveries rows delivered by channel_worker.
+pub async fn dispatch_channels(pool: &SqlitePool, event_kind: &str, payload: &serde_json::Value) {
+    let rows: Vec<(String, String, String, sqlx::types::Json<Vec<String>>)> = match sqlx::query_as(
+        "SELECT id, kind, target, events FROM notification_channels WHERE enabled = TRUE",
+    )
+    .fetch_all(pool)
+    .await
+    {
+        Ok(r) => r,
+        Err(_) => return,
+    };
+    if rows.is_empty() {
+        return;
+    }
+    let (subject, body) = format_notification(event_kind, payload);
+    for (channel_id, kind, target, events) in rows {
+        if !events.is_empty() && !events.iter().any(|e| event_matches(e, event_kind)) {
+            continue;
+        }
+        let _ = sqlx::query(
+            "INSERT INTO channel_deliveries (id, channel_id, kind, target, subject, body, event_kind)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(&channel_id)
+        .bind(&kind)
+        .bind(&target)
+        .bind(&subject)
+        .bind(&body)
+        .bind(event_kind)
+        .execute(pool)
+        .await;
+    }
+}
+
+/// Build a short subject + human-readable body from an event. Alerts get a rule summary;
+/// everything else falls back to the payload's `message`/`detail` or compact JSON.
+pub fn format_notification(event_kind: &str, payload: &serde_json::Value) -> (String, String) {
+    let subject = format!("[machina] {event_kind}");
+    let body = if let Some(rule) = payload.get("rule").and_then(|v| v.as_str()) {
+        let metric = payload.get("metric").and_then(|v| v.as_str()).unwrap_or("");
+        let cmp = payload.get("comparator").and_then(|v| v.as_str()).unwrap_or("");
+        let threshold = payload.get("threshold").map(|v| v.to_string()).unwrap_or_default();
+        let count = payload.get("count").map(|v| v.to_string()).unwrap_or_default();
+        format!("Alert '{rule}' fired: {count} VM(s) with {metric} {cmp} {threshold}")
+    } else if let Some(m) = payload
+        .get("message")
+        .or_else(|| payload.get("detail"))
+        .and_then(|v| v.as_str())
+    {
+        m.to_string()
+    } else {
+        payload.to_string()
+    };
+    (subject, body)
 }
 
 pub fn event_matches(filter: &str, kind: &str) -> bool {

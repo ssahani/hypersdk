@@ -3,6 +3,7 @@
 pub mod alerts;
 pub mod apikeys;
 pub mod scheduled_jobs;
+pub mod notification_channels;
 pub mod watchdog;
 mod ai;
 mod applications;
@@ -847,6 +848,18 @@ pub fn router(state: AppState) -> Router {
             get(alerts::list_alert_rules).post(alerts::create_alert_rule),
         )
         .route("/api/v1/alert-rules/{id}", delete(alerts::delete_alert_rule))
+        .route(
+            "/api/v1/notification-channels",
+            get(notification_channels::list_channels).post(notification_channels::create_channel),
+        )
+        .route(
+            "/api/v1/notification-channels/{id}",
+            delete(notification_channels::delete_channel),
+        )
+        .route(
+            "/api/v1/notification-channels/{id}/test",
+            post(notification_channels::test_channel),
+        )
         .route(
             "/api/v1/scheduled-jobs",
             get(scheduled_jobs::list_scheduled_jobs).post(scheduled_jobs::create_scheduled_job),
