@@ -84,6 +84,42 @@ pub async fn create_api_key(
     }))
 }
 
+/// Rotate an existing API key: issue a new token (and hash) in place, preserving the
+/// key's id/name/role so callers only swap the secret. The old token stops working
+/// immediately. This is the token-rotation primitive day-2 ops needs — a leaked or
+/// aged key can be cycled without deleting and re-provisioning the key record.
+pub async fn rotate_api_key(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<CreateApiKeyResponse>, ApiError> {
+    require_admin(&actor)?;
+    let existing: Option<(String, String)> =
+        sqlx::query_as("SELECT name, role FROM api_keys WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&state.pool)
+            .await?;
+    let Some((name, role)) = existing else {
+        return Err(ApiError::not_found("api key not found"));
+    };
+    let token = format!("machina_{}", Uuid::new_v4());
+    let hash = hash_token(&token);
+    // Reset last_used_at too — the new secret has never been used.
+    sqlx::query(
+        "UPDATE api_keys SET key_hash = ?, last_used_at = NULL, created_at = datetime('now') WHERE id = ?",
+    )
+    .bind(hash)
+    .bind(id)
+    .execute(&state.pool)
+    .await?;
+    Ok(Json(CreateApiKeyResponse {
+        id: id.to_string(),
+        name,
+        role,
+        token,
+    }))
+}
+
 pub async fn delete_api_key(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,

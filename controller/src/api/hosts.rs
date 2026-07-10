@@ -471,6 +471,44 @@ pub async fn host_maintenance(
     }))
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct CordonRequest {
+    /// true = cordon (unschedulable), false = uncordon (schedulable).
+    pub cordon: bool,
+}
+
+/// Cordon/uncordon a host: toggles `schedulable`. A cordoned host takes no NEW VM
+/// placement (see engine/placement.rs) while its existing VMs keep running — the safe
+/// "cordon before rolling maintenance" primitive, distinct from maintenance-mode evacuate.
+pub async fn cordon_host(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    Json(req): Json<CordonRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    let res = sqlx::query("UPDATE hosts SET schedulable = ? WHERE id = ?")
+        .bind(!req.cordon)
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
+    if res.rows_affected() == 0 {
+        return Err(ApiError::not_found("host not found"));
+    }
+    state.emit_event(
+        if req.cordon { "host.cordon" } else { "host.uncordon" },
+        format!(
+            "Host {} {}",
+            id,
+            if req.cordon { "cordoned (unschedulable)" } else { "uncordoned (schedulable)" }
+        ),
+    );
+    Ok(Json(serde_json::json!({
+        "host_id": id.to_string(),
+        "schedulable": !req.cordon,
+    })))
+}
+
 pub async fn sync_all_hosts(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,

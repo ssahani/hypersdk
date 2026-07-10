@@ -1,6 +1,8 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
+pub mod alerts;
 pub mod apikeys;
+pub mod scheduled_jobs;
 mod ai;
 mod applications;
 mod atlas;
@@ -112,6 +114,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/hosts/{id}/cockpit/actions", post(host_cockpit::host_cockpit_action))
         .route("/api/v1/hosts/{id}/diagnose", post(host_os::diagnose_host))
         .route("/api/v1/hosts/{id}/maintenance", post(hosts::host_maintenance))
+        .route("/api/v1/hosts/{id}/cordon", post(hosts::cordon_host))
         .route("/api/v1/vms", get(vms::list_vms).post(vms::create_vm))
         .route("/api/v1/vms/prune-missing", post(vms::prune_missing_vms))
         .route(
@@ -621,6 +624,14 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/v1/backups/timeline", get(backups::list_backup_timeline))
         .route(
+            "/api/v1/backup-schedules",
+            get(backups::list_backup_schedules).post(backups::create_backup_schedule),
+        )
+        .route(
+            "/api/v1/backup-schedules/{id}",
+            delete(backups::delete_backup_schedule),
+        )
+        .route(
             "/api/v1/vms/{id}/backups/{backup_id}/restore",
             post(backups::restore_vm_backup),
         )
@@ -829,6 +840,20 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/v1/api-keys", get(apikeys::list_api_keys).post(apikeys::create_api_key))
         .route("/api/v1/api-keys/{id}", delete(apikeys::delete_api_key))
+        .route("/api/v1/api-keys/{id}/rotate", post(apikeys::rotate_api_key))
+        .route(
+            "/api/v1/alert-rules",
+            get(alerts::list_alert_rules).post(alerts::create_alert_rule),
+        )
+        .route("/api/v1/alert-rules/{id}", delete(alerts::delete_alert_rule))
+        .route(
+            "/api/v1/scheduled-jobs",
+            get(scheduled_jobs::list_scheduled_jobs).post(scheduled_jobs::create_scheduled_job),
+        )
+        .route(
+            "/api/v1/scheduled-jobs/{id}",
+            delete(scheduled_jobs::delete_scheduled_job),
+        )
         .route("/api/v1/webhooks", get(webhooks::list_webhooks).post(webhooks::create_webhook))
         .route("/api/v1/webhooks/{id}", delete(webhooks::delete_webhook))
         .route("/api/v1/webhooks/{id}/toggle", post(webhooks::toggle_webhook))

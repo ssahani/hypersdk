@@ -109,6 +109,124 @@ pub async fn create_vm_backup(
     }))
 }
 
+// ---- Scheduled backups (day-2) --------------------------------------------------
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct BackupScheduleRow {
+    pub id: Uuid,
+    pub name: String,
+    pub project: String,
+    pub tag_filter: String,
+    pub backup_type: String,
+    pub target_id: Option<Uuid>,
+    pub interval_hours: i64,
+    pub retain_count: i64,
+    pub enabled: bool,
+    pub last_run_at: Option<String>,
+    pub created_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateBackupScheduleBody {
+    pub name: String,
+    #[serde(default)]
+    pub project: String,
+    #[serde(default)]
+    pub tag_filter: String,
+    #[serde(default = "default_type")]
+    pub backup_type: String,
+    #[serde(default)]
+    pub target_id: Option<Uuid>,
+    #[serde(default = "default_interval_hours")]
+    pub interval_hours: i64,
+    #[serde(default = "default_retain")]
+    pub retain_count: i64,
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
+}
+
+fn default_interval_hours() -> i64 {
+    24
+}
+fn default_retain() -> i64 {
+    7
+}
+fn default_enabled() -> bool {
+    true
+}
+
+pub async fn list_backup_schedules(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<Vec<BackupScheduleRow>>, ApiError> {
+    require_operator(&actor)?;
+    let rows = sqlx::query_as::<_, BackupScheduleRow>(
+        "SELECT id, name, project, tag_filter, backup_type, target_id,
+                interval_hours, retain_count, enabled,
+                last_run_at, created_at
+         FROM backup_schedules ORDER BY created_at DESC LIMIT 500",
+    )
+    .fetch_all(&state.pool)
+    .await?;
+    Ok(Json(rows))
+}
+
+pub async fn create_backup_schedule(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Json(body): Json<CreateBackupScheduleBody>,
+) -> Result<Json<BackupScheduleRow>, ApiError> {
+    require_operator(&actor)?;
+    if body.name.trim().is_empty() || body.name.len() > 128 {
+        return Err(ApiError::bad_request("schedule name must be 1–128 characters"));
+    }
+    if body.interval_hours < 1 || body.interval_hours > 24 * 30 {
+        return Err(ApiError::bad_request("interval_hours must be 1–720"));
+    }
+    if body.retain_count < 0 || body.retain_count > 1000 {
+        return Err(ApiError::bad_request("retain_count must be 0–1000"));
+    }
+    let id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO backup_schedules
+           (id, name, project, tag_filter, backup_type, target_id, interval_hours, retain_count, enabled)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(id)
+    .bind(body.name.trim())
+    .bind(&body.project)
+    .bind(&body.tag_filter)
+    .bind(&body.backup_type)
+    .bind(body.target_id)
+    .bind(body.interval_hours)
+    .bind(body.retain_count)
+    .bind(body.enabled)
+    .execute(&state.pool)
+    .await?;
+    let row = sqlx::query_as::<_, BackupScheduleRow>(
+        "SELECT id, name, project, tag_filter, backup_type, target_id,
+                interval_hours, retain_count, enabled, last_run_at, created_at
+         FROM backup_schedules WHERE id = ?",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await?;
+    Ok(Json(row))
+}
+
+pub async fn delete_backup_schedule(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    sqlx::query("DELETE FROM backup_schedules WHERE id = ?")
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
+    Ok(Json(serde_json::json!({ "deleted": true })))
+}
+
 pub async fn restore_vm_backup(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,

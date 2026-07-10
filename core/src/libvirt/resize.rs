@@ -87,10 +87,25 @@ pub fn get_memtune(conn: &Connect, name: &str) -> Result<MemTuneInfo, LibvirtErr
     Ok(info)
 }
 
+/// True when the domain is in a state where a live change applies (running/blocked/
+/// paused/pmsuspended). Used to decide hotplug (LIVE) vs boot-time (CONFIG) changes.
+fn domain_is_live(domain: &Domain) -> bool {
+    matches!(domain.get_info().map(|i| i.state).unwrap_or(5), 1 | 2 | 3 | 7)
+}
+
 pub fn set_vcpus(conn: &Connect, name: &str, vcpus: u32) -> Result<(), LibvirtError> {
     crate::validate::validate_vcpus(vcpus)?;
 
     let domain = lookup_domain(conn, name)?;
+    // Online CPU hotplug: for a running guest apply LIVE|CONFIG so the change takes effect
+    // immediately AND persists across reboot. If the live change is rejected (e.g. the
+    // guest can't hot-unplug down to a lower count), fall back to CONFIG-only so it still
+    // applies on next boot rather than failing the whole operation.
+    if domain_is_live(&domain)
+        && domain.set_vcpus_flags(vcpus, AFFECT_LIVE_AND_CONFIG).is_ok()
+    {
+        return Ok(());
+    }
     domain
         .set_vcpus_flags(vcpus, virt::sys::VIR_DOMAIN_AFFECT_CONFIG)
         .map_err(|e| LibvirtError::Operation(format!("Failed to set vCPUs for '{name}': {e}")))?;
@@ -101,8 +116,18 @@ pub fn set_memory(conn: &Connect, name: &str, memory_mb: u64) -> Result<(), Libv
     crate::validate::validate_memory_mb(memory_mb)?;
 
     let domain = lookup_domain(conn, name)?;
+    let kb = memory_mb * 1024;
+    // Online memory change: for a running guest, balloon current memory (bounded by the
+    // domain's max memory) so the change is live, and best-effort persist to config. If
+    // the guest isn't running (or ballooning fails), set the boot/max memory instead.
+    if domain_is_live(&domain) && domain.set_memory(kb).is_ok() {
+        // Persist to config so the new size survives reboot; ignore if the hypervisor
+        // rejects CONFIG for memory params (some do — see memtune_affect_flag).
+        let _ = domain.set_memory_flags(kb, virt::sys::VIR_DOMAIN_AFFECT_CONFIG);
+        return Ok(());
+    }
     domain
-        .set_max_memory(memory_mb * 1024)
+        .set_max_memory(kb)
         .map_err(|e| LibvirtError::Operation(format!("Failed to set memory for '{name}': {e}")))?;
     Ok(())
 }

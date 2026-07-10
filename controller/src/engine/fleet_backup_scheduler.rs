@@ -1,0 +1,160 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+//
+// Day-2: scheduled fleet backups with retention. Backups were manual-trigger only;
+// this mirrors fleet_snapshot_scheduler (which had both scheduling and retention) so
+// backups get the same automation + a bounded catalog.
+
+use sqlx::SqlitePool;
+use uuid::Uuid;
+
+use crate::state::AppState;
+use crate::tasks::enqueue::enqueue_task;
+
+pub fn spawn(state: AppState) {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+        loop {
+            interval.tick().await;
+            if !state.leader.is_leader() {
+                continue;
+            }
+            if let Err(e) = tick(&state).await {
+                tracing::warn!("fleet backup scheduler: {e:#}");
+            }
+        }
+    });
+}
+
+async fn tick(state: &AppState) -> anyhow::Result<()> {
+    // Due = never run, or last run older than the schedule's interval. We compare in SQL
+    // using each row's interval_hours so schedules with different cadences are honored.
+    let rows: Vec<(Uuid, String, String, String, Option<String>, i32)> = sqlx::query_as(
+        "SELECT id, project, tag_filter, backup_type, target_id, retain_count
+         FROM backup_schedules
+         WHERE enabled = TRUE
+           AND (last_run_at IS NULL
+                OR last_run_at < datetime('now', printf('-%d hours', interval_hours)))",
+    )
+    .fetch_all(&state.pool)
+    .await?;
+
+    for (sched_id, project, tag_filter, backup_type, target_id, retain_count) in rows {
+        enqueue_backups_for_schedule(&state.pool, state, &project, &tag_filter, &backup_type, target_id.as_deref())
+            .await?;
+        sqlx::query("UPDATE backup_schedules SET last_run_at = datetime('now') WHERE id = ?")
+            .bind(sched_id)
+            .execute(&state.pool)
+            .await?;
+        if retain_count > 0 {
+            prune_retained_backups(&state.pool, &project, &tag_filter, retain_count).await?;
+        }
+    }
+    Ok(())
+}
+
+/// Select the managed VMs a schedule targets (whole fleet, a project, or a project+tag),
+/// mirroring fleet_snapshot_scheduler's filtering.
+async fn select_vms(
+    pool: &SqlitePool,
+    project: &str,
+    tag_filter: &str,
+) -> anyhow::Result<Vec<(Uuid, String, Option<Uuid>)>> {
+    let base = "SELECT id, name, host_id FROM vms
+                WHERE managed = TRUE AND COALESCE(inventory_source, 'libvirt') = 'libvirt'
+                  AND lifecycle_phase NOT IN ('retired', 'deleting')";
+    let vms = if !project.is_empty() && !tag_filter.is_empty() {
+        sqlx::query_as(&format!(
+            "{base} AND project = ? AND EXISTS (SELECT 1 FROM json_each(COALESCE(tags,'[]')) WHERE value = ?)"
+        ))
+        .bind(project)
+        .bind(tag_filter)
+        .fetch_all(pool)
+        .await?
+    } else if !project.is_empty() {
+        sqlx::query_as(&format!("{base} AND project = ?"))
+            .bind(project)
+            .fetch_all(pool)
+            .await?
+    } else {
+        sqlx::query_as(base).fetch_all(pool).await?
+    };
+    Ok(vms)
+}
+
+async fn enqueue_backups_for_schedule(
+    pool: &SqlitePool,
+    app: &AppState,
+    project: &str,
+    tag_filter: &str,
+    backup_type: &str,
+    target_id: Option<&str>,
+) -> anyhow::Result<()> {
+    let vms = select_vms(pool, project, tag_filter).await?;
+    for (vm_id, vm_name, host_id) in vms {
+        let backup_id = Uuid::new_v4();
+        // Insert the record before enqueue (the worker looks it up by id), compensating
+        // with a delete on enqueue failure — same ordering as create_vm_backup.
+        sqlx::query(
+            "INSERT INTO backup_records (id, vm_id, backup_type, status) VALUES (?, ?, ?, 'pending')",
+        )
+        .bind(backup_id)
+        .bind(vm_id)
+        .bind(backup_type)
+        .execute(pool)
+        .await?;
+        if let Err(e) = enqueue_task(
+            app,
+            "vm.backup",
+            serde_json::json!({
+                "vm_id": vm_id.to_string(),
+                "backup_id": backup_id.to_string(),
+                "target_id": target_id,
+                "description": format!("Scheduled backup for {vm_name}"),
+            }),
+            Some("vm"),
+            Some(vm_id),
+            host_id,
+        )
+        .await
+        {
+            let _ = sqlx::query("DELETE FROM backup_records WHERE id = ?")
+                .bind(backup_id)
+                .execute(pool)
+                .await;
+            return Err(anyhow::anyhow!("enqueue vm.backup: {}", e.message));
+        }
+    }
+    Ok(())
+}
+
+/// Retention: keep only the newest `retain_count` completed backup_records per VM in the
+/// schedule's scope; drop older catalog rows so the backup history stays bounded.
+///
+/// NOTE: this prunes the DB catalog. Reclaiming the on-disk backup *files* on the host is
+/// the separate storage-GC gap (no vm.backup.delete agent path exists yet); tracked as a
+/// day-2 storage item. Pruning the record still bounds the restore catalog and metadata.
+async fn prune_retained_backups(
+    pool: &SqlitePool,
+    project: &str,
+    tag_filter: &str,
+    retain_count: i32,
+) -> anyhow::Result<()> {
+    let vms = select_vms(pool, project, tag_filter).await?;
+    for (vm_id, _name, _host) in vms {
+        sqlx::query(
+            "DELETE FROM backup_records
+             WHERE vm_id = ? AND status IN ('completed', 'succeeded')
+               AND id NOT IN (
+                   SELECT id FROM backup_records
+                   WHERE vm_id = ? AND status IN ('completed', 'succeeded')
+                   ORDER BY created_at DESC LIMIT ?
+               )",
+        )
+        .bind(vm_id)
+        .bind(vm_id)
+        .bind(retain_count)
+        .execute(pool)
+        .await?;
+    }
+    Ok(())
+}

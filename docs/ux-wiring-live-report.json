@@ -1,45 +1,45 @@
 {
   "host": "80.79.5.173",
-  "generated_at": "2026-06-24T18:18:46.786Z",
-  "passed": 62,
-  "failed": 143,
-  "skipped": 40,
+  "generated_at": "2026-07-10T09:57:42.639Z",
+  "passed": 184,
+  "failed": 3,
+  "skipped": 58,
   "results": [
     {
       "id": "classic:/",
       "path": "/",
       "status": "passed",
-      "warnings": 0
+      "warnings": 5
     },
     {
       "id": "classic:/admin/sessions",
       "path": "/admin/sessions",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/api-docs",
       "path": "/api-docs",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/audit",
       "path": "/audit",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/backups",
       "path": "/backups",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/capabilities",
       "path": "/capabilities",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/create",
@@ -58,49 +58,49 @@
       "id": "classic:/devices",
       "path": "/devices",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/disk-images",
       "path": "/disk-images",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/events",
       "path": "/events",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/fleet",
       "path": "/fleet",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/host-networking",
       "path": "/host-networking",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/host-ssh",
       "path": "/host-ssh",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/import",
       "path": "/import",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/jobs",
       "path": "/jobs",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "k8s:/k8s",
@@ -124,31 +124,31 @@
       "id": "classic:/logs",
       "path": "/logs",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/mission-control",
       "path": "/mission-control",
       "status": "passed",
-      "warnings": 0
+      "warnings": 7
     },
     {
       "id": "classic:/networks",
       "path": "/networks",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/node",
       "path": "/node",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/nwfilters",
       "path": "/nwfilters",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "openstack:/openstack",
@@ -375,46 +375,20 @@
     {
       "id": "platform:/platform",
       "path": "/platform",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        },
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/catalog",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 19
     },
     {
       "id": "platform:/platform/*",
       "path": "/platform/*",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform//platform",
       "path": "/platform//platform",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform/activity",
@@ -425,47 +399,26 @@
     {
       "id": "platform:/platform/activity?tab=hosts",
       "path": "/platform/activity?tab=hosts",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/administration",
       "path": "/platform/administration",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform/api-keys",
       "path": "/platform/api-keys",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/applications",
       "path": "/platform/applications",
       "status": "passed",
-      "warnings": 0
+      "warnings": 4
     },
     {
       "id": "platform:/platform/backups",
@@ -482,41 +435,20 @@
     {
       "id": "platform:/platform/blueprints",
       "path": "/platform/blueprints",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 13
     },
     {
       "id": "platform:/platform/cloud-init",
       "path": "/platform/cloud-init",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform/cloud-init?tab=profiles",
       "path": "/platform/cloud-init?tab=profiles",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform/content",
@@ -527,80 +459,38 @@
     {
       "id": "platform:/platform/content?tab=available",
       "path": "/platform/content?tab=available",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "platform:/platform/content?tab=pending",
       "path": "/platform/content?tab=pending",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/create-iso",
       "path": "/platform/create-iso",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 9
     },
     {
       "id": "platform:/platform/create-iso?tab=wizard",
       "path": "/platform/create-iso?tab=wizard",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 13
     },
     {
       "id": "platform:/platform/datacenter",
       "path": "/platform/datacenter",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 13
     },
     {
       "id": "platform:/platform/datacenter?tab=racks",
       "path": "/platform/datacenter?tab=racks",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 13
     },
     {
       "id": "platform:/platform/developer",
@@ -617,28 +507,14 @@
     {
       "id": "platform:/platform/enroll",
       "path": "/platform/enroll",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/enterprise",
       "path": "/platform/enterprise",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 1
     },
     {
       "id": "platform:/platform/events",
@@ -649,171 +525,82 @@
     {
       "id": "platform:/platform/events?tab=audit",
       "path": "/platform/events?tab=audit",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 14
     },
     {
       "id": "platform:/platform/events?tab=event",
       "path": "/platform/events?tab=event",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 14
     },
     {
       "id": "platform:/platform/events?tab=task",
       "path": "/platform/events?tab=task",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 14
     },
     {
       "id": "platform:/platform/fleet-snapshots",
       "path": "/platform/fleet-snapshots",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/gpu",
       "path": "/platform/gpu",
       "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "reason": "401 ",
+      "apiFailures": []
     },
     {
       "id": "platform:/platform/gpu?tab=placement",
       "path": "/platform/gpu?tab=placement",
       "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "reason": "401 ",
+      "apiFailures": []
     },
     {
       "id": "platform:/platform/hosts",
       "path": "/platform/hosts",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/hosts/:id",
       "path": "/platform/hosts/:id",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "skipped",
+      "reason": "no platform hosts"
     },
     {
       "id": "platform:/platform/hosts/finder",
       "path": "/platform/hosts/finder",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 18
     },
     {
       "id": "platform:/platform/infrastructure",
       "path": "/platform/infrastructure",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform/integrations",
       "path": "/platform/integrations",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/maintenance",
       "path": "/platform/maintenance",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/maintenance?tab=mission",
       "path": "/platform/maintenance?tab=mission",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/migration",
@@ -824,223 +611,104 @@
     {
       "id": "platform:/platform/migration?tab=cloud",
       "path": "/platform/migration?tab=cloud",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform/migration?tab=esxi",
       "path": "/platform/migration?tab=esxi",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform/migration?tab=openstack",
       "path": "/platform/migration?tab=openstack",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform/migration?tab=ova",
       "path": "/platform/migration?tab=ova",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform/migration?tab=vmdk",
       "path": "/platform/migration?tab=vmdk",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform/network-canvas",
       "path": "/platform/network-canvas",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/networks",
       "path": "/platform/networks",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 16
     },
     {
       "id": "platform:/platform/notifications",
       "path": "/platform/notifications",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/notifications?tab=rules",
       "path": "/platform/notifications?tab=rules",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/observability",
       "path": "/platform/observability",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 13
     },
     {
       "id": "platform:/platform/operations",
       "path": "/platform/operations",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform/placement",
       "path": "/platform/placement",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 16
     },
     {
       "id": "platform:/platform/policy",
       "path": "/platform/policy",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 13
     },
     {
       "id": "platform:/platform/projects",
       "path": "/platform/projects",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 13
     },
     {
       "id": "platform:/platform/recommendations",
       "path": "/platform/recommendations",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 14
     },
     {
       "id": "platform:/platform/reports",
       "path": "/platform/reports",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 22
     },
     {
       "id": "platform:/platform/resources",
       "path": "/platform/resources",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 16
     },
     {
       "id": "platform:/platform/settings",
@@ -1051,444 +719,206 @@
     {
       "id": "platform:/platform/settings?section=about",
       "path": "/platform/settings?section=about",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 17
     },
     {
       "id": "platform:/platform/settings?section=ai-providers",
       "path": "/platform/settings?section=ai-providers",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 18
     },
     {
       "id": "platform:/platform/settings?section=api-keys",
       "path": "/platform/settings?section=api-keys",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 18
     },
     {
       "id": "platform:/platform/settings?section=console",
       "path": "/platform/settings?section=console",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 20
     },
     {
       "id": "platform:/platform/settings?section=integrations",
       "path": "/platform/settings?section=integrations",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 18
     },
     {
       "id": "platform:/platform/settings?section=keychain",
       "path": "/platform/settings?section=keychain",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 18
     },
     {
       "id": "platform:/platform/settings?section=network",
       "path": "/platform/settings?section=network",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 18
     },
     {
       "id": "platform:/platform/settings?section=policy",
       "path": "/platform/settings?section=policy",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 19
     },
     {
       "id": "platform:/platform/settings?section=reports",
       "path": "/platform/settings?section=reports",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 28
     },
     {
       "id": "platform:/platform/settings?section=resources",
       "path": "/platform/settings?section=resources",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 17
     },
     {
       "id": "platform:/platform/settings?section=security",
       "path": "/platform/settings?section=security",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 17
     },
     {
       "id": "platform:/platform/settings?section=stage-manager",
       "path": "/platform/settings?section=stage-manager",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 19
     },
     {
       "id": "platform:/platform/settings?section=support",
       "path": "/platform/settings?section=support",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 17
     },
     {
       "id": "platform:/platform/settings?section=updates",
       "path": "/platform/settings?section=updates",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 17
     },
     {
       "id": "platform:/platform/settings?section=users",
       "path": "/platform/settings?section=users",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 21
     },
     {
       "id": "platform:/platform/settings?section=webhooks",
       "path": "/platform/settings?section=webhooks",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 19
     },
     {
       "id": "platform:/platform/settings?section=zeus",
       "path": "/platform/settings?section=zeus",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 21
     },
     {
       "id": "platform:/platform/settings?tab=about",
       "path": "/platform/settings?tab=about",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 23
     },
     {
       "id": "platform:/platform/settings?tab=ai-providers",
       "path": "/platform/settings?tab=ai-providers",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 23
     },
     {
       "id": "platform:/platform/settings?tab=api-keys",
       "path": "/platform/settings?tab=api-keys",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 23
     },
     {
       "id": "platform:/platform/settings?tab=console",
       "path": "/platform/settings?tab=console",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 23
     },
     {
       "id": "platform:/platform/settings?tab=integrations",
       "path": "/platform/settings?tab=integrations",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 23
     },
     {
       "id": "platform:/platform/settings?tab=keychain",
       "path": "/platform/settings?tab=keychain",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 23
     },
     {
       "id": "platform:/platform/settings?tab=network",
       "path": "/platform/settings?tab=network",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 23
     },
     {
       "id": "platform:/platform/settings?tab=policy",
       "path": "/platform/settings?tab=policy",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 23
     },
     {
       "id": "platform:/platform/settings?tab=reports",
       "path": "/platform/settings?tab=reports",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 23
     },
     {
       "id": "platform:/platform/settings?tab=resources",
       "path": "/platform/settings?tab=resources",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 23
     },
     {
       "id": "platform:/platform/settings?tab=security",
       "path": "/platform/settings?tab=security",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 23
     },
     {
       "id": "platform:/platform/settings?tab=stage-manager",
       "path": "/platform/settings?tab=stage-manager",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 23
     },
     {
       "id": "platform:/platform/settings?tab=support",
       "path": "/platform/settings?tab=support",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 23
     },
     {
       "id": "platform:/platform/settings?tab=updates",
       "path": "/platform/settings?tab=updates",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 23
     },
     {
       "id": "platform:/platform/settings?tab=users",
       "path": "/platform/settings?tab=users",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 23
     },
     {
       "id": "platform:/platform/settings?tab=webhooks",
       "path": "/platform/settings?tab=webhooks",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 23
     },
     {
       "id": "platform:/platform/settings?tab=zeus",
       "path": "/platform/settings?tab=zeus",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 23
     },
     {
       "id": "platform:/platform/soc",
@@ -1500,58 +930,37 @@
       "id": "platform:/platform/soc?tab=alerts",
       "path": "/platform/soc?tab=alerts",
       "status": "passed",
-      "warnings": 0
+      "warnings": 22
     },
     {
       "id": "platform:/platform/soc?tab=asm",
       "path": "/platform/soc?tab=asm",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 22
     },
     {
       "id": "platform:/platform/soc?tab=detections",
       "path": "/platform/soc?tab=detections",
       "status": "passed",
-      "warnings": 0
+      "warnings": 22
     },
     {
       "id": "platform:/platform/soc?tab=integrations",
       "path": "/platform/soc?tab=integrations",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 22
     },
     {
       "id": "platform:/platform/soc?tab=playbooks",
       "path": "/platform/soc?tab=playbooks",
       "status": "passed",
-      "warnings": 0
+      "warnings": 22
     },
     {
       "id": "platform:/platform/soc?tab=siem",
       "path": "/platform/soc?tab=siem",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 22
     },
     {
       "id": "platform:/platform/storage",
@@ -1562,299 +971,152 @@
     {
       "id": "platform:/platform/storage?tab=pools",
       "path": "/platform/storage?tab=pools",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 15
     },
     {
       "id": "platform:/platform/storage?tab=sla",
       "path": "/platform/storage?tab=sla",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 15
     },
     {
       "id": "platform:/platform/storage?tab=tiers",
       "path": "/platform/storage?tab=tiers",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 15
     },
     {
       "id": "platform:/platform/support",
       "path": "/platform/support",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform/tasks",
       "path": "/platform/tasks",
       "status": "passed",
-      "warnings": 0
+      "warnings": 1
     },
     {
       "id": "platform:/platform/tasks?tab=completed",
       "path": "/platform/tasks?tab=completed",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/tasks?tab=failed",
       "path": "/platform/tasks?tab=failed",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/tasks?tab=running",
       "path": "/platform/tasks?tab=running",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/templates",
       "path": "/platform/templates",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 13
     },
     {
       "id": "platform:/platform/topology",
       "path": "/platform/topology",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 13
     },
     {
       "id": "platform:/platform/users",
       "path": "/platform/users",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 13
     },
     {
       "id": "platform:/platform/vm-builder",
       "path": "/platform/vm-builder",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform/vm-builder?tab=compose",
       "path": "/platform/vm-builder?tab=compose",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform/vms",
       "path": "/platform/vms",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 18
     },
     {
       "id": "platform:/platform/vms?lens=heatmap",
       "path": "/platform/vms?lens=heatmap",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 18
     },
     {
       "id": "platform:/platform/vms?lens=migration",
       "path": "/platform/vms?lens=migration",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 18
     },
     {
       "id": "platform:/platform/vms?lens=table",
       "path": "/platform/vms?lens=table",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 18
     },
     {
       "id": "platform:/platform/vms?lens=timeline",
       "path": "/platform/vms?lens=timeline",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 18
     },
     {
       "id": "platform:/platform/vms?lens=topology",
       "path": "/platform/vms?lens=topology",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 18
     },
     {
       "id": "platform:/platform/vms/:id",
       "path": "/platform/vms/:id",
-      "status": "passed",
-      "warnings": 0
+      "status": "skipped",
+      "reason": "no platform VMs"
     },
     {
       "id": "platform:/platform/vms/:id/console",
       "path": "/platform/vms/:id/console",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "skipped",
+      "reason": "no platform VMs"
     },
     {
       "id": "platform:/platform/vms/:id/consolehub",
       "path": "/platform/vms/:id/consolehub",
-      "status": "passed",
-      "warnings": 0
+      "status": "skipped",
+      "reason": "no platform VMs"
     },
     {
       "id": "platform:/platform/vms/:id?tab=network",
       "path": "/platform/vms/:id?tab=network",
-      "status": "passed",
-      "warnings": 0
+      "status": "skipped",
+      "reason": "no platform VMs"
     },
     {
       "id": "platform:/platform/webhooks",
       "path": "/platform/webhooks",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 13
     },
     {
       "id": "platform:/platform/workloads",
       "path": "/platform/workloads",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform/zeus",
@@ -1865,325 +1127,164 @@
     {
       "id": "platform:/platform/zeus?tab=baremetal",
       "path": "/platform/zeus?tab=baremetal",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 14
     },
     {
       "id": "platform:/platform/zeus?tab=brain",
       "path": "/platform/zeus?tab=brain",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 15
     },
     {
       "id": "platform:/platform/zeus?tab=knowledge",
       "path": "/platform/zeus?tab=knowledge",
       "status": "passed",
-      "warnings": 0
+      "warnings": 13
     },
     {
       "id": "platform:/platform/zeus?tab=memory",
       "path": "/platform/zeus?tab=memory",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 14
     },
     {
       "id": "platform:/platform/zeus?tab=security",
       "path": "/platform/zeus?tab=security",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 14
     },
     {
       "id": "platform:/platform/zeus?tab=services",
       "path": "/platform/zeus?tab=services",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 16
     },
     {
       "id": "platform:/platform/zeus/approvals",
       "path": "/platform/zeus/approvals",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform/zeus/approvals?tab=pending",
       "path": "/platform/zeus/approvals?tab=pending",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform/zeus/incidents",
       "path": "/platform/zeus/incidents",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 13
     },
     {
       "id": "platform:/platform/zeus/incidents?tab=active",
       "path": "/platform/zeus/incidents?tab=active",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 13
     },
     {
       "id": "platform:/platform/zeus/machines/:hostId",
       "path": "/platform/zeus/machines/:hostId",
-      "status": "passed",
-      "warnings": 0
+      "status": "skipped",
+      "reason": "no platform hosts"
     },
     {
       "id": "platform:/platform/zeus/machines/:hostId?tab=connections",
       "path": "/platform/zeus/machines/:hostId?tab=connections",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "skipped",
+      "reason": "no platform hosts"
     },
     {
       "id": "platform:/platform/zeus/machines/:hostId?tab=containers",
       "path": "/platform/zeus/machines/:hostId?tab=containers",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "skipped",
+      "reason": "no platform hosts"
     },
     {
       "id": "platform:/platform/zeus/machines/:hostId?tab=dns",
       "path": "/platform/zeus/machines/:hostId?tab=dns",
-      "status": "passed",
-      "warnings": 0
+      "status": "skipped",
+      "reason": "no platform hosts"
     },
     {
       "id": "platform:/platform/zeus/machines/:hostId?tab=enforcement",
       "path": "/platform/zeus/machines/:hostId?tab=enforcement",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "skipped",
+      "reason": "no platform hosts"
     },
     {
       "id": "platform:/platform/zeus/machines/:hostId?tab=events",
       "path": "/platform/zeus/machines/:hostId?tab=events",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "skipped",
+      "reason": "no platform hosts"
     },
     {
       "id": "platform:/platform/zeus/machines/:hostId?tab=files",
       "path": "/platform/zeus/machines/:hostId?tab=files",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "skipped",
+      "reason": "no platform hosts"
     },
     {
       "id": "platform:/platform/zeus/machines/:hostId?tab=graph",
       "path": "/platform/zeus/machines/:hostId?tab=graph",
-      "status": "passed",
-      "warnings": 0
+      "status": "skipped",
+      "reason": "no platform hosts"
     },
     {
       "id": "platform:/platform/zeus/machines/:hostId?tab=ports",
       "path": "/platform/zeus/machines/:hostId?tab=ports",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "skipped",
+      "reason": "no platform hosts"
     },
     {
       "id": "platform:/platform/zeus/machines/:hostId?tab=users",
       "path": "/platform/zeus/machines/:hostId?tab=users",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "skipped",
+      "reason": "no platform hosts"
     },
     {
       "id": "platform:/platform/zeus/rightsizing",
       "path": "/platform/zeus/rightsizing",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/zeus/rightsizing?tab=candidates",
       "path": "/platform/zeus/rightsizing?tab=candidates",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/zeus/security",
       "path": "/platform/zeus/security",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "platform:/platform/zeus/security/activity",
       "path": "/platform/zeus/security/activity",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/zeus/security/cloud",
       "path": "/platform/zeus/security/cloud",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "platform:/platform/zeus/security/compliance",
       "path": "/platform/zeus/security/compliance",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 14
     },
     {
       "id": "platform:/platform/zeus/security/connectivity",
       "path": "/platform/zeus/security/connectivity",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 11
     },
     {
       "id": "platform:/platform/zeus/security/enforcement",
@@ -2194,93 +1295,44 @@
     {
       "id": "platform:/platform/zeus/security/enforcement?tab=deny_cap",
       "path": "/platform/zeus/security/enforcement?tab=deny_cap",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 14
     },
     {
       "id": "platform:/platform/zeus/security/enforcement?tab=deny_dns",
       "path": "/platform/zeus/security/enforcement?tab=deny_dns",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 14
     },
     {
       "id": "platform:/platform/zeus/security/enforcement?tab=deny_file",
       "path": "/platform/zeus/security/enforcement?tab=deny_file",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 14
     },
     {
       "id": "platform:/platform/zeus/security/enforcement?tab=deny_ip",
       "path": "/platform/zeus/security/enforcement?tab=deny_ip",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 14
     },
     {
       "id": "platform:/platform/zeus/security/enforcement?tab=deny_namespace",
       "path": "/platform/zeus/security/enforcement?tab=deny_namespace",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 14
     },
     {
       "id": "platform:/platform/zeus/security/enforcement?tab=deny_port",
       "path": "/platform/zeus/security/enforcement?tab=deny_port",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 14
     },
     {
       "id": "platform:/platform/zeus/security/enforcement?tab=rules",
       "path": "/platform/zeus/security/enforcement?tab=rules",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 14
     },
     {
       "id": "platform:/platform/zeus/security/firewall",
@@ -2292,76 +1344,55 @@
       "id": "platform:/platform/zeus/security/firewall?tab=bare_metal",
       "path": "/platform/zeus/security/firewall?tab=bare_metal",
       "status": "passed",
-      "warnings": 0
+      "warnings": 17
     },
     {
       "id": "platform:/platform/zeus/security/firewall?tab=host",
       "path": "/platform/zeus/security/firewall?tab=host",
       "status": "passed",
-      "warnings": 0
+      "warnings": 17
     },
     {
       "id": "platform:/platform/zeus/security/firewall/:id",
       "path": "/platform/zeus/security/firewall/:id",
-      "status": "passed",
-      "warnings": 0
+      "status": "skipped",
+      "reason": "no firewall targets"
     },
     {
       "id": "platform:/platform/zeus/security/firewall/:id?tab=advanced",
       "path": "/platform/zeus/security/firewall/:id?tab=advanced",
-      "status": "passed",
-      "warnings": 0
+      "status": "skipped",
+      "reason": "no firewall targets"
     },
     {
       "id": "platform:/platform/zeus/security/firewall/:id?tab=connections",
       "path": "/platform/zeus/security/firewall/:id?tab=connections",
-      "status": "passed",
-      "warnings": 0
+      "status": "skipped",
+      "reason": "no firewall targets"
     },
     {
       "id": "platform:/platform/zeus/security/hunt",
       "path": "/platform/zeus/security/hunt",
       "status": "passed",
-      "warnings": 0
+      "warnings": 14
     },
     {
       "id": "platform:/platform/zeus/security/hunt?tab=queries",
       "path": "/platform/zeus/security/hunt?tab=queries",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 14
     },
     {
       "id": "platform:/platform/zeus/security/k8s",
       "path": "/platform/zeus/security/k8s",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/zeus/security/policies",
       "path": "/platform/zeus/security/policies",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 13
     },
     {
       "id": "platform:/platform/zeus/security/ports",
@@ -2372,114 +1403,86 @@
     {
       "id": "platform:/platform/zeus/security/ports?tab=critical",
       "path": "/platform/zeus/security/ports?tab=critical",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/zeus/security/ports?tab=warning",
       "path": "/platform/zeus/security/ports?tab=warning",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "platform:/platform/zeus/security/services",
       "path": "/platform/zeus/security/services",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
-          "status": 502,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 12
     },
     {
       "id": "classic:/secrets",
       "path": "/secrets",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/services",
       "path": "/services",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/settings",
       "path": "/settings",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/snapshots",
       "path": "/snapshots",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/ssh",
       "path": "/ssh",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/storage",
       "path": "/storage",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/storage/:pool",
       "path": "/storage/:pool",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/system-check",
       "path": "/system-check",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/vms",
       "path": "/vms",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     },
     {
       "id": "classic:/vms/:name",
       "path": "/vms/:name",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://80.79.5.173:5092/api/v1/vms/ubuntu-server-24-04-sdk-7a5d0f/hostname",
-          "status": 500,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 3
     },
     {
       "id": "classic:/vms/:name/consolehub",
       "path": "/vms/:name/consolehub",
       "status": "passed",
-      "warnings": 0
+      "warnings": 3
     }
   ]
 }

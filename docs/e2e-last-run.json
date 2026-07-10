@@ -1,12 +1,20 @@
 {
-  "host": "212.8.252.194",
+  "host": "80.79.5.173",
   "user": "sus",
-  "base_url": "https://212.8.252.194:5092",
-  "started_at": "2026-06-13T02:03:00Z",
-  "ended_at": "2026-06-13T02:04:02Z",
+  "base_url": "https://80.79.5.173:5092",
+  "started_at": "2026-07-10T08:53:22Z",
+  "ended_at": "2026-07-10T10:03:47Z",
   "overall": "failed",
-  "phase_failures": 2,
+  "phase_failures": 4,
   "phases": [
+    {
+      "name": "full-api-daemon",
+      "status": "failed"
+    },
+    {
+      "name": "ux-api-flow",
+      "status": "passed"
+    },
     {
       "name": "live-ux-wiring",
       "status": "failed"
@@ -14,8 +22,16 @@
     {
       "name": "live-playwright-specs",
       "status": "failed"
+    },
+    {
+      "name": "mock-playwright-ci",
+      "status": "failed"
+    },
+    {
+      "name": "feature-matrix",
+      "status": "passed"
     }
   ],
   "ux_wiring_report": "/Users/ssahani/tt/machina/docs/ux-wiring-live-report.json",
-  "ux_wiring_failed": "0"
+  "ux_wiring_failed": "3"
 }

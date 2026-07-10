@@ -46,7 +46,7 @@ pub async fn compute_recommendations(
     let hosts: Vec<HostLoad> = sqlx::query_as(
         "SELECT id, hostname, cpu_percent, memory_used_mib, memory_total_mib, vm_count,
                 COALESCE(tags, '[]') AS tags
-         FROM hosts WHERE state = 'online' AND maintenance_mode = FALSE",
+         FROM hosts WHERE state = 'online' AND maintenance_mode = FALSE AND schedulable = TRUE",
     )
     .fetch_all(pool)
     .await?;
@@ -217,7 +217,7 @@ pub async fn pick_host_for_vm(
     let hosts: Vec<HostCandidate> = sqlx::query_as(
         "SELECT id, cpu_percent, memory_used_mib, memory_total_mib, vm_count,
                 COALESCE(tags, '[]') AS tags
-         FROM hosts WHERE state = 'online' AND maintenance_mode = FALSE",
+         FROM hosts WHERE state = 'online' AND maintenance_mode = FALSE AND schedulable = TRUE",
     )
     .fetch_all(pool)
     .await?;
