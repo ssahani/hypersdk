@@ -49,7 +49,10 @@ pub async fn dispatch_webhooks(pool: &SqlitePool, event_kind: &str, payload: ser
 /// Fan an event out to configured notification channels (Slack/email/webhook), filtered by
 /// each channel's event list. Creates channel_deliveries rows delivered by channel_worker.
 pub async fn dispatch_channels(pool: &SqlitePool, event_kind: &str, payload: &serde_json::Value) {
-    let rows: Vec<(String, String, String, sqlx::types::Json<Vec<String>>)> = match sqlx::query_as(
+    // NOTE: `id` must be decoded as Uuid, not String — the codebase stores UUID ids as
+    // 16-byte BLOBs (.bind(Uuid)), so a String tuple element fails to decode, the whole
+    // query_as returns Err, and this function would silently drop every delivery.
+    let rows: Vec<(Uuid, String, String, sqlx::types::Json<Vec<String>>)> = match sqlx::query_as(
         "SELECT id, kind, target, events FROM notification_channels WHERE enabled = TRUE",
     )
     .fetch_all(pool)
