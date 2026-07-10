@@ -119,3 +119,60 @@ pub fn sign_payload(secret: &str, body: &str) -> Option<String> {
     mac.update(body.as_bytes());
     Some(hex::encode(mac.finalize().into_bytes()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // DB-backed regression test for the class of bug that shipped the notification-channels
+    // feature completely non-functional: the channel `id` (a Uuid stored as a 16-byte BLOB)
+    // was decoded as `String`, so `query_as` errored, dispatch_channels returned early, and
+    // ZERO deliveries were ever created — yet every CRUD/unit test passed. This exercises the
+    // real path end-to-end against an in-memory DB with the actual migrations.
+    #[tokio::test]
+    async fn dispatch_channels_delivers_to_matching_channels_only() {
+        let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::migrate!().run(&pool).await.unwrap();
+
+        let match_id = uuid::Uuid::new_v4();
+        let skip_id = uuid::Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO notification_channels (id, name, kind, target, events, enabled)
+             VALUES (?, 'm', 'slack', 'https://example.com/x', '[\"alert.*\"]', 1)",
+        )
+        .bind(match_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO notification_channels (id, name, kind, target, events, enabled)
+             VALUES (?, 's', 'slack', 'https://example.com/y', '[\"cert.*\"]', 1)",
+        )
+        .bind(skip_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        dispatch_channels(
+            &pool,
+            "alert.warning",
+            &serde_json::json!({ "rule": "r", "count": 1 }),
+        )
+        .await;
+
+        let matched: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM channel_deliveries WHERE channel_id = ?")
+                .bind(match_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let skipped: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM channel_deliveries WHERE channel_id = ?")
+                .bind(skip_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(matched, 1, "matching channel must get a delivery (UUID-decode regression)");
+        assert_eq!(skipped, 0, "non-matching channel must be skipped");
+    }
+}
