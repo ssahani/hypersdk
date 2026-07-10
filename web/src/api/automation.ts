@@ -15,7 +15,7 @@ export const setRole = (username: string, role: string) => apiPost<unknown>(`${A
 export interface ApiToken { name: string; token: string; username: string; role: string; created: string }
 export const listTokens = () => readJsonArray<ApiToken>(`${API}/tokens`)
 export const createToken = (name: string, username: string, role: string) => apiPost<ApiToken>(`${API}/tokens`, { name, username, role })
-export const deleteToken = (token: string) => apiDelete(`${API}/tokens/${token}`)
+export const deleteToken = (token: string) => apiDelete(`${API}/tokens/${encodeURIComponent(token)}`)
 
 // Alerts
 export interface AlertRule { id: string; name: string; condition: string; threshold: number; enabled: boolean }

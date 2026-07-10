@@ -257,6 +257,19 @@ async fn vm_apply(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     )
     .await?;
 
+    // Persist the created domain's identity IMMEDIATELY, before attempting to start it.
+    // If the guest fails to start (a non-transient error that `on_task_failure` does
+    // not retry), the domain still exists on the host — persisting the uuid only after
+    // a successful start would strand this row in 'creating' with an empty uuid,
+    // recoverable only by a later inventory sweep re-adopting it by name.
+    sqlx::query(
+        "UPDATE vms SET uuid = ?, observed_state = 'defined', updated_at = datetime('now') WHERE id = ?",
+    )
+    .bind(&resp.uuid)
+    .bind(vm_id)
+    .execute(&state.pool)
+    .await?;
+
     let desired_state: String = sqlx::query_scalar("SELECT desired_state FROM vms WHERE id = ?")
         .bind(vm_id)
         .fetch_optional(&state.pool)
@@ -267,26 +280,12 @@ async fn vm_apply(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     if needs_start {
         vm_lifecycle::set_vm_phase(&state.pool, vm_id, vm_lifecycle::PHASE_STARTING).await?;
         agent_client::vm_power(&mut client, &row.0, "start", None).await?;
-    }
-
-    {
-        let mut tx = state.pool.begin().await?;
         sqlx::query(
-            "UPDATE vms SET uuid = ?, observed_state = 'defined', updated_at = datetime('now') WHERE id = ?",
+            "UPDATE vms SET observed_state = 'running', updated_at = datetime('now') WHERE id = ?",
         )
-        .bind(&resp.uuid)
         .bind(vm_id)
-        .execute(&mut *tx)
+        .execute(&state.pool)
         .await?;
-        if needs_start {
-            sqlx::query(
-                "UPDATE vms SET observed_state = 'running', updated_at = datetime('now') WHERE id = ?",
-            )
-            .bind(vm_id)
-            .execute(&mut *tx)
-            .await?;
-        }
-        tx.commit().await?;
     }
 
     vm_lifecycle::sync_phase_from_observed(&state.pool, vm_id).await?;
@@ -530,9 +529,9 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
         // Match on the libvirt UUID (the VM's stable identity) when reported, so
         // a migrated VM updates its own row and two same-name VMs on different
         // hosts stay distinct. Fall back to name only when no uuid is available.
-        let existing: Option<(Uuid, bool)> = if !vm.uuid.trim().is_empty() {
+        let existing: Option<(Uuid, bool, Option<Uuid>)> = if !vm.uuid.trim().is_empty() {
             sqlx::query_as(
-                "SELECT id, managed FROM vms
+                "SELECT id, managed, host_id FROM vms
                  WHERE cluster_id = ? AND uuid = ? AND inventory_source = 'libvirt'",
             )
             .bind(cluster_id)
@@ -541,7 +540,7 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
             .await?
         } else {
             sqlx::query_as(
-                "SELECT id, managed FROM vms
+                "SELECT id, managed, host_id FROM vms
                  WHERE cluster_id = ? AND name = ? AND inventory_source = 'libvirt'",
             )
             .bind(cluster_id)
@@ -550,7 +549,29 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
             .await?
         };
 
-        if let Some((id, _managed)) = existing {
+        if let Some((id, _managed, current_host)) = existing {
+            // Post-migration leftover guard: after a live migration with
+            // undefine_source=false, the SOURCE host still has an inactive domain with
+            // the same uuid, while the VM's authoritative host_id is already the dest
+            // (the migrate task sets it). Without this, the source's next inventory tick
+            // would set host_id back to the source and observed_state to its 'shutoff',
+            // making the VM flap between hosts and appear stopped while it's really
+            // running on the dest. If the domain here is inactive AND belongs to a
+            // DIFFERENT host than the VM currently records, treat it as a stale leftover:
+            // note we saw it (so reconcile won't mark it missing) but don't steal the VM
+            // back or clobber its state. The dest host always matches current_host, so
+            // legitimate (including cold-migrated shutoff) VMs are unaffected.
+            let domain_active =
+                matches!(vm.state.as_str(), "running" | "blocked" | "paused" | "pmsuspended");
+            let is_migration_leftover =
+                matches!(current_host, Some(h) if h != host_id) && !domain_active;
+            if is_migration_leftover {
+                sqlx::query("UPDATE vms SET last_seen_at = datetime('now') WHERE id = ?")
+                    .bind(id)
+                    .execute(&state.pool)
+                    .await?;
+                continue;
+            }
             // Refresh `name` too: we now match on uuid, so a domain renamed in
             // place (same uuid, new name) must adopt the new name — otherwise the
             // name-keyed reconcile below would treat the stale name as absent and

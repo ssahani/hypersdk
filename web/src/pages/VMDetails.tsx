@@ -165,6 +165,7 @@ export default function VMDetailsPage() {
   const prevMetricsRef = useRef<VmMetrics | null>(null)
   const prevMetricsTsRef = useRef<number | null>(null)
   const lastLoadErrorToastAt = useRef(0)
+  const loadSeq = useRef(0)
 
   const conn = useMemo(
     () => searchParams.get('connection') ?? vm?.libvirt_connection ?? undefined,
@@ -309,41 +310,53 @@ export default function VMDetailsPage() {
 
   const load = useCallback(async () => {
     if (!name) return
+    // Last-response-wins: rapid navigation between VMs can leave stale awaits in
+    // flight; only the newest load may commit state so VM A can't overwrite VM B.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     try {
       setLoadError(null)
       const [vmData, snapData] = await Promise.all([getVM(name, conn), listSnapshots(name, conn).catch(() => [])])
+      if (!alive()) return
       setVM(vmData)
       setSnapshots(snapData)
       addRecentVM(name)
       if (vmData.state === 'running') {
-        try { setMetrics(await getVMMetrics(name, conn)) } catch { /* no metrics */ }
+        try { const m = await getVMMetrics(name, conn); if (alive()) setMetrics(m) } catch { /* no metrics */ }
         try {
           const gi = await getInterfaces(name, conn)
-          setGuestIps(gi.addresses)
-          setNetworkGateways(gi.network_gateways ?? {})
-          setGuestIfQueriedAt(gi.queried_at)
+          if (alive()) {
+            setGuestIps(gi.addresses)
+            setNetworkGateways(gi.network_gateways ?? {})
+            setGuestIfQueriedAt(gi.queried_at)
+          }
         } catch {
           /* no addresses */
-          setGuestIfQueriedAt(null)
-          setNetworkGateways({})
+          if (alive()) {
+            setGuestIfQueriedAt(null)
+            setNetworkGateways({})
+          }
         }
         try {
-          setGuestObs(await getGuestObservability(name, conn))
+          const obs = await getGuestObservability(name, conn)
+          if (alive()) setGuestObs(obs)
         } catch {
-          setGuestObs(null)
+          if (alive()) setGuestObs(null)
         }
         try {
           const hn = await getHostname(name, conn)
-          setGuestApiHostname(hn.hostname?.trim() ? hn.hostname : null)
+          if (alive()) setGuestApiHostname(hn.hostname?.trim() ? hn.hostname : null)
         } catch {
-          setGuestApiHostname(null)
+          if (alive()) setGuestApiHostname(null)
         }
         try {
-          setGuestHealth(await getGuestHealth(name, conn))
+          const gh = await getGuestHealth(name, conn)
+          if (alive()) setGuestHealth(gh)
         } catch {
-          setGuestHealth(null)
+          if (alive()) setGuestHealth(null)
         }
       } else {
+        if (!alive()) return
         setMetrics(null)
         setGuestIps([])
         setGuestObs(null)
@@ -352,29 +365,37 @@ export default function VMDetailsPage() {
         setNetworkGateways({})
         setGuestIfQueriedAt(null)
       }
-      try { setBootConfig(await getBootConfig(name, conn)) } catch { /* optional */ }
-      try { const s = await hasManagedSave(name, conn); setHasSave(s.has_managed_save) } catch { /* optional */ }
-      try { const t = await getVmTags(name); setVmTags(t.tags) } catch { /* optional */ }
-      try { setCpuTune(await getCpuTune(name, conn)) } catch { /* optional */ }
-      try { setMemTune(await getMemTune(name, conn)) } catch { /* optional */ }
+      try { const bc = await getBootConfig(name, conn); if (alive()) setBootConfig(bc) } catch { /* optional */ }
+      try { const s = await hasManagedSave(name, conn); if (alive()) setHasSave(s.has_managed_save) } catch { /* optional */ }
+      try { const t = await getVmTags(name); if (alive()) setVmTags(t.tags) } catch { /* optional */ }
+      try { const ct = await getCpuTune(name, conn); if (alive()) setCpuTune(ct) } catch { /* optional */ }
+      try { const mt = await getMemTune(name, conn); if (alive()) setMemTune(mt) } catch { /* optional */ }
       if (info?.control_plane?.proxy_url) {
         try {
           const [pvmList, hostList] = await Promise.all([listPlatformVms(), listPlatformHosts()])
           const pvm = pvmList.find((v) => v.name === name) ?? null
-          setLinkedPlatformVm(pvm)
-          setPlatformHosts(hostList)
-          setPlatformDoctor(pvm ? await getVmDoctor(pvm.id).catch(() => null) : null)
+          const doctor = pvm ? await getVmDoctor(pvm.id).catch(() => null) : null
+          if (alive()) {
+            setLinkedPlatformVm(pvm)
+            setPlatformHosts(hostList)
+            setPlatformDoctor(doctor)
+          }
         } catch {
+          if (alive()) {
+            setLinkedPlatformVm(null)
+            setPlatformHosts([])
+            setPlatformDoctor(null)
+          }
+        }
+      } else {
+        if (alive()) {
           setLinkedPlatformVm(null)
           setPlatformHosts([])
           setPlatformDoctor(null)
         }
-      } else {
-        setLinkedPlatformVm(null)
-        setPlatformHosts([])
-        setPlatformDoctor(null)
       }
     } catch (e: unknown) {
+      if (!alive()) return
       const msg = formatUserError(e)
       setLoadError(msg)
       setVM(null)
@@ -384,7 +405,7 @@ export default function VMDetailsPage() {
         toast.error(`Failed to load VM: ${msg}`)
       }
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [name, toast, conn, info?.control_plane?.proxy_url])
 

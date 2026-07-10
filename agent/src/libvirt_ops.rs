@@ -315,29 +315,21 @@ impl LibvirtCtx {
         if method == "ipmi" {
             return self.fence_ipmi(ipmi_address, ipmi_user, ipmi_pass);
         }
-        // SECURITY: `shell_command` is request-controlled and the agent gRPC surface
-        // is currently unauthenticated, so a caller could otherwise inject arbitrary
-        // root commands into the `sh -c` below. Reject shell metacharacters / command
-        // chaining on the request-provided template while still permitting a plain
-        // fence invocation (e.g. `fence_ipmilan -a 10.0.0.1 -o off {hostname}`). The
-        // admin-configured `MACHINA_FENCE_COMMAND` env fallback is trusted and not
-        // subject to this check. This is a mitigation, not a full fix — the real fix
-        // is authenticating the gRPC surface and/or pinning fencing to an operator
-        // allowlist rather than accepting a request-supplied shell string.
+        // SECURITY: the shell template is pinned to the admin-configured, trusted
+        // `MACHINA_FENCE_COMMAND` and is NEVER taken from the request. The agent gRPC
+        // surface may be unauthenticated, so accepting a request-supplied shell string
+        // here was a direct root-command-execution primitive (a metacharacter blocklist
+        // does not help: the request string *is* the command, so space-separated args
+        // like `install -m4755 /bin/sh …` need no metacharacters). A request that still
+        // carries `shell_command` is rejected rather than silently ignored.
         if !shell_command.is_empty() {
-            const FORBIDDEN: &[char] =
-                &[';', '|', '&', '$', '`', '(', ')', '<', '>', '\n', '\r', '\\'];
-            if shell_command.chars().any(|c| FORBIDDEN.contains(&c)) {
-                return Err(LibvirtError::Operation(
-                    "fence shell_command contains forbidden shell metacharacters".into(),
-                ));
-            }
+            return Err(LibvirtError::Operation(
+                "request-supplied fence shell_command is not permitted; \
+                 fencing uses the operator-configured MACHINA_FENCE_COMMAND only"
+                    .into(),
+            ));
         }
-        let template = if shell_command.is_empty() {
-            std::env::var("MACHINA_FENCE_COMMAND").unwrap_or_default()
-        } else {
-            shell_command.to_string()
-        };
+        let template = std::env::var("MACHINA_FENCE_COMMAND").unwrap_or_default();
         if template.is_empty() {
             return Err(LibvirtError::Operation(
                 "MACHINA_FENCE_COMMAND not configured".into(),
@@ -370,10 +362,13 @@ impl LibvirtCtx {
                 "IPMI address and username required".into(),
             ));
         }
+        // Pass the IPMI password via the IPMI_PASSWORD env var (`-E`) instead of `-P`
+        // on argv, which would expose it to any local user via `ps`/`/proc/<pid>/cmdline`.
         let output = Command::new("ipmitool")
             .args([
-                "-I", "lanplus", "-H", address, "-U", user, "-P", pass, "power", "off",
+                "-I", "lanplus", "-H", address, "-U", user, "-E", "power", "off",
             ])
+            .env("IPMI_PASSWORD", pass)
             .output()
             .map_err(|e| LibvirtError::Operation(format!("ipmitool: {e}")))?;
         if output.status.success() {

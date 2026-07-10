@@ -19,6 +19,7 @@ import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
 import { navGroups, isOpenStackConfigured, navItemVisible, navGroupItems, TOP_BAR_QUICK_LINKS } from '../utils/routes'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
+import { useLaunchpadEnabled } from '../hooks/useLaunchpadEnabled'
 import { useAuth } from '../contexts/AuthContext'
 import { getStateBadgeClasses } from '../utils/vm'
 import { poolStateBadgeClasses, statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
@@ -89,6 +90,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   const { phase: osPhase } = useOpenStackConnection()
   const osLive = osPhase === 'live'
   const hypersdkEnabled = Boolean(info?.hypersdk?.enabled)
+  const launchpadEnabled = useLaunchpadEnabled()
 
   const toggle = useCallback(() => {
     if (!open && isInputFocused()) return
@@ -552,7 +554,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   if (!onPlatformDesktop) {
     for (const group of navGroups) {
       for (const item of navGroupItems(group)) {
-        if (!navItemVisible(item, username, openstackConfigured, hypersdkEnabled)) continue
+        if (!navItemVisible(item, username, openstackConfigured, hypersdkEnabled, launchpadEnabled)) continue
         items.push({
           id: `nav-${item.to}`,
           icon: item.icon,

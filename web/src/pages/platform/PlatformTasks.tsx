@@ -25,27 +25,38 @@ export default function PlatformTasks() {
   const [rows, setRows] = useState<PlatformTask[]>([])
   const [filter, setFilter] = useState('')
   const [opFilter, setOpFilter] = useState('')
+  const [debouncedOpFilter, setDebouncedOpFilter] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [controllerHealth, setControllerHealth] = useState<{ status: string; leader?: boolean; controller_id?: string } | null>(null)
   const [taskDetail, setTaskDetail] = useState<PlatformTask | null>(null)
   const [detailBusy, setDetailBusy] = useState(false)
+  const loadSeq = useRef(0)
+
+  // Debounce the free-text operation filter so we don't fetch on every keystroke.
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedOpFilter(opFilter), 300)
+    return () => window.clearTimeout(t)
+  }, [opFilter])
 
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current
     setError(null)
     try {
       const [tasks, health] = await Promise.all([
-        listPlatformTasks({ status: filter || undefined, operation: opFilter || undefined }),
+        listPlatformTasks({ status: filter || undefined, operation: debouncedOpFilter || undefined }),
         getPlatformHealth().catch(() => null),
       ])
+      if (seq !== loadSeq.current) return // a newer load superseded this one
       setRows(tasks)
       setControllerHealth(health)
     } catch (e: unknown) {
+      if (seq !== loadSeq.current) return
       setError(formatUserError(e))
     } finally {
-      setLoading(false)
+      if (seq === loadSeq.current) setLoading(false)
     }
-  }, [filter, opFilter])
+  }, [filter, debouncedOpFilter])
 
   useEffect(() => { void load() }, [load])
 

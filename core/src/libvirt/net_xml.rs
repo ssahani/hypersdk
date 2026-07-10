@@ -37,25 +37,32 @@ pub fn network_names_from_domain_xml(xml: &str) -> Vec<String> {
 }
 
 fn next_network_source_name(xml: &str, start: usize) -> Option<(String, usize)> {
-    let tail = xml.get(start..)?;
-    let pos_sq = tail.find("network='");
-    let pos_dq = tail.find("network=\"");
-    let (rel, quote, key_len) = match (pos_sq, pos_dq) {
-        (Some(a), Some(b)) => {
-            if a <= b {
-                (a, '\'', "network='".len())
-            } else {
-                (b, '"', "network=\"".len())
+    // Only accept a `network=` attribute that lives inside a `<source …>` tag. A raw
+    // substring search for `network='` over the whole domain XML would also match
+    // metadata/title/description text or unrelated attributes, causing `start_vm` to
+    // try to activate a bogus "network". Scope each match to a single `<source>` tag.
+    let mut cursor = start;
+    loop {
+        let tail = xml.get(cursor..)?;
+        let src_rel = tail.find("<source")?;
+        let src_abs = cursor + src_rel;
+        let tag_tail = xml.get(src_abs..)?;
+        let gt = tag_tail.find('>')?;
+        let tag = &tag_tail[..gt]; // just this tag's contents, no '>'
+        let next_cursor = src_abs + gt + 1;
+
+        let attr = tag
+            .find("network='")
+            .map(|r| (r, '\'', "network='".len()))
+            .or_else(|| tag.find("network=\"").map(|r| (r, '"', "network=\"".len())));
+        if let Some((rel, quote, key_len)) = attr {
+            let rest = &tag[rel + key_len..];
+            if let Some(end) = rest.find(quote) {
+                return Some((rest[..end].to_string(), next_cursor));
             }
         }
-        (Some(a), None) => (a, '\'', "network='".len()),
-        (None, Some(b)) => (b, '"', "network=\"".len()),
-        (None, None) => return None,
-    };
-    let i = start + rel + key_len;
-    let rest = xml.get(i..)?;
-    let end = rest.find(quote)?;
-    Some((rest[..end].to_string(), i + end + 1))
+        cursor = next_cursor;
+    }
 }
 
 #[cfg(test)]

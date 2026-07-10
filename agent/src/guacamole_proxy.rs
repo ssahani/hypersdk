@@ -17,6 +17,11 @@ use tokio_tungstenite::{connect_async, tungstenite::Message as TsMessage};
 #[derive(Clone)]
 pub struct GuacamoleProxyState {
     pub upstream_base: String,
+    /// Shared console token (MACHINA_AGENT_TOKEN). When non-empty, the reverse-proxy
+    /// requires a matching `?token=`; empty = unauthenticated (dev). Without this the
+    /// proxy is an open forwarder to the localhost Guacamole admin API for anyone who
+    /// can reach the console port.
+    pub secret: String,
 }
 
 impl GuacamoleProxyState {
@@ -25,8 +30,32 @@ impl GuacamoleProxyState {
             .unwrap_or_else(|_| "http://127.0.0.1:8081/guacamole".into());
         Self {
             upstream_base: upstream.trim_end_matches('/').to_string(),
+            secret: std::env::var("MACHINA_AGENT_TOKEN").unwrap_or_default(),
         }
     }
+}
+
+/// True if the `token` query param authorizes access (constant-time; empty secret =
+/// dev/unauthenticated, accepted).
+fn query_token_ok(secret: &str, raw_query: Option<&str>) -> bool {
+    if secret.is_empty() {
+        return true;
+    }
+    let provided = raw_query
+        .and_then(|q| {
+            q.split('&')
+                .find_map(|kv| kv.strip_prefix("token="))
+        })
+        .unwrap_or("");
+    if secret.len() != provided.len() {
+        return false;
+    }
+    secret
+        .as_bytes()
+        .iter()
+        .zip(provided.as_bytes())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
 }
 
 pub fn router(state: GuacamoleProxyState) -> Router {
@@ -81,10 +110,22 @@ async fn guac_http_proxy(
     req: Request<Body>,
 ) -> Result<Response, StatusCode> {
     let (parts, body) = req.into_parts();
+    if !query_token_ok(&st.secret, parts.uri.query()) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
     let path = path.trim_start_matches('/');
+    // Strip our `token=` param from the query forwarded upstream so the shared console
+    // token isn't leaked to Guacamole.
     let query = parts
         .uri
         .query()
+        .map(|q| {
+            q.split('&')
+                .filter(|kv| !kv.starts_with("token="))
+                .collect::<Vec<_>>()
+                .join("&")
+        })
+        .filter(|q| !q.is_empty())
         .map(|q| format!("?{q}"))
         .unwrap_or_default();
     let url = if path.is_empty() {
@@ -145,7 +186,10 @@ async fn guac_ws_tunnel(
     State(st): State<GuacamoleProxyState>,
     ws: WebSocketUpgrade,
     req: Request<Body>,
-) -> impl IntoResponse {
+) -> Response {
+    if !query_token_ok(&st.secret, req.uri().query()) {
+        return (StatusCode::UNAUTHORIZED, "invalid console token").into_response();
+    }
     let query = req.uri().query().unwrap_or("").to_string();
     let ws_url = st
         .upstream_base
@@ -156,7 +200,7 @@ async fn guac_ws_tunnel(
     } else {
         format!("{ws_url}/websocket-tunnel?{query}")
     };
-    ws.on_upgrade(move |socket| proxy_ws(socket, target))
+    ws.on_upgrade(move |socket| proxy_ws(socket, target)).into_response()
 }
 
 async fn proxy_ws(client: WebSocket, target: String) {

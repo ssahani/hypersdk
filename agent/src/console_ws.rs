@@ -3,8 +3,9 @@
 use std::sync::{Arc, Mutex};
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Path, State};
-use axum::response::IntoResponse;
+use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
 use futures_util::{SinkExt, StreamExt};
@@ -16,8 +17,37 @@ use crate::libvirt_ops::LibvirtCtx;
 #[derive(Clone)]
 pub struct ConsoleProxyState {
     pub libvirt: Arc<Mutex<LibvirtCtx>>,
+    /// Shared console token. When non-empty, every console WS (and the Guacamole
+    /// reverse-proxy) requires a matching `?token=` — otherwise any local process on
+    /// the agent host could open a VM's serial/VNC/SPICE console (serial = an
+    /// interactive root shell) directly, bypassing the controller. Empty = accept
+    /// unauthenticated (dev/backward-compat), warned about at startup. Populated from
+    /// `MACHINA_AGENT_TOKEN`, the same shared secret the gRPC surface uses.
     pub secret: String,
     pub guacamole: GuacamoleProxyState,
+}
+
+#[derive(serde::Deserialize)]
+pub struct ConsoleAuthQuery {
+    #[serde(default)]
+    pub token: String,
+}
+
+/// Constant-time token check. An empty configured secret means "unauthenticated"
+/// (dev mode) and is accepted, matching the gRPC surface's behavior.
+pub fn console_authorized(secret: &str, provided: &str) -> bool {
+    if secret.is_empty() {
+        return true;
+    }
+    if secret.len() != provided.len() {
+        return false;
+    }
+    secret
+        .as_bytes()
+        .iter()
+        .zip(provided.as_bytes())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
 }
 
 pub fn vnc_router(state: ConsoleProxyState) -> Router {
@@ -32,27 +62,42 @@ async fn vnc_ws(
     ws: WebSocketUpgrade,
     State(st): State<ConsoleProxyState>,
     Path(name): Path<String>,
-) -> impl IntoResponse {
+    Query(q): Query<ConsoleAuthQuery>,
+) -> Response {
+    if !console_authorized(&st.secret, &q.token) {
+        return (StatusCode::UNAUTHORIZED, "invalid console token").into_response();
+    }
     let libvirt = st.libvirt.clone();
     ws.on_upgrade(move |socket| handle_vnc(socket, name, libvirt))
+        .into_response()
 }
 
 async fn serial_ws(
     ws: WebSocketUpgrade,
     State(st): State<ConsoleProxyState>,
     Path(name): Path<String>,
-) -> impl IntoResponse {
+    Query(q): Query<ConsoleAuthQuery>,
+) -> Response {
+    if !console_authorized(&st.secret, &q.token) {
+        return (StatusCode::UNAUTHORIZED, "invalid console token").into_response();
+    }
     let libvirt = st.libvirt.clone();
     ws.on_upgrade(move |socket| handle_serial(socket, name, libvirt))
+        .into_response()
 }
 
 async fn spice_ws(
     ws: WebSocketUpgrade,
     State(st): State<ConsoleProxyState>,
     Path(name): Path<String>,
-) -> impl IntoResponse {
+    Query(q): Query<ConsoleAuthQuery>,
+) -> Response {
+    if !console_authorized(&st.secret, &q.token) {
+        return (StatusCode::UNAUTHORIZED, "invalid console token").into_response();
+    }
     let libvirt = st.libvirt.clone();
     ws.on_upgrade(move |socket| handle_spice(socket, name, libvirt))
+        .into_response()
 }
 
 fn resolve_console_pty(xml: &str) -> Option<String> {

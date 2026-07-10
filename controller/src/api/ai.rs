@@ -51,6 +51,12 @@ pub async fn spotlight(
     Json(body): Json<SpotlightBody>,
 ) -> Result<Json<ai::SpotlightResult>, ApiError> {
     require_operator(&actor)?;
+    // Cap query length (as copilot_chat does): `route_spotlight` runs ~150 sequential
+    // substring scans plus NL parsers over the query, so an unbounded body is an
+    // asymmetric CPU cost. 32 KiB is far beyond any real spotlight query.
+    if body.query.len() > 32_768 {
+        return Err(ApiError::bad_request("spotlight query too long (max 32768 bytes)"));
+    }
     let online: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM hosts WHERE state = 'online'")
         .fetch_one(&state.pool)
         .await

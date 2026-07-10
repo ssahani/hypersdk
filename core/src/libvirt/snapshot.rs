@@ -152,6 +152,25 @@ fn guest_fs_thaw(domain: &Domain) {
     let _ = unsafe { sys::virDomainFSThaw(domain.as_ptr(), std::ptr::null_mut(), 0, 0) };
 }
 
+/// RAII guard that thaws the guest filesystems on drop unless disarmed. This pairs a
+/// `guest_fs_freeze` with a guaranteed thaw on EVERY exit path — including the many
+/// `?` early returns between freeze and snapshot creation. Without it, a failed
+/// snapshot (bad path, validation error, unsupported storage) left the guest's
+/// filesystems frozen indefinitely, stalling all guest I/O until a manual
+/// `virsh domfsthaw`.
+struct ThawGuard<'a> {
+    domain: &'a Domain,
+    armed: bool,
+}
+
+impl Drop for ThawGuard<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            guest_fs_thaw(self.domain);
+        }
+    }
+}
+
 pub fn create_snapshot(
     conn: &Connect,
     vm_name: &str,
@@ -166,10 +185,14 @@ pub fn create_snapshot(
     }
     let domain = lookup_domain(conn, vm_name)?;
     let is_active = domain.is_active().unwrap_or(false);
-    let mut thaw_needed = false;
+    // Armed only if the freeze actually succeeded; drops (thaws) on every return path.
+    let mut thaw_guard = ThawGuard {
+        domain: &domain,
+        armed: false,
+    };
     if req.quiesce && is_active {
         match guest_fs_freeze(&domain) {
-            Ok(n) if n >= 0 => thaw_needed = true,
+            Ok(n) if n >= 0 => thaw_guard.armed = true,
             Ok(_) => warn!("guest fs freeze returned unexpected count for '{vm_name}'"),
             Err(e) => warn!("guest fs freeze skipped for '{vm_name}': {e}"),
         }
@@ -390,9 +413,8 @@ pub fn create_snapshot(
 
     DomainSnapshot::create_xml(&domain, &xml_str, flags)
         .map_err(LibvirtError::map_op("Failed to create snapshot"))?;
-    if thaw_needed {
-        guest_fs_thaw(&domain);
-    }
+    // Success path: `thaw_guard` thaws on drop at function exit (same as every error
+    // path), so no explicit thaw is needed here.
     Ok(())
 }
 

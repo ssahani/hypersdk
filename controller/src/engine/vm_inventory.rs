@@ -20,7 +20,15 @@ struct VmInventoryRow {
     id: Uuid,
     name: String,
     managed: bool,
+    lifecycle_phase: String,
 }
+
+/// Transient phases during which a task is actively creating/removing/moving the domain
+/// on the host. An inventory scan that races such a task must NOT mark the VM 'missing'
+/// or prune it — the domain may not be defined on the host yet (e.g. `vm.apply` is still
+/// downloading a template). Clobbering it here caused a just-created VM to flip to
+/// 'missing' and even let a delete orphan the domain being created.
+const IN_FLIGHT_PHASES: &[&str] = &["creating", "deleting", "migrating"];
 
 pub async fn cluster_inventory_policy(
     pool: &SqlitePool,
@@ -47,7 +55,7 @@ pub async fn reconcile_libvirt_host(
 ) -> anyhow::Result<()> {
     let policy = cluster_inventory_policy(&state.pool, cluster_id).await?;
     let rows: Vec<VmInventoryRow> = sqlx::query_as(
-        "SELECT id, name, managed FROM vms
+        "SELECT id, name, managed, lifecycle_phase FROM vms
          WHERE host_id = ? AND inventory_source = 'libvirt'",
     )
     .bind(host_id)
@@ -56,6 +64,12 @@ pub async fn reconcile_libvirt_host(
 
     for row in rows {
         if seen_names.contains(&row.name) {
+            continue;
+        }
+        // Don't reconcile a VM that a lifecycle task is mid-flight on — the domain may
+        // legitimately not be on the host yet. Prevents the create→apply race where a
+        // just-created VM is flipped to 'missing' (and could then be delete-orphaned).
+        if IN_FLIGHT_PHASES.contains(&row.lifecycle_phase.as_str()) {
             continue;
         }
         if !row.managed && policy.inventory_prune_unmanaged {

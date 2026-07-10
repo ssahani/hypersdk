@@ -77,7 +77,7 @@ export async function shareLaunchpadApp(app: LaunchpadApp): Promise<void> {
 }
 
 export async function openLaunchpadInWorkspace(app: LaunchpadApp): Promise<void> {
-  const route = app.routePath?.trim()
+  const route = app.routePath?.trim() ?? ''
   if (route.startsWith('/platform')) {
     const { openCenterPopout } = await import('./platformCenterPopout')
     openCenterPopout(route)

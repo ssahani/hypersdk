@@ -389,9 +389,11 @@ pub async fn build_enriched(
     scope: &GraphScope,
 ) -> anyhow::Result<InfraGraph> {
     let mut graph = build(pool, scope).await?;
-    append_firewall_edges(pool, cfg, &mut graph.nodes, &mut graph.edges)
-        .await
-        .ok();
+    if let Err(e) = append_firewall_edges(pool, cfg, &mut graph.nodes, &mut graph.edges).await {
+        // Don't silently drop all firewall edges from the graph — log so an operator
+        // can tell "no firewall blocks" apart from "firewall data unavailable".
+        tracing::warn!("infra_graph: firewall edges omitted (enrichment failed): {e}");
+    }
     graph.node_count = graph.nodes.len();
     graph.edge_count = graph.edges.len();
     Ok(graph)
@@ -520,10 +522,30 @@ async fn firewall_path_blocker(
 ) -> Option<PathBlocker> {
     use machina_core::simulate_connectivity;
 
-    let detail =
-        crate::engine::zeus_firewall::inventory::target_detail(pool, cfg, &host_id.to_string())
-            .await
-            .ok()?;
+    // SECURITY/correctness: a *failed* firewall lookup must not be reported as
+    // "no block found" (which the caller turns into `can_reach = true`). Surface an
+    // explicit unknown-status blocker so reachability is treated as unconfirmed.
+    let detail = match crate::engine::zeus_firewall::inventory::target_detail(
+        pool,
+        cfg,
+        &host_id.to_string(),
+    )
+    .await
+    {
+        Ok(d) => d,
+        Err(e) => {
+            return Some(PathBlocker {
+                kind: "firewall_unknown".into(),
+                message: format!(
+                    "Zeus firewall status could not be verified for this host: {e}"
+                ),
+                remediation:
+                    "Firewall reachability is unconfirmed — retry once the firewall \
+                     inventory backend is reachable before treating the path as open."
+                        .into(),
+            });
+        }
+    };
     let profile = detail.target.profile.as_deref().unwrap_or("Balanced");
     let rules = profile_rules(profile);
     let matrix = simulate_connectivity(&detail.inventory, &rules);
@@ -553,8 +575,12 @@ async fn resolve_vm(
     pool: &SqlitePool,
     name: &str,
 ) -> anyhow::Result<Option<(Uuid, String, Option<Uuid>, String)>> {
+    // Exact match, not LIKE: `name` is a concrete VM identifier from the request, and
+    // an unescaped `LIKE` bind treats `_`/`%` as wildcards — so `web_01` would resolve
+    // to an arbitrary `webX01`/`web-01`, and `%` would resolve to "some VM". Path
+    // analysis run against the wrong VM is silently misleading.
     let row: Option<(Uuid, String, Option<Uuid>, String)> = sqlx::query_as(
-        "SELECT id, name, host_id, observed_state FROM vms WHERE name LIKE ? LIMIT 1",
+        "SELECT id, name, host_id, observed_state FROM vms WHERE name = ? LIMIT 1",
     )
     .bind(name)
     .fetch_optional(pool)
@@ -683,6 +709,15 @@ pub async fn explain_path(
             });
             blockers.push(fb);
         }
+    } else {
+        // No destination host_id → the firewall check cannot run. Don't imply the
+        // path is open; record that reachability is unverified.
+        blockers.push(PathBlocker {
+            kind: "firewall_unknown".into(),
+            message: "Destination host is unknown — firewall reachability not evaluated.".into(),
+            remediation: "Ensure the destination VM is mapped to a host before trusting this result."
+                .into(),
+        });
     }
 
     // Recent network/firewall audit

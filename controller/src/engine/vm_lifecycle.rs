@@ -65,14 +65,22 @@ pub async fn set_vm_error(pool: &SqlitePool, vm_id: Uuid, message: &str) -> anyh
 }
 
 pub async fn sync_phase_from_observed(pool: &SqlitePool, vm_id: Uuid) -> anyhow::Result<()> {
-    let row: Option<(String, String)> =
-        sqlx::query_as("SELECT desired_state, observed_state FROM vms WHERE id = ?")
+    let row: Option<(String, String, String)> =
+        sqlx::query_as("SELECT desired_state, observed_state, lifecycle_phase FROM vms WHERE id = ?")
             .bind(vm_id)
             .fetch_optional(pool)
             .await?;
-    let Some((desired, observed)) = row else {
+    let Some((desired, observed, current_phase)) = row else {
         return Ok(());
     };
+    // RETIRED is a sticky, operator-set phase that blocks future starts. It must
+    // survive the stop task (and any later snapshot/backup task) that reconciles a
+    // retired VM's observed state — otherwise the start-guard in `power_action`
+    // (which only checks `lifecycle_phase == PHASE_RETIRED`) is silently defeated
+    // the moment the VM finishes stopping. Only an explicit "restore" clears it.
+    if current_phase == PHASE_RETIRED {
+        return Ok(());
+    }
     let phase = match (desired.as_str(), observed.as_str()) {
         ("running", "running") | ("running", "blocked") => PHASE_RUNNING,
         ("running", _) if !matches!(observed.as_str(), "running" | "blocked") => PHASE_STARTING,

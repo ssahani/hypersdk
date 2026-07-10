@@ -283,7 +283,7 @@ pub async fn create_air_gap_bundle(
 
     let manifest_str = manifest.to_string();
     let size_bytes = manifest_str.len() as i64;
-    let checksum = format!("sha256:{:x}", simple_checksum(&manifest_str));
+    let checksum = format!("sha256:{}", sha256_hex(&manifest_str));
     let id = Uuid::new_v4();
 
     sqlx::query(
@@ -321,11 +321,14 @@ pub async fn get_air_gap_bundle(pool: &SqlitePool, id: Uuid) -> anyhow::Result<A
     .ok_or_else(|| anyhow::anyhow!("bundle not found"))
 }
 
-fn simple_checksum(s: &str) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let mut h = std::collections::hash_map::DefaultHasher::new();
-    s.hash(&mut h);
-    h.finish()
+/// Real SHA-256 hex digest. Previously a 64-bit non-cryptographic SipHash
+/// (`DefaultHasher`) was labelled `sha256:`, misrepresenting integrity — trivially
+/// collidable and giving no tamper protection for the air-gap inventory export.
+fn sha256_hex(s: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(s.as_bytes());
+    hex::encode(hasher.finalize())
 }
 
 #[derive(Debug, Clone, Serialize)]

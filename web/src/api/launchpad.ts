@@ -76,6 +76,11 @@ export async function getLaunchpadConfig(): Promise<LaunchpadConfig> {
   return cachedConfig
 }
 
+/** Synchronously read the last-fetched launchpad config, or null before it has loaded. */
+export function getCachedLaunchpadConfig(): LaunchpadConfig | null {
+  return cachedConfig
+}
+
 export interface LaunchpadDiagnosisChainNode {
   id: string
   label: string

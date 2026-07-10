@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { platformFetch } from './platform'
-import { readJsonObject } from './client'
+import { readJsonArray, readJsonObject } from './client'
 
 const DAEMON_API = '/api/v1'
 
@@ -93,7 +93,7 @@ export interface GuestkitCapabilities {
 }
 
 export const listGuestkitJobsDaemon = () =>
-  readJsonObject<GuestkitJobRow[]>(`${DAEMON_API}/guestkit/jobs`)
+  readJsonArray<GuestkitJobRow>(`${DAEMON_API}/guestkit/jobs`)
 
 export const getGuestkitCapabilitiesDaemon = () =>
   readJsonObject<GuestkitCapabilities>(`${DAEMON_API}/guestkit/capabilities`)

@@ -7,18 +7,34 @@ use serde_json::{json, Value};
 use crate::config::ControllerConfig;
 use crate::engine::packetwolf_bridge::{self, dev_fabric_available};
 
+/// Constant-time byte comparison to avoid leaking the ingest key via timing.
+fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
 pub fn ingest_authorized(headers: &HeaderMap, remote_addr: Option<&str>) -> bool {
     if std::env::var("MACHINA_SKIP_AUTH").ok().as_deref() == Some("1") {
         return true;
     }
+    // SECURITY: when an ingest key is configured, it is the ONLY accepted proof of
+    // authorization — do NOT fall back to trusting a loopback peer. In the normal
+    // deployment the controller sits behind a co-located reverse proxy, so every
+    // request's peer is 127.0.0.1; loopback-trust would then downgrade the admin gate
+    // to "any authenticated user can inject/flood Tetragon events". Loopback is only a
+    // dev convenience when no key is set at all.
     if let Some(key) = std::env::var("MACHINA_INGEST_KEY").ok().filter(|k| !k.is_empty()) {
         let header_key = headers
             .get("x-machina-ingest-key")
             .or_else(|| headers.get("x-api-key"))
             .and_then(|v| v.to_str().ok());
-        if header_key == Some(key.as_str()) {
-            return true;
-        }
+        return matches!(header_key, Some(hk) if ct_eq(hk.as_bytes(), key.as_bytes()));
     }
     if let Some(addr) = remote_addr {
         let host = addr

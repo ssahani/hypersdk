@@ -19,11 +19,14 @@ import {
 } from '../../api/launchpad'
 import { formatUserError } from '../../utils/apiError'
 import { launchpadDetailPath } from '../../utils/launchpadHelpers'
+import { useLaunchpadEnabled } from '../../hooks/useLaunchpadEnabled'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 
 export default function PlatformLaunchpad() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const filter = searchParams.get('filter')
+  const launchpadEnabled = useLaunchpadEnabled()
   const [catalog, setCatalog] = useState<LaunchpadApp[]>([])
   const [favorites, setFavorites] = useState<LaunchpadApp[]>([])
   const [broken, setBroken] = useState<LaunchpadApp[]>([])
@@ -32,6 +35,10 @@ export default function PlatformLaunchpad() {
   const [inspectApp, setInspectApp] = useState<LaunchpadApp | null>(null)
 
   const load = useCallback(async () => {
+    if (!launchpadEnabled) {
+      setLoading(false)
+      return
+    }
     setError(null)
     setLoading(true)
     try {
@@ -48,7 +55,7 @@ export default function PlatformLaunchpad() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [launchpadEnabled])
 
   useEffect(() => {
     void load()
@@ -71,6 +78,22 @@ export default function PlatformLaunchpad() {
     onInspect: () => setInspectApp(app),
     onDiagnose: () => setInspectApp(app),
   })
+
+  if (!launchpadEnabled) {
+    return (
+      <PlatformPageChrome
+        title="Launchpad"
+        subtitle="Every service, console, and dashboard in one place."
+        icon={<LayoutGrid className="w-6 h-6 text-orange-400" />}
+        contentClassName="space-y-4"
+      >
+        <PlatformEmptyState
+          title="Launchpad is disabled"
+          subtitle="This feature is turned off on the daemon. Enable Launchpad in the platform configuration to browse apps."
+        />
+      </PlatformPageChrome>
+    )
+  }
 
   return (
     <PlatformPageChrome

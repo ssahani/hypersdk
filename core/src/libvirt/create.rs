@@ -288,11 +288,18 @@ fn create_vm_libvirt_xml(
         path
     };
 
-    let disk_driver = if disk_path.ends_with(".raw") || disk_path.ends_with(".img") {
-        "raw"
-    } else {
-        "qcow2"
-    };
+    // Probe the real on-disk format rather than guessing from the filename. A raw
+    // image with no `.raw`/`.img` extension (e.g. `/images/win`) was previously
+    // declared `type='qcow2'`, so qemu rejected it as a corrupt qcow2 header and the
+    // VM failed to boot. Fall back to the extension heuristic only if the probe fails.
+    let disk_driver = probe_disk_format(&disk_path).unwrap_or_else(|| {
+        if disk_path.ends_with(".raw") || disk_path.ends_with(".img") {
+            "raw".to_string()
+        } else {
+            "qcow2".to_string()
+        }
+    });
+    let disk_driver = disk_driver.as_str();
 
     let iso_str = resolved_iso
         .as_ref()
@@ -355,6 +362,24 @@ fn create_qcow2_disk(
     }
 
     Ok(())
+}
+
+/// Probe a disk image's real format via `qemu-img info`. Returns the libvirt driver
+/// type string (e.g. "qcow2", "raw") or None if the tool is unavailable / errors, so
+/// the caller can fall back to an extension-based guess.
+fn probe_disk_format(path: &str) -> Option<String> {
+    let out = Command::new("qemu-img")
+        .args(["info", "--output=json", path])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
+    json.get("format")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
 }
 
 fn find_qemu_binary() -> String {

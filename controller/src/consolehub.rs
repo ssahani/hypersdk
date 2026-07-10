@@ -695,12 +695,23 @@ async fn check_console_rbac(
     user: &AuthUser,
     protocol: &str,
 ) -> Result<(), ApiError> {
-    if user.role == "viewer" && (protocol.contains("rdp") || protocol == "serial") {
-        return Err(
-            ApiError::bad_request("viewer role cannot open RDP or serial console")
-                .with_code("console_rbac")
-                .with_remediation("Request operator access or use SSH/noVNC."),
-        );
+    // Read-only roles (viewer/readonly) may only use protocols where the server can
+    // enforce input suppression (the ws-token path issues a read_only token that drops
+    // input frames). RDP and serial are inherently interactive, and the Guacamole
+    // bridge issues a fully interactive session with NO read-only mode — so all of
+    // these must be blocked for read-only roles. Previously only "viewer"+rdp/serial
+    // was blocked, letting a viewer obtain full keyboard/mouse control via
+    // `guacamole_ssh`/`guacamole_vnc` (and missing the "readonly" role entirely).
+    if console_permissions_for(user).read_only {
+        let interactive =
+            protocol.contains("rdp") || protocol == "serial" || protocol.starts_with("guacamole");
+        if interactive {
+            return Err(ApiError::bad_request(
+                "read-only role cannot open interactive (RDP, serial, or Guacamole) consoles",
+            )
+            .with_code("console_rbac")
+            .with_remediation("Request operator access, or use the read-only noVNC/serial viewer."));
+        }
     }
     Ok(())
 }
@@ -1453,6 +1464,23 @@ async fn guac_http_proxy(
     guac_http_proxy_impl(state, session_id, path, req).await
 }
 
+/// Build the `?…` query for a hop to the agent's Guacamole reverse-proxy, preserving any
+/// inbound params and appending the shared `MACHINA_AGENT_TOKEN` as `token=` so the agent
+/// authorizes the request. Returns "" or "?a=b&token=…".
+fn build_guac_query(inbound: Option<&str>) -> String {
+    let token_param = std::env::var("MACHINA_AGENT_TOKEN")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .map(|t| format!("token={}", urlencoding::encode(&t)));
+    let base = inbound.unwrap_or("");
+    match (base.is_empty(), token_param) {
+        (true, None) => String::new(),
+        (true, Some(tp)) => format!("?{tp}"),
+        (false, None) => format!("?{base}"),
+        (false, Some(tp)) => format!("?{base}&{tp}"),
+    }
+}
+
 async fn guac_http_proxy_impl(
     state: AppState,
     session_id: Uuid,
@@ -1467,11 +1495,9 @@ async fn guac_http_proxy_impl(
 
     let (parts, body) = req.into_parts();
     let path = path.trim_start_matches('/');
-    let query = parts
-        .uri
-        .query()
-        .map(|q| format!("?{q}"))
-        .unwrap_or_default();
+    // Append the shared agent console token so the agent's guac reverse-proxy authorizes
+    // this hop (it rejects untokened requests when MACHINA_AGENT_TOKEN is set).
+    let query = build_guac_query(parts.uri.query());
     let url = if path.is_empty() {
         format!(
             "{}/guacamole-proxy/{query}",
@@ -1557,7 +1583,6 @@ async fn guac_ws_proxy(
         .get(session_id)
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
-    let query = req.uri().query().unwrap_or("").to_string();
     let target = format!(
         "ws://{}/guacamole-proxy/websocket-tunnel{}",
         agent_client::normalize_agent_addr(
@@ -1566,11 +1591,7 @@ async fn guac_ws_proxy(
                 .strip_prefix("http://")
                 .unwrap_or(&session.agent_proxy_base)
         ),
-        if query.is_empty() {
-            String::new()
-        } else {
-            format!("?{query}")
-        }
+        build_guac_query(req.uri().query())
     );
     Ok(ws.on_upgrade(move |socket| proxy_guac_ws(socket, target)))
 }

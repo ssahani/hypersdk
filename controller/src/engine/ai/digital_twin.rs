@@ -627,14 +627,21 @@ async fn segment_isolate_impact(pool: &SqlitePool, target: &str) -> anyhow::Resu
 
 async fn switch_isolate_impact(pool: &SqlitePool, target: &str) -> anyhow::Result<ImpactAnalysis> {
     let switch_id = target.strip_prefix("switch-").unwrap_or(target);
+    // Escape LIKE wildcards in the user-supplied switch id: an unescaped `%`/`_`
+    // (e.g. `switch-%`) would match every host's LLDP cache and report the entire
+    // fleet as the blast radius ("critical"), or silently broaden the match.
+    let escaped = switch_id
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_");
     let rows: Vec<(Uuid, String)> = sqlx::query_as(
         "SELECT c.host_id, h.hostname
          FROM host_lldp_cache c
          JOIN hosts h ON h.id = c.host_id
-         WHERE c.neighbors_json LIKE ?
+         WHERE c.neighbors_json LIKE ? ESCAPE '\\'
          ORDER BY h.hostname",
     )
-    .bind(format!("%{switch_id}%"))
+    .bind(format!("%{escaped}%"))
     .fetch_all(pool)
     .await
     .unwrap_or_default();

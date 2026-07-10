@@ -913,7 +913,10 @@ pub async fn get_guest_firewall_ports(
                 .ports
                 .into_iter()
                 .map(|p| machina_core::GuestListeningPort {
-                    port: p.port as u16,
+                    // Don't silently truncate an out-of-range agent-reported port
+                    // (e.g. 65537 → 1, which would mis-key/mis-match rules). Map
+                    // invalid values to 0 as an explicit "invalid port" sentinel.
+                    port: u16::try_from(p.port).unwrap_or(0),
                     protocol: p.protocol,
                     bind_address: p.bind_address,
                     process: if p.process.is_empty() {
@@ -1101,9 +1104,11 @@ pub async fn list_port_forwards(addr: &str) -> anyhow::Result<Vec<PortForwardRul
         .map(|r| PortForwardRuleDto {
             id: r.id,
             protocol: r.protocol,
-            host_port: r.host_port as u16,
+            // Avoid silent u32→u16 truncation of out-of-range ports (would mis-key
+            // the port-forward list and its vm_ip/port filtering); 0 = invalid.
+            host_port: u16::try_from(r.host_port).unwrap_or(0),
             vm_ip: r.vm_ip,
-            vm_port: r.vm_port as u16,
+            vm_port: u16::try_from(r.vm_port).unwrap_or(0),
             description: r.description,
         })
         .collect())

@@ -128,9 +128,22 @@ async fn run_serve(cli: &Cli) -> anyhow::Result<()> {
 
     let grpc_addr: SocketAddr = cli.listen.parse()?;
     let console_addr: SocketAddr = cli.console_listen.parse()?;
+    // Reuse the shared agent token to authenticate the console port (serial/VNC/SPICE
+    // WS + Guacamole reverse-proxy). Empty = unauthenticated (dev), warned below.
+    let console_secret = std::env::var("MACHINA_AGENT_TOKEN")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_default();
+    if console_secret.is_empty() {
+        tracing::warn!(
+            "MACHINA_AGENT_TOKEN not set — agent console proxy ({console_addr}) accepts \
+             UNAUTHENTICATED connections (serial console = interactive root shell). Set a \
+             shared token on the controller and this agent to require auth."
+        );
+    }
     let console_state = ConsoleProxyState {
         libvirt,
-        secret: String::new(),
+        secret: console_secret,
         guacamole: machina_agent::guacamole_proxy::GuacamoleProxyState::from_env(),
     };
 

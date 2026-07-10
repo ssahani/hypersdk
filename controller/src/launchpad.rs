@@ -92,6 +92,13 @@ async fn launchpad_proxy(
             || name.eq_ignore_ascii_case("connection")
             || name.eq_ignore_ascii_case("content-length")
             || name.eq_ignore_ascii_case("authorization")
+            // SECURITY: strip any client-supplied `x-hermes-*` header. Hermes trusts
+            // this controller as its authenticating gateway and reads `x-hermes-user`
+            // (and other `x-hermes-*` trust headers) for identity/role. reqwest's
+            // `.header()` appends rather than replaces, so without this a caller could
+            // send `x-hermes-user: admin` / `x-hermes-roles: …` and have it forwarded
+            // alongside the real identity → privilege escalation into Hermes.
+            || name.to_ascii_lowercase().starts_with("x-hermes-")
         {
             continue;
         }
@@ -99,6 +106,7 @@ async fn launchpad_proxy(
             rb = rb.header(k, val);
         }
     }
+    // Set the trusted identity only after all client `x-hermes-*` headers were dropped.
     rb = rb.header("x-hermes-user", &user.username);
     if !body_bytes.is_empty() {
         rb = rb.body(body_bytes.to_vec());

@@ -16,6 +16,15 @@ use crate::api::ApiError;
 use crate::auth::{require_operator, AuthUser};
 use crate::state::AppState;
 
+/// `?token=…` query string authenticating this controller to the agent's console port,
+/// or empty when no shared token is configured. Reuses the shared `MACHINA_AGENT_TOKEN`.
+fn agent_console_token_qs() -> String {
+    match std::env::var("MACHINA_AGENT_TOKEN") {
+        Ok(t) if !t.is_empty() => format!("?token={}", urlencoding::encode(&t)),
+        _ => String::new(),
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct ConsoleInfo {
     pub vm_id: String,
@@ -144,9 +153,10 @@ async fn proxy_to_agent_vnc(socket: WebSocket, state: AppState, vm_id: Uuid, rea
     };
 
     let ws_url = format!(
-        "ws://{}/ws/vnc/{}",
+        "ws://{}/ws/vnc/{}{}",
         agent_client::normalize_agent_addr(&agent_console),
-        name
+        name,
+        agent_console_token_qs()
     );
 
     let agent_ws = match connect_async(&ws_url).await {
@@ -216,9 +226,10 @@ async fn proxy_to_agent_serial(socket: WebSocket, state: AppState, vm_id: Uuid, 
     };
 
     let ws_url = format!(
-        "ws://{}/ws/serial/{}",
+        "ws://{}/ws/serial/{}{}",
         agent_client::normalize_agent_addr(&agent_console),
-        name
+        name,
+        agent_console_token_qs()
     );
 
     let agent_ws = match connect_async(&ws_url).await {
@@ -319,9 +330,10 @@ async fn proxy_to_agent_spice(socket: WebSocket, state: AppState, vm_id: Uuid, r
     };
 
     let ws_url = format!(
-        "ws://{}/ws/spice/{}",
+        "ws://{}/ws/spice/{}{}",
         agent_client::normalize_agent_addr(&agent_console),
-        name
+        name,
+        agent_console_token_qs()
     );
 
     let agent_ws = match connect_async(&ws_url).await {

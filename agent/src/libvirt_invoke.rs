@@ -407,6 +407,13 @@ pub fn host_query(
         }
         "osinfo.detect" => {
             let url = payload_str(payload, "url")?;
+            // Reject a leading '-' so the value can't be parsed as an option flag
+            // (e.g. `--help` or any option osinfo-detect honors) instead of a tree URL.
+            if url.starts_with('-') {
+                return Err(LibvirtError::Operation(
+                    "invalid tree URL (must not start with '-')".into(),
+                ));
+            }
             let out = Command::new("osinfo-detect")
                 .args(["--type=tree", &url])
                 .output()

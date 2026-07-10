@@ -44,17 +44,34 @@ async fn main() -> anyhow::Result<()> {
     let config = Arc::new(config);
 
     // The built-in default is exactly 32 bytes, so a length-only check never fires on
-    // it. Explicitly flag the known dev default (and short secrets) — a shipped default
-    // secret lets anyone forge an admin JWT.
+    // it. A shipped default secret lets anyone forge an admin JWT, so REFUSE TO BOOT on
+    // the known dev default unless an operator explicitly opts into dev mode. Same for
+    // the default admin password.
+    let dev_secrets_allowed = std::env::var("MACHINA_ALLOW_DEV_SECRETS").ok().as_deref()
+        == Some("1")
+        || std::env::var("MACHINA_SKIP_AUTH").ok().as_deref() == Some("1");
     if config.jwt_secret == "machina-dev-jwt-secret-change-me" {
-        tracing::error!(
-            "MACHINA_JWT_SECRET is unset — using the built-in DEV DEFAULT. Anyone can forge admin tokens. Set MACHINA_JWT_SECRET (>=32 random bytes) on the controller AND daemon."
-        );
+        if dev_secrets_allowed {
+            tracing::warn!(
+                "MACHINA_JWT_SECRET is the built-in DEV DEFAULT — admin tokens are forgeable. Allowed only because MACHINA_ALLOW_DEV_SECRETS/MACHINA_SKIP_AUTH is set."
+            );
+        } else {
+            tracing::error!(
+                "Refusing to start: MACHINA_JWT_SECRET is unset (built-in DEV DEFAULT). Anyone could forge admin tokens. Set MACHINA_JWT_SECRET (>=32 random bytes) on the controller AND daemon, or set MACHINA_ALLOW_DEV_SECRETS=1 for local dev."
+            );
+            std::process::exit(1);
+        }
     } else if config.jwt_secret.len() < 32 {
         tracing::warn!(
             "MACHINA_JWT_SECRET is shorter than 32 bytes ({} bytes) — set a strong secret in production",
             config.jwt_secret.len()
         );
+    }
+    if config.admin_password == "admin" && !dev_secrets_allowed {
+        tracing::error!(
+            "Refusing to start: default admin password 'admin' is in use. Set MACHINA_ADMIN_PASSWORD, or set MACHINA_ALLOW_DEV_SECRETS=1 for local dev."
+        );
+        std::process::exit(1);
     }
 
     let pool = db::connect(&config.database_url).await?;

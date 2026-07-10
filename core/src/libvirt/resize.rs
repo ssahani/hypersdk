@@ -69,13 +69,18 @@ pub fn get_memtune(conn: &Connect, name: &str) -> Result<MemTuneInfo, LibvirtErr
         .map_err(LibvirtError::map_op("get XML"))?;
     let mut info = MemTuneInfo::default();
     if let Some(block) = xml::extract_text(&xml_str, "memtune") {
-        if let Some(v) = xml::extract_simple_text(&block, "hard_limit") {
+        // libvirt emits these WITH a unit attribute, e.g.
+        // `<hard_limit unit='KiB'>1048576</hard_limit>`. `extract_simple_text` only
+        // matches a bare `<hard_limit>` (no attributes) and so always returned None,
+        // making get_memtune report "no limits" even when limits were set. `extract_text`
+        // tolerates the attribute. (Values are already in KiB, libvirt's canonical unit.)
+        if let Some(v) = xml::extract_text(&block, "hard_limit") {
             info.hard_limit_kb = v.trim().parse().ok();
         }
-        if let Some(v) = xml::extract_simple_text(&block, "soft_limit") {
+        if let Some(v) = xml::extract_text(&block, "soft_limit") {
             info.soft_limit_kb = v.trim().parse().ok();
         }
-        if let Some(v) = xml::extract_simple_text(&block, "swap_hard_limit") {
+        if let Some(v) = xml::extract_text(&block, "swap_hard_limit") {
             info.swap_hard_limit_kb = v.trim().parse().ok();
         }
     }

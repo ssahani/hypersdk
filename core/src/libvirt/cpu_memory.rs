@@ -155,37 +155,27 @@ pub fn set_cpu_topology(
 }
 
 fn replace_or_insert_vcpu(xml: &str, vcpus: u32) -> String {
+    let replacement = format!("<vcpu placement='static'>{vcpus}</vcpu>");
     if let Some(start) = xml.find("<vcpu") {
         if let Some(end) = xml[start..].find('>') {
-            let close = start + end + 1;
+            let close = start + end + 1; // index just past the first '>'
+            let tag = &xml[start..close]; // "<vcpu .../>" or "<vcpu ...>"
             let after = &xml[close..];
+            // Self-closing `<vcpu/>`: the '>' we found already consumed the '/', so the
+            // old `after.starts_with("/>")` check was dead and fell through to inserting
+            // a SECOND <vcpu> before <memory> (invalid XML). Detect self-close on the tag
+            // itself and replace the whole element.
+            if tag.trim_end().ends_with("/>") {
+                return format!("{}{}{}", &xml[..start], replacement, after);
+            }
             if let Some(tag_end) = after.find("</vcpu>") {
                 let end_idx = close + tag_end + "</vcpu>".len();
-                return format!(
-                    "{}{}{}",
-                    &xml[..start],
-                    format!("<vcpu placement='static'>{vcpus}</vcpu>"),
-                    &xml[end_idx..]
-                );
-            }
-            if after.starts_with("/>") {
-                return format!(
-                    "{}{}<vcpu placement='static'>{}</vcpu>{}",
-                    &xml[..start],
-                    "",
-                    vcpus,
-                    &after[2..]
-                );
+                return format!("{}{}{}", &xml[..start], replacement, &xml[end_idx..]);
             }
         }
     }
     if let Some(idx) = xml.find("<memory") {
-        return format!(
-            "{}\n  <vcpu placement='static'>{}</vcpu>\n{}",
-            &xml[..idx],
-            vcpus,
-            &xml[idx..]
-        );
+        return format!("{}\n  {}\n{}", &xml[..idx], replacement, &xml[idx..]);
     }
     xml.to_string()
 }
