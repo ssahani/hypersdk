@@ -891,52 +891,69 @@ async fn host_maintenance(state: &AppState, msg: &TaskMessage) -> anyhow::Result
             .await?;
 
         if evacuate {
-            let vm_ids: Vec<(Uuid, String)> = sqlx::query_as(
-                "SELECT id, name FROM vms WHERE host_id = ? AND desired_state = 'running'",
+            let vms: Vec<(Uuid, String, i64)> = sqlx::query_as(
+                "SELECT id, name, memory_mib FROM vms WHERE host_id = ? AND desired_state = 'running'",
             )
             .bind(host_id)
             .fetch_all(&state.pool)
             .await?;
 
-            let dest: Option<Uuid> = sqlx::query_scalar(
-                "SELECT id FROM hosts WHERE id != ? AND state = 'online' AND maintenance_mode = FALSE AND schedulable = TRUE ORDER BY vm_count LIMIT 1",
+            // Capacity-aware destinations: least-loaded first, each with its free
+            // memory headroom. Reuses HA recovery's picker so evacuation spreads VMs
+            // across hosts by real capacity instead of piling every VM onto the
+            // single least-loaded host and overcommitting it (the old behavior).
+            let candidates: Vec<(Uuid, i64)> = sqlx::query_as(
+                "SELECT id, (memory_total_mib - memory_used_mib) AS headroom FROM hosts
+                 WHERE id != ? AND state = 'online' AND maintenance_mode = FALSE AND schedulable = TRUE
+                 ORDER BY vm_count, memory_used_mib",
             )
             .bind(host_id)
-            .fetch_optional(&state.pool)
+            .fetch_all(&state.pool)
             .await?;
 
-            // Don't report a successful drain when there's nowhere to evacuate to
-            // — the host would enter maintenance with its VMs still running while
-            // the task claimed success.
-            if !vm_ids.is_empty() && dest.is_none() {
+            // Plan every VM's destination up front (with per-batch reservations) and
+            // only enqueue if ALL fit — a partial evacuation still leaves the host
+            // un-drainable, so fail loudly instead so the operator doesn't pull it.
+            let mut reserved: std::collections::HashMap<Uuid, i64> =
+                std::collections::HashMap::new();
+            let mut plan: Vec<(Uuid, Uuid)> = Vec::new();
+            let mut stranded: Vec<String> = Vec::new();
+            for (vm_id, vm_name, mem) in &vms {
+                match crate::engine::ha::pick_ha_dest(&candidates, &reserved, *mem) {
+                    Some(dest) => {
+                        *reserved.entry(dest).or_insert(0) += *mem;
+                        plan.push((*vm_id, dest));
+                    }
+                    None => stranded.push(vm_name.clone()),
+                }
+            }
+            if !stranded.is_empty() {
                 anyhow::bail!(
-                    "cannot evacuate {} running VM(s) from host {host_id} — no other online host is available",
-                    vm_ids.len()
+                    "cannot evacuate host {host_id}: no other online host has capacity for VM(s): {} — do NOT power down",
+                    stranded.join(", ")
                 );
             }
-            if let Some(dest_id) = dest {
-                for (vm_id, _name) in &vm_ids {
-                    if let Err(e) = enqueue_task(
-                        state,
-                        "vm.migrate",
-                        serde_json::json!({
-                            "vm_id": vm_id.to_string(),
-                            "dest_host_id": dest_id.to_string(),
-                            "live": true,
-                            // Evacuation: the source host is about to be taken down for
-                            // maintenance. Undefine the source domain on successful
-                            // migration so it can't autostart there at next power-on
-                            // while it's already running on the destination (split-brain).
-                            "undefine_source": true,
-                        }),
-                        Some("vm"),
-                        Some(*vm_id),
-                        Some(host_id),
-                    )
-                    .await
-                    {
-                        tracing::warn!(vm_id = %vm_id, host_id = %host_id, "vm.migrate enqueue failed during maintenance evacuation: {e:?}");
-                    }
+
+            for (vm_id, dest_id) in plan {
+                if let Err(e) = enqueue_task(
+                    state,
+                    "vm.migrate",
+                    serde_json::json!({
+                        "vm_id": vm_id.to_string(),
+                        "dest_host_id": dest_id.to_string(),
+                        "live": true,
+                        // Source host is going down for maintenance; undefine on
+                        // success so the VM can't autostart here while running on the
+                        // destination (split-brain).
+                        "undefine_source": true,
+                    }),
+                    Some("vm"),
+                    Some(vm_id),
+                    Some(host_id),
+                )
+                .await
+                {
+                    tracing::warn!(vm_id = %vm_id, host_id = %host_id, "vm.migrate enqueue failed during maintenance evacuation: {e:?}");
                 }
             }
 
@@ -945,7 +962,7 @@ async fn host_maintenance(state: &AppState, msg: &TaskMessage) -> anyhow::Result
             // operator see the host "in maintenance" and power it down while VMs
             // were still running on it. Block until no running VM remains, or fail
             // so the operator knows NOT to pull the host.
-            if !vm_ids.is_empty() {
+            if !vms.is_empty() {
                 confirm_host_drained(state, host_id, msg.task_id).await?;
             }
         }

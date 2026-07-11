@@ -134,6 +134,10 @@ What remains:
   now pass `undefine_source: true`, so the source domain is undefined on successful migration
   (libvirt does this atomically only on success) and can't autostart on the source while running
   on the destination. Manual one-off migrations still default to keeping the source unless asked.
+- **Evacuation capacity — FIXED.** Maintenance evacuation now plans a capacity-aware destination
+  per VM (reusing HA recovery's memory-headroom picker with per-batch reservations) and refuses
+  to drain — rather than overcommit one host — if any VM can't be placed. Previously it targeted
+  every VM at the single least-loaded host.
 - **`host.maintenance` drain confirmation — FIXED.** The maintenance task now blocks until the
   host has no running VMs left (or fails, telling the operator NOT to power down), bounded by
   `MACHINA_MAINTENANCE_DRAIN_TIMEOUT_SECS` (default 900s). Task success now means the host is

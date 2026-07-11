@@ -301,7 +301,11 @@ async fn record_ha_event_deduped(
 /// Pick the first candidate host (candidates are pre-ordered least-loaded first)
 /// whose free memory — minus memory already reserved to it earlier in this scan —
 /// covers `need_mib`. Returns None when no online host can fit the VM.
-fn pick_ha_dest(
+/// Pick the first candidate host (already ordered least-loaded first) with enough
+/// free memory for `need_mib`, honoring reservations already made this pass. Shared
+/// by HA recovery and maintenance evacuation so both spread VMs by real capacity
+/// instead of piling them onto one host.
+pub(crate) fn pick_ha_dest(
     candidates: &[(Uuid, i64)],
     reserved: &std::collections::HashMap<Uuid, i64>,
     need_mib: i64,
