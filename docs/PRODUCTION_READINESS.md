@@ -147,10 +147,25 @@ What remains:
 - No anti-affinity (replicas can be co-located, defeating HA); DRS has no hysteresis (ping-pong
   risk). Both are feature gaps, not regressions.
 
+**Verified live (2026-07-11, host 80.79.5.173):** an end-to-end restore drill on a real
+managed VM — backup via the platform API, blank the disk, restore — recovered the **exact**
+disk content (sha256 match), and a cross-VM restore was correctly rejected (HTTP 404). Two
+out-of-the-box blockers were found and fixed in the process: local **backup writes** and
+**restore reads** were both rejected because the backup dir was missing from the storage
+allow-list (`30e53e7f`), and `deploy-remote.sh` could leave a service running the *previous*
+binary after a deploy (stale-binary guard added). So: **local, single-disk, stopped-VM
+backup/restore is now proven.**
+
+**Still not proven / not safe:**
+- **Crash-consistent backup of a *running/busy* VM** (no FSFreeze/snapshot; see above).
+- **Multi-disk VMs** now *refuse* backup/restore (fail-safe) rather than silently losing disks.
+- **HA/fencing under a real host failure or network partition** — the split-brain cluster above.
+
 **Bottom line for a customer:** single-host or quiet multi-host operation is in reasonable
-shape after the fixes, but **HA/fencing under a real host failure or network partition is not
-safe yet**, and **backup/restore of busy VMs is not proven**. Do a restore drill and avoid
-relying on automatic HA failover until the fencing model is reworked.
+shape after the fixes, and local restore is now demonstrated to work. But **HA/fencing under a
+real host failure or network partition is not safe yet**, and **backup of busy VMs is not
+crash-consistent**. Always do your own restore drill, and avoid relying on automatic HA
+failover until the fencing model is reworked.
 
 ## 8. Upgrade procedure
 

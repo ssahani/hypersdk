@@ -652,6 +652,31 @@ if $WITH_PACKETWOLF; then
     install_packetwolf_on_remote || warn "PacketWolf co-deploy had issues (non-fatal)"
 fi
 
+# Stale-binary guard: across the multiple install+restart cycles in a deploy, a
+# service can end up still running the PREVIOUS binary (its /proc/<pid>/exe shows
+# "(deleted)", or the on-disk binary is newer than the process). That silently
+# ships stale code — a fix appears deployed but isn't live until a manual restart.
+# Detect and force-restart so the running process always matches what we installed.
+ssh_r_bash "$REMOTE" "
+for svc in machina-controller machina-agent machina-daemon; do
+  bin=/usr/local/bin/\$svc
+  [ -x \"\$bin\" ] || continue
+  systemctl is-active \"\$svc\" &>/dev/null || continue
+  pid=\$(systemctl show -p MainPID --value \"\$svc\" 2>/dev/null)
+  [ -n \"\$pid\" ] && [ \"\$pid\" != 0 ] || continue
+  stale=0
+  exe=\$(sudo readlink /proc/\$pid/exe 2>/dev/null || true)
+  case \"\$exe\" in *'(deleted)'*) stale=1;; esac
+  bmt=\$(stat -c %Y \"\$bin\" 2>/dev/null || echo 0)
+  pst=\$(stat -c %Y /proc/\$pid 2>/dev/null || echo 0)
+  [ \"\$bmt\" -gt \"\$pst\" ] && stale=1
+  if [ \"\$stale\" = 1 ]; then
+    echo \"↻ \$svc was running a stale binary (exe=\$exe) — restarting to load the new one\"
+    sudo systemctl restart \"\$svc\" || true
+  fi
+done
+" || warn "stale-binary guard had issues (non-fatal)"
+
 phase "$SNAPSHOT_PHASE" "$TOTAL_STEPS" "Service snapshot" "machina-daemon + libvirtd + platform status"
 ssh_r_bash "$REMOTE" "
 for svc in machina-daemon libvirtd machina-controller machina-agent; do
