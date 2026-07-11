@@ -119,7 +119,7 @@ patches). The bounded, high-confidence ones from the same audit **were** fixed (
 refuse-instead-of-lose, HA/evac `schedulable` + `desired_state` filters, firewall authz).
 What remains:
 
-- **HA split-brain + controller-side fencing — FIXED (`<this commit>`), needs live validation
+- **HA split-brain + controller-side fencing — FIXED (`1425e033`), needs live validation
   on real BMC hardware.** Fencing now originates from the controller (`ipmitool` → the host's
   BMC), so a dead/partitioned host can actually be isolated (previously the fence ran on the
   dead host's own agent and could never reach it). Recovery is now gated on the host being
