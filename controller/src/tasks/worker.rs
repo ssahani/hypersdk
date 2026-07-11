@@ -915,7 +915,7 @@ async fn host_maintenance(state: &AppState, msg: &TaskMessage) -> anyhow::Result
                 );
             }
             if let Some(dest_id) = dest {
-                for (vm_id, _name) in vm_ids {
+                for (vm_id, _name) in &vm_ids {
                     if let Err(e) = enqueue_task(
                         state,
                         "vm.migrate",
@@ -930,7 +930,7 @@ async fn host_maintenance(state: &AppState, msg: &TaskMessage) -> anyhow::Result
                             "undefine_source": true,
                         }),
                         Some("vm"),
-                        Some(vm_id),
+                        Some(*vm_id),
                         Some(host_id),
                     )
                     .await
@@ -938,6 +938,15 @@ async fn host_maintenance(state: &AppState, msg: &TaskMessage) -> anyhow::Result
                         tracing::warn!(vm_id = %vm_id, host_id = %host_id, "vm.migrate enqueue failed during maintenance evacuation: {e:?}");
                     }
                 }
+            }
+
+            // Confirm the drain actually completed before reporting success. The
+            // migrations above are async/best-effort; returning success here let an
+            // operator see the host "in maintenance" and power it down while VMs
+            // were still running on it. Block until no running VM remains, or fail
+            // so the operator knows NOT to pull the host.
+            if !vm_ids.is_empty() {
+                confirm_host_drained(state, host_id, msg.task_id).await?;
             }
         }
     } else {
@@ -949,6 +958,53 @@ async fn host_maintenance(state: &AppState, msg: &TaskMessage) -> anyhow::Result
 
     update_task_progress(&state.pool, msg.task_id, 100, &action).await?;
     Ok(())
+}
+
+/// Wait until the host has no running VMs left (evacuation actually finished), so
+/// the maintenance task only reports success once the host is genuinely safe to
+/// take down. Bounded by MACHINA_MAINTENANCE_DRAIN_TIMEOUT_SECS (default 900s); on
+/// timeout it errors — the operator must NOT power down a host that still runs VMs.
+async fn confirm_host_drained(
+    state: &AppState,
+    host_id: Uuid,
+    task_id: Uuid,
+) -> anyhow::Result<()> {
+    let timeout_secs: i64 = std::env::var("MACHINA_MAINTENANCE_DRAIN_TIMEOUT_SECS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .filter(|&n| n > 0)
+        .unwrap_or(900);
+    let poll = std::time::Duration::from_secs(5);
+    let mut waited: i64 = 0;
+    loop {
+        let remaining: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM vms
+             WHERE host_id = ? AND desired_state = 'running'
+               AND observed_state IN ('running', 'blocked', 'paused')",
+        )
+        .bind(host_id)
+        .fetch_one(&state.pool)
+        .await?;
+        if remaining == 0 {
+            return Ok(());
+        }
+        if waited >= timeout_secs {
+            anyhow::bail!(
+                "host {host_id} drain INCOMPLETE: {remaining} running VM(s) did not evacuate \
+                 within {timeout_secs}s — do NOT power down the host; check the vm.migrate tasks"
+            );
+        }
+        let pct = 40 + ((waited * 55) / timeout_secs).clamp(0, 55) as i16;
+        update_task_progress(
+            &state.pool,
+            task_id,
+            pct,
+            &format!("draining: {remaining} running VM(s) remaining"),
+        )
+        .await?;
+        tokio::time::sleep(poll).await;
+        waited += 5;
+    }
 }
 
 async fn ha_recover(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {

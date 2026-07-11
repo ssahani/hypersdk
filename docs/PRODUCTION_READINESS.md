@@ -134,9 +134,10 @@ What remains:
   now pass `undefine_source: true`, so the source domain is undefined on successful migration
   (libvirt does this atomically only on success) and can't autostart on the source while running
   on the destination. Manual one-off migrations still default to keeping the source unless asked.
-- **`host.maintenance` reports the host "drained" while evacuations are async/best-effort.** An
-  operator can pull a host that still has running VMs. Don't power-cycle a host on the strength
-  of the maintenance flag alone — confirm no running VMs remain first.
+- **`host.maintenance` drain confirmation — FIXED.** The maintenance task now blocks until the
+  host has no running VMs left (or fails, telling the operator NOT to power down), bounded by
+  `MACHINA_MAINTENANCE_DRAIN_TIMEOUT_SECS` (default 900s). Task success now means the host is
+  genuinely drained.
 - **Backups of a running VM are crash-consistent only by luck.** `qemu-img convert` copies the
   live qcow2 with no `FSFreeze`/snapshot/pause, and integrity is not verified before the record
   is marked `completed`. Treat backups of busy/DB VMs as potentially inconsistent; prefer
@@ -145,11 +146,14 @@ What remains:
   retained incremental unrestorable. Use full backups until this is reworked.
 - **Deleting an external snapshot of a running VM leaks the overlay qcow2 on disk** (metadata-
   only delete). With scheduled snapshots this slowly consumes the pool; monitor pool usage.
-- **Two active leaders are possible** if the leader-lease renewal stalls past the lease (the
-  cached `is_leader()` isn't re-validated against `lease_until`), which would duplicate
-  HA/DRS/reconcile actions. Low probability, no fencing token to stop the loser's writes.
-- No anti-affinity (replicas can be co-located, defeating HA); DRS has no hysteresis (ping-pong
-  risk). Both are feature gaps, not regressions.
+- **Dual-leader window — FIXED.** `is_leader()` now self-expires against the lease deadline and
+  steps down a guard window (3s) before any challenger can acquire, so a stalled renewal task
+  can no longer leave two controllers both running HA/DRS/reconcile. (A fencing token on writes
+  would harden it further, but the timing window is closed.)
+- **Anti-affinity + DRS hysteresis — ADDED.** Tag a VM `anti-affinity:<group>` and placement/DRS
+  won't co-locate it with a group peer (so a host failure can't take out both replicas), falling
+  back to co-location only if no other host exists. DRS now also requires the destination to beat
+  the source by a margin before migrating, preventing ping-pong between similarly-loaded hosts.
 
 **Verified live (2026-07-11, host 80.79.5.173):** an end-to-end restore drill on a real
 managed VM — backup via the platform API, blank the disk, restore — recovered the **exact**

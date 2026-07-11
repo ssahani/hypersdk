@@ -63,6 +63,7 @@ pub async fn compute_recommendations(
     .fetch_all(pool)
     .await?;
 
+    let anti_map = host_anti_affinity_map(pool).await?;
     let mut out = Vec::new();
 
     for (vm_id, vm_name, host_id, memory_mib, vm_tags) in vms {
@@ -77,6 +78,14 @@ pub async fn compute_recommendations(
         let mut best: Option<(&HostLoad, f32)> = None;
         for dest in &hosts {
             if dest.id == host_id {
+                continue;
+            }
+            // Anti-affinity: never rebalance a VM onto a host already running a
+            // peer in the same anti-affinity group.
+            if anti_map
+                .get(&dest.id)
+                .is_some_and(|a| violates_anti_affinity(&vm_tags, a))
+            {
                 continue;
             }
             let dest_mem_pct = pct(dest.memory_used_mib, dest.memory_total_mib);
@@ -96,6 +105,19 @@ pub async fn compute_recommendations(
         }
 
         let Some((dest, score)) = best else { continue };
+
+        // Hysteresis: only move if the destination is meaningfully better than the
+        // source (by DRS_HYSTERESIS_MARGIN), so a VM doesn't ping-pong between two
+        // similarly-loaded hosts on successive DRS ticks.
+        let source_score = dest_score(
+            &placement_policy,
+            source.cpu_percent,
+            mem_pct,
+            source.vm_count,
+        );
+        if score - source_score < DRS_HYSTERESIS_MARGIN {
+            continue;
+        }
 
         let reason = format!(
             "{} memory {:.0}%, CPU {:.0}% — move to {} (memory {:.0}%, CPU {:.0}%)",
@@ -226,7 +248,13 @@ pub async fn pick_host_for_vm(
         anyhow::bail!("no online hosts available");
     }
 
-    let mut best: Option<(Uuid, f32)> = None;
+    let anti_map = host_anti_affinity_map(pool).await?;
+
+    // Prefer a host that doesn't violate anti-affinity, but keep the best overall as
+    // a fallback so placement still succeeds when every host would violate (better to
+    // place with a co-location than to fail the create).
+    let mut best_ok: Option<(Uuid, f32)> = None;
+    let mut best_any: Option<(Uuid, f32)> = None;
     for h in &hosts {
         let mem_pct = pct(h.memory_used_mib, h.memory_total_mib);
         let mut score = dest_score(&placement_policy, h.cpu_percent, mem_pct, h.vm_count);
@@ -234,12 +262,20 @@ pub async fn pick_host_for_vm(
             continue;
         }
         score += tag_affinity_score(vm_tags, &*h.tags);
-        if best.map(|(_, s)| score > s).unwrap_or(true) {
-            best = Some((h.id, score));
+        if best_any.map(|(_, s)| score > s).unwrap_or(true) {
+            best_any = Some((h.id, score));
+        }
+        let violates = anti_map
+            .get(&h.id)
+            .is_some_and(|a| violates_anti_affinity(vm_tags, a));
+        if !violates && best_ok.map(|(_, s)| score > s).unwrap_or(true) {
+            best_ok = Some((h.id, score));
         }
     }
 
-    best.map(|(id, _)| id)
+    best_ok
+        .or(best_any)
+        .map(|(id, _)| id)
         .ok_or_else(|| anyhow::anyhow!("no suitable host for placement"))
 }
 
@@ -249,4 +285,87 @@ fn tag_affinity_score(vm_tags: &[String], host_tags: &[String]) -> f32 {
     }
     let overlap = vm_tags.iter().filter(|t| host_tags.contains(t)).count();
     overlap as f32 * 25.0
+}
+
+/// DRS only migrates a VM when the destination's headroom score beats the source's
+/// by at least this much. Without a hysteresis band, a VM straddling the threshold
+/// ping-pongs between two similarly-loaded hosts on successive ticks.
+const DRS_HYSTERESIS_MARGIN: f32 = 20.0;
+
+/// Tags with this prefix declare an anti-affinity group: two running VMs that share
+/// `anti-affinity:<group>` must NOT be co-located, so a single host failure can't
+/// take out both (e.g. replicas). Placement and DRS avoid a host already running a
+/// group peer.
+const ANTI_AFFINITY_PREFIX: &str = "anti-affinity:";
+
+fn anti_affinity_tags(tags: &[String]) -> std::collections::HashSet<String> {
+    tags.iter()
+        .map(|t| t.to_ascii_lowercase())
+        .filter(|t| t.starts_with(ANTI_AFFINITY_PREFIX))
+        .collect()
+}
+
+/// True if placing a VM with `vm_tags` onto a host whose running VMs carry
+/// `host_anti_tags` would put two members of the same anti-affinity group together.
+fn violates_anti_affinity(
+    vm_tags: &[String],
+    host_anti_tags: &std::collections::HashSet<String>,
+) -> bool {
+    anti_affinity_tags(vm_tags)
+        .iter()
+        .any(|t| host_anti_tags.contains(t))
+}
+
+/// host_id -> anti-affinity tags of the running VMs currently on it.
+async fn host_anti_affinity_map(
+    pool: &SqlitePool,
+) -> anyhow::Result<std::collections::HashMap<Uuid, std::collections::HashSet<String>>> {
+    let rows: Vec<(Uuid, sqlx::types::Json<Vec<String>>)> = sqlx::query_as(
+        "SELECT host_id, COALESCE(tags, '[]') AS tags
+         FROM vms WHERE desired_state = 'running' AND host_id IS NOT NULL",
+    )
+    .fetch_all(pool)
+    .await?;
+    let mut map: std::collections::HashMap<Uuid, std::collections::HashSet<String>> =
+        std::collections::HashMap::new();
+    for (host_id, tags) in rows {
+        map.entry(host_id).or_default().extend(anti_affinity_tags(&tags));
+    }
+    Ok(map)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    fn tags(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn anti_affinity_detects_shared_group_case_insensitively() {
+        let vm = tags(&["role:db", "Anti-Affinity:DB-Replicas"]);
+        let mut host: HashSet<String> = HashSet::new();
+        host.insert("anti-affinity:db-replicas".into());
+        assert!(violates_anti_affinity(&vm, &host));
+    }
+
+    #[test]
+    fn anti_affinity_ignores_non_group_and_disjoint_tags() {
+        let vm = tags(&["role:db", "anti-affinity:group-a"]);
+        let mut host: HashSet<String> = HashSet::new();
+        host.insert("anti-affinity:group-b".into()); // different group
+        assert!(!violates_anti_affinity(&vm, &host));
+        // A VM with no anti-affinity tag never conflicts.
+        assert!(!violates_anti_affinity(&tags(&["role:web"]), &host));
+    }
+
+    #[test]
+    fn hysteresis_blocks_marginal_moves_allows_clear_wins() {
+        // dest only 10 better than source (< margin) -> no move.
+        assert!(30.0f32 - 20.0 < DRS_HYSTERESIS_MARGIN);
+        // dest 40 better -> move.
+        assert!(60.0f32 - 20.0 >= DRS_HYSTERESIS_MARGIN);
+    }
 }
