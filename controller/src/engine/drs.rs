@@ -128,7 +128,8 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
 
 pub async fn get_cluster_settings(pool: &SqlitePool) -> anyhow::Result<ClusterSettings> {
     sqlx::query_as(
-        "SELECT drs_auto_migrate, drs_cpu_threshold, ha_enabled, placement_policy,
+        "SELECT drs_auto_migrate, drs_cpu_threshold, ha_enabled, ha_allow_unfenced_recovery,
+                placement_policy,
                 inventory_sync_interval_secs, require_vm_delete_approval,
                 firewall_approval_sla_hours,
                 finops_vcpu_hour_usd, finops_gib_hour_usd
@@ -176,6 +177,13 @@ pub async fn update_cluster_settings(
     }
     if let Some(v) = settings.ha_enabled {
         sqlx::query("UPDATE clusters SET ha_enabled = ? WHERE id = ?")
+            .bind(v)
+            .bind(cluster_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+    if let Some(v) = settings.ha_allow_unfenced_recovery {
+        sqlx::query("UPDATE clusters SET ha_allow_unfenced_recovery = ? WHERE id = ?")
             .bind(v)
             .bind(cluster_id)
             .execute(&mut *tx)
@@ -232,6 +240,7 @@ pub struct ClusterSettings {
     pub drs_auto_migrate: bool,
     pub drs_cpu_threshold: f32,
     pub ha_enabled: bool,
+    pub ha_allow_unfenced_recovery: bool,
     pub placement_policy: String,
     pub inventory_sync_interval_secs: i32,
     pub require_vm_delete_approval: bool,
@@ -245,6 +254,8 @@ pub struct ClusterSettingsPatch {
     pub drs_auto_migrate: Option<bool>,
     pub drs_cpu_threshold: Option<f32>,
     pub ha_enabled: Option<bool>,
+    /// Opt out of the fail-safe fence-before-recover guard (non-shared storage only).
+    pub ha_allow_unfenced_recovery: Option<bool>,
     pub placement_policy: Option<String>,
     pub inventory_sync_interval_secs: Option<i32>,
     pub require_vm_delete_approval: Option<bool>,
@@ -253,8 +264,24 @@ pub struct ClusterSettingsPatch {
     pub finops_gib_hour_usd: Option<f64>,
 }
 
+/// Fence (power-isolate) a host so its VMs can be safely recovered elsewhere.
+///
+/// STONITH ("shoot the other node in the head") MUST originate from the controller,
+/// not the failed host's own agent: a dead or network-partitioned host has an
+/// unreachable agent, so routing the fence through it means the one host we most
+/// need to isolate can never be fenced — the previous behavior. For IPMI we talk
+/// to the host's BMC directly from here (works regardless of host liveness). The
+/// agent shell path remains only as a best-effort fallback for a host whose agent
+/// is still reachable (e.g. a wedged service on a live box).
 pub async fn fence_host(state: &AppState, host_id: Uuid) -> anyhow::Result<bool> {
-    let row: (String, String, String, String, String, String) = sqlx::query_as(
+    let (hostname, agent_addr, method, ipmi_addr, ipmi_user, ipmi_pass): (
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+    ) = sqlx::query_as(
         "SELECT hostname, agent_grpc_addr, COALESCE(fence_method, 'shell'), COALESCE(ipmi_address, ''),
                 COALESCE(ipmi_username, ''), COALESCE(ipmi_password, '') FROM hosts WHERE id = ?",
     )
@@ -263,26 +290,27 @@ pub async fn fence_host(state: &AppState, host_id: Uuid) -> anyhow::Result<bool>
     .await?
     .ok_or_else(|| anyhow::anyhow!("host {} not found — may have been removed while HA was scanning", host_id))?;
 
-    let shell_cmd = std::env::var("MACHINA_FENCE_COMMAND").unwrap_or_default();
-    let mut client = tokio::time::timeout(
-        std::time::Duration::from_secs(8),
-        agent_client::connect(&row.1),
-    )
-    .await
-    .map_err(|_| anyhow::anyhow!(
-        "agent on {} ({}) unreachable; configure IPMI fencing for reliable isolation of unresponsive hosts",
-        row.0, row.1
-    ))??;
-    let resp = agent_client::fence_host(
-        &mut client,
-        &row.0,
-        &row.2,
-        &row.3,
-        &row.4,
-        &row.5,
-        &shell_cmd,
-    )
-    .await?;
+    let (action, command, result): (&str, String, anyhow::Result<String>) =
+        if method == "ipmi" && !ipmi_addr.is_empty() {
+            // Controller -> BMC. Works even if the host itself is dead.
+            let command = format!("ipmitool -I lanplus -H {ipmi_addr} -U {ipmi_user} -E power off");
+            let result = fence_ipmi_from_controller(&ipmi_addr, &ipmi_user, &ipmi_pass).await;
+            ("ipmi-fence", command, result)
+        } else {
+            // Fallback: the operator-configured shell fence, executed by the host's
+            // own agent. Only succeeds if that agent is still reachable.
+            let shell_cmd = std::env::var("MACHINA_FENCE_COMMAND").unwrap_or_default();
+            let result =
+                fence_via_agent(&agent_addr, &hostname, &method, &ipmi_addr, &ipmi_user, &ipmi_pass, &shell_cmd)
+                    .await;
+            ("fence", shell_cmd, result)
+        };
+
+    let ok = result.is_ok();
+    let message = match &result {
+        Ok(m) => m.clone(),
+        Err(e) => format!("{e:#}"),
+    };
 
     sqlx::query(
         "INSERT INTO fence_events (id, host_id, action, command, success, message)
@@ -290,26 +318,71 @@ pub async fn fence_host(state: &AppState, host_id: Uuid) -> anyhow::Result<bool>
     )
     .bind(Uuid::new_v4())
     .bind(host_id)
-    .bind(if row.2 == "ipmi" {
-        "ipmi-fence"
-    } else {
-        "fence"
-    })
-    .bind(if row.2 == "ipmi" {
-        format!("ipmitool -H {} power off", row.3)
-    } else {
-        shell_cmd.clone()
-    })
-    .bind(resp.ok)
-    .bind(&resp.message)
+    .bind(action)
+    .bind(&command)
+    .bind(ok)
+    .bind(&message)
     .execute(&state.pool)
     .await?;
 
-    if resp.ok {
+    if ok {
         sqlx::query("UPDATE hosts SET fenced = TRUE WHERE id = ?")
             .bind(host_id)
             .execute(&state.pool)
             .await?;
     }
-    Ok(resp.ok)
+    Ok(ok)
+}
+
+/// Power off a host via its BMC, executed from the controller (not the host).
+async fn fence_ipmi_from_controller(address: &str, user: &str, pass: &str) -> anyhow::Result<String> {
+    if address.is_empty() || user.is_empty() {
+        anyhow::bail!("IPMI address and username are required for controller-side fencing");
+    }
+    // Password via IPMI_PASSWORD env (`-E`), never on argv where `ps`/proc would leak it.
+    let out = tokio::process::Command::new("ipmitool")
+        .args(["-I", "lanplus", "-H", address, "-U", user, "-E", "power", "off"])
+        .env("IPMI_PASSWORD", pass)
+        .output()
+        .await
+        .map_err(|e| {
+            anyhow::anyhow!("ipmitool exec failed (is it installed on the controller host?): {e}")
+        })?;
+    if out.status.success() {
+        Ok(format!("IPMI power off {address} (from controller)"))
+    } else {
+        anyhow::bail!("ipmitool failed: {}", String::from_utf8_lossy(&out.stderr).trim());
+    }
+}
+
+/// Best-effort fence via the host's own agent (only works if the agent is reachable).
+async fn fence_via_agent(
+    agent_addr: &str,
+    hostname: &str,
+    method: &str,
+    ipmi_addr: &str,
+    ipmi_user: &str,
+    ipmi_pass: &str,
+    shell_cmd: &str,
+) -> anyhow::Result<String> {
+    let mut client = tokio::time::timeout(
+        std::time::Duration::from_secs(8),
+        agent_client::connect(agent_addr),
+    )
+    .await
+    .map_err(|_| {
+        anyhow::anyhow!(
+            "agent on {agent_addr} unreachable; configure IPMI/BMC fencing (fence_method='ipmi' + \
+             ipmi_address) so an unresponsive host can be isolated from the controller"
+        )
+    })??;
+    let resp = agent_client::fence_host(
+        &mut client, hostname, method, ipmi_addr, ipmi_user, ipmi_pass, shell_cmd,
+    )
+    .await?;
+    if resp.ok {
+        Ok(resp.message)
+    } else {
+        anyhow::bail!("agent fence reported failure: {}", resp.message);
+    }
 }

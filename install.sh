@@ -218,7 +218,7 @@ install_deps_fedora() {
 
     # clang-devel: libclang for pam-sys (bindgen). clang-libs alone is not enough to build.
     local packages=(gcc gcc-c++ make pkg-config
-        libvirt-devel libvirt-daemon-kvm qemu-kvm virt-install
+        libvirt-devel libvirt-daemon-kvm qemu-kvm virt-install ipmitool
         pam-devel clang-libs clang-devel
         protobuf-compiler
         openssl git curl unzip)
@@ -245,7 +245,7 @@ install_deps_rhel() {
     fi
 
     local packages=(gcc gcc-c++ make pkg-config
-        libvirt-devel libvirt-daemon-kvm qemu-kvm virt-install
+        libvirt-devel libvirt-daemon-kvm qemu-kvm virt-install ipmitool
         pam-devel clang-libs clang-devel
         protobuf-compiler
         openssl git curl unzip)
@@ -266,6 +266,7 @@ install_deps_debian() {
         libpam0g-dev libclang-dev clang llvm-dev
         protobuf-compiler libssl-dev
         genisoimage
+        ipmitool
         openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
@@ -279,7 +280,7 @@ install_deps_suse() {
 
     # pam-devel + clang for pam-sys bindgen (libclang)
     local packages=(gcc gcc-c++ make pkg-config
-        libvirt-devel libvirt-daemon qemu-kvm
+        libvirt-devel libvirt-daemon qemu-kvm ipmitool
         pam-devel clang-devel protobuf
         openssl git curl unzip)
 

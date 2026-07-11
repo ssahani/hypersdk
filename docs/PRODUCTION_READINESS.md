@@ -119,14 +119,17 @@ patches). The bounded, high-confidence ones from the same audit **were** fixed (
 refuse-instead-of-lose, HA/evac `schedulable` + `desired_state` filters, firewall authz).
 What remains:
 
-- **HA can split-brain a VM under a network partition (CRITICAL).** A host is marked `offline`
-  purely on heartbeat loss (>90s). A controller↔agent partition (VMs still running) then makes
-  HA re-create + start those VMs on a survivor while they run on the partitioned host — both
-  writing the same shared storage → corruption. Fencing does not save this today because…
-- **Fencing is routed through the *target host's own agent* (CRITICAL).** A truly-dead host
-  can't be fenced (its agent is gone), so `fence_on_failure` VMs are never recovered on real
-  hardware death, while non-fenced VMs split-brain. Real fencing must originate from the
-  controller/BMC, independent of the failed host.
+- **HA split-brain + controller-side fencing — FIXED (`<this commit>`), needs live validation
+  on real BMC hardware.** Fencing now originates from the controller (`ipmitool` → the host's
+  BMC), so a dead/partitioned host can actually be isolated (previously the fence ran on the
+  dead host's own agent and could never reach it). Recovery is now gated on the host being
+  *confirmed fenced* for **every** ha-enabled VM (not just `fence_on_failure=TRUE` ones) — if a
+  host can't be fenced, its VMs are **not** auto-recovered and an `ha.blocked_unfenced` event is
+  raised for manual action. Requirements/caveats: set `fence_method='ipmi'` + `ipmi_address`/
+  creds per host and install `ipmitool` on the controller (now in the deps); without a BMC,
+  automatic HA recovery will (correctly) not happen on a hard failure. `ha_allow_unfenced_recovery`
+  (cluster setting, default off) is the explicit opt-out for **non-shared-storage** clusters.
+  Not yet exercised end-to-end against real IPMI hardware — validate before relying on it.
 - **Migration/evacuation never undefines the source domain.** With `PERSIST_DEST`, an evacuated
   VM with libvirt autostart can boot on the source at next power-on while running on the
   destination → split-brain. Evacuation should undefine the source.
@@ -159,13 +162,16 @@ backup/restore is now proven.**
 **Still not proven / not safe:**
 - **Crash-consistent backup of a *running/busy* VM** (no FSFreeze/snapshot; see above).
 - **Multi-disk VMs** now *refuse* backup/restore (fail-safe) rather than silently losing disks.
-- **HA/fencing under a real host failure or network partition** — the split-brain cluster above.
+- **HA/fencing on real BMC hardware** — the split-brain fix (controller-side fence + fence-gated
+  recovery) is in code and unit-tested, but not yet validated end-to-end against real IPMI.
 
 **Bottom line for a customer:** single-host or quiet multi-host operation is in reasonable
-shape after the fixes, and local restore is now demonstrated to work. But **HA/fencing under a
-real host failure or network partition is not safe yet**, and **backup of busy VMs is not
-crash-consistent**. Always do your own restore drill, and avoid relying on automatic HA
-failover until the fencing model is reworked.
+shape after the fixes, and local restore is now demonstrated to work. The HA split-brain root
+cause (fencing that couldn't reach a dead host + recovery that skipped the fence for most VMs)
+is now fixed in code — but before relying on automatic HA failover, **validate fencing against
+your real BMC** (set `fence_method='ipmi'` + creds per host) and confirm an `ipmitool power off`
+succeeds from the controller. Backup of busy VMs is still not crash-consistent. Always do your
+own restore drill.
 
 ## 8. Upgrade procedure
 

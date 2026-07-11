@@ -61,11 +61,17 @@ async fn mark_stale_hosts(state: &AppState) -> anyhow::Result<()> {
         .bind(format!("Host {hostname} marked offline"))
         .execute(&mut *tx)
         .await?;
-        let needs_fence: bool = sqlx::query_scalar(
+        // Attempt to fence whenever the offline host has ANY ha-enabled VM: those are
+        // recovery candidates, and recovery is now gated on the host being confirmed
+        // fenced (see recover_vms). Previously we only fenced when a VM opted in via
+        // fence_on_failure=TRUE, which left every default VM to be recovered against a
+        // possibly-still-running host — a split-brain. Fencing here makes `fenced`
+        // meaningful for all of them.
+        let has_ha_vms: bool = sqlx::query_scalar(
             "SELECT EXISTS(
                SELECT 1 FROM ha_policies hp
                JOIN vms v ON v.id = hp.vm_id
-               WHERE v.host_id = ? AND hp.enabled = TRUE AND hp.fence_on_failure = TRUE
+               WHERE v.host_id = ? AND hp.enabled = TRUE
              )",
         )
         .bind(id)
@@ -73,16 +79,16 @@ async fn mark_stale_hosts(state: &AppState) -> anyhow::Result<()> {
         .await?;
         tx.commit().await?;
 
-        if needs_fence {
+        if has_ha_vms {
             match crate::engine::drs::fence_host(state, id).await {
                 Ok(true) => {
                     tracing::info!(host_id = %id, "HA: host {hostname} confirmed fenced — VMs eligible for recovery");
                 }
                 Ok(false) => {
-                    tracing::warn!(host_id = %id, "HA: skipping recovery — host {hostname} not confirmed fenced (split-brain risk): fence agent reported failure");
+                    tracing::warn!(host_id = %id, "HA: host {hostname} NOT confirmed fenced (fence reported failure) — recovery blocked to avoid split-brain");
                 }
                 Err(e) => {
-                    tracing::warn!(host_id = %id, "HA: skipping recovery — host {hostname} not confirmed fenced (split-brain risk): {e:#}");
+                    tracing::warn!(host_id = %id, "HA: host {hostname} NOT confirmed fenced ({e:#}) — recovery blocked to avoid split-brain");
                 }
             }
         }
@@ -93,10 +99,11 @@ async fn mark_stale_hosts(state: &AppState) -> anyhow::Result<()> {
 }
 
 async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
-    let Some(ha_enabled): Option<bool> =
-        sqlx::query_scalar("SELECT ha_enabled FROM clusters ORDER BY created_at LIMIT 1")
-            .fetch_optional(&state.pool)
-            .await?
+    let Some((ha_enabled, allow_unfenced)): Option<(bool, bool)> = sqlx::query_as(
+        "SELECT ha_enabled, ha_allow_unfenced_recovery FROM clusters ORDER BY created_at LIMIT 1",
+    )
+    .fetch_optional(&state.pool)
+    .await?
     else {
         return Ok(());
     };
@@ -134,14 +141,32 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
         vm_memory_mib,
     ) in victims
     {
-        // Split-brain guard: if this VM's policy requires fencing, only recover once the
-        // failed host has been confirmed fenced. An unfenced host may still be running the
-        // VM, so restarting it elsewhere would corrupt shared storage.
-        if fence_required && !host_fenced {
+        // Split-brain guard (fail-safe default): recover a VM ONLY once its failed
+        // host is confirmed fenced (powered off). An unfenced host may still be
+        // running the VM, so starting it elsewhere on shared storage corrupts data.
+        // This now applies to EVERY ha-enabled VM, not just those with
+        // fence_on_failure=TRUE — that per-VM opt-in left default VMs exposed.
+        // The only bypass is the cluster's explicit ha_allow_unfenced_recovery, for
+        // operators who have NON-shared storage (double-run can't corrupt) or
+        // external fencing. A VM's own fence_on_failure=TRUE forces the guard even
+        // when the cluster allows unfenced recovery.
+        if block_recovery_unfenced(host_fenced, fence_required, allow_unfenced) {
+            record_ha_event_deduped(
+                &state.pool,
+                Some(vm_id),
+                Some(failed_host),
+                "ha.blocked_unfenced",
+                &format!(
+                    "VM {vm_name} NOT recovered: host {failed_host} could not be confirmed fenced. \
+                     Manually power it off, then it will recover — or set ha_allow_unfenced_recovery \
+                     if VMs don't share storage."
+                ),
+            )
+            .await?;
             tracing::warn!(
                 vm_id = %vm_id,
                 host_id = %failed_host,
-                "HA: skipping recovery of VM {vm_name} — host not confirmed fenced (split-brain risk)"
+                "HA: blocking recovery of VM {vm_name} — host not confirmed fenced (split-brain risk)"
             );
             continue;
         }
@@ -348,11 +373,46 @@ pub struct HaEventRow {
     pub created_at: DateTime<Utc>,
 }
 
+/// Decide whether HA must BLOCK recovery of a VM because its failed host isn't
+/// confirmed fenced. Fail-safe: block unless the host is fenced. The cluster's
+/// `allow_unfenced` opt-out lets operators with non-shared storage / external
+/// fencing recover anyway — but a VM's own `fence_required` (fence_on_failure)
+/// overrides that opt-out and always demands a fence.
+fn block_recovery_unfenced(host_fenced: bool, fence_required: bool, allow_unfenced: bool) -> bool {
+    !host_fenced && (fence_required || !allow_unfenced)
+}
+
 #[cfg(test)]
 mod ha_dest_tests {
-    use super::pick_ha_dest;
+    use super::{block_recovery_unfenced, pick_ha_dest};
     use std::collections::HashMap;
     use uuid::Uuid;
+
+    #[test]
+    fn fenced_host_never_blocks_recovery() {
+        // Once the host is confirmed fenced, recovery proceeds regardless of policy.
+        for &fr in &[true, false] {
+            for &au in &[true, false] {
+                assert!(!block_recovery_unfenced(true, fr, au));
+            }
+        }
+    }
+
+    #[test]
+    fn unfenced_host_blocks_by_default() {
+        // Safe default: an unfenced host blocks recovery for every VM.
+        assert!(block_recovery_unfenced(false, false, false));
+        assert!(block_recovery_unfenced(false, true, false));
+    }
+
+    #[test]
+    fn allow_unfenced_opt_out_permits_recovery_but_fence_required_overrides() {
+        // Operator opted into unfenced recovery (non-shared storage): a default VM
+        // may recover unfenced...
+        assert!(!block_recovery_unfenced(false, false, true));
+        // ...but a VM that explicitly requires fencing still blocks.
+        assert!(block_recovery_unfenced(false, true, true));
+    }
 
     #[test]
     fn picks_first_host_that_fits() {
