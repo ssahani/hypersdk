@@ -923,6 +923,11 @@ async fn host_maintenance(state: &AppState, msg: &TaskMessage) -> anyhow::Result
                             "vm_id": vm_id.to_string(),
                             "dest_host_id": dest_id.to_string(),
                             "live": true,
+                            // Evacuation: the source host is about to be taken down for
+                            // maintenance. Undefine the source domain on successful
+                            // migration so it can't autostart there at next power-on
+                            // while it's already running on the destination (split-brain).
+                            "undefine_source": true,
                         }),
                         Some("vm"),
                         Some(vm_id),

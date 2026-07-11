@@ -130,9 +130,10 @@ What remains:
   automatic HA recovery will (correctly) not happen on a hard failure. `ha_allow_unfenced_recovery`
   (cluster setting, default off) is the explicit opt-out for **non-shared-storage** clusters.
   Not yet exercised end-to-end against real IPMI hardware — validate before relying on it.
-- **Migration/evacuation never undefines the source domain.** With `PERSIST_DEST`, an evacuated
-  VM with libvirt autostart can boot on the source at next power-on while running on the
-  destination → split-brain. Evacuation should undefine the source.
+- **Migration/evacuation source-undefine — FIXED.** Maintenance evacuation and DRS rebalance
+  now pass `undefine_source: true`, so the source domain is undefined on successful migration
+  (libvirt does this atomically only on success) and can't autostart on the source while running
+  on the destination. Manual one-off migrations still default to keeping the source unless asked.
 - **`host.maintenance` reports the host "drained" while evacuations are async/best-effort.** An
   operator can pull a host that still has running VMs. Don't power-cycle a host on the strength
   of the maintenance flag alone — confirm no running VMs remain first.

@@ -108,6 +108,10 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
                 "dest_host_id": rec.to_host_id,
                 "live": true,
                 "drs": true,
+                // The VM is being rebalanced off this host; undefine the source on
+                // success so it isn't left persistently defined (and autostart-able)
+                // on both hosts — the standard live-migration semantics.
+                "undefine_source": true,
             }),
             Some("vm"),
             Some(vm_id),
