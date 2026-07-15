@@ -287,10 +287,12 @@ test('mobile jump nav navigates security context on advanced tier', async ({ pag
   await expect(page).toHaveURL(/\/platform\/zeus\/security\/policies/)
 })
 
-test('normal tier zeus route tier bounces to settings', async ({ page }) => {
+test('normal tier zeus route renders in place without redirect', async ({ page }) => {
+  // Tier only shapes dock/sidebar density; gated routes render in place (a8bef254).
   await mockPlatformApi(page, { tier: 'normal' })
   await page.goto('/platform/zeus')
-  await expect(page).toHaveURL(/\/platform\/settings/, { timeout: 15_000 })
+  await expect(page.getByRole('heading', { name: 'Machina Zeus OS' })).toBeVisible({ timeout: 15_000 })
+  await expect(page).toHaveURL(/\/platform\/zeus/)
 })
 
 test('spotlight hides legacy Pages category on platform desktop', async ({ page }) => {

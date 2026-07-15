@@ -151,10 +151,12 @@ test('firewall policy studio multisite panel loads at advanced tier', async ({ p
   await expect(page.getByRole('button', { name: 'Export federation bundle' })).toBeVisible()
 })
 
-test('developer route redirects at power tier', async ({ page }) => {
+test('developer route renders in place at power tier', async ({ page }) => {
+  // Tier only shapes dock/sidebar density; gated routes render in place (a8bef254).
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/developer')
-  await expect(page).toHaveURL(/\/platform\/settings/, { timeout: 15_000 })
+  await expect(page.getByText('TypeScript SDK, OpenAPI console, and Terraform schemas.')).toBeVisible({ timeout: 15_000 })
+  await expect(page).toHaveURL(/\/platform\/developer/)
 })
 
 test('zeus OS fleet tab loads without JS crash', async ({ page }) => {
