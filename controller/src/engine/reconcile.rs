@@ -23,6 +23,22 @@ pub fn spawn(state: AppState) {
     });
 }
 
+/// Map a desired/observed state pair to the vm.power action that converges the
+/// VM, or None when nothing needs doing. A running-but-paused domain must be
+/// RESUMED, not started: `start` errors with "domain already running", so the
+/// VM would never converge and would re-enqueue a failing task every tick.
+fn reconcile_action(desired: &str, observed: &str) -> Option<&'static str> {
+    if desired == "running" && observed == "paused" {
+        Some("resume")
+    } else if desired == "running" && !matches!(observed, "running" | "blocked") {
+        Some("start")
+    } else if desired == "stopped" && matches!(observed, "running" | "blocked" | "paused") {
+        Some("stop")
+    } else {
+        None
+    }
+}
+
 /// Minutes to wait since the last power attempt before retrying a chronically
 /// failing reconcile op: 2^fails minutes, capped at 30. `fails == 0` → no wait.
 fn reconcile_backoff_minutes(recent_fails: i64) -> i64 {
@@ -55,18 +71,7 @@ async fn reconcile_once(state: &AppState) -> anyhow::Result<()> {
             continue;
         };
 
-        let action = if desired == "running" && observed == "paused" {
-            // A running-but-paused domain must be RESUMED, not started. `start`
-            // errors with "domain already running", so the VM would never
-            // converge and would re-enqueue a failing task every tick.
-            "resume"
-        } else if desired == "running" && !matches!(observed.as_str(), "running" | "blocked") {
-            "start"
-        } else if desired == "stopped"
-            && matches!(observed.as_str(), "running" | "blocked" | "paused")
-        {
-            "stop"
-        } else {
+        let Some(action) = reconcile_action(&desired, &observed) else {
             continue;
         };
 
@@ -143,7 +148,9 @@ async fn reconcile_once(state: &AppState) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::reconcile_backoff_minutes;
+    use super::{reconcile_action, reconcile_backoff_minutes, reconcile_once};
+    use crate::engine::test_support::test_state;
+    use uuid::Uuid;
 
     #[test]
     fn backoff_schedule() {
@@ -154,5 +161,83 @@ mod tests {
         assert_eq!(reconcile_backoff_minutes(4), 16);
         assert_eq!(reconcile_backoff_minutes(5), 30); // 32 capped to 30
         assert_eq!(reconcile_backoff_minutes(20), 30); // stays capped, no shift overflow
+    }
+
+    #[test]
+    fn action_mapping() {
+        // Paused regression: resume, never start (start = "domain already running").
+        assert_eq!(reconcile_action("running", "paused"), Some("resume"));
+        assert_eq!(reconcile_action("running", "shutoff"), Some("start"));
+        assert_eq!(reconcile_action("running", "crashed"), Some("start"));
+        // Already converged (or effectively running) → nothing to do.
+        assert_eq!(reconcile_action("running", "running"), None);
+        assert_eq!(reconcile_action("running", "blocked"), None);
+        // Stop covers every "still up" observed state, including paused.
+        assert_eq!(reconcile_action("stopped", "running"), Some("stop"));
+        assert_eq!(reconcile_action("stopped", "blocked"), Some("stop"));
+        assert_eq!(reconcile_action("stopped", "paused"), Some("stop"));
+        assert_eq!(reconcile_action("stopped", "shutoff"), None);
+    }
+
+    async fn seed_vm(pool: &sqlx::SqlitePool, desired: &str, observed: &str) -> Uuid {
+        let host_id = Uuid::from_u128(10);
+        let vm_id = Uuid::from_u128(11);
+        sqlx::query("INSERT INTO hosts (id, hostname, state) VALUES (?, 'h1', 'online')")
+            .bind(host_id)
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO vms (id, host_id, name, desired_state, observed_state)
+             VALUES (?, ?, 'vm1', ?, ?)",
+        )
+        .bind(vm_id)
+        .bind(host_id)
+        .bind(desired)
+        .bind(observed)
+        .execute(pool)
+        .await
+        .unwrap();
+        vm_id
+    }
+
+    async fn power_tasks(pool: &sqlx::SqlitePool, vm_id: Uuid) -> Vec<serde_json::Value> {
+        let rows: Vec<(serde_json::Value,)> = sqlx::query_as(
+            "SELECT payload FROM tasks WHERE resource_id = ? AND operation = 'vm.power'",
+        )
+        .bind(vm_id)
+        .fetch_all(pool)
+        .await
+        .unwrap();
+        rows.into_iter().map(|(p,)| p).collect()
+    }
+
+    #[tokio::test]
+    async fn inflight_power_task_suppresses_duplicate_enqueue() {
+        // Dedup regression: a pending vm.power task for the VM must stop the next
+        // tick from enqueueing a second, competing task.
+        let (state, _rx) = test_state().await;
+        let vm_id = seed_vm(&state.pool, "running", "shutoff").await;
+
+        reconcile_once(&state).await.unwrap();
+        let tasks = power_tasks(&state.pool, vm_id).await;
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0]["action"], serde_json::json!("start"));
+        assert_eq!(tasks[0]["reconcile"], serde_json::json!(true));
+
+        // Task is still 'pending' (no worker in tests) → second pass must not add another.
+        reconcile_once(&state).await.unwrap();
+        assert_eq!(power_tasks(&state.pool, vm_id).await.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn paused_vm_is_resumed_not_started() {
+        let (state, _rx) = test_state().await;
+        let vm_id = seed_vm(&state.pool, "running", "paused").await;
+
+        reconcile_once(&state).await.unwrap();
+        let tasks = power_tasks(&state.pool, vm_id).await;
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0]["action"], serde_json::json!("resume"));
     }
 }

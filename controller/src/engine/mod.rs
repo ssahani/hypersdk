@@ -65,6 +65,8 @@ pub mod storage_sync;
 pub mod storage_tiers;
 pub mod template;
 pub mod template_catalog;
+#[cfg(test)]
+pub(crate) mod test_support;
 pub mod template_git;
 pub mod template_image_fetch;
 pub mod template_readiness;

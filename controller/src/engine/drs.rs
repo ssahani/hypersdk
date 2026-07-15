@@ -52,20 +52,9 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
     let mut targeted_dests: std::collections::HashSet<Uuid> = std::collections::HashSet::new();
 
     for rec in recs.into_iter().take(3) {
-        if rec.score < 20.0 {
+        let Some((vm_id, dest_id)) = drs_candidate(&rec, &targeted_dests) else {
             continue;
-        }
-        let (vm_id, dest_id) = match (Uuid::parse_str(&rec.vm_id), Uuid::parse_str(&rec.to_host_id)) {
-            (Ok(v), Ok(d)) => (v, d),
-            _ => {
-                tracing::warn!(vm_id = %rec.vm_id, "DRS: malformed UUID in recommendation, skipping");
-                continue;
-            }
         };
-
-        if targeted_dests.contains(&dest_id) {
-            continue;
-        }
 
         // Skip if a migration for this VM is already pending/running. DRS re-runs
         // every 120s against metrics that don't change until the (slow) live
@@ -103,16 +92,7 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
         if let Err(e) = enqueue_task(
             state,
             "vm.migrate",
-            serde_json::json!({
-                "vm_id": rec.vm_id,
-                "dest_host_id": rec.to_host_id,
-                "live": true,
-                "drs": true,
-                // The VM is being rebalanced off this host; undefine the source on
-                // success so it isn't left persistently defined (and autostart-able)
-                // on both hosts — the standard live-migration semantics.
-                "undefine_source": true,
-            }),
+            drs_migrate_payload(&rec),
             Some("vm"),
             Some(vm_id),
             source_host,
@@ -128,6 +108,49 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
         );
     }
     Ok(())
+}
+
+/// Minimum placement score a recommendation must reach before DRS acts on it.
+const DRS_MIN_SCORE: f32 = 20.0;
+
+/// Gate one placement recommendation for this DRS pass: the score must clear
+/// `DRS_MIN_SCORE`, both UUIDs must parse, and the destination must not already
+/// be receiving a migration this pass (one inbound migration per destination —
+/// see the overcommit note on `targeted_dests` in `run_auto_migrate`).
+fn drs_candidate(
+    rec: &crate::engine::placement::PlacementRecommendationRow,
+    targeted_dests: &std::collections::HashSet<Uuid>,
+) -> Option<(Uuid, Uuid)> {
+    if rec.score < DRS_MIN_SCORE {
+        return None;
+    }
+    let (vm_id, dest_id) = match (Uuid::parse_str(&rec.vm_id), Uuid::parse_str(&rec.to_host_id)) {
+        (Ok(v), Ok(d)) => (v, d),
+        _ => {
+            tracing::warn!(vm_id = %rec.vm_id, "DRS: malformed UUID in recommendation, skipping");
+            return None;
+        }
+    };
+    if targeted_dests.contains(&dest_id) {
+        return None;
+    }
+    Some((vm_id, dest_id))
+}
+
+/// Payload of the vm.migrate task DRS enqueues. The VM is being rebalanced off
+/// its source host; undefine the source on success so it isn't left persistently
+/// defined (and autostart-able) on both hosts — the standard live-migration
+/// semantics.
+fn drs_migrate_payload(
+    rec: &crate::engine::placement::PlacementRecommendationRow,
+) -> serde_json::Value {
+    serde_json::json!({
+        "vm_id": rec.vm_id,
+        "dest_host_id": rec.to_host_id,
+        "live": true,
+        "drs": true,
+        "undefine_source": true,
+    })
 }
 
 pub async fn get_cluster_settings(pool: &SqlitePool) -> anyhow::Result<ClusterSettings> {
@@ -356,6 +379,82 @@ async fn fence_ipmi_from_controller(address: &str, user: &str, pass: &str) -> an
         Ok(format!("IPMI power off {address} (from controller)"))
     } else {
         anyhow::bail!("ipmitool failed: {}", String::from_utf8_lossy(&out.stderr).trim());
+    }
+}
+
+#[cfg(test)]
+mod drs_decision_tests {
+    use super::{drs_candidate, drs_migrate_payload, DRS_MIN_SCORE};
+    use crate::engine::placement::PlacementRecommendationRow;
+    use std::collections::HashSet;
+    use uuid::Uuid;
+
+    fn rec(vm: &str, dest: &str, score: f32) -> PlacementRecommendationRow {
+        PlacementRecommendationRow {
+            vm_id: vm.to_string(),
+            vm_name: "vm".into(),
+            from_host_id: Uuid::from_u128(9).to_string(),
+            from_host_name: "src".into(),
+            to_host_id: dest.to_string(),
+            to_host_name: "dst".into(),
+            reason: "hot host".into(),
+            score,
+        }
+    }
+
+    #[test]
+    fn low_score_recommendation_is_ignored() {
+        let vm = Uuid::from_u128(1).to_string();
+        let dest = Uuid::from_u128(2).to_string();
+        let none = HashSet::new();
+        assert!(drs_candidate(&rec(&vm, &dest, DRS_MIN_SCORE - 0.1), &none).is_none());
+        assert!(drs_candidate(&rec(&vm, &dest, DRS_MIN_SCORE), &none).is_some());
+    }
+
+    #[test]
+    fn malformed_uuid_is_skipped() {
+        let dest = Uuid::from_u128(2).to_string();
+        let none = HashSet::new();
+        assert!(drs_candidate(&rec("not-a-uuid", &dest, 50.0), &none).is_none());
+        assert!(drs_candidate(&rec(&Uuid::from_u128(1).to_string(), "", 50.0), &none).is_none());
+    }
+
+    #[test]
+    fn one_inbound_migration_per_destination_per_pass() {
+        // Overcommit guard: several hot VMs often share the same coolest host;
+        // once a destination is targeted this pass, further recs to it must wait
+        // for the next tick.
+        let vm_a = Uuid::from_u128(1);
+        let vm_b = Uuid::from_u128(2);
+        let dest = Uuid::from_u128(3);
+        let mut targeted = HashSet::new();
+
+        let first = drs_candidate(&rec(&vm_a.to_string(), &dest.to_string(), 60.0), &targeted);
+        assert_eq!(first, Some((vm_a, dest)));
+        targeted.insert(dest);
+
+        assert!(drs_candidate(&rec(&vm_b.to_string(), &dest.to_string(), 60.0), &targeted).is_none());
+        // A different destination is still allowed.
+        let other = Uuid::from_u128(4);
+        assert_eq!(
+            drs_candidate(&rec(&vm_b.to_string(), &other.to_string(), 60.0), &targeted),
+            Some((vm_b, other))
+        );
+    }
+
+    #[test]
+    fn migrate_payload_undefines_source() {
+        // Split-brain regression (c4127835): a DRS live migration must request
+        // undefine-on-success, or the VM stays persistently defined — and
+        // autostart-able — on both hosts.
+        let vm = Uuid::from_u128(1).to_string();
+        let dest = Uuid::from_u128(2).to_string();
+        let payload = drs_migrate_payload(&rec(&vm, &dest, 60.0));
+        assert_eq!(payload["undefine_source"], serde_json::json!(true));
+        assert_eq!(payload["live"], serde_json::json!(true));
+        assert_eq!(payload["drs"], serde_json::json!(true));
+        assert_eq!(payload["vm_id"], serde_json::json!(vm));
+        assert_eq!(payload["dest_host_id"], serde_json::json!(dest));
     }
 }
 
