@@ -7,10 +7,17 @@ test('reports tab exposes AI export URL links', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/reports')
   await expect(page.getByText('Machina Compliance')).toBeVisible({ timeout: 15_000 })
-  // Exports are auth-aware download buttons now, not plain <a href> links.
-  await expect(page.getByTestId('reports-compliance-export-url').first()).toBeEnabled()
-  await expect(page.getByTestId('reports-cost-export-url')).toBeEnabled()
-  await expect(page.getByTestId('reports-capacity-export-url')).toBeEnabled()
+  // Exports are auth-aware download buttons now, not plain <a href> links —
+  // click each one and assert it fetches the right export endpoint.
+  const complianceReq = page.waitForRequest(/\/ai\/compliance\/export/)
+  await page.getByTestId('reports-compliance-export-url').first().click()
+  await complianceReq
+  const costReq = page.waitForRequest(/\/ai\/cost\/export\.csv/)
+  await page.getByTestId('reports-cost-export-url').click()
+  await costReq
+  const capacityReq = page.waitForRequest(/\/ai\/capacity\/export\.csv/)
+  await page.getByTestId('reports-capacity-export-url').click()
+  await capacityReq
 })
 
 test('create VM shows libvirt templates, cloud-init generate, and RHEL URL', async ({ page }) => {

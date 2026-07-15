@@ -99,7 +99,10 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
         )
         .await
         {
+            // No task was created — don't broadcast/persist a migration event for
+            // a migration that will never happen.
             tracing::warn!(vm_id = %rec.vm_id, "DRS: failed to enqueue vm.migrate task: {e:?}");
+            continue;
         }
 
         state.emit_event(

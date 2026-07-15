@@ -62,18 +62,13 @@ async fn run_due(state: &AppState) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::run_due;
-    use crate::engine::test_support::test_state;
+    use crate::engine::test_support::{seed_host, test_state};
     use crate::state::AppState;
     use uuid::Uuid;
 
     async fn seed_schedule(state: &AppState, run_at_offset: &str) -> (Uuid, Uuid) {
-        let host_id = Uuid::from_u128(20);
+        let host_id = seed_host(&state.pool, Uuid::from_u128(20)).await;
         let sched_id = Uuid::from_u128(21);
-        sqlx::query("INSERT INTO hosts (id, hostname, state) VALUES (?, 'h1', 'online')")
-            .bind(host_id)
-            .execute(&state.pool)
-            .await
-            .unwrap();
         sqlx::query(
             "INSERT INTO maintenance_schedules (id, host_id, action, evacuate, run_at, status)
              VALUES (?, ?, 'enter', 1, datetime('now', ?), 'pending')",

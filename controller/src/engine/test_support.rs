@@ -7,18 +7,41 @@
 
 use std::sync::Arc;
 
+use sqlx::sqlite::SqlitePoolOptions;
 use tokio::sync::mpsc::UnboundedReceiver;
+use uuid::Uuid;
 
 use crate::config::ControllerConfig;
+use crate::leader::LeaderHandle;
 use crate::state::AppState;
 use crate::tasks::{bus::InMemoryTaskBus, TaskBus, TaskMessage};
 
 pub(crate) async fn test_state() -> (AppState, UnboundedReceiver<TaskMessage>) {
-    let pool = sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap();
+    // max_connections(1) is load-bearing: sqlx opens `sqlite::memory:` with a
+    // PRIVATE cache, so every pooled connection is a separate empty database —
+    // only the first one ever sees the migrated schema.
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect("sqlite::memory:")
+        .await
+        .unwrap();
     crate::db::migrate(&pool).await.expect("migrate failed");
     let config = Arc::new(ControllerConfig::default());
     let (task_bus, rx) = InMemoryTaskBus::new();
     let task_bus = task_bus as Arc<dyn TaskBus>;
-    let leader = crate::leader::spawn(pool.clone(), "test-engine".into());
-    (AppState::new(pool, config, task_bus, leader), rx)
+    (
+        AppState::new(pool, config, task_bus, LeaderHandle::disconnected()),
+        rx,
+    )
+}
+
+/// Seed one online host and return its id. Keep the INSERT here so every engine
+/// test survives hosts-schema changes by editing a single place.
+pub(crate) async fn seed_host(pool: &sqlx::SqlitePool, id: Uuid) -> Uuid {
+    sqlx::query("INSERT INTO hosts (id, hostname, state) VALUES (?, 'h1', 'online')")
+        .bind(id)
+        .execute(pool)
+        .await
+        .unwrap();
+    id
 }

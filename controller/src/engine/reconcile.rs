@@ -27,12 +27,19 @@ pub fn spawn(state: AppState) {
 /// VM, or None when nothing needs doing. A running-but-paused domain must be
 /// RESUMED, not started: `start` errors with "domain already running", so the
 /// VM would never converge and would re-enqueue a failing task every tick.
+/// A pmsuspended domain (guest-initiated S3) counts as up for desired=running:
+/// the domain is active, so the agent's `start` is a silent no-op and reconcile
+/// would enqueue a useless task every backoff interval forever — and the agent
+/// has no pmwakeup op to actually rouse the guest. It IS stoppable (destroy
+/// works on an active domain), so desired=stopped must still act.
 fn reconcile_action(desired: &str, observed: &str) -> Option<&'static str> {
     if desired == "running" && observed == "paused" {
         Some("resume")
-    } else if desired == "running" && !matches!(observed, "running" | "blocked") {
+    } else if desired == "running" && !matches!(observed, "running" | "blocked" | "pmsuspended") {
         Some("start")
-    } else if desired == "stopped" && matches!(observed, "running" | "blocked" | "paused") {
+    } else if desired == "stopped"
+        && matches!(observed, "running" | "blocked" | "paused" | "pmsuspended")
+    {
         Some("stop")
     } else {
         None
@@ -149,7 +156,7 @@ async fn reconcile_once(state: &AppState) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{reconcile_action, reconcile_backoff_minutes, reconcile_once};
-    use crate::engine::test_support::test_state;
+    use crate::engine::test_support::{seed_host, test_state};
     use uuid::Uuid;
 
     #[test]
@@ -172,21 +179,20 @@ mod tests {
         // Already converged (or effectively running) → nothing to do.
         assert_eq!(reconcile_action("running", "running"), None);
         assert_eq!(reconcile_action("running", "blocked"), None);
-        // Stop covers every "still up" observed state, including paused.
+        // Guest S3: active domain, agent start is a no-op and there's no pmwakeup —
+        // must not loop a useless task forever.
+        assert_eq!(reconcile_action("running", "pmsuspended"), None);
+        // Stop covers every "still up" observed state, including paused and S3.
         assert_eq!(reconcile_action("stopped", "running"), Some("stop"));
         assert_eq!(reconcile_action("stopped", "blocked"), Some("stop"));
         assert_eq!(reconcile_action("stopped", "paused"), Some("stop"));
+        assert_eq!(reconcile_action("stopped", "pmsuspended"), Some("stop"));
         assert_eq!(reconcile_action("stopped", "shutoff"), None);
     }
 
     async fn seed_vm(pool: &sqlx::SqlitePool, desired: &str, observed: &str) -> Uuid {
-        let host_id = Uuid::from_u128(10);
+        let host_id = seed_host(pool, Uuid::from_u128(10)).await;
         let vm_id = Uuid::from_u128(11);
-        sqlx::query("INSERT INTO hosts (id, hostname, state) VALUES (?, 'h1', 'online')")
-            .bind(host_id)
-            .execute(pool)
-            .await
-            .unwrap();
         sqlx::query(
             "INSERT INTO vms (id, host_id, name, desired_state, observed_state)
              VALUES (?, ?, 'vm1', ?, ?)",

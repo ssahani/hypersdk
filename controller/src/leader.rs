@@ -32,6 +32,17 @@ pub struct LeaderHandle {
 }
 
 impl LeaderHandle {
+    /// Inert handle for unit tests: no election task, no DB traffic, never leader.
+    /// The engine loops gate on leadership in their spawn() wrappers, not in the
+    /// per-tick functions tests call directly, so tests never consult this.
+    #[cfg(test)]
+    pub(crate) fn disconnected() -> Self {
+        Self {
+            is_leader: Arc::new(AtomicBool::new(false)),
+            lease_until_unix: Arc::new(AtomicI64::new(0)),
+        }
+    }
+
     /// True only if we hold the lease AND it hasn't (nearly) expired. The clock
     /// check means a stalled renewal task can't leave us falsely believing we're
     /// still leader past the lease.
