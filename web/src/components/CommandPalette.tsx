@@ -218,17 +218,17 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
     : new Set<string>()
 
   useEffect(() => {
-    if (!open || !onPlatformDesktop) {
+    if (!open || !onPlatformDesktop || !launchpadEnabled) {
       setLaunchpadBrokenCount(0)
       return
     }
     void launchpadHealthSummary()
       .then((h) => setLaunchpadBrokenCount((h.broken ?? 0) + (h.degraded ?? 0)))
       .catch(() => setLaunchpadBrokenCount(0))
-  }, [open, onPlatformDesktop])
+  }, [open, onPlatformDesktop, launchpadEnabled])
 
   useEffect(() => {
-    if (!open || !onPlatformDesktop || query.trim().length < 2) {
+    if (!open || !onPlatformDesktop || !launchpadEnabled || query.trim().length < 2) {
       setLaunchpadHits([])
       return
     }
@@ -243,7 +243,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
         .catch(() => setLaunchpadHits([]))
     }, 180)
     return () => window.clearTimeout(t)
-  }, [open, onPlatformDesktop, query])
+  }, [open, onPlatformDesktop, launchpadEnabled, query])
 
   useEffect(() => {
     if (!open || !platformConnected || !query.trim() || query.length < 3) {

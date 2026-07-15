@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { LayoutGrid, Loader2 } from 'lucide-react'
-import { listLaunchpadCatalog, type LaunchpadApp } from '../../api/launchpad'
+import { getLaunchpadConfig, listLaunchpadCatalog, type LaunchpadApp } from '../../api/launchpad'
 import { gradientForName, LaunchpadAppIcon, MacGlassPanel } from '../platform/mac/PlatformMacUi'
 import { LAUNCHPAD_SPACES, groupAppsBySpace } from '../../utils/launchpadSpaces'
 import { openLaunchpadApp } from '../../utils/launchpadHelpers'
@@ -16,7 +16,9 @@ export default function LaunchpadMissionControlStrip() {
 
   useEffect(() => {
     let cancelled = false
-    void listLaunchpadCatalog()
+    // Config first (cached): avoids a guaranteed 503 on hosts without Hermes.
+    void getLaunchpadConfig()
+      .then((cfg) => (cfg.enabled ? listLaunchpadCatalog() : ([] as LaunchpadApp[])))
       .then((catalog) => {
         if (!cancelled) setApps(catalog.filter((a) => a.visibility?.published !== false))
       })

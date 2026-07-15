@@ -179,15 +179,43 @@ fn is_production_anomalies_json(value: &Value) -> bool {
     value.get("anomalies").map(|v| v.is_array()).unwrap_or(false)
 }
 
+/// Availability probes are cached for this long. When the fabric is down each
+/// probe costs a full HTTP timeout (15s), and zeus-security pages fire several
+/// probes per request — uncached, a dead fabric turns every page into a pile-up
+/// of 15s stalls (and hammers a crash-looping packetwolf-api back into OOM).
+const AVAILABILITY_CACHE_SECS: u64 = 30;
+
+static AVAILABILITY_CACHE: std::sync::Mutex<[Option<(std::time::Instant, bool)>; 2]> =
+    std::sync::Mutex::new([None, None]);
+
+fn cached_probe(slot: usize, probe: impl FnOnce() -> bool) -> bool {
+    if let Ok(cache) = AVAILABILITY_CACHE.lock() {
+        if let Some((at, val)) = cache[slot] {
+            if at.elapsed().as_secs() < AVAILABILITY_CACHE_SECS {
+                return val;
+            }
+        }
+    }
+    let val = probe();
+    if let Ok(mut cache) = AVAILABILITY_CACHE.lock() {
+        cache[slot] = Some((std::time::Instant::now(), val));
+    }
+    val
+}
+
 /// Dev fabric (machina/packetwolf Python service): sensors, hunt, enforcement, ingest.
 pub fn dev_fabric_api_available(cfg: &ControllerConfig) -> bool {
-    get_json(cfg, "/api/v1/sensors").is_some_and(|v| is_fabric_sensors_json(&v))
+    cached_probe(0, || {
+        get_json(cfg, "/api/v1/sensors").is_some_and(|v| is_fabric_sensors_json(&v))
+    })
 }
 
 /// Production PacketWolf (Rust web-api): network intelligence, anomalies, runtime enforcement.
 pub fn production_network_api_available(cfg: &ControllerConfig) -> bool {
-    get_json(cfg, "/api/v1/anomalies?limit=1")
-        .is_some_and(|v| is_production_anomalies_json(&v))
+    cached_probe(1, || {
+        get_json(cfg, "/api/v1/anomalies?limit=1")
+            .is_some_and(|v| is_production_anomalies_json(&v))
+    })
 }
 
 pub fn fabric_api_available(cfg: &ControllerConfig) -> bool {

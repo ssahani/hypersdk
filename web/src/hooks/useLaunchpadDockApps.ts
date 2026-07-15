@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router'
-import { listLaunchpadFavorites, type LaunchpadApp } from '../api/launchpad'
+import { getLaunchpadConfig, listLaunchpadFavorites, type LaunchpadApp } from '../api/launchpad'
 import { LAUNCHPAD_FAVORITES_CHANGED } from '../utils/launchpadHelpers'
 
 export function useLaunchpadDockApps(limit = 4): LaunchpadApp[] {
@@ -16,7 +16,10 @@ export function useLaunchpadDockApps(limit = 4): LaunchpadApp[] {
     }
     let cancelled = false
     const refresh = () => {
-      void listLaunchpadFavorites()
+      // Check the (cached) launchpad config first: with Hermes not installed the
+      // favorites endpoint 503s on every platform page otherwise.
+      void getLaunchpadConfig()
+        .then((cfg) => (cfg.enabled ? listLaunchpadFavorites() : ([] as LaunchpadApp[])))
         .then((favs) => {
           if (!cancelled) setApps(favs.slice(0, limit))
         })
