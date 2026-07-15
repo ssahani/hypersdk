@@ -10,7 +10,12 @@ INSTALLER_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_FILE="$(mktemp /tmp/machina-platform-install-XXXXXX.log)"
 chmod 600 "$LOG_FILE"
 
-BIND_HOST="0.0.0.0"
+# Localhost by default: the web UI reaches the controller through the daemon's
+# authenticated proxy on :5092, and the controller dials the agent itself — no
+# platform port needs to be public on a single-host install. Pass --bind ADDR
+# (e.g. 0.0.0.0) only for multi-host fleets whose agents/controllers must be
+# reachable across the network.
+BIND_HOST="127.0.0.1"
 OPEN_FIREWALL=false
 DISABLE_FIREWALL=false
 PUBLIC_URL=""
@@ -32,6 +37,9 @@ usage() {
 install-platform.sh [--bind ADDR] [--open-firewall|--disable-firewalld] [--public-url URL] [--require-auth]
 
 Installs machina-controller (:5093) and machina-agent (:50051).
+Controller binds 127.0.0.1 by default (UI uses the daemon proxy on :5092);
+pass --bind 0.0.0.0 only for multi-host fleets needing a network-reachable
+control plane.
 Requires root and pre-built target/release/{machina-controller,machina-agent}.
 
 Env: MACHINA_SKIP_AUTH=0 to disable dev auth bypass in /etc/default/machina-platform
@@ -289,8 +297,8 @@ install_systemd_units() {
   step "Systemd units"
   install -Dm644 "$INSTALLER_ROOT/contrib/machina-agent.service" /usr/lib/systemd/system/machina-agent.service
   install -Dm644 "$INSTALLER_ROOT/contrib/machina-controller.service" /usr/lib/systemd/system/machina-controller.service
-  if [[ "$BIND_HOST" != "0.0.0.0" ]]; then
-    sed -i "s|--host 0.0.0.0|--host ${BIND_HOST}|" /usr/lib/systemd/system/machina-controller.service
+  if [[ "$BIND_HOST" != "127.0.0.1" ]]; then
+    sed -i "s|--host 127.0.0.1|--host ${BIND_HOST}|" /usr/lib/systemd/system/machina-controller.service
   fi
   systemctl daemon-reload
   ok "Systemd units installed"

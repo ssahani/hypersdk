@@ -60,7 +60,11 @@ DEPLOY_SSH_TTY_OPTS=()
 
 usage() {
     cat <<'EOF'
-deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--install-only|--bins-only|--e2e|--e2e-libvirt-desktop|--platform|--cleanup|--prune-sources|--dry-run]
+deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--install-only|--bins-only|--e2e|--e2e-libvirt-desktop|--platform|--platform-bind ADDR|--cleanup|--prune-sources|--dry-run]
+
+--platform-bind ADDR  Bind controller/agent to ADDR (default 127.0.0.1 behind the
+                      daemon proxy; use 0.0.0.0 for multi-host fleets). The daemon
+                      --bind is intentionally NOT forwarded to the platform.
         [--skip-platform-e2e|--skip-daemon-e2e]
         [--e2e-auth pam|ldap|oidc|auto]
         [--remote-build|--remote-check] [--bind ADDR] [--open-firewall|--disable-firewalld]
@@ -324,6 +328,7 @@ parse_flags() {
             --remote-check) REMOTE_CHECK=true; SKIP_INSTALL=true; shift ;;
             --dry-run) DRY_RUN=true; shift ;;
             --bind) shift; BIND="${1:?}"; shift ;;
+            --platform-bind) shift; PLATFORM_BIND="${1:?}"; shift ;;
             --ssh-key) shift; SSH_KEY="${1:?}"; shift ;;
             *) REST+=("$1"); shift ;;
         esac
@@ -632,7 +637,11 @@ fi
 if $INSTALL_PLATFORM; then
     phase "$PLATFORM_PHASE" "$TOTAL_STEPS" "Install platform control plane" "PostgreSQL + machina-controller :5093 + machina-agent"
     PLATFORM_OPTS=""
-    [[ -n "$BIND" ]] && PLATFORM_OPTS+=" --bind $BIND"
+    # The daemon's --bind (auto 0.0.0.0 for IPv4 targets — the UI must be public)
+    # is NOT forwarded to the platform installer: controller/agent stay on
+    # 127.0.0.1 behind the daemon proxy unless --platform-bind is passed
+    # explicitly (multi-host fleets).
+    [[ -n "${PLATFORM_BIND:-}" ]] && PLATFORM_OPTS+=" --bind $PLATFORM_BIND"
     $OPEN_FW && PLATFORM_OPTS+=" --open-firewall"
     $DISABLE_FW && PLATFORM_OPTS+=" --disable-firewalld"
     PLATFORM_OPTS+=" --public-url http://${HOST}:5093"
