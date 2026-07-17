@@ -2,6 +2,11 @@
 
 **Enterprise Linux hypervisor management platform.**
 
+
+## 📖 Feature Guide
+
+**[Machina — Customer Feature Guide](docs/machina-customer-feature-guide.md)** — a complete, customer-facing reference covering all **98 features** across **12 areas**, grounded in the product's actual capabilities. Also available as a print-ready **[PDF](docs/machina-customer-feature-guide.pdf)**.
+
 Unified control plane for **VMs, networks, storage, snapshots, and day-two operations** on bare-metal worker nodes — web UI with VNC/SPICE consoles, terminal UI, REST API, and `machinactl` for fleet automation. Built on **libvirt/QEMU/KVM**.
 
 ```text
