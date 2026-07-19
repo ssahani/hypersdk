@@ -31,4 +31,57 @@ describe('consoleAccessHints', () => {
     expect(labels).toContain('NAT guest IP')
     expect(labels).toContain('SSH not exposed')
   })
+
+  describe('windows guests', () => {
+    const winHints = {
+      auth_mode: 'unknown',
+      serial_password_login: true,
+      guest_ip_private: true,
+      ssh_nat_host_port: null,
+    }
+
+    it('offers RDP rather than an ssh command', () => {
+      // The regression: a Windows guest was told to `ssh ubuntu@…`, which it
+      // would refuse — it needs an RDP address for a native client instead.
+      const msgs = consoleAccessHints(winHints, 'shell', {
+        guestIp: '192.168.122.84',
+        sshUser: 'ubuntu',
+        hypervisorHost: 'lab.test',
+        osFamily: 'windows',
+      })
+      const joined = msgs.join(' ')
+      expect(joined).not.toContain('ssh -p')
+      expect(joined).not.toContain('ubuntu@')
+      expect(joined).toContain('Remote Desktop')
+    })
+
+    it('gives the dial address once RDP is exposed', () => {
+      const msgs = consoleAccessHints(winHints, 'shell', {
+        guestIp: '192.168.122.84',
+        hypervisorHost: 'lab.test',
+        osFamily: 'windows',
+        rdpNatHostPort: 33890,
+      })
+      expect(msgs.join(' ')).toContain('lab.test:33890')
+    })
+
+    it('labels the pill for RDP, not SSH', () => {
+      const labels = aggregateAccessNoteLabels(winHints, {
+        guestIp: '192.168.122.84',
+        osFamily: 'windows',
+      })
+      expect(labels).toContain('Windows guest')
+      expect(labels).toContain('RDP not exposed')
+      expect(labels).not.toContain('SSH not exposed')
+    })
+
+    it('leaves linux guests on the ssh path', () => {
+      const labels = aggregateAccessNoteLabels(
+        { auth_mode: 'ssh_key', serial_password_login: false, guest_ip_private: true },
+        { guestIp: '192.168.122.10', osFamily: 'linux' },
+      )
+      expect(labels).toContain('SSH not exposed')
+      expect(labels).not.toContain('Windows guest')
+    })
+  })
 })

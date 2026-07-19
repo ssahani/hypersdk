@@ -7,15 +7,57 @@ export interface GuestAccessHints {
   ssh_nat_host_port?: number | null
 }
 
+/** Windows guests are reached over RDP with a native client, not SSH. */
+export function isWindowsGuest(osFamily: string | null | undefined): boolean {
+  return (osFamily ?? '').trim().toLowerCase().startsWith('windows')
+}
+
+export interface AccessHintOpts {
+  sshUser?: string
+  guestIp?: string
+  hypervisorHost?: string
+  vmNetworkHref?: string
+  /** `os_hint` from the console plan — decides RDP vs SSH guidance. */
+  osFamily?: string
+  /** Host-side NAT port already forwarded to guest 3389, if any. */
+  rdpNatHostPort?: number | null
+}
+
 export function consoleAccessHints(
   hints: GuestAccessHints | null | undefined,
   lens: 'serial' | 'shell' | 'display' | string,
-  opts: { sshUser?: string; guestIp?: string; hypervisorHost?: string; vmNetworkHref?: string },
+  opts: AccessHintOpts,
 ): string[] {
   if (!hints) return []
   const out: string[] = []
   const user = opts.sshUser?.trim() || 'ubuntu'
   const host = opts.hypervisorHost?.trim() || 'HYPERVISOR_IP'
+  const windows = isWindowsGuest(opts.osFamily)
+
+  // Windows: the useful advice is an RDP address for Microsoft Remote Desktop,
+  // not an `ssh ubuntu@…` line the guest would refuse anyway.
+  if (windows) {
+    if (hints.guest_ip_private) {
+      if (opts.rdpNatHostPort) {
+        out.push(
+          `Windows guest ${opts.guestIp ?? ''} is on hypervisor NAT. Connect with Microsoft Remote Desktop (macOS) or mstsc (Windows) to ${host}:${opts.rdpNatHostPort}, or download the .rdp file.`.replace(
+            '  ',
+            ' ',
+          ),
+        )
+      } else {
+        const where = opts.vmNetworkHref ? ` Open ${opts.vmNetworkHref} to expose RDP.` : ' Expose RDP in VM → Network → Hypervisor NAT.'
+        out.push(
+          `Windows guest ${opts.guestIp ?? '192.168.122.x'} is on hypervisor NAT and is not reachable from your laptop.${where} Then connect with Microsoft Remote Desktop (macOS) or mstsc (Windows).`,
+        )
+      }
+    }
+    out.push(
+      'Remote Desktop must be enabled inside Windows (System → Remote Desktop). Until it is, use the display console here.',
+    )
+    return [...new Set(out)]
+  }
+
   const networkLink = opts.vmNetworkHref ? ` Open ${opts.vmNetworkHref} to expose SSH.` : ' Expose SSH in VM → Network → Hypervisor NAT.'
 
   if (lens === 'serial' && hints.auth_mode === 'ssh_key') {
@@ -48,10 +90,16 @@ export function consoleAccessHints(
 /** Short labels for the Cinema Access Note pill (deduped). */
 export function aggregateAccessNoteLabels(
   hints: GuestAccessHints | null | undefined,
-  opts: { sshUser?: string; guestIp?: string; hypervisorHost?: string },
+  opts: AccessHintOpts,
 ): string[] {
   if (!hints) return []
   const labels: string[] = []
+  if (isWindowsGuest(opts.osFamily)) {
+    labels.push('Windows guest')
+    if (hints.guest_ip_private) labels.push('NAT guest IP')
+    if (hints.guest_ip_private && !opts.rdpNatHostPort) labels.push('RDP not exposed')
+    return [...new Set(labels)]
+  }
   if (hints.auth_mode === 'ssh_key') labels.push('SSH key-only')
   if (hints.guest_ip_private) labels.push('NAT guest IP')
   if (hints.auth_mode === 'ssh_key' && !hints.serial_password_login) labels.push('Serial has no password')
@@ -61,7 +109,7 @@ export function aggregateAccessNoteLabels(
 
 export function aggregateAccessNoteMessages(
   hints: GuestAccessHints | null | undefined,
-  opts: { sshUser?: string; guestIp?: string; hypervisorHost?: string; vmNetworkHref?: string },
+  opts: AccessHintOpts,
 ): string[] {
   const serial = consoleAccessHints(hints, 'serial', opts)
   const shell = consoleAccessHints(hints, 'shell', opts)

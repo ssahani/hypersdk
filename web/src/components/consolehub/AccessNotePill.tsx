@@ -1,15 +1,22 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Copy, Terminal, AlertTriangle, GripVertical } from 'lucide-react'
+import { ChevronDown, ChevronUp, Copy, Monitor, Terminal, AlertTriangle, GripVertical } from 'lucide-react'
 import { Link } from 'react-router'
 import { formatUserError } from '../../utils/apiError'
 import {
   aggregateAccessNoteLabels,
   aggregateAccessNoteMessages,
+  isWindowsGuest,
   type GuestAccessHints,
 } from '../../utils/guestAccessHints'
-import { exposeGuestPortOnVm, laptopSshCommand, type NatRuleLike } from '../../utils/vmPortForwardServices'
+import { downloadRdpFile } from '../../api/rdp'
+import {
+  exposeGuestPortOnVm,
+  laptopSshCommand,
+  natRuleForGuestPort,
+  type NatRuleLike,
+} from '../../utils/vmPortForwardServices'
 
 type Props = {
   hints: GuestAccessHints | null | undefined
@@ -18,6 +25,8 @@ type Props = {
   sshUser?: string
   guestIp?: string
   hypervisorHost?: string
+  /** `os_hint` from the console plan — switches the note between SSH and RDP guidance. */
+  osHint?: string
   portForwardRules?: NatRuleLike[]
   onPlanRefresh?: () => void
   onNotify?: (message: string) => void
@@ -33,6 +42,7 @@ export default function AccessNotePill({
   sshUser,
   guestIp,
   hypervisorHost,
+  osHint,
   portForwardRules = [],
   onPlanRefresh,
   onNotify,
@@ -84,18 +94,27 @@ export default function AccessNotePill({
     }
   }
   const host = hypervisorHost || (typeof window !== 'undefined' ? window.location.hostname : undefined)
-  const labels = aggregateAccessNoteLabels(hints, { sshUser, guestIp, hypervisorHost: host })
-  const messages = aggregateAccessNoteMessages(hints, {
+  const windows = isWindowsGuest(osHint)
+  // A rule already forwarding a host port to guest 3389, if the operator made one.
+  const rdpNatHostPort = natRuleForGuestPort(portForwardRules, 3389)?.host_port ?? null
+  const hintOpts = {
     sshUser,
     guestIp,
     hypervisorHost: host,
+    osFamily: osHint,
+    rdpNatHostPort,
     vmNetworkHref: vmId ? `/platform/vms/${vmId}?tab=network` : undefined,
-  })
+  }
+  const labels = aggregateAccessNoteLabels(hints, hintOpts)
+  const messages = aggregateAccessNoteMessages(hints, hintOpts)
 
   if (labels.length === 0 && messages.length === 0) return null
 
   const notify = (msg: string) => onNotify?.(msg)
   const sshCmd = laptopSshCommand(sshUser || 'ubuntu', guestIp || '', host, portForwardRules)
+  // Windows: show the address a native RDP client dials, not an ssh line.
+  const rdpAddress = rdpNatHostPort ? `${host ?? 'HYPERVISOR_IP'}:${rdpNatHostPort}` : ''
+  const connectCmd = windows ? rdpAddress : sshCmd
 
   const exposeSsh = async () => {
     if (!vmId || !vmName) return
@@ -109,6 +128,29 @@ export default function AccessNotePill({
     } finally {
       setBusy(false)
     }
+  }
+
+  const exposeRdp = async () => {
+    if (!vmId || !vmName) return
+    setBusy(true)
+    try {
+      await exposeGuestPortOnVm(vmId, vmName, 3389, portForwardRules, `${vmName}-rdp`)
+      notify('RDP exposed on hypervisor — connect with Microsoft Remote Desktop or mstsc')
+      onPlanRefresh?.()
+    } catch (e: unknown) {
+      notify(formatUserError(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const downloadRdp = () => {
+    if (!vmName || !rdpNatHostPort || !host) {
+      notify('Expose RDP first, then download the .rdp file')
+      return
+    }
+    downloadRdpFile(host, rdpNatHostPort, vmName)
+    notify(`${vmName}.rdp downloaded — open it with your RDP client`)
   }
 
   const copySsh = async () => {
@@ -158,27 +200,44 @@ export default function AccessNotePill({
           {messages.map((msg) => (
             <p key={msg}>{msg}</p>
           ))}
-          {sshCmd ? (
+          {connectCmd ? (
             <pre className="rounded-lg bg-black/50 border border-white/10 p-2 font-mono text-[11px] text-emerald-200/90 overflow-x-auto">
-              {sshCmd}
+              {connectCmd}
             </pre>
           ) : null}
           <div className="flex flex-wrap gap-2 pt-1">
-            {sshCmd ? (
+            {connectCmd ? (
               <button type="button" className="btn-secondary text-xs inline-flex items-center gap-1" onClick={() => void copySsh()}>
-                <Copy className="w-3 h-3" /> Copy command
+                <Copy className="w-3 h-3" /> {windows ? 'Copy address' : 'Copy command'}
               </button>
             ) : null}
-            {hints?.guest_ip_private && !hints.ssh_nat_host_port && vmId && vmName ? (
-              <button type="button" className="btn-primary text-xs" disabled={busy} onClick={() => void exposeSsh()}>
-                {busy ? 'Exposing…' : 'Expose SSH'}
-              </button>
-            ) : null}
-            {onOpenShell ? (
-              <button type="button" className="btn-secondary text-xs inline-flex items-center gap-1" onClick={onOpenShell}>
-                <Terminal className="w-3 h-3" /> Open Shell
-              </button>
-            ) : null}
+            {windows ? (
+              <>
+                {hints?.guest_ip_private && !rdpNatHostPort && vmId && vmName ? (
+                  <button type="button" className="btn-primary text-xs" disabled={busy} onClick={() => void exposeRdp()}>
+                    {busy ? 'Exposing…' : 'Expose RDP'}
+                  </button>
+                ) : null}
+                {rdpNatHostPort ? (
+                  <button type="button" className="btn-secondary text-xs inline-flex items-center gap-1" onClick={downloadRdp}>
+                    <Monitor className="w-3 h-3" /> Download .rdp
+                  </button>
+                ) : null}
+              </>
+            ) : (
+              <>
+                {hints?.guest_ip_private && !hints.ssh_nat_host_port && vmId && vmName ? (
+                  <button type="button" className="btn-primary text-xs" disabled={busy} onClick={() => void exposeSsh()}>
+                    {busy ? 'Exposing…' : 'Expose SSH'}
+                  </button>
+                ) : null}
+                {onOpenShell ? (
+                  <button type="button" className="btn-secondary text-xs inline-flex items-center gap-1" onClick={onOpenShell}>
+                    <Terminal className="w-3 h-3" /> Open Shell
+                  </button>
+                ) : null}
+              </>
+            )}
             {onExplain ? (
               <button type="button" className="btn-secondary text-xs" onClick={onExplain}>
                 Explain

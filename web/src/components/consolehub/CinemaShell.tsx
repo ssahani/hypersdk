@@ -158,6 +158,7 @@ export default function CinemaShell({
           vmName={vmName}
           sshUser={plan?.ssh_user ?? undefined}
           guestIp={plan?.guest_ip ?? undefined}
+          osHint={plan?.os_hint}
           hypervisorHost={hypervisorAddress ?? plan?.hypervisor_address ?? undefined}
           portForwardRules={portForwardRules}
           onPlanRefresh={onPlanRefresh}
@@ -179,7 +180,7 @@ export default function CinemaShell({
                     : 'px-2 py-0.5 rounded-full text-[10px] text-slate-400 bg-black/50 border border-white/10'
                 }
               >
-                {p.replace('guacamole_', '').replace(/_/g, ' ')}
+                {p.replace(/_/g, ' ')}
               </button>
             ))}
           </div>

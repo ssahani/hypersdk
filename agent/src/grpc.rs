@@ -1852,6 +1852,65 @@ fn resolve_console_pty(xml: &str) -> Option<String> {
         })
 }
 
+/// Guess the guest OS from the domain XML alone.
+///
+/// The old check looked for the literal strings "microsoft windows" / "<os>windows",
+/// which libvirt does not normally emit, so every Windows guest fell through to
+/// "linux" and got an `ubuntu@` SSH suggestion. These signals are what libvirt and
+/// virt-install actually write for a Windows domain:
+///   * libosinfo metadata — `<libosinfo:os id="http://microsoft.com/win/11"/>`
+///   * Hyper-V enlightenments — only ever enabled for Windows guests
+///   * `<clock offset='localtime'>` — the Windows convention (Linux uses UTC)
+/// The disk/name heuristics are a last resort for hand-rolled domains carrying
+/// none of the above.
+fn detect_os_hint(xml: &str, vm_name: &str) -> String {
+    if xml.trim().is_empty() {
+        return "unknown".into();
+    }
+    let lower = xml.to_lowercase();
+
+    // Strongest: explicit libosinfo OS id.
+    if lower.contains("microsoft.com/win") {
+        return "windows".into();
+    }
+    if lower.contains("microsoft windows") || lower.contains("<os>windows") {
+        return "windows".into();
+    }
+    // Hyper-V enlightenments are Windows-only in practice.
+    if lower.contains("<hyperv") {
+        return "windows".into();
+    }
+    // Windows keeps the RTC in local time; libvirt writes this for Windows guests.
+    if lower.contains("offset='localtime'") || lower.contains("offset=\"localtime\"") {
+        return "windows".into();
+    }
+    // Weakest: disk image names / domain name.
+    let name_lower = vm_name.to_lowercase();
+    let windows_words = ["windows", "win10", "win11", "win7", "win2019", "win2022", "msedge"];
+    if windows_words.iter().any(|w| name_lower.contains(w)) {
+        return "windows".into();
+    }
+    if lower.contains(".vhdx") || windows_words.iter().any(|w| lower.contains(w)) {
+        return "windows".into();
+    }
+
+    "linux".into()
+}
+
+/// Is the guest actually listening on RDP right now?
+///
+/// Advertising RDP for every Windows guest would strand anyone whose guest has
+/// Remote Desktop switched off, so availability is probed rather than assumed.
+fn rdp_reachable(guest_ip: &str) -> bool {
+    if guest_ip.trim().is_empty() {
+        return false;
+    }
+    let Ok(addr) = format!("{guest_ip}:3389").parse::<std::net::SocketAddr>() else {
+        return false;
+    };
+    std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(400)).is_ok()
+}
+
 fn linux_cloud_serial_preferred(xml_lower: &str, os_hint: &str, desktop_golden: bool) -> bool {
     if os_hint != "linux" || desktop_golden {
         return false;
@@ -1927,7 +1986,6 @@ fn build_console_access_plan(
     libvirt: &Arc<std::sync::Mutex<libvirt_ops::LibvirtCtx>>,
     vm_name: &str,
 ) -> Result<GetConsoleAccessPlanResponse, String> {
-    use crate::guacamole_proxy::guacamole_configured;
 
     let ctx = libvirt.lock().map_err(|e| format!("libvirt lock: {e}"))?;
 
@@ -1943,15 +2001,7 @@ fn build_console_access_plan(
     };
     let mut guest_ip = String::new();
     let ssh_user = std::env::var("MACHINA_DEFAULT_SSH_USER").unwrap_or_else(|_| "ubuntu".into());
-    let mut os_hint = "unknown".to_string();
-
-    if xml.to_lowercase().contains("microsoft windows")
-        || xml.to_lowercase().contains("<os>windows")
-    {
-        os_hint = "windows".into();
-    } else if !xml.is_empty() {
-        os_hint = "linux".into();
-    }
+    let mut os_hint = detect_os_hint(&xml, vm_name);
 
     if let Ok(health) = ctx.guest_health(vm_name) {
         if !health.guest_ip.is_empty() {
@@ -1967,20 +2017,6 @@ fn build_console_access_plan(
         }
     }
 
-    let guac_up = guacamole_configured();
-    let mut protocols = Vec::new();
-    if guac_up {
-        if vnc_port > 0 {
-            protocols.push("vnc".into());
-        }
-        if !guest_ip.is_empty() {
-            protocols.push("ssh".into());
-            if os_hint == "windows" {
-                protocols.push("rdp".into());
-            }
-        }
-    }
-
     let xml_lower = xml.to_lowercase();
     let desktop_golden = xml_lower.contains("ubuntu-24.04-desktop")
         || xml_lower.contains("-desktop.qcow2")
@@ -1989,16 +2025,19 @@ fn build_console_access_plan(
     let serial_available = resolve_console_pty(&xml).is_some();
 
     // Serial is always last resort — only when no graphical display and no SSH/RDP alternative.
-    let recommended = if os_hint == "windows" && !guest_ip.is_empty() && guac_up {
-        "guacamole_rdp".into()
+    // Native RDP: `rdp_port` is non-zero only when the
+    // guest is actually listening, and that is what the controller advertises the
+    // native "rdp" protocol from.
+    let rdp_up = os_hint == "windows" && rdp_reachable(&guest_ip);
+
+    let recommended = if rdp_up {
+        "rdp".into()
     } else if console_type == "spice" {
         "spice".into()
     } else if console_type == "vnc" && vnc_port > 0 {
         "novnc".into()
     } else if desktop_golden {
         "novnc".into()
-    } else if !guest_ip.is_empty() && guac_up {
-        "guacamole_ssh".into()
     } else if serial_available {
         "serial".into()
     } else {
@@ -2013,10 +2052,9 @@ fn build_console_access_plan(
         vnc_port: i32::from(vnc_port),
         guest_ip,
         ssh_user,
-        rdp_port: 3389,
+        // 0 = no native RDP path; the controller keys the "rdp" protocol off this.
+        rdp_port: if rdp_up { 3389 } else { 0 },
         os_hint,
-        guacamole_available: guac_up,
-        guacamole_protocols: protocols,
         guest_auth_mode: guest_auth_mode_from_domain_xml(&xml),
         has_spice,
     })
@@ -2024,7 +2062,50 @@ fn build_console_access_plan(
 
 #[cfg(test)]
 mod console_plan_tests {
-    use super::{infer_guest_auth_mode, linux_cloud_serial_preferred};
+    use super::{detect_os_hint, infer_guest_auth_mode, linux_cloud_serial_preferred};
+
+    #[test]
+    fn detects_windows_from_libosinfo_metadata() {
+        let xml = r#"<domain><metadata>
+            <libosinfo:libosinfo xmlns:libosinfo="http://libosinfo.org/xmlns/libvirt/domain/1.0">
+              <libosinfo:os id="http://microsoft.com/win/11"/>
+            </libosinfo:libosinfo></metadata></domain>"#;
+        assert_eq!(detect_os_hint(xml, "vm1"), "windows");
+    }
+
+    #[test]
+    fn detects_windows_from_hyperv_enlightenments() {
+        let xml = r#"<domain><features><hyperv><relaxed state='on'/></hyperv></features></domain>"#;
+        assert_eq!(detect_os_hint(xml, "vm1"), "windows");
+    }
+
+    #[test]
+    fn detects_windows_from_localtime_clock() {
+        let xml = r#"<domain><clock offset='localtime'/></domain>"#;
+        assert_eq!(detect_os_hint(xml, "vm1"), "windows");
+    }
+
+    #[test]
+    fn detects_windows_from_domain_name() {
+        // The regression that started this: a Windows guest whose XML carries none
+        // of the strong markers was reported as "linux".
+        let xml = r#"<domain><devices><graphics type='vnc'/></devices></domain>"#;
+        assert_eq!(detect_os_hint(xml, "win10-msedge"), "windows");
+    }
+
+    #[test]
+    fn plain_linux_domain_stays_linux() {
+        let xml = r#"<domain><clock offset='utc'/>
+            <devices><disk><source file='/var/lib/libvirt/images/ubuntu.qcow2'/></disk></devices>
+        </domain>"#;
+        assert_eq!(detect_os_hint(xml, "ubuntu-server"), "linux");
+    }
+
+    #[test]
+    fn empty_xml_is_unknown() {
+        assert_eq!(detect_os_hint("", "vm1"), "unknown");
+        assert_eq!(detect_os_hint("   ", "vm1"), "unknown");
+    }
 
     #[test]
     fn ubuntu_cloud_init_iso_prefers_serial() {

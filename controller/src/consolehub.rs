@@ -1,20 +1,17 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-//! Zeus ConsoleHub — unified console plan, Guacamole sessions, same-origin reverse proxy.
+//! Zeus ConsoleHub — unified console plan and native console sessions.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use axum::body::Body;
-use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Extension, Path, Query, State};
-use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
-use axum::response::{IntoResponse, Response};
-use axum::routing::{any, get, post};
+use axum::http::{HeaderMap, HeaderValue, StatusCode};
+use axum::response::Response;
+use axum::routing::{get, post};
 use axum::{Json, Router};
-use futures_util::{SinkExt, StreamExt};
-use libvirt_guac_bridge::{bridge_from_plan, GuacBridgeTarget, GuacamoleBridgeParams};
 use machina_spec::VirtualMachine;
 use serde::{Deserialize, Serialize};
 use sqlx::types::Json as SqlxJson;
@@ -33,7 +30,6 @@ pub struct ConsoleSessionStore {
 
 #[derive(Clone)]
 struct LiveConsoleSession {
-    agent_proxy_base: String,
     expires: Instant,
 }
 
@@ -85,7 +81,6 @@ pub struct ConsoleHubPlan {
     pub vm_name: String,
     pub recommended: String,
     pub native: NativeConsoleInfo,
-    pub guacamole: GuacamoleConsoleInfo,
     pub guest_ip: Option<String>,
     pub ssh_user: Option<String>,
     pub os_hint: String,
@@ -108,19 +103,9 @@ pub struct NativeConsoleInfo {
     pub available: bool,
 }
 
-#[derive(Debug, Serialize)]
-pub struct GuacamoleConsoleInfo {
-    pub available: bool,
-    pub protocols: Vec<String>,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct CreateSessionBody {
     pub protocol: Option<String>,
-    #[serde(default)]
-    pub rdp_username: Option<String>,
-    #[serde(default)]
-    pub rdp_domain: Option<String>,
     #[serde(default)]
     pub break_glass: bool,
 }
@@ -174,14 +159,6 @@ impl ConsoleSessionStore {
         map.remove(&id);
     }
 
-    async fn get(&self, id: Uuid) -> Option<LiveConsoleSession> {
-        let map = self.inner.read().await;
-        let entry = map.get(&id)?;
-        if entry.expires < Instant::now() {
-            return None;
-        }
-        Some(entry.clone())
-    }
 }
 
 pub fn api_routes() -> Router<AppState> {
@@ -225,26 +202,6 @@ pub fn api_routes() -> Router<AppState> {
         )
 }
 
-pub fn proxy_routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/consolehub/guacamole/{session_id}/websocket-tunnel",
-            any(guac_ws_proxy),
-        )
-        .route(
-            "/consolehub/guacamole/{session_id}",
-            any(guac_http_proxy_root),
-        )
-        .route(
-            "/consolehub/guacamole/{session_id}/",
-            any(guac_http_proxy_root),
-        )
-        .route(
-            "/consolehub/guacamole/{session_id}/{*path}",
-            any(guac_http_proxy),
-        )
-}
-
 async fn vm_row(state: &AppState, id: Uuid) -> Result<(String, Uuid), ApiError> {
     let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(id)
@@ -283,10 +240,6 @@ fn kubevirt_plan(vm_id: Uuid, vm_name: &str, namespace: &str, ws_token: &str) ->
                 "/ws/v1/k8s-kubevirt/{enc_ns}/{enc_name}/console?token={ws_token}"
             ),
             available: true,
-        },
-        guacamole: GuacamoleConsoleInfo {
-            available: false,
-            protocols: vec![],
         },
         guest_ip: None,
         ssh_user: Some("cloud-user".into()),
@@ -408,35 +361,6 @@ async fn host_agent_console(pool: &sqlx::SqlitePool, host_id: Uuid) -> Result<St
     Ok(addr)
 }
 
-async fn host_guacamole_config(
-    pool: &sqlx::SqlitePool,
-    host_id: Uuid,
-    fallback: &crate::config::ControllerConfig,
-) -> (String, String, bool) {
-    let row: Option<(String, String)> = sqlx::query_as(
-        "SELECT guacamole_base_url, guacamole_json_secret_hex FROM hosts WHERE id = ?",
-    )
-    .bind(host_id)
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten();
-
-    let (base, secret) = row.unwrap_or_default();
-    let base_url = if base.trim().is_empty() {
-        fallback.guacamole_base_url.clone()
-    } else {
-        base
-    };
-    let secret_hex = if secret.trim().is_empty() {
-        fallback.guacamole_json_secret_hex.clone()
-    } else {
-        secret
-    };
-    let enabled = fallback.guacamole_enabled && !secret_hex.trim().is_empty();
-    (base_url, secret_hex, enabled)
-}
-
 fn empty_guest_access() -> GuestAccessHints {
     GuestAccessHints {
         auth_mode: "unknown".into(),
@@ -545,10 +469,6 @@ fn plan_from_agent(
             serial_ws_path: format!("/ws/v1/platform/serial/{vm_id}?token={ws_token}"),
             available: agent.vnc_port > 0 || agent.has_spice,
         },
-        guacamole: GuacamoleConsoleInfo {
-            available: agent.guacamole_available,
-            protocols: agent.guacamole_protocols.clone(),
-        },
         guest_ip: if agent.guest_ip.is_empty() {
             None
         } else {
@@ -600,10 +520,10 @@ fn build_protocol_list(agent: &machina_agent::pb::GetConsoleAccessPlanResponse) 
         out.push("webrtc_spice".into());
     }
     out.push("novnc".into());
-    if agent.guacamole_available {
-        for p in &agent.guacamole_protocols {
-            out.push(format!("guacamole_{p}"));
-        }
+    // Native RDP — the agent sets rdp_port only when a Windows guest is actually
+    // listening on 3389.
+    if agent.rdp_port > 0 && !agent.guest_ip.is_empty() {
+        out.push("rdp".into());
     }
     out.push("serial".into());
     out
@@ -673,19 +593,6 @@ pub async fn consolehub_plan(
         guest_access,
         hypervisor_address,
     );
-    let (_, _, guac_enabled) = host_guacamole_config(&state.pool, host_id, &state.config).await;
-    if !guac_enabled {
-        plan.guacamole.available = false;
-        plan.guacamole.protocols.clear();
-        plan.protocols.retain(|p| !p.starts_with("guacamole_"));
-        if plan.recommended.starts_with("guacamole_") {
-            plan.recommended = if plan.native.available {
-                "novnc".into()
-            } else {
-                "serial".into()
-            };
-        }
-    }
     policy(&mut plan);
     Ok(Json(plan))
 }
@@ -697,17 +604,14 @@ async fn check_console_rbac(
 ) -> Result<(), ApiError> {
     // Read-only roles (viewer/readonly) may only use protocols where the server can
     // enforce input suppression (the ws-token path issues a read_only token that drops
-    // input frames). RDP and serial are inherently interactive, and the Guacamole
-    // bridge issues a fully interactive session with NO read-only mode — so all of
-    // these must be blocked for read-only roles. Previously only "viewer"+rdp/serial
-    // was blocked, letting a viewer obtain full keyboard/mouse control via
-    // `guacamole_ssh`/`guacamole_vnc` (and missing the "readonly" role entirely).
+    // input frames). RDP and serial are inherently interactive — they carry a live
+    // keyboard/mouse channel with no read-only mode — so both stay blocked for
+    // read-only roles.
     if console_permissions_for(user).read_only {
-        let interactive =
-            protocol.contains("rdp") || protocol == "serial" || protocol.starts_with("guacamole");
+        let interactive = protocol.contains("rdp") || protocol == "serial";
         if interactive {
             return Err(ApiError::bad_request(
-                "read-only role cannot open interactive (RDP, serial, or Guacamole) consoles",
+                "read-only role cannot open interactive (RDP or serial) consoles",
             )
             .with_code("console_rbac")
             .with_remediation("Request operator access, or use the read-only noVNC/serial viewer."));
@@ -773,11 +677,6 @@ pub async fn create_session(
             .clone()
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "novnc".into());
-        if protocol.starts_with("guacamole_") {
-            return Err(ApiError::bad_request(
-                "Guacamole protocols are not available for KubeVirt guests",
-            ));
-        }
         check_console_rbac(&state, &user, &protocol).await?;
         if !body.break_glass {
             check_jit_approval(&state, id, &user, &protocol).await?;
@@ -799,7 +698,6 @@ pub async fn create_session(
         let session_id = state
             .console_sessions
             .insert(LiveConsoleSession {
-                agent_proxy_base: String::new(),
                 expires: Instant::now() + ttl,
             })
             .await;
@@ -876,55 +774,14 @@ pub async fn create_session(
         "http://{}",
         agent_client::normalize_agent_addr(&agent_console)
     );
-    let prefix = state.config.consolehub_proxy_prefix.trim_end_matches('/');
 
-    let (backend, guac_token, emergency_url): (String, Option<String>, Option<String>) = if protocol
-        .starts_with("guacamole_")
-    {
-        let (base_url, secret_hex, enabled) =
-            host_guacamole_config(&state.pool, host_id, &state.config).await;
-        if !enabled {
-            return Err(
-                ApiError::bad_request("Guacamole not configured on this host").with_remediation(
-                    "Run: sudo bash scripts/install-guacamole.sh on the hypervisor.",
-                ),
-            );
-        }
-        let guest_ip = agent_plan.guest_ip.clone();
-        let target = guac_target_for_protocol(
-            &protocol,
-            &vm_name,
-            &agent_plan,
-            guest_ip,
-            body.rdp_username.as_deref(),
-            body.rdp_domain.as_deref(),
-        )?;
-        let params = GuacamoleBridgeParams {
-            secret_hex: &secret_hex,
-            base_url: &base_url,
-            public_vnc_host: None,
-            fetch_token: state.config.guacamole_fetch_token,
-            username: "machina",
-        };
-        let bridge = bridge_from_plan(vm_name.clone(), target, &params)
-            .await
-            .map_err(|e| ApiError::internal(e.to_string()))?;
-        let emergency = bridge.token.as_ref().map(|t| {
-            format!(
-                "{}/#/?token={}",
-                base_url.trim_end_matches('/'),
-                urlencoding::encode(t)
-            )
-        });
-        (String::from("guacamole"), bridge.token, emergency)
-    } else {
-        (String::from("native"), None, None)
-    };
+    // Every console session is native.
+    let (backend, guac_token, emergency_url): (String, Option<String>, Option<String>) =
+        (String::from("native"), None, None);
 
     let session_id = state
         .console_sessions
         .insert(LiveConsoleSession {
-            agent_proxy_base: agent_proxy.clone(),
             expires: Instant::now() + ttl,
         })
         .await;
@@ -970,7 +827,7 @@ pub async fn create_session(
         // Roll back the just-created session if the audit insert fails. Without
         // this the DB-insert path was cleaned up but the audit path was not,
         // leaking a live, proxyable console session (in-memory entry + DB row +
-        // any provisioned guac bridge) while returning an error to the caller.
+        // the provisioned session) while returning an error to the caller.
         let pool = state.pool.clone();
         let sessions = state.console_sessions.clone();
         tokio::spawn(async move {
@@ -992,15 +849,8 @@ pub async fn create_session(
             .await;
     }
 
-    let embed_path = if backend == "guacamole" {
-        let token_q = guac_token
-            .as_deref()
-            .map(|t| format!("?token={}", urlencoding::encode(t)))
-            .unwrap_or_default();
-        format!("{prefix}/{session_id}/index.html{token_q}")
-    } else {
-        format!("/platform/vms/{id}/consolehub?session={session_id}&native=1&token={ws_token}")
-    };
+    let embed_path =
+        format!("/platform/vms/{id}/consolehub?session={session_id}&native=1&token={ws_token}");
 
     Ok(Json(ConsoleSessionResponse {
         session_id: session_id.to_string(),
@@ -1211,65 +1061,10 @@ pub async fn break_glass_session(
         Path(id),
         Json(CreateSessionBody {
             protocol: Some(body.protocol),
-            rdp_username: None,
-            rdp_domain: None,
             break_glass: true,
         }),
     )
     .await
-}
-
-fn guac_target_for_protocol(
-    protocol: &str,
-    _vm_name: &str,
-    plan: &machina_agent::pb::GetConsoleAccessPlanResponse,
-    guest_ip: String,
-    rdp_user: Option<&str>,
-    rdp_domain: Option<&str>,
-) -> Result<GuacBridgeTarget, ApiError> {
-    match protocol {
-        "guacamole_vnc" => {
-            if plan.vnc_port <= 0 {
-                return Err(ApiError::bad_request("VNC not available for this VM"));
-            }
-            Ok(GuacBridgeTarget::Vnc {
-                host: plan.vnc_host.clone(),
-                port: plan.vnc_port as u16,
-            })
-        }
-        "guacamole_rdp" => {
-            if guest_ip.is_empty() {
-                return Err(ApiError::bad_request("guest IP required for RDP"));
-            }
-            Ok(GuacBridgeTarget::Rdp {
-                host: guest_ip,
-                port: if plan.rdp_port > 0 {
-                    plan.rdp_port as u16
-                } else {
-                    3389
-                },
-                username: rdp_user.unwrap_or("Administrator").to_string(),
-                domain: rdp_domain.unwrap_or("").to_string(),
-            })
-        }
-        "guacamole_ssh" => {
-            if guest_ip.is_empty() {
-                return Err(ApiError::bad_request("guest IP required for SSH"));
-            }
-            Ok(GuacBridgeTarget::Ssh {
-                host: guest_ip,
-                port: 22,
-                username: if plan.ssh_user.is_empty() {
-                    "ubuntu".into()
-                } else {
-                    plan.ssh_user.clone()
-                },
-            })
-        }
-        other => Err(ApiError::bad_request(format!(
-            "unsupported Guacamole protocol: {other}"
-        ))),
-    }
 }
 
 pub async fn end_session(
@@ -1290,7 +1085,7 @@ pub async fn end_session(
     .bind(&user.username)
     .execute(&state.pool)
     .await?;
-    // Also drop the in-memory proxy authorization (the guac reverse-proxy gates on
+    // Also drop the in-memory proxy authorization (the console proxy gates on
     // this store) so ending a session actually stops the console immediately,
     // rather than staying proxyable until the TTL lapses. Only when the caller
     // owned the session (rows_affected > 0), matching the DB guard.
@@ -1448,222 +1243,6 @@ pub async fn approve_access_request(
     ))
 }
 
-async fn guac_http_proxy_root(
-    State(state): State<AppState>,
-    Path(session_id): Path<Uuid>,
-    req: axum::http::Request<Body>,
-) -> Result<Response, StatusCode> {
-    guac_http_proxy_impl(state, session_id, String::new(), req).await
-}
-
-async fn guac_http_proxy(
-    State(state): State<AppState>,
-    Path((session_id, path)): Path<(Uuid, String)>,
-    req: axum::http::Request<Body>,
-) -> Result<Response, StatusCode> {
-    guac_http_proxy_impl(state, session_id, path, req).await
-}
-
-/// Build the `?…` query for a hop to the agent's Guacamole reverse-proxy, preserving any
-/// inbound params and appending the shared `MACHINA_AGENT_TOKEN` as `token=` so the agent
-/// authorizes the request. Returns "" or "?a=b&token=…".
-fn build_guac_query(inbound: Option<&str>) -> String {
-    let token_param = std::env::var("MACHINA_AGENT_TOKEN")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .map(|t| format!("token={}", urlencoding::encode(&t)));
-    let base = inbound.unwrap_or("");
-    match (base.is_empty(), token_param) {
-        (true, None) => String::new(),
-        (true, Some(tp)) => format!("?{tp}"),
-        (false, None) => format!("?{base}"),
-        (false, Some(tp)) => format!("?{base}&{tp}"),
-    }
-}
-
-async fn guac_http_proxy_impl(
-    state: AppState,
-    session_id: Uuid,
-    path: String,
-    req: axum::http::Request<Body>,
-) -> Result<Response, StatusCode> {
-    let session = state
-        .console_sessions
-        .get(session_id)
-        .await
-        .ok_or(StatusCode::NOT_FOUND)?;
-
-    let (parts, body) = req.into_parts();
-    let path = path.trim_start_matches('/');
-    // Append the shared agent console token so the agent's guac reverse-proxy authorizes
-    // this hop (it rejects untokened requests when MACHINA_AGENT_TOKEN is set).
-    let query = build_guac_query(parts.uri.query());
-    let url = if path.is_empty() {
-        format!(
-            "{}/guacamole-proxy/{query}",
-            session.agent_proxy_base.trim_end_matches('/')
-        )
-    } else {
-        format!(
-            "{}/guacamole-proxy/{path}{query}",
-            session.agent_proxy_base.trim_end_matches('/')
-        )
-    };
-
-    let client = reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let method = parts.method.clone();
-    let mut rb = client.request(method.clone(), &url);
-    for (k, v) in parts.headers.iter() {
-        let name = k.as_str();
-        if matches!(
-            name,
-            "host" | "connection" | "transfer-encoding" | "upgrade" | "content-length"
-        ) {
-            continue;
-        }
-        if let Ok(s) = v.to_str() {
-            rb = rb.header(name, s);
-        }
-    }
-
-    let body_bytes = axum::body::to_bytes(body, 32 * 1024 * 1024)
-        .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    if method != Method::GET && method != Method::HEAD && !body_bytes.is_empty() {
-        rb = rb.body(body_bytes.to_vec());
-    }
-
-    let resp = match rb.send().await {
-        Ok(r) => r,
-        // Host agent gateway down (VM console tab left open, agent restarting): return a
-        // typed 503 the console UI can render as a reconnect state instead of a bare 502.
-        Err(e) if e.is_connect() || e.is_timeout() => {
-            return Response::builder()
-                .status(StatusCode::SERVICE_UNAVAILABLE)
-                .header("content-type", "application/json")
-                .body(Body::from(
-                    r#"{"error":"Console gateway unreachable","error_code":"console_gateway_unavailable"}"#,
-                ))
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR);
-        }
-        Err(_) => return Err(StatusCode::BAD_GATEWAY),
-    };
-    let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
-    let mut out = Response::builder().status(status);
-    let headers = out.headers_mut().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-    for (k, v) in resp.headers().iter() {
-        let name = k.as_str();
-        if matches!(
-            name,
-            "transfer-encoding" | "connection" | "content-encoding"
-        ) {
-            continue;
-        }
-        if let Ok(val) = HeaderValue::from_bytes(v.as_bytes()) {
-            headers.insert(k, val);
-        }
-    }
-    // The console session id is a capability carried in this proxy's URL path. Prevent
-    // it leaking to third parties via the Referer header when the console page loads
-    // any external asset — strip referrers entirely for console traffic.
-    headers.insert(
-        "referrer-policy",
-        HeaderValue::from_static("no-referrer"),
-    );
-    let bytes = resp.bytes().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
-    out.body(Body::from(bytes))
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
-}
-
-async fn guac_ws_proxy(
-    State(state): State<AppState>,
-    Path(session_id): Path<Uuid>,
-    ws: WebSocketUpgrade,
-    req: axum::http::Request<Body>,
-) -> Result<impl IntoResponse, StatusCode> {
-    let session = state
-        .console_sessions
-        .get(session_id)
-        .await
-        .ok_or(StatusCode::NOT_FOUND)?;
-    let target = format!(
-        "ws://{}/guacamole-proxy/websocket-tunnel{}",
-        agent_client::normalize_agent_addr(
-            &session
-                .agent_proxy_base
-                .strip_prefix("http://")
-                .unwrap_or(&session.agent_proxy_base)
-        ),
-        build_guac_query(req.uri().query())
-    );
-    Ok(ws.on_upgrade(move |socket| proxy_guac_ws(socket, target)))
-}
-
-async fn proxy_guac_ws(client: WebSocket, target: String) {
-    use tokio_tungstenite::{connect_async, tungstenite::Message as TsMessage};
-
-    let upstream = match connect_async(&target).await {
-        Ok((stream, _)) => stream,
-        Err(_) => {
-            let (mut sink, _) = client.split();
-            let _ = sink.close().await;
-            return;
-        }
-    };
-
-    let (mut client_sink, mut client_stream) = client.split();
-    let (mut up_sink, mut up_stream) = upstream.split();
-
-    let c2u = tokio::spawn(async move {
-        while let Some(Ok(msg)) = client_stream.next().await {
-            let out = match msg {
-                Message::Binary(b) => TsMessage::Binary(b.to_vec().into()),
-                Message::Text(t) => TsMessage::Text(t.to_string().into()),
-                Message::Ping(p) => TsMessage::Ping(p.into()),
-                Message::Pong(p) => TsMessage::Pong(p.into()),
-                Message::Close(c) => TsMessage::Close(c.map(|f| {
-                    tokio_tungstenite::tungstenite::protocol::CloseFrame {
-                        code: f.code.into(),
-                        reason: f.reason.to_string().into(),
-                    }
-                })),
-            };
-            if up_sink.send(out).await.is_err() {
-                break;
-            }
-        }
-    });
-
-    let u2c = tokio::spawn(async move {
-        while let Some(Ok(msg)) = up_stream.next().await {
-            let out = match msg {
-                TsMessage::Binary(b) => Message::Binary(b.into()),
-                TsMessage::Text(t) => Message::Text(t.to_string().into()),
-                TsMessage::Ping(p) => Message::Ping(p.into()),
-                TsMessage::Pong(p) => Message::Pong(p.into()),
-                TsMessage::Close(_) => Message::Close(None),
-                _ => continue,
-            };
-            if client_sink.send(out).await.is_err() {
-                break;
-            }
-        }
-    });
-
-    // Abort the surviving direction so a closed tab doesn't leak the upstream task/socket.
-    let c2u_abort = c2u.abort_handle();
-    let u2c_abort = u2c.abort_handle();
-    tokio::select! {
-        _ = c2u => { u2c_abort.abort(); },
-        _ = u2c => { c2u_abort.abort(); },
-    }
-}
-
-/// Extend legacy console info endpoint shape (backward compatible).
 #[derive(Debug, Deserialize)]
 pub struct ConsoleExplainBody {
     #[serde(default)]
