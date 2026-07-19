@@ -520,6 +520,12 @@ fn build_protocol_list(agent: &machina_agent::pb::GetConsoleAccessPlanResponse) 
         out.push("webrtc_spice".into());
     }
     out.push("novnc".into());
+    if !agent.guest_ip.is_empty() {
+        // In-browser shell over the daemon's PTY terminal. The daemon has always
+        // emitted this; the controller did not, leaving the platform UI to
+        // synthesize it client-side. Both planners now agree.
+        out.push("native_ssh".into());
+    }
     // Native RDP — the agent sets rdp_port only when a Windows guest is actually
     // listening on 3389.
     if agent.rdp_port > 0 && !agent.guest_ip.is_empty() {

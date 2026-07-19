@@ -10,7 +10,7 @@ import {
   cloneVM, renameVM, migrateVM, resizeDisk, attachInterface, detachInterface,
   getInterfaces, getHostname, getBootConfig, hasManagedSave, managedSave, managedSaveRemove,
   getGuestObservability, getGuestHealth, type GuestObservability, type GuestHealthReport,
-  insertCdrom, ejectCdrom, getVMLogs, getCpuTune, getMemTune, getKubeVirtBundle, KubeVirtBundle,
+  insertCdrom, ejectCdrom, installGuestAgentMedia, enableWindowsRdp, getVMLogs, getCpuTune, getMemTune, getKubeVirtBundle, KubeVirtBundle,
   postKubeVirtApply, postKubeVirtUpload, postKubeVirtStart, type KubeVirtClusterExecResult,
   getBlockJobInfo, blockCommit, blockPull, blockJobAbort, vmDetailRoute, vmConsoleRoute, appendVmConnection,
   setMemTune as applyMemTuneApi, setSchedulerTune, pinVcpu, getNumaTune, setNumaTune, pinEmulator,
@@ -179,6 +179,12 @@ export default function VMDetailsPage() {
 
   // Dialog form state
   const [cdromPath, setCdromPath] = useState('')
+  const [guestToolsBusy, setGuestToolsBusy] = useState(false)
+  // Offline RDP enablement only makes sense for Windows; fall back to the VM
+  // name when the guest agent has not reported an OS.
+  const isWindowsVm =
+    /windows|win10|win11|msedge/i.test(guestHealth?.os_pretty_name ?? '') ||
+    /windows|win10|win11|msedge/i.test(name ?? '')
   const [cdromTarget, setCdromTarget] = useState('sda')
   const [cloneName, setCloneName] = useState('')
   const [cloneMode, setCloneMode] = useState<'linked' | 'full' | 'xml'>('linked')
@@ -719,9 +725,53 @@ export default function VMDetailsPage() {
     try { await setBootOrder(name, bootDevices, conn); toast.success('Boot order updated'); setDialog(null); load(); setVmXml('') } catch (e: unknown) { toast.error(`Failed: ${formatUserError(e)}`) }
   }
 
+  const stageGuestAgent = async () => {
+    if (!name) return
+    setGuestToolsBusy(true)
+    try {
+      const r = await installGuestAgentMedia(name, conn)
+      const bits: string[] = []
+      if (r.iso_downloaded) bits.push('agent ISO downloaded')
+      bits.push(`attached at ${r.cdrom.target}`)
+      if (r.channel?.added) bits.push('guest-agent channel added')
+      if (r.requires_restart) toast.warning(`${bits.join(' · ')} — restart the VM, then run the installer from the CD`)
+      else toast.success(`${bits.join(' · ')} — ${r.next_step}`)
+      load()
+      setVmXml('')
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setGuestToolsBusy(false)
+    }
+  }
+
+  const enableRdp = async () => {
+    if (!name) return
+    setGuestToolsBusy(true)
+    try {
+      const r = await enableWindowsRdp(name, conn)
+      toast.success(`Remote Desktop enabled in the registry (${r.result.applied.length} values) — start the VM`)
+      if (r.result.firewall_manual) {
+        toast.warning('If RDP still refuses, enable the Remote Desktop inbound firewall rule inside Windows')
+      }
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setGuestToolsBusy(false)
+    }
+  }
+
   const handleInsertCdrom = async () => {
     if (!name || !cdromPath) return
-    try { await insertCdrom(name, cdromPath, cdromTarget, conn); toast.success('CD-ROM inserted'); setDialog(null); setCdromPath(''); load(); setVmXml('') } catch (e: unknown) { toast.error(`Insert failed: ${formatUserError(e)}`) }
+    try {
+      const r = await insertCdrom(name, cdromPath, cdromTarget, conn)
+      // The daemon reports whether the guest can actually see the media: a SATA
+      // drive on a running VM is staged only, and saying "inserted" sent people
+      // hunting for a CD that would not appear until reboot.
+      if (r.requires_restart) toast.warning(`${r.message} (${r.target})`)
+      else toast.success(`${r.message} (${r.target})`)
+      setDialog(null); setCdromPath(''); load(); setVmXml('')
+    } catch (e: unknown) { toast.error(`Insert failed: ${formatUserError(e)}`) }
   }
 
   const handleCreateSnapshot = async () => {
@@ -1542,6 +1592,32 @@ export default function VMDetailsPage() {
                 {guestHealth.cloud_init_status
                   ? ` · cloud-init: ${guestHealth.cloud_init_status}`
                   : ''}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn-secondary text-xs"
+                  disabled={guestToolsBusy}
+                  title="Fetch the agent ISO if needed, attach it, and add the guest-agent channel"
+                  onClick={() => void stageGuestAgent()}
+                >
+                  {guestToolsBusy ? 'Working…' : 'Install guest agent'}
+                </button>
+                {isWindowsVm && (
+                  <button
+                    type="button"
+                    className="btn-secondary text-xs"
+                    disabled={guestToolsBusy || vm?.state === 'running'}
+                    title={
+                      vm?.state === 'running'
+                        ? 'Stop the VM first — editing the registry hive of a running guest can corrupt it'
+                        : 'Set fDenyTSConnections=0 in the offline registry hive'
+                    }
+                    onClick={() => void enableRdp()}
+                  >
+                    Enable Remote Desktop
+                  </button>
+                )}
               </div>
               {guestHealth.issues.length > 0 ? (
                 <ul className={`mt-2 text-xs list-disc pl-4 ${statusToneClass('warn')}`}>

@@ -316,7 +316,8 @@ async fn download_iso(
     let (final_path, staging_path) =
         machina_core::iso_upload::resolve_upload_target(&upload_dir, &name, req.overwrite)?;
 
-    let job_id = jobs.start_iso_download(&url, &final_path.display().to_string());
+    let final_display = final_path.display().to_string();
+    let job_id = jobs.start_iso_download(&url, &final_display);
     let actor_name = actor.username.clone();
 
     tokio::spawn(async move {
@@ -427,7 +428,210 @@ async fn download_iso(
         "status": "started",
         "job_id": job_id.to_string(),
         "name": name,
-        "path": final_path.display().to_string(),
+        "path": final_display,
+    })))
+}
+
+/// Release that ships the in-guest agent bundles (ISO + MSI + Linux musl tarball).
+const GUEST_AGENT_ISO_NAME: &str = "guestkit-agent-0.3.14.iso";
+const GUEST_AGENT_ISO_URL: &str = "https://github.com/hypersdk/guestkit/releases/download/guestkit-agent-v0.3.14/guestkit-agent-0.3.14.iso";
+
+#[derive(Deserialize)]
+struct GuestAgentInstallRequest {
+    /// Override the agent ISO URL (air-gapped mirrors, pinned versions).
+    #[serde(default)]
+    iso_url: String,
+    /// Also add the QEMU guest-agent channel when the domain lacks one.
+    #[serde(default = "default_true_flag")]
+    ensure_channel: bool,
+}
+
+fn default_true_flag() -> bool {
+    true
+}
+
+/// Stage everything a guest needs to run the in-guest agent.
+///
+/// Attaching media and adding the agent channel were separate manual steps that
+/// each failed in their own way — the ISO had to be fetched out of band, the
+/// CD-ROM collided with the root disk, and a domain with no virtio channel could
+/// never talk to an agent at all. This does the three of them together and
+/// reports plainly whether the guest must restart before it can see any of it.
+async fn install_guest_agent(
+    Extension(actor): Extension<RequestActor>,
+    State(manager): State<LibvirtManager>,
+    Query(conn_q): Query<crate::conn_query::ConnQuery>,
+    Path(name): Path<String>,
+    Json(req): Json<GuestAgentInstallRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browse_host_paths(&actor)?;
+
+    let cfg = MachinaConfig::load();
+    let dir = std::path::PathBuf::from(cfg.libvirt.iso_upload_dir.trim());
+    tokio::fs::create_dir_all(&dir).await.ok();
+    let iso_path = dir.join(GUEST_AGENT_ISO_NAME);
+
+    // Fetch the agent ISO only if it is not already on the host.
+    let mut downloaded = false;
+    if !iso_path.exists() {
+        let url = if req.iso_url.trim().is_empty() {
+            GUEST_AGENT_ISO_URL.to_string()
+        } else {
+            req.iso_url.trim().to_string()
+        };
+        if !(url.starts_with("http://") || url.starts_with("https://")) {
+            return Err(AppError::from(LibvirtError::Invalid(
+                "iso_url must start with http:// or https://".into(),
+            )));
+        }
+        let staging = dir.join(format!("{GUEST_AGENT_ISO_NAME}.part"));
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(1800))
+            .build()
+            .map_err(|e| AppError::from(LibvirtError::Operation(format!("http client: {e}"))))?;
+        let resp = client.get(&url).send().await.map_err(|e| {
+            AppError::from(LibvirtError::Operation(format!(
+                "cannot fetch agent ISO: {e}"
+            )))
+        })?;
+        if !resp.status().is_success() {
+            return Err(AppError::from(LibvirtError::Operation(format!(
+                "agent ISO download returned HTTP {}",
+                resp.status()
+            ))));
+        }
+        let bytes = resp.bytes().await.map_err(|e| {
+            AppError::from(LibvirtError::Operation(format!("agent ISO transfer: {e}")))
+        })?;
+        tokio::fs::write(&staging, &bytes)
+            .await
+            .map_err(|e| AppError::from(LibvirtError::Operation(format!("write failed: {e}"))))?;
+        tokio::fs::rename(&staging, &iso_path)
+            .await
+            .map_err(|e| AppError::from(LibvirtError::Operation(format!("rename failed: {e}"))))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = tokio::fs::set_permissions(&iso_path, std::fs::Permissions::from_mode(0o644))
+                .await;
+        }
+        downloaded = true;
+    }
+
+    let iso_str = iso_path.display().to_string();
+    let vm = name.clone();
+    let ensure_channel = req.ensure_channel;
+    let iso_for_task = iso_str.clone();
+
+    let (cdrom_outcome, channel_outcome) = spawn_libvirt_actor(
+        manager,
+        Some(&actor),
+        conn_q,
+        move |conn| -> Result<_, LibvirtError> {
+            // Empty target = pick a free one; "sda" is the root disk on most guests.
+            let cd = machina_core::libvirt::cdrom::insert_cdrom(conn, &vm, &iso_for_task, "")?;
+            let ch = if ensure_channel {
+                Some(machina_core::libvirt::qga_channel::ensure_guest_agent_channel(conn, &vm)?)
+            } else {
+                None
+            };
+            Ok((cd, ch))
+        },
+    )
+    .await?;
+
+    let needs_restart =
+        cdrom_outcome.requires_restart || channel_outcome.as_ref().is_some_and(|c| c.requires_restart);
+
+    log_audit_with_actor(&actor, "guest-agent.install-media", &name, "success");
+
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "vm": name,
+        "iso_path": iso_str,
+        "iso_downloaded": downloaded,
+        "cdrom": cdrom_outcome,
+        "channel": channel_outcome,
+        "requires_restart": needs_restart,
+        "next_step": if needs_restart {
+            "Restart the VM, then run the installer from the mounted CD (Windows: the MSI; Linux: install.sh)."
+        } else {
+            "Open the VM console and run the installer from the mounted CD (Windows: the MSI; Linux: install.sh)."
+        },
+    })))
+}
+
+/// Enable Remote Desktop on a stopped Windows guest by editing its hive offline.
+async fn enable_windows_rdp(
+    Extension(actor): Extension<RequestActor>,
+    State(manager): State<LibvirtManager>,
+    Query(conn_q): Query<crate::conn_query::ConnQuery>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browse_host_paths(&actor)?;
+    let cfg = MachinaConfig::load();
+    let guestkit_bin = cfg.libvirt.guestkit_agent_binary.clone();
+    let vm = name.clone();
+
+    // Resolve the root disk and refuse while the guest is running: mutating a
+    // registry hive under a live Windows kernel can corrupt it.
+    let disk = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        let domain = machina_core::libvirt::domain::lookup_domain(conn, &vm)?;
+        let running = domain.get_info().map(|i| i.state == 1).unwrap_or(false);
+        if running {
+            return Err(LibvirtError::Invalid(
+                "stop the VM first — editing a Windows registry hive while the guest is running can corrupt it".into(),
+            ));
+        }
+        let xml = domain.get_xml_desc(0).unwrap_or_default();
+        for block in machina_core::xml::split_blocks(&xml, "disk") {
+            let device =
+                machina_core::xml::extract_attr(&block, "disk", "device").unwrap_or_default();
+            if device != "disk" {
+                continue;
+            }
+            if let Some(p) = machina_core::xml::extract_attr(&block, "source", "file") {
+                if !p.is_empty() {
+                    return Ok(p);
+                }
+            }
+        }
+        Err(LibvirtError::NotFound(
+            "no file-backed root disk found for this VM".into(),
+        ))
+    })
+    .await?;
+
+    let outcome = tokio::task::spawn_blocking(move || {
+        machina_core::libvirt::windows_rdp::enable_rdp_offline(&disk, &guestkit_bin)
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("task failed: {e}"))))??;
+
+    log_audit_with_actor(&actor, "windows.enable-rdp", &name, "success");
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "vm": name,
+        "result": outcome,
+    })))
+}
+
+async fn ensure_guest_agent_channel_handler(
+    Extension(actor): Extension<RequestActor>,
+    State(manager): State<LibvirtManager>,
+    Query(conn_q): Query<crate::conn_query::ConnQuery>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browse_host_paths(&actor)?;
+    let vm = name.clone();
+    let outcome = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        machina_core::libvirt::qga_channel::ensure_guest_agent_channel(conn, &vm)
+    })
+    .await?;
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "vm": name,
+        "channel": outcome,
     })))
 }
 
@@ -1941,6 +2145,15 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         // Browser
         .route("/browse/isos", get(list_isos))
         .route("/browse/isos/download", post(download_iso))
+        .route(
+            "/vms/{name}/guest-agent/install-media",
+            post(install_guest_agent),
+        )
+        .route(
+            "/vms/{name}/guest-agent/channel",
+            post(ensure_guest_agent_channel_handler),
+        )
+        .route("/vms/{name}/windows/enable-rdp", post(enable_windows_rdp))
         .route("/browse/dir", get(browse_directory_handler))
         .route("/browse/disks", get(list_disk_images))
         .route("/browse/disks/delete", delete(delete_disk_image))

@@ -234,7 +234,7 @@ export default function PlatformVmDetail() {
   const [attachPath, setAttachPath] = useState('/var/lib/libvirt/images/data.qcow2')
   const [attachDev, setAttachDev] = useState('vdb')
   const [isoPath, setIsoPath] = useState('/var/lib/libvirt/images/debian-12.iso')
-  const [isoTarget, setIsoTarget] = useState('sda')
+  const [isoTarget, setIsoTarget] = useState('')
   const [isoFiles, setIsoFiles] = useState<ImageFile[]>([])
   const [isoBrowseOpen, setIsoBrowseOpen] = useState(false)
   const [attachDiskBrowseOpen, setAttachDiskBrowseOpen] = useState(false)

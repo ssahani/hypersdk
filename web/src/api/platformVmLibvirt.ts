@@ -26,6 +26,7 @@ export type VmLibvirtInvokeAction =
   | 'virtiofs.remove'
   | 'watchdog.attach'
   | 'cdrom.insert'
+  | 'cdrom.detach'
   | 'cdrom.eject'
   | 'boot.set'
   | 'domain.xml.update'

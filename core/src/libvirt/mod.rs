@@ -23,6 +23,8 @@ pub mod extras;
 pub mod filesystem;
 pub mod firmware;
 pub mod graphics_convert;
+pub mod qga_channel;
+pub mod windows_rdp;
 pub mod guest_agent;
 pub mod guest_agent_actions;
 pub mod guest_agent_diag;

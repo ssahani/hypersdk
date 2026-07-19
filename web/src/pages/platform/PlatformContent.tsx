@@ -147,15 +147,44 @@ export default function PlatformContent() {
     }
   }
 
+  // Downloads that have already been added to the library, so a poll tick does
+  // not register the same finished job over and over.
+  const registeredJobsRef = useRef<Set<string>>(new Set())
+
   /** Poll the job registry while any download is still running. */
   const refreshDownloadJobs = useCallback(async () => {
     try {
       const all = await listJobs()
-      setDownloadJobs(all.filter((j) => j.kind === 'iso_download'))
+      const isoJobs = all.filter((j) => j.kind === 'iso_download')
+      setDownloadJobs(isoJobs)
+
+      // A finished download lands on the hypervisor but is invisible to the
+      // library until it is registered — uploads did this and downloads did not,
+      // so a downloaded ISO could not be picked in the Create-from-ISO wizard.
+      for (const j of isoJobs) {
+        if (j.status !== 'completed' || !j.target_path) continue
+        if (registeredJobsRef.current.has(j.id)) continue
+        registeredJobsRef.current.add(j.id)
+        const isoName = j.target_path.split('/').pop() || j.target_path
+        try {
+          await createContentImage({
+            name: isoName,
+            kind: 'iso',
+            path: j.target_path,
+            category: guessCategory(isoName),
+            size_gib: j.bytes_total ? Math.max(1, Math.round(j.bytes_total / (1024 * 1024 * 1024))) : undefined,
+          })
+          toast.success(`${isoName} added to the library`)
+          await load()
+        } catch {
+          // Most often a duplicate path from a re-download — the ISO is on the
+          // host either way, so this must not surface as a scary error.
+        }
+      }
     } catch {
       // A transient failure here must not blank the list the operator is watching.
     }
-  }, [])
+  }, [load, toast])
 
   useEffect(() => {
     void refreshDownloadJobs()

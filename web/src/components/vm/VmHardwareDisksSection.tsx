@@ -49,7 +49,7 @@ export default function VmHardwareDisksSection({
   const [attachPath, setAttachPath] = useState('/var/lib/libvirt/images/data.qcow2')
   const [attachDev, setAttachDev] = useState('vdb')
   const [isoPath, setIsoPath] = useState('/var/lib/libvirt/images/debian-12.iso')
-  const [isoTarget, setIsoTarget] = useState('sda')
+  const [isoTarget, setIsoTarget] = useState('')
   const [isoFiles, setIsoFiles] = useState<ImageFile[]>([])
   const [isoBrowseOpen, setIsoBrowseOpen] = useState(false)
   const [attachDiskBrowseOpen, setAttachDiskBrowseOpen] = useState(false)
@@ -135,6 +135,19 @@ export default function VmHardwareDisksSection({
                       onClick={() => void run('CD-ROM ejected', () => invokeVmLibvirt(vmId, 'cdrom.eject', { target: d.target }))}
                     >
                       Eject
+                    </button>
+                  )}
+                  {d.device === 'cdrom' && (
+                    // Eject only blanks the media; this removes the drive, which
+                    // previously needed `virsh detach-disk` on the hypervisor.
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs"
+                      disabled={disabled || busy}
+                      title="Remove the CD-ROM drive itself"
+                      onClick={() => void run('CD-ROM drive removed', () => invokeVmLibvirt(vmId, 'cdrom.detach', { target: d.target }))}
+                    >
+                      Remove drive
                     </button>
                   )}
                 </div>
@@ -247,16 +260,13 @@ export default function VmHardwareDisksSection({
           </label>
           <label className="text-xs text-slate-500">
             CD-ROM
-            <select className="input mt-1 block w-20" value={isoTarget} onChange={(e) => setIsoTarget(e.target.value)}>
+            <select className="input mt-1 block w-24" value={isoTarget} onChange={(e) => setIsoTarget(e.target.value)}>
+              {/* Empty = the daemon picks a free target. Hard-coding sda collided
+                  with the root disk on every SATA guest. */}
+              <option value="">auto</option>
               {(details?.disks ?? []).filter((d) => d.device === 'cdrom').map((d) => (
                 <option key={d.target} value={d.target}>{d.target}</option>
               ))}
-              {(details?.disks ?? []).filter((d) => d.device === 'cdrom').length === 0 && (
-                <>
-                  <option value="sda">sda</option>
-                  <option value="sdb">sdb</option>
-                </>
-              )}
             </select>
           </label>
           <button

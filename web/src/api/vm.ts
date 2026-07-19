@@ -650,14 +650,72 @@ export const getGuestHealth = (name: string, connection?: string | null) =>
   readJsonObject<GuestHealthReport>(
     appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/guest-health`, connection),
   )
-export const insertCdrom = (name: string, isoPath: string, target: string, connection?: string | null) =>
-  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/cdrom/insert`, connection), {
-    iso_path: isoPath,
-    target,
-  })
+export interface CdromInsertResult {
+  status: string
+  target: string
+  bus: string
+  /** False when the media is only staged and the guest must restart to see it. */
+  live: boolean
+  requires_restart: boolean
+  message: string
+}
+
+/** Insert or swap CD-ROM media. Pass an empty `target` to let the daemon pick a free one. */
+export const insertCdrom = (name: string, isoPath: string, target = '', connection?: string | null) =>
+  apiPost<CdromInsertResult>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/cdrom/insert`, connection),
+    { iso_path: isoPath, target },
+  )
+/** Blank the media, leaving the drive attached. */
 export const ejectCdrom = (name: string, target: string, connection?: string | null) =>
   apiPostVoid(
     appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/cdrom/eject/${encodeURIComponent(target)}`, connection),
+  )
+export interface GuestAgentInstallResult {
+  status: string
+  vm: string
+  iso_path: string
+  iso_downloaded: boolean
+  cdrom: { target: string; bus: string; live: boolean; requires_restart: boolean }
+  channel: { present: boolean; added: boolean; requires_restart: boolean; added_controller: boolean } | null
+  requires_restart: boolean
+  next_step: string
+}
+
+/**
+ * Stage the in-guest agent: fetch the agent ISO if the host lacks it, attach it
+ * at a free CD-ROM target, and add the QEMU guest-agent channel when missing.
+ */
+export const installGuestAgentMedia = (name: string, connection?: string | null) =>
+  apiPost<GuestAgentInstallResult>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/guest-agent/install-media`, connection),
+    {},
+  )
+
+/** Add the virtio-serial channel the QEMU guest agent talks over. */
+export const ensureGuestAgentChannel = (name: string, connection?: string | null) =>
+  apiPost<{ status: string; vm: string; channel: { added: boolean; requires_restart: boolean } }>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/guest-agent/channel`, connection),
+    {},
+  )
+
+export interface WindowsRdpEnableResult {
+  status: string
+  vm: string
+  result: { disk_path: string; applied: string[]; firewall_manual: boolean; notes: string[] }
+}
+
+/** Enable Remote Desktop offline. Requires the VM to be powered off. */
+export const enableWindowsRdp = (name: string, connection?: string | null) =>
+  apiPost<WindowsRdpEnableResult>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/windows/enable-rdp`, connection),
+    {},
+  )
+
+/** Remove the CD-ROM drive itself, not just its media. */
+export const detachCdrom = (name: string, target: string, connection?: string | null) =>
+  apiPostVoid(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/cdrom/detach/${encodeURIComponent(target)}`, connection),
   )
 
 export const addShare = (name: string, sourceDir: string, mountTag: string, xattr: boolean, connection?: string | null) =>
