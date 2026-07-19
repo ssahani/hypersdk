@@ -46,7 +46,11 @@ pub fn ensure_guest_agent_channel(
     name: &str,
 ) -> Result<ChannelOutcome, LibvirtError> {
     let domain = lookup_domain(conn, name)?;
-    let vm_xml = domain.get_xml_desc(0).unwrap_or_default();
+    // Both views: the channel and its virtio-serial controller are attached to
+    // the persistent config while the guest runs, so checking the live XML alone
+    // made this re-add a controller that already existed and fail with
+    // "controller index='0' already exists".
+    let vm_xml = super::domain::domain_xml_live_and_config(&domain);
 
     if has_guest_agent_channel(&vm_xml) {
         return Ok(ChannelOutcome {
@@ -148,5 +152,30 @@ mod tests {
         assert!(!has_virtio_serial_controller(
             "<controller type='sata' index='0'/>"
         ));
+    }
+}
+
+#[cfg(test)]
+mod staged_device_tests {
+    use super::*;
+
+    #[test]
+    fn sees_a_controller_that_exists_only_in_the_persistent_config() {
+        // The failure this pins: the controller was added config-only on a
+        // running guest, so the live XML lacked it and the next call tried to
+        // add it again — libvirt answered "controller index='0' already exists".
+        let live = "<domain><devices><disk device='disk'/></devices></domain>";
+        let inactive = "<domain><devices><controller type='virtio-serial' index='0'/></devices></domain>";
+        assert!(!has_virtio_serial_controller(live));
+        let combined = format!("{live}\n{inactive}");
+        assert!(has_virtio_serial_controller(&combined));
+    }
+
+    #[test]
+    fn sees_a_channel_that_exists_only_in_the_persistent_config() {
+        let live = "<domain><devices><disk device='disk'/></devices></domain>";
+        let inactive = "<domain><devices><channel type='unix'><target type='virtio' name='org.qemu.guest_agent.0'/></channel></devices></domain>";
+        assert!(!has_guest_agent_channel(live));
+        assert!(has_guest_agent_channel(&format!("{live}\n{inactive}")));
     }
 }

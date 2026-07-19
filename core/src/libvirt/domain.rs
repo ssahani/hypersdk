@@ -43,6 +43,26 @@ pub fn lookup_domain(conn: &Connect, name: &str) -> Result<Domain, LibvirtError>
         .map_err(|e| LibvirtError::NotFound(format!("VM '{name}' not found: {e}")))
 }
 
+/// Live XML concatenated with the persistent (inactive) definition.
+///
+/// Any device that cannot be hot-plugged — a SATA CD-ROM, a virtio-serial
+/// controller — is attached to the persistent config only while the guest runs,
+/// so it is absent from the live XML. Code that asks "does this device exist?"
+/// must consult both, or it will fail to find a device it just added and then
+/// try to add it again. Use this for existence checks, never for parsing a
+/// single authoritative value.
+pub fn domain_xml_live_and_config(domain: &Domain) -> String {
+    let live = domain.get_xml_desc(0).unwrap_or_default();
+    let inactive = domain
+        .get_xml_desc(virt::sys::VIR_DOMAIN_XML_INACTIVE)
+        .unwrap_or_default();
+    if inactive.is_empty() || inactive == live {
+        live
+    } else {
+        format!("{live}\n{inactive}")
+    }
+}
+
 fn first_guest_ipv4(_conn: &Connect, name: &str) -> Option<String> {
     // Avoid libvirt FFI interface_addresses — qemu driver can SIGSEGV on legacy guests.
     guest_ipv4_from_virsh(name)

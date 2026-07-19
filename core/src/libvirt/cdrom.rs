@@ -52,10 +52,7 @@ pub fn insert_cdrom(
     // SATA CD-ROM attached to a running guest lands in config only, so the live
     // XML alone under-reports what is taken and we would pick a target libvirt
     // then rejects with "target sdb already exists".
-    let inactive_xml = domain
-        .get_xml_desc(virt::sys::VIR_DOMAIN_XML_INACTIVE)
-        .unwrap_or_default();
-    let combined_xml = format!("{vm_xml}\n{inactive_xml}");
+    let combined_xml = super::domain::domain_xml_live_and_config(&domain);
     let target: String = if target.trim().is_empty() {
         pick_free_cdrom_target(&combined_xml, default_bus)?
     } else {
@@ -157,7 +154,10 @@ pub fn insert_cdrom(
 
 pub fn eject_cdrom(conn: &Connect, name: &str, target: &str) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, name)?;
-    let vm_xml = domain.get_xml_desc(0).unwrap_or_default();
+    // Both views: a CD-ROM staged on a running guest is config-only, and looking
+    // at the live XML alone reported "no CD-ROM at target" for a drive that
+    // demonstrably existed.
+    let vm_xml = super::domain::domain_xml_live_and_config(&domain);
     let (has_cdrom, existing_bus) = find_cdrom_device(&vm_xml, target);
 
     if !has_cdrom {
@@ -191,7 +191,7 @@ pub fn eject_cdrom(conn: &Connect, name: &str, target: &str) -> Result<(), Libvi
 /// detach-disk` on the hypervisor.
 pub fn detach_cdrom(conn: &Connect, name: &str, target: &str) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, name)?;
-    let vm_xml = domain.get_xml_desc(0).unwrap_or_default();
+    let vm_xml = super::domain::domain_xml_live_and_config(&domain);
     let (has_cdrom, existing_bus) = find_cdrom_device(&vm_xml, target);
     if !has_cdrom {
         return Err(LibvirtError::NotFound(format!(
