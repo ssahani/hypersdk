@@ -271,12 +271,16 @@ pub fn vm_invoke(
         }
         "cdrom.insert" => {
             let iso_path = payload_str(payload, "iso_path")?;
-            let target = payload
-                .get("target")
-                .and_then(|v| v.as_str())
-                .unwrap_or("sda");
-            machina_core::libvirt::cdrom::insert_cdrom(conn, vm_name, &iso_path, target)?;
-            Ok(serde_json::json!({ "status": "ok" }))
+            // Empty = let core pick a free target; "sda" is the root disk on most guests.
+            let target = payload.get("target").and_then(|v| v.as_str()).unwrap_or("");
+            let outcome =
+                machina_core::libvirt::cdrom::insert_cdrom(conn, vm_name, &iso_path, target)?;
+            Ok(serde_json::json!({
+                "status": "ok",
+                "target": outcome.target,
+                "live": outcome.live,
+                "requires_restart": outcome.requires_restart,
+            }))
         }
         "cdrom.eject" => {
             let target = payload

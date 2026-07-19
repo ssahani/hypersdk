@@ -66,6 +66,33 @@ export const browseDir = (path = '') =>
   readJsonObject<BrowseDirResponse>(`${API}/browse/dir?path=${encodeURIComponent(path)}`)
 export const listDiskImages = () => readJsonObject<BrowseFilesResponse>(`${API}/browse/disks`)
 
+export interface IsoDownloadStarted {
+  status: string
+  job_id: string
+  name: string
+  path: string
+}
+
+/** Kick off a server-side ISO download; poll `getJob(job_id)` for progress. */
+export const downloadIsoFromUrl = (body: { url: string; filename?: string; overwrite?: boolean }) =>
+  apiPost<IsoDownloadStarted>(`${API}/browse/isos/download`, body)
+
+export interface JobSummary {
+  id: string
+  kind: string
+  title: string
+  status: 'running' | 'completed' | 'failed'
+  target_path?: string
+  source_url?: string
+  error?: string
+  bytes_done?: number
+  bytes_total?: number
+  created_unix: number
+  updated_unix: number
+}
+
+export const listJobs = () => readJsonArray<JobSummary>(`${API}/jobs`)
+
 export interface IsoUploadResult {
   status: string
   name: string

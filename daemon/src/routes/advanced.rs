@@ -134,12 +134,10 @@ async fn get_guest_health(
 #[derive(serde::Deserialize)]
 struct CdromRequest {
     iso_path: String,
-    #[serde(default = "default_cdrom_target")]
+    /// Omit to let the daemon pick a free target. The old fixed default of "sda"
+    /// collided with the root disk on every SATA guest.
+    #[serde(default)]
     target: String,
-}
-
-fn default_cdrom_target() -> String {
-    "sda".to_string()
 }
 
 async fn insert_cdrom_handler(
@@ -151,13 +149,44 @@ async fn insert_cdrom_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_write(&actor, "vms:write")?;
     let name2 = name.clone();
-    let target = req.target.clone();
-    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+    let outcome = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         cdrom::insert_cdrom(conn, &name2, &req.iso_path, &req.target)
     })
     .await?;
+    // Say plainly when the media is only staged: a SATA drive attached to a
+    // running guest is invisible until reboot, and reporting a bare "inserted"
+    // sent operators hunting for a CD that was never going to appear.
+    let message = if outcome.requires_restart {
+        "CD-ROM staged — restart the VM for the guest to see it"
+    } else {
+        "CD-ROM inserted"
+    };
+    Ok(Json(serde_json::json!({
+        "status": "inserted",
+        "name": name,
+        "target": outcome.target,
+        "bus": outcome.bus,
+        "live": outcome.live,
+        "requires_restart": outcome.requires_restart,
+        "message": message,
+    })))
+}
+
+async fn detach_cdrom_handler(
+    State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
+    Path((name, target)): Path<(String, String)>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
+    let name2 = name.clone();
+    let target2 = target.clone();
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        cdrom::detach_cdrom(conn, &name2, &target2)
+    })
+    .await?;
     Ok(Json(
-        serde_json::json!({ "status": "inserted", "name": name, "target": target }),
+        serde_json::json!({ "status": "detached", "name": name, "target": target }),
     ))
 }
 
@@ -993,6 +1022,10 @@ pub fn advanced_routes() -> Router<LibvirtManager> {
         .route(
             "/vms/{name}/cdrom/eject/{target}",
             post(eject_cdrom_handler),
+        )
+        .route(
+            "/vms/{name}/cdrom/detach/{target}",
+            post(detach_cdrom_handler),
         )
         // Shared directories (virtiofs)
         .route("/vms/{name}/share", post(add_share_handler))

@@ -242,6 +242,195 @@ async fn upload_iso(
     })))
 }
 
+#[derive(Deserialize)]
+struct IsoDownloadRequest {
+    /// http(s) URL of the ISO to fetch onto the hypervisor.
+    url: String,
+    /// Optional override; otherwise derived from the URL's last path segment.
+    #[serde(default)]
+    filename: String,
+    #[serde(default)]
+    overwrite: bool,
+}
+
+/// Limits concurrent downloads so a burst cannot saturate the hypervisor's link
+/// or fill the pool filesystem. Excess requests queue rather than being refused.
+static ISO_DOWNLOAD_SEM: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(3));
+
+/// Start a server-side ISO download and return a job to poll.
+///
+/// Downloads run on the hypervisor rather than through the operator's browser,
+/// so they survive navigation, and several can run at once — the response is a
+/// job id, not the finished file.
+async fn download_iso(
+    Extension(actor): Extension<RequestActor>,
+    Extension(jobs): Extension<std::sync::Arc<crate::job_registry::JobRegistry>>,
+    Json(req): Json<IsoDownloadRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browse_host_paths(&actor)?;
+
+    let cfg = MachinaConfig::load();
+    let max_gib = cfg.libvirt.iso_upload_max_gib;
+    if max_gib == 0 {
+        return Err(AppError::from(LibvirtError::Forbidden(
+            "ISO download is disabled ([libvirt] iso_upload_max_gib = 0)".into(),
+        )));
+    }
+    let max_bytes = max_gib.saturating_mul(1024 * 1024 * 1024);
+
+    let url = req.url.trim().to_string();
+    // Only plain http(s): the daemon runs as root, so `file://` or other schemes
+    // would turn this into an arbitrary-read primitive.
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Err(AppError::from(LibvirtError::Invalid(
+            "URL must start with http:// or https://".into(),
+        )));
+    }
+
+    // Derive a filename from the URL when the caller did not supply one.
+    let raw_name = if req.filename.trim().is_empty() {
+        url.split('?')
+            .next()
+            .unwrap_or(&url)
+            .rsplit('/')
+            .next()
+            .unwrap_or("")
+            .to_string()
+    } else {
+        req.filename.trim().to_string()
+    };
+    let name = machina_core::iso_upload::sanitize_iso_filename(&raw_name).map_err(|e| {
+        AppError::from(LibvirtError::Invalid(format!(
+            "{e} — pass an explicit `filename` ending in .iso"
+        )))
+    })?;
+
+    let upload_dir = cfg.libvirt.iso_upload_dir.clone();
+    let dir = std::path::PathBuf::from(upload_dir.trim());
+    tokio::fs::create_dir_all(&dir).await.map_err(|e| {
+        AppError::from(LibvirtError::Operation(format!(
+            "cannot create ISO directory {}: {e}",
+            dir.display()
+        )))
+    })?;
+    let (final_path, staging_path) =
+        machina_core::iso_upload::resolve_upload_target(&upload_dir, &name, req.overwrite)?;
+
+    let job_id = jobs.start_iso_download(&url, &final_path.display().to_string());
+    let actor_name = actor.username.clone();
+
+    tokio::spawn(async move {
+        use futures_util::StreamExt;
+        use tokio::io::AsyncWriteExt;
+
+        let _permit = ISO_DOWNLOAD_SEM.acquire().await;
+        jobs.append_log(job_id, &format!("GET {url}"));
+
+        let fail = |jobs: &crate::job_registry::JobRegistry, msg: String| {
+            jobs.append_log(job_id, &msg);
+            jobs.fail(job_id, &msg);
+        };
+
+        let client = match reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(6 * 60 * 60))
+            .build()
+        {
+            Ok(c) => c,
+            Err(e) => return fail(&jobs, format!("http client: {e}")),
+        };
+        let resp = match client.get(&url).send().await {
+            Ok(r) => r,
+            Err(e) => return fail(&jobs, format!("request failed: {e}")),
+        };
+        if !resp.status().is_success() {
+            return fail(&jobs, format!("server returned HTTP {}", resp.status()));
+        }
+        let total = resp.content_length();
+        if let Some(t) = total {
+            if t > max_bytes {
+                return fail(
+                    &jobs,
+                    format!("remote file is {} GiB; limit is {max_gib} GiB", t / (1024 * 1024 * 1024)),
+                );
+            }
+            jobs.set_download_total(job_id, Some(t));
+            if let Err(e) = machina_core::iso_upload::check_free_space(&dir, t) {
+                return fail(&jobs, e.to_string());
+            }
+        }
+
+        let mut file = match tokio::fs::File::create(&staging_path).await {
+            Ok(f) => f,
+            Err(e) => return fail(&jobs, format!("cannot open {}: {e}", staging_path.display())),
+        };
+
+        let mut written: u64 = 0;
+        let mut stream = resp.bytes_stream();
+        let mut last_report = 0u64;
+        while let Some(chunk) = stream.next().await {
+            let chunk = match chunk {
+                Ok(c) => c,
+                Err(e) => {
+                    let _ = tokio::fs::remove_file(&staging_path).await;
+                    return fail(&jobs, format!("transfer interrupted: {e}"));
+                }
+            };
+            written = written.saturating_add(chunk.len() as u64);
+            if written > max_bytes {
+                let _ = tokio::fs::remove_file(&staging_path).await;
+                return fail(&jobs, format!("download exceeds the {max_gib} GiB limit"));
+            }
+            if let Err(e) = file.write_all(&chunk).await {
+                let _ = tokio::fs::remove_file(&staging_path).await;
+                return fail(&jobs, format!("write failed: {e}"));
+            }
+            // Report every 8 MiB rather than every chunk — the registry takes a
+            // mutex, and a 3 GiB ISO is ~200k chunks.
+            if written - last_report >= 8 * 1024 * 1024 {
+                last_report = written;
+                jobs.update_download_progress(job_id, written);
+            }
+        }
+
+        if let Err(e) = file.flush().await.and(file.sync_all().await) {
+            let _ = tokio::fs::remove_file(&staging_path).await;
+            return fail(&jobs, format!("flush failed: {e}"));
+        }
+        drop(file);
+
+        if written == 0 {
+            let _ = tokio::fs::remove_file(&staging_path).await;
+            return fail(&jobs, "downloaded file is empty".into());
+        }
+        if let Err(e) = tokio::fs::rename(&staging_path, &final_path).await {
+            let _ = tokio::fs::remove_file(&staging_path).await;
+            return fail(&jobs, format!("cannot finalise: {e}"));
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = tokio::fs::set_permissions(&final_path, std::fs::Permissions::from_mode(0o644))
+                .await;
+        }
+
+        jobs.update_download_progress(job_id, written);
+        jobs.append_log(job_id, &format!("saved {} ({written} bytes)", final_path.display()));
+        jobs.complete_iso_download(job_id, &final_path.display().to_string(), written);
+        log_audit(
+            "iso.download",
+            &format!("{} <- {url} by {actor_name}", final_path.display()),
+            "success",
+        );
+    });
+
+    Ok(Json(serde_json::json!({
+        "status": "started",
+        "job_id": job_id.to_string(),
+        "name": name,
+        "path": final_path.display().to_string(),
+    })))
+}
+
 async fn list_disk_images(
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<extras::BrowseFilesResponse>, AppError> {
@@ -1751,6 +1940,7 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         .merge(iso_upload)
         // Browser
         .route("/browse/isos", get(list_isos))
+        .route("/browse/isos/download", post(download_iso))
         .route("/browse/dir", get(browse_directory_handler))
         .route("/browse/disks", get(list_disk_images))
         .route("/browse/disks/delete", delete(delete_disk_image))

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { Check, Disc, Plus, RefreshCw, ShieldAlert, ShieldCheck, Upload, X } from 'lucide-react'
+import { Check, Disc, Download, Plus, RefreshCw, ShieldAlert, ShieldCheck, Upload, X } from 'lucide-react'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformFilterPills from '../../components/platform/PlatformFilterPills'
@@ -15,7 +15,7 @@ import {
   rejectContentImage,
   type ContentImage,
 } from '../../api/platform'
-import { uploadIso } from '../../api/extras'
+import { uploadIso, downloadIsoFromUrl, listJobs, type JobSummary } from '../../api/extras'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusBadgeClasses, statusSurfaceClasses, statusToneClass } from '../../utils/semanticColors'
@@ -56,7 +56,9 @@ export default function PlatformContent() {
   const [description, setDescription] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null)
-  const [uploadMode, setUploadMode] = useState<'file' | 'path'>('file')
+  const [uploadMode, setUploadMode] = useState<'file' | 'url' | 'path'>('file')
+  const [downloadUrl, setDownloadUrl] = useState('')
+  const [downloadJobs, setDownloadJobs] = useState<JobSummary[]>([])
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadPct, setUploadPct] = useState(0)
   const [uploading, setUploading] = useState(false)
@@ -142,6 +144,39 @@ export default function PlatformContent() {
       setUploading(false)
       setUploadPct(0)
       uploadAbortRef.current = null
+    }
+  }
+
+  /** Poll the job registry while any download is still running. */
+  const refreshDownloadJobs = useCallback(async () => {
+    try {
+      const all = await listJobs()
+      setDownloadJobs(all.filter((j) => j.kind === 'iso_download'))
+    } catch {
+      // A transient failure here must not blank the list the operator is watching.
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshDownloadJobs()
+  }, [refreshDownloadJobs])
+
+  useEffect(() => {
+    if (!downloadJobs.some((j) => j.status === 'running')) return
+    const t = setInterval(() => void refreshDownloadJobs(), 2000)
+    return () => clearInterval(t)
+  }, [downloadJobs, refreshDownloadJobs])
+
+  const startDownload = async () => {
+    const url = downloadUrl.trim()
+    if (!url) return
+    try {
+      const started = await downloadIsoFromUrl({ url, overwrite: true })
+      toast.success(`Downloading ${started.name} — track it below`)
+      setDownloadUrl('')
+      await refreshDownloadJobs()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
     }
   }
 
@@ -305,10 +340,11 @@ export default function PlatformContent() {
           <PlatformFilterPills
             options={[
               { id: 'file', label: 'Upload from this computer' },
+              { id: 'url', label: 'Download from a URL' },
               { id: 'path', label: 'Register a host path' },
             ]}
             value={uploadMode}
-            onChange={(v) => setUploadMode(v as 'file' | 'path')}
+            onChange={(v) => setUploadMode(v as 'file' | 'url' | 'path')}
           />
 
           {uploadMode === 'file' ? (
@@ -353,6 +389,57 @@ export default function PlatformContent() {
                   </button>
                 )}
               </div>
+            </>
+          ) : uploadMode === 'url' ? (
+            <>
+              <input
+                className="input w-full font-mono text-xs"
+                aria-label="ISO URL"
+                placeholder="https://releases.ubuntu.com/…/ubuntu-24.04-live-server-amd64.iso"
+                value={downloadUrl}
+                onChange={(e) => setDownloadUrl(e.target.value)}
+              />
+              <p className="text-xs text-slate-500">
+                The hypervisor fetches this directly — far faster than uploading from your laptop, and it keeps
+                running if you close this tab. Several downloads can run at once.
+              </p>
+              <button type="button" className="btn-primary w-full flex items-center justify-center gap-2" disabled={!downloadUrl.trim()} onClick={() => void startDownload()}>
+                <Download className="w-4 h-4" /> Start download
+              </button>
+
+              {downloadJobs.length > 0 && (
+                <div className="space-y-2 pt-2 border-t border-white/[0.06]">
+                  <p className="text-xs text-slate-400">Downloads</p>
+                  {downloadJobs.slice(0, 6).map((j) => {
+                    const pct = j.bytes_total && j.bytes_total > 0
+                      ? Math.min(100, Math.round(((j.bytes_done ?? 0) / j.bytes_total) * 100))
+                      : null
+                    return (
+                      <div key={j.id} className="space-y-1">
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <span className="truncate text-slate-300">{j.title.replace('Download ISO: ', '')}</span>
+                          <span className={
+                            j.status === 'failed' ? 'text-red-300'
+                              : j.status === 'completed' ? 'text-emerald-300'
+                                : 'text-slate-400'
+                          }>
+                            {j.status === 'running'
+                              ? (pct !== null ? `${pct}%` : `${Math.round((j.bytes_done ?? 0) / (1024 * 1024))} MB`)
+                              : j.status}
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
+                          <div
+                            className={`h-full transition-all ${j.status === 'failed' ? 'bg-red-500' : j.status === 'completed' ? 'bg-emerald-500' : 'bg-sky-500'} ${pct === null && j.status === 'running' ? 'animate-pulse' : ''}`}
+                            style={{ width: j.status === 'completed' ? '100%' : `${pct ?? 100}%` }}
+                          />
+                        </div>
+                        {j.error ? <p className="text-[11px] text-red-300/90">{j.error}</p> : null}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </>
           ) : (
             <>

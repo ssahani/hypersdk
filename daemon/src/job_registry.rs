@@ -19,6 +19,7 @@ pub enum JobKind {
     VirtImageBuild,
     VmCreate,
     PackerGoldenBuild,
+    IsoDownload,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -41,6 +42,15 @@ pub struct JobSummary {
     pub target_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// Bytes transferred so far — set by downloads, absent for build jobs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bytes_done: Option<u64>,
+    /// Total size when the server advertises Content-Length; `None` means the
+    /// UI must show an indeterminate bar rather than a wrong percentage.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bytes_total: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_url: Option<String>,
     pub created_unix: u64,
     pub updated_unix: u64,
 }
@@ -92,6 +102,9 @@ impl JobRegistry {
                 vm_name: None,
                 target_path: Some(output.trim().to_string()),
                 error: None,
+                bytes_done: None,
+                bytes_total: None,
+                source_url: None,
                 created_unix: ts,
                 updated_unix: ts,
             },
@@ -121,6 +134,9 @@ impl JobRegistry {
                 vm_name: Some(vm_name.to_string()),
                 target_path: None,
                 error: None,
+                bytes_done: None,
+                bytes_total: None,
+                source_url: None,
                 created_unix: ts,
                 updated_unix: ts,
             },
@@ -150,6 +166,9 @@ impl JobRegistry {
                 vm_name: None,
                 target_path: None,
                 error: None,
+                bytes_done: None,
+                bytes_total: None,
+                source_url: None,
                 created_unix: ts,
                 updated_unix: ts,
             },
@@ -165,6 +184,66 @@ impl JobRegistry {
             }
         }
         id
+    }
+
+    /// Register a queued ISO download. Progress arrives via `update_download_progress`.
+    pub fn start_iso_download(&self, url: &str, dest: &str) -> Uuid {
+        let id = Uuid::new_v4();
+        let ts = Self::now();
+        let name = dest.rsplit('/').next().unwrap_or(dest);
+        let inner = JobInner {
+            summary: JobSummary {
+                id: id.to_string(),
+                kind: JobKind::IsoDownload,
+                title: format!("Download ISO: {name}"),
+                status: JobStatus::Running,
+                vm_name: None,
+                target_path: Some(dest.to_string()),
+                error: None,
+                bytes_done: Some(0),
+                bytes_total: None,
+                source_url: Some(url.to_string()),
+                created_unix: ts,
+                updated_unix: ts,
+            },
+            logs: Vec::new(),
+        };
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        g.insert(id, inner);
+        let mut o = self.order.lock().unwrap_or_else(|e| e.into_inner());
+        o.push_front(id);
+        while o.len() > MAX_JOBS {
+            if let Some(old) = o.pop_back() {
+                g.remove(&old);
+            }
+        }
+        id
+    }
+
+    pub fn set_download_total(&self, id: Uuid, total: Option<u64>) {
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(j) = g.get_mut(&id) {
+            j.summary.bytes_total = total;
+            j.summary.updated_unix = Self::now();
+        }
+    }
+
+    pub fn update_download_progress(&self, id: Uuid, bytes_done: u64) {
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(j) = g.get_mut(&id) {
+            j.summary.bytes_done = Some(bytes_done);
+            j.summary.updated_unix = Self::now();
+        }
+    }
+
+    pub fn complete_iso_download(&self, id: Uuid, path: &str, bytes: u64) {
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(j) = g.get_mut(&id) {
+            j.summary.status = JobStatus::Completed;
+            j.summary.target_path = Some(path.to_string());
+            j.summary.bytes_done = Some(bytes);
+            j.summary.updated_unix = Self::now();
+        }
     }
 
     pub fn append_log(&self, id: Uuid, line: &str) {
