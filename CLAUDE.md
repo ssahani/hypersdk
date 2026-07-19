@@ -163,6 +163,7 @@ Platform desktop has three density tiers (Normal / Power User / Advanced), switc
 - **Web unit tests**: `cd web && npm test` (vitest)
 - **Web E2E**: `cd web && npm run test:e2e` (Playwright; requires a running daemon)
 - **API smoke test**: `./machinactl verify` or `VSPASS=… ./scripts/e2e-test.sh https://HOST:5092 USER`
+- **Media / guest-tools features**: `./scripts/feature-test.sh HOST USER PASS` — ISO upload+download jobs, CD-ROM lifecycle, guest-agent channel, console plan. Asserts each feature's failure mode too, not just the happy path.
 - **30-step API demo**: `sudo ./scripts/demo.sh`
 
 ---
