@@ -47,8 +47,17 @@ pub fn insert_cdrom(
     let vm_xml = domain.get_xml_desc(0).unwrap_or_default();
     let default_bus = detect_best_bus(&vm_xml);
     // An empty target means "wherever it fits" — see pick_free_cdrom_target.
+    //
+    // The picker must see the persistent config as well as the live domain: a
+    // SATA CD-ROM attached to a running guest lands in config only, so the live
+    // XML alone under-reports what is taken and we would pick a target libvirt
+    // then rejects with "target sdb already exists".
+    let inactive_xml = domain
+        .get_xml_desc(virt::sys::VIR_DOMAIN_XML_INACTIVE)
+        .unwrap_or_default();
+    let combined_xml = format!("{vm_xml}\n{inactive_xml}");
     let target: String = if target.trim().is_empty() {
-        pick_free_cdrom_target(&vm_xml, default_bus)?
+        pick_free_cdrom_target(&combined_xml, default_bus)?
     } else {
         target.trim().to_string()
     };
@@ -381,5 +390,27 @@ mod tests {
         let used = used_targets(xml);
         assert!(used.contains(&"sda".to_string()));
         assert!(used.contains(&"sdb".to_string()));
+    }
+}
+
+#[cfg(test)]
+mod staged_device_tests {
+    use super::*;
+
+    #[test]
+    fn avoids_a_target_that_exists_only_in_the_persistent_config() {
+        // Live XML shows just the root disk, because a SATA CD-ROM attached to a
+        // running guest lands in config only. Picking from the live view alone
+        // chose sdb — which libvirt then rejected as already existing.
+        let live = r#"<domain><devices>
+            <disk device='disk'><target dev='sda' bus='sata'/></disk>
+        </devices></domain>"#;
+        let inactive = r#"<domain><devices>
+            <disk device='disk'><target dev='sda' bus='sata'/></disk>
+            <disk device='cdrom'><target dev='sdb' bus='sata'/></disk>
+        </devices></domain>"#;
+        assert_eq!(pick_free_cdrom_target(live, "sata").unwrap(), "sdb");
+        let combined = format!("{live}\n{inactive}");
+        assert_eq!(pick_free_cdrom_target(&combined, "sata").unwrap(), "sdc");
     }
 }
