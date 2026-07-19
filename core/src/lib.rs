@@ -17,6 +17,7 @@ pub mod host_linux_obs;
 pub mod host_platform;
 pub mod host_virt;
 pub mod identity_settings;
+pub mod iso_upload;
 pub mod k8s_top;
 pub mod kubevirt;
 pub mod ldap_role;

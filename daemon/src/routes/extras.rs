@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-use axum::extract::{Extension, Path, Query, State};
+use axum::extract::{DefaultBodyLimit, Extension, Path, Query, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use machina_core::build_precheck;
@@ -74,6 +74,172 @@ async fn list_isos(
         .await
         .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(Json(res))
+}
+
+#[derive(Deserialize)]
+struct IsoUploadQuery {
+    /// Bare filename chosen by the browser (never a path — see `iso_upload::sanitize_iso_filename`).
+    filename: String,
+    #[serde(default)]
+    overwrite: bool,
+}
+
+/// Stream a browser-supplied ISO to the configured upload directory.
+///
+/// The body is written straight to disk in chunks so a multi-GiB Windows ISO
+/// never has to fit in memory. Bytes land in a `.part` staging file and are
+/// renamed into place only after the final byte, so a cancelled or truncated
+/// upload can never be picked up by the ISO browser or VM create.
+async fn upload_iso(
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<IsoUploadQuery>,
+    headers: axum::http::HeaderMap,
+    body: axum::body::Body,
+) -> Result<Json<serde_json::Value>, AppError> {
+    use futures_util::StreamExt;
+    use tokio::io::AsyncWriteExt;
+
+    require_browse_host_paths(&actor)?;
+
+    let cfg = MachinaConfig::load();
+    let max_gib = cfg.libvirt.iso_upload_max_gib;
+    if max_gib == 0 {
+        return Err(AppError::from(LibvirtError::Forbidden(
+            "ISO upload is disabled ([libvirt] iso_upload_max_gib = 0)".into(),
+        )));
+    }
+    let max_bytes = max_gib.saturating_mul(1024 * 1024 * 1024);
+    let upload_dir = cfg.libvirt.iso_upload_dir.clone();
+
+    // Reject an oversized upload before reading a single byte.
+    let declared_len = headers
+        .get(axum::http::header::CONTENT_LENGTH)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(0);
+    if declared_len > max_bytes {
+        log_audit_with_actor(&actor, "iso.upload", &q.filename, "rejected: too large");
+        return Err(AppError::from(LibvirtError::Invalid(format!(
+            "upload is {} GiB; the limit is {max_gib} GiB ([libvirt] iso_upload_max_gib)",
+            declared_len / (1024 * 1024 * 1024)
+        ))));
+    }
+
+    let dir = std::path::PathBuf::from(upload_dir.trim());
+    tokio::fs::create_dir_all(&dir).await.map_err(|e| {
+        AppError::from(LibvirtError::Operation(format!(
+            "cannot create ISO upload directory {}: {e}",
+            dir.display()
+        )))
+    })?;
+    machina_core::iso_upload::check_free_space(&dir, declared_len)?;
+    let (final_path, staging_path) =
+        machina_core::iso_upload::resolve_upload_target(&upload_dir, &q.filename, q.overwrite)?;
+
+    // `create_new` doubles as the concurrency guard: a second upload of the same
+    // name while one is in flight fails here instead of interleaving writes.
+    let mut file = tokio::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&staging_path)
+        .await
+        .map_err(|e| {
+            AppError::from(if e.kind() == std::io::ErrorKind::AlreadyExists {
+                LibvirtError::Invalid(format!(
+                    "an upload of {} is already in progress",
+                    q.filename
+                ))
+            } else {
+                LibvirtError::Operation(format!(
+                    "cannot open {}: {e}",
+                    staging_path.display()
+                ))
+            })
+        })?;
+
+    let mut written: u64 = 0;
+    let mut stream = body.into_data_stream();
+    let mut failure: Option<LibvirtError> = None;
+    while let Some(chunk) = stream.next().await {
+        let chunk = match chunk {
+            Ok(c) => c,
+            // Client disconnect / network drop mid-transfer.
+            Err(e) => {
+                failure = Some(LibvirtError::Operation(format!("upload interrupted: {e}")));
+                break;
+            }
+        };
+        written = written.saturating_add(chunk.len() as u64);
+        // Enforce the real cap on the wire, not just the declared Content-Length.
+        if written > max_bytes {
+            failure = Some(LibvirtError::Invalid(format!(
+                "upload exceeds the {max_gib} GiB limit ([libvirt] iso_upload_max_gib)"
+            )));
+            break;
+        }
+        if let Err(e) = file.write_all(&chunk).await {
+            failure = Some(LibvirtError::Operation(format!(
+                "write to {} failed: {e}",
+                staging_path.display()
+            )));
+            break;
+        }
+    }
+
+    if failure.is_none() {
+        // Durability before the rename: a crash must not leave a valid-looking
+        // name pointing at unflushed bytes.
+        if let Err(e) = file.flush().await {
+            failure = Some(LibvirtError::Operation(format!("flush failed: {e}")));
+        } else if let Err(e) = file.sync_all().await {
+            failure = Some(LibvirtError::Operation(format!("fsync failed: {e}")));
+        }
+    }
+    drop(file);
+
+    if let Some(err) = failure {
+        let _ = tokio::fs::remove_file(&staging_path).await;
+        log_audit_with_actor(&actor, "iso.upload", &q.filename, "failed");
+        return Err(AppError::from(err));
+    }
+
+    if written == 0 {
+        let _ = tokio::fs::remove_file(&staging_path).await;
+        log_audit_with_actor(&actor, "iso.upload", &q.filename, "failed: empty");
+        return Err(AppError::from(LibvirtError::Invalid(
+            "uploaded file is empty".into(),
+        )));
+    }
+
+    tokio::fs::rename(&staging_path, &final_path)
+        .await
+        .map_err(|e| {
+            AppError::from(LibvirtError::Operation(format!(
+                "cannot finalise {}: {e}",
+                final_path.display()
+            )))
+        })?;
+
+    // qemu/libvirt run as a different user and must be able to read the ISO.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = tokio::fs::set_permissions(&final_path, std::fs::Permissions::from_mode(0o644))
+            .await;
+    }
+
+    log_audit_with_actor(
+        &actor,
+        "iso.upload",
+        &final_path.display().to_string(),
+        "success",
+    );
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "name": final_path.file_name().and_then(|s| s.to_str()).unwrap_or_default(),
+        "path": final_path.display().to_string(),
+        "size_bytes": written,
+    })))
 }
 
 async fn list_disk_images(
@@ -1574,7 +1740,15 @@ async fn post_host_cockpit_action_handler(
 // ── Router ─────────────────────────────────────────────────────────
 
 pub fn extras_routes() -> Router<LibvirtManager> {
+    // The handler streams the body to disk and enforces its own
+    // `[libvirt] iso_upload_max_gib` cap; axum's buffering default would reject a
+    // multi-GiB ISO before the handler ever ran.
+    let iso_upload = Router::new()
+        .route("/browse/isos/upload", post(upload_iso))
+        .layer(DefaultBodyLimit::disable());
+
     Router::new()
+        .merge(iso_upload)
         // Browser
         .route("/browse/isos", get(list_isos))
         .route("/browse/dir", get(browse_directory_handler))

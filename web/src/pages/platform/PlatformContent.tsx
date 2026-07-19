@@ -1,8 +1,8 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { Check, Disc, Plus, RefreshCw, ShieldAlert, ShieldCheck, X } from 'lucide-react'
+import { Check, Disc, Plus, RefreshCw, ShieldAlert, ShieldCheck, Upload, X } from 'lucide-react'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformFilterPills from '../../components/platform/PlatformFilterPills'
@@ -15,6 +15,7 @@ import {
   rejectContentImage,
   type ContentImage,
 } from '../../api/platform'
+import { uploadIso } from '../../api/extras'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusBadgeClasses, statusSurfaceClasses, statusToneClass } from '../../utils/semanticColors'
@@ -55,6 +56,12 @@ export default function PlatformContent() {
   const [description, setDescription] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null)
+  const [uploadMode, setUploadMode] = useState<'file' | 'path'>('file')
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadPct, setUploadPct] = useState(0)
+  const [uploading, setUploading] = useState(false)
+  const uploadAbortRef = useRef<AbortController | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -90,6 +97,51 @@ export default function PlatformContent() {
       await load()
     } catch (e: unknown) {
       toast.error(formatUserError(e))
+    }
+  }
+
+  /**
+   * Send the file to the hypervisor, then register the resulting host path in the
+   * library. Registration is a separate call, so a successful upload whose
+   * registration fails still leaves the ISO on the host — the message says so
+   * rather than implying the bytes were lost.
+   */
+  const uploadAndRegister = async () => {
+    if (!uploadFile) return
+    const controller = new AbortController()
+    uploadAbortRef.current = controller
+    setUploading(true)
+    setUploadPct(0)
+    let uploadedPath = ''
+    try {
+      const res = await uploadIso(uploadFile, {
+        signal: controller.signal,
+        onProgress: (pct) => setUploadPct(pct),
+      })
+      uploadedPath = res.path
+      await createContentImage({
+        name: res.name,
+        kind: 'iso',
+        path: res.path,
+        category: guessCategory(res.name),
+        description: description || undefined,
+        size_gib: Math.max(1, Math.round(res.size_bytes / (1024 * 1024 * 1024))),
+      })
+      toast.success(`${res.name} uploaded and submitted for approval`)
+      setUploadFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      setSheetOpen(false)
+      await load()
+    } catch (e: unknown) {
+      toast.error(
+        uploadedPath
+          ? `Uploaded to ${uploadedPath} but could not add it to the library: ${formatUserError(e)}`
+          : formatUserError(e),
+      )
+    } finally {
+      setUploading(false)
+      setUploadPct(0)
+      uploadAbortRef.current = null
     }
   }
 
@@ -243,12 +295,71 @@ export default function PlatformContent() {
         <PlatformEmptyState title="No images" subtitle="Upload an ISO or qcow2 path for administrator approval." />
       )}
 
-      <MacSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Submit image" subtitle="Path must exist on a hypervisor — approval required for production.">
+      <MacSheet
+        open={sheetOpen}
+        onClose={() => { if (!uploading) setSheetOpen(false) }}
+        title="Add image"
+        subtitle="Upload an ISO from this computer, or register one already on a hypervisor. Approval is required for production."
+      >
         <div className="space-y-3">
-          <input className="input w-full" aria-label="Image name" placeholder="name" value={name} onChange={(e) => setName(e.target.value)} />
-          <input className="input w-full" aria-label="Host path" placeholder="host path" value={path} onChange={(e) => setPath(e.target.value)} />
-          <input className="input w-full" aria-label="Description" placeholder="description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} />
-          <button type="button" className="btn-primary w-full" onClick={async () => { await add(); setSheetOpen(false) }}>Submit for approval</button>
+          <PlatformFilterPills
+            options={[
+              { id: 'file', label: 'Upload from this computer' },
+              { id: 'path', label: 'Register a host path' },
+            ]}
+            value={uploadMode}
+            onChange={(v) => setUploadMode(v as 'file' | 'path')}
+          />
+
+          {uploadMode === 'file' ? (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".iso,application/x-cd-image"
+                aria-label="ISO file"
+                className="input w-full"
+                disabled={uploading}
+                onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+              />
+              {uploadFile && (
+                <p className="text-xs text-slate-400">
+                  {uploadFile.name} — {(uploadFile.size / (1024 * 1024 * 1024)).toFixed(2)} GiB
+                </p>
+              )}
+              <input className="input w-full" aria-label="Description" placeholder="description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} disabled={uploading} />
+              {uploading && (
+                <div className="space-y-1">
+                  <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-full bg-sky-500 transition-all" style={{ width: `${uploadPct}%` }} />
+                  </div>
+                  <p className="text-xs text-slate-400">Uploading… {uploadPct}% — keep this tab open.</p>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="btn-primary flex-1 flex items-center justify-center gap-2"
+                  disabled={!uploadFile || uploading}
+                  onClick={() => void uploadAndRegister()}
+                >
+                  <Upload className="w-4 h-4" /> {uploading ? 'Uploading…' : 'Upload'}
+                </button>
+                {uploading && (
+                  <button type="button" className="btn-secondary" onClick={() => uploadAbortRef.current?.abort()}>
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <input className="input w-full" aria-label="Image name" placeholder="name" value={name} onChange={(e) => setName(e.target.value)} />
+              <input className="input w-full" aria-label="Host path" placeholder="host path" value={path} onChange={(e) => setPath(e.target.value)} />
+              <input className="input w-full" aria-label="Description" placeholder="description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} />
+              <button type="button" className="btn-primary w-full" onClick={async () => { await add(); setSheetOpen(false) }}>Submit for approval</button>
+            </>
+          )}
         </div>
       </MacSheet>
       <ConfirmDialog

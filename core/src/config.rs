@@ -1224,6 +1224,21 @@ pub struct LibvirtConfig {
     /// Additional read-only libvirt URIs (e.g. `qemu+ssh://hypervisor2/system`) merged into VM lists.
     #[serde(default)]
     pub extra_uris: Vec<String>,
+    /// Directory that browser ISO uploads are written to. Created on first upload if missing.
+    /// Uploads are *only* ever written here — the client never chooses the directory.
+    #[serde(default = "default_iso_upload_dir")]
+    pub iso_upload_dir: String,
+    /// Largest accepted ISO upload, in GiB. `0` disables uploads entirely.
+    #[serde(default = "default_iso_upload_max_gib")]
+    pub iso_upload_max_gib: u64,
+}
+
+fn default_iso_upload_dir() -> String {
+    "/var/lib/libvirt/images/isos".to_string()
+}
+
+fn default_iso_upload_max_gib() -> u64 {
+    16
 }
 
 fn default_virt_image_build_max_concurrent() -> usize {
@@ -1334,6 +1349,8 @@ impl Default for LibvirtConfig {
             mkosi_allowed: true,
             dual_connection: false,
             extra_uris: Vec::new(),
+            iso_upload_dir: default_iso_upload_dir(),
+            iso_upload_max_gib: default_iso_upload_max_gib(),
         }
     }
 }

@@ -65,6 +65,71 @@ export const listIsos = () => readJsonObject<BrowseFilesResponse>(`${API}/browse
 export const browseDir = (path = '') =>
   readJsonObject<BrowseDirResponse>(`${API}/browse/dir?path=${encodeURIComponent(path)}`)
 export const listDiskImages = () => readJsonObject<BrowseFilesResponse>(`${API}/browse/disks`)
+
+export interface IsoUploadResult {
+  status: string
+  name: string
+  path: string
+  size_bytes: number
+}
+
+export interface IsoUploadOptions {
+  /** Replace an ISO of the same name that is already on the hypervisor. */
+  overwrite?: boolean
+  onProgress?: (pct: number, loaded: number, total: number) => void
+  signal?: AbortSignal
+}
+
+/**
+ * Stream an ISO from the user's machine to the hypervisor's upload directory.
+ *
+ * Uses XMLHttpRequest rather than `fetch` because only XHR reports upload
+ * progress events, and a Windows ISO is several GiB — a progress-less spinner
+ * for that long is indistinguishable from a hang.
+ */
+export function uploadIso(file: File, opts: IsoUploadOptions = {}): Promise<IsoUploadResult> {
+  return new Promise((resolve, reject) => {
+    const params = new URLSearchParams({ filename: file.name })
+    if (opts.overwrite) params.set('overwrite', 'true')
+
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${API}/browse/isos/upload?${params.toString()}`)
+    xhr.withCredentials = true
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream')
+
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable || !opts.onProgress) return
+      opts.onProgress(Math.round((e.loaded / e.total) * 100), e.loaded, e.total)
+    }
+
+    xhr.onload = () => {
+      let parsed: { error?: string; status?: string } | null = null
+      try {
+        parsed = JSON.parse(xhr.responseText)
+      } catch {
+        // A proxy error page rather than the daemon's JSON.
+        parsed = null
+      }
+      if (xhr.status >= 200 && xhr.status < 300 && parsed) {
+        resolve(parsed as unknown as IsoUploadResult)
+        return
+      }
+      reject(new Error(parsed?.error || `Upload failed (HTTP ${xhr.status})`))
+    }
+    xhr.onerror = () => reject(new Error('Upload failed — the connection was lost'))
+    xhr.onabort = () => reject(new Error('Upload cancelled'))
+
+    if (opts.signal) {
+      if (opts.signal.aborted) {
+        reject(new Error('Upload cancelled'))
+        return
+      }
+      opts.signal.addEventListener('abort', () => xhr.abort(), { once: true })
+    }
+
+    xhr.send(file)
+  })
+}
 export const deleteDiskImage = (path: string) =>
   apiDelete(`${API}/browse/disks/delete?path=${encodeURIComponent(path)}`)
 
