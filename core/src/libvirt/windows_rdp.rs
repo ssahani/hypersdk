@@ -88,6 +88,16 @@ pub fn build_rdp_enable_plan(disk_path: &str, generated_rfc3339: &str) -> serde_
     })
 }
 
+/// Pull `N` out of guestkit's "Operations applied: N" summary line.
+///
+/// Absent from the output means the plan was previewed but never applied — the
+/// difference between a real write and a no-op, since the exit code is 0 either way.
+fn parse_applied_count(out: &str) -> Option<u32> {
+    out.lines()
+        .find_map(|l| l.trim().strip_prefix("Operations applied:"))
+        .and_then(|n| n.trim().parse().ok())
+}
+
 /// Path to the guestkit binary, honouring the configured override.
 fn guestkit_binary(configured: &str) -> String {
     let c = configured.trim();
@@ -168,6 +178,32 @@ pub fn enable_rdp_offline(
         )));
     }
 
+    // A zero exit is not evidence of a write. guestkit 0.3.13 prints the plan
+    // preview and exits 0 without applying anything — verified against a real
+    // 29 GiB image whose md5 was unchanged afterwards. Only the
+    // "Operations applied: N" summary distinguishes a real apply from a preview,
+    // so require it and require N > 0 rather than reporting a silent no-op as
+    // success.
+    let applied_count = parse_applied_count(&stdout).or_else(|| parse_applied_count(&stderr));
+    match applied_count {
+        Some(n) if n > 0 => {}
+        Some(_) => {
+            return Err(LibvirtError::Operation(
+                "guestkit applied 0 operations — the registry edit was skipped. \
+                 Check that guestkit supports offline hive writes on this host."
+                    .into(),
+            ))
+        }
+        None => {
+            return Err(LibvirtError::Operation(
+                "guestkit exited 0 but reported no applied operations, so the registry \
+                 was not written. This build previews the plan without applying it; \
+                 upgrade guestkit or enable Remote Desktop inside the guest."
+                    .into(),
+            ))
+        }
+    }
+
     Ok(RdpEnableOutcome {
         disk_path: disk_path.to_string(),
         applied: vec![
@@ -213,6 +249,22 @@ mod tests {
     fn rejects_relative_and_missing_disks() {
         assert!(enable_rdp_offline("relative/win.qcow2", "guestkit").is_err());
         assert!(enable_rdp_offline("/nonexistent/win-does-not-exist.qcow2", "guestkit").is_err());
+    }
+
+    #[test]
+    fn treats_a_preview_only_run_as_failure() {
+        // The exact output guestkit 0.3.13 produces for `plan apply --yes`: a
+        // preview, then exit 0, with nothing written. Verified against a real
+        // image whose md5 was byte-identical afterwards.
+        let preview_only = "\n📋 Fix Plan Preview\nVM: /x.qcow2\n[enable-rdp] Allow Remote Desktop connections\n  1 → 0\nBackup: Will create automatic backup\nRollback: Available for all operations\n";
+        assert_eq!(parse_applied_count(preview_only), None);
+    }
+
+    #[test]
+    fn reads_the_applied_count_when_present() {
+        assert_eq!(parse_applied_count("✓ Plan applied successfully\n  Operations applied: 2\n  Operations skipped: 0\n"), Some(2));
+        // A dry run reports zero applied — also not a real write.
+        assert_eq!(parse_applied_count("  Operations applied: 0\n  Operations skipped: 1\n"), Some(0));
     }
 
     #[test]
