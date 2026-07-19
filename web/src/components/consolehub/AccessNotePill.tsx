@@ -134,7 +134,9 @@ export default function AccessNotePill({
     if (!vmId || !vmName) return
     setBusy(true)
     try {
-      await exposeGuestPortOnVm(vmId, vmName, 3389, portForwardRules, `${vmName}-rdp`)
+      // Label only: buildExposePayload already prefixes the VM name, so passing
+      // `${vmName}-rdp` here doubled it in the firewall rule comment.
+      await exposeGuestPortOnVm(vmId, vmName, 3389, portForwardRules, 'RDP')
       notify('RDP exposed on hypervisor — connect with Microsoft Remote Desktop or mstsc')
       onPlanRefresh?.()
     } catch (e: unknown) {
@@ -201,9 +203,16 @@ export default function AccessNotePill({
             <p key={msg}>{msg}</p>
           ))}
           {connectCmd ? (
-            <pre className="rounded-lg bg-black/50 border border-white/10 p-2 font-mono text-[11px] text-emerald-200/90 overflow-x-auto">
-              {connectCmd}
-            </pre>
+            <div className="space-y-1">
+              {windows ? (
+                <p className="text-[11px] uppercase tracking-wide text-amber-200/70">
+                  Connect with Microsoft Remote Desktop (macOS) or mstsc (Windows)
+                </p>
+              ) : null}
+              <pre className="rounded-lg bg-black/50 border border-white/10 p-2 font-mono text-sm text-emerald-200/90 overflow-x-auto select-all">
+                {connectCmd}
+              </pre>
+            </div>
           ) : null}
           <div className="flex flex-wrap gap-2 pt-1">
             {connectCmd ? (

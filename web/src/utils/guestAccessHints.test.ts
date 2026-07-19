@@ -75,6 +75,17 @@ describe('consoleAccessHints', () => {
       expect(labels).not.toContain('SSH not exposed')
     })
 
+    it('puts the dial-able address in the collapsed pill once exposed', () => {
+      const labels = aggregateAccessNoteLabels(winHints, {
+        guestIp: '192.168.122.84',
+        hypervisorHost: '212.8.248.187',
+        osFamily: 'windows',
+        rdpNatHostPort: 13389,
+      })
+      expect(labels).toContain('RDP 212.8.248.187:13389')
+      expect(labels).not.toContain('RDP not exposed')
+    })
+
     it('leaves linux guests on the ssh path', () => {
       const labels = aggregateAccessNoteLabels(
         { auth_mode: 'ssh_key', serial_password_login: false, guest_ip_private: true },

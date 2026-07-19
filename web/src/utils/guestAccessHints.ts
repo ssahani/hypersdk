@@ -95,9 +95,17 @@ export function aggregateAccessNoteLabels(
   if (!hints) return []
   const labels: string[] = []
   if (isWindowsGuest(opts.osFamily)) {
-    labels.push('Windows guest')
+    if (opts.rdpNatHostPort) {
+      // Lead with the dial-able address: it is the one thing the operator needs
+      // to copy into Microsoft Remote Desktop, so it belongs in the collapsed
+      // pill rather than behind a disclosure.
+      const host = opts.hypervisorHost?.trim() || 'HYPERVISOR_IP'
+      labels.push(`RDP ${host}:${opts.rdpNatHostPort}`)
+    } else {
+      labels.push('Windows guest')
+      if (hints.guest_ip_private) labels.push('RDP not exposed')
+    }
     if (hints.guest_ip_private) labels.push('NAT guest IP')
-    if (hints.guest_ip_private && !opts.rdpNatHostPort) labels.push('RDP not exposed')
     return [...new Set(labels)]
   }
   if (hints.auth_mode === 'ssh_key') labels.push('SSH key-only')
