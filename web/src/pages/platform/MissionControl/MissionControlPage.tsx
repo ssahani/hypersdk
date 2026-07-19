@@ -100,7 +100,6 @@ export default function MissionControlPage() {
           labels.virtio_win = 'true'
           if (payload.windows.virtioIsoPath.trim()) labels.virtio_win_iso = payload.windows.virtioIsoPath.trim()
         }
-        if (payload.windows.rdp) labels.rdp = 'true'
         const wbody: CreatePlatformVmBody = {
           api_version: 'virt.zyvor.dev/v1',
           kind: 'VirtualMachine',

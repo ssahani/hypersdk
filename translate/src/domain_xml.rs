@@ -143,6 +143,17 @@ pub fn domain_xml_from_spec(
         .and_then(|m| m.get("tpm"))
         .is_some_and(|v| v == "true" || v == "1");
 
+    // Secure Boot is a UEFI-only property: it needs the secboot OVMF build, a
+    // `secure='yes'` loader, and SMM. libvirt rejects `secure='yes'` without
+    // `<smm state='on'/>`, so the two are always emitted together.
+    let secure_boot_enabled = is_uefi
+        && vm
+            .metadata
+            .labels
+            .as_ref()
+            .and_then(|m| m.get("secure_boot"))
+            .is_some_and(|v| v == "true" || v == "1");
+
     let install_iso = vm
         .metadata
         .labels
@@ -155,11 +166,24 @@ pub fn domain_xml_from_spec(
         // UEFI expresses boot order with per-device <boot order> (below), never
         // with <os><boot dev>. libvirt rejects a domain that mixes the two, so the
         // UEFI <os> must NOT carry <boot dev> even when an install ISO is present.
+        let (loader_secure, code_fd, vars_fd) = if secure_boot_enabled {
+            (
+                " secure='yes'",
+                "/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd",
+                "/usr/share/edk2/ovmf/OVMF_VARS.secboot.fd",
+            )
+        } else {
+            (
+                "",
+                "/usr/share/edk2/ovmf/OVMF_CODE.fd",
+                "/usr/share/edk2/ovmf/OVMF_VARS.fd",
+            )
+        };
         format!(
             r#"<os>
     <type arch='x86_64' machine='q35'>hvm</type>
-    <loader readonly='yes' type='pflash'>/usr/share/edk2/ovmf/OVMF_CODE.fd</loader>
-    <nvram template='/usr/share/edk2/ovmf/OVMF_VARS.fd'>/var/lib/libvirt/qemu/nvram/{name}_VARS.fd</nvram>
+    <loader readonly='yes'{loader_secure} type='pflash'>{code_fd}</loader>
+    <nvram template='{vars_fd}'>/var/lib/libvirt/qemu/nvram/{name}_VARS.fd</nvram>
   </os>"#
         )
     } else if install_iso.is_some() {
@@ -257,6 +281,11 @@ pub fn domain_xml_from_spec(
     // domain's defined maximum. Headroom is 4x capped at 16, never below the boot count.
     // (Mirrors core::libvirt::create::vcpu_max_for; inlined to keep `translate` core-free.)
     let vcpu_max = vcpus.max(vcpus.saturating_mul(4).min(16));
+    let smm_xml = if secure_boot_enabled {
+        "\n    <smm state='on'/>"
+    } else {
+        ""
+    };
     Ok(format!(
         r#"<domain type='kvm'>
   <name>{name}</name>
@@ -265,7 +294,7 @@ pub fn domain_xml_from_spec(
   {os_xml}
   <features>
     <acpi/>
-    <apic/>
+    <apic/>{smm_xml}
   </features>
   <clock offset='utc'/>
   <on_poweroff>destroy</on_poweroff>
@@ -385,5 +414,51 @@ mod tests {
         assert!(xml.contains("<boot order='1'/>"));
         assert!(xml.contains("<boot order='2'/>"));
         assert!(xml.contains("pflash")); // still UEFI
+    }
+
+    #[test]
+    fn secure_boot_label_emits_secure_loader_and_smm() {
+        let mut vm = VirtualMachine::new("win11", "8Gi");
+        vm.spec.firmware = "uefi".into();
+        vm.metadata.labels = Some(std::collections::HashMap::from([(
+            "secure_boot".into(),
+            "true".into(),
+        )]));
+        let xml = domain_xml_from_spec(&vm, "/var/lib/libvirt/images/win11.qcow2", "qcow2", None)
+            .unwrap();
+        assert!(xml.contains("secure='yes'"));
+        assert!(xml.contains("OVMF_CODE.secboot.fd"));
+        assert!(xml.contains("OVMF_VARS.secboot.fd"));
+        // libvirt rejects secure='yes' without SMM.
+        assert!(xml.contains("<smm state='on'/>"));
+    }
+
+    #[test]
+    fn uefi_without_secure_boot_keeps_plain_loader_and_no_smm() {
+        let mut vm = VirtualMachine::new("plainuefi", "4Gi");
+        vm.spec.firmware = "uefi".into();
+        let xml =
+            domain_xml_from_spec(&vm, "/var/lib/libvirt/images/p.qcow2", "qcow2", None).unwrap();
+        assert!(xml.contains("pflash"));
+        assert!(!xml.contains("secure='yes'"));
+        assert!(!xml.contains("secboot"));
+        assert!(!xml.contains("<smm"));
+    }
+
+    #[test]
+    fn secure_boot_ignored_on_bios_firmware() {
+        // Secure Boot is meaningless without UEFI; a BIOS guest must not get an
+        // SMM feature block that its firmware path can't honour.
+        let mut vm = VirtualMachine::new("biosvm", "4Gi");
+        vm.spec.firmware = "bios".into();
+        vm.metadata.labels = Some(std::collections::HashMap::from([(
+            "secure_boot".into(),
+            "true".into(),
+        )]));
+        let xml =
+            domain_xml_from_spec(&vm, "/var/lib/libvirt/images/b.qcow2", "qcow2", None).unwrap();
+        assert!(!xml.contains("secure='yes'"));
+        assert!(!xml.contains("<smm"));
+        assert!(!xml.contains("pflash"));
     }
 }

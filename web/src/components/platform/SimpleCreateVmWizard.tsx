@@ -47,7 +47,6 @@ export interface VmWizardWindowsOptions {
   uefi: boolean
   tpm: boolean
   secureBoot: boolean
-  rdp: boolean
 }
 
 export interface VmWizardPayload {
@@ -116,7 +115,6 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
   const [uefi, setUefi] = useState(true)
   const [tpm, setTpm] = useState(true)
   const [secureBoot, setSecureBoot] = useState(true)
-  const [rdp, setRdp] = useState(true)
   const pubkeyFileRef = useRef<HTMLInputElement>(null)
 
   const loadCatalog = useCallback(async () => {
@@ -250,7 +248,7 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
         graphicsListen,
       }
       if (isWindows) {
-        payload.windows = { virtio, virtioIsoPath, uefi, tpm, secureBoot, rdp }
+        payload.windows = { virtio, virtioIsoPath, uefi, tpm, secureBoot: secureBoot && uefi }
       }
       await onCreate(payload)
       onClose()
@@ -424,11 +422,17 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
                 <input type="checkbox" checked={tpm} onChange={(e) => setTpm(e.target.checked)} /> TPM
               </label>
               <label className="flex items-center gap-2">
-                <input type="checkbox" checked={secureBoot} onChange={(e) => setSecureBoot(e.target.checked)} /> Secure Boot
+                <input
+                  type="checkbox"
+                  checked={secureBoot && uefi}
+                  disabled={!uefi}
+                  onChange={(e) => setSecureBoot(e.target.checked)}
+                />{' '}
+                <span className={uefi ? undefined : 'text-slate-500'}>Secure Boot</span>
               </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={rdp} onChange={(e) => setRdp(e.target.checked)} /> Enable RDP after install
-              </label>
+              {!uefi && (
+                <p className="pl-6 text-xs text-slate-500">Secure Boot requires UEFI firmware.</p>
+              )}
             </div>
           )}
 

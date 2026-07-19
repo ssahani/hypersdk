@@ -410,7 +410,7 @@ export function useMachineFinder() {
     os: string
     size: string
     network: string
-    windows: { virtio: boolean; virtioIsoPath: string; uefi: boolean; tpm: boolean; secureBoot: boolean; rdp: boolean }
+    windows: { virtio: boolean; virtioIsoPath: string; uefi: boolean; tpm: boolean; secureBoot: boolean }
   }) => {
     const spec = sizeToSpec(payload.size)
     const labels: Record<string, string> = { os_family: 'windows' }
@@ -422,7 +422,6 @@ export function useMachineFinder() {
         labels.virtio_win_iso = payload.windows.virtioIsoPath.trim()
       }
     }
-    if (payload.windows.rdp) labels.rdp = 'true'
     const body: CreatePlatformVmBody = {
       api_version: 'virt.zyvor.dev/v1',
       kind: 'VirtualMachine',
