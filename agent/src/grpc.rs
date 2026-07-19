@@ -1852,65 +1852,6 @@ fn resolve_console_pty(xml: &str) -> Option<String> {
         })
 }
 
-/// Guess the guest OS from the domain XML alone.
-///
-/// The old check looked for the literal strings "microsoft windows" / "<os>windows",
-/// which libvirt does not normally emit, so every Windows guest fell through to
-/// "linux" and got an `ubuntu@` SSH suggestion. These signals are what libvirt and
-/// virt-install actually write for a Windows domain:
-///   * libosinfo metadata — `<libosinfo:os id="http://microsoft.com/win/11"/>`
-///   * Hyper-V enlightenments — only ever enabled for Windows guests
-///   * `<clock offset='localtime'>` — the Windows convention (Linux uses UTC)
-/// The disk/name heuristics are a last resort for hand-rolled domains carrying
-/// none of the above.
-fn detect_os_hint(xml: &str, vm_name: &str) -> String {
-    if xml.trim().is_empty() {
-        return "unknown".into();
-    }
-    let lower = xml.to_lowercase();
-
-    // Strongest: explicit libosinfo OS id.
-    if lower.contains("microsoft.com/win") {
-        return "windows".into();
-    }
-    if lower.contains("microsoft windows") || lower.contains("<os>windows") {
-        return "windows".into();
-    }
-    // Hyper-V enlightenments are Windows-only in practice.
-    if lower.contains("<hyperv") {
-        return "windows".into();
-    }
-    // Windows keeps the RTC in local time; libvirt writes this for Windows guests.
-    if lower.contains("offset='localtime'") || lower.contains("offset=\"localtime\"") {
-        return "windows".into();
-    }
-    // Weakest: disk image names / domain name.
-    let name_lower = vm_name.to_lowercase();
-    let windows_words = ["windows", "win10", "win11", "win7", "win2019", "win2022", "msedge"];
-    if windows_words.iter().any(|w| name_lower.contains(w)) {
-        return "windows".into();
-    }
-    if lower.contains(".vhdx") || windows_words.iter().any(|w| lower.contains(w)) {
-        return "windows".into();
-    }
-
-    "linux".into()
-}
-
-/// Is the guest actually listening on RDP right now?
-///
-/// Advertising RDP for every Windows guest would strand anyone whose guest has
-/// Remote Desktop switched off, so availability is probed rather than assumed.
-fn rdp_reachable(guest_ip: &str) -> bool {
-    if guest_ip.trim().is_empty() {
-        return false;
-    }
-    let Ok(addr) = format!("{guest_ip}:3389").parse::<std::net::SocketAddr>() else {
-        return false;
-    };
-    std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(400)).is_ok()
-}
-
 fn linux_cloud_serial_preferred(xml_lower: &str, os_hint: &str, desktop_golden: bool) -> bool {
     if os_hint != "linux" || desktop_golden {
         return false;
@@ -1986,12 +1927,13 @@ fn build_console_access_plan(
     libvirt: &Arc<std::sync::Mutex<libvirt_ops::LibvirtCtx>>,
     vm_name: &str,
 ) -> Result<GetConsoleAccessPlanResponse, String> {
-
     let ctx = libvirt.lock().map_err(|e| format!("libvirt lock: {e}"))?;
 
     let xml = ctx.get_domain_xml(vm_name).unwrap_or_default();
     let has_spice = machina_core::libvirt::graphics_convert::domain_has_spice_graphics(&xml);
-    let (vnc_host, vnc_port) = ctx.resolve_vnc_from_xml(vm_name, &xml).unwrap_or(("".into(), 0));
+    let (vnc_host, vnc_port) = ctx
+        .resolve_vnc_from_xml(vm_name, &xml)
+        .unwrap_or(("".into(), 0));
     let console_type = if vnc_port > 0 {
         "vnc".to_string()
     } else if has_spice {
@@ -2001,19 +1943,14 @@ fn build_console_access_plan(
     };
     let mut guest_ip = String::new();
     let ssh_user = std::env::var("MACHINA_DEFAULT_SSH_USER").unwrap_or_else(|_| "ubuntu".into());
-    let mut os_hint = detect_os_hint(&xml, vm_name);
+    let mut os_hint = machina_core::guest_os::detect_os_hint(&xml, vm_name);
 
     if let Ok(health) = ctx.guest_health(vm_name) {
         if !health.guest_ip.is_empty() {
             guest_ip = health.guest_ip;
         }
         if !health.os_pretty_name.is_empty() {
-            let lower = health.os_pretty_name.to_lowercase();
-            if lower.contains("windows") {
-                os_hint = "windows".into();
-            } else if os_hint == "unknown" {
-                os_hint = "linux".into();
-            }
+            os_hint = machina_core::guest_os::refine_os_hint(&os_hint, &health.os_pretty_name);
         }
     }
 
@@ -2028,7 +1965,7 @@ fn build_console_access_plan(
     // Native RDP: `rdp_port` is non-zero only when the
     // guest is actually listening, and that is what the controller advertises the
     // native "rdp" protocol from.
-    let rdp_up = os_hint == "windows" && rdp_reachable(&guest_ip);
+    let rdp_up = os_hint == "windows" && machina_core::guest_os::rdp_reachable(&guest_ip);
 
     let recommended = if rdp_up {
         "rdp".into()
@@ -2062,50 +1999,7 @@ fn build_console_access_plan(
 
 #[cfg(test)]
 mod console_plan_tests {
-    use super::{detect_os_hint, infer_guest_auth_mode, linux_cloud_serial_preferred};
-
-    #[test]
-    fn detects_windows_from_libosinfo_metadata() {
-        let xml = r#"<domain><metadata>
-            <libosinfo:libosinfo xmlns:libosinfo="http://libosinfo.org/xmlns/libvirt/domain/1.0">
-              <libosinfo:os id="http://microsoft.com/win/11"/>
-            </libosinfo:libosinfo></metadata></domain>"#;
-        assert_eq!(detect_os_hint(xml, "vm1"), "windows");
-    }
-
-    #[test]
-    fn detects_windows_from_hyperv_enlightenments() {
-        let xml = r#"<domain><features><hyperv><relaxed state='on'/></hyperv></features></domain>"#;
-        assert_eq!(detect_os_hint(xml, "vm1"), "windows");
-    }
-
-    #[test]
-    fn detects_windows_from_localtime_clock() {
-        let xml = r#"<domain><clock offset='localtime'/></domain>"#;
-        assert_eq!(detect_os_hint(xml, "vm1"), "windows");
-    }
-
-    #[test]
-    fn detects_windows_from_domain_name() {
-        // The regression that started this: a Windows guest whose XML carries none
-        // of the strong markers was reported as "linux".
-        let xml = r#"<domain><devices><graphics type='vnc'/></devices></domain>"#;
-        assert_eq!(detect_os_hint(xml, "win10-msedge"), "windows");
-    }
-
-    #[test]
-    fn plain_linux_domain_stays_linux() {
-        let xml = r#"<domain><clock offset='utc'/>
-            <devices><disk><source file='/var/lib/libvirt/images/ubuntu.qcow2'/></disk></devices>
-        </domain>"#;
-        assert_eq!(detect_os_hint(xml, "ubuntu-server"), "linux");
-    }
-
-    #[test]
-    fn empty_xml_is_unknown() {
-        assert_eq!(detect_os_hint("", "vm1"), "unknown");
-        assert_eq!(detect_os_hint("   ", "vm1"), "unknown");
-    }
+    use super::{infer_guest_auth_mode, linux_cloud_serial_preferred};
 
     #[test]
     fn ubuntu_cloud_init_iso_prefers_serial() {

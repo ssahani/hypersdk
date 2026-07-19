@@ -11,6 +11,7 @@ pub mod config;
 pub mod firewall;
 pub mod fleet_placement;
 pub mod fmt;
+pub mod guest_os;
 pub mod host_cockpit;
 pub mod host_inventory;
 pub mod host_linux_obs;

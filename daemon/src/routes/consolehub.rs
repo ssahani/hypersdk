@@ -18,7 +18,6 @@ use crate::auth::{AuthSource, RequestActor};
 use crate::conn_query::{spawn_libvirt_actor, ConnQuery};
 use crate::error::AppError;
 
-
 #[derive(Clone)]
 pub struct ConsoleSessionStore {
     inner: Arc<RwLock<HashMap<Uuid, LiveConsoleSession>>>,
@@ -114,7 +113,6 @@ impl ConsoleSessionStore {
         id
     }
 
-
     async fn end(&self, id: Uuid, actor: &str) -> bool {
         let mut map = self.inner.write().await;
         // Verify ownership BEFORE removing, so a caller who only knows the
@@ -163,7 +161,9 @@ fn build_protocol_list(
         // In-browser shell over the daemon's PTY terminal. Previously only ever
         // synthesized client-side, which left classic mode with no shell at all.
         out.push("native_ssh".into());
-        if os_hint == "windows" {
+        // Probed, not assumed: Remote Desktop is off by default in Windows, and
+        // offering a console that dials a closed port is worse than offering none.
+        if os_hint == "windows" && machina_core::guest_os::rdp_reachable(guest_ip) {
             out.push("rdp".into());
         }
     }
@@ -205,14 +205,7 @@ async fn build_plan(
                 })
                 .is_some();
             let mut guest_ip = String::new();
-            let mut os_hint = "unknown".to_string();
-            if xml.to_lowercase().contains("microsoft windows")
-                || xml.to_lowercase().contains("<os>windows")
-            {
-                os_hint = "windows".into();
-            } else if !xml.is_empty() {
-                os_hint = "linux".into();
-            }
+            let mut os_hint = machina_core::guest_os::detect_os_hint(&xml, &name2);
             if let Ok(health) = guest_health::gather_guest_health(conn, &name2) {
                 if let Some(guest) = &health.guest {
                     guest_ip = guest
@@ -223,15 +216,17 @@ async fn build_plan(
                         .unwrap_or_default();
                 }
                 if let Some(ref pretty) = health.os_pretty_name {
-                    let lower = pretty.to_lowercase();
-                    if lower.contains("windows") {
-                        os_hint = "windows".into();
-                    } else if os_hint == "unknown" {
-                        os_hint = "linux".into();
-                    }
+                    os_hint = machina_core::guest_os::refine_os_hint(&os_hint, pretty);
                 }
             }
-            Ok((vnc_host, vnc_port, console_type, serial_available, guest_ip, os_hint))
+            Ok((
+                vnc_host,
+                vnc_port,
+                console_type,
+                serial_available,
+                guest_ip,
+                os_hint,
+            ))
         })
         .await?;
 
