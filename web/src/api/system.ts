@@ -92,7 +92,6 @@ export interface PlatformInfo {
   }
   fleet?: { enabled: boolean; peer_count: number }
   rdp?: { builtin_ws_proxy: boolean }
-  guacamole?: { enabled: boolean; base_url: string }
   libvirt?: { dual_connection: boolean; extra_uris?: string[] }
   kubevirt: {
     exec_enabled: boolean

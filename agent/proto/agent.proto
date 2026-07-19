@@ -245,8 +245,9 @@ message GetConsoleAccessPlanResponse {
   string ssh_user = 7;
   int32 rdp_port = 8;
   string os_hint = 9;
-  bool guacamole_available = 10;
-  repeated string guacamole_protocols = 11;
+  // 10, 11 were guacamole_available / guacamole_protocols. Reserved so a newer
+  // controller talking to an older agent cannot misread the retired fields.
+  reserved 10, 11;
   /// ssh_key | password | both | unknown — from cloud-init user-data when present.
   string guest_auth_mode = 12;
   /// True when the VM has a SPICE graphics device (even if VNC is also present).

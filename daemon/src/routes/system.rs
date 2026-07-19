@@ -247,10 +247,6 @@ async fn platform_info() -> Json<serde_json::Value> {
         "rdp": {
             "builtin_ws_proxy": true,
         },
-        "guacamole": {
-            "enabled": cfg.guacamole.enabled && !cfg.guacamole.json_secret_hex.trim().is_empty(),
-            "base_url": cfg.guacamole.base_url.trim(),
-        },
         "libvirt": {
             "dual_connection": cfg.libvirt.dual_connection,
             "extra_uris": cfg.libvirt.extra_uris,

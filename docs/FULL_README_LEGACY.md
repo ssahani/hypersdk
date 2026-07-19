@@ -54,7 +54,7 @@ A **Rust daemon** exposes REST and WebSocket APIs; a **web UI** delivers VNC, SP
   └──────────────┘  └──────┘  └──────────────┘
 ```
 
-Machina provides **built-in** noVNC/SPICE (and serial/SSH) consoles over the daemon; libvirt remains the source of truth for VMs. If you prefer a separate HTML5 gateway (e.g. **RDP for Windows**, or Apache’s connection model), see [docs/guacamole-integration.md](docs/guacamole-integration.md)—Guacamole sits in front of guest RDP/VNC/SSH and does **not** replace libvirt or machina lifecycle APIs.
+Machina provides **built-in** noVNC/SPICE (and serial/SSH) consoles over the daemon; libvirt remains the source of truth for VMs. Windows guests are handled natively too: a Windows guest is auto-detected, RDP is exposed via a hypervisor NAT port-forward to the guest's port 3389, and you connect with a native client (Microsoft Remote Desktop on macOS, `mstsc` on Windows) using the generated `.rdp` file — advertised only once the agent confirms Remote Desktop is listening in the guest.
 
 ### Workspace Layout
 
@@ -66,8 +66,7 @@ machina/   # git checkout directory name
 ├── web/                Web frontend (React 19 + TypeScript + Tailwind + Recharts + xterm.js)
 ├── contrib/            Systemd units, default config
 ├── demo-screenshots/   Screenshots, presentation PDFs, and PDF generators
-├── docs/               Optional integration notes (e.g. Apache Guacamole)
-├── guac-bridge/        Apache Guacamole JSON-auth library + optional standalone `libvirt-guac-bridge` binary (daemon integrates `GET …/guacamole-auth`)
+├── docs/               Optional integration notes (e.g. OpenStack, KubeVirt)
 ├── examples/           Example user configuration
 ├── scripts/            deploy-remote.sh, package-binary-remote.sh (client tarball), demo, status, backup, bulk
 ├── machinactl        Management CLI (deploy, verify, health, backup, upgrade, tls)

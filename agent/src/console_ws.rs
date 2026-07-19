@@ -11,20 +11,18 @@ use axum::Router;
 use futures_util::{SinkExt, StreamExt};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
-use crate::guacamole_proxy::GuacamoleProxyState;
 use crate::libvirt_ops::LibvirtCtx;
 
 #[derive(Clone)]
 pub struct ConsoleProxyState {
     pub libvirt: Arc<Mutex<LibvirtCtx>>,
-    /// Shared console token. When non-empty, every console WS (and the Guacamole
+    /// Shared console token. When non-empty, every console WS
     /// reverse-proxy) requires a matching `?token=` — otherwise any local process on
     /// the agent host could open a VM's serial/VNC/SPICE console (serial = an
     /// interactive root shell) directly, bypassing the controller. Empty = accept
     /// unauthenticated (dev/backward-compat), warned about at startup. Populated from
     /// `MACHINA_AGENT_TOKEN`, the same shared secret the gRPC surface uses.
     pub secret: String,
-    pub guacamole: GuacamoleProxyState,
 }
 
 #[derive(serde::Deserialize)]
@@ -422,15 +420,13 @@ where
 }
 
 pub fn router(state: ConsoleProxyState) -> Router {
-    let vnc = vnc_router(state.clone());
-    let guac = crate::guacamole_proxy::router(state.guacamole);
-    vnc.merge(guac)
+    vnc_router(state)
 }
 
 pub async fn serve(listen: std::net::SocketAddr, state: ConsoleProxyState) -> anyhow::Result<()> {
     let app = router(state);
     let listener = tokio::net::TcpListener::bind(listen).await?;
-    tracing::info!("machina-agent console + guacamole proxy on {listen}");
+    tracing::info!("machina-agent console proxy on {listen}");
     axum::serve(listener, app).await?;
     Ok(())
 }

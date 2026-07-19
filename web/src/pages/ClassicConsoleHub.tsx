@@ -81,17 +81,10 @@ export default function ClassicConsoleHub() {
       setActiveProtocol(defaultProto)
       setVmState(vm?.state ?? null)
       setHistory(sessions)
-      const needsGuac = defaultProto.startsWith('guacamole_')
-      if (needsGuac && hubPlan.guacamole.available) {
-        const sess = await createClassicConsoleHubSession(name, { protocol: defaultProto }, conn)
-        setSession(sess)
-        setWsUrl(null)
-      } else {
-        setSession(null)
-        const token = await getWsToken()
-        setWsUrl(classicVncWsUrl(hubPlan, token))
-        setSerialWsUrl(classicSerialWsUrl(hubPlan, token))
-      }
+      setSession(null)
+      const token = await getWsToken()
+      setWsUrl(classicVncWsUrl(hubPlan, token))
+      setSerialWsUrl(classicSerialWsUrl(hubPlan, token))
     } catch (e: unknown) {
       // Clear the previous VM's console artifacts so a failed load shows the
       // "unavailable" state instead of the prior VM's still-connected session.
@@ -114,11 +107,7 @@ export default function ClassicConsoleHub() {
     setActiveProtocol(protocol)
     setError(null)
     try {
-      if (protocol.startsWith('guacamole_')) {
-        const sess = await createClassicConsoleHubSession(name, { protocol }, conn)
-        setSession(sess)
-        setWsUrl(null)
-      } else {
+      {
         setSession(null)
         if (protocol === 'novnc' && plan) {
           const token = await getWsToken()

@@ -99,11 +99,11 @@ describe('consoleExperienceMode', () => {
     const rdp = {
       native: { console_type: 'unknown', available: false },
       webrtc_spice_available: false,
-      protocols: ['guacamole_rdp', 'serial'],
-      recommended: 'guacamole_rdp',
+      protocols: ['rdp', 'serial'],
+      recommended: 'rdp',
     }
     expect(getDefaultLens(rdp)).toBe('display')
-    expect(getDefaultProtocol(rdp)).toBe('guacamole_rdp')
+    expect(getDefaultProtocol(rdp)).toBe('rdp')
   })
 
   it('serial-only VM (no display device) defaults to serial', () => {

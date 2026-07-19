@@ -49,13 +49,7 @@ pub struct ControllerConfig {
     pub atlas_rbd_secret_uuid: Option<String>,
     /// Co-located machina-daemon base URL for KubeVirt inventory sync.
     pub daemon_base_url: String,
-    /// ConsoleHub / Guacamole (optional protocol gateway on hypervisors).
-    pub guacamole_enabled: bool,
-    pub guacamole_json_secret_hex: String,
-    pub guacamole_base_url: String,
-    pub guacamole_fetch_token: bool,
     pub consolehub_session_ttl_secs: u64,
-    pub consolehub_proxy_prefix: String,
     /// Require approval workflow for production VM console (Phase 2/5).
     pub consolehub_require_approval: bool,
     /// Enable session recording metadata (Phase 2).
@@ -143,29 +137,10 @@ impl Default for ControllerConfig {
                 .filter(|s| !s.is_empty()),
             daemon_base_url: std::env::var("MACHINA_DAEMON_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:5092".into()),
-            guacamole_enabled: std::env::var("GUACAMOLE_ENABLED")
-                .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
-                .unwrap_or_else(|_| {
-                    // Match the agent's gate (guacamole_proxy: len >= 32) — a
-                    // shorter/empty secret would make the controller advertise
-                    // console sessions the agent then refuses as unconfigured.
-                    std::env::var("GUACAMOLE_JSON_SECRET_HEX")
-                        .map(|s| s.trim().len() >= 32)
-                        .unwrap_or(false)
-                }),
-            guacamole_json_secret_hex: std::env::var("GUACAMOLE_JSON_SECRET_HEX")
-                .unwrap_or_default(),
-            guacamole_base_url: std::env::var("GUACAMOLE_BASE_URL")
-                .unwrap_or_else(|_| "http://127.0.0.1:8081/guacamole".into()),
-            guacamole_fetch_token: std::env::var("GUACAMOLE_FETCH_TOKEN")
-                .map(|v| !matches!(v.to_lowercase().as_str(), "0" | "false" | "no"))
-                .unwrap_or(true),
             consolehub_session_ttl_secs: std::env::var("CONSOLEHUB_SESSION_TTL_SECS")
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(600),
-            consolehub_proxy_prefix: std::env::var("CONSOLEHUB_PROXY_PREFIX")
-                .unwrap_or_else(|_| "/consolehub/guacamole".into()),
             consolehub_require_approval: std::env::var("CONSOLEHUB_REQUIRE_APPROVAL")
                 .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
                 .unwrap_or(false),

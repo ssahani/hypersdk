@@ -59,7 +59,7 @@ export default function VmConsoleQuickLinks({ vmId, running = true, compact = fa
   return (
     <div className={`flex flex-wrap gap-1.5 ${className}`} data-testid="vm-console-quick-links">
       {protocols.map((p) => {
-        const label = CONSOLE_PROTOCOL_LABELS[p] ?? p.replace('guacamole_', '')
+        const label = CONSOLE_PROTOCOL_LABELS[p] ?? p
         const active = p === (plan?.recommended ?? 'novnc')
         const Icon = p === 'webrtc_spice' ? Wifi : Monitor
         return (

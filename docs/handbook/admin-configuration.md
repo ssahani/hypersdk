@@ -32,7 +32,7 @@ git clone https://github.com/ssahani/machina.git && cd machina
 ```bash
 ./scripts/deploy-remote.sh USER@HOST --remote-build
 ./scripts/deploy-remote.sh USER@HOST --platform      # also controller + agent
-./scripts/deploy-remote.sh USER@HOST --with-guacamole --open-firewall
+./scripts/deploy-remote.sh USER@HOST --open-firewall
 ```
 
 Useful env vars: `SSH_PORT` (22), `REMOTE_DIR` (`~/.deployment/machina`),
@@ -106,7 +106,6 @@ daemon + TUI + `web/dist` into `./dist/` for client handoff.
 | **50051** | `machina-agent` gRPC | `127.0.0.1:50051` | `machina-agent --listen` |
 | **50052** | `machina-agent` console | `127.0.0.1:50052` | `machina-agent --console-listen` |
 | **3000** | Vite dev server | dev only | `web/vite.config.ts` |
-| **8081** | Guacamole (optional) | — | `[guacamole] base_url` |
 
 ---
 
@@ -226,9 +225,6 @@ TLS is active only when `enabled=true` **and** both paths are non-empty.
   `http_webhook_url`, `webhook_authorization`, `sign_lines=false`
   (log: `/var/lib/machina/audit.log`).
 - `[inventory_history]` — `enabled=true`, `interval_secs=3600`, `max_file_mb=64`.
-- `[guacamole]` — `enabled=false`, `json_secret_hex`, `base_url`
-  (`http://127.0.0.1:8081/guacamole`), `fetch_token=true`,
-  `json_username="machina"`.
 - `[ssh_terminal]` — `session_ttl_secs=120` (30–3600), `allow_adhoc_hosts=true`.
 - `[kubevirt]`, `[openstack]`, `[hypersdk]`, `[guestkit]`, `[packetwolf]` —
   integration blocks, all `enabled=false` by default (see
@@ -265,7 +261,6 @@ TLS is active only when `enabled=true` **and** both paths are non-empty.
 | `MACHINA_SKIP_AUTH` | `=1` disables JWT auth (dev only) | unset |
 | `MACHINA_CONTROLLER_ID` | Unique instance ID | — |
 | `MACHINA_DAEMON_URL` | URL the controller uses to reach the daemon | — |
-| `MACHINA_GUACAMOLE_JSON_SECRET_HEX` | Guacamole JSON-auth token secret | — |
 | `MACHINA_API_KEY_MASTER_KEY` | 64-char hex AES-256-GCM key encrypting LLM provider keys at rest (`openssl rand -hex 32`) | unset = plaintext |
 | `GUESTKIT_ENABLED` / `PACKETWOLF_ENABLED` | Integration toggles | `true` / `false` |
 

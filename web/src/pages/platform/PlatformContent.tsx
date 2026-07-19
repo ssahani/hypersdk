@@ -313,12 +313,14 @@ export default function PlatformContent() {
 
           {uploadMode === 'file' ? (
             <>
+              {/* Not the shared `input` class: that styles a text field, and its
+                  placeholder renders underneath the native file-picker button. */}
               <input
                 ref={fileInputRef}
                 type="file"
                 accept=".iso,application/x-cd-image"
                 aria-label="ISO file"
-                className="input w-full"
+                className="w-full rounded-xl border border-white/10 bg-slate-950/50 p-2 text-sm text-slate-300 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-sky-500/20 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-sky-300 hover:file:bg-sky-500/30 disabled:opacity-50"
                 disabled={uploading}
                 onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
               />

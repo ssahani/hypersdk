@@ -11,9 +11,7 @@ export const CONSOLE_PROTOCOL_LABELS: Record<string, string> = {
   webrtc_spice: 'Performance',
   serial: 'Serial',
   native_ssh: 'SSH',
-  guacamole_vnc: 'VNC (Guac)',
-  guacamole_ssh: 'SSH (Guac)',
-  guacamole_rdp: 'RDP',
+  rdp: 'RDP',
 }
 
 export function consoleHubPath(vmId: string, protocol?: string, popout = false): string {
@@ -29,7 +27,7 @@ export function sortedDisplayProtocols(protocols: string[], recommended: string)
   if (recommended && !set.has(recommended)) set.add(recommended)
   const ordered: string[] = CONSOLE_PROTOCOL_ORDER.filter((p) => set.has(p))
   for (const p of set) {
-    if (!ordered.includes(p) && (p.startsWith('guacamole_') || p === 'native_ssh')) ordered.push(p)
+    if (!ordered.includes(p) && (p === 'rdp' || p === 'native_ssh')) ordered.push(p)
   }
   return ordered
 }

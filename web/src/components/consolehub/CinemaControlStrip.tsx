@@ -53,7 +53,7 @@ type Props = {
 const ZOOM_LEVELS: ZoomLevel[] = [75, 100, 125, 150, 200]
 
 function protocolLabel(p: string): string {
-  return p.replace('guacamole_', '').replace('webrtc_', '').replace('_', ' ')
+  return p.replace('webrtc_', '').replace('_', ' ')
 }
 
 export default function CinemaControlStrip({

@@ -49,7 +49,6 @@ metrics, VM backup, and a documented KubeVirt/OpenStack migration path.
 | **50051** | `machina-agent` | gRPC (tonic, TLS) | `127.0.0.1:50051` | `machina-agent --listen` |
 | **50052** | `machina-agent` console | WebSocket console proxy | `127.0.0.1:50052` | `machina-agent --console-listen` |
 | **3000** | Web dev server (Vite) | HTTP | dev only | `web/vite.config.ts`, proxies `/api` + `/ws` to `:5092` |
-| **8081** | Guacamole (optional) | HTTP | `install-guacamole.sh` | `[guacamole] base_url` |
 | **4222** | NATS (optional, controller) | — | `NATS_URL` | controller env |
 
 TLS on `:5092` is **on by default** — the installer generates a self-signed cert
@@ -105,7 +104,6 @@ The handbook cross-links rather than duplicates these existing guides:
 | KubeVirt migration | [../kubevirt-migration.md](../kubevirt-migration.md) |
 | Observability | [../guides/observability.md](../guides/observability.md) |
 | OpenStack | [../openstack.md](../openstack.md) |
-| Guacamole bridge | [../guacamole-integration.md](../guacamole-integration.md) |
 | Fleet / HA | [../fleet-ha.md](../fleet-ha.md) · [../fleet.md](../fleet.md) |
 | Runbooks | [../runbook.md](../runbook.md) · [../platform-runbooks.md](../platform-runbooks.md) |
 | User stories | [../USER_STORIES.md](../USER_STORIES.md) |

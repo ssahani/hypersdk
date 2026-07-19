@@ -157,7 +157,7 @@ function CockpitInner({
 
   useEffect(() => {
     setProtocol(activeProtocol)
-    if (activeProtocol === 'novnc' || activeProtocol.startsWith('guacamole_')) {
+    if (activeProtocol === 'novnc' || activeProtocol === 'rdp') {
       setMode('fit')
     }
     if (loading) setConnected(false)

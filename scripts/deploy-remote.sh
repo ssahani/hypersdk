@@ -68,7 +68,7 @@ deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--install
         [--skip-platform-e2e|--skip-daemon-e2e]
         [--e2e-auth pam|ldap|oidc|auto]
         [--remote-build|--remote-check] [--bind ADDR] [--open-firewall|--disable-firewalld]
-        [--with-guacamole] [--guacamole-port PORT] [--with-packetwolf] [--no-start] [--deps-only] [extra install.sh args...]
+        [--with-packetwolf] [--no-start] [--deps-only] [extra install.sh args...]
 
 Prefer: ./scripts/deploy remote USER@HOST [flags]  |  ./scripts/deploy status
 
@@ -96,7 +96,6 @@ Examples:
   VSPASS=max deploy-remote.sh sus 185.165.240.5 --quick --e2e --platform
   VSPASS=max deploy-remote.sh sus 212.8.252.194 --platform --e2e --bind 0.0.0.0
   VSPASS=max deploy-remote.sh sus 212.8.252.194 --platform --e2e --e2e-auth ldap --bind 0.0.0.0 --disable-firewalld
-  deploy-remote.sh sus@host --with-guacamole --bind 0.0.0.0 --open-firewall
   deploy-remote.sh sus 212.8.252.194 --platform --with-packetwolf --quick
   deploy-remote.sh sus 212.8.252.194 --install-only --platform --prune-sources
   deploy-remote.sh sus@host --remote-check    # fast compile smoke after rsync
@@ -296,10 +295,8 @@ SKIP_DAEMON_E2E=false
 SKIP_LIVE_UX=false
 RUN_LIBVIRT_DESKTOP_E2E=false
 E2E_AUTH_MODE="${E2E_AUTH_MODE:-auto}"
-WITH_GUACAMOLE=false
 WITH_PACKETWOLF=false
 PACKETWOLF_E2E=false
-GUACAMOLE_PORT=8081
 
 parse_flags() {
     while [[ $# -gt 0 ]]; do
@@ -315,10 +312,8 @@ parse_flags() {
             --skip-daemon-e2e) SKIP_DAEMON_E2E=true; shift ;;
             --skip-live-ux) SKIP_LIVE_UX=true; shift ;;
             --e2e-auth) E2E_AUTH_MODE="${2:?pam|ldap|oidc|auto}"; shift 2 ;;
-            --with-guacamole) WITH_GUACAMOLE=true; shift ;;
             --with-packetwolf) WITH_PACKETWOLF=true; shift ;;
             --packetwolf-e2e) PACKETWOLF_E2E=true; shift ;;
-            --guacamole-port) GUACAMOLE_PORT="${2:?}"; shift 2 ;;
             --cleanup) CLEANUP=true; shift ;;
             --open-firewall) OPEN_FW=true; shift ;;
             --disable-firewalld) DISABLE_FW=true; shift ;;
@@ -430,7 +425,6 @@ fi
 if $QUICK; then MODE_LABEL="Quick — incremental make release web + install (--skip-build)"; fi
 if $INSTALL_ONLY; then MODE_LABEL="Install-only — copy existing binaries, no cargo/npm"; fi
 if $INSTALL_PLATFORM; then MODE_LABEL+=" + platform (PostgreSQL, controller :5093, agent)"; fi
-if $WITH_GUACAMOLE; then MODE_LABEL+=" + Guacamole (Docker :${GUACAMOLE_PORT})"; fi
 if $WITH_PACKETWOLF; then MODE_LABEL+=" + PacketWolf (../packetwolf :9443)"; fi
 if $PACKETWOLF_E2E; then MODE_LABEL+=" + PacketWolf E2E tiers"; fi
 if $PRUNE_SOURCES; then MODE_LABEL+=" + prune sources after install"; fi
@@ -457,7 +451,6 @@ OPTS_LINE=""
 [[ -n "$BIND" ]] && OPTS_LINE+="--bind $BIND  "
 $OPEN_FW && OPTS_LINE+="--open-firewall  "
 $DISABLE_FW && OPTS_LINE+="--disable-firewalld  "
-$WITH_GUACAMOLE && OPTS_LINE+="--with-guacamole --guacamole-port ${GUACAMOLE_PORT}  "
 $NO_START && OPTS_LINE+="--no-start  "
 $DEPS_ONLY && OPTS_LINE+="--deps-only  "
 $CLEANUP && OPTS_LINE+="cleanup deploy dir after  "
@@ -562,7 +555,6 @@ OPTS=" --no-tests"
 [[ -n "$BIND" ]] && OPTS+=" --bind $BIND"
 $OPEN_FW && OPTS+=" --open-firewall"
 $DISABLE_FW && OPTS+=" --disable-firewalld"
-$WITH_GUACAMOLE && OPTS+=" --with-guacamole --guacamole-port ${GUACAMOLE_PORT}"
 $NO_START && OPTS+=" --no-start"
 $DEPS_ONLY && OPTS+=" --deps-only"
 
@@ -575,7 +567,6 @@ QUICK_OPTS=" --no-tests --skip-build"
 [[ -n "$BIND" ]] && QUICK_OPTS+=" --bind $BIND"
 $OPEN_FW && QUICK_OPTS+=" --open-firewall"
 $DISABLE_FW && QUICK_OPTS+=" --disable-firewalld"
-$WITH_GUACAMOLE && QUICK_OPTS+=" --with-guacamole --guacamole-port ${GUACAMOLE_PORT}"
 
 if $QUICK || $INSTALL_ONLY; then
     if $INSTALL_ONLY; then
@@ -741,9 +732,6 @@ deploy_ui_celebrate "Ship it!"
 machina_print_success "$HOST" "$ELAPSED" "$USER" "$($INSTALL_PLATFORM && echo '--platform' || true)"
 deploy_ui_kv "🔗" "SSH" "ssh ${USER}@${HOST}"
 deploy_ui_kv "🌐" "UI" "https://${HOST}:5092/"
-if $WITH_GUACAMOLE; then
-    deploy_ui_kv "🖥️" "Guacamole" "http://${HOST}:${GUACAMOLE_PORT}/guacamole/"
-fi
 tip "Trust the browser once for the self-signed TLS cert, or terminate TLS upstream."
 if $INSTALL_PLATFORM; then
     tip "Fast redeploy (no rebuild): ./scripts/deploy remote ${USER}@${HOST} --install-only --platform"

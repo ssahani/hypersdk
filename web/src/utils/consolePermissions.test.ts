@@ -9,7 +9,6 @@ const basePlan: ConsoleHubPlan = {
   vm_name: 'vm-1',
   recommended: 'novnc',
   native: { console_type: 'vnc', ws_path: '/ws', available: true },
-  guacamole: { available: false, protocols: [] },
   os_hint: 'linux',
   protocols: ['novnc'],
   webrtc_spice_available: false,

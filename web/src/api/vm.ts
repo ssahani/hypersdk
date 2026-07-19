@@ -460,22 +460,6 @@ export const deleteVM = (name: string, undefine?: VmDeleteUndefineOpts, connecti
     appendVmConnection(`${API}/vms/${encodeURIComponent(name)}${deleteVmQuery(undefine)}`, connection),
   )
 
-/** Response from `GET /api/v1/vms/{name}/guacamole-auth` when `[guacamole]` is enabled on the daemon. */
-export interface GuacamoleAuthResponse {
-  vm: string
-  protocol: string
-  target_host: string
-  target_port: number
-  guac_data: string
-  token?: string
-}
-
-/** Optional Apache Guacamole encrypted JSON auth; requires server config `[guacamole]`. */
-export const getGuacamoleAuth = (name: string, connection?: string | null) =>
-  readJsonObject<GuacamoleAuthResponse>(
-    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/guacamole-auth`, connection),
-  )
-
 export interface BlockJobInfo {
   job_type: number
   bandwidth: number
@@ -848,7 +832,6 @@ export interface ClassicConsoleHubPlan {
   vm_name: string
   recommended: string
   native: { console_type: string; ws_path: string; serial_ws_path?: string; available: boolean }
-  guacamole: { available: boolean; protocols: string[] }
   guest_ip?: string | null
   ssh_user?: string | null
   os_hint: string
@@ -874,7 +857,7 @@ export const getClassicConsoleHubPlan = (name: string, connection?: string | nul
 
 export const createClassicConsoleHubSession = (
   name: string,
-  body: { protocol?: string; rdp_username?: string; rdp_domain?: string },
+  body: { protocol?: string },
   connection?: string | null,
 ) =>
   apiPost<ClassicConsoleHubSessionResponse>(

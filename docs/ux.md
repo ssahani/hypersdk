@@ -92,8 +92,6 @@ Rust/TUI: [`core/src/api_error.rs`](../core/src/api_error.rs) mirrors web format
 
 OpenStack-specific: [`OpenStackUnreachablePanel`](../web/src/components/OpenStackUnreachablePanel.tsx), [`openstackHints.ts`](../web/src/utils/openstackHints.ts).
 
-Guacamole: [`GuacamoleConsoleLink`](../web/src/components/GuacamoleConsoleLink.tsx) on VM details when `[guacamole]` is enabled (`platform-info.guacamole`).
-
 Multi-host VM list: configure `[libvirt] extra_uris` in daemon config; VMs from remote URIs appear with a connection badge (read-only federation; lifecycle on primary/dual connections only).
 
 HyperSDK: [`HypersdkStatusBanner`](../web/src/components/HypersdkStatusBanner.tsx) on migrations and push modals when enabled but unreachable.

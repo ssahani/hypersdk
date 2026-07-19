@@ -93,7 +93,7 @@ export default function ViewLensBar({
                   : 'px-2 py-0.5 rounded text-[11px] text-slate-500 hover:text-slate-300'
               }
             >
-              {p.replace('guacamole_', '').replace(/_/g, ' ')}
+              {p.replace(/_/g, ' ')}
             </button>
           ))}
         </div>
@@ -108,7 +108,6 @@ export default function ViewLensBar({
 export function lensToProtocol(lens: ConsoleLens, protocols: string[], recommended: string): string {
   if (lens === 'shell') {
     if (protocols.includes('native_ssh')) return 'native_ssh'
-    if (protocols.includes('guacamole_ssh')) return 'guacamole_ssh'
   }
   if (lens === 'serial') return 'serial'
   if (lens === 'display') return recommended

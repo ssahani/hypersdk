@@ -138,12 +138,10 @@ _Built-in VNC, SPICE, serial, SSH, and RDP proxies mean no separate console gate
   - **How:** Web → VMs →  → Console → Serial / Terminal.
 - **SSH terminal proxy** — In-browser SSH terminal to VMs and ad-hoc hosts, with session TTLs. — _One authenticated path to shells across the fleet._
   - **How:** Web → SSH (VM) or Web → Host SSH (ad-hoc host).
-- **Built-in RDP** — Native RDP stream and rdp-info endpoint for Windows guests. — _Windows desktops without a bolted-on gateway._
-  - **How:** Web → VMs →  → RDP console.
+- **Native RDP for Windows guests** — A Windows guest is auto-detected, and RDP is exposed via a hypervisor NAT port-forward to the guest's port 3389 once the agent confirms Remote Desktop is actually listening. — _Windows desktops without a bolted-on gateway._
+  - **How:** Web → VMs →  → Console → download the generated `.rdp` file and open it with Microsoft Remote Desktop (macOS) or `mstsc` (Windows).
 - **ConsoleHub session broker** — Brokers console sessions with time-to-live limits, a cinema/wall multi-console view, and optional OIDC gating. — _Governed, auditable console access with a NOC-style live wall._
   - **How:** Web → ConsoleHub (classic) or Web → Platform → ConsoleHub → cinema/wall view.
-- **Apache Guacamole bridge** — Optional integration issuing encrypted JSON auth tokens for RDP, VNC, and SSH via Guacamole. — _Plug into an existing Guacamole gateway when you have one._
-  - **How:** Web → Platform → Integrations → enable Guacamole (see docs/guacamole-integration.md).
 - **Virt-viewer handoff** — Download a .vv connection file to open a VM in a native virt-viewer client. — _Fall back to a desktop console client when preferred._
   - **How:** Web → VMs →  → download `.vv` and open in virt-viewer.
 
@@ -332,7 +330,7 @@ _Four ways to operate the platform, backed by PAM/LDAP/OIDC auth, RBAC, multi-te
 5. **Turn on protection & telemetry** — Enable scheduled backups with ./machinactl backup enable, point them off-box, and wire Prometheus scrape or OTLP export.
 6. **Scale to a fleet (optional)** — Install the controller and agents with INSTALL_PLATFORM=1 or deploy-remote --platform to unlock HA, DRS, and the platform UI.
 
-> **Good to know:** Machina builds and runs on Linux only (it depends on libvirt/QEMU/KVM headers and /dev/kvm) — the workspace does not compile on macOS, though the web UI alone does. HTTPS ships with a self-signed certificate that should be replaced with a CA-signed one for production. Security defaults matter: an empty roles.json grants every user admin, and the dev-only auth-bypass flags must never be set in production. The multi-host controller and agent tier is systemd-only (the Helm chart deploys just the daemon), and SAML is config-only today. Integrations such as OpenStack, KubeVirt, Guacamole, PacketWolf, and Atlas are disabled by default and require their own endpoints or credentials.
+> **Good to know:** Machina builds and runs on Linux only (it depends on libvirt/QEMU/KVM headers and /dev/kvm) — the workspace does not compile on macOS, though the web UI alone does. HTTPS ships with a self-signed certificate that should be replaced with a CA-signed one for production. Security defaults matter: an empty roles.json grants every user admin, and the dev-only auth-bypass flags must never be set in production. The multi-host controller and agent tier is systemd-only (the Helm chart deploys just the daemon), and SAML is config-only today. Integrations such as OpenStack, KubeVirt, PacketWolf, and Atlas are disabled by default and require their own endpoints or credentials.
 
 ---
 _Machina is developed by ZyvorAI Labs. Contact **info@zyvor.dev** · Proprietary & Confidential._

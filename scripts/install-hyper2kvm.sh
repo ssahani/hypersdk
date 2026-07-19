@@ -14,7 +14,6 @@
 #   --remote USER@HOST     Deploy to a remote host via SSH (rsync + build on remote)
 #   --no-start             Install but don't start services
 #   --no-tests             Skip post-install verification
-#   --with-guacamole       Also install Apache Guacamole
 #   --help                 Show this help
 
 set -eo pipefail
@@ -29,7 +28,6 @@ DISABLE_FIREWALL=false
 REMOTE_HOST=""
 NO_START=false
 NO_TESTS=false
-WITH_GUACAMOLE=false
 
 # ── Colors / output helpers ───────────────────────────────────────────────────
 RED='\033[0;31m'; YELLOW='\033[0;33m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -66,7 +64,6 @@ parse_args() {
             --disable-firewalld) DISABLE_FIREWALL=true ;;
             --no-start)         NO_START=true ;;
             --no-tests)         NO_TESTS=true ;;
-            --with-guacamole)   WITH_GUACAMOLE=true ;;
             --help|-h)          show_help; exit 0 ;;
             *) warn "Unknown argument: $arg" ;;
         esac
@@ -87,7 +84,6 @@ Options:
   --remote USER@HOST     Deploy to remote server over SSH
   --no-start             Install but do not start services
   --no-tests             Skip post-install verification
-  --with-guacamole       Install Apache Guacamole remote desktop gateway
   --help                 Show this help
 
 Components installed:
@@ -120,7 +116,6 @@ remote_deploy() {
     local rargs="--bind $BIND_ADDR --no-tests"
     $OPEN_FIREWALL    && rargs="$rargs --open-firewall"
     $DISABLE_FIREWALL && rargs="$rargs --disable-firewalld"
-    $WITH_GUACAMOLE   && rargs="$rargs --with-guacamole"
     $NO_START         && rargs="$rargs --no-start"
 
     info "Running install on $target ..."
@@ -148,7 +143,6 @@ install_daemon() {
     local install_args="--bind $BIND_ADDR --no-tests"
     $OPEN_FIREWALL    && install_args="$install_args --open-firewall"
     $DISABLE_FIREWALL && install_args="$install_args --disable-firewalld"
-    $WITH_GUACAMOLE   && install_args="$install_args --with-guacamole"
     $NO_START         && install_args="$install_args --no-start"
 
     # shellcheck disable=SC2086

@@ -382,7 +382,6 @@ export interface ConsoleHubPlan {
   vm_name: string
   recommended: string
   native: { console_type: string; ws_path: string; serial_ws_path?: string; available: boolean }
-  guacamole: { available: boolean; protocols: string[] }
   guest_ip?: string | null
   ssh_user?: string | null
   os_hint: string
@@ -420,7 +419,7 @@ export interface SpectatorValidateResponse {
 export const getConsoleHubPlan = (id: string) =>
   platformFetch<ConsoleHubPlan>(`/api/v1/vms/${id}/consolehub/plan`)
 
-export const createConsoleHubSession = (id: string, body: { protocol?: string; rdp_username?: string; rdp_domain?: string; break_glass?: boolean }) =>
+export const createConsoleHubSession = (id: string, body: { protocol?: string; break_glass?: boolean }) =>
   platformFetch<ConsoleHubSessionResponse>(`/api/v1/vms/${id}/consolehub/sessions`, {
     method: 'POST',
     body: JSON.stringify(body),

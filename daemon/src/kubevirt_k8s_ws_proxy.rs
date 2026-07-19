@@ -211,7 +211,7 @@ pub async fn proxy_kubevirt_ws(
     // browser tab closing on an idle console left down_task parked on
     // up_recv.next() forever — leaking the upstream WS, both tasks, AND the
     // KubectlProxy child (its Drop/start_kill runs only after this returns).
-    // Mirrors relay_platform_ws / proxy_guac_ws.
+    // Mirrors relay_platform_ws.
     let up_abort = up_task.abort_handle();
     let down_abort = down_task.abort_handle();
     tokio::select! {

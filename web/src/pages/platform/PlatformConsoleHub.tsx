@@ -194,14 +194,7 @@ export default function PlatformConsoleHub() {
         setError(null)
       }
 
-      const defaultProto = hubPlan ? getDefaultProtocol(hubPlan) : 'novnc'
-      const needsGuac = defaultProto.startsWith('guacamole_')
-      if (needsGuac && hubPlan?.guacamole.available) {
-        const sess = await createConsoleHubSession(id, { protocol: defaultProto })
-        setSession(sess)
-      } else {
-        setSession(null)
-      }
+      setSession(null)
     } catch (e: unknown) {
       setError(formatUserError(e))
     } finally {
@@ -239,10 +232,7 @@ export default function PlatformConsoleHub() {
     setActiveProtocol(protocol)
     setError(null)
     try {
-      if (protocol.startsWith('guacamole_')) {
-        const sess = await createConsoleHubSession(id, { protocol })
-        setSession(sess)
-      } else {
+      {
         setSession(null)
         if (protocol === 'novnc' && !kubeVirtNamespace) {
           const tokenRes = await issuePlatformVmWsToken(id)

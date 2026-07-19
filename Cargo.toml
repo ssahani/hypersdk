@@ -4,7 +4,6 @@ members = [
     "daemon",
     "tui",
     "rvb",
-    "guac-bridge",
     "virt-image-build",
     "run-as-user-helper",
     "spec",

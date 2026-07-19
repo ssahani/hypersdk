@@ -77,7 +77,7 @@ export function getDefaultProtocol(plan: PlanSnapshot): string {
   if (plan.native.available || plan.native.console_type === 'vnc') return 'novnc'
   if (plan.webrtc_spice_available || plan.native.console_type === 'spice') return 'spice'
   // Shutoff graphical VM: no live port yet, but trust the backend's display recommendation
-  // (e.g. novnc / spice / guacamole_rdp) so we don't drop to serial. See getDefaultLens.
+  // (e.g. novnc / spice / rdp) so we don't drop to serial. See getDefaultLens.
   if (plan.recommended && isDisplayProtocol(plan.recommended)) return plan.recommended
   if ((plan.protocols ?? []).includes('serial')) return 'serial'
   return 'novnc'
@@ -88,8 +88,7 @@ export function isDisplayProtocol(protocol: string): boolean {
     protocol === 'novnc'
     || protocol === 'spice'
     || protocol === 'webrtc_spice'
-    || protocol.startsWith('guacamole_vnc')
-    || protocol.startsWith('guacamole_rdp')
+    || protocol.startsWith('rdp')
   )
 }
 

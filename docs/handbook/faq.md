@@ -113,8 +113,7 @@ fine on macOS with `cd web && npm run build`.)
 
 **Q20. How do I deploy to a remote host?**
 `./scripts/deploy-remote.sh USER@HOST --remote-build` rsyncs and builds on the
-remote. Add `--platform` for the controller/agent, `--with-guacamole`, or
-`--open-firewall`.
+remote. Add `--platform` for the controller/agent, or `--open-firewall`.
 
 **Q21. Does it run as a systemd service or a container?**
 Primarily **systemd** (`machina-daemon.service`, plus controller/agent/backup
@@ -176,8 +175,11 @@ HTML5 (`/spice-html5`), serial (`/ws/v1/console/{name}`), SSH terminal — so yo
 don't need a separate gateway. ConsoleHub brokers sessions with TTLs.
 
 **Q32. Does it support RDP?**
-Yes, via the built-in RDP stream (`/ws/v1/rdp/{name}`, `GET /vms/{name}/rdp-info`)
-and optional Apache Guacamole integration.
+Yes, natively for Windows guests. A Windows guest is auto-detected, and RDP is
+exposed via a hypervisor NAT port-forward to the guest's port 3389 once the
+agent confirms Remote Desktop is actually listening. Connect with a native
+client — Microsoft Remote Desktop on macOS, or `mstsc` on Windows — using the
+`.rdp` file generated from `GET /vms/{name}/rdp-info`.
 
 **Q33. Can I migrate VMs to KubeVirt or OpenStack?**
 Yes. Export a KubeVirt bundle (`GET /vms/{name}/kubevirt-bundle`) and

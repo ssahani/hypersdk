@@ -86,7 +86,6 @@ The **web UI** proxies all `/api/...` and `/ws/...` requests to `machina-daemon`
 | `spec` | — | Declarative VM/cluster spec types (Serde structs mirroring the gRPC proto) |
 | `translate` | — | libvirt domain XML → internal type translation, QEMU command helpers |
 | `rvb` | — | RVB (reverse bridge) helpers |
-| `guac-bridge` | — | Apache Guacamole JSON-auth token library |
 | `virt-image-build` | — | virt-builder / Packer golden image job runner |
 
 ---
@@ -101,7 +100,7 @@ The **web UI** proxies all `/api/...` and `/ws/...` requests to `machina-daemon`
 - **`tasks/`** — Async task bus abstraction: `InMemoryTaskBus` + optional `NatsTaskBus`; `worker.rs` processes tasks; `nats_subscriber.rs` bridges NATS → local bus.
 - **`state.rs`** — `AppState` holds config, DB pool, task bus, and agent client.
 - **`agent_client.rs`** — gRPC client to `machina-agent`.
-- **`consolehub.rs`** — Console session management (Guacamole or built-in proxy).
+- **`consolehub.rs`** — Console session management (native VNC/SPICE/serial proxies).
 - **`auth.rs`**, **`jwt.rs`** — JWT-based auth for the controller (separate from daemon PAM auth).
 - **`sync.rs`** — Periodic sync loops (KubeVirt inventory, storage, etc.).
 
@@ -253,7 +252,6 @@ Frontend polls `/api/v1/tasks/{task_id}`.
 - `MACHINA_SKIP_AUTH=1` — disables JWT auth (dev only)
 - `MACHINA_CONTROLLER_ID` — unique instance ID
 - `MACHINA_DAEMON_URL` — URL the controller uses to reach the daemon
-- `MACHINA_GUACAMOLE_JSON_SECRET_HEX` — Guacamole JSON-auth token secret
 - `MACHINA_API_KEY_MASTER_KEY` — 64-char hex (32 bytes) AES-256-GCM master key for encrypting LLM provider API keys at rest. Unset = plaintext (dev/legacy). Generate: `openssl rand -hex 32`
 
 **Atlas storage integration** (controller ↔ `../atlas` Zyvor storage control plane; VM disks as Ceph/NFS/ZFS volumes, snapshot/backup/restore via Atlas):

@@ -97,32 +97,6 @@ export default function ConsoleHubSession({
   enableSpiceAudio = false,
   platformSpiceWsPath = null,
 }: Props) {
-  if (session?.backend === 'guacamole' && session.session_id) {
-    const src = `${session.embed_path}#/`
-    return (
-      <div className="flex flex-col flex-1 min-h-0 gap-2 w-full h-full">
-        <iframe
-          title={`ConsoleHub ${protocol}`}
-          src={src}
-          className="flex-1 w-full min-h-[420px] rounded-lg border border-slate-700/60 bg-black"
-          allow="clipboard-read; clipboard-write; fullscreen"
-        />
-        {session.emergency_url ? (
-          <div className="flex justify-end">
-            <a
-              href={session.emergency_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-secondary text-xs inline-flex items-center gap-1 py-1 px-2"
-            >
-              <ExternalLink className="w-3.5 h-3.5" /> Open in new tab (fallback)
-            </a>
-          </div>
-        ) : null}
-      </div>
-    )
-  }
-
   if (protocol === 'spice') {
     return (
       <SPICEViewer

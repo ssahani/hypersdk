@@ -59,7 +59,6 @@ Machina is a **two-layer platform**:
 | `spec` | — | Declarative VM/cluster spec types |
 | `translate` | — | libvirt domain XML → internal type translation |
 | `rvb` | — | Reverse-bridge helpers |
-| `guac-bridge` | — | Apache Guacamole JSON-auth token library |
 | `virt-image-build` | — | virt-builder / mkosi golden-image job runner |
 | `run-as-user-helper` | — | setuid helper for run-as-user impersonation |
 
@@ -139,11 +138,10 @@ bypass internally). Highlights:
 `GET|POST /vms/{vm}/snapshots`, `DELETE /vms/{vm}/snapshots/{snap}`,
 `POST /vms/{vm}/snapshots/{snap}/revert`.
 
-**Consoles** (`routes/console.rs`, `consolehub.rs`, `guacamole.rs`):
+**Consoles** (`routes/console.rs`, `consolehub.rs`):
 `GET /vms/console-info/{name}`, `GET /vms/{name}/viewer.vv`,
 `GET /vms/{name}/consolehub/plan`, `GET|POST /vms/{name}/consolehub/sessions`,
-`POST /consolehub/sessions/{id}/end`, `GET /vms/{name}/guacamole-auth`,
-`GET /vms/{name}/rdp-info`.
+`POST /consolehub/sessions/{id}/end`, `GET /vms/{name}/rdp-info`.
 
 **Auth** (`auth.rs`): `POST /auth/login` · `/auth/logout`, `GET /auth/session`,
 `GET /auth/providers`, `GET /auth/oidc/login` · `/auth/oidc/callback`,
@@ -255,9 +253,12 @@ retention and optional disk inclusion.
 
 Built-in console proxies remove the need for a separate gateway: **noVNC**
 (`/novnc` static client + `/ws/v1/vnc/{name}`), **SPICE HTML5** (`/spice-html5`),
-serial (`/ws/v1/console/{name}`), SSH terminal, and optional **Apache Guacamole**
-integration (encrypted JSON auth, RDP support). ConsoleHub brokers sessions with
-TTLs and can be gated behind OIDC.
+serial (`/ws/v1/console/{name}`), and **native_ssh** (in-browser PTY terminal).
+Windows guests are auto-detected and get **native RDP** via a hypervisor NAT
+port-forward to the guest's port 3389 — connect with Microsoft Remote Desktop
+or `mstsc`, or download the generated `.rdp` file — advertised only once the
+agent confirms Remote Desktop is listening in the guest. ConsoleHub brokers
+sessions with TTLs and can be gated behind OIDC.
 
 ### Fleet, HA & the platform layer
 
@@ -275,8 +276,6 @@ desired-state reconciliation, a task bus (in-memory or NATS), and an AI engine
   See [../kubevirt-migration.md](../kubevirt-migration.md).
 - **OpenStack** — manage instances, flavors, networks, images, load balancers,
   and push local VMs to OpenStack. See [../openstack.md](../openstack.md).
-- **Guacamole** — RDP/VNC/SSH via Apache Guacamole. See
-  [../guacamole-integration.md](../guacamole-integration.md).
 - **HyperSDK / hyper2kvm / GuestKit** — multi-cloud VM migration and offline
   assurance.
 - **Observability** — Prometheus scrape, remote-write ingest, OTLP/HTTP export

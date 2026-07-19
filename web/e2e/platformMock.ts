@@ -3179,7 +3179,6 @@ export async function mockPlatformApi(page: Page, opts?: {
             : isSpice
               ? { console_type: 'spice', ws_path: '/ws/v1/platform/spice/sp1?token=mock-ws-token', serial_ws_path: null, available: true }
               : { console_type: 'vnc', ws_path: '/ws/v1/platform/vnc/v1?token=mock-ws-token', serial_ws_path: '/ws/v1/platform/serial/v1?token=mock-ws-token', available: true },
-          guacamole: { available: !isKubevirt && !isSpice, protocols: isKubevirt || isSpice ? [] : ['vnc', 'ssh'] },
           guest_ip: isKubevirt ? null : '192.168.122.10',
           ssh_user: 'ubuntu',
           os_hint: 'linux',
@@ -3187,7 +3186,7 @@ export async function mockPlatformApi(page: Page, opts?: {
             ? ['serial', 'novnc']
             : isSpice
               ? ['spice', 'webrtc_spice', 'novnc', 'serial', 'native_ssh']
-              : ['novnc', 'guacamole_ssh', 'guacamole_vnc', 'serial', 'native_ssh'],
+              : ['novnc', 'native_ssh', 'novnc', 'serial', 'native_ssh'],
           webrtc_spice_available: isSpice,
           guest_access: isKubevirt
             ? null
@@ -3275,10 +3274,10 @@ export async function mockPlatformApi(page: Page, opts?: {
         json: {
           session_id: '00000000-0000-4000-8000-000000000099',
           vm_id: 'v1',
-          protocol: 'guacamole_ssh',
-          backend: 'guacamole',
-          embed_path: '/consolehub/guacamole/00000000-0000-4000-8000-000000000099/?token=mock-guac',
-          emergency_url: 'http://127.0.0.1:8080/guacamole/#/?token=mock-guac',
+          protocol: 'native_ssh',
+          backend: 'native',
+          embed_path: '/platform/vms/00000000-0000-4000-8000-000000000099/consolehub?native=1',
+          emergency_url: null,
           audit_id: '00000000-0000-4000-8000-000000000098',
           expires_at: new Date(Date.now() + 600_000).toISOString(),
         },

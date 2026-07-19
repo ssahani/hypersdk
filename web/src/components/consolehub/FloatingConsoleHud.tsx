@@ -42,7 +42,7 @@ export default function FloatingConsoleHud({ visible = true }: Props) {
         <span className={`w-2 h-2 rounded-full ${tone}`} />
         <span>{label}</span>
         <span className="text-slate-500">·</span>
-        <span className="uppercase text-slate-400">{vp.protocol.replace('guacamole_', '')}</span>
+        <span className="uppercase text-slate-400">{vp.protocol}</span>
         <span className="text-slate-500">·</span>
         <span className="font-mono text-slate-300">{vp.resolution}</span>
         <span className="text-slate-500">·</span>

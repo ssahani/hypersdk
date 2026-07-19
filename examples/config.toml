@@ -51,17 +51,6 @@ refresh_interval_secs = 5
 # enabled = true
 # max_events = 200
 # health_avc_threshold = 0
-
-[guacamole]
-# Optional Apache Guacamole encrypted JSON auth — same 32 hex chars as Docker JSON_SECRET_KEY.
-# GET /api/v1/vms/{name}/guacamole-auth returns guac_data (+ optional token if fetch_token).
-# enabled = false
-# json_secret_hex = ""
-# base_url = "http://127.0.0.1:8080/guacamole"
-# public_vnc_host = ""
-# fetch_token = true
-# json_username = "machina"
-
 [daemon]
 # Address and port the daemon binds to.
 # Use "0.0.0.0" to listen on all interfaces (default).

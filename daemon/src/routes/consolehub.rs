@@ -1,21 +1,15 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
-//! Classic-mode ConsoleHub: plan, Guacamole sessions, same-origin reverse proxy to local guacd.
+//! Classic-mode ConsoleHub: console plan and native console sessions.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use axum::body::Body;
-use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Extension, Path, Query, Request, State};
-use axum::http::{HeaderValue, Method, StatusCode};
-use axum::response::{IntoResponse, Response};
-use axum::routing::{any, get, post};
+use axum::extract::{Extension, Path, Query, State};
+use axum::routing::{get, post};
 use axum::{Json, Router};
-use futures_util::{SinkExt, StreamExt};
-use libvirt_guac_bridge::{bridge_from_plan, GuacBridgeTarget, GuacamoleBridgeParams};
 use machina_core::libvirt::{guest_health, vnc};
-use machina_core::{LibvirtManager, MachinaConfig};
+use machina_core::LibvirtManager;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -24,7 +18,6 @@ use crate::auth::{AuthSource, RequestActor};
 use crate::conn_query::{spawn_libvirt_actor, ConnQuery};
 use crate::error::AppError;
 
-const PROXY_PREFIX: &str = "/consolehub/guacamole";
 
 #[derive(Clone)]
 pub struct ConsoleSessionStore {
@@ -38,7 +31,6 @@ struct LiveConsoleSession {
     actor: String,
     protocol: String,
     backend: String,
-    guacamole_base: String,
     expires: Instant,
 }
 
@@ -58,7 +50,6 @@ pub struct ConsoleHubPlan {
     pub vm_name: String,
     pub recommended: String,
     pub native: NativeConsoleInfo,
-    pub guacamole: GuacamoleConsoleInfo,
     pub guest_ip: Option<String>,
     pub ssh_user: Option<String>,
     pub os_hint: String,
@@ -74,19 +65,9 @@ pub struct NativeConsoleInfo {
     pub available: bool,
 }
 
-#[derive(Debug, Serialize)]
-pub struct GuacamoleConsoleInfo {
-    pub available: bool,
-    pub protocols: Vec<String>,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct CreateSessionBody {
     pub protocol: Option<String>,
-    #[serde(default)]
-    pub rdp_username: Option<String>,
-    #[serde(default)]
-    pub rdp_domain: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -133,14 +114,6 @@ impl ConsoleSessionStore {
         id
     }
 
-    async fn get(&self, id: Uuid) -> Option<LiveConsoleSession> {
-        let map = self.inner.read().await;
-        let entry = map.get(&id)?;
-        if entry.expires < Instant::now() {
-            return None;
-        }
-        Some(entry.clone())
-    }
 
     async fn end(&self, id: Uuid, actor: &str) -> bool {
         let mut map = self.inner.write().await;
@@ -175,32 +148,9 @@ impl ConsoleSessionStore {
     }
 }
 
-fn guacamole_reachable(base_url: &str) -> bool {
-    let trimmed = base_url.trim();
-    let host_port = trimmed
-        .trim_start_matches("http://")
-        .trim_start_matches("https://")
-        .split('/')
-        .next()
-        .unwrap_or("127.0.0.1:8081");
-    let addr = if host_port.contains(':') {
-        host_port.to_string()
-    } else {
-        format!("{host_port}:8081")
-    };
-    std::net::TcpStream::connect_timeout(
-        &addr
-            .parse()
-            .unwrap_or_else(|_| "127.0.0.1:8081".parse().unwrap()),
-        Duration::from_millis(400),
-    )
-    .is_ok()
-}
-
 fn build_protocol_list(
     console_type: &str,
-    guac_up: bool,
-    vnc_port: i32,
+    _vnc_port: i32,
     guest_ip: &str,
     os_hint: &str,
 ) -> Vec<String> {
@@ -209,15 +159,12 @@ fn build_protocol_list(
         out.push("spice".into());
         out.push("webrtc_spice".into());
     }
-    if guac_up {
-        if vnc_port > 0 {
-            out.push("guacamole_vnc".into());
-        }
-        if !guest_ip.is_empty() {
-            out.push("guacamole_ssh".into());
-            if os_hint == "windows" {
-                out.push("guacamole_rdp".into());
-            }
+    if !guest_ip.is_empty() {
+        // In-browser shell over the daemon's PTY terminal. Previously only ever
+        // synthesized client-side, which left classic mode with no shell at all.
+        out.push("native_ssh".into());
+        if os_hint == "windows" {
+            out.push("rdp".into());
         }
     }
     out.push("serial".into());
@@ -230,7 +177,6 @@ async fn build_plan(
     conn_q: ConnQuery,
     vm_name: &str,
 ) -> Result<ConsoleHubPlan, AppError> {
-    let cfg = MachinaConfig::load();
     let name2 = vm_name.to_string();
     let conn_str = conn_q.connection.clone().unwrap_or_default();
     let (_vnc_host, vnc_port, console_type, serial_available, guest_ip, os_hint) =
@@ -289,32 +235,11 @@ async fn build_plan(
         })
         .await?;
 
-    let guac_cfg = &cfg.guacamole;
-    let guac_up = guac_cfg.enabled
-        && !guac_cfg.json_secret_hex.trim().is_empty()
-        && guacamole_reachable(&guac_cfg.base_url);
-    let mut guac_protocols = Vec::new();
-    if guac_up {
-        if vnc_port > 0 {
-            guac_protocols.push("vnc".into());
-        }
-        if !guest_ip.is_empty() {
-            guac_protocols.push("ssh".into());
-            if os_hint == "windows" {
-                guac_protocols.push("rdp".into());
-            }
-        }
-    }
-
     // Serial is always the last resort — only when no graphical display and no SSH/RDP alternative.
-    let recommended = if os_hint == "windows" && !guest_ip.is_empty() && guac_up {
-        "guacamole_rdp".into()
-    } else if console_type == "spice" {
+    let recommended = if console_type == "spice" {
         "spice".into()
     } else if console_type == "vnc" && vnc_port > 0 {
         "novnc".into()
-    } else if !guest_ip.is_empty() && guac_up {
-        "guacamole_ssh".into()
     } else if serial_available {
         "serial".into()
     } else {
@@ -330,7 +255,6 @@ async fn build_plan(
     let guest_ip_for_protocols = guest_ip.clone();
     let protocols = build_protocol_list(
         &console_type,
-        guac_up,
         vnc_port as i32,
         &guest_ip_for_protocols,
         &os_hint,
@@ -350,10 +274,6 @@ async fn build_plan(
                 urlencoding_light(vm_name)
             ),
             available: vnc_port > 0,
-        },
-        guacamole: GuacamoleConsoleInfo {
-            available: guac_up,
-            protocols: guac_protocols,
         },
         guest_ip: if guest_ip.is_empty() {
             None
@@ -384,26 +304,6 @@ pub fn api_routes() -> Router<LibvirtManager> {
             get(list_sessions).post(create_session),
         )
         .route("/consolehub/sessions/{session_id}/end", post(end_session))
-}
-
-pub fn proxy_routes() -> Router {
-    Router::new()
-        .route(
-            "/consolehub/guacamole/{session_id}/websocket-tunnel",
-            any(guac_ws_proxy),
-        )
-        .route(
-            "/consolehub/guacamole/{session_id}",
-            any(guac_http_proxy_root),
-        )
-        .route(
-            "/consolehub/guacamole/{session_id}/",
-            any(guac_http_proxy_root),
-        )
-        .route(
-            "/consolehub/guacamole/{session_id}/{*path}",
-            any(guac_http_proxy),
-        )
 }
 
 async fn consolehub_plan(
@@ -454,7 +354,6 @@ async fn create_session(
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| plan.recommended.clone());
 
-    let cfg = MachinaConfig::load();
     let ttl = Duration::from_secs(
         std::env::var("CONSOLEHUB_SESSION_TTL_SECS")
             .ok()
@@ -464,61 +363,8 @@ async fn create_session(
     let audit_id = Uuid::new_v4();
     let expires_at = chrono::Utc::now() + chrono::Duration::seconds(ttl.as_secs() as i64);
 
-    let (backend, guac_token, emergency_url, guacamole_base) = if protocol.starts_with("guacamole_")
-    {
-        let guac = &cfg.guacamole;
-        if !guac.enabled || guac.json_secret_hex.trim().is_empty() {
-            return Err(AppError::from(machina_core::LibvirtError::Invalid(
-                "Guacamole not configured — run scripts/install-guacamole.sh".into(),
-            )));
-        }
-        let guest_ip = plan.guest_ip.clone().unwrap_or_default();
-        let name2 = name.clone();
-        let (vnc_host, vnc_port) =
-            spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
-                vnc::resolve_vnc_tcp(conn, &name2).map_err(machina_core::LibvirtError::from)
-            })
-            .await?;
-        let target = guac_target_for_protocol(
-            &protocol,
-            &vnc_host,
-            vnc_port,
-            &guest_ip,
-            plan.ssh_user.as_deref().unwrap_or("ubuntu"),
-            body.rdp_username.as_deref(),
-            body.rdp_domain.as_deref(),
-        )?;
-        let username_storage = guac.json_username.trim().to_string();
-        let username_ref = if username_storage.is_empty() {
-            "machina"
-        } else {
-            username_storage.as_str()
-        };
-        let public = guac.public_vnc_host.trim();
-        let public_opt = if public.is_empty() {
-            None
-        } else {
-            Some(public)
-        };
-        let params = GuacamoleBridgeParams {
-            secret_hex: &guac.json_secret_hex,
-            base_url: &guac.base_url,
-            public_vnc_host: public_opt,
-            fetch_token: guac.fetch_token,
-            username: username_ref,
-        };
-        let bridge = bridge_from_plan(name.clone(), target, &params)
-            .await
-            .map_err(|e| machina_core::LibvirtError::Invalid(e.to_string()))?;
-        let base = guac.base_url.trim_end_matches('/').to_string();
-        let emergency = bridge
-            .token
-            .as_ref()
-            .map(|t| format!("{base}/#/?token={}", urlencoding_light(t)));
-        ("guacamole".to_string(), bridge.token, emergency, base)
-    } else {
-        ("native".to_string(), None, None, String::new())
-    };
+    // Every console session is native.
+    let (backend, emergency_url): (String, Option<String>) = ("native".to_string(), None);
 
     let session_id = store
         .insert(LiveConsoleSession {
@@ -526,24 +372,14 @@ async fn create_session(
             actor: actor.username.clone(),
             protocol: protocol.clone(),
             backend: backend.clone(),
-            guacamole_base,
             expires: Instant::now() + ttl,
         })
         .await;
 
-    let token_q = guac_token
-        .as_deref()
-        .map(|t| format!("?token={}", urlencoding_light(t)))
-        .unwrap_or_default();
-    let embed_path = if backend == "guacamole" {
-        // Must include a path segment — `{*path}` does not match `/session/?token=…` (SPA fallback → 404).
-        format!("{PROXY_PREFIX}/{session_id}/index.html{token_q}")
-    } else {
-        format!(
-            "/vms/{}/consolehub?session={session_id}&native=1",
-            urlencoding_light(&name)
-        )
-    };
+    let embed_path = format!(
+        "/vms/{}/consolehub?session={session_id}&native=1",
+        urlencoding_light(&name)
+    );
 
     Ok(Json(ConsoleSessionResponse {
         session_id: session_id.to_string(),
@@ -557,58 +393,6 @@ async fn create_session(
     }))
 }
 
-fn guac_target_for_protocol(
-    protocol: &str,
-    vnc_host: &str,
-    vnc_port: u16,
-    guest_ip: &str,
-    ssh_user: &str,
-    rdp_user: Option<&str>,
-    rdp_domain: Option<&str>,
-) -> Result<GuacBridgeTarget, AppError> {
-    match protocol {
-        "guacamole_vnc" => {
-            if vnc_port == 0 {
-                return Err(AppError::from(machina_core::LibvirtError::Invalid(
-                    "VNC not available".into(),
-                )));
-            }
-            Ok(GuacBridgeTarget::Vnc {
-                host: vnc_host.to_string(),
-                port: vnc_port,
-            })
-        }
-        "guacamole_rdp" => {
-            if guest_ip.is_empty() {
-                return Err(AppError::from(machina_core::LibvirtError::Invalid(
-                    "guest IP required for RDP".into(),
-                )));
-            }
-            Ok(GuacBridgeTarget::Rdp {
-                host: guest_ip.to_string(),
-                port: 3389,
-                username: rdp_user.unwrap_or("Administrator").to_string(),
-                domain: rdp_domain.unwrap_or("").to_string(),
-            })
-        }
-        "guacamole_ssh" => {
-            if guest_ip.is_empty() {
-                return Err(AppError::from(machina_core::LibvirtError::Invalid(
-                    "guest IP required for SSH".into(),
-                )));
-            }
-            Ok(GuacBridgeTarget::Ssh {
-                host: guest_ip.to_string(),
-                port: 22,
-                username: ssh_user.to_string(),
-            })
-        }
-        other => Err(AppError::from(machina_core::LibvirtError::Invalid(
-            format!("unsupported Guacamole protocol: {other}"),
-        ))),
-    }
-}
-
 async fn end_session(
     Extension(actor): Extension<RequestActor>,
     Extension(store): Extension<ConsoleSessionStore>,
@@ -619,170 +403,4 @@ async fn end_session(
         "ended": ended,
         "session_id": session_id.to_string(),
     })))
-}
-
-async fn guac_http_proxy_root(
-    Extension(store): Extension<ConsoleSessionStore>,
-    Path(session_id): Path<Uuid>,
-    req: Request<Body>,
-) -> Result<Response, StatusCode> {
-    guac_http_proxy_impl(store, session_id, String::new(), req).await
-}
-
-async fn guac_http_proxy(
-    Extension(store): Extension<ConsoleSessionStore>,
-    Path((session_id, path)): Path<(Uuid, String)>,
-    req: Request<Body>,
-) -> Result<Response, StatusCode> {
-    guac_http_proxy_impl(store, session_id, path, req).await
-}
-
-async fn guac_http_proxy_impl(
-    store: ConsoleSessionStore,
-    session_id: Uuid,
-    path: String,
-    req: Request<Body>,
-) -> Result<Response, StatusCode> {
-    let session = store.get(session_id).await.ok_or(StatusCode::NOT_FOUND)?;
-    let (parts, body) = req.into_parts();
-    let path = path.trim_start_matches('/');
-    let query = parts
-        .uri
-        .query()
-        .map(|q| format!("?{q}"))
-        .unwrap_or_default();
-    let base = session.guacamole_base.trim_end_matches('/');
-    let url = if path.is_empty() {
-        format!("{base}/{query}")
-    } else {
-        format!("{base}/{path}{query}")
-    };
-
-    let client = reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let method = parts.method.clone();
-    let mut rb = client.request(method.clone(), &url);
-    for (k, v) in parts.headers.iter() {
-        let name = k.as_str();
-        if matches!(
-            name,
-            "host" | "connection" | "transfer-encoding" | "upgrade" | "content-length"
-        ) {
-            continue;
-        }
-        if let Ok(s) = v.to_str() {
-            rb = rb.header(name, s);
-        }
-    }
-
-    let body_bytes = axum::body::to_bytes(body, 32 * 1024 * 1024)
-        .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    if method != Method::GET && method != Method::HEAD && !body_bytes.is_empty() {
-        rb = rb.body(body_bytes.to_vec());
-    }
-
-    let resp = rb.send().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
-    let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
-    let mut out = Response::builder().status(status);
-    let headers = out.headers_mut().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-    for (k, v) in resp.headers().iter() {
-        let name = k.as_str();
-        if matches!(
-            name,
-            "transfer-encoding" | "connection" | "content-encoding"
-        ) {
-            continue;
-        }
-        if let Ok(val) = HeaderValue::from_bytes(v.as_bytes()) {
-            headers.insert(k, val);
-        }
-    }
-    let bytes = resp.bytes().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
-    Ok(out.body(Body::from(bytes)).unwrap())
-}
-
-async fn guac_ws_proxy(
-    Extension(store): Extension<ConsoleSessionStore>,
-    Path(session_id): Path<Uuid>,
-    ws: WebSocketUpgrade,
-    req: Request<Body>,
-) -> Result<impl IntoResponse, StatusCode> {
-    let session = store.get(session_id).await.ok_or(StatusCode::NOT_FOUND)?;
-    let query = req.uri().query().unwrap_or("").to_string();
-    let ws_base = session
-        .guacamole_base
-        .replace("http://", "ws://")
-        .replace("https://", "wss://")
-        .trim_end_matches('/')
-        .to_string();
-    let target = if query.is_empty() {
-        format!("{ws_base}/websocket-tunnel")
-    } else {
-        format!("{ws_base}/websocket-tunnel?{query}")
-    };
-    Ok(ws.on_upgrade(move |socket| proxy_guac_ws(socket, target)))
-}
-
-async fn proxy_guac_ws(client: WebSocket, target: String) {
-    use tokio_tungstenite::{connect_async, tungstenite::Message as TsMessage};
-
-    let upstream = match connect_async(&target).await {
-        Ok((stream, _)) => stream,
-        Err(_) => {
-            let (mut sink, _) = client.split();
-            let _ = sink.close().await;
-            return;
-        }
-    };
-
-    let (mut client_sink, mut client_stream) = client.split();
-    let (mut up_sink, mut up_stream) = upstream.split();
-
-    let c2u = tokio::spawn(async move {
-        while let Some(Ok(msg)) = client_stream.next().await {
-            let out = match msg {
-                Message::Binary(b) => TsMessage::Binary(b.to_vec().into()),
-                Message::Text(t) => TsMessage::Text(t.to_string().into()),
-                Message::Ping(p) => TsMessage::Ping(p.into()),
-                Message::Pong(p) => TsMessage::Pong(p.into()),
-                Message::Close(c) => TsMessage::Close(c.map(|f| {
-                    tokio_tungstenite::tungstenite::protocol::CloseFrame {
-                        code: f.code.into(),
-                        reason: f.reason.to_string().into(),
-                    }
-                })),
-            };
-            if up_sink.send(out).await.is_err() {
-                break;
-            }
-        }
-    });
-
-    let u2c = tokio::spawn(async move {
-        while let Some(Ok(msg)) = up_stream.next().await {
-            let out = match msg {
-                TsMessage::Binary(b) => Message::Binary(b.into()),
-                TsMessage::Text(t) => Message::Text(t.to_string().into()),
-                TsMessage::Ping(p) => Message::Ping(p.into()),
-                TsMessage::Pong(p) => Message::Pong(p.into()),
-                TsMessage::Close(_) => Message::Close(None),
-                _ => continue,
-            };
-            if client_sink.send(out).await.is_err() {
-                break;
-            }
-        }
-    });
-
-    // Abort the surviving direction so a closed tab doesn't leak the upstream task/socket.
-    let c2u_abort = c2u.abort_handle();
-    let u2c_abort = u2c.abort_handle();
-    tokio::select! {
-        _ = c2u => { u2c_abort.abort(); },
-        _ = u2c => { c2u_abort.abort(); },
-    }
 }

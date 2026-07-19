@@ -6,18 +6,14 @@ export type ConsoleHubProtocol =
   | 'novnc'
   | 'spice'
   | 'serial'
-  | 'guacamole_rdp'
-  | 'guacamole_ssh'
-  | 'guacamole_vnc'
+  | 'rdp'
   | 'webrtc_spice'
 
 const LABELS: Record<string, string> = {
   novnc: 'VNC (native)',
   spice: 'SPICE',
   native_ssh: 'SSH (native)',
-  guacamole_rdp: 'RDP',
-  guacamole_ssh: 'SSH',
-  guacamole_vnc: 'VNC (Guacamole)',
+  rdp: 'RDP',
   webrtc_spice: 'Performance (WebRTC)',
 }
 

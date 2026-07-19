@@ -988,7 +988,6 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/auth/oidc/callback", get(oidc::oidc_callback))
         .route("/install.sh", get(enrollment::install_script))
         .merge(rate_limited_public)
-        .merge(consolehub::proxy_routes())
         .merge(console::ws_routes())
         .merge(protected)
         .with_state(state)

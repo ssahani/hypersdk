@@ -134,7 +134,7 @@ export function buildVmHardwareSummary(input: {
   const rdpRule = natRuleForGuestPort(portForwardRules, 3389)
   const rdpExposed = Boolean(rdpRule)
   const primaryParts = protocols.filter((p) => p !== 'native_ssh' && p !== 'serial')
-  const primaryAccess = primaryParts.length ? primaryParts.map((p) => p.replace('guacamole_', '').replace('_', ' ')).join(' / ') : displayParts.join(' / ')
+  const primaryAccess = primaryParts.length ? primaryParts.map((p) => p.replace('_', ' ')).join(' / ') : displayParts.join(' / ')
 
   const osName = (guestHealth?.os_pretty_name ?? osHint ?? '').toLowerCase()
   const isWindows = osName.includes('windows') || osHint.toLowerCase().includes('windows')

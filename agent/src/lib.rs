@@ -2,7 +2,6 @@
 
 pub mod console_ws;
 pub mod grpc;
-pub mod guacamole_proxy;
 pub mod libvirt_invoke;
 pub mod libvirt_ops;
 pub mod provision_ops;

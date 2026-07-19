@@ -21,9 +21,6 @@ pub struct MachinaConfig {
     /// PAM service name (file in `/etc/pam.d/`) for web UI and API session login.
     #[serde(default)]
     pub auth: AuthConfig,
-    /// Optional Apache Guacamole encrypted JSON auth (`GET .../guacamole-auth` on the daemon).
-    #[serde(default)]
-    pub guacamole: GuacamoleConfig,
     /// Browser SSH terminal: short-lived sessions, optional host allowlist (`targets`), PTY + system `ssh`.
     #[serde(default)]
     pub ssh_terminal: SshTerminalConfig,
@@ -590,64 +587,6 @@ impl Default for OpenStackConfig {
     }
 }
 
-/// Apache Guacamole integration: signed/encrypted JSON for `/api/tokens` (see project `docs/guacamole-integration.md`).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GuacamoleConfig {
-    /// When true and `json_secret_hex` is set, `GET /api/v1/vms/{name}/guacamole-auth` returns encrypted `guac_data`.
-    #[serde(default)]
-    pub enabled: bool,
-    /// 32 hex digits (16-byte key); must match Guacamole `JSON_SECRET_KEY`.
-    #[serde(default)]
-    pub json_secret_hex: String,
-    #[serde(default = "default_guacamole_base_url")]
-    pub base_url: String,
-    /// When libvirt reports VNC on loopback, rewrite hostname for `guacd` (e.g. hypervisor LAN IP).
-    #[serde(default)]
-    pub public_vnc_host: String,
-    /// POST encrypted blob to Guacamole `/api/tokens` and include `token` in the JSON response when successful.
-    #[serde(default = "default_true")]
-    pub fetch_token: bool,
-    /// `username` field inside the cleartext JSON auth document sent to Guacamole.
-    #[serde(default = "default_guacamole_json_username")]
-    pub json_username: String,
-    /// Same-origin ConsoleHub reverse-proxy prefix (controller).
-    #[serde(default = "default_consolehub_proxy_prefix")]
-    pub consolehub_proxy_prefix: String,
-    /// Short-lived ConsoleHub session TTL (seconds).
-    #[serde(default = "default_consolehub_session_ttl_secs")]
-    pub consolehub_session_ttl_secs: u64,
-}
-
-fn default_consolehub_proxy_prefix() -> String {
-    "/consolehub/guacamole".to_string()
-}
-
-fn default_consolehub_session_ttl_secs() -> u64 {
-    600
-}
-
-fn default_guacamole_base_url() -> String {
-    "http://127.0.0.1:8081/guacamole".to_string()
-}
-
-fn default_guacamole_json_username() -> String {
-    "machina".to_string()
-}
-
-impl Default for GuacamoleConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            json_secret_hex: String::new(),
-            base_url: default_guacamole_base_url(),
-            public_vnc_host: String::new(),
-            fetch_token: true,
-            json_username: default_guacamole_json_username(),
-            consolehub_proxy_prefix: default_consolehub_proxy_prefix(),
-            consolehub_session_ttl_secs: default_consolehub_session_ttl_secs(),
-        }
-    }
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TlsConfig {
