@@ -39,26 +39,52 @@ pub struct RdpEnableOutcome {
 ///
 /// Kept separate from the subprocess call so the plan shape is unit-testable
 /// without a disk image or the guestkit binary.
-pub fn build_rdp_enable_plan(disk_path: &str) -> serde_json::Value {
+/// Matches guestkit's `FixPlan` (src/cli/plan/types.rs): registry edits are
+/// `operations` entries tagged `registry_edit`, not a top-level array, and each
+/// carries `current_data` as well as `new_data`.
+pub fn build_rdp_enable_plan(disk_path: &str, generated_rfc3339: &str) -> serde_json::Value {
     serde_json::json!({
-        "version": 1,
-        "name": "enable-remote-desktop",
-        "description": "Enable Windows Remote Desktop (fDenyTSConnections=0)",
-        "target": { "disk": disk_path },
-        "registry_edits": [
+        "version": "1",
+        "vm": disk_path,
+        "generated": generated_rfc3339,
+        "profile": "machina-enable-rdp",
+        "overall_risk": "low",
+        "estimated_duration": "seconds",
+        "metadata": {
+            "author": "machina",
+            "review_required": false,
+            "reversible": true,
+        },
+        "operations": [
             {
+                "id": "enable-rdp",
+                "type": "registry_edit",
                 "key": TS_KEY,
                 "value": TS_VALUE,
+                // 1 = connections denied, which is the Windows default.
+                "current_data": 1,
+                "new_data": 0,
                 "data_type": "dword",
-                "new_data": "0",
+                "priority": "high",
+                "description": "Allow Remote Desktop connections",
+                "risk": "low",
+                "reversible": true,
             },
             {
+                "id": "rdp-nla",
+                "type": "registry_edit",
                 "key": NLA_KEY,
                 "value": "UserAuthentication",
+                "current_data": 1,
+                "new_data": 1,
                 "data_type": "dword",
-                "new_data": "1",
+                "priority": "low",
+                "description": "Keep Network Level Authentication enabled",
+                "risk": "low",
+                "reversible": true,
             },
         ],
+        "post_apply": [],
     })
 }
 
@@ -90,7 +116,9 @@ pub fn enable_rdp_offline(
         )));
     }
 
-    let plan = build_rdp_enable_plan(disk_path);
+    // guestkit's FixPlan requires a `generated` timestamp.
+    let generated = chrono::Utc::now().to_rfc3339();
+    let plan = build_rdp_enable_plan(disk_path, &generated);
     let plan_file = std::env::temp_dir().join(format!(
         "machina-rdp-plan-{}.json",
         std::process::id()
@@ -99,12 +127,14 @@ pub fn enable_rdp_offline(
         .map_err(|e| LibvirtError::Operation(format!("cannot write fix plan: {e}")))?;
 
     let bin = guestkit_binary(guestkit_bin);
+    // `guestkit plan apply [OPTIONS] <PLAN_FILE>` — the plan is positional and
+    // the disk is --vm. An earlier --plan/--disk spelling was invented, not read
+    // off the tool, and would have failed at argument parsing.
     let out = Command::new(&bin)
         .arg("plan")
         .arg("apply")
-        .arg("--plan")
         .arg(&plan_file)
-        .arg("--disk")
+        .arg("--vm")
         .arg(disk_path)
         .arg("--yes")
         .output();
@@ -161,16 +191,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn plan_targets_the_remote_desktop_switch() {
-        let p = build_rdp_enable_plan("/var/lib/libvirt/images/win10.qcow2");
-        let edits = p["registry_edits"].as_array().unwrap();
-        let first = &edits[0];
-        assert_eq!(first["value"], "fDenyTSConnections");
-        // 0 = allow connections. A non-zero value here would silently do nothing.
-        assert_eq!(first["new_data"], "0");
-        assert_eq!(first["data_type"], "dword");
-        assert!(first["key"].as_str().unwrap().contains("Terminal Server"));
-        assert_eq!(p["target"]["disk"], "/var/lib/libvirt/images/win10.qcow2");
+    fn plan_matches_guestkit_fixplan_shape() {
+        let p = build_rdp_enable_plan("/var/lib/libvirt/images/win10.qcow2", "2026-07-19T00:00:00Z");
+        // Fields guestkit's FixPlan requires — a plan missing any of these is
+        // rejected at deserialization, before a single hive is touched.
+        for k in ["version", "vm", "generated", "profile", "overall_risk", "metadata", "operations"] {
+            assert!(p.get(k).is_some(), "plan missing required field {k}");
+        }
+        assert_eq!(p["vm"], "/var/lib/libvirt/images/win10.qcow2");
+        let op = &p["operations"][0];
+        assert_eq!(op["type"], "registry_edit");
+        assert_eq!(op["value"], "fDenyTSConnections");
+        // 0 = allow connections; any other value silently leaves RDP disabled.
+        assert_eq!(op["new_data"], 0);
+        assert_eq!(op["data_type"], "dword");
+        assert!(op["current_data"].is_number(), "current_data is required");
+        assert!(op["key"].as_str().unwrap().contains("Terminal Server"));
     }
 
     #[test]
