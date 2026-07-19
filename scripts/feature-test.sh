@@ -116,8 +116,9 @@ r=$(code -X POST "$API/vms/$VM/guest-agent/install-media" -H 'Content-Type: appl
 if [ "$r" = 200 ]; then
   python3 -c '
 import json
-d=json.load(open("'"$TMP/body"'"))
-print(f"  target={d[\"cdrom\"][\"target\"]} downloaded={d[\"iso_downloaded\"]} restart={d[\"requires_restart\"]}")'
+d = json.load(open("'"$TMP/body"'"))
+cd = d["cdrom"]
+print("  target=%s downloaded=%s restart=%s" % (cd["target"], d["iso_downloaded"], d["requires_restart"]))'
   ok "install-media staged the agent ISO"
   t=$(python3 -c 'import json;print(json.load(open("'"$TMP/body"'"))["cdrom"]["target"])')
   code -X POST "$API/vms/$VM/cdrom/detach/$t" >/dev/null
