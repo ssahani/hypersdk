@@ -17,13 +17,20 @@ use std::process::Command;
 use crate::LibvirtError;
 
 /// `fDenyTSConnections = 0` is what the Remote Desktop toggle actually writes.
-const TS_KEY: &str = r"HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server";
+///
+/// Note the control set is spelled out rather than using `CurrentControlSet`.
+/// That name is a runtime symlink Windows builds at boot from `Select\Current`
+/// and does **not** exist in an offline hive — guestkit happily creates a literal
+/// key by that name, reports "Operations applied: 1", and produces a value
+/// Windows will never read. Verified on a real image: writing via
+/// `CurrentControlSet` left `ControlSet001` at 1 and RDP disabled.
+const TS_KEY: &str = r"HKLM\SYSTEM\ControlSet001\Control\Terminal Server";
 const TS_VALUE: &str = "fDenyTSConnections";
 
 /// Network Level Authentication — left on, but the value must exist for the
 /// service to start cleanly on some images.
 const NLA_KEY: &str =
-    r"HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp";
+    r"HKLM\SYSTEM\ControlSet001\Control\Terminal Server\WinStations\RDP-Tcp";
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct RdpEnableOutcome {
@@ -85,6 +92,38 @@ pub fn build_rdp_enable_plan(disk_path: &str, generated_rfc3339: &str) -> serde_
             },
         ],
         "post_apply": [],
+    })
+}
+
+/// Read a registry DWORD straight out of a disk image, independent of the tool
+/// that wrote it.
+///
+/// `hivexget` needs a mounted filesystem; `virt-win-reg` takes the image itself,
+/// which is all the daemon has. This exists because guestkit reported
+/// "Operations applied: 1" for a write that landed in a literal
+/// `CurrentControlSet` key Windows never reads — its own success report is not
+/// evidence that anything took effect.
+///
+/// Returns `None` when virt-win-reg is missing or the key is absent; callers
+/// treat that as "unverified" rather than as failure.
+fn read_registry_dword(disk_path: &str, key: &str, value: &str) -> Option<i64> {
+    let out = Command::new("virt-win-reg")
+        .arg(disk_path)
+        .arg(key)
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    parse_reg_dword(&String::from_utf8_lossy(&out.stdout), value)
+}
+
+/// Pull `"name"=dword:0000000f` out of virt-win-reg's .reg-format output.
+fn parse_reg_dword(reg_output: &str, value: &str) -> Option<i64> {
+    let needle = format!("\"{value}\"=dword:");
+    reg_output.lines().find_map(|l| {
+        let rest = l.trim().strip_prefix(needle.as_str())?;
+        i64::from_str_radix(rest.trim(), 16).ok()
     })
 }
 
@@ -211,6 +250,35 @@ pub fn enable_rdp_offline(
         }
     }
 
+    // Independent read-back. guestkit's report has twice claimed success over a
+    // write that did not take effect — once failing on a read-only mount while
+    // exiting 0, once writing to a CurrentControlSet key Windows never reads —
+    // so the value is confirmed with a different tool at the key the guest uses.
+    let verified = read_registry_dword(disk_path, TS_KEY, TS_VALUE);
+    if verified == Some(1) {
+        return Err(LibvirtError::Operation(format!(
+            "guestkit reported success but {TS_VALUE} is still 1, so Remote Desktop \
+             is still disabled. The write did not reach {TS_KEY}."
+        )));
+    }
+
+    let mut notes = vec![
+        "Start the VM — Remote Desktop is now enabled in the registry.".to_string(),
+        "If it still refuses, enable the 'Remote Desktop' inbound firewall rule inside Windows."
+            .to_string(),
+        "Windows Home editions cannot host RDP regardless of this setting.".to_string(),
+    ];
+    match verified {
+        Some(0) => notes.insert(0, format!("Verified: {TS_VALUE} reads 0 on disk.")),
+        None => notes.insert(
+            0,
+            "Could not verify the value independently (virt-win-reg unavailable); \
+             confirm Remote Desktop is on after boot."
+                .to_string(),
+        ),
+        Some(other) => notes.insert(0, format!("{TS_VALUE} reads {other} on disk.")),
+    }
+
     Ok(RdpEnableOutcome {
         disk_path: disk_path.to_string(),
         applied: vec![
@@ -220,12 +288,7 @@ pub fn enable_rdp_offline(
         // Windows Firewall rules are opaque blobs under FirewallPolicy\FirewallRules;
         // writing them offline is unreliable, so we say so rather than pretend.
         firewall_manual: true,
-        notes: vec![
-            "Start the VM — Remote Desktop is now enabled in the registry.".into(),
-            "If it still refuses, enable the 'Remote Desktop' inbound firewall rule inside Windows."
-                .into(),
-            "Windows Home editions cannot host RDP regardless of this setting.".into(),
-        ],
+        notes,
     })
 }
 
@@ -256,6 +319,31 @@ mod tests {
     fn rejects_relative_and_missing_disks() {
         assert!(enable_rdp_offline("relative/win.qcow2", "guestkit").is_err());
         assert!(enable_rdp_offline("/nonexistent/win-does-not-exist.qcow2", "guestkit").is_err());
+    }
+
+    #[test]
+    fn parses_virt_win_reg_dword_output() {
+        let out = "[HKEY_LOCAL_MACHINE\\SYSTEM\\ControlSet001\\Control\\Terminal Server]\n\"fDenyTSConnections\"=dword:00000000\n";
+        assert_eq!(parse_reg_dword(out, "fDenyTSConnections"), Some(0));
+        let still_on = "\"fDenyTSConnections\"=dword:00000001\n";
+        assert_eq!(parse_reg_dword(still_on, "fDenyTSConnections"), Some(1));
+        assert_eq!(parse_reg_dword(out, "SomethingElse"), None);
+    }
+
+    #[test]
+    fn targets_a_real_control_set_not_the_runtime_symlink() {
+        // CurrentControlSet does not exist offline. Writing through it creates an
+        // inert literal key: on a real image that left ControlSet001 at 1 with RDP
+        // still disabled, while the tool reported one operation applied.
+        let p = build_rdp_enable_plan("/x.qcow2", "2026-07-20T00:00:00Z");
+        for op in p["operations"].as_array().unwrap() {
+            let key = op["key"].as_str().unwrap();
+            assert!(
+                !key.contains("CurrentControlSet"),
+                "must not write through the runtime symlink: {key}"
+            );
+            assert!(key.contains("ControlSet001"), "expected a real control set: {key}");
+        }
     }
 
     #[test]
