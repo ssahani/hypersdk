@@ -238,11 +238,15 @@ pub fn domain_xml_from_spec(
         .map(|iso| {
             let iso_esc = esc(iso);
             let cdrom_boot = if is_uefi { "\n      <boot order='1'/>" } else { "" };
+            // SATA, not IDE: every domain here is machine='q35', and q35 has no
+            // IDE controller — libvirt rejects the whole definition with
+            // "IDE controllers are unsupported for this QEMU binary or machine
+            // type", so create-from-ISO failed outright.
             format!(
                 r#"    <disk type='file' device='cdrom'>
       <driver name='qemu' type='raw'/>
       <source file='{iso_esc}'/>
-      <target dev='hdc' bus='ide'/>
+      <target dev='sda' bus='sata'/>
       <readonly/>{cdrom_boot}
     </disk>
 "#
@@ -414,6 +418,43 @@ mod tests {
         assert!(xml.contains("<boot order='1'/>"));
         assert!(xml.contains("<boot order='2'/>"));
         assert!(xml.contains("pflash")); // still UEFI
+    }
+
+    #[test]
+    fn install_iso_uses_sata_not_ide() {
+        // q35 has no IDE controller: libvirt rejected the whole domain with
+        // "IDE controllers are unsupported for this QEMU binary or machine type",
+        // so create-from-ISO failed before the VM ever existed.
+        let mut vm = VirtualMachine::new("isovm", "4Gi");
+        vm.metadata.labels = Some(std::collections::HashMap::from([(
+            "install_iso".into(),
+            "/var/lib/libvirt/images/ubuntu.iso".into(),
+        )]));
+        let xml = domain_xml_from_spec(&vm, "/var/lib/libvirt/images/isovm.qcow2", "qcow2", None)
+            .unwrap();
+        assert!(xml.contains("machine='q35'"));
+        assert!(!xml.contains("bus='ide'"), "q35 cannot take an IDE CD-ROM");
+        assert!(xml.contains("<target dev='sda' bus='sata'/>"));
+    }
+
+    #[test]
+    fn install_and_cloud_init_isos_get_distinct_targets() {
+        // Both are CD-ROMs on the same SATA bus; reusing a target makes libvirt
+        // reject the definition with "target sdX already exists".
+        let mut vm = VirtualMachine::new("bothiso", "4Gi");
+        vm.metadata.labels = Some(std::collections::HashMap::from([(
+            "install_iso".into(),
+            "/var/lib/libvirt/images/ubuntu.iso".into(),
+        )]));
+        let xml = domain_xml_from_spec(
+            &vm,
+            "/var/lib/libvirt/images/bothiso.qcow2",
+            "qcow2",
+            Some("/var/lib/libvirt/images/seed.iso"),
+        )
+        .unwrap();
+        assert!(xml.contains("<target dev='sda' bus='sata'/>"));
+        assert!(xml.contains("<target dev='sdb' bus='sata'/>"));
     }
 
     #[test]
