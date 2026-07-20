@@ -178,21 +178,28 @@ pub fn enable_rdp_offline(
         )));
     }
 
-    // A zero exit is not evidence of a write. guestkit 0.3.13 prints the plan
-    // preview and exits 0 without applying anything — verified against a real
-    // 29 GiB image whose md5 was unchanged afterwards. Only the
-    // "Operations applied: N" summary distinguishes a real apply from a preview,
-    // so require it and require N > 0 rather than reporting a silent no-op as
-    // success.
+    // A zero exit is not evidence of a write. guestkit 0.3.13 returns 0 even when
+    // it prints "✗ Plan application failed" — observed against a real Windows
+    // image where the hive upload was refused with "Read-only file system
+    // (os error 30)" and the summary read "Operations applied: 0, failed: 1".
+    // Only that summary distinguishes a real write from a failed or preview-only
+    // run, so require it and require N > 0.
     let applied_count = parse_applied_count(&stdout).or_else(|| parse_applied_count(&stderr));
     match applied_count {
         Some(n) if n > 0 => {}
         Some(_) => {
-            return Err(LibvirtError::Operation(
-                "guestkit applied 0 operations — the registry edit was skipped. \
-                 Check that guestkit supports offline hive writes on this host."
-                    .into(),
-            ))
+            // The usual cause is a dirty NTFS journal from an unclean shutdown:
+            // ntfs-3g then mounts read-only and refuses the hive upload.
+            return Err(LibvirtError::Operation(format!(
+                "guestkit applied 0 operations — the registry was not written. \
+                 If the guest filesystem mounted read-only, boot the VM and shut it \
+                 down cleanly from inside Windows, then retry. guestkit said: {}",
+                stdout
+                    .lines()
+                    .find(|l| l.contains("failed:") || l.contains("Read-only"))
+                    .unwrap_or("(no detail)")
+                    .trim()
+            )))
         }
         None => {
             return Err(LibvirtError::Operation(
