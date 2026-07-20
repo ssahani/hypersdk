@@ -184,15 +184,45 @@ fn read_registry_string(disk_path: &str, key: &str, value: &str) -> Option<Strin
     parse_reg_string(&String::from_utf8_lossy(&out.stdout), value)
 }
 
-/// Pull `"name"="data"` out of virt-win-reg's .reg output, undoing the backslash
-/// and quote escaping the .reg format applies.
+/// Pull a string value out of virt-win-reg's .reg output.
+///
+/// Long/binary-ish strings are emitted as `hex(1):` — comma-separated bytes of
+/// NUL-terminated UTF-16LE — not as `"name"="data"`. The firewall rules are
+/// always in that form, so a parser that only handled the quoted spelling found
+/// nothing and silently staged no firewall edits.
 fn parse_reg_string(reg_output: &str, value: &str) -> Option<String> {
-    let needle = format!("\"{value}\"=\"");
-    reg_output.lines().find_map(|l| {
-        let rest = l.trim().strip_prefix(needle.as_str())?;
-        let body = rest.strip_suffix('"')?;
-        Some(body.replace("\\\\", "\\").replace("\\\"", "\""))
-    })
+    let quoted = format!("\"{value}\"=\"");
+    let hexed = format!("\"{value}\"=hex(1):");
+
+    // Join the .reg line-continuation form (`\` at end of line) before matching.
+    let joined = reg_output.replace("\\\n", "").replace("\\\r\n", "");
+
+    for line in joined.lines() {
+        let line = line.trim();
+        if let Some(rest) = line.strip_prefix(quoted.as_str()) {
+            let body = rest.strip_suffix('"')?;
+            return Some(body.replace("\\\\", "\\").replace("\\\"", "\""));
+        }
+        if let Some(rest) = line.strip_prefix(hexed.as_str()) {
+            return decode_reg_hex_utf16(rest);
+        }
+    }
+    None
+}
+
+/// Decode `76,00,32,00,…` (UTF-16LE bytes, NUL-terminated) into a String.
+fn decode_reg_hex_utf16(hex_csv: &str) -> Option<String> {
+    let bytes: Vec<u8> = hex_csv
+        .split(',')
+        .map(|b| u8::from_str_radix(b.trim(), 16))
+        .collect::<Result<_, _>>()
+        .ok()?;
+    let units: Vec<u16> = bytes
+        .chunks_exact(2)
+        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .take_while(|u| *u != 0)
+        .collect();
+    String::from_utf16(&units).ok()
 }
 
 /// Pull `"name"=dword:0000000f` out of virt-win-reg's .reg-format output.
@@ -202,6 +232,14 @@ fn parse_reg_dword(reg_output: &str, value: &str) -> Option<i64> {
         let rest = l.trim().strip_prefix(needle.as_str())?;
         i64::from_str_radix(rest.trim(), 16).ok()
     })
+}
+
+/// Pull the path out of guestkit's "Backup created: /path" line.
+fn parse_backup_path(out: &str) -> Option<String> {
+    out.lines()
+        .find_map(|l| l.trim().strip_prefix("Backup created:"))
+        .map(|p| p.trim().to_string())
+        .filter(|p| !p.is_empty())
 }
 
 /// Pull `N` out of guestkit's "Operations applied: N" summary line.
@@ -313,6 +351,7 @@ pub fn enable_rdp_offline(
     // (os error 30)" and the summary read "Operations applied: 0, failed: 1".
     // Only that summary distinguishes a real write from a failed or preview-only
     // run, so require it and require N > 0.
+    let guestkit_backup = parse_backup_path(&stdout).or_else(|| parse_backup_path(&stderr));
     let applied_count = parse_applied_count(&stdout).or_else(|| parse_applied_count(&stderr));
     match applied_count {
         Some(n) if n > 0 => {}
@@ -350,6 +389,18 @@ pub fn enable_rdp_offline(
             "guestkit reported success but {TS_VALUE} is still 1, so Remote Desktop \
              is still disabled. The write did not reach {TS_KEY}."
         )));
+    }
+
+    // guestkit copies the whole disk before every apply and never cleans up. Seven
+    // runs against one 29 GiB Windows VM consumed 181 GiB and took a hypervisor to
+    // 89% full — a filled disk there takes down every running guest, which is far
+    // worse than RDP being off. The copy is only insurance against a bad write, so
+    // once the value is verified good it is redundant and gets reclaimed. On a
+    // failed or unverified run it is deliberately kept.
+    if verified == Some(0) {
+        if let Some(ref b) = guestkit_backup {
+            let _ = std::fs::remove_file(b);
+        }
     }
 
     let mut notes = vec![
@@ -464,6 +515,18 @@ mod tests {
     }
 
     #[test]
+    fn parses_the_hex_encoded_form_virt_win_reg_actually_emits() {
+        // Real output for RemoteDesktop-UserMode-In-TCP: "v2.29|Action=Allow|Active=FALSE|"
+        // as NUL-terminated UTF-16LE. The firewall rules are always emitted this
+        // way, so only handling the quoted form staged no firewall edits at all.
+        let out = "\"RemoteDesktop-UserMode-In-TCP\"=hex(1):76,00,32,00,2e,00,32,00,39,00,7c,00,41,00,63,00,74,00,69,00,76,00,65,00,3d,00,46,00,41,00,4c,00,53,00,45,00,7c,00,00,00\n";
+        let got = parse_reg_string(out, "RemoteDesktop-UserMode-In-TCP").expect("parsed");
+        assert_eq!(got, "v2.29|Active=FALSE|");
+        // And it must still round-trip through the activator.
+        assert!(activate_firewall_rule(&got).unwrap().contains("Active=TRUE"));
+    }
+
+    #[test]
     fn parses_a_reg_string_value() {
         let out = "\"RemoteDesktop-UserMode-In-TCP\"=\"v2.29|Active=FALSE|App=%SystemRoot%\\\\system32\\\\svchost.exe|\"\n";
         let got = parse_reg_string(out, "RemoteDesktop-UserMode-In-TCP").expect("parsed");
@@ -504,6 +567,17 @@ mod tests {
         // image whose md5 was byte-identical afterwards.
         let preview_only = "\n📋 Fix Plan Preview\nVM: /x.qcow2\n[enable-rdp] Allow Remote Desktop connections\n  1 → 0\nBackup: Will create automatic backup\nRollback: Available for all operations\n";
         assert_eq!(parse_applied_count(preview_only), None);
+    }
+
+    #[test]
+    fn finds_the_backup_path_to_reclaim() {
+        let out = "Backup created: /var/lib/libvirt/images/win10.backup_20260720_140610.qcow2\n✓ Plan applied successfully\n  Operations applied: 1\n";
+        assert_eq!(
+            parse_backup_path(out).as_deref(),
+            Some("/var/lib/libvirt/images/win10.backup_20260720_140610.qcow2")
+        );
+        // No backup line means nothing to reclaim — must not guess a path to delete.
+        assert_eq!(parse_backup_path("Operations applied: 1\n"), None);
     }
 
     #[test]
