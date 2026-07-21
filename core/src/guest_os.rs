@@ -42,10 +42,14 @@ pub fn detect_os_hint(xml: &str, vm_name: &str) -> String {
     const WINDOWS_WORDS: [&str; 7] = [
         "windows", "win10", "win11", "win7", "win2019", "win2022", "msedge",
     ];
-    if WINDOWS_WORDS.iter().any(|w| name_lower.contains(w))
-        || lower.contains(".vhdx")
-        || WINDOWS_WORDS.iter().any(|w| lower.contains(w))
-    {
+    // Only the VM's own name, not the whole XML blob: matching against disk
+    // paths/description/comments too made a Linux VM with, say, a disk named
+    // `template-windows-compat.qcow2` misclassify as Windows — which is enough
+    // to reach the RDP-reachability probe and offer a phantom "rdp" console
+    // option for a VM that was never Windows at all. `.vhdx` is kept as a
+    // narrow, genuine technical signal (a Hyper-V/Windows-only disk format),
+    // not a name/keyword match.
+    if WINDOWS_WORDS.iter().any(|w| name_lower.contains(w)) || lower.contains(".vhdx") {
         return "windows".into();
     }
 
@@ -111,6 +115,18 @@ mod tests {
         // none of the strong markers was reported as "linux".
         let xml = r#"<domain><devices><graphics type='vnc'/></devices></domain>"#;
         assert_eq!(detect_os_hint(xml, "win10-msedge"), "windows");
+    }
+
+    #[test]
+    fn a_windows_word_in_a_disk_path_does_not_misclassify_a_linux_vm() {
+        // Only the VM's own name is a keyword signal now — matching the whole
+        // XML blob let a disk path like this one misclassify an actual Linux VM
+        // as Windows, which was enough to reach the RDP probe and offer a
+        // phantom "rdp" console option.
+        let xml = r#"<domain><clock offset='utc'/>
+            <devices><disk><source file='/var/lib/libvirt/images/template-windows-compat.qcow2'/></disk></devices>
+        </domain>"#;
+        assert_eq!(detect_os_hint(xml, "ubuntu-server"), "linux");
     }
 
     #[test]

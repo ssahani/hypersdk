@@ -23,6 +23,7 @@ osauth = "0.5"
 reqwest = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
+url = { workspace = true }
 prom-remote-api = { version = "0.3", default-features = false }
 prost = "0.11"
 snap = { version = "1", default-features = false }

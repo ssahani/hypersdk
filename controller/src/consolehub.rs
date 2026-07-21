@@ -739,6 +739,17 @@ pub async fn create_session(
         .clone()
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| agent_plan.recommended.clone());
+    // Without this, a caller could request e.g. "rdp" for a Linux VM, or for a
+    // Windows VM with RDP unreachable, and get a 200 with a usable-looking
+    // session — there's no browser RDP renderer at all (Guacamole was removed),
+    // so the caller has no other signal the session doesn't actually work.
+    let available = build_protocol_list(&agent_plan);
+    if !available.iter().any(|p| p == &protocol) {
+        return Err(ApiError::bad_request(format!(
+            "protocol '{protocol}' is not available for this VM (available: {})",
+            available.join(", ")
+        )));
+    }
 
     check_console_rbac(&state, &user, &protocol).await?;
     if !body.break_glass {

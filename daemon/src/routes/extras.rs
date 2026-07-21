@@ -67,8 +67,13 @@ fn log_audit_with_actor(actor: &RequestActor, action: &str, target: &str, result
 // ── ISO / Disk Browser ─────────────────────────────────────────────
 
 async fn list_isos(
+    Extension(actor): Extension<RequestActor>,
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<extras::BrowseFilesResponse>, AppError> {
+    // Every sibling handler in this file gates on this; this one didn't, letting
+    // any authenticated session enumerate ISO paths under `/root`, `/home`, and
+    // `/tmp` (see `list_iso_files`) regardless of host-path-browsing rights.
+    require_browse_host_paths(&actor)?;
     let mgr = manager.clone();
     let res = tokio::task::spawn_blocking(move || mgr.with_conn(extras::list_iso_files))
         .await
@@ -157,6 +162,12 @@ async fn upload_iso(
             })
         })?;
 
+    // Re-checked periodically, not just once up front: a request with no (or a
+    // dishonest) Content-Length skips `check_free_space` above entirely, and
+    // could otherwise fill the pool filesystem before `max_bytes` is reached.
+    const FREE_SPACE_RECHECK_INTERVAL: u64 = 1024 * 1024 * 1024;
+    let mut last_space_check = 0u64;
+
     let mut written: u64 = 0;
     let mut stream = body.into_data_stream();
     let mut failure: Option<LibvirtError> = None;
@@ -176,6 +187,14 @@ async fn upload_iso(
                 "upload exceeds the {max_gib} GiB limit ([libvirt] iso_upload_max_gib)"
             )));
             break;
+        }
+        if written - last_space_check >= FREE_SPACE_RECHECK_INTERVAL {
+            last_space_check = written;
+            let remaining_budget = max_bytes.saturating_sub(written);
+            if let Err(e) = machina_core::iso_upload::check_free_space(&dir, remaining_budget) {
+                failure = Some(e);
+                break;
+            }
         }
         if let Err(e) = file.write_all(&chunk).await {
             failure = Some(LibvirtError::Operation(format!(
@@ -209,6 +228,19 @@ async fn upload_iso(
         return Err(AppError::from(LibvirtError::Invalid(
             "uploaded file is empty".into(),
         )));
+    }
+
+    // `resolve_upload_target`'s no-overwrite check ran before this (potentially
+    // long) transfer started; a competing writer could have created
+    // `final_path` since. `rename` itself would clobber it unconditionally, so
+    // it's re-checked immediately beforehand.
+    if !q.overwrite && final_path.exists() {
+        let _ = tokio::fs::remove_file(&staging_path).await;
+        log_audit_with_actor(&actor, "iso.upload", &q.filename, "failed: raced by another upload");
+        return Err(AppError::from(LibvirtError::Invalid(format!(
+            "{} was created by another request — not overwriting",
+            q.filename
+        ))));
     }
 
     tokio::fs::rename(&staging_path, &final_path)
@@ -286,6 +318,13 @@ async fn download_iso(
             "URL must start with http:// or https://".into(),
         )));
     }
+    // The daemon runs as root on the hypervisor's own network: without this, a
+    // caller could point the download at the cloud metadata endpoint or any
+    // other internal host and have the result staged as a browsable, attachable
+    // ISO. Re-checked on every redirect hop below (`safe_redirect_policy`), since
+    // a same-URL DNS-rebind or a redirect to an internal host would otherwise
+    // bypass this one-time check.
+    machina_core::iso_upload::assert_public_http_host(&url).await?;
 
     // Derive a filename from the URL when the caller did not supply one.
     let raw_name = if req.filename.trim().is_empty() {
@@ -315,12 +354,15 @@ async fn download_iso(
     })?;
     let (final_path, staging_path) =
         machina_core::iso_upload::resolve_upload_target(&upload_dir, &name, req.overwrite)?;
+    let overwrite = req.overwrite;
 
     let final_display = final_path.display().to_string();
     let job_id = jobs.start_iso_download(&url, &final_display);
     let actor_name = actor.username.clone();
+    let final_display_for_task = final_display.clone();
 
     tokio::spawn(async move {
+        let final_display = final_display_for_task;
         use futures_util::StreamExt;
         use tokio::io::AsyncWriteExt;
 
@@ -332,16 +374,49 @@ async fn download_iso(
             jobs.fail(job_id, &msg);
         };
 
+        // Redirects are followed manually (policy off) so each hop's target can be
+        // re-checked against `assert_public_http_host` before it's fetched — a
+        // redirect to an internal host would otherwise bypass the check above.
         let client = match reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(6 * 60 * 60))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
         {
             Ok(c) => c,
             Err(e) => return fail(&jobs, format!("http client: {e}")),
         };
-        let resp = match client.get(&url).send().await {
-            Ok(r) => r,
-            Err(e) => return fail(&jobs, format!("request failed: {e}")),
+        const MAX_REDIRECTS: u8 = 5;
+        let mut current_url = url.clone();
+        let mut redirects_left = MAX_REDIRECTS;
+        let resp = loop {
+            let attempt = match client.get(&current_url).send().await {
+                Ok(r) => r,
+                Err(e) => return fail(&jobs, format!("request failed: {e}")),
+            };
+            if attempt.status().is_redirection() {
+                if redirects_left == 0 {
+                    return fail(&jobs, "too many redirects".into());
+                }
+                redirects_left -= 1;
+                let location = attempt
+                    .headers()
+                    .get(reqwest::header::LOCATION)
+                    .and_then(|v| v.to_str().ok())
+                    .map(|s| s.to_string());
+                let next = match location {
+                    Some(l) => match reqwest::Url::parse(&current_url).and_then(|b| b.join(&l)) {
+                        Ok(u) => u.to_string(),
+                        Err(e) => return fail(&jobs, format!("bad redirect target: {e}")),
+                    },
+                    None => return fail(&jobs, "redirect with no Location header".into()),
+                };
+                if let Err(e) = machina_core::iso_upload::assert_public_http_host(&next).await {
+                    return fail(&jobs, e.to_string());
+                }
+                current_url = next;
+                continue;
+            }
+            break attempt;
         };
         if !resp.status().is_success() {
             return fail(&jobs, format!("server returned HTTP {}", resp.status()));
@@ -360,10 +435,33 @@ async fn download_iso(
             }
         }
 
-        let mut file = match tokio::fs::File::create(&staging_path).await {
+        // `create_new` doubles as the concurrency guard, same as the browser-upload
+        // path: two downloads racing to the same filename would otherwise both
+        // truncate-open the same `.part` file and interleave writes into it,
+        // silently producing a corrupt ISO that both jobs report as "complete".
+        let mut file = match tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&staging_path)
+            .await
+        {
             Ok(f) => f,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                return fail(
+                    &jobs,
+                    format!("a download to {} is already in progress", final_display),
+                );
+            }
             Err(e) => return fail(&jobs, format!("cannot open {}: {e}", staging_path.display())),
         };
+
+        // Re-checked periodically below, not just once up front: a chunked
+        // transfer (no Content-Length) skips the check above entirely, and a
+        // server can simply lie about a small Content-Length while streaming
+        // far more — both would otherwise be able to fill the pool filesystem
+        // before the `max_bytes` cap is ever reached.
+        const FREE_SPACE_RECHECK_INTERVAL: u64 = 1024 * 1024 * 1024;
+        let mut last_space_check = 0u64;
 
         let mut written: u64 = 0;
         let mut stream = resp.bytes_stream();
@@ -377,6 +475,17 @@ async fn download_iso(
                 }
             };
             written = written.saturating_add(chunk.len() as u64);
+            if written - last_space_check >= FREE_SPACE_RECHECK_INTERVAL {
+                last_space_check = written;
+                // Budget for the rest of the transfer up to the hard cap, since
+                // the true remaining size is unknown for a chunked response.
+                let remaining_budget = max_bytes.saturating_sub(written);
+                if let Err(e) = machina_core::iso_upload::check_free_space(&dir, remaining_budget)
+                {
+                    let _ = tokio::fs::remove_file(&staging_path).await;
+                    return fail(&jobs, e.to_string());
+                }
+            }
             if written > max_bytes {
                 let _ = tokio::fs::remove_file(&staging_path).await;
                 return fail(&jobs, format!("download exceeds the {max_gib} GiB limit"));
@@ -402,6 +511,17 @@ async fn download_iso(
         if written == 0 {
             let _ = tokio::fs::remove_file(&staging_path).await;
             return fail(&jobs, "downloaded file is empty".into());
+        }
+        // `resolve_upload_target`'s no-overwrite check ran before this
+        // (potentially long) transfer started; a competing writer could have
+        // created `final_path` since. `rename` itself would clobber it
+        // unconditionally, so it's re-checked immediately beforehand.
+        if !overwrite && final_path.exists() {
+            let _ = tokio::fs::remove_file(&staging_path).await;
+            return fail(
+                &jobs,
+                format!("{final_display} was created by another request — not overwriting"),
+            );
         }
         if let Err(e) = tokio::fs::rename(&staging_path, &final_path).await {
             let _ = tokio::fs::remove_file(&staging_path).await;
@@ -467,6 +587,8 @@ async fn install_guest_agent(
     require_browse_host_paths(&actor)?;
 
     let cfg = MachinaConfig::load();
+    let max_gib = cfg.libvirt.iso_upload_max_gib;
+    let max_bytes = max_gib.saturating_mul(1024 * 1024 * 1024);
     let dir = std::path::PathBuf::from(cfg.libvirt.iso_upload_dir.trim());
     tokio::fs::create_dir_all(&dir).await.ok();
     let iso_path = dir.join(GUEST_AGENT_ISO_NAME);
@@ -474,6 +596,11 @@ async fn install_guest_agent(
     // Fetch the agent ISO only if it is not already on the host.
     let mut downloaded = false;
     if !iso_path.exists() {
+        if max_gib == 0 {
+            return Err(AppError::from(LibvirtError::Forbidden(
+                "ISO download is disabled ([libvirt] iso_upload_max_gib = 0)".into(),
+            )));
+        }
         let url = if req.iso_url.trim().is_empty() {
             GUEST_AGENT_ISO_URL.to_string()
         } else {
@@ -484,28 +611,132 @@ async fn install_guest_agent(
                 "iso_url must start with http:// or https://".into(),
             )));
         }
+        // Same SSRF guard as the ISO-download job: `iso_url` is caller-overridable
+        // ("air-gapped mirrors, pinned versions"), so without this a caller could
+        // point the daemon at an internal host and stage the response as a
+        // browsable, attachable ISO.
+        machina_core::iso_upload::assert_public_http_host(&url).await?;
         let staging = dir.join(format!("{GUEST_AGENT_ISO_NAME}.part"));
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(1800))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|e| AppError::from(LibvirtError::Operation(format!("http client: {e}"))))?;
-        let resp = client.get(&url).send().await.map_err(|e| {
-            AppError::from(LibvirtError::Operation(format!(
-                "cannot fetch agent ISO: {e}"
-            )))
-        })?;
+        const MAX_REDIRECTS: u8 = 5;
+        let mut current_url = url.clone();
+        let mut redirects_left = MAX_REDIRECTS;
+        let resp = loop {
+            let attempt = client.get(&current_url).send().await.map_err(|e| {
+                AppError::from(LibvirtError::Operation(format!(
+                    "cannot fetch agent ISO: {e}"
+                )))
+            })?;
+            if attempt.status().is_redirection() {
+                if redirects_left == 0 {
+                    return Err(AppError::from(LibvirtError::Operation(
+                        "too many redirects".into(),
+                    )));
+                }
+                redirects_left -= 1;
+                let location = attempt
+                    .headers()
+                    .get(reqwest::header::LOCATION)
+                    .and_then(|v| v.to_str().ok())
+                    .map(|s| s.to_string());
+                let next = match location {
+                    Some(l) => reqwest::Url::parse(&current_url)
+                        .and_then(|b| b.join(&l))
+                        .map_err(|e| {
+                            AppError::from(LibvirtError::Operation(format!(
+                                "bad redirect target: {e}"
+                            )))
+                        })?
+                        .to_string(),
+                    None => {
+                        return Err(AppError::from(LibvirtError::Operation(
+                            "redirect with no Location header".into(),
+                        )))
+                    }
+                };
+                machina_core::iso_upload::assert_public_http_host(&next).await?;
+                current_url = next;
+                continue;
+            }
+            break attempt;
+        };
         if !resp.status().is_success() {
             return Err(AppError::from(LibvirtError::Operation(format!(
                 "agent ISO download returned HTTP {}",
                 resp.status()
             ))));
         }
-        let bytes = resp.bytes().await.map_err(|e| {
-            AppError::from(LibvirtError::Operation(format!("agent ISO transfer: {e}")))
-        })?;
-        tokio::fs::write(&staging, &bytes)
+        if let Some(t) = resp.content_length() {
+            if t > max_bytes {
+                return Err(AppError::from(LibvirtError::Invalid(format!(
+                    "remote file is {} GiB; limit is {max_gib} GiB",
+                    t / (1024 * 1024 * 1024)
+                ))));
+            }
+            machina_core::iso_upload::check_free_space(&dir, t)?;
+        }
+
+        use futures_util::StreamExt;
+        use tokio::io::AsyncWriteExt;
+        let mut file = tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&staging)
             .await
-            .map_err(|e| AppError::from(LibvirtError::Operation(format!("write failed: {e}"))))?;
+            .map_err(|e| {
+                AppError::from(if e.kind() == std::io::ErrorKind::AlreadyExists {
+                    LibvirtError::Invalid("a guest-agent ISO fetch is already in progress".into())
+                } else {
+                    LibvirtError::Operation(format!("cannot open {}: {e}", staging.display()))
+                })
+            })?;
+        const FREE_SPACE_RECHECK_INTERVAL: u64 = 1024 * 1024 * 1024;
+        let mut last_space_check = 0u64;
+        let mut written: u64 = 0;
+        let mut stream = resp.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| {
+                AppError::from(LibvirtError::Operation(format!("agent ISO transfer: {e}")))
+            })?;
+            written = written.saturating_add(chunk.len() as u64);
+            if written > max_bytes {
+                let _ = tokio::fs::remove_file(&staging).await;
+                return Err(AppError::from(LibvirtError::Invalid(format!(
+                    "download exceeds the {max_gib} GiB limit"
+                ))));
+            }
+            if written - last_space_check >= FREE_SPACE_RECHECK_INTERVAL {
+                last_space_check = written;
+                let remaining_budget = max_bytes.saturating_sub(written);
+                if let Err(e) = machina_core::iso_upload::check_free_space(&dir, remaining_budget) {
+                    let _ = tokio::fs::remove_file(&staging).await;
+                    return Err(AppError::from(e));
+                }
+            }
+            if let Err(e) = file.write_all(&chunk).await {
+                let _ = tokio::fs::remove_file(&staging).await;
+                return Err(AppError::from(LibvirtError::Operation(format!(
+                    "write failed: {e}"
+                ))));
+            }
+        }
+        if let Err(e) = file.flush().await.and(file.sync_all().await) {
+            let _ = tokio::fs::remove_file(&staging).await;
+            return Err(AppError::from(LibvirtError::Operation(format!(
+                "flush failed: {e}"
+            ))));
+        }
+        drop(file);
+        if written == 0 {
+            let _ = tokio::fs::remove_file(&staging).await;
+            return Err(AppError::from(LibvirtError::Invalid(
+                "downloaded file is empty".into(),
+            )));
+        }
         tokio::fs::rename(&staging, &iso_path)
             .await
             .map_err(|e| AppError::from(LibvirtError::Operation(format!("rename failed: {e}"))))?;
@@ -523,6 +754,10 @@ async fn install_guest_agent(
     let ensure_channel = req.ensure_channel;
     let iso_for_task = iso_str.clone();
 
+    // Held across cdrom + channel setup: both mutate the same domain's device
+    // list from a read-then-write sequence, same race the dedicated
+    // insert/eject/channel handlers guard against.
+    let _vm_guard = manager.lock_vm(&name).await;
     let (cdrom_outcome, channel_outcome) = spawn_libvirt_actor(
         manager,
         Some(&actor),
@@ -569,6 +804,14 @@ async fn enable_windows_rdp(
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_browse_host_paths(&actor)?;
+    // Held for the whole request, including the guestkit subprocess below: a
+    // client retry after an HTTP-level timeout does not cancel the in-flight
+    // server-side work (`spawn_blocking` isn't dropped with the response), so
+    // without this a retry starts a *second* `guestkit plan apply` against the
+    // same disk while the first is still running — two concurrent registry-hive
+    // writers on one qcow2, a real corruption risk hit live against this exact
+    // endpoint.
+    let _vm_guard = manager.lock_vm(&name).await;
     let cfg = MachinaConfig::load();
     let guestkit_bin = cfg.libvirt.guestkit_agent_binary.clone();
     let vm = name.clone();
@@ -623,6 +866,11 @@ async fn ensure_guest_agent_channel_handler(
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_browse_host_paths(&actor)?;
+    // Held across the read-XML → attach sequence: two concurrent calls for the
+    // same VM would otherwise both see "no channel" and both attach one,
+    // racing on the domain (the loser's attach fails as "already exists"
+    // even though a channel is in fact present).
+    let _vm_guard = manager.lock_vm(&name).await;
     let vm = name.clone();
     let outcome = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         machina_core::libvirt::qga_channel::ensure_guest_agent_channel(conn, &vm)

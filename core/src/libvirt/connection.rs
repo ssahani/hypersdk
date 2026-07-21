@@ -61,10 +61,22 @@ pub struct LibvirtManager {
     /// Extra hypervisor URIs (read-only merge into VM lists).
     extra: Vec<UriSlot>,
     extra_uri_labels: Vec<String>,
+    /// Per-VM-name async locks for read-modify-write device operations
+    /// (get_xml_desc → compute a change → attach/update/detach). The
+    /// connection mutex only serializes libvirt *calls*; without this, two
+    /// concurrent requests for the *same* VM (a client retry after a timeout,
+    /// a double-click) can each read the same starting XML and then both
+    /// attach/update/detach, racing each other or duplicating work — the
+    /// mechanism behind a real incident where a client-timeout retry started a
+    /// second `guestkit` run against a VM's disk while the first was still
+    /// applying. Callers take the guard around the whole read-then-write
+    /// sequence, not just the final libvirt call.
+    vm_locks: Arc<Mutex<std::collections::HashMap<String, Arc<tokio::sync::Mutex<()>>>>>,
 }
 
 impl LibvirtManager {
     pub fn new(cfg: &LibvirtConfig) -> Result<Self, LibvirtError> {
+        let vm_locks = Arc::new(Mutex::new(std::collections::HashMap::new()));
         if cfg.dual_connection {
             let mut system = None;
             let mut session = None;
@@ -106,6 +118,7 @@ impl LibvirtManager {
                 session,
                 extra,
                 extra_uri_labels,
+                vm_locks,
             });
         }
 
@@ -124,7 +137,25 @@ impl LibvirtManager {
             session: None,
             extra,
             extra_uri_labels,
+            vm_locks,
         })
+    }
+
+    /// Acquire the async lock for `vm_name`, creating its slot on first use.
+    ///
+    /// Hold the returned guard around the whole read-XML → compute → mutate
+    /// sequence for a device operation (CD-ROM insert/eject/detach, guest-agent
+    /// channel setup, offline registry edits), not just the final libvirt call —
+    /// the race is between two concurrent *reads* of the starting state, not
+    /// just the writes.
+    pub async fn lock_vm(&self, vm_name: &str) -> tokio::sync::OwnedMutexGuard<()> {
+        let handle = {
+            let mut map = self.vm_locks.lock().unwrap_or_else(|e| e.into_inner());
+            map.entry(vm_name.to_string())
+                .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+                .clone()
+        };
+        handle.lock_owned().await
     }
 
     fn open_extra_uris(uris: &[String]) -> (Vec<UriSlot>, Vec<String>) {

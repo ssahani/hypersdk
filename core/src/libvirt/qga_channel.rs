@@ -29,8 +29,20 @@ pub struct ChannelOutcome {
     pub added_controller: bool,
 }
 
+/// A real, structurally-valid guest-agent channel, not just the name string
+/// appearing somewhere in the XML.
+///
+/// A bare substring match reports `present: true` for a malformed leftover
+/// entry (wrong `<target>` type, or the literal name sitting in a `<title>` or
+/// comment) — `ensure_guest_agent_channel` then silently no-ops on a channel
+/// that doesn't actually work, instead of adding a real one.
 pub fn has_guest_agent_channel(vm_xml: &str) -> bool {
-    vm_xml.contains(QGA_CHANNEL_NAME)
+    crate::xml::split_blocks(vm_xml, "channel").iter().any(|block| {
+        let channel_type = crate::xml::extract_attr(block, "channel", "type").unwrap_or_default();
+        let target_type = crate::xml::extract_attr(block, "target", "type").unwrap_or_default();
+        let target_name = crate::xml::extract_attr(block, "target", "name").unwrap_or_default();
+        channel_type == "unix" && target_type == "virtio" && target_name == QGA_CHANNEL_NAME
+    })
 }
 
 fn has_virtio_serial_controller(vm_xml: &str) -> bool {

@@ -148,6 +148,10 @@ async fn insert_cdrom_handler(
     Json(req): Json<CdromRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_write(&actor, "vms:write")?;
+    // Held across the whole read-XML → pick-target → attach/update sequence:
+    // two concurrent inserts on the same VM would otherwise both read the same
+    // starting XML, pick the same "free" target, and race on the attach.
+    let _vm_guard = manager.lock_vm(&name).await;
     let name2 = name.clone();
     let outcome = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         cdrom::insert_cdrom(conn, &name2, &req.iso_path, &req.target)
@@ -179,6 +183,7 @@ async fn detach_cdrom_handler(
     Path((name, target)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_write(&actor, "vms:write")?;
+    let _vm_guard = manager.lock_vm(&name).await;
     let name2 = name.clone();
     let target2 = target.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
@@ -197,6 +202,7 @@ async fn eject_cdrom_handler(
     Path((name, target)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_write(&actor, "vms:write")?;
+    let _vm_guard = manager.lock_vm(&name).await;
     let name2 = name.clone();
     let target2 = target.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {

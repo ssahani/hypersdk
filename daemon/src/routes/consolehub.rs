@@ -348,6 +348,17 @@ async fn create_session(
         .clone()
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| plan.recommended.clone());
+    // Without this, a caller could request e.g. "rdp" for a Linux VM, or for a
+    // Windows VM with RDP unreachable, and get a 200 with a session_id/embed_path
+    // that looks like success — there's no browser RDP renderer at all
+    // (Guacamole was removed), so the caller has no other signal the session is
+    // unusable until they try to actually use it.
+    if !plan.protocols.iter().any(|p| p == &protocol) {
+        return Err(AppError::from(machina_core::LibvirtError::Invalid(format!(
+            "protocol '{protocol}' is not available for this VM (available: {})",
+            plan.protocols.join(", ")
+        ))));
+    }
 
     let ttl = Duration::from_secs(
         std::env::var("CONSOLEHUB_SESSION_TTL_SECS")

@@ -1961,6 +1961,12 @@ fn build_console_access_plan(
     let _server_cloud_linux = linux_cloud_serial_preferred(&xml_lower, &os_hint, desktop_golden);
     let serial_available = resolve_console_pty(&xml).is_some();
 
+    // Nothing below this point touches `ctx`; released before the blocking
+    // network probe so a slow/unresponsive guest doesn't serialize every other
+    // libvirt operation on this agent behind it (this mutex guards *all*
+    // libvirt calls, not just this VM's).
+    drop(ctx);
+
     // Serial is always last resort — only when no graphical display and no SSH/RDP alternative.
     // Native RDP: `rdp_port` is non-zero only when the
     // guest is actually listening, and that is what the controller advertises the

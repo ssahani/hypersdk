@@ -124,6 +124,67 @@ pub fn check_free_space(dir: &Path, expected_bytes: u64) -> Result<(), LibvirtEr
     Ok(())
 }
 
+/// Reject a fetch URL whose host resolves to a private, loopback, link-local, or
+/// otherwise internal address.
+///
+/// The ISO-download feature makes the daemon (running as root, on the
+/// hypervisor's own network) fetch an operator-supplied URL. Without this check
+/// that URL could point at the cloud metadata endpoint (`169.254.169.254`), the
+/// daemon's own loopback API, or any other host on the hypervisor's internal
+/// network — turning a "download an ISO" feature into an SSRF primitive. Call
+/// this once before the request and again on every redirect hop, since a
+/// same-URL, different-answer DNS response (rebinding) or a redirect to an
+/// internal host would otherwise bypass a single check made only up front.
+pub async fn assert_public_http_host(url: &str) -> Result<(), LibvirtError> {
+    let parsed =
+        url::Url::parse(url).map_err(|e| LibvirtError::Invalid(format!("invalid URL: {e}")))?;
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| LibvirtError::Invalid("URL has no host".into()))?
+        .to_string();
+    let port = parsed.port_or_known_default().unwrap_or(443);
+    let addrs = tokio::net::lookup_host((host.as_str(), port))
+        .await
+        .map_err(|e| LibvirtError::Invalid(format!("cannot resolve {host}: {e}")))?;
+    let mut resolved_any = false;
+    for addr in addrs {
+        resolved_any = true;
+        let ip = addr.ip();
+        if is_internal_ip(&ip) {
+            return Err(LibvirtError::Invalid(format!(
+                "refusing to fetch from {host}: resolves to an internal address ({ip})"
+            )));
+        }
+    }
+    if !resolved_any {
+        return Err(LibvirtError::Invalid(format!("cannot resolve {host}")));
+    }
+    Ok(())
+}
+
+fn is_internal_ip(ip: &std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(v4) => {
+            v4.is_loopback()
+                || v4.is_private()
+                || v4.is_link_local()
+                || v4.is_unspecified()
+                || v4.is_multicast()
+                || v4.is_broadcast()
+                || v4.is_documentation()
+        }
+        std::net::IpAddr::V6(v6) => {
+            v6.is_loopback()
+                || v6.is_unspecified()
+                || v6.is_multicast()
+                // Unique local fc00::/7 and link-local fe80::/10 have no is_*()
+                // helper on stable Ipv6Addr yet.
+                || (v6.segments()[0] & 0xfe00) == 0xfc00
+                || (v6.segments()[0] & 0xffc0) == 0xfe80
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -198,5 +259,37 @@ mod tests {
     fn resolve_target_rejects_traversal_and_relative_dir() {
         assert!(resolve_upload_target("/srv/isos", "../escape.iso", false).is_err());
         assert!(resolve_upload_target("relative/isos", "ok.iso", false).is_err());
+    }
+
+    #[test]
+    fn rejects_internal_ipv4_addresses() {
+        for ip in ["127.0.0.1", "169.254.169.254", "10.0.0.5", "192.168.1.1", "0.0.0.0"] {
+            let addr: std::net::IpAddr = ip.parse().unwrap();
+            assert!(is_internal_ip(&addr), "{ip} should be treated as internal");
+        }
+    }
+
+    #[test]
+    fn allows_public_ipv4_addresses() {
+        for ip in ["8.8.8.8", "1.1.1.1", "93.184.216.34"] {
+            let addr: std::net::IpAddr = ip.parse().unwrap();
+            assert!(!is_internal_ip(&addr), "{ip} should be treated as public");
+        }
+    }
+
+    #[test]
+    fn rejects_internal_ipv6_addresses() {
+        for ip in ["::1", "fe80::1", "fc00::1", "fd12:3456::1"] {
+            let addr: std::net::IpAddr = ip.parse().unwrap();
+            assert!(is_internal_ip(&addr), "{ip} should be treated as internal");
+        }
+    }
+
+    #[tokio::test]
+    async fn assert_public_http_host_rejects_loopback_url() {
+        let err = assert_public_http_host("http://127.0.0.1:9999/x.iso")
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("internal address"));
     }
 }

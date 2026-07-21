@@ -85,6 +85,15 @@ pub fn collect_image_scan_directories(
             out.push(pb);
         }
     }
+    // The configured ISO-upload directory usually sits under one of the paths
+    // above already, but an operator can point it elsewhere — include it
+    // explicitly so a custom `iso_upload_dir` doesn't fall outside the allow-list
+    // used to validate CD-ROM media / disk-image sources.
+    let iso_dir = crate::MachinaConfig::load().libvirt.iso_upload_dir;
+    let iso_pb = std::path::PathBuf::from(iso_dir.trim());
+    if iso_pb.is_absolute() && !out.iter().any(|p| p == &iso_pb) {
+        out.push(iso_pb);
+    }
     // The agent's backup dir (MACHINA_BACKUP_DIR, default /var/lib/machina/backups)
     // is a legitimate machina-managed location that backup WRITES to and restore
     // READS from. Include it so both paths work out of the box — without this,

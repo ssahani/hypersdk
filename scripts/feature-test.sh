@@ -61,9 +61,12 @@ jid=$(c -X POST "$API/browse/isos/download" -H 'Content-Type: application/json' 
 r=$(code -X POST "$API/browse/isos/download" -H 'Content-Type: application/json' \
   -d '{"url":"ftp://example.com/x.iso"}')
 [ "$r" = 400 ] && ok "reject non-http scheme" || bad "scheme guard" "HTTP $r"
+# .invalid is a reserved TLD (RFC 2606) guaranteed never to resolve — the
+# SSRF guard (assert_public_http_host) now rejects it synchronously with 400
+# instead of accepting an async job that would only fail later at fetch time.
 r=$(code -X POST "$API/browse/isos/download" -H 'Content-Type: application/json' \
   -d '{"url":"https://example.invalid/nope-404.iso","filename":"nope404.iso","overwrite":true}')
-[ "$r" = 200 ] && ok "bad-host download accepted as job (fails async)" || bad "bad host" "HTTP $r"
+[ "$r" = 400 ] && ok "unresolvable host rejected up front" || bad "bad host" "HTTP $r"
 sleep 6
 c "$API/jobs" | python3 -c '
 import json,sys

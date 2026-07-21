@@ -41,6 +41,13 @@ pub fn insert_cdrom(
             "ISO path is not a file: {iso_path}"
         )));
     }
+    // Unlike the browser-upload path (confined to `iso_upload_dir` by
+    // construction), this endpoint takes a caller-supplied absolute path
+    // directly. Without this check any actor with VM-write access could mount
+    // an arbitrary host file — `/etc/shadow`, an SSH private key, anything
+    // qemu's user can read — read-only into a guest as "CD-ROM media". Same
+    // allow-list used for disk-image browse/delete and backup restore sources.
+    super::storage::assert_backup_source_within_pools(conn_ref, iso_path)?;
 
     let flags = get_update_flags(&domain);
 
@@ -60,8 +67,13 @@ pub fn insert_cdrom(
     };
     let target = target.as_str();
 
-    // Check if a cdrom device already exists at this target
-    let (has_cdrom, existing_bus) = find_cdrom_device(&vm_xml, target);
+    // Check if a cdrom device already exists at this target. Must use the
+    // combined live+config view, same as the target-picker above: a SATA
+    // CD-ROM staged on a running guest lands in config only, so checking the
+    // live XML alone would report "no CD-ROM here" for a drive that
+    // demonstrably exists — sending this down the "attach new device" branch,
+    // which libvirt then rejects as already existing, instead of updating it.
+    let (has_cdrom, existing_bus) = find_cdrom_device(&combined_xml, target);
 
     if has_cdrom {
         // Update existing cdrom device — use same bus type
@@ -177,9 +189,15 @@ pub fn eject_cdrom(conn: &Connect, name: &str, target: &str) -> Result<(), Libvi
     );
 
     let flags = get_update_flags(&domain);
-    domain
-        .update_device_flags(&xml, flags)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to eject CD-ROM: {e}")))?;
+    // Same LIVE+CONFIG-then-CONFIG-only fallback as `detach_cdrom`: a drive
+    // staged only in the persistent config (SATA on a running guest) has
+    // nothing to eject live, so the combined-flags call fails outright without
+    // this — the caller could stage an insert but never cancel it before reboot.
+    if domain.update_device_flags(&xml, flags).is_err() {
+        domain
+            .update_device_flags(&xml, virt::sys::VIR_DOMAIN_AFFECT_CONFIG)
+            .map_err(|e| LibvirtError::Operation(format!("Failed to eject CD-ROM: {e}")))?;
+    }
 
     Ok(())
 }
