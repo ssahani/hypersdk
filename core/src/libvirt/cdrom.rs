@@ -238,6 +238,38 @@ pub fn detach_cdrom(conn: &Connect, name: &str, target: &str) -> Result<(), Libv
     Ok(())
 }
 
+/// Names of VMs that currently have `iso_path` mounted as CD-ROM media,
+/// paired with whether each is running.
+///
+/// Overwriting an ISO file in place (browser re-upload / re-download with
+/// `overwrite=true`) swaps the directory entry via `rename`, but QEMU keeps
+/// its own open file descriptor to the *old* inode — a running guest with
+/// this media mounted keeps reading the old bytes until the drive is
+/// ejected and reinserted, while every other API consumer already sees the
+/// new file. This exists so callers can warn about that instead of the
+/// caller finding out by getting stale data from the guest.
+pub fn vms_with_iso_mounted(conn: &Connect, iso_path: &str) -> Vec<(String, bool)> {
+    let Ok(domains) = conn.list_all_domains(0) else {
+        return Vec::new();
+    };
+    let mut hits = Vec::new();
+    for domain in domains {
+        let Ok(name) = domain.get_name() else {
+            continue;
+        };
+        let xml = super::domain::domain_xml_live_and_config(&domain);
+        let mounted = crate::xml::split_blocks(&xml, "disk").iter().any(|block| {
+            crate::xml::extract_attr(block, "disk", "device").as_deref() == Some("cdrom")
+                && crate::xml::extract_attr(block, "source", "file").as_deref() == Some(iso_path)
+        });
+        if mounted {
+            let running = domain.get_info().map(|i| i.state == 1).unwrap_or(false);
+            hits.push((name, running));
+        }
+    }
+    hits
+}
+
 /// Find a cdrom device at the given target, return (exists, bus_type).
 fn find_cdrom_device(xml: &str, target: &str) -> (bool, Option<String>) {
     for block in crate::xml::split_blocks(xml, "disk") {

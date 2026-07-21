@@ -97,6 +97,7 @@ struct IsoUploadQuery {
 /// upload can never be picked up by the ISO browser or VM create.
 async fn upload_iso(
     Extension(actor): Extension<RequestActor>,
+    State(manager): State<LibvirtManager>,
     Query(q): Query<IsoUploadQuery>,
     headers: axum::http::HeaderMap,
     body: axum::body::Body,
@@ -266,12 +267,48 @@ async fn upload_iso(
         &final_path.display().to_string(),
         "success",
     );
-    Ok(Json(serde_json::json!({
+    // Overwriting swaps the directory entry, but a running guest with this
+    // exact path already mounted as CD-ROM keeps its old file descriptor —
+    // it won't see the new bytes until the drive is ejected and reinserted.
+    let final_path_display = final_path.display().to_string();
+    let stale_mount_warning = tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| {
+            Ok::<_, LibvirtError>(machina_core::libvirt::cdrom::vms_with_iso_mounted(
+                conn,
+                &final_path_display,
+            ))
+        })
+    })
+    .await
+    .ok()
+    .and_then(|r| r.ok())
+    .filter(|hits| !hits.is_empty())
+    .map(|hits| {
+        let running: Vec<&str> = hits
+            .iter()
+            .filter(|(_, running)| *running)
+            .map(|(name, _)| name.as_str())
+            .collect();
+        format!(
+            "this ISO is currently mounted on: {} — {}",
+            hits.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>().join(", "),
+            if running.is_empty() {
+                "eject and reinsert after the guest next boots to see the new content"
+            } else {
+                "running guest(s) will keep reading the old content until the drive is ejected and reinserted"
+            }
+        )
+    });
+    let mut response = serde_json::json!({
         "status": "ok",
         "name": final_path.file_name().and_then(|s| s.to_str()).unwrap_or_default(),
         "path": final_path.display().to_string(),
         "size_bytes": written,
-    })))
+    });
+    if let Some(warning) = stale_mount_warning {
+        response["warning"] = serde_json::Value::String(warning);
+    }
+    Ok(Json(response))
 }
 
 #[derive(Deserialize)]
@@ -297,6 +334,7 @@ static ISO_DOWNLOAD_SEM: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(3
 async fn download_iso(
     Extension(actor): Extension<RequestActor>,
     Extension(jobs): Extension<std::sync::Arc<crate::job_registry::JobRegistry>>,
+    State(manager): State<LibvirtManager>,
     Json(req): Json<IsoDownloadRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_browse_host_paths(&actor)?;
@@ -360,6 +398,7 @@ async fn download_iso(
     let job_id = jobs.start_iso_download(&url, &final_display);
     let actor_name = actor.username.clone();
     let final_display_for_task = final_display.clone();
+    let manager_for_task = manager.clone();
 
     tokio::spawn(async move {
         let final_display = final_display_for_task;
@@ -536,6 +575,30 @@ async fn download_iso(
 
         jobs.update_download_progress(job_id, written);
         jobs.append_log(job_id, &format!("saved {} ({written} bytes)", final_path.display()));
+        // Overwriting swaps the directory entry, but a running guest with this
+        // exact path already mounted as CD-ROM keeps its old file descriptor —
+        // it won't see the new bytes until the drive is ejected and reinserted.
+        let final_path_for_check = final_path.display().to_string();
+        if let Ok(Ok(hits)) = tokio::task::spawn_blocking(move || {
+            manager_for_task.with_conn(|conn| {
+                Ok::<_, LibvirtError>(machina_core::libvirt::cdrom::vms_with_iso_mounted(
+                    conn,
+                    &final_path_for_check,
+                ))
+            })
+        })
+        .await
+        {
+            if !hits.is_empty() {
+                jobs.append_log(
+                    job_id,
+                    &format!(
+                        "note: this ISO is currently mounted on {} — eject and reinsert to see the new content",
+                        hits.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>().join(", ")
+                    ),
+                );
+            }
+        }
         jobs.complete_iso_download(job_id, &final_path.display().to_string(), written);
         log_audit(
             "iso.download",
