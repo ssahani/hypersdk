@@ -150,6 +150,7 @@ fn build_protocol_list(
     console_type: &str,
     _vnc_port: i32,
     guest_ip: &str,
+    guest_ip_host_observed: bool,
     os_hint: &str,
 ) -> Vec<String> {
     let mut out = vec!["novnc".into()];
@@ -163,7 +164,14 @@ fn build_protocol_list(
         out.push("native_ssh".into());
         // Probed, not assumed: Remote Desktop is off by default in Windows, and
         // offering a console that dials a closed port is worse than offering none.
-        if os_hint == "windows" && machina_core::guest_os::rdp_reachable(guest_ip) {
+        // Only probed when guest_ip is host-observed (DHCP lease / ARP), not a
+        // bare guest-agent self-report — dialing a guest-controlled address
+        // turns this into a port-scan oracle against whatever network the host
+        // can reach.
+        if os_hint == "windows"
+            && guest_ip_host_observed
+            && machina_core::guest_os::rdp_reachable(guest_ip)
+        {
             out.push("rdp".into());
         }
     }
@@ -179,7 +187,7 @@ async fn build_plan(
 ) -> Result<ConsoleHubPlan, AppError> {
     let name2 = vm_name.to_string();
     let conn_str = conn_q.connection.clone().unwrap_or_default();
-    let (_vnc_host, vnc_port, console_type, serial_available, guest_ip, os_hint) =
+    let (_vnc_host, vnc_port, console_type, serial_available, guest_ip, guest_ip_host_observed, os_hint) =
         spawn_libvirt_actor(manager.clone(), Some(actor), conn_q, move |conn| {
             let xml = machina_core::libvirt::domain::get_vm_xml(conn, &name2).unwrap_or_default();
             let has_spice = machina_core::libvirt::graphics_convert::domain_has_spice_graphics(&xml);
@@ -205,15 +213,29 @@ async fn build_plan(
                 })
                 .is_some();
             let mut guest_ip = String::new();
+            let mut guest_ip_host_observed = false;
             let mut os_hint = machina_core::guest_os::detect_os_hint(&xml, &name2);
             if let Ok(health) = guest_health::gather_guest_health(conn, &name2) {
                 if let Some(guest) = &health.guest {
-                    guest_ip = guest
-                        .ip_addresses
-                        .iter()
-                        .find(|a| a.ip_type == "ipv4" && !a.address.starts_with("127."))
+                    // Prefer a host-observed address (DHCP lease or kernel ARP
+                    // table) over one the guest agent self-reports: `guest_ip`
+                    // is what `rdp_reachable` below dials over the network, and
+                    // trusting a guest-controlled value there lets a malicious
+                    // guest make the host probe arbitrary addresses and read
+                    // back whether a port is open — a port-scan oracle.
+                    let host_observed = guest.ip_addresses.iter().find(|a| {
+                        a.ip_type == "ipv4" && !a.address.starts_with("127.") && a.source != "agent"
+                    });
+                    guest_ip = host_observed
+                        .or_else(|| {
+                            guest
+                                .ip_addresses
+                                .iter()
+                                .find(|a| a.ip_type == "ipv4" && !a.address.starts_with("127."))
+                        })
                         .map(|a| a.address.clone())
                         .unwrap_or_default();
+                    guest_ip_host_observed = host_observed.is_some();
                 }
                 if let Some(ref pretty) = health.os_pretty_name {
                     os_hint = machina_core::guest_os::refine_os_hint(&os_hint, pretty);
@@ -225,6 +247,7 @@ async fn build_plan(
                 console_type,
                 serial_available,
                 guest_ip,
+                guest_ip_host_observed,
                 os_hint,
             ))
         })
@@ -252,6 +275,7 @@ async fn build_plan(
         &console_type,
         vnc_port as i32,
         &guest_ip_for_protocols,
+        guest_ip_host_observed,
         &os_hint,
     );
 

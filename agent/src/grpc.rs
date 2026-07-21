@@ -1942,12 +1942,14 @@ fn build_console_access_plan(
         "unknown".to_string()
     };
     let mut guest_ip = String::new();
+    let mut guest_ip_host_observed = false;
     let ssh_user = std::env::var("MACHINA_DEFAULT_SSH_USER").unwrap_or_else(|_| "ubuntu".into());
     let mut os_hint = machina_core::guest_os::detect_os_hint(&xml, vm_name);
 
     if let Ok(health) = ctx.guest_health(vm_name) {
         if !health.guest_ip.is_empty() {
             guest_ip = health.guest_ip;
+            guest_ip_host_observed = health.guest_ip_host_observed;
         }
         if !health.os_pretty_name.is_empty() {
             os_hint = machina_core::guest_os::refine_os_hint(&os_hint, &health.os_pretty_name);
@@ -1970,8 +1972,13 @@ fn build_console_access_plan(
     // Serial is always last resort — only when no graphical display and no SSH/RDP alternative.
     // Native RDP: `rdp_port` is non-zero only when the
     // guest is actually listening, and that is what the controller advertises the
-    // native "rdp" protocol from.
-    let rdp_up = os_hint == "windows" && machina_core::guest_os::rdp_reachable(&guest_ip);
+    // native "rdp" protocol from. Only probed when `guest_ip` is host-observed
+    // (DHCP lease / ARP), not a bare guest-agent self-report: dialing a
+    // guest-controlled address turns this into a port-scan oracle against
+    // whatever network the host can reach.
+    let rdp_up = os_hint == "windows"
+        && guest_ip_host_observed
+        && machina_core::guest_os::rdp_reachable(&guest_ip);
 
     let recommended = if rdp_up {
         "rdp".into()

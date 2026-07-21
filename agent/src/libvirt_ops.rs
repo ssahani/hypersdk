@@ -734,25 +734,35 @@ impl LibvirtCtx {
         )?;
         let dom = Domain::lookup_by_name(&self.conn, vm_name)
             .map_err(|e| LibvirtError::NotFound(format!("VM '{vm_name}': {e}")))?;
+
+        // Validated against the XML *before* touching power state: an RBD-backed
+        // (or otherwise non-file) target disk fails `extract_disk_path` the same
+        // way a multi-disk VM fails the disk-count check, and previously that was
+        // only discovered *after* `dom.destroy()` had already powered the guest
+        // off for nothing.
+        let xml = dom
+            .get_xml_desc(0)
+            .map_err(|e| LibvirtError::Operation(e.to_string()))?;
+        let disks = count_data_disks(&xml);
+        if disks > 1 {
+            return Err(LibvirtError::Operation(format!(
+                "VM '{vm_name}' has {disks} data disks; multi-disk restore is not supported \
+                 (restoring only the first disk would leave the others stale). Refusing."
+            )));
+        }
+        let disk_path = extract_disk_path(&xml).ok_or_else(|| {
+            LibvirtError::Operation(format!(
+                "no file-backed disk path found for VM '{vm_name}' — a network-backed \
+                 (e.g. Ceph/RBD) disk isn't supported by this restore path"
+            ))
+        })?;
+
         let was_running = dom.is_active().unwrap_or(false);
         if was_running {
             dom.destroy()
                 .map_err(|e| LibvirtError::Operation(format!("stop for restore: {e}")))?;
         }
-        let result = (|| -> Result<(), LibvirtError> {
-            let xml = dom
-                .get_xml_desc(0)
-                .map_err(|e| LibvirtError::Operation(e.to_string()))?;
-            let disks = count_data_disks(&xml);
-            if disks > 1 {
-                return Err(LibvirtError::Operation(format!(
-                    "VM '{vm_name}' has {disks} data disks; multi-disk restore is not supported \
-                     (restoring only the first disk would leave the others stale). Refusing."
-                )));
-            }
-            let disk_path = extract_disk_path(&xml).ok_or_else(|| {
-                LibvirtError::Operation(format!("no disk path found for VM '{vm_name}'"))
-            })?;
+        let result: Result<(), LibvirtError> = (|| {
             let status = Command::new("qemu-img")
                 .args(["convert", "-O", "qcow2", backup_path, &disk_path])
                 .status()
@@ -764,12 +774,18 @@ impl LibvirtCtx {
         })();
         // Restart whether or not the restore succeeded, so a failed restore (e.g.
         // qemu-img error) doesn't leave a previously-running guest powered off.
+        // Both failures are surfaced when both occur — silently dropping the
+        // restart error left an operator seeing only the restore error while the
+        // VM sat powered off with no indication it needed a manual start.
         if was_running {
-            if let Err(e) = dom.create() {
-                // Only surface the restart error when the restore itself succeeded.
-                if result.is_ok() {
-                    return Err(LibvirtError::Operation(format!("start after restore: {e}")));
-                }
+            if let Err(start_err) = dom.create() {
+                return Err(match result {
+                    Ok(()) => LibvirtError::Operation(format!("start after restore: {start_err}")),
+                    Err(restore_err) => LibvirtError::Operation(format!(
+                        "restore failed ({restore_err}), and the VM also failed to restart \
+                         afterward ({start_err}) — it is powered off and needs a manual start"
+                    )),
+                });
             }
         }
         result
@@ -857,16 +873,29 @@ impl LibvirtCtx {
 
     pub fn guest_health(&self, name: &str) -> Result<GuestHealthSummary, LibvirtError> {
         let report = machina_core::libvirt::guest_health::gather_guest_health(&self.conn, name)?;
-        let guest_ip = report
+        // Prefer a host-observed address (DHCP lease or kernel ARP table) over one
+        // the guest agent self-reports: `guest_ip` is what a blocking network
+        // probe later dials (see `rdp_reachable`), and a guest-controlled value
+        // there lets a malicious guest make the host probe arbitrary addresses
+        // and read back whether a port is open — a port-scan oracle. Falls back
+        // to an agent-reported address only when no host-observed one exists.
+        let ipv4_addrs = report
             .guest
             .as_ref()
-            .and_then(|g| {
-                g.ip_addresses
+            .map(|g| g.ip_addresses.as_slice())
+            .unwrap_or_default();
+        let host_observed = ipv4_addrs
+            .iter()
+            .find(|ip| ip.ip_type == "ipv4" && !ip.address.starts_with("127.") && ip.source != "agent");
+        let guest_ip = host_observed
+            .or_else(|| {
+                ipv4_addrs
                     .iter()
                     .find(|ip| ip.ip_type == "ipv4" && !ip.address.starts_with("127."))
-                    .map(|ip| ip.address.clone())
             })
+            .map(|ip| ip.address.clone())
             .unwrap_or_default();
+        let guest_ip_host_observed = host_observed.is_some();
         let guest_hostname = report
             .guest
             .as_ref()
@@ -897,6 +926,7 @@ impl LibvirtCtx {
             healthy: report.healthy,
             os_pretty_name: report.os_pretty_name.unwrap_or_default(),
             guest_ip,
+            guest_ip_host_observed,
             guest_hostname,
             issues: report.issues,
             install_state,
@@ -958,6 +988,12 @@ pub struct GuestHealthSummary {
     pub healthy: bool,
     pub os_pretty_name: String,
     pub guest_ip: String,
+    /// True when `guest_ip` came from a DHCP lease or the kernel ARP table
+    /// (host-observed) rather than the guest agent's self-report. Callers that
+    /// dial `guest_ip` over the network (the RDP-reachability probe) should
+    /// only do so when this is true — an untrusted guest can claim any IP via
+    /// the agent, turning a blind probe into a port-scan oracle.
+    pub guest_ip_host_observed: bool,
     pub guest_hostname: String,
     pub issues: Vec<String>,
     pub install_state: String,

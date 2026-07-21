@@ -992,6 +992,19 @@ pub async fn delete_vm(
 
     let host_id = meta.0;
 
+    // Set before the task is even dequeued, not just when the worker picks it
+    // up: the reconcile loop's own query already excludes lifecycle_phase =
+    // 'deleting', but it runs on a 60s tick independent of the task queue, so a
+    // delete that only flips the phase at dequeue time left a window where a
+    // paused-but-desired-running VM's delete could race a concurrently
+    // reconcile-enqueued `resume`.
+    crate::engine::vm_lifecycle::set_vm_phase(
+        &state.pool,
+        id,
+        crate::engine::vm_lifecycle::PHASE_DELETING,
+    )
+    .await?;
+
     let task_id = enqueue_task(
         &state,
         "vm.delete",
