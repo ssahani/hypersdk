@@ -682,8 +682,24 @@ impl LibvirtCtx {
             let xml = dom
                 .get_xml_desc(0)
                 .map_err(|e| LibvirtError::Operation(e.to_string()))?;
+            // Unlike backup/restore, this reads a *named qcow2 internal
+            // snapshot* via `qemu-img convert -s` — a qcow2-container concept
+            // that doesn't apply to a raw Ceph/RBD image the same way (RBD has
+            // its own, different native snapshot mechanism). `snapshot.rs`
+            // already refuses to create an internal-mode snapshot on a
+            // network-backed disk, so this should be unreachable with one in
+            // practice; refused here too, clearly, rather than failing on a
+            // confusing qemu-img error if that's ever bypassed.
             let disk_path = extract_disk_path(&xml).ok_or_else(|| {
-                LibvirtError::Operation(format!("no disk path found for VM '{vm_name}'"))
+                if extract_rbd_source(&xml).is_some() {
+                    LibvirtError::Operation(format!(
+                        "VM '{vm_name}' has a network-backed (e.g. Ceph/RBD) disk — \
+                         qcow2 internal-snapshot clone isn't supported for it; use \
+                         revert_source=true instead"
+                    ))
+                } else {
+                    LibvirtError::Operation(format!("no disk path found for VM '{vm_name}'"))
+                }
             })?;
 
             let status = Command::new("qemu-img")
@@ -735,11 +751,10 @@ impl LibvirtCtx {
         let dom = Domain::lookup_by_name(&self.conn, vm_name)
             .map_err(|e| LibvirtError::NotFound(format!("VM '{vm_name}': {e}")))?;
 
-        // Validated against the XML *before* touching power state: an RBD-backed
-        // (or otherwise non-file) target disk fails `extract_disk_path` the same
-        // way a multi-disk VM fails the disk-count check, and previously that was
-        // only discovered *after* `dom.destroy()` had already powered the guest
-        // off for nothing.
+        // Validated against the XML *before* touching power state: a VM this
+        // restore path genuinely can't handle (more than one data disk) fails
+        // the disk-count check below, and previously that was only discovered
+        // *after* `dom.destroy()` had already powered the guest off for nothing.
         let xml = dom
             .get_xml_desc(0)
             .map_err(|e| LibvirtError::Operation(e.to_string()))?;
@@ -750,11 +765,12 @@ impl LibvirtCtx {
                  (restoring only the first disk would leave the others stale). Refusing."
             )));
         }
-        let disk_path = extract_disk_path(&xml).ok_or_else(|| {
-            LibvirtError::Operation(format!(
-                "no file-backed disk path found for VM '{vm_name}' — a network-backed \
-                 (e.g. Ceph/RBD) disk isn't supported by this restore path"
-            ))
+        // File-backed or Ceph/RBD — qemu-img writes both once given the right
+        // destination string. An RBD destination uses `-n` (skip create: the
+        // image already exists, it's the VM's current live disk) and `-O raw`
+        // (Ceph stores RBD images as raw block, not qcow2).
+        let target = resolve_disk_source(&xml).ok_or_else(|| {
+            LibvirtError::Operation(format!("no disk destination found for VM '{vm_name}'"))
         })?;
 
         let was_running = dom.is_active().unwrap_or(false);
@@ -763,8 +779,18 @@ impl LibvirtCtx {
                 .map_err(|e| LibvirtError::Operation(format!("stop for restore: {e}")))?;
         }
         let result: Result<(), LibvirtError> = (|| {
-            let status = Command::new("qemu-img")
-                .args(["convert", "-O", "qcow2", backup_path, &disk_path])
+            let mut cmd = Command::new("qemu-img");
+            cmd.arg("convert");
+            match &target {
+                DiskSource::File(_) => {
+                    cmd.args(["-O", "qcow2"]);
+                }
+                DiskSource::Rbd(_) => {
+                    cmd.args(["-n", "-O", "raw"]);
+                }
+            }
+            cmd.arg(backup_path).arg(target.qemu_img_arg());
+            let status = cmd
                 .status()
                 .map_err(|e| LibvirtError::Operation(format!("qemu-img restore: {e}")))?;
             if !status.success() {
@@ -811,11 +837,14 @@ impl LibvirtCtx {
                  (backing up only the first disk would silently lose the others). Refusing."
             )));
         }
-        let disk_path = extract_disk_path(&xml).ok_or_else(|| {
-            LibvirtError::Operation(format!("no disk path found for VM '{vm_name}'"))
+        // File-backed or Ceph/RBD — qemu-img reads both once given the right
+        // source string, so backing up a network-backed disk needs the same
+        // command with a different argument, not a different code path.
+        let source = resolve_disk_source(&xml).ok_or_else(|| {
+            LibvirtError::Operation(format!("no disk source found for VM '{vm_name}'"))
         })?;
         let status = Command::new("qemu-img")
-            .args(["convert", "-O", "qcow2", &disk_path, dest_path])
+            .args(["convert", "-O", "qcow2", &source.qemu_img_arg(), dest_path])
             .status()
             .map_err(|e| LibvirtError::Operation(format!("qemu-img convert: {e}")))?;
         if !status.success() {
@@ -1020,6 +1049,47 @@ fn extract_disk_path(xml: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// The `pool/image` name of the first network-backed (`type='network'`, e.g.
+/// Ceph/RBD) data disk in a domain XML, if any.
+fn extract_rbd_source(xml: &str) -> Option<String> {
+    machina_core::xml::split_blocks(xml, "disk").into_iter().find_map(|block| {
+        if machina_core::xml::extract_attr(&block, "disk", "device").as_deref() != Some("disk") {
+            return None;
+        }
+        if machina_core::xml::extract_attr(&block, "disk", "type").as_deref() != Some("network") {
+            return None;
+        }
+        machina_core::xml::extract_attr(&block, "source", "name")
+    })
+}
+
+/// Where a VM's (single, data) disk actually lives — a local file, or a
+/// Ceph/RBD image. `qemu-img` reads and writes both transparently once given
+/// the right source string (`rbd:pool/image` for the latter), so backup,
+/// restore, and clone-from-snapshot only need to pick the right argument, not
+/// a different code path.
+enum DiskSource {
+    File(String),
+    Rbd(String),
+}
+
+impl DiskSource {
+    /// The string qemu-img expects as a source or destination argument.
+    fn qemu_img_arg(&self) -> String {
+        match self {
+            DiskSource::File(p) => p.clone(),
+            DiskSource::Rbd(name) => format!("rbd:{name}"),
+        }
+    }
+}
+
+fn resolve_disk_source(xml: &str) -> Option<DiskSource> {
+    if let Some(p) = extract_disk_path(xml) {
+        return Some(DiskSource::File(p));
+    }
+    extract_rbd_source(xml).map(DiskSource::Rbd)
 }
 
 /// Count file-backed *data* disks (device='disk'), ignoring cdrom/floppy. Backup
@@ -1474,5 +1544,73 @@ mod cpu_parse_tests {
     fn model_attribute_on_cpu_tag() {
         let xml = "<domain><cpu model='EPYC-Rome'/></domain>";
         assert_eq!(parse_domain_cpu(xml).as_deref(), Some("EPYC-Rome"));
+    }
+}
+
+#[cfg(test)]
+mod disk_source_tests {
+    use super::{extract_disk_path, extract_rbd_source, resolve_disk_source, DiskSource};
+
+    const FILE_BACKED_VM: &str = r#"<domain><devices>
+        <disk type='file' device='disk'>
+          <source file='/var/lib/libvirt/images/vm.qcow2'/>
+          <target dev='vda' bus='virtio'/>
+        </disk>
+        <disk type='file' device='cdrom'>
+          <source file='/var/lib/libvirt/images/isos/win.iso'/>
+          <target dev='sda' bus='sata'/>
+        </disk>
+    </devices></domain>"#;
+
+    const RBD_BACKED_VM: &str = r#"<domain><devices>
+        <disk type='network' device='disk'>
+          <driver name='qemu' type='raw'/>
+          <source protocol='rbd' name='rbd-nvme-prod/csi-vol-abc'>
+            <host name='10.43.1.1' port='6789'/>
+          </source>
+          <target dev='sda' bus='sata'/>
+        </disk>
+    </devices></domain>"#;
+
+    #[test]
+    fn extracts_file_backed_path_and_skips_cdrom() {
+        assert_eq!(
+            extract_disk_path(FILE_BACKED_VM).as_deref(),
+            Some("/var/lib/libvirt/images/vm.qcow2")
+        );
+    }
+
+    #[test]
+    fn extracts_rbd_pool_image_name() {
+        assert_eq!(
+            extract_rbd_source(RBD_BACKED_VM).as_deref(),
+            Some("rbd-nvme-prod/csi-vol-abc")
+        );
+        assert_eq!(extract_rbd_source(FILE_BACKED_VM), None);
+    }
+
+    #[test]
+    fn resolve_disk_source_prefers_file_then_falls_back_to_rbd() {
+        assert!(matches!(
+            resolve_disk_source(FILE_BACKED_VM),
+            Some(DiskSource::File(p)) if p == "/var/lib/libvirt/images/vm.qcow2"
+        ));
+        assert!(matches!(
+            resolve_disk_source(RBD_BACKED_VM),
+            Some(DiskSource::Rbd(n)) if n == "rbd-nvme-prod/csi-vol-abc"
+        ));
+        assert!(resolve_disk_source("<domain><devices/></domain>").is_none());
+    }
+
+    #[test]
+    fn qemu_img_arg_formats_rbd_with_the_rbd_prefix() {
+        assert_eq!(
+            DiskSource::Rbd("pool/image".to_string()).qemu_img_arg(),
+            "rbd:pool/image"
+        );
+        assert_eq!(
+            DiskSource::File("/a.qcow2".to_string()).qemu_img_arg(),
+            "/a.qcow2"
+        );
     }
 }

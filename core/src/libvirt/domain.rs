@@ -730,6 +730,20 @@ fn parse_disks(xml_str: &str) -> Vec<DiskInfo> {
         let source = xml::extract_attr(&disk_block, "source", "file")
             .or_else(|| xml::extract_attr(&disk_block, "source", "dev"))
             .or_else(|| xml::extract_attr(&disk_block, "source", "volume"))
+            .or_else(|| {
+                // Network-backed (e.g. Ceph/RBD): `<source protocol='rbd' name='pool/image'>`
+                // has none of the attributes above, so this fell through to
+                // "unknown" — every API consumer (UI disk details, backup.sh's
+                // disk-path collection) either showed a meaningless value or
+                // silently skipped the disk entirely. `rbd:pool/image` is the
+                // same source string qemu-img itself accepts.
+                if xml::extract_attr(&disk_block, "source", "protocol").as_deref() == Some("rbd") {
+                    xml::extract_attr(&disk_block, "source", "name")
+                        .map(|name| format!("rbd:{name}"))
+                } else {
+                    None
+                }
+            })
             .unwrap_or_else(crate::unknown_string);
         let driver =
             xml::extract_attr(&disk_block, "driver", "type").unwrap_or_else(crate::unknown_string);
@@ -780,5 +794,37 @@ mod tests {
         assert!(!super::error_suggests_nvram_undefine(
             "disk path mentions nvram-backup"
         ));
+    }
+
+    #[test]
+    fn parse_disks_reports_an_rbd_source_as_an_rbd_uri() {
+        // Before this, a network-backed disk had none of the file/dev/volume
+        // attributes parse_disks looked for, so `source` fell back to
+        // "unknown" — every API consumer (UI disk details, backup.sh's
+        // disk-path collection) either showed a meaningless value or silently
+        // skipped the disk entirely.
+        let xml = r#"<domain><devices>
+            <disk type='network' device='disk'>
+              <source protocol='rbd' name='rbd-nvme-prod/csi-vol-abc'>
+                <host name='10.43.1.1' port='6789'/>
+              </source>
+              <target dev='sda' bus='sata'/>
+            </disk>
+        </devices></domain>"#;
+        let disks = super::parse_disks(xml);
+        assert_eq!(disks.len(), 1);
+        assert_eq!(disks[0].source, "rbd:rbd-nvme-prod/csi-vol-abc");
+    }
+
+    #[test]
+    fn parse_disks_still_prefers_file_source_when_present() {
+        let xml = r#"<domain><devices>
+            <disk type='file' device='disk'>
+              <source file='/var/lib/libvirt/images/vm.qcow2'/>
+              <target dev='vda' bus='virtio'/>
+            </disk>
+        </devices></domain>"#;
+        let disks = super::parse_disks(xml);
+        assert_eq!(disks[0].source, "/var/lib/libvirt/images/vm.qcow2");
     }
 }

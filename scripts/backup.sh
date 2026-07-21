@@ -421,9 +421,12 @@ if [ -n "$RESTORE_DIR" ]; then
         local disk_mappings=""
         for xml in "$RESTORE_DIR"/vms/*.xml; do
             [ -f "$xml" ] || continue
-            # Extract disk source paths from XML using grep -o (portable)
+            # Extract disk source paths from XML (grep -oE, either quote style —
+            # libvirt's own dumpxml always emits single-quoted attributes, but
+            # this accepts double too rather than assume one).
             local src_paths
-            src_paths=$(grep -o 'source file="[^"]*"' "$xml" 2>/dev/null | cut -d'"' -f2 || true)
+            src_paths=$(grep -oE "source (file|dev)=['\"][^'\"]*['\"]" "$xml" 2>/dev/null \
+                | sed -E "s/^source (file|dev)=//; s/^['\"]//; s/['\"]\$//" || true)
             while IFS= read -r src_path; do
                 [ -z "$src_path" ] && continue
                 local bn
@@ -433,6 +436,23 @@ if [ -n "$RESTORE_DIR" ]; then
                 disk_mappings="${disk_mappings}${bn}|${src_path}"$'\n'
                 disk_mappings="${disk_mappings}${vm_bn}|${src_path}"$'\n'
             done <<< "$src_paths"
+            # Network-backed (e.g. Ceph/RBD): `<source protocol='rbd' name='pool/image'>`
+            # has neither file= nor dev=, so it was invisible here entirely —
+            # every such disk fell through to the wrong "guess a local path"
+            # fallback below instead of restoring into its actual RBD image.
+            local rbd_srcs
+            rbd_srcs=$(grep -E "source protocol=['\"]rbd['\"]" "$xml" 2>/dev/null \
+                | grep -oE "name=['\"][^'\"]*['\"]" \
+                | sed -E "s/^name=//; s/^['\"]//; s/['\"]\$//" || true)
+            while IFS= read -r rbd_name; do
+                [ -z "$rbd_name" ] && continue
+                local rbd_bn
+                rbd_bn="${rbd_name//\//_}.qcow2"
+                local vm_rbd_bn
+                vm_rbd_bn="$(basename "$xml" .xml)_${rbd_bn}"
+                disk_mappings="${disk_mappings}${rbd_bn}|rbd:${rbd_name}"$'\n'
+                disk_mappings="${disk_mappings}${vm_rbd_bn}|rbd:${rbd_name}"$'\n'
+            done <<< "$rbd_srcs"
         done
         while IFS='|' read -r key val; do
             [ -z "$key" ] && continue
@@ -449,18 +469,33 @@ if [ -n "$RESTORE_DIR" ]; then
                 stripped="${disk_name#*_}"
                 dest="${DISK_DEST_MAP[$stripped]:-/var/lib/libvirt/images/$stripped}"
             fi
-            if [ -f "$dest" ]; then
-                warn "  $disk_name already exists at $dest, skipping"
-            else
-                dest_dir=$(dirname "$dest")
-                [ -d "$dest_dir" ] || mkdir -p "$dest_dir"
-                info "  Copying $disk_name -> $dest"
-                if cp "$disk_file" "$dest"; then
-                    ok "  $disk_name restored"
-                else
-                    warn "  $disk_name copy failed"
-                fi
-            fi
+            case "$dest" in
+                rbd:*)
+                    # The RBD image is the VM's current live disk — it already
+                    # exists, so `-n` skips create (qemu-img would otherwise
+                    # try to create a new image and fail: "File exists").
+                    info "  Restoring $disk_name -> $dest"
+                    if qemu-img convert -n -O raw "$disk_file" "$dest"; then
+                        ok "  $disk_name restored"
+                    else
+                        warn "  $disk_name restore failed"
+                    fi
+                    ;;
+                *)
+                    if [ -f "$dest" ]; then
+                        warn "  $disk_name already exists at $dest, skipping"
+                    else
+                        dest_dir=$(dirname "$dest")
+                        [ -d "$dest_dir" ] || mkdir -p "$dest_dir"
+                        info "  Copying $disk_name -> $dest"
+                        if cp "$disk_file" "$dest"; then
+                            ok "  $disk_name restored"
+                        else
+                            warn "  $disk_name copy failed"
+                        fi
+                    fi
+                    ;;
+            esac
         done
     fi
 
@@ -660,25 +695,50 @@ for disk in d.get('disks',[]):
 " 2>/dev/null)
         while IFS= read -r disk_path; do
             [ -z "$disk_path" ] && continue
-            [ -f "$disk_path" ] || { warn "  Disk not found: $disk_path"; continue; }
+            # A network-backed (e.g. Ceph/RBD) disk's source is `rbd:pool/image`,
+            # not a local path — `[ -f ]` on it is always false, which used to
+            # make this silently skip the disk entirely (one "Disk not found"
+            # warning, easy to miss in a multi-VM run) instead of backing it up.
+            case "$disk_path" in
+                rbd:*) ;;
+                *) [ -f "$disk_path" ] || { warn "  Disk not found: $disk_path"; continue; } ;;
+            esac
             DISK_LIST="${DISK_LIST}${name}|${disk_path}"$'\n'
         done <<< "$PATHS"
     done <<< "$VM_NAMES"
 
     while IFS='|' read -r vm_name disk_path; do
         [ -z "$disk_path" ] && continue
-        disk_basename=$(basename "$disk_path")
-        # Prefix with VM name to avoid collisions between VMs
-        disk_name="${vm_name}_${disk_basename}"
-        write_status "running" "Copying disk: $disk_basename ($vm_name)" ""
+        case "$disk_path" in
+            rbd:*)
+                # No local file to cp/rsync — qemu-img reads an rbd: source
+                # directly (relies on the hypervisor's /etc/ceph/ceph.conf +
+                # keyring for monitor/auth, same as everywhere else in this
+                # codebase that touches RBD). Always a full copy: qcow2-file
+                # rsync --link-dest hardlinking has no equivalent against a
+                # raw Ceph image.
+                disk_basename="${disk_path#rbd:}"
+                disk_basename="${disk_basename//\//_}"
+                disk_name="${vm_name}_${disk_basename}.qcow2"
+                write_status "running" "Copying disk: $disk_basename ($vm_name, rbd)" ""
+                echo "  Converting: $disk_path -> $BACKUP_PATH/disks/$disk_name"
+                qemu-img convert -O qcow2 "$disk_path" "$BACKUP_PATH/disks/$disk_name"
+                ;;
+            *)
+                disk_basename=$(basename "$disk_path")
+                # Prefix with VM name to avoid collisions between VMs
+                disk_name="${vm_name}_${disk_basename}"
+                write_status "running" "Copying disk: $disk_basename ($vm_name)" ""
 
-        if [ -n "$LINK_DEST" ]; then
-            echo "  Syncing: $disk_path (incremental)"
-            rsync -a --link-dest="$LINK_DEST" "$disk_path" "$BACKUP_PATH/disks/$disk_name"
-        else
-            echo "  Copying: $disk_path"
-            cp "$disk_path" "$BACKUP_PATH/disks/$disk_name"
-        fi
+                if [ -n "$LINK_DEST" ]; then
+                    echo "  Syncing: $disk_path (incremental)"
+                    rsync -a --link-dest="$LINK_DEST" "$disk_path" "$BACKUP_PATH/disks/$disk_name"
+                else
+                    echo "  Copying: $disk_path"
+                    cp "$disk_path" "$BACKUP_PATH/disks/$disk_name"
+                fi
+                ;;
+        esac
     done <<< "$DISK_LIST"
     update_progress "Disk images saved"
     ok "Disk images saved"
