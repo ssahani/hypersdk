@@ -1387,13 +1387,20 @@ async fn vm_backup(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         return Ok(());
     }
 
+    // `record_id` (unique per backup row) is included, not just a 1-second-resolution
+    // timestamp: two backups of the same VM started in the same wall-clock second
+    // (a manual "backup now" racing the scheduler, or a double-click) previously
+    // produced the identical path, so both `backup_records` rows pointed at one
+    // file — and the retention GC deleting the older row's "duplicate" path then
+    // destroyed the still-current backup along with it.
     let dest = state
         .config
         .backup_dir
         .join(format!(
-            "{}-{}.qcow2",
+            "{}-{}-{}.qcow2",
             row.0,
-            chrono::Utc::now().format("%Y%m%d%H%M%S")
+            chrono::Utc::now().format("%Y%m%d%H%M%S"),
+            record_id.simple(),
         ))
         .to_string_lossy()
         .into_owned();

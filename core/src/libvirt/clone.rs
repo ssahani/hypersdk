@@ -48,6 +48,23 @@ pub fn clone_vm_with_disk(
                 "no disk path found for VM '{source_name}'"
             )));
         }
+        // `file_backed_disks_from_xml` only ever collects `<source file=.../>`
+        // disks; a network-backed one (`<source protocol='rbd' name=.../>`, no
+        // `file=` attribute) is invisible to it and therefore to `disk_map`
+        // below. Without this check, `repoint_disks` only rewrites paths that
+        // ARE in the map, so an RBD disk gets copied into the new domain's XML
+        // completely unchanged — the clone and the source end up pointing at
+        // the *same* Ceph image. Starting both is silent, concurrent-write disk
+        // corruption, not a loud failure. Refuse rather than risk that; cloning
+        // network-backed storage needs its own volume-clone path (e.g. through
+        // Atlas), which this function does not implement.
+        if let Some(net_target) = first_network_backed_disk_target(&xml) {
+            return Err(LibvirtError::Invalid(format!(
+                "VM '{source_name}' has a network-backed disk at target '{net_target}' \
+                 (e.g. Ceph/RBD) — cloning it would leave the clone and the source \
+                 sharing the same storage. Clone is only supported for file-backed disks."
+            )));
+        }
         let primary_dest = find_disk_path(conn, new_name)?;
         let dest_dir = Path::new(&primary_dest)
             .parent()
@@ -145,6 +162,21 @@ fn file_backed_disks_from_xml(xml: &str) -> Vec<(String, String)> {
         disks.push((target, src));
     }
     disks
+}
+
+/// The `target dev` of the first network-backed (`type='network'`, e.g. Ceph/RBD)
+/// data disk in a domain XML, if any. Cdrom/floppy devices are excluded, same as
+/// [`file_backed_disks_from_xml`].
+fn first_network_backed_disk_target(xml: &str) -> Option<String> {
+    crate::xml::split_blocks(xml, "disk").into_iter().find_map(|block| {
+        if crate::xml::extract_attr(&block, "disk", "device").as_deref() != Some("disk") {
+            return None;
+        }
+        if crate::xml::extract_attr(&block, "disk", "type").as_deref() != Some("network") {
+            return None;
+        }
+        Some(crate::xml::extract_attr(&block, "target", "dev").unwrap_or_default())
+    })
 }
 
 fn define_cloned_domain(
@@ -258,4 +290,53 @@ fn generate_mac(counter: u64) -> String {
         b1[2] ^ b2[3],
         b1[4] ^ b2[5]
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MIXED_DISK_VM: &str = r#"<domain>
+      <devices>
+        <disk type='file' device='disk'>
+          <source file='/var/lib/libvirt/images/vm.qcow2'/>
+          <target dev='vda' bus='virtio'/>
+        </disk>
+        <disk type='network' device='disk'>
+          <source protocol='rbd' name='rbd-nvme-prod/csi-vol-abc'>
+            <host name='10.43.1.1' port='6789'/>
+          </source>
+          <target dev='vdb' bus='virtio'/>
+        </disk>
+        <disk type='file' device='cdrom'>
+          <source file='/var/lib/libvirt/images/isos/win.iso'/>
+          <target dev='sda' bus='sata'/>
+        </disk>
+      </devices>
+    </domain>"#;
+
+    #[test]
+    fn file_backed_disks_skip_the_network_backed_one() {
+        // The bug this guards: an RBD disk has no `source file=`, so it was
+        // silently invisible to disk_map/repoint_disks — the clone and source
+        // would end up pointing at the same Ceph image.
+        let disks = file_backed_disks_from_xml(MIXED_DISK_VM);
+        assert_eq!(disks, vec![("vda".to_string(), "/var/lib/libvirt/images/vm.qcow2".to_string())]);
+    }
+
+    #[test]
+    fn detects_the_network_backed_disk_that_would_be_silently_shared() {
+        assert_eq!(
+            first_network_backed_disk_target(MIXED_DISK_VM),
+            Some("vdb".to_string())
+        );
+    }
+
+    #[test]
+    fn an_all_file_backed_vm_has_no_network_disk() {
+        let xml = r#"<domain><devices>
+            <disk type='file' device='disk'><source file='/a.qcow2'/><target dev='vda'/></disk>
+        </devices></domain>"#;
+        assert_eq!(first_network_backed_disk_target(xml), None);
+    }
 }

@@ -330,8 +330,18 @@ pub fn create_snapshot(
             }
 
             if mode == "internal" && storage_mode == "internal" {
-                // Best-effort check: internal snapshots generally require qcow2; libvirt will error if unsupported.
-                // We avoid over-validating here.
+                // A network-backed disk (src_file and src_dev both absent —
+                // e.g. `<source protocol='rbd' .../>`) has no qcow2 file for a
+                // libvirt-internal snapshot to live in; Ceph has its own,
+                // different native snapshot mechanism. Refuse cleanly instead
+                // of letting libvirt fail with an opaque error deep in QEMU.
+                if src_file.is_none() && src_dev.is_none() {
+                    return Err(LibvirtError::Invalid(format!(
+                        "disk '{target}' is network-backed (e.g. Ceph/RBD) — internal \
+                         qcow2-style snapshots aren't supported for it; use the storage \
+                         backend's own snapshot mechanism instead"
+                    )));
+                }
                 lines.push(format!(
                     "    <disk name='{}' snapshot='internal'/>",
                     crate::xml::escape(target)
@@ -375,6 +385,18 @@ pub fn create_snapshot(
                 if src_file.is_none() && src_dev.is_some() {
                     return Err(LibvirtError::Invalid(format!(
                         "disk '{target}' is a block device; external snapshots require an explicit file path"
+                    )));
+                }
+                // Neither file= nor dev= present — this is a network-backed
+                // source (e.g. `<source protocol='rbd' .../>`), not a plain
+                // file disk. Omitting <source> here would let libvirt try to
+                // auto-generate a snapshot target the same way it does for a
+                // real file disk, which fails with a confusing, unrelated
+                // libvirt/QEMU-level error instead of an actionable one.
+                if src_file.is_none() && src_dev.is_none() {
+                    return Err(LibvirtError::Invalid(format!(
+                        "disk '{target}' is network-backed (e.g. Ceph/RBD); external \
+                         snapshots require an explicit file path here too"
                     )));
                 }
                 // omit <source> to let libvirt generate

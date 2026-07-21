@@ -3,7 +3,7 @@
 // https://zyvor.dev · info@zyvor.dev
 
 use axum::body::Body;
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use axum::http::header;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post};
@@ -14,6 +14,7 @@ use serde_json::json;
 use std::path::PathBuf;
 use tokio_util::io::ReaderStream;
 
+use crate::auth::{require_write, RequestActor};
 use crate::error::AppError;
 
 // ── Request types ───────────────────────────────────────────────────
@@ -305,8 +306,10 @@ fn parse_backup_meta(dir: &std::path::Path, dir_name: &str) -> serde_json::Value
 /// POST /backups — trigger a new backup.
 async fn trigger_backup(
     State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     body: Option<Json<BackupRequest>>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "backups:write")?;
     let req = body.map(|Json(r)| r).unwrap_or_default();
     let script = backup_script();
 
@@ -388,7 +391,9 @@ async fn trigger_backup(
 /// GET /backups — list existing backups.
 async fn list_backups(
     State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "backups:write")?;
     let dir = backup_dir();
     let mut backups = Vec::new();
 
@@ -415,8 +420,10 @@ async fn list_backups(
 /// GET /backups/:id/status — get backup status and progress.
 async fn get_backup_status(
     State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "backups:write")?;
     validate_backup_id(&id)?;
 
     let dir = backup_dir().join(&id);
@@ -467,8 +474,10 @@ async fn get_backup_status(
 /// POST /backups/:id/verify — verify backup checksums.
 async fn verify_backup(
     State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "backups:write")?;
     validate_backup_id(&id)?;
 
     let dir = backup_dir().join(&id);
@@ -528,8 +537,10 @@ async fn verify_backup(
 /// GET /backups/:id/download — stream backup as tar.gz.
 async fn download_backup(
     State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(id): Path<String>,
 ) -> Result<Response, AppError> {
+    require_write(&actor, "backups:write")?;
     validate_backup_id(&id)?;
 
     let dir = backup_dir().join(&id);
@@ -575,8 +586,10 @@ async fn download_backup(
 /// POST /backups/restore — restore from a specific backup.
 async fn restore_backup(
     State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Json(req): Json<RestoreRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "backups:write")?;
     validate_backup_id(&req.backup_id)?;
 
     let dir = backup_dir().join(&req.backup_id);
@@ -623,8 +636,10 @@ async fn restore_backup(
 /// DELETE /backups/:id — remove a backup directory.
 async fn delete_backup(
     State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "backups:write")?;
     validate_backup_id(&id)?;
 
     let dir = backup_dir().join(&id);
@@ -647,7 +662,9 @@ async fn delete_backup(
 /// GET /backups/schedule — get backup timer status.
 async fn get_schedule(
     State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "backups:write")?;
     let active = tokio::process::Command::new("systemctl")
         .args(["is-active", "machina-backup.timer"])
         .output()
@@ -706,8 +723,10 @@ struct ScheduleRequest {
 
 async fn set_schedule(
     State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Json(req): Json<ScheduleRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "backups:write")?;
     let action = if req.enabled { "enable" } else { "disable" };
 
     let output = tokio::process::Command::new("systemctl")

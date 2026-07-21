@@ -412,7 +412,7 @@ fn undefine_persistent(domain: &Domain, name: &str, user_flags: u32) -> Result<(
 }
 
 pub fn delete_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
-    delete_vm_with_options(conn, name, &UndefineOptions::default())
+    delete_vm_with_options(conn, name, &UndefineOptions::default()).map(|_leaked| ())
 }
 
 /// Collect file-backed disk paths (`device='disk'`) from domain XML.
@@ -437,28 +437,60 @@ pub(crate) fn collect_disk_paths(xml: &str) -> Vec<String> {
     paths
 }
 
+/// Target `dev` of every network-backed (`type='network'`, e.g. Ceph/RBD) data
+/// disk in a domain XML — the counterpart to [`collect_disk_paths`], which only
+/// ever sees `type='file'` sources.
+pub(crate) fn collect_network_disk_targets(xml: &str) -> Vec<String> {
+    let mut targets = Vec::new();
+    for block in xml::split_blocks(xml, "disk") {
+        if xml::extract_attr(&block, "disk", "device").as_deref() != Some("disk") {
+            continue;
+        }
+        if xml::extract_attr(&block, "disk", "type").as_deref() != Some("network") {
+            continue;
+        }
+        targets.push(xml::extract_attr(&block, "target", "dev").unwrap_or_default());
+    }
+    targets
+}
+
 /// Stop (if needed) and undefine a VM, optionally passing `virDomainUndefineFlags` bits.
+///
+/// Returns the target names of any network-backed (e.g. Ceph/RBD) disks that
+/// `delete_disks: true` could **not** remove: `collect_disk_paths` only ever
+/// sees `type='file'` sources, so an RBD disk was previously neither unlinked
+/// (correct — it isn't a local file) nor reported (not correct — the caller got
+/// a bare "deleted" success and had no idea the backing volume was still
+/// there). Recognizing and reporting it doesn't itself free the volume: that
+/// needs a storage-backend call (e.g. to Atlas) this function doesn't make.
 pub fn delete_vm_with_options(
     conn: &Connect,
     name: &str,
     opts: &UndefineOptions,
-) -> Result<(), LibvirtError> {
+) -> Result<Vec<String>, LibvirtError> {
     let flags_u = opts.to_libvirt_flags()?;
     let flags: u32 = flags_u as u32;
     let domain = match lookup_domain(conn, name) {
         Ok(d) => d,
-        Err(LibvirtError::NotFound(_)) => return Ok(()),
+        Err(LibvirtError::NotFound(_)) => return Ok(Vec::new()),
         Err(e) => return Err(e),
     };
 
     // Collect disk paths before we undefine (XML is gone after).
-    let disk_paths: Vec<String> = if opts.delete_disks {
-        domain
-            .get_xml_desc(0)
-            .map(|xml| collect_disk_paths(&xml))
-            .unwrap_or_default()
+    let (disk_paths, leaked_network_disks): (Vec<String>, Vec<String>) = if opts.delete_disks {
+        let xml = domain.get_xml_desc(0).unwrap_or_default();
+        let leaked = collect_network_disk_targets(&xml);
+        if !leaked.is_empty() {
+            tracing::warn!(
+                "delete_disks=true for VM '{name}' but target(s) {} are network-backed \
+                 (e.g. Ceph/RBD) — not a local file, so nothing was unlinked; the backing \
+                 volume still exists and needs manual/out-of-band cleanup",
+                leaked.join(", ")
+            );
+        }
+        (collect_disk_paths(&xml), leaked)
     } else {
-        Vec::new()
+        (Vec::new(), Vec::new())
     };
 
     let info = domain
@@ -473,22 +505,22 @@ pub fn delete_vm_with_options(
 
         if !persistent {
             delete_disk_files(&disk_paths, name);
-            return Ok(());
+            return Ok(leaked_network_disks);
         }
 
         let domain = match lookup_domain(conn, name) {
             Ok(d) => d,
-            Err(LibvirtError::NotFound(_)) => return Ok(()),
+            Err(LibvirtError::NotFound(_)) => return Ok(leaked_network_disks),
             Err(e) => return Err(e),
         };
         undefine_persistent(&domain, name, flags)?;
         delete_disk_files(&disk_paths, name);
-        return Ok(());
+        return Ok(leaked_network_disks);
     }
 
     undefine_persistent(&domain, name, flags)?;
     delete_disk_files(&disk_paths, name);
-    Ok(())
+    Ok(leaked_network_disks)
 }
 
 /// Delete disk image files on the host filesystem, logging but not propagating individual errors.

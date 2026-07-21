@@ -646,13 +646,29 @@ async fn delete_vm_handler(
         delete_disks: q.delete_disks,
     };
     let name2 = name.clone();
-    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+    let leaked_network_disks = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         domain::delete_vm_with_options(conn, &name2, &opts)
     })
     .await?;
     log_audit_with_actor(Some(&actor.username), "delete", &name, "ok");
     vm_events::emit_vm_deleted(&name);
-    Ok(ok_json("deleted", &name))
+    if leaked_network_disks.is_empty() {
+        Ok(ok_json("deleted", &name))
+    } else {
+        // `delete_disks: true` only ever unlinks local files; a network-backed
+        // (e.g. Ceph/RBD) disk isn't a file to unlink, so its backing volume is
+        // still there. A bare "deleted" success here previously left the caller
+        // with no idea the volume needs its own cleanup.
+        Ok(Json(serde_json::json!({
+            "status": "deleted",
+            "name": name,
+            "warning": format!(
+                "target(s) {} were network-backed (e.g. Ceph/RBD) and not deleted — \
+                 their backing volume still exists and needs separate cleanup",
+                leaked_network_disks.join(", ")
+            ),
+        })))
+    }
 }
 
 #[derive(Deserialize)]
@@ -888,6 +904,15 @@ async fn clone_vm_handler(
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<CloneVmRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    // Every sibling mutating handler in this file gates on this; this one
+    // didn't, letting a read-only-role session clone (and copy the full disk
+    // of) any VM.
+    if !actor.role.can_write() {
+        return Err(LibvirtError::Forbidden(
+            "Cloning a VM requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     let name2 = name.clone();
     let new_name = req.new_name.clone();
     let mode = if req.clone_mode.trim().is_empty() {

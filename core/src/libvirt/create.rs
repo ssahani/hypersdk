@@ -131,6 +131,13 @@ pub fn create_vm(
         "machina",
         "Preparing disk image (mkosi / virt-builder / blank)…",
     );
+    // Recorded before materialization so a failed define can clean up only what
+    // THIS call created — never a path the caller supplied. Without this, a
+    // failed virt-install/libvirt-XML define left the freshly materialized
+    // mkosi/virt-builder disk or cloud-init seed on disk with nothing pointing
+    // at it; repeated failed creates leaked images into the pool directory.
+    let existing_disk_was_supplied = !req.existing_disk.trim().is_empty();
+    let cloud_init_iso_was_supplied = !req.cloud_init_iso.trim().is_empty();
     super::mkosi::materialize_mkosi_if_requested(conn, &mut req, libvirt_cfg, log)?;
     super::virt_builder::materialize_virt_builder_if_requested(conn, &mut req, libvirt_cfg, log)?;
     super::cloud_init::materialize_cloud_init_seed_if_requested(&mut req, libvirt_cfg, log)?;
@@ -169,6 +176,35 @@ pub fn create_vm(
                         missing.join(", ")
                     ),
                 );
+            }
+        }
+    } else {
+        if !existing_disk_was_supplied && !req.existing_disk.trim().is_empty() {
+            let p = req.existing_disk.trim();
+            match std::fs::remove_file(p) {
+                Ok(()) => subprocess::log_line(
+                    log,
+                    "machina",
+                    &format!("Define failed — removed the freshly materialized disk {p}"),
+                ),
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                    tracing::warn!("VM '{}': define failed and could not remove the materialized disk {p}: {e}", req.name);
+                }
+                Err(_) => {}
+            }
+        }
+        if !cloud_init_iso_was_supplied && !req.cloud_init_iso.trim().is_empty() {
+            let p = req.cloud_init_iso.trim();
+            match std::fs::remove_file(p) {
+                Ok(()) => subprocess::log_line(
+                    log,
+                    "machina",
+                    &format!("Define failed — removed the freshly generated cloud-init seed {p}"),
+                ),
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                    tracing::warn!("VM '{}': define failed and could not remove the cloud-init seed {p}: {e}", req.name);
+                }
+                Err(_) => {}
             }
         }
     }
