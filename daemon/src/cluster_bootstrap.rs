@@ -53,10 +53,16 @@ const TIMEOUT_KUBECTL_WAIT_SECS: u64 = 660;
 const TIMEOUT_CILIUM_STATUS_SECS: u64 = 900;
 const TIMEOUT_METRICS_ROLLOUT_SECS: u64 = 180;
 
-fn home_dir() -> PathBuf {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/root"))
+/// Machina-owned home for the admin kubeconfig this bootstrap writes.
+///
+/// Not `$HOME/.kube/config`: `machina-daemon.service` runs with
+/// `ProtectHome=read-only` (systemd hardening), which makes `/root` (this
+/// process's `$HOME`) read-only in the daemon's own mount namespace regardless
+/// of on-disk permissions — every k3s-phase run failed at "copy k3s admin
+/// kubeconfig: Read-only file system" as a result. This path sits outside
+/// `/home`/`/root`, so it's unaffected by that hardening.
+fn kubeconfig_dir() -> PathBuf {
+    PathBuf::from("/var/lib/machina/kube")
 }
 
 fn kubectl_bin() -> PathBuf {
@@ -189,7 +195,7 @@ async fn detect_server_ip(stdout_log: &mut String) -> Result<String, LibvirtErro
 }
 
 fn kubeconfig_path() -> PathBuf {
-    home_dir().join(".kube/config")
+    kubeconfig_dir().join("config")
 }
 
 fn kubeconfig_env_pairs() -> Vec<(String, String)> {
@@ -251,9 +257,9 @@ async fn phase_k3s(
     )
     .await?;
 
-    let kube_dir = home_dir().join(".kube");
+    let kube_dir = kubeconfig_dir();
     std::fs::create_dir_all(&kube_dir)
-        .map_err(|e| LibvirtError::Operation(format!("mkdir ~/.kube: {e}")))?;
+        .map_err(|e| LibvirtError::Operation(format!("mkdir {}: {e}", kube_dir.display())))?;
 
     let cfg = kubeconfig_path();
     std::fs::copy(KUBECONFIG_ADMIN, &cfg)
