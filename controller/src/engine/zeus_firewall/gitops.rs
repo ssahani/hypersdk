@@ -30,6 +30,13 @@ pub struct GitOpsSyncResult {
     pub upserted: usize,
     pub removed: usize,
     pub sync_id: Uuid,
+    /// Policy names that collided with an existing `source = 'manual'` row and
+    /// were left untouched — overwriting them would silently reclassify a
+    /// manually-created policy as git-managed, which the next `replace` sync
+    /// could then delete outright the moment git drops that name. Rename the
+    /// manual policy or the git one to resolve.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub manual_conflicts: Vec<String>,
 }
 
 pub async fn export_policies(pool: &SqlitePool) -> anyhow::Result<GitOpsExport> {
@@ -57,46 +64,71 @@ pub async fn sync_policies(
     let mut tx = pool.begin().await?;
     let mut upserted = 0usize;
     let mut removed = 0usize;
+    let mut manual_conflicts = Vec::new();
 
+    // Scoped replace: `replace=true` prunes only policies this gitops sync itself
+    // previously created/owns (source = 'git'), never rows an admin added by hand
+    // through the UI/API (source = 'manual'). A full unscoped
+    // `DELETE FROM firewall_policies WHERE name NOT IN (...)` would wipe
+    // manually-added rules whenever the git source is incomplete or stale
+    // relative to them — this keeps the blast radius to git-managed rows only.
     if req.replace {
         let names: Vec<String> = req.policies.iter().map(|p| p.name.clone()).collect();
         if names.is_empty() {
-            let r = sqlx::query("DELETE FROM firewall_policies")
+            let r = sqlx::query("DELETE FROM firewall_policies WHERE source = 'git'")
                 .execute(&mut *tx)
                 .await?;
             removed = r.rows_affected() as usize;
         } else {
             let names_json = serde_json::to_string(&names).unwrap_or_default();
-            let r = sqlx::query("DELETE FROM firewall_policies WHERE name NOT IN (SELECT value FROM json_each(?))")
-                .bind(&names_json)
-                .execute(&mut *tx)
-                .await?;
+            let r = sqlx::query(
+                "DELETE FROM firewall_policies WHERE source = 'git' \
+                 AND name NOT IN (SELECT value FROM json_each(?))",
+            )
+            .bind(&names_json)
+            .execute(&mut *tx)
+            .await?;
             removed = r.rows_affected() as usize;
         }
     }
 
     for policy in &req.policies {
-        let existing: Option<Uuid> =
-            sqlx::query_scalar("SELECT id FROM firewall_policies WHERE name = ?")
+        let existing: Option<(Uuid, String)> =
+            sqlx::query_as("SELECT id, source FROM firewall_policies WHERE name = ?")
                 .bind(&policy.name)
                 .fetch_optional(&mut *tx)
                 .await?;
 
-        if let Some(id) = existing {
+        if let Some((id, source)) = existing {
+            // A gitops sync claims/overwrites a policy of this name — but only
+            // when it already owns that name (source = 'git') or the row
+            // predates provenance tracking. A name collision with a
+            // `source = 'manual'` row must NOT be silently overwritten: doing
+            // so would reclassify a manually-created policy as git-managed,
+            // and the next `replace` sync could then delete it outright the
+            // moment git drops that name — the exact accidental-wipe class
+            // the scoped `replace` above exists to prevent, just reached via
+            // a name collision instead of directly.
+            if source == "manual" {
+                manual_conflicts.push(policy.name.clone());
+                continue;
+            }
             sqlx::query(
-                "UPDATE firewall_policies SET spec_yaml = ?, updated_at = datetime('now') WHERE id = ?",
+                "UPDATE firewall_policies SET spec_yaml = ?, source = 'git', updated_at = datetime('now') WHERE id = ?",
             )
             .bind(&policy.spec_yaml)
             .bind(id)
             .execute(&mut *tx)
             .await?;
         } else {
-            sqlx::query("INSERT INTO firewall_policies (id, name, spec_yaml) VALUES (?, ?, ?)")
-                .bind(Uuid::new_v4())
-                .bind(&policy.name)
-                .bind(&policy.spec_yaml)
-                .execute(&mut *tx)
-                .await?;
+            sqlx::query(
+                "INSERT INTO firewall_policies (id, name, spec_yaml, source) VALUES (?, ?, ?, 'git')",
+            )
+            .bind(Uuid::new_v4())
+            .bind(&policy.name)
+            .bind(&policy.spec_yaml)
+            .execute(&mut *tx)
+            .await?;
         }
         upserted += 1;
     }
@@ -109,7 +141,11 @@ pub async fn sync_policies(
     .bind(sync_id)
     .bind(upserted as i64)
     .bind(actor)
-    .bind(serde_json::json!({ "replace": req.replace, "removed": removed }))
+    .bind(serde_json::json!({
+        "replace": req.replace,
+        "removed": removed,
+        "manual_conflicts": manual_conflicts,
+    }))
     .execute(&mut *tx)
     .await?;
 
@@ -119,5 +155,6 @@ pub async fn sync_policies(
         upserted,
         removed,
         sync_id,
+        manual_conflicts,
     })
 }

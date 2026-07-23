@@ -84,6 +84,7 @@ export default function MachinaInfraGraphBrain() {
 
       {selected && (
         <MachinaExplainObjectPanel
+          key={`${selected.kind}-${selected.id}`}
           kind={selected.kind}
           id={selected.id}
           name={selected.name}

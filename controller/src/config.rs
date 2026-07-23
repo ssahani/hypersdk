@@ -1,6 +1,43 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use std::path::PathBuf;
+use std::sync::OnceLock;
+
+/// Reads `MACHINA_JWT_SECRET`, or — when it is unset — generates a random secret
+/// for this process's lifetime and logs a loud warning. This deliberately never
+/// falls back to the historical `machina-dev-jwt-secret-change-me` literal: that
+/// value is public (it ships in this repo), so a process actually signing tokens
+/// with it would let anyone forge an admin JWT. Cached in a `OnceLock` so every
+/// caller within this process sees the same secret (tokens signed early in
+/// startup must still verify later).
+///
+/// If an operator explicitly sets `MACHINA_JWT_SECRET` to that literal dev
+/// string, this function passes it through unchanged — `main.rs`'s startup
+/// check still recognizes it as the known-bad default and refuses to boot
+/// unless `MACHINA_ALLOW_DEV_SECRETS=1`. This function only covers the "the
+/// operator never set the var at all" case: generate-random-and-warn instead
+/// of silently using a public value, without hard-failing startup (a bigger,
+/// separately-decided behavior change reserved for the explicit-bad-value case).
+fn platform_jwt_secret() -> String {
+    static SECRET: OnceLock<String> = OnceLock::new();
+    SECRET
+        .get_or_init(|| match std::env::var("MACHINA_JWT_SECRET") {
+            Ok(s) if !s.is_empty() => s,
+            _ => {
+                tracing::warn!(
+                    "MACHINA_JWT_SECRET is not set — generating a random controller JWT \
+                     signing secret for this process only. Platform login sessions will \
+                     NOT survive a controller restart until you set MACHINA_JWT_SECRET to \
+                     a stable, private value (e.g. `openssl rand -hex 32`)."
+                );
+                use rand::Rng;
+                let mut rng = rand::thread_rng();
+                let bytes: [u8; 32] = rng.gen();
+                hex::encode(bytes)
+            }
+        })
+        .clone()
+}
 
 #[derive(Debug, Clone)]
 pub struct ControllerConfig {
@@ -83,8 +120,7 @@ impl Default for ControllerConfig {
             admin_user: std::env::var("MACHINA_ADMIN_USER").unwrap_or_else(|_| "admin".into()),
             admin_password: std::env::var("MACHINA_ADMIN_PASSWORD")
                 .unwrap_or_else(|_| "admin".into()),
-            jwt_secret: std::env::var("MACHINA_JWT_SECRET")
-                .unwrap_or_else(|_| "machina-dev-jwt-secret-change-me".into()),
+            jwt_secret: platform_jwt_secret(),
             controller_id: std::env::var("MACHINA_CONTROLLER_ID")
                 .unwrap_or_else(|_| format!("ctrl-{}", &uuid::Uuid::new_v4().to_string()[..8])),
             public_base_url: std::env::var("MACHINA_PUBLIC_URL")

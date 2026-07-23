@@ -35,6 +35,22 @@ pub fn clone_vm_with_disk(
         clone_vm_xml_only(conn, source_name, new_name)?;
     } else {
         let source = lookup_domain(conn, source_name)?;
+        // A "backing" (linked) clone points the new disk's qcow2 backing file
+        // straight at the source's own disk. If the source is running, that disk
+        // is live and writable — the still-running source and the new clone would
+        // both write through the *same* backing chain, corrupting whichever one
+        // writes to a shared cluster second. Rather than guess at a safe
+        // snapshot-then-link scheme here, require the source to be shut off for a
+        // linked clone; a caller that needs to clone a live VM can pass
+        // disk_mode='full' for an independent copy instead.
+        if mode == "backing" && source.is_active().unwrap_or(true) {
+            return Err(LibvirtError::Invalid(format!(
+                "VM '{source_name}' is running — a linked clone would back the new disk onto \
+                 the source's live, writable qcow2, corrupting both once each writes through \
+                 the shared chain. Shut '{source_name}' down first, or pass disk_mode='full' \
+                 to make an independent copy while it keeps running."
+            )));
+        }
         let xml = source
             .get_xml_desc(0)
             .map_err(LibvirtError::map_op("Failed to get XML"))?;

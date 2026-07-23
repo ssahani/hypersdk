@@ -84,12 +84,25 @@ fn read_aws_security_groups() -> Option<CloudFirewallInventory> {
     let mut rules = Vec::new();
     let mut open_ports = Vec::new();
     for g in groups {
-        let gid = g.get("GroupId")?.as_str()?.to_string();
-        let gname = g.get("GroupName")?.as_str()?.to_string();
-        for perm in g.get("IpPermissions")?.as_array()? {
+        // A malformed/unexpected group entry is skipped, not treated as a
+        // reason to abort the whole scan (and thus discard every other
+        // already-collected finding).
+        let Some(gid) = g.get("GroupId").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        let gid = gid.to_string();
+        let gname = g
+            .get("GroupName")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let Some(perms) = g.get("IpPermissions").and_then(|v| v.as_array()) else {
+            continue;
+        };
+        for perm in perms {
             let proto = perm
-                .get("IpProtocol")?
-                .as_str()
+                .get("IpProtocol")
+                .and_then(|p| p.as_str())
                 .unwrap_or("tcp")
                 .to_string();
             let from = perm
@@ -107,8 +120,143 @@ fn read_aws_security_groups() -> Option<CloudFirewallInventory> {
             } else {
                 format!("{from}-{to}")
             };
-            for ip in perm.get("IpRanges")?.as_array().unwrap_or(&vec![]) {
-                let cidr = ip.get("CidrIp")?.as_str().unwrap_or("0.0.0.0/0");
+
+            // AWS permission entries carry their source(s) in one or more of
+            // these optional fields depending on rule type. A rule missing
+            // IpRanges (e.g. one that only uses UserIdGroupPairs, Ipv6Ranges,
+            // or PrefixListIds) must not abort the scan of every other group —
+            // each shape is handled independently and any entry with no
+            // recognized shape is still recorded (with an "unknown" source)
+            // instead of being silently dropped.
+            let mut had_source = false;
+
+            if let Some(ip_ranges) = perm.get("IpRanges").and_then(|v| v.as_array()) {
+                for ip in ip_ranges {
+                    let cidr = ip
+                        .get("CidrIp")
+                        .and_then(|c| c.as_str())
+                        .unwrap_or("0.0.0.0/0");
+                    had_source = true;
+                    rules.push(CloudSecurityGroupRule {
+                        provider: CloudProvider::Aws,
+                        group_id: gid.clone(),
+                        group_name: gname.clone(),
+                        direction: "inbound".into(),
+                        protocol: proto.clone(),
+                        port_range: port_range.clone(),
+                        source: cidr.into(),
+                        description: ip
+                            .get("Description")
+                            .and_then(|d| d.as_str())
+                            .map(str::to_string),
+                    });
+                    if cidr == "0.0.0.0/0" && from > 0 {
+                        open_ports.push(OpenPort {
+                            port: from,
+                            protocol: proto.clone(),
+                            service_name: gname.clone(),
+                            bind_address: "cloud".into(),
+                            process: None,
+                            allowed_from: vec![cidr.into()],
+                            risk: if from == 22 || from == 5432 || from == 3306 {
+                                ExposureRisk::Critical
+                            } else {
+                                ExposureRisk::Warning
+                            },
+                            evidence: vec!["aws:security-group".into()],
+                        });
+                    }
+                }
+            }
+
+            if let Some(ipv6_ranges) = perm.get("Ipv6Ranges").and_then(|v| v.as_array()) {
+                for ip in ipv6_ranges {
+                    let cidr = ip
+                        .get("CidrIpv6")
+                        .and_then(|c| c.as_str())
+                        .unwrap_or("::/0");
+                    had_source = true;
+                    rules.push(CloudSecurityGroupRule {
+                        provider: CloudProvider::Aws,
+                        group_id: gid.clone(),
+                        group_name: gname.clone(),
+                        direction: "inbound".into(),
+                        protocol: proto.clone(),
+                        port_range: port_range.clone(),
+                        source: cidr.into(),
+                        description: ip
+                            .get("Description")
+                            .and_then(|d| d.as_str())
+                            .map(str::to_string),
+                    });
+                    if cidr == "::/0" && from > 0 {
+                        open_ports.push(OpenPort {
+                            port: from,
+                            protocol: proto.clone(),
+                            service_name: gname.clone(),
+                            bind_address: "cloud".into(),
+                            process: None,
+                            allowed_from: vec![cidr.into()],
+                            risk: if from == 22 || from == 5432 || from == 3306 {
+                                ExposureRisk::Critical
+                            } else {
+                                ExposureRisk::Warning
+                            },
+                            evidence: vec!["aws:security-group".into()],
+                        });
+                    }
+                }
+            }
+
+            if let Some(group_pairs) = perm.get("UserIdGroupPairs").and_then(|v| v.as_array()) {
+                for pair in group_pairs {
+                    had_source = true;
+                    let source = pair
+                        .get("GroupId")
+                        .and_then(|v| v.as_str())
+                        .map(|s| format!("sg:{s}"))
+                        .unwrap_or_else(|| "sg:unknown".into());
+                    rules.push(CloudSecurityGroupRule {
+                        provider: CloudProvider::Aws,
+                        group_id: gid.clone(),
+                        group_name: gname.clone(),
+                        direction: "inbound".into(),
+                        protocol: proto.clone(),
+                        port_range: port_range.clone(),
+                        source,
+                        description: pair
+                            .get("Description")
+                            .and_then(|d| d.as_str())
+                            .map(str::to_string),
+                    });
+                }
+            }
+
+            if let Some(prefix_ids) = perm.get("PrefixListIds").and_then(|v| v.as_array()) {
+                for pl in prefix_ids {
+                    had_source = true;
+                    let source = pl
+                        .get("PrefixListId")
+                        .and_then(|v| v.as_str())
+                        .map(|s| format!("prefix-list:{s}"))
+                        .unwrap_or_else(|| "prefix-list:unknown".into());
+                    rules.push(CloudSecurityGroupRule {
+                        provider: CloudProvider::Aws,
+                        group_id: gid.clone(),
+                        group_name: gname.clone(),
+                        direction: "inbound".into(),
+                        protocol: proto.clone(),
+                        port_range: port_range.clone(),
+                        source,
+                        description: pl
+                            .get("Description")
+                            .and_then(|d| d.as_str())
+                            .map(str::to_string),
+                    });
+                }
+            }
+
+            if !had_source {
                 rules.push(CloudSecurityGroupRule {
                     provider: CloudProvider::Aws,
                     group_id: gid.clone(),
@@ -116,28 +264,12 @@ fn read_aws_security_groups() -> Option<CloudFirewallInventory> {
                     direction: "inbound".into(),
                     protocol: proto.clone(),
                     port_range: port_range.clone(),
-                    source: cidr.into(),
-                    description: ip
-                        .get("Description")
-                        .and_then(|d| d.as_str())
-                        .map(str::to_string),
+                    source: "unknown".into(),
+                    description: Some(
+                        "permission entry had no IpRanges/Ipv6Ranges/UserIdGroupPairs/PrefixListIds"
+                            .into(),
+                    ),
                 });
-                if cidr == "0.0.0.0/0" && from > 0 {
-                    open_ports.push(OpenPort {
-                        port: from,
-                        protocol: proto.clone(),
-                        service_name: gname.clone(),
-                        bind_address: "cloud".into(),
-                        process: None,
-                        allowed_from: vec![cidr.into()],
-                        risk: if from == 22 || from == 5432 || from == 3306 {
-                            ExposureRisk::Critical
-                        } else {
-                            ExposureRisk::Warning
-                        },
-                        evidence: vec!["aws:security-group".into()],
-                    });
-                }
             }
         }
     }

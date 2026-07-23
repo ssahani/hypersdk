@@ -381,7 +381,14 @@ export default function VNCViewer({
       // noVNC at /novnc/ when the daemon serves it (install.sh installs the novnc package).
       try {
         setStatus('connecting')
-        const { default: RFB } = await import(/* @vite-ignore */ 'novnc-core/lib/rfb')
+        const mod = await import(/* @vite-ignore */ 'novnc-core/lib/rfb') as { default: unknown }
+        // novnc-core is a Babel-CJS module (`exports.default = RFB` + `__esModule: true`).
+        // Depending on the bundler's CJS/ESM interop, `mod.default` may be RFB itself or the
+        // raw CJS exports object wrapping RFB one level deeper — accept both shapes.
+        const RFB = (
+          typeof mod.default === 'function' ? mod.default : (mod.default as { default?: unknown })?.default
+        ) as (new (...args: unknown[]) => Record<string, unknown>) | undefined
+        if (typeof RFB !== 'function') throw new TypeError('RFB constructor not found in novnc-core/lib/rfb')
         if (cancelled || !containerRef.current) return
 
         const rfb = new RFB(containerRef.current, wsUrl, {

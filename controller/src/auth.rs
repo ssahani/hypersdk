@@ -5,7 +5,9 @@ use axum::extract::State;
 use axum::http::{header, Request, StatusCode};
 use axum::middleware::Next;
 use axum::response::Response;
+use axum::Json;
 use base64::Engine;
+use serde::{Deserialize, Serialize};
 
 use crate::state::AppState;
 
@@ -121,4 +123,40 @@ pub async fn auth_middleware(
     }
 
     Err(StatusCode::UNAUTHORIZED)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LoginRequest {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct LoginResponse {
+    pub token: String,
+    pub username: String,
+    pub role: String,
+}
+
+/// Token-exchange login: trades a one-time username/password for a JWT, so a
+/// caller (e.g. the web UI's "direct controller" mode) never needs to persist
+/// the raw password anywhere — only the resulting short-lived token. Public
+/// route (no auth_middleware), rate-limited alongside hosts::join_host.
+pub async fn login(
+    State(state): State<AppState>,
+    Json(req): Json<LoginRequest>,
+) -> Result<Json<LoginResponse>, crate::api::ApiError> {
+    let user = authenticate(&state.pool, &req.username, &req.password)
+        .await
+        .map_err(|e| crate::api::ApiError::internal(e.to_string()))?
+        .ok_or_else(|| crate::api::ApiError {
+            status: StatusCode::UNAUTHORIZED,
+            message: "invalid username or password".into(),
+            error_code: Some("unauthorized".into()),
+            remediation: None,
+            object_ref: None,
+        })?;
+    let token = crate::jwt::issue_token(&state.config.jwt_secret, &user.username, &user.role, 86400, Some("local"))
+        .map_err(|e| crate::api::ApiError::internal(e.to_string()))?;
+    Ok(Json(LoginResponse { token, username: user.username, role: user.role }))
 }

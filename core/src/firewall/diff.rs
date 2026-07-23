@@ -25,13 +25,16 @@ pub fn compute_diff(before: &[FirewallRule], after: &[FirewallRule]) -> Firewall
             });
         }
     }
-    for (b, a) in before.iter().zip(after.iter()) {
-        if b.id == a.id && format_rule(b) != format_rule(a) {
-            entries.push(FirewallDiffEntry {
-                change: "CHANGE".into(),
-                before: format_rule(b),
-                after: format_rule(a),
-            });
+    let before_by_id: std::collections::HashMap<_, _> = before.iter().map(|r| (&r.id, r)).collect();
+    for a in after {
+        if let Some(b) = before_by_id.get(&a.id) {
+            if format_rule(b) != format_rule(a) {
+                entries.push(FirewallDiffEntry {
+                    change: "CHANGE".into(),
+                    before: format_rule(b),
+                    after: format_rule(a),
+                });
+            }
         }
     }
 

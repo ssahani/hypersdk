@@ -113,7 +113,17 @@ pub fn set_user_role(username: &str, role: Role) -> Result<(), LibvirtError> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiToken {
     pub name: String,
+    /// Masked preview (`head...tail`) once persisted or listed — never the live
+    /// secret. The raw value only ever exists in the `ApiToken` returned directly
+    /// to the immediate caller at creation time (e.g. the `POST /tokens` HTTP
+    /// response), so an admin can copy it once; it is never written to disk here.
     pub token: String,
+    /// SHA-256 hex digest of the raw token, used to authenticate bearer tokens
+    /// without ever persisting the secret itself. `#[serde(default)]` lets a
+    /// pre-hashing `api-tokens.json` (raw token stored in `token`) deserialize;
+    /// `load_tokens` migrates any such legacy entry to hashed form on first read.
+    #[serde(default)]
+    pub token_hash: String,
     pub username: String,
     pub role: Role,
     pub created: String,
@@ -169,25 +179,149 @@ pub fn token_allows(scopes: &[String], required: &str) -> bool {
     false
 }
 
-type TokenMap = HashMap<String, ApiToken>; // token -> ApiToken
+type TokenMap = HashMap<String, ApiToken>; // sha256(token) hex -> ApiToken
 
 fn tokens_path() -> String {
     format!("{DATA_DIR}/api-tokens.json")
 }
 
-pub fn load_tokens() -> TokenMap {
-    match std::fs::read_to_string(tokens_path()) {
-        Ok(data) => serde_json::from_str(&data).unwrap_or_default(),
-        Err(_) => HashMap::new(),
+/// SHA-256 hex digest of a raw token. Matches the scheme
+/// `controller/src/api/apikeys.rs::hash_token` already uses for its own API keys,
+/// so both layers hash API bearer secrets the same way.
+fn hash_token(token: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
+/// `head...tail` preview safe to display or persist once the raw secret itself
+/// has been discarded (previously computed on the fly in `list_api_tokens` from
+/// the live plaintext; now computed once at creation/migration time instead).
+fn mask_token(token: &str) -> String {
+    let n = token.chars().count();
+    if n <= 12 {
+        return token.to_string();
     }
+    let head: String = token.chars().take(8).collect();
+    let tail: String = token.chars().skip(n.saturating_sub(4)).collect();
+    format!("{head}...{tail}")
+}
+
+/// Directory holding raw plaintext secrets for named/service API tokens (e.g. the
+/// `machina-backup` credential `backup.sh` reads to authenticate itself to the
+/// daemon). Kept separate from `api-tokens.json`, which stores only a SHA-256
+/// hash + masked preview of every token and never the usable secret, so a leak of
+/// the general token store (a log bundle, an unencrypted off-box backup copy, an
+/// over-permissive file mode) can't be replayed as a live bearer credential.
+/// Files here are written mode 0600 (owner/root read-write only).
+fn service_token_secret_dir() -> String {
+    format!("{DATA_DIR}/service-tokens")
+}
+
+fn service_token_secret_path(name: &str) -> Option<std::path::PathBuf> {
+    // Guard against path traversal / unexpected characters in a token name.
+    if name.is_empty()
+        || !name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return None;
+    }
+    Some(std::path::PathBuf::from(service_token_secret_dir()).join(format!("{name}.token")))
+}
+
+fn write_service_token_secret(name: &str, raw_token: &str) {
+    let Some(path) = service_token_secret_path(name) else {
+        tracing::warn!("skipping service-token secret file for invalid name '{name}'");
+        return;
+    };
+    if std::fs::create_dir_all(service_token_secret_dir()).is_err() {
+        return;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(
+            service_token_secret_dir(),
+            std::fs::Permissions::from_mode(0o700),
+        );
+    }
+    if let Err(e) = std::fs::write(&path, raw_token) {
+        tracing::warn!("could not write service-token secret file for '{name}': {e}");
+        return;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
+}
+
+pub fn load_tokens() -> TokenMap {
+    // Migration (below) performs a read-modify-write via `save_tokens`, which must
+    // run under `JSON_LOCK` — the same lock `create_api_token_scoped`/
+    // `delete_api_token` hold while they read-modify-write the same file — or a
+    // concurrent create/delete can interleave with the migration write and lose
+    // an update. Callers that already hold the lock must use `load_tokens_locked`
+    // instead, to avoid re-entering this (non-reentrant) `std::sync::Mutex`.
+    with_json_lock(load_tokens_locked)
+}
+
+/// Same as `load_tokens`, but assumes `JSON_LOCK` is already held by the caller
+/// (e.g. `create_api_token_scoped`, `delete_api_token`). Never acquires the lock
+/// itself — doing so would deadlock on the non-reentrant `JSON_LOCK` mutex.
+fn load_tokens_locked() -> TokenMap {
+    let raw: TokenMap = match std::fs::read_to_string(tokens_path()) {
+        Ok(data) => serde_json::from_str(&data).unwrap_or_default(),
+        Err(_) => return HashMap::new(),
+    };
+    migrate_legacy_plaintext_tokens(raw)
+}
+
+/// Installs from before token hashing was added persisted the raw token as both
+/// the map key and the `token` field (`token_hash` absent → empty via
+/// `#[serde(default)]`). Migrate any such entry on load: move its raw secret to
+/// the root-only `service-tokens/<name>.token` sidecar file (so a named service
+/// token like `machina-backup` keeps working for scripts that read it), replace
+/// the persisted value with a hash + masked preview, and write the migrated map
+/// back so this only runs once per token.
+fn migrate_legacy_plaintext_tokens(map: TokenMap) -> TokenMap {
+    let mut migrated = false;
+    let mut out: TokenMap = HashMap::with_capacity(map.len());
+    for (key, mut token) in map {
+        if token.token_hash.is_empty() {
+            let raw = token.token.clone();
+            let hash = hash_token(&raw);
+            write_service_token_secret(&token.name, &raw);
+            token.token_hash = hash.clone();
+            token.token = mask_token(&raw);
+            out.insert(hash, token);
+            migrated = true;
+        } else {
+            out.insert(key, token);
+        }
+    }
+    if migrated {
+        if let Err(e) = save_tokens(&out) {
+            tracing::warn!("could not persist migrated api-tokens.json: {e}");
+        }
+    }
+    out
 }
 
 fn save_tokens(tokens: &TokenMap) -> Result<(), LibvirtError> {
     let _ = std::fs::create_dir_all(DATA_DIR);
     let data = serde_json::to_string_pretty(tokens)
         .map_err(|e| LibvirtError::Operation(format!("Serialize tokens: {e}")))?;
-    std::fs::write(tokens_path(), data)
+    let path = tokens_path();
+    std::fs::write(&path, data)
         .map_err(|e| LibvirtError::Operation(format!("Write tokens: {e}")))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
     Ok(())
 }
 
@@ -206,20 +340,30 @@ pub fn create_api_token_scoped(
         let mut rng = rand::thread_rng();
         let bytes: [u8; 32] = rng.gen();
         let token = format!("mach_{}", hex::encode(bytes));
+        let hash = hash_token(&token);
 
-        let api_token = ApiToken {
+        // Never persist the raw secret — only its hash and a masked preview.
+        let stored = ApiToken {
             name: name.to_string(),
-            token: token.clone(),
+            token: mask_token(&token),
+            token_hash: hash.clone(),
             username: username.to_string(),
             role,
             created: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
             scopes,
         };
 
-        let mut tokens = load_tokens();
-        tokens.insert(token, api_token.clone());
+        let mut tokens = load_tokens_locked();
+        tokens.insert(hash, stored.clone());
         save_tokens(&tokens)?;
-        Ok(api_token)
+
+        // The raw token is returned to the immediate caller only (e.g. the
+        // `POST /tokens` HTTP response) — this is the one and only time it is
+        // ever available; it is never written to api-tokens.json.
+        Ok(ApiToken {
+            token,
+            ..stored
+        })
     })
 }
 
@@ -227,6 +371,11 @@ pub fn create_api_token_scoped(
 /// one already exists with this name, otherwise mints a new one. Used to provision a
 /// stable machine credential (e.g. for the backup script, which must authenticate to
 /// the daemon's read APIs) without minting a fresh token on every startup.
+///
+/// Service tokens are consumed by local root-owned scripts that need the raw
+/// secret, not just its hash, so the newly minted raw value is additionally
+/// persisted to the 0600 `service-tokens/<name>.token` sidecar file — never to
+/// api-tokens.json, which only ever stores the hash (see `create_api_token_scoped`).
 pub fn ensure_named_token(
     name: &str,
     username: &str,
@@ -236,21 +385,23 @@ pub fn ensure_named_token(
     if let Some(existing) = load_tokens().into_values().find(|t| t.name == name) {
         return Ok(existing);
     }
-    create_api_token_scoped(name, username, role, scopes)
+    let created = create_api_token_scoped(name, username, role, scopes)?;
+    write_service_token_secret(name, &created.token);
+    Ok(created)
 }
 
 pub fn validate_api_token(token: &str) -> Option<ApiToken> {
     let tokens = load_tokens();
     tokens
-        .get(token)
+        .get(&hash_token(token))
         .cloned()
         .inspect(|_| crate::obs_counters::inc_api_token_ok())
 }
 
 pub fn delete_api_token(token: &str) -> Result<(), LibvirtError> {
     with_json_lock(|| {
-        let mut tokens = load_tokens();
-        tokens.remove(token);
+        let mut tokens = load_tokens_locked();
+        tokens.remove(&hash_token(token));
         save_tokens(&tokens)
     })
 }
@@ -272,21 +423,10 @@ mod token_scope_tests {
 }
 
 pub fn list_api_tokens() -> Vec<ApiToken> {
-    let tokens = load_tokens();
-    let mut list: Vec<ApiToken> = tokens.into_values().collect();
-    // Mask token values for listing
-    for t in &mut list {
-        if t.token.len() > 12 {
-            // Char-based so a multi-byte token can't panic on a byte-offset slice.
-            let head: String = t.token.chars().take(8).collect();
-            let tail: String = {
-                let n = t.token.chars().count();
-                t.token.chars().skip(n.saturating_sub(4)).collect()
-            };
-            t.token = format!("{head}...{tail}");
-        }
-    }
-    list
+    // `token` is already a masked `head...tail` preview as persisted by
+    // `create_api_token_scoped` / migrated by `load_tokens` — the raw secret is
+    // never stored, so there is nothing left to mask here.
+    load_tokens().into_values().collect()
 }
 
 // ── Alerts ─────────────────────────────────────────────────────────

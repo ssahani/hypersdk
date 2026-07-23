@@ -36,9 +36,19 @@ pub fn spawn_periodic(state: AppState) {
 }
 
 async fn sync_all_hosts(state: &AppState) -> anyhow::Result<()> {
-    let host_ids: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM hosts LIMIT 200")
-        .fetch_all(&state.pool)
-        .await?;
+    // Order by staleness (least-recently-synced first, never-synced first of
+    // all) rather than an arbitrary row order: with more than 200 hosts in the
+    // fleet, an unordered `LIMIT 200` would sync the exact same 200 rows every
+    // tick forever, permanently starving inventory sync for every host beyond
+    // that cap. `last_heartbeat_at` is exactly "last successful host.inventory
+    // sync" (set by the host_inventory task handler on success), so ordering by
+    // it rotates coverage across the whole fleet over time instead of wedging
+    // on the same subset.
+    let host_ids: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM hosts ORDER BY last_heartbeat_at ASC NULLS FIRST LIMIT 200",
+    )
+    .fetch_all(&state.pool)
+    .await?;
 
     for host_id in host_ids {
         // Skip if a RECENT host.inventory for this host is already pending/running.

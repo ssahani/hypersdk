@@ -703,7 +703,11 @@ async fn vm_migrate(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     let live = msg.payload["live"].as_bool().unwrap_or(true);
     let bandwidth_mib = msg.payload["bandwidth_mib"].as_u64().unwrap_or(0);
     let postcopy = msg.payload["postcopy"].as_bool().unwrap_or(false);
-    let undefine_source = msg.payload["undefine_source"].as_bool().unwrap_or(false);
+    // Default true: an absent field (payload built by a path other than the
+    // API's MigrateVmBody, which already defaults true) should still avoid
+    // leaving the VM split-brain-defined on both hosts unless explicitly
+    // told not to undefine the source.
+    let undefine_source = msg.payload["undefine_source"].as_bool().unwrap_or(true);
     let tunnelled = msg.payload["tunnelled"].as_bool().unwrap_or(false);
     let migrate_disks: Vec<String> = msg.payload["migrate_disks"]
         .as_array()
@@ -2283,6 +2287,56 @@ async fn host_agent_upgrade(state: &AppState, msg: &TaskMessage) -> anyhow::Resu
         .as_str()
         .unwrap_or(env!("CARGO_PKG_VERSION"));
     update_task_progress(&state.pool, msg.task_id, 20, "upgrade queued").await?;
+
+    // NOTE: the agent gRPC protocol has no "upgrade" RPC, so the controller has no
+    // channel to actually trigger a machina-agent binary upgrade — this task can only
+    // ask an operator to restart the agent out-of-band. `HeartbeatResponse` does carry
+    // an `agent_version` field self-reported by the running binary (via
+    // `env!("CARGO_PKG_VERSION")`), so once the agent is reachable we can compare what
+    // it actually reports against `target` and only record a confirmed upgrade when
+    // they match. If the agent isn't even answering, don't touch the recorded version
+    // at all. If it answers but still reports the old version, that means the operator
+    // hasn't restarted it yet — report that plainly instead of claiming success.
+    let agent_addr = host_agent_addr(&state.pool, host_id).await?;
+    let heartbeat_result = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        let mut client = agent_client::connect(&agent_addr).await?;
+        agent_client::heartbeat(&mut client, &host_id.to_string()).await
+    })
+    .await;
+
+    let reported_version = match heartbeat_result {
+        Ok(Ok(resp)) => Some(resp.agent_version),
+        _ => None,
+    };
+
+    let Some(reported_version) = reported_version else {
+        // Return Err (not Ok) so this ends up 'failed', not 'completed' — `process_one`
+        // unconditionally marks a handler that returns Ok(()) as 'completed', and a
+        // fleet-upgrade orchestrator polling `status` (not parsing this message) must
+        // not see a false success. The wording deliberately avoids
+        // `is_transient_connect_error`'s markers (tcp/dns/refused/etc.) — this isn't a
+        // connect-establishment failure the retry path should special-case; it should
+        // just fail once, not retry pointlessly against a host that will keep
+        // reporting the same non-confirmed state.
+        let detail = format!(
+            "agent unreachable at {agent_addr} — upgrade to {target} NOT recorded; \
+             verify the host and retry"
+        );
+        update_task_progress(&state.pool, msg.task_id, 100, &detail).await?;
+        return Err(anyhow::anyhow!(detail));
+    };
+
+    if reported_version != target {
+        // Same reasoning as above: reachable-but-unconfirmed must not read as
+        // 'completed' either.
+        let detail = format!(
+            "agent reachable but still running v{reported_version} (target v{target}) — \
+             restart machina-agent on the host to complete the upgrade"
+        );
+        update_task_progress(&state.pool, msg.task_id, 100, &detail).await?;
+        return Err(anyhow::anyhow!(detail));
+    }
+
     sqlx::query("UPDATE hosts SET agent_version = ? WHERE id = ?")
         .bind(target)
         .bind(host_id)
@@ -2292,7 +2346,7 @@ async fn host_agent_upgrade(state: &AppState, msg: &TaskMessage) -> anyhow::Resu
         &state.pool,
         msg.task_id,
         100,
-        &format!("agent upgrade recorded to {target} — restart machina-agent on host"),
+        &format!("upgrade to {target} confirmed — agent self-reports v{reported_version}"),
     )
     .await?;
     Ok(())

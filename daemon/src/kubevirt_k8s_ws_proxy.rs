@@ -38,7 +38,43 @@ impl Drop for KubectlProxy {
     }
 }
 
+/// `kubectl proxy` only takes a `--port` number — it binds the port itself, so
+/// there is no way to hand it an already-bound file descriptor (the only real
+/// fix for the underlying bind-then-drop TOCTOU gap below). Instead, retry a
+/// bounded number of times with a freshly chosen ephemeral port whenever the
+/// spawned `kubectl proxy` fails to bind, so a one-off collision (another
+/// concurrent console request, or any other local process) produces a working
+/// proxy on the next attempt instead of one opaque failure to the caller.
+const KUBECTL_PROXY_BIND_RETRIES: u32 = 3;
+
 async fn spawn_kubectl_proxy() -> Result<KubectlProxy, String> {
+    let mut last_err = String::new();
+    for attempt in 1..=KUBECTL_PROXY_BIND_RETRIES {
+        match try_spawn_kubectl_proxy_once().await {
+            Ok(p) => return Ok(p),
+            Err(e) => {
+                debug!(
+                    "kubectl proxy spawn attempt {attempt}/{KUBECTL_PROXY_BIND_RETRIES} failed: {e}"
+                );
+                last_err = e;
+            }
+        }
+    }
+    Err(format!(
+        "kubectl proxy failed to start after {KUBECTL_PROXY_BIND_RETRIES} attempts: {last_err}"
+    ))
+}
+
+/// Bind an ephemeral port, drop the listener, and spawn `kubectl proxy` on it.
+///
+/// The bind-then-drop-then-spawn sequence is an inherent TOCTOU: the port is
+/// free at the `.local_addr()` check but nothing prevents another process
+/// from claiming it before `kubectl proxy` gets to `bind()`. When that
+/// happens `kubectl proxy` exits immediately, which the poll loop below
+/// detects via `child.try_wait()` and reports as an error — the caller
+/// (`spawn_kubectl_proxy`) retries with a new port rather than surfacing that
+/// directly.
+async fn try_spawn_kubectl_proxy_once() -> Result<KubectlProxy, String> {
     let port = std::net::TcpListener::bind("127.0.0.1:0")
         .map_err(|e| format!("bind ephemeral port: {e}"))?
         .local_addr()

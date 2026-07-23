@@ -153,9 +153,13 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
               toast.error('Controller URL is required')
               return
             }
-            setControllerConfig(controllerUrl.trim(), controllerUser, controllerPass)
-            setDirectControllerUrl(getDirectControllerBase())
-            toast.success('Controller connection saved locally')
+            void setControllerConfig(controllerUrl.trim(), controllerUser, controllerPass)
+              .then(() => {
+                setControllerPass('')
+                setDirectControllerUrl(getDirectControllerBase())
+                toast.success('Signed in — controller connection saved')
+              })
+              .catch((e: unknown) => toast.error(formatUserError(e)))
           }}
         >
           Save controller config

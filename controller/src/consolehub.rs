@@ -1092,26 +1092,62 @@ pub async fn end_session(
     let replay_path = session_replay_path(&state, session_id)
         .to_string_lossy()
         .into_owned();
-    let res = sqlx::query(
-        "UPDATE console_sessions SET ended_at = datetime('now'),
-         recording_path = CASE WHEN recording_enabled THEN ? ELSE recording_path END
-         WHERE id = ? AND actor = ?",
-    )
-    .bind(&replay_path)
-    .bind(session_id)
-    .bind(&user.username)
-    .execute(&state.pool)
-    .await?;
+    // Admins may force-end ANY live session (e.g. the owning account is
+    // disabled/compromised); reuse the same role check the rest of this
+    // codebase uses instead of comparing `user.role` inline.
+    let is_admin = crate::auth::require_admin(&user).is_ok();
+    let res = if is_admin {
+        sqlx::query(
+            "UPDATE console_sessions SET ended_at = datetime('now'),
+             recording_path = CASE WHEN recording_enabled THEN ? ELSE recording_path END
+             WHERE id = ?",
+        )
+        .bind(&replay_path)
+        .bind(session_id)
+        .execute(&state.pool)
+        .await?
+    } else {
+        sqlx::query(
+            "UPDATE console_sessions SET ended_at = datetime('now'),
+             recording_path = CASE WHEN recording_enabled THEN ? ELSE recording_path END
+             WHERE id = ? AND actor = ?",
+        )
+        .bind(&replay_path)
+        .bind(session_id)
+        .bind(&user.username)
+        .execute(&state.pool)
+        .await?
+    };
     // Also drop the in-memory proxy authorization (the console proxy gates on
     // this store) so ending a session actually stops the console immediately,
     // rather than staying proxyable until the TTL lapses. Only when the caller
-    // owned the session (rows_affected > 0), matching the DB guard.
+    // owned the session (or was an admin) actually ended it (rows_affected > 0),
+    // matching the DB guard.
     if res.rows_affected() > 0 {
         state.console_sessions.remove(session_id).await;
+        return Ok(Json(
+            serde_json::json!({ "ended": true, "session_id": session_id.to_string() }),
+        ));
     }
-    Ok(Json(
-        serde_json::json!({ "ended": true, "session_id": session_id.to_string() }),
-    ))
+    // rows_affected == 0: don't silently no-op. Report a clean 404 when the
+    // session_id genuinely doesn't exist, vs 403 when it exists but the
+    // caller doesn't own it (non-admins only — the admin query above already
+    // has no actor filter, so 0 rows there can only mean "not found").
+    if is_admin {
+        return Err(ApiError::not_found("console session not found"));
+    }
+    let exists: Option<i64> =
+        sqlx::query_scalar("SELECT 1 FROM console_sessions WHERE id = ?")
+            .bind(session_id)
+            .fetch_optional(&state.pool)
+            .await?;
+    if exists.is_some() {
+        Err(ApiError::forbidden(
+            "cannot end a console session owned by another user",
+        ))
+    } else {
+        Err(ApiError::not_found("console session not found"))
+    }
 }
 
 pub async fn upload_session_replay(

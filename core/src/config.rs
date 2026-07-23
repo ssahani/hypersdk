@@ -491,12 +491,16 @@ pub struct HypersdkConfig {
     #[serde(default = "default_hypersdk_base_url")]
     pub base_url: String,
     /// Skip TLS certificate verification when proxying hypervisord (lab / self-signed).
+    /// Secure by default (matches LdapConfig/GuestkitConfig): unconditionally trusting
+    /// any cert would let a MITM on the hypervisord link intercept bulk-migration
+    /// traffic. A deployment terminating hypervisord over HTTPS with a self-signed
+    /// cert must opt in explicitly via `hypersdk.insecure_tls = true` in config.toml.
     #[serde(default = "default_hypersdk_insecure_tls")]
     pub insecure_tls: bool,
 }
 
 fn default_hypersdk_insecure_tls() -> bool {
-    true
+    false
 }
 
 impl Default for HypersdkConfig {
@@ -1328,6 +1332,7 @@ impl MachinaConfig {
                     Ok(content) => match toml::from_str(&content) {
                         Ok(config) => {
                             tracing::info!("Loaded config from {}", config_path.display());
+                            Self::warn_on_insecure_tls(&config);
                             return config;
                         }
                         Err(e) => {
@@ -1343,6 +1348,21 @@ impl MachinaConfig {
 
         tracing::info!("No config file found, using defaults");
         Self::default()
+    }
+
+    /// Loud startup warning when the HyperSDK proxy's TLS-verification bypass is
+    /// enabled. It defaults to secure (see `default_hypersdk_insecure_tls`); an
+    /// admin who explicitly flips it on should see it called out at boot, not
+    /// discover it silently while debugging an unrelated MITM incident.
+    fn warn_on_insecure_tls(config: &Self) {
+        if config.hypersdk.enabled && config.hypersdk.insecure_tls {
+            tracing::warn!(
+                "hypersdk.insecure_tls = true: TLS certificate verification is DISABLED for the \
+                 hypervisord proxy link ({}). Only use this for lab/self-signed setups — it \
+                 accepts any certificate and is vulnerable to MITM.",
+                config.hypersdk.base_url
+            );
+        }
     }
 
     pub fn save(&self) -> anyhow::Result<()> {

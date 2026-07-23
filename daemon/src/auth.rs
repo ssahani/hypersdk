@@ -362,15 +362,42 @@ struct PlatformJwtClaims {
 
 const DEV_JWT_SECRET: &str = "machina-dev-jwt-secret-change-me";
 
-/// The configured platform JWT secret, or None when it is unset or still the well-known
-/// dev placeholder. Returning None makes actor_from_platform_jwt refuse ALL platform
-/// JWTs, so a token signed with the public dev secret can never mint a session (it maps
-/// role="admin" → Role::Admin, i.e. unauthenticated admin takeover otherwise).
-fn platform_jwt_secret() -> Option<String> {
-    match std::env::var("MACHINA_JWT_SECRET") {
-        Ok(s) if !s.is_empty() && s != DEV_JWT_SECRET => Some(s),
-        _ => None,
-    }
+/// The platform JWT secret used to verify controller-issued deep-link tokens. Never
+/// falls back to `DEV_JWT_SECRET` — that value is public (it ships in this repo), so
+/// accepting it would let anyone forge a token with `role="admin"` for unauthenticated
+/// takeover. Instead: if `MACHINA_JWT_SECRET` is unset (or still the public default),
+/// a random secret is generated once for this process's lifetime and a loud warning is
+/// logged. This is a deliberate middle ground — not hard-failing daemon startup, and
+/// not silently accepting a known-public secret — chosen so a host that never set the
+/// env var still gets a working (if non-persistent) platform-JWT session: the random
+/// secret means existing sessions are invalidated on every restart until an operator
+/// sets MACHINA_JWT_SECRET, at which point sessions persist across restarts normally.
+static PLATFORM_JWT_SECRET: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+fn platform_jwt_secret() -> &'static str {
+    PLATFORM_JWT_SECRET.get_or_init(|| match std::env::var("MACHINA_JWT_SECRET") {
+        Ok(s) if !s.is_empty() && s != DEV_JWT_SECRET => s,
+        other => {
+            if matches!(other, Ok(ref s) if s == DEV_JWT_SECRET) {
+                tracing::error!(
+                    "MACHINA_JWT_SECRET is set to the well-known public default value — \
+                     ignoring it and generating a random secret instead. Set a real \
+                     secret via MACHINA_JWT_SECRET to allow platform-JWT sessions to \
+                     survive a daemon restart."
+                );
+            } else {
+                tracing::warn!(
+                    "MACHINA_JWT_SECRET is not set — generating a random platform-JWT \
+                     signing secret for this process only. Platform (controller) login \
+                     sessions will NOT survive a daemon restart until you set \
+                     MACHINA_JWT_SECRET to a stable, private value."
+                );
+            }
+            let mut rng = rand::thread_rng();
+            let bytes: [u8; 32] = rng.gen();
+            hex::encode(bytes)
+        }
+    })
 }
 
 fn skip_auth_enabled() -> bool {
@@ -396,12 +423,20 @@ fn auth_source_from_platform_jwt(auth: Option<&str>) -> AuthSource {
     }
 }
 
+/// Issuer stamped on every platform JWT by `controller/src/jwt.rs::issue_token`
+/// (`ISSUER` there). Binding validation to it means a token minted by some other
+/// service/HS256-secret-holder can't be replayed here even if it guesses the secret.
+const PLATFORM_JWT_ISSUER: &str = "machina-controller";
+
 fn actor_from_platform_jwt(token: &str) -> Option<RequestActor> {
-    let secret = platform_jwt_secret()?;
+    let secret = platform_jwt_secret();
+    let mut validation = Validation::default();
+    validation.set_issuer(&[PLATFORM_JWT_ISSUER]);
+    validation.set_required_spec_claims(&["exp", "iss"]);
     let data = decode::<PlatformJwtClaims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
-        &Validation::default(),
+        &validation,
     )
     .ok()?;
     let claims = data.claims;
@@ -622,6 +657,39 @@ fn resolve_effective_linux_user(
     }
 }
 
+/// Signing algorithms it is safe to accept for a JWK of this key type, derived from
+/// the JWK's own (server-published, trusted) key parameters — never from the
+/// `alg` field of the token header, which an attacker fully controls. This closes
+/// the classic alg-confusion class of attack (e.g. an attacker requesting `HS256`
+/// and trying to use the RSA public key bytes as an HMAC secret): the returned set
+/// only ever contains algorithms whose key family matches the JWK, so a header
+/// claiming a mismatched algorithm is rejected outright.
+fn allowed_algorithms_for_jwk(jwk: &jsonwebtoken::jwk::Jwk) -> Vec<jsonwebtoken::Algorithm> {
+    use jsonwebtoken::jwk::{AlgorithmParameters, EllipticCurve};
+    use jsonwebtoken::Algorithm;
+    match &jwk.algorithm {
+        AlgorithmParameters::RSA(_) => vec![
+            Algorithm::RS256,
+            Algorithm::RS384,
+            Algorithm::RS512,
+            Algorithm::PS256,
+            Algorithm::PS384,
+            Algorithm::PS512,
+        ],
+        AlgorithmParameters::EllipticCurve(params) => match params.curve {
+            EllipticCurve::P256 => vec![Algorithm::ES256],
+            EllipticCurve::P384 => vec![Algorithm::ES384],
+            // P-521 and any future curve variant: no jsonwebtoken Algorithm maps to
+            // it, so there is nothing safe to accept.
+            _ => vec![],
+        },
+        AlgorithmParameters::OctetKeyPair(_) => vec![Algorithm::EdDSA],
+        // A symmetric (HMAC) key published in a *public* JWKS would mean the
+        // "secret" is public too — never usable for signature verification.
+        AlgorithmParameters::OctetKey(_) => vec![],
+    }
+}
+
 fn validate_oidc_id_token(
     id_token: &str,
     jwks: &JwkSet,
@@ -650,7 +718,23 @@ fn validate_oidc_id_token(
         )))
     })?;
 
+    // Pin the accepted signing algorithm(s) to what this JWK's own key type
+    // supports — never trust `header.alg` (attacker-controlled) on its own.
+    let allowed_algs = allowed_algorithms_for_jwk(jwk);
+    if allowed_algs.is_empty() {
+        return Err(AppError::from(LibvirtError::Forbidden(format!(
+            "OIDC signing key '{kid}' has an unsupported or unsafe key type for id_token verification"
+        ))));
+    }
+    if !allowed_algs.contains(&header.alg) {
+        return Err(AppError::from(LibvirtError::Forbidden(format!(
+            "OIDC id_token alg {:?} is not permitted for signing key '{kid}'",
+            header.alg
+        ))));
+    }
+
     let mut validation = Validation::new(header.alg);
+    validation.algorithms = allowed_algs;
     validation.set_audience(&[cfg.client_id.as_str()]);
     validation.set_issuer(&[discovery.issuer.as_str()]);
     validation.set_required_spec_claims(&["exp", "iss", "aud", "sub"]);

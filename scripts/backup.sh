@@ -265,9 +265,16 @@ fi
 
 # API auth: the daemon's read APIs (/vms, /networks, /storage/pools, …) require a
 # bearer token. Prefer MACHINA_API_TOKEN (env) or api_token (config); otherwise read
-# the daemon-provisioned "machina-backup" service token from api-tokens.json (root).
+# the daemon-provisioned "machina-backup" service token. api-tokens.json only ever
+# stores a SHA-256 hash + masked preview of each token (never the usable secret), so
+# the raw value lives in a dedicated 0600 sidecar file instead — read that first.
 # Without this every backup fails "VM not found" because the unauthenticated GET 401s.
 API_TOKEN="${MACHINA_API_TOKEN:-${api_token:-}}"
+if [ -z "$API_TOKEN" ] && [ -r /var/lib/machina/service-tokens/machina-backup.token ]; then
+    API_TOKEN=$(cat /var/lib/machina/service-tokens/machina-backup.token 2>/dev/null) || API_TOKEN=""
+fi
+# Fallback for hosts whose daemon hasn't been restarted since upgrading past the
+# token-hashing change yet: api-tokens.json may still hold the older plaintext format.
 if [ -z "$API_TOKEN" ] && [ -r /var/lib/machina/api-tokens.json ]; then
     API_TOKEN=$(python3 - <<'PY' 2>/dev/null
 import json

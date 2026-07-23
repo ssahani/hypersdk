@@ -56,12 +56,30 @@ fn reconcile_backoff_minutes(recent_fails: i64) -> i64 {
 }
 
 async fn reconcile_once(state: &AppState) -> anyhow::Result<()> {
+    // Order by staleness, not row order: with more than 20 out-of-sync VMs, an
+    // unordered `LIMIT 20` would reconcile the exact same 20 rows every tick
+    // forever, starving every VM beyond that cap. `vms.updated_at` isn't usable
+    // for this — the host.inventory sync path stamps it on every tick for every
+    // VM it sees, converged or not, so it doesn't track "last reconcile attempt".
+    // Instead use each VM's most recent 'vm.power' task (any status) as a proxy
+    // for "last time we tried to converge this VM": order least-recently-
+    // attempted (and never-attempted) first, so a VM skipped this tick sorts
+    // ahead of ones just enqueued, guaranteeing rotation across the whole
+    // out-of-sync set over successive ticks instead of wedging on the first 20.
     let rows: Vec<(Uuid, String, String, String)> = sqlx::query_as(
-        "SELECT id, name, desired_state, observed_state FROM vms
-         WHERE desired_state != observed_state
-           AND observed_state NOT IN ('missing', 'unknown')
-           AND inventory_source = 'libvirt'
-           AND lifecycle_phase NOT IN ('creating', 'migrating', 'deleting', 'snapshotting', 'backing_up', 'retired')
+        "SELECT v.id, v.name, v.desired_state, v.observed_state
+         FROM vms v
+         LEFT JOIN (
+             SELECT resource_id, MAX(created_at) AS last_attempt
+             FROM tasks
+             WHERE operation = 'vm.power'
+             GROUP BY resource_id
+         ) t ON t.resource_id = v.id
+         WHERE v.desired_state != v.observed_state
+           AND v.observed_state NOT IN ('missing', 'unknown')
+           AND v.inventory_source = 'libvirt'
+           AND v.lifecycle_phase NOT IN ('creating', 'migrating', 'deleting', 'snapshotting', 'backing_up', 'retired')
+         ORDER BY t.last_attempt ASC NULLS FIRST
          LIMIT 20",
     )
     .fetch_all(&state.pool)

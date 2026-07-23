@@ -8,12 +8,14 @@ import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses } from '../../utils/semanticColors'
+import ConfirmDialog from '../ConfirmDialog'
 
 export default function AutopilotSuggestionsStrip() {
   const { mode, openCopilot } = useAi()
   const toast = useToastContext()
   const [proposals, setProposals] = useState<ProposedAction[]>([])
   const [executingId, setExecutingId] = useState<string | null>(null)
+  const [confirmAction, setConfirmAction] = useState<ProposedAction | null>(null)
 
   const load = useCallback(async () => {
     if (mode === 'off') {
@@ -49,6 +51,19 @@ export default function AutopilotSuggestionsStrip() {
 
   return (
     <div className="rounded-2xl border border-orange-500/20 bg-orange-500/5 p-4 space-y-3">
+      <ConfirmDialog
+        open={confirmAction !== null}
+        title="Run Autopilot fix"
+        message={confirmAction ? `Run "${confirmAction.label}" now? ${confirmAction.review}` : ''}
+        confirmLabel="Run fix"
+        variant="warning"
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => {
+          const action = confirmAction
+          setConfirmAction(null)
+          if (action) void runAction(action)
+        }}
+      />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-orange-200 flex items-center gap-2">
           <Zap className="w-4 h-4" /> Autopilot suggestions
@@ -68,7 +83,7 @@ export default function AutopilotSuggestionsStrip() {
                 type="button"
                 className="btn-primary text-[10px]"
                 disabled={executingId === a.id}
-                onClick={() => void runAction(a)}
+                onClick={() => setConfirmAction(a)}
               >
                 {executingId === a.id ? 'Running…' : 'Run fix'}
               </button>

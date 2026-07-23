@@ -36,11 +36,26 @@ pub fn spawn(pool: SqlitePool, leader: LeaderHandle) {
 }
 
 async fn process_batch(pool: &SqlitePool, client: &reqwest::Client) -> anyhow::Result<()> {
+    // Atomically claim the due rows in one statement (mirroring the
+    // `tasks.claimed_by` UPDATE...RETURNING claim pattern in
+    // tasks/worker.rs::claim_task) instead of a separate SELECT followed by
+    // an UPDATE-by-id later. A plain SELECT-then-update-by-id left a window
+    // where, if leadership flipped mid-batch, a second controller could
+    // select and deliver the same rows before the first one updated them.
+    // The claim value itself doesn't need to be a stable controller id — it
+    // only needs to make this claiming UPDATE atomic — so a fresh id per
+    // batch is enough.
+    let claim_id = uuid::Uuid::new_v4().to_string();
     let rows: Vec<(uuid::Uuid, String, String, serde_json::Value, i32, i32)> = sqlx::query_as(
-        "SELECT id, url, secret, body, attempts, max_attempts FROM webhook_deliveries
-         WHERE status = 'pending' AND next_retry_at <= datetime('now')
-         ORDER BY next_retry_at LIMIT 20",
+        "UPDATE webhook_deliveries SET status = 'processing', claimed_by = ?
+         WHERE id IN (
+             SELECT id FROM webhook_deliveries
+             WHERE status = 'pending' AND next_retry_at <= datetime('now')
+             ORDER BY next_retry_at LIMIT 20
+         )
+         RETURNING id, url, secret, body, attempts, max_attempts",
     )
+    .bind(&claim_id)
     .fetch_all(pool)
     .await?;
 
@@ -92,8 +107,11 @@ async fn mark_retry(
         .await?;
     } else {
         let backoff_secs = 2_i32.saturating_pow(next as u32).min(300);
+        // Release the claim back to 'pending' (clearing claimed_by, same as
+        // tasks/worker.rs does when a claimed task goes back to pending) so
+        // the row is eligible to be claimed again once next_retry_at elapses.
         sqlx::query(
-            "UPDATE webhook_deliveries SET attempts = ?, last_error = ?,
+            "UPDATE webhook_deliveries SET status = 'pending', claimed_by = NULL, attempts = ?, last_error = ?,
              next_retry_at = datetime('now', '+' || ? || ' seconds') WHERE id = ?",
         )
         .bind(next)

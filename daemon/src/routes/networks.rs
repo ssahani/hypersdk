@@ -10,7 +10,7 @@ use serde::Deserialize;
 use machina_core::libvirt::network;
 use machina_core::{CreateNetworkRequest, LibvirtManager, NetworkInfo};
 
-use crate::auth::RequestActor;
+use crate::auth::{require_write, RequestActor};
 use crate::conn_query::{spawn_libvirt_actor, ConnQuery};
 use crate::error::{ok_json, AppError, Xml};
 
@@ -29,6 +29,7 @@ async fn create_network(
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<CreateNetworkRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "networks:write")?;
     let name = req.name.clone();
     let req2 = req.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
@@ -50,6 +51,7 @@ async fn delete_network_handler(
     Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "networks:write")?;
     let name2 = name.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         network::delete_network(conn, &name2)
@@ -64,6 +66,7 @@ async fn start_network(
     Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "networks:write")?;
     let name2 = name.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         network::start_network(conn, &name2)
@@ -78,6 +81,7 @@ async fn stop_network(
     Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "networks:write")?;
     let name2 = name.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         network::stop_network(conn, &name2)
@@ -112,6 +116,7 @@ async fn update_network_xml(
     Path(name): Path<String>,
     Json(body): Json<UpdateNetworkXmlBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "networks:write")?;
     let xml = body.xml;
     let name2 = name.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
@@ -127,6 +132,7 @@ async fn set_network_autostart(
     Query(conn_q): Query<ConnQuery>,
     Path((name, enabled)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "networks:write")?;
     let autostart = enabled == "true" || enabled == "1";
     let name2 = name.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {

@@ -4,16 +4,28 @@
 
 //! OS catalog, install-media detection, and RHEL image URL (Cockpit-machines-style helpers).
 
-use axum::extract::Json;
+use axum::extract::{Extension, Json};
 use axum::routing::{get, post};
 use axum::Router;
 use machina_core::{LibvirtError, LibvirtManager};
 use serde::Deserialize;
 use serde_json::json;
-use std::process::Command;
+use std::time::Duration;
+use tokio::process::Command;
+use tokio::time::timeout;
 use tracing::warn;
 
+use crate::auth::{require_write, RequestActor};
 use crate::error::AppError;
+
+/// Applies to both the OS install-tree probe (`osinfo-detect`) and the RHEL
+/// image-URL lookup (`curl`): both are short request/response calls against a
+/// caller-influenced (or fixed, but network-dependent) endpoint. Without a
+/// timeout, a target host that accepts a connection but never responds ties up
+/// this call indefinitely; matches the general-purpose external-command
+/// timeout (`KUBECTL_TIMEOUT_SECS`) used in `routes/k8s.rs` for the same class
+/// of "single external command, bounded wait" call.
+const EXTERNAL_FETCH_TIMEOUT_SECS: u64 = 30;
 
 #[derive(Debug, Deserialize)]
 struct OsDetectBody {
@@ -39,19 +51,16 @@ fn default_arch() -> String {
 
 /// `osinfo-query os -f short-id,name,version` when available.
 async fn os_list_handler() -> Result<Json<serde_json::Value>, AppError> {
-    let join = tokio::task::spawn_blocking(|| {
-        Command::new("osinfo-query")
-            .args(["os", "-f", "short-id,name,version"])
-            .output()
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(e.to_string())))?;
+    let result = Command::new("osinfo-query")
+        .args(["os", "-f", "short-id,name,version"])
+        .output()
+        .await;
 
     // Degrade gracefully when osinfo-query can't even be spawned (libosinfo not
     // installed → io::ErrorKind::NotFound). Previously this mapped to a 500, which made
     // the Create VM page's OS dropdown fail to load. Return the same empty-list + hint
     // fallback used below for a non-zero exit, so the page still works.
-    let out = match join {
+    let out = match result {
         Ok(o) => o,
         Err(e) => {
             warn!("osinfo-query unavailable ({e}); returning empty OS list");
@@ -90,20 +99,34 @@ async fn os_list_handler() -> Result<Json<serde_json::Value>, AppError> {
 }
 
 /// Run `osinfo-detect --type=tree <url>` (HTTP install tree).
+///
+/// This makes the daemon (running as root) fetch and parse an operator-supplied
+/// URL, so it is gated like any other write/mutating operation and subject to
+/// the same SSRF guard as the ISO-download feature (`assert_public_http_host`):
+/// only plain `http(s)` URLs are accepted, and the resolved host must not be
+/// loopback/private/link-local — otherwise this becomes an internal-network
+/// probe or, via `file://`, a local-file-disclosure primitive.
 async fn os_detect_handler(
+    Extension(actor): Extension<RequestActor>,
     Json(body): Json<OsDetectBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let url = body.url.clone();
-    let join = tokio::task::spawn_blocking(move || {
-        Command::new("osinfo-detect")
-            .args(["--type=tree", &url])
-            .output()
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(e.to_string())))?;
+    require_write(&actor, "vms:write")?;
 
-    let out =
-        join.map_err(|e| AppError::from(LibvirtError::Operation(format!("osinfo-detect: {e}"))))?;
+    let url = body.url.trim().to_string();
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Err(AppError::from(LibvirtError::Invalid(
+            "URL must start with http:// or https://".into(),
+        )));
+    }
+    machina_core::iso_upload::assert_public_http_host(&url).await?;
+
+    let mut cmd = Command::new("osinfo-detect");
+    cmd.args(["--type=tree", &url]);
+    let out = timeout(Duration::from_secs(EXTERNAL_FETCH_TIMEOUT_SECS), cmd.output())
+        .await
+        .map_err(|_| AppError::from(LibvirtError::Operation("osinfo-detect timed out".into())))?
+        .map_err(|e| AppError::from(LibvirtError::Operation(format!("osinfo-detect: {e}"))))?;
+
     Ok(Json(json!({
         "exit_code": out.status.code(),
         "stdout": String::from_utf8_lossy(&out.stdout).trim(),
@@ -119,26 +142,31 @@ async fn rhel_image_url_handler(
         "https://api.access.redhat.com/management/v1/images/rhel/{}/{}/",
         body.rhel_version, body.arch
     );
-    let join = tokio::task::spawn_blocking(move || {
-        Command::new("curl")
-            .args([
-                "-sS",
-                "-f",
-                "-H",
-                &format!("Authorization: Bearer {}", body.access_token),
-                &api,
-            ])
-            .output()
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(e.to_string())))?;
+    let mut cmd = Command::new("curl");
+    cmd.args([
+        "-sS",
+        "-f",
+        "-H",
+        &format!("Authorization: Bearer {}", body.access_token),
+        &api,
+    ]);
+    let out = timeout(Duration::from_secs(EXTERNAL_FETCH_TIMEOUT_SECS), cmd.output())
+        .await
+        .map_err(|_| AppError::from(LibvirtError::Operation("curl timed out".into())))?
+        .map_err(|e| AppError::from(LibvirtError::Operation(format!("curl: {e}"))))?;
 
-    let out = join.map_err(|e| AppError::from(LibvirtError::Operation(format!("curl: {e}"))))?;
     if !out.status.success() {
-        return Ok(Json(json!({
-            "error": "curl_failed",
-            "stderr": String::from_utf8_lossy(&out.stderr),
-        })));
+        // The command line (and thus stderr, which curl can echo back) carries the
+        // bearer token via `-H`; never return raw stderr/command output to the
+        // caller on failure, only a generic message logged server-side.
+        warn!(
+            "rhel_image_url_handler: curl failed (exit {:?}): {}",
+            out.status.code(),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        return Err(AppError::from(LibvirtError::Operation(
+            "failed to resolve RHEL image URL from the Red Hat API".into(),
+        )));
     }
     let text = String::from_utf8_lossy(&out.stdout);
     let v: serde_json::Value = serde_json::from_str(&text).unwrap_or(json!({}));

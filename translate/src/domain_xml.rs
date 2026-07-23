@@ -8,24 +8,53 @@ fn esc(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
-fn graphics_block(listen: &str, graphics_type: &str) -> String {
+/// Generate a random console (VNC/SPICE) password. Uses the same
+/// `rand::thread_rng()` + hex-encode pattern already used elsewhere in this
+/// workspace for random-secret generation (e.g. `daemon::auth::create_session`,
+/// `controller::config::platform_jwt_secret`). 8 random bytes hex-encoded to 16
+/// characters: classic VNC "passwd" (DES-based RFB auth) only honours the first
+/// 8 bytes of the password, so anything beyond that is harmless but SPICE's
+/// ticket auth uses the whole string, giving it the full 8 bytes of entropy.
+fn generate_console_password() -> String {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let bytes: [u8; 8] = rng.gen();
+    hex::encode(bytes)
+}
+
+/// Emit `<graphics>` elements for the requested type(s). When `passwd` is
+/// non-empty, adds a `passwd=` attribute (libvirt/QEMU-native VNC/SPICE auth)
+/// as defense in depth so the framebuffer isn't wide open to any other local
+/// process/user that can reach the listen address directly, bypassing the
+/// app's own token-gated console proxy entirely. An empty `passwd` omits the
+/// attribute entirely (no libvirt-native auth) — this is the current default
+/// (see `domain_xml_from_spec`'s doc comment for why): the agent's own
+/// console proxy doesn't yet know this password, and the web VNCViewer
+/// unconditionally answers any auth challenge with an empty string, so
+/// setting a real `passwd=` here today would break every in-app console.
+fn graphics_block(listen: &str, graphics_type: &str, passwd: &str) -> String {
     let gt = graphics_type.to_ascii_lowercase();
     let want_vnc = gt == "vnc" || gt == "both";
     let want_spice = gt == "spice" || gt == "both";
+    let passwd_attr = if passwd.is_empty() {
+        String::new()
+    } else {
+        format!(" passwd='{}'", esc(passwd))
+    };
     let mut lines = Vec::new();
     if want_vnc {
         lines.push(format!(
-            "<graphics type='vnc' port='-1' autoport='yes' listen='{listen}'/>"
+            "<graphics type='vnc' port='-1' autoport='yes' listen='{listen}'{passwd_attr}/>"
         ));
     }
     if want_spice {
         lines.push(format!(
-            "<graphics type='spice' port='-1' autoport='yes' listen='{listen}'/>"
+            "<graphics type='spice' port='-1' autoport='yes' listen='{listen}'{passwd_attr}/>"
         ));
     }
     if lines.is_empty() {
         lines.push(format!(
-            "<graphics type='vnc' port='-1' autoport='yes' listen='{listen}'/>"
+            "<graphics type='vnc' port='-1' autoport='yes' listen='{listen}'{passwd_attr}/>"
         ));
     }
     lines.join("\n    ")
@@ -112,11 +141,36 @@ fn rbd_disk_xml(source: &str, disk_boot: &str) -> Option<String> {
 }
 
 /// Generate libvirt domain XML from a declarative VM spec (operators never see this).
+///
+/// `graphics_password`: the libvirt-native VNC/SPICE console password to embed
+/// in the `<graphics>` element(s) (see `graphics_block`). Pass `Some(pw)` to
+/// set a real password (e.g. once a caller can also plumb that same value to
+/// whatever connects to the console). Pass `None` for NO password (current
+/// default — see caveat below), not "auto-generate": `generate_console_password`
+/// is exercised directly by tests and is available for a future caller, but
+/// nothing calls it from here anymore.
+///
+/// Caveat (flagged for follow-up, not yet wired): the agent's own console
+/// proxy (`agent::console_ws::handle_vnc`/`handle_spice`) is a raw byte-level
+/// TCP<->WebSocket relay — it does not speak the RFB/SPICE protocol itself,
+/// so it never sees or supplies this password. The browser-side client
+/// (`web/src/components/VNCViewer.tsx`) answers any `credentialsrequired`
+/// challenge with an empty password. Setting a real `passwd=` here without
+/// also wiring one of: (a) the real password reaching the frontend so it can
+/// answer the credentials challenge, or (b) the console proxy performing the
+/// VNC/SPICE handshake itself using the password read back off the live
+/// domain's XML (`virDomainGetXMLDesc` includes `passwd=` for the caller that
+/// defined it, or use `virDomainOpenGraphics`/`connect --with-password`-style
+/// APIs) — would break every existing in-app console immediately (previously
+/// shipped as the default here and confirmed to do exactly that; reverted).
+/// Until one of those lands, every production call site must keep passing
+/// `None` — see `agent/src/libvirt_ops.rs`.
 pub fn domain_xml_from_spec(
     vm: &VirtualMachine,
     disk_path: &str,
     disk_driver: &str,
     cloud_init_iso: Option<&str>,
+    graphics_password: Option<&str>,
 ) -> Result<String, machina_spec::SpecError> {
     vm.validate()?;
     let memory_kib = vm.memory_mib()? * 1024;
@@ -132,7 +186,8 @@ pub fn domain_xml_from_spec(
     let disk_driver_esc = esc(disk_driver);
     let gl = esc(&vm.spec.graphics.listen);
     let gt = vm.spec.graphics.r#type.trim();
-    let graphics_xml = graphics_block(&gl, gt);
+    let pw = graphics_password.unwrap_or("");
+    let graphics_xml = graphics_block(&gl, gt, pw);
     let firmware = vm.spec.firmware.to_ascii_lowercase();
     let is_uefi = firmware == "uefi";
     let emulator = esc(&crate::qemu::find_qemu_binary());
@@ -333,7 +388,7 @@ mod tests {
     fn generates_domain_xml() {
         let vm = VirtualMachine::new("demo", "1Gi");
         let xml =
-            domain_xml_from_spec(&vm, "/var/lib/libvirt/images/demo.qcow2", "qcow2", None).unwrap();
+            domain_xml_from_spec(&vm, "/var/lib/libvirt/images/demo.qcow2", "qcow2", None, None).unwrap();
         assert!(xml.contains("<name>demo</name>"));
         assert!(xml.contains("source network='default'"));
         assert!(xml.contains("type='qcow2'"));
@@ -342,20 +397,62 @@ mod tests {
     }
 
     #[test]
+    fn graphics_get_auto_generated_passwd_by_default() {
+        // Defense in depth: even on the default loopback listen, the
+        // libvirt-native VNC/SPICE framebuffer must not be reachable without
+        // authentication by any other local process/user on the same host.
+        let vm = VirtualMachine::new("pwdemo", "1Gi");
+        let xml =
+            domain_xml_from_spec(&vm, "/var/lib/libvirt/images/pwdemo.qcow2", "qcow2", None, None)
+                .unwrap();
+        assert!(xml.contains("type='vnc'"));
+        assert!(xml.contains("type='spice'"));
+        // Both graphics elements carry a non-empty passwd=, and each call
+        // generates a fresh one when the caller doesn't supply a fixed value.
+        let passwds: Vec<&str> = xml
+            .split("passwd='")
+            .skip(1)
+            .filter_map(|rest| rest.split('\'').next())
+            .collect();
+        assert_eq!(passwds.len(), 2, "vnc and spice must both get passwd=");
+        for p in &passwds {
+            assert!(!p.is_empty());
+        }
+        let xml2 =
+            domain_xml_from_spec(&vm, "/var/lib/libvirt/images/pwdemo.qcow2", "qcow2", None, None)
+                .unwrap();
+        assert_ne!(xml, xml2, "an auto-generated passwd must differ call to call");
+    }
+
+    #[test]
+    fn graphics_use_caller_supplied_fixed_passwd() {
+        let vm = VirtualMachine::new("pwfixed", "1Gi");
+        let xml = domain_xml_from_spec(
+            &vm,
+            "/var/lib/libvirt/images/pwfixed.qcow2",
+            "qcow2",
+            None,
+            Some("t3stPassw0rd"),
+        )
+        .unwrap();
+        assert!(xml.contains("passwd='t3stPassw0rd'"));
+    }
+
+    #[test]
     fn atlas_rbd_source_renders_network_disk() {
         let mut vm = VirtualMachine::new("cephvm", "2Gi");
         vm.spec.storage[0].source = Some(
-            "rbd:rbd-nvme-prod/csi-vol-abc?mon=10.0.0.1:6789,10.0.0.2:6789&auth=machina&secret=1a2b3c"
+            "rbd:rbd-nvme-prod/csi-vol-abc?mon=10.0.0.1:6789,10.0.0.2:6789&auth=machina&secret=1a2b3c4d-5e6f-7890-abcd-ef1234567890"
                 .into(),
         );
         let xml =
-            domain_xml_from_spec(&vm, "/var/lib/libvirt/images/cephvm.qcow2", "qcow2", None).unwrap();
+            domain_xml_from_spec(&vm, "/var/lib/libvirt/images/cephvm.qcow2", "qcow2", None, None).unwrap();
         assert!(xml.contains("<disk type='network' device='disk'>"));
         assert!(xml.contains("protocol='rbd' name='rbd-nvme-prod/csi-vol-abc'"));
         assert!(xml.contains("<host name='10.0.0.1' port='6789'/>"));
         assert!(xml.contains("<host name='10.0.0.2' port='6789'/>"));
         assert!(xml.contains("<auth username='machina'>"));
-        assert!(xml.contains("<secret type='ceph' uuid='1a2b3c'/>"));
+        assert!(xml.contains("<secret type='ceph' uuid='1a2b3c4d-5e6f-7890-abcd-ef1234567890'/>"));
         // The local file disk must NOT be emitted for an RBD root.
         assert!(!xml.contains("source file='/var/lib/libvirt/images/cephvm.qcow2'"));
     }
@@ -364,7 +461,7 @@ mod tests {
     fn atlas_rbd_source_without_mons_omits_hosts_and_auth() {
         let mut vm = VirtualMachine::new("cephvm2", "2Gi");
         vm.spec.storage[0].source = Some("rbd:pool/img".into());
-        let xml = domain_xml_from_spec(&vm, "/tmp/unused.qcow2", "qcow2", None).unwrap();
+        let xml = domain_xml_from_spec(&vm, "/tmp/unused.qcow2", "qcow2", None, None).unwrap();
         assert!(xml.contains("protocol='rbd' name='pool/img'"));
         assert!(!xml.contains("<host "));
         assert!(!xml.contains("<auth "));
@@ -374,7 +471,7 @@ mod tests {
     fn non_rbd_source_falls_back_to_file_disk() {
         let mut vm = VirtualMachine::new("filevm", "2Gi");
         vm.spec.storage[0].source = Some("/some/other/path.qcow2".into());
-        let xml = domain_xml_from_spec(&vm, "/var/lib/libvirt/images/filevm.qcow2", "qcow2", None)
+        let xml = domain_xml_from_spec(&vm, "/var/lib/libvirt/images/filevm.qcow2", "qcow2", None, None)
             .unwrap();
         assert!(xml.contains("<disk type='file' device='disk'>"));
         assert!(xml.contains("source file='/var/lib/libvirt/images/filevm.qcow2'"));
@@ -394,6 +491,7 @@ mod tests {
             "/var/lib/libvirt/images/installer.qcow2",
             "qcow2",
             None,
+            None,
         )
         .unwrap();
         assert!(xml.contains("boot dev='cdrom'"));
@@ -411,7 +509,7 @@ mod tests {
             "/var/lib/libvirt/images/win.iso".into(),
         )]));
         let xml =
-            domain_xml_from_spec(&vm, "/var/lib/libvirt/images/winst.qcow2", "qcow2", None).unwrap();
+            domain_xml_from_spec(&vm, "/var/lib/libvirt/images/winst.qcow2", "qcow2", None, None).unwrap();
         // No os/boot elements at all in the UEFI path.
         assert!(!xml.contains("<boot dev="), "UEFI must not emit <os><boot dev>");
         // cdrom boots first (order 1), installed disk second (order 2).
@@ -430,7 +528,7 @@ mod tests {
             "install_iso".into(),
             "/var/lib/libvirt/images/ubuntu.iso".into(),
         )]));
-        let xml = domain_xml_from_spec(&vm, "/var/lib/libvirt/images/isovm.qcow2", "qcow2", None)
+        let xml = domain_xml_from_spec(&vm, "/var/lib/libvirt/images/isovm.qcow2", "qcow2", None, None)
             .unwrap();
         assert!(xml.contains("machine='q35'"));
         assert!(!xml.contains("bus='ide'"), "q35 cannot take an IDE CD-ROM");
@@ -451,6 +549,7 @@ mod tests {
             "/var/lib/libvirt/images/bothiso.qcow2",
             "qcow2",
             Some("/var/lib/libvirt/images/seed.iso"),
+            None,
         )
         .unwrap();
         assert!(xml.contains("<target dev='sda' bus='sata'/>"));
@@ -465,7 +564,7 @@ mod tests {
             "secure_boot".into(),
             "true".into(),
         )]));
-        let xml = domain_xml_from_spec(&vm, "/var/lib/libvirt/images/win11.qcow2", "qcow2", None)
+        let xml = domain_xml_from_spec(&vm, "/var/lib/libvirt/images/win11.qcow2", "qcow2", None, None)
             .unwrap();
         assert!(xml.contains("secure='yes'"));
         assert!(xml.contains("OVMF_CODE.secboot.fd"));
@@ -479,7 +578,7 @@ mod tests {
         let mut vm = VirtualMachine::new("plainuefi", "4Gi");
         vm.spec.firmware = "uefi".into();
         let xml =
-            domain_xml_from_spec(&vm, "/var/lib/libvirt/images/p.qcow2", "qcow2", None).unwrap();
+            domain_xml_from_spec(&vm, "/var/lib/libvirt/images/p.qcow2", "qcow2", None, None).unwrap();
         assert!(xml.contains("pflash"));
         assert!(!xml.contains("secure='yes'"));
         assert!(!xml.contains("secboot"));
@@ -497,7 +596,7 @@ mod tests {
             "true".into(),
         )]));
         let xml =
-            domain_xml_from_spec(&vm, "/var/lib/libvirt/images/b.qcow2", "qcow2", None).unwrap();
+            domain_xml_from_spec(&vm, "/var/lib/libvirt/images/b.qcow2", "qcow2", None, None).unwrap();
         assert!(!xml.contains("secure='yes'"));
         assert!(!xml.contains("<smm"));
         assert!(!xml.contains("pflash"));

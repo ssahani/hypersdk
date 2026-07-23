@@ -17,6 +17,49 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::{interval, Duration};
 use tracing::{info, warn};
 
+/// Decode a raw `read()` chunk to text for `Message::Text` framing, carrying a
+/// trailing incomplete multi-byte UTF-8 sequence over into the next chunk
+/// instead of lossy-replacing it immediately.
+///
+/// Each chunk was previously converted independently via
+/// `String::from_utf8_lossy`, so any multi-byte character that happened to
+/// straddle a `read()` buffer boundary (routine with box-drawing glyphs,
+/// non-ASCII locale output, etc.) turned into `�` on both halves even though
+/// the bytes were valid all along. `pending` holds bytes left over from the
+/// previous call; a genuinely incomplete lead sequence is at most 3 bytes, so
+/// this cannot grow unbounded even against adversarial input — anything
+/// longer is treated as truly invalid and lossy-decoded immediately rather
+/// than held forever.
+fn decode_utf8_chunk(pending: &mut Vec<u8>, buf: &[u8]) -> String {
+    let data: Vec<u8> = if pending.is_empty() {
+        buf.to_vec()
+    } else {
+        let mut d = std::mem::take(pending);
+        d.extend_from_slice(buf);
+        d
+    };
+
+    match std::str::from_utf8(&data) {
+        Ok(text) => text.to_string(),
+        Err(e) => {
+            let valid_up_to = e.valid_up_to();
+            let text = String::from_utf8_lossy(&data[..valid_up_to]).to_string();
+            let tail = &data[valid_up_to..];
+            match e.error_len() {
+                // `None` means `tail` is a valid-so-far, still-incomplete lead
+                // sequence (at most 3 bytes) — hold it for the next chunk.
+                None if tail.len() <= 3 => {
+                    *pending = tail.to_vec();
+                    text
+                }
+                // Otherwise the tail bytes are genuinely invalid UTF-8, not
+                // just incomplete: decode them lossily now and move on.
+                _ => format!("{text}{}", String::from_utf8_lossy(tail)),
+            }
+        }
+    }
+}
+
 fn vm_watch_key(vm: &VmInfo) -> String {
     match &vm.libvirt_connection {
         Some(c) => format!("{c}/{}", vm.name),
@@ -267,11 +310,15 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
     // PTY → WebSocket
     let mut read_task = tokio::spawn(async move {
         let mut buf = [0u8; 4096];
+        let mut pending: Vec<u8> = Vec::new();
         loop {
             match pty_read.read(&mut buf).await {
                 Ok(0) => break,
                 Ok(n) => {
-                    let text = String::from_utf8_lossy(&buf[..n]).to_string();
+                    let text = decode_utf8_chunk(&mut pending, &buf[..n]);
+                    if text.is_empty() {
+                        continue;
+                    }
                     if ws_sink.send(Message::Text(text.into())).await.is_err() {
                         break;
                     }
@@ -755,11 +802,15 @@ async fn handle_ssh_proxy(socket: WebSocket, host: String) {
     // SSH stdout → WebSocket
     let mut read_task = tokio::spawn(async move {
         let mut buf = [0u8; 4096];
+        let mut pending: Vec<u8> = Vec::new();
         loop {
             match stdout.read(&mut buf).await {
                 Ok(0) => break,
                 Ok(n) => {
-                    let text = String::from_utf8_lossy(&buf[..n]).to_string();
+                    let text = decode_utf8_chunk(&mut pending, &buf[..n]);
+                    if text.is_empty() {
+                        continue;
+                    }
                     if ws_sink.send(Message::Text(text.into())).await.is_err() {
                         break;
                     }

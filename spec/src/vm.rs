@@ -114,6 +114,17 @@ pub struct GraphicsSpec {
     pub r#type: String,
     #[serde(default = "default_graphics_listen")]
     pub listen: String,
+    /// Explicit, clearly-risky opt-in required to bind `listen` to a
+    /// non-loopback address. `translate::domain_xml::graphics_block` always
+    /// emits a random libvirt-native console `passwd=` attribute now, but
+    /// that password isn't yet plumbed to the app's own console proxy (see
+    /// `domain_xml_from_spec`'s doc comment) — so until that follow-up
+    /// lands, a non-loopback listener still exposes a console whose password
+    /// no legitimate client has been given either, on the open network,
+    /// bypassing the agent's token-gated console proxy entirely. Default
+    /// false: `listen` must be loopback unless this is set.
+    #[serde(default)]
+    pub allow_public_listen: bool,
 }
 
 fn default_firmware() -> String {
@@ -123,6 +134,7 @@ fn default_graphics() -> GraphicsSpec {
     GraphicsSpec {
         r#type: default_graphics_type(),
         listen: default_graphics_listen(),
+        allow_public_listen: false,
     }
 }
 fn default_graphics_type() -> String {
@@ -203,11 +215,53 @@ impl VirtualMachine {
         for vol in &self.spec.storage {
             validate_name(&vol.name)?;
             parse_size_gib(&vol.size)?;
+            if let Some(source) = vol.source.as_deref() {
+                validate_storage_source(source)?;
+            }
         }
         if self.spec.network.is_empty() {
             return Err(SpecError::Validation(
                 "at least one network attachment required".into(),
             ));
+        }
+        if let Some(labels) = &self.metadata.labels {
+            if let Some(iso) = labels.get("install_iso") {
+                validate_install_iso_path(iso)?;
+            }
+        }
+        if !self.spec.graphics.allow_public_listen
+            && !is_loopback_listen(&self.spec.graphics.listen)
+        {
+            return Err(SpecError::Validation(
+                "graphics.listen must be loopback (127.0.0.1/::1/localhost) unless \
+                 graphics.allow_public_listen is explicitly set to true — a non-loopback \
+                 listener exposes an unauthenticated VNC/SPICE console on the network"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Stricter validation for a spec as originally submitted by an operator
+    /// (i.e. before any trusted server-side rewrite such as Atlas's
+    /// `rbd_source()` resolution). In addition to every `validate()` check,
+    /// this outright rejects an inline Ceph `auth=`/`secret=`/`secret_uuid=`
+    /// parameter on any storage `source` — those parameters are only ever
+    /// legitimate when written by the server itself from cluster-wide config
+    /// (see `controller/src/engine/atlas_vm.rs::rbd_source`), never when
+    /// supplied directly by the caller. Call this at the one place a raw
+    /// operator request body is first validated (`controller/src/api/vms/mod.rs`,
+    /// before the Atlas branch resolves and overwrites `spec.storage[].source`).
+    /// Do NOT use this for already-resolved specs (e.g. inside
+    /// `translate::domain_xml_from_spec`) — a legitimate Atlas-backed VM's
+    /// resolved source legitimately carries `secret=<uuid>` and would fail
+    /// this check.
+    pub fn validate_operator_submission(&self) -> Result<(), SpecError> {
+        self.validate()?;
+        for vol in &self.spec.storage {
+            if let Some(source) = vol.source.as_deref() {
+                reject_inline_ceph_auth(source)?;
+            }
         }
         Ok(())
     }
@@ -235,6 +289,151 @@ impl VirtualMachine {
             .transpose()?
             .ok_or_else(|| SpecError::Validation("root volume required".into()))
     }
+}
+
+/// Validate an `rbd:`/`rbd://` storage `source`'s inline Ceph auth params.
+///
+/// `translate::domain_xml::rbd_disk_xml` renders `secret=<uuid>`/`auth=<user>`
+/// query parameters verbatim into `<auth username='..'><secret type='ceph'
+/// uuid='..'/></auth>`. This is called from `validate()`, which runs on both
+/// operator-original specs AND already-resolved specs (e.g. inside
+/// `translate::domain_xml_from_spec` at VM-apply time) — a legitimate
+/// Atlas-backed VM's resolved source legitimately carries `secret=<uuid>` at
+/// that point, so this check only performs the narrower, always-safe check:
+/// any `secret=`/`secret_uuid=` value must be syntactically a well-formed
+/// UUID. The stronger check — outright rejecting inline auth/secret params
+/// from a caller who shouldn't be supplying them at all — lives in
+/// `reject_inline_ceph_auth`, used only by `validate_operator_submission()`
+/// at the one call site that sees a spec before Atlas resolution
+/// (`controller/src/api/vms/mod.rs`).
+fn validate_storage_source(source: &str) -> Result<(), SpecError> {
+    let Some(rest) = source.strip_prefix("rbd://").or_else(|| source.strip_prefix("rbd:")) else {
+        return Ok(());
+    };
+    let Some((_, query)) = rest.split_once('?') else {
+        return Ok(());
+    };
+    for pair in query.split('&') {
+        let Some((key, value)) = pair.split_once('=') else {
+            continue;
+        };
+        if matches!(key, "secret" | "secret_uuid") && !looks_like_uuid(value) {
+            return Err(SpecError::Validation(
+                "storage volume source's secret/secret_uuid parameter must be a \
+                 well-formed UUID"
+                    .into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Reject a storage `source` outright if it carries an inline `auth=`/
+/// `secret=`/`secret_uuid=` Ceph parameter. Used only for operator-submitted
+/// specs (see `VirtualMachine::validate_operator_submission`) — these
+/// parameters have no legitimate reason to appear in a request body; they are
+/// written by the server itself (Atlas resolution) strictly after this check
+/// runs.
+fn reject_inline_ceph_auth(source: &str) -> Result<(), SpecError> {
+    let Some(rest) = source.strip_prefix("rbd://").or_else(|| source.strip_prefix("rbd:")) else {
+        return Ok(());
+    };
+    let Some((_, query)) = rest.split_once('?') else {
+        return Ok(());
+    };
+    for pair in query.split('&') {
+        let Some((key, _value)) = pair.split_once('=') else {
+            continue;
+        };
+        if matches!(key, "auth" | "secret" | "secret_uuid") {
+            return Err(SpecError::Validation(
+                "storage volume source may not include an inline auth/secret/secret_uuid \
+                 parameter — Ceph-backed volumes must be provisioned via the Atlas storage \
+                 integration (atlas_root_disk: true), not supplied directly"
+                    .into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Loosely validate the canonical 8-4-4-4-12 hyphenated-hex UUID form. `spec`
+/// has no dependency on the `uuid` crate (kept dependency-free for reuse
+/// across daemon/controller/agent), so this is a small manual check.
+fn looks_like_uuid(s: &str) -> bool {
+    let bytes = s.as_bytes();
+    if bytes.len() != 36 {
+        return false;
+    }
+    bytes.iter().enumerate().all(|(i, b)| {
+        if matches!(i, 8 | 13 | 18 | 23) {
+            *b == b'-'
+        } else {
+            b.is_ascii_hexdigit()
+        }
+    })
+}
+
+/// Host directories install-media ISOs (`metadata.labels["install_iso"]`) are
+/// allowed to live under. `translate::domain_xml_from_spec` reads this label
+/// and emits `<source file='{path}'/>` for a read-only CD-ROM with no
+/// filesystem confinement of its own, so an unrestricted path here would let
+/// any operator mount an arbitrary host-readable file (e.g. `/etc/shadow`,
+/// another project's backup) into their guest.
+///
+/// `spec` intentionally has no dependency on `machina-core`/filesystem config
+/// (kept dependency-free for reuse across daemon/controller/agent), so this
+/// mirrors — rather than reads live — the conventional machina-owned image
+/// directories also used by `core::libvirt::storage::collect_image_scan_directories`
+/// and the default `[libvirt] iso_upload_dir` (`/var/lib/libvirt/images/isos`).
+/// A custom (non-default) `iso_upload_dir` configured outside these prefixes
+/// would need this list threaded through from config — flagged as a
+/// follow-up, not fixed here to keep this change centralized and scope-bound.
+const ALLOWED_INSTALL_ISO_PREFIXES: &[&str] =
+    &["/var/lib/libvirt/images/", "/var/lib/machina/images/"];
+
+fn validate_install_iso_path(path: &str) -> Result<(), SpecError> {
+    let p = path.trim();
+    if p.is_empty() {
+        // Handled by the caller's `.filter(|s| !s.is_empty())`-style checks
+        // elsewhere, but stay defensive here too.
+        return Ok(());
+    }
+    if !p.starts_with('/') {
+        return Err(SpecError::Validation(
+            "install_iso must be an absolute path".into(),
+        ));
+    }
+    // Lexical traversal guard: the path may name a file on a remote agent
+    // host's filesystem, so this can't be resolved with `fs::canonicalize`
+    // (nothing to canonicalize against locally) — reject any ".." segment
+    // instead, which defeats the `/allowed/dir/../../etc/passwd` trick.
+    if p.split('/').any(|seg| seg == "..") {
+        return Err(SpecError::Validation(
+            "install_iso must not contain '..' path segments".into(),
+        ));
+    }
+    if !ALLOWED_INSTALL_ISO_PREFIXES
+        .iter()
+        .any(|prefix| p.starts_with(prefix))
+    {
+        return Err(SpecError::Validation(format!(
+            "install_iso must be located under one of: {}",
+            ALLOWED_INSTALL_ISO_PREFIXES.join(", ")
+        )));
+    }
+    Ok(())
+}
+
+/// True if `addr` is empty, a loopback hostname, or parses as a loopback IP.
+fn is_loopback_listen(addr: &str) -> bool {
+    let a = addr.trim();
+    if a.is_empty() || a.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+    a.parse::<std::net::IpAddr>()
+        .map(|ip| ip.is_loopback())
+        .unwrap_or(false)
 }
 
 pub fn validate_name(name: &str) -> Result<(), SpecError> {
@@ -374,5 +573,73 @@ mod tests {
         assert!(validate_label("  Payroll & HR  ").is_ok());
         assert!(validate_label("").is_err());
         assert!(validate_label("bad/name").is_err());
+    }
+
+    #[test]
+    fn validate_rejects_malformed_rbd_secret_uuid() {
+        let mut vm = VirtualMachine::new("cephvm", "2Gi");
+        vm.spec.storage[0].source = Some("rbd:pool/img?auth=machina&secret=1a2b3c".into());
+        assert!(vm.validate().is_err());
+    }
+
+    #[test]
+    fn validate_accepts_wellformed_rbd_secret_uuid() {
+        let mut vm = VirtualMachine::new("cephvm", "2Gi");
+        vm.spec.storage[0].source = Some(
+            "rbd:pool/img?auth=machina&secret=1a2b3c4d-5e6f-7890-abcd-ef1234567890".into(),
+        );
+        assert!(vm.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_install_iso_outside_allowed_dirs() {
+        let mut vm = VirtualMachine::new("installer", "4Gi");
+        vm.metadata.labels = Some(std::collections::HashMap::from([(
+            "install_iso".into(),
+            "/etc/shadow".into(),
+        )]));
+        assert!(vm.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_install_iso_traversal() {
+        let mut vm = VirtualMachine::new("installer", "4Gi");
+        vm.metadata.labels = Some(std::collections::HashMap::from([(
+            "install_iso".into(),
+            "/var/lib/libvirt/images/isos/../../../etc/shadow".into(),
+        )]));
+        assert!(vm.validate().is_err());
+    }
+
+    #[test]
+    fn validate_accepts_install_iso_under_allowed_dir() {
+        let mut vm = VirtualMachine::new("installer", "4Gi");
+        vm.metadata.labels = Some(std::collections::HashMap::from([(
+            "install_iso".into(),
+            "/var/lib/libvirt/images/isos/ubuntu.iso".into(),
+        )]));
+        assert!(vm.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_public_graphics_listen_by_default() {
+        let mut vm = VirtualMachine::new("vncvm", "2Gi");
+        vm.spec.graphics.listen = "0.0.0.0".into();
+        assert!(vm.validate().is_err());
+    }
+
+    #[test]
+    fn validate_allows_public_graphics_listen_with_explicit_opt_in() {
+        let mut vm = VirtualMachine::new("vncvm", "2Gi");
+        vm.spec.graphics.listen = "0.0.0.0".into();
+        vm.spec.graphics.allow_public_listen = true;
+        assert!(vm.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_allows_loopback_graphics_listen() {
+        let mut vm = VirtualMachine::new("vncvm", "2Gi");
+        vm.spec.graphics.listen = "::1".into();
+        assert!(vm.validate().is_ok());
     }
 }

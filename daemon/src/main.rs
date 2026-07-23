@@ -117,7 +117,9 @@ async fn main() -> anyhow::Result<()> {
     // Provision a stable read-only service token for the backup script. backup.sh calls
     // the daemon's read APIs (/vms, /networks, /storage/pools, …) which require auth;
     // without a credential every backup fails "VM not found" (scheduled timer + on-demand).
-    // The token lands in api-tokens.json, which backup.sh (root) reads to authenticate.
+    // api-tokens.json only ever stores a hash of the token; the raw secret backup.sh
+    // (root) reads to authenticate lands in the 0600 service-tokens/machina-backup.token
+    // sidecar file instead (see automation::ensure_named_token).
     match machina_core::libvirt::automation::ensure_named_token(
         "machina-backup",
         "machina-backup",

@@ -8,5 +8,7 @@ description = "Translate declarative VM specs into libvirt domain XML"
 [dependencies]
 machina-spec = { path = "../spec" }
 serde = { workspace = true }
+rand = { workspace = true }
+hex = { workspace = true }
 
 [dev-dependencies]

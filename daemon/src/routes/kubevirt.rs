@@ -17,6 +17,7 @@ use machina_core::{
 };
 use serde::Deserialize;
 
+use crate::auth::{require_write, RequestActor};
 use crate::error::AppError;
 use crate::kubevirt_exec;
 use crate::routes::events::{EventBus, MachinaEvent};
@@ -148,9 +149,11 @@ async fn qcow2_kubevirt_bundle_post(
 
 async fn qcow2_kubevirt_apply(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Extension(bus): Extension<Arc<EventBus>>,
     Json(p): Json<Qcow2KubeVirtParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let path = p.qcow2_path.trim();
     let prefixes = tokio::task::spawn_blocking({
         let mgr = manager.clone();
@@ -199,9 +202,11 @@ async fn qcow2_kubevirt_apply(
 
 async fn qcow2_kubevirt_upload(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Extension(bus): Extension<Arc<EventBus>>,
     Json(p): Json<Qcow2KubeVirtParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let path = p.qcow2_path.trim();
     let prefixes = tokio::task::spawn_blocking({
         let mgr = manager.clone();
@@ -241,9 +246,11 @@ async fn qcow2_kubevirt_upload(
 
 async fn qcow2_kubevirt_start(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Extension(bus): Extension<Arc<EventBus>>,
     Json(p): Json<Qcow2KubeVirtParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let path = p.qcow2_path.trim();
     let prefixes = tokio::task::spawn_blocking({
         let mgr = manager.clone();

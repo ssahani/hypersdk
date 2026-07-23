@@ -118,6 +118,7 @@ impl HostAgent for AgentService {
             cpu_percent: stats.0,
             memory_used_mib: stats.1,
             memory_total_mib: stats.2,
+            agent_version: env!("CARGO_PKG_VERSION").to_string(),
         }))
     }
 
@@ -1883,7 +1884,26 @@ fn cloud_init_iso_path_from_xml(xml: &str) -> Option<String> {
     None
 }
 
+/// Upper bound on a cloud-init/cidata ISO we'll fully read into memory.
+/// Real cloud-init seed ISOs are tiny (user-data/meta-data/network-config),
+/// typically well under a few MiB — a caller with disk-attach/volume-create
+/// access could otherwise name/attach an arbitrarily large file whose path
+/// merely contains "cloud-init"/"cloudinit"/"cidata" and repeatedly trigger
+/// this via the console-access-plan RPC, OOM-killing the whole agent process
+/// (and every VM on the host) on each read.
+const MAX_CLOUD_INIT_ISO_BYTES: u64 = 16 * 1024 * 1024;
+
 fn sniff_cloud_config_from_iso(iso_path: &str) -> Option<String> {
+    match std::fs::metadata(iso_path) {
+        Ok(meta) if meta.len() > MAX_CLOUD_INIT_ISO_BYTES => {
+            // Oversized for a legitimate cloud-init seed ISO — treat as "no
+            // cloud-init config found" rather than reading it (or erroring the
+            // whole RPC).
+            return None;
+        }
+        Ok(_) => {}
+        Err(_) => return None,
+    }
     let data = std::fs::read(iso_path).ok()?;
     let text = String::from_utf8_lossy(&data);
     let start = text.find("#cloud-config")?;

@@ -112,10 +112,10 @@ async fn main() -> anyhow::Result<()> {
     let (local_bus, rx) = InMemoryTaskBus::new();
     let local_tx = local_bus.sender();
     let nats_bus = if let Some(url) = &config.nats_url {
-        match NatsTaskBus::connect(url).await {
+        match NatsTaskBus::connect(url, config.controller_id.clone()).await {
             Ok(n) => {
                 info!("NATS task fan-out enabled on {url}");
-                nats_subscriber::spawn(url.clone(), local_tx);
+                nats_subscriber::spawn(url.clone(), local_tx, config.controller_id.clone());
                 Some(n)
             }
             Err(e) => {

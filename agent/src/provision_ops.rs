@@ -238,8 +238,24 @@ pub fn provision_network(
             "<network><name>{safe_name}</name><forward mode='bridge'/><bridge name='{safe_bridge}'/></network>"
         )
     };
-    let tmp = std::env::temp_dir().join(format!("machina-net-{file_safe_name}.xml"));
-    std::fs::write(&tmp, xml)?;
+    // Use an unpredictable filename and open with `create_new` (fails if the
+    // path already exists) so another local user on this hypervisor host can't
+    // pre-place a symlink at a guessable path (the network name is only
+    // lightly charset-sanitized, so a fixed name-derived path is predictable)
+    // and have this root-running agent follow it to clobber an arbitrary file.
+    // `uuid` is already a direct dependency of this crate; no new crate added.
+    let tmp = std::env::temp_dir().join(format!(
+        "machina-net-{file_safe_name}-{}.xml",
+        uuid::Uuid::new_v4()
+    ));
+    {
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)?;
+        f.write_all(xml.as_bytes())?;
+    }
     let define = Command::new("virsh")
         .args(["net-define", tmp.to_string_lossy().as_ref()])
         .output()?;

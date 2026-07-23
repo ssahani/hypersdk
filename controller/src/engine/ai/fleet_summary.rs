@@ -66,9 +66,39 @@ async fn local_slice(pool: &SqlitePool) -> anyhow::Result<FleetClusterSlice> {
     })
 }
 
+/// Reject cloud-metadata endpoints for an admin-configured fleet peer URL.
+///
+/// Fleet peers are other machina clusters, which legitimately live on
+/// RFC1918/loopback addresses (same-LAN or same-host multi-cluster setups),
+/// so this deliberately does not block private IP ranges — only the
+/// well-known cloud instance-metadata addresses, which have zero legitimate
+/// use as a fleet peer and are a classic SSRF target for credential theft.
+fn is_blocked_metadata_host(base: &str) -> bool {
+    let host = base
+        .parse::<reqwest::Url>()
+        .map(|u| u.host_str().unwrap_or("").to_string())
+        .unwrap_or_default();
+    let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+    const BLOCKED_METADATA_HOSTS: &[&str] = &[
+        "169.254.169.254",
+        "metadata.google.internal",
+        "metadata.google",
+        "metadata",
+        // Url::host_str() never returns a bracketed IPv6 literal, so only the
+        // unbracketed form can ever match.
+        "fd00:ec2::254",
+        "100.100.100.200",
+    ];
+    BLOCKED_METADATA_HOSTS.contains(&host.as_str())
+}
+
 async fn fetch_peer_slice(base: &str) -> FleetClusterSlice {
     let base = base.trim_end_matches('/');
     let label = base.to_string();
+    if is_blocked_metadata_host(base) {
+        tracing::warn!(peer = %label, "refusing to contact fleet peer: cloud metadata endpoint");
+        return unreachable_peer(&label);
+    }
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(4))
         .build()

@@ -977,6 +977,7 @@ pub fn router(state: AppState) -> Router {
 
     let rate_limited_public = Router::new()
         .route("/api/v1/hosts/join", post(hosts::join_host))
+        .route("/api/v1/auth/login", post(crate::auth::login))
         .route_layer(middleware::from_fn_with_state(rate_limiter, rate_limit_middleware));
 
     Router::new()

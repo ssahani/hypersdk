@@ -89,6 +89,7 @@ message HeartbeatResponse {
   float cpu_percent = 3;
   uint64 memory_used_mib = 4;
   uint64 memory_total_mib = 5;
+  string agent_version = 6;
 }
 
 message VmSummary {

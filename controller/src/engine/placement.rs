@@ -66,6 +66,15 @@ pub async fn compute_recommendations(
     let anti_map = host_anti_affinity_map(pool).await?;
     let mut out = Vec::new();
 
+    // Running per-host tally of memory/VM-count already committed to a destination
+    // by earlier recommendations in THIS SAME pass. `hosts` is a snapshot fetched
+    // once above; without this, every hot VM is scored against that same stale
+    // snapshot, so several VMs can each independently pick the one coolest host as
+    // "best" and all get recommended onto it — collectively overcommitting a host
+    // that only had room for one of them. Each accepted recommendation updates the
+    // destination's tally before the next VM is considered.
+    let mut committed: std::collections::HashMap<Uuid, (i64, i32)> = std::collections::HashMap::new();
+
     for (vm_id, vm_name, host_id, memory_mib, vm_tags) in vms {
         let Some(source) = hosts.iter().find(|h| h.id == host_id) else {
             continue;
@@ -88,12 +97,21 @@ pub async fn compute_recommendations(
             {
                 continue;
             }
-            let dest_mem_pct = pct(dest.memory_used_mib, dest.memory_total_mib);
+            let (committed_mem, committed_count) =
+                committed.get(&dest.id).copied().unwrap_or((0, 0));
+            let adj_used_mib = dest.memory_used_mib + committed_mem;
+            // Hard capacity guard: a destination already filled up by earlier
+            // recommendations this pass cannot take on another VM's memory, no
+            // matter how good its raw (stale) score looks.
+            if adj_used_mib + memory_mib > dest.memory_total_mib {
+                continue;
+            }
+            let dest_mem_pct = pct(adj_used_mib, dest.memory_total_mib);
             let mut score = dest_score(
                 &placement_policy,
                 dest.cpu_percent,
                 dest_mem_pct,
-                dest.vm_count,
+                dest.vm_count + committed_count,
             );
             score += tag_affinity_score(&*vm_tags, &*dest.tags);
             if score <= 0.0 {
@@ -129,6 +147,13 @@ pub async fn compute_recommendations(
             dest.cpu_percent,
         );
 
+        // Commit this VM's memory/count onto the destination's running tally so
+        // the next VM considered in this pass sees a destination that's already
+        // (virtually) a bit fuller.
+        let entry = committed.entry(dest.id).or_insert((0, 0));
+        entry.0 += memory_mib;
+        entry.1 += 1;
+
         out.push(PlacementRecommendationRow {
             vm_id: vm_id.to_string(),
             vm_name,
@@ -139,8 +164,6 @@ pub async fn compute_recommendations(
             reason,
             score,
         });
-
-        let _ = memory_mib;
     }
 
     out.sort_by(|a, b| {

@@ -133,9 +133,41 @@ export function getDirectControllerBase(): string {
   return directControllerBase()
 }
 
-export function setControllerConfig(base: string, user: string, pass: string) {
-  localStorage.setItem(LS_CONTROLLER, base.replace(/\/$/, ''))
-  localStorage.setItem(LS_BASIC, btoa(`${user}:${pass}`))
+/**
+ * Save the direct-controller base URL and exchange the one-time username/
+ * password for a JWT via `POST /api/v1/auth/login` — the raw password is
+ * used only for this single request and is never persisted. Only the
+ * resulting short-lived token is stored (LS_JWT); no plaintext-recoverable
+ * credential is ever written to localStorage. Throws if the controller is
+ * unreachable or the credentials are invalid — callers should surface the
+ * error rather than silently falling back to storing Basic auth.
+ */
+export async function setControllerConfig(base: string, user: string, pass: string): Promise<void> {
+  const normalizedBase = base.replace(/\/$/, '')
+  // Deliberately NOT resolvePlatformApiUrl(): that helper collapses to the
+  // co-located same-origin proxy path whenever `base` merely *contains* the
+  // proxy substring, regardless of which host it actually names — which
+  // would silently log into whatever controller the CURRENT page proxies to
+  // instead of the host the user just typed. Login must hit exactly the
+  // base the caller specified.
+  const url = `${normalizedBase}/api/v1/auth/login`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: user, password: pass }),
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(formatHttpErrorBody(res.status, res.statusText, body))
+  }
+  const data: unknown = await res.json().catch(() => null)
+  const token = data && typeof data === 'object' && 'token' in data ? (data as { token: unknown }).token : null
+  if (typeof token !== 'string' || !token) {
+    throw new Error('Login succeeded but the controller response did not include a token')
+  }
+  localStorage.setItem(LS_CONTROLLER, normalizedBase)
+  localStorage.setItem(LS_JWT, token)
+  localStorage.removeItem(LS_BASIC)
 }
 
 export function platformHeaders(extra?: HeadersInit): Headers {
@@ -144,6 +176,9 @@ export function platformHeaders(extra?: HeadersInit): Headers {
   const jwt = localStorage.getItem(LS_JWT)
   if (jwt) {
     h.set('Authorization', `Bearer ${jwt}`)
+    // A JWT supersedes Basic auth for this path — drop the plaintext-recoverable
+    // credential immediately instead of leaving it in localStorage indefinitely.
+    if (localStorage.getItem(LS_BASIC)) localStorage.removeItem(LS_BASIC)
     return h
   }
   const basic = localStorage.getItem(LS_BASIC)

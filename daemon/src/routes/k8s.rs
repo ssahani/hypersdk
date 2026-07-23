@@ -3639,16 +3639,94 @@ async fn k8s_action(
     Ok(Json(res))
 }
 
+/// Validates a value bound for `INSTALL_K3S_EXEC`/`INSTALL_K3S_VERSION`, the
+/// env vars fed to the upstream `get.k3s.io` installer script, which this
+/// daemon runs as root (`curl -sfL https://get.k3s.io | sh -`).
+///
+/// The installer word-splits/evaluates `INSTALL_K3S_EXEC` in its own shell
+/// context to build the final `k3s server ...` invocation, so any shell
+/// metacharacter here (`;`, `` ` ``, `$()`, `|`, `&`, quotes, newlines, ...)
+/// is a potential root command-injection vector — rejecting only a few known-
+/// bad characters (the previous approach) is exactly how that stays
+/// exploitable. This is an allowlist instead: only the character set
+/// legitimate values for each var actually use is permitted, everything else
+/// is rejected outright, length limits aside.
 fn validate_k3s_install_env_value(s: &str, label: &str, max: usize) -> Result<(), LibvirtError> {
+    if s.is_empty() {
+        return Err(LibvirtError::Invalid(format!("{label} must not be empty")));
+    }
     if s.len() > max {
         return Err(LibvirtError::Invalid(format!(
             "{label} exceeds max length ({max} bytes)"
         )));
     }
-    if s.chars().any(|c| c == '\n' || c == '\r' || c == '\0') {
-        return Err(LibvirtError::Invalid(format!(
-            "{label} must not contain newlines or NUL"
-        )));
+    match label {
+        // `INSTALL_K3S_EXEC`: an optional bare leading `server`/`agent` role
+        // token (the daemon's fixed install command
+        // `curl -sfL https://get.k3s.io | sh -` passes no positional role
+        // argument, so per get.k3s.io's own convention that role must come
+        // from the *start* of `INSTALL_K3S_EXEC` itself, e.g.
+        // `server --disable=traefik --node-taint=CriticalAddonsOnly=true:NoExecute`),
+        // followed by whitespace-separated k3s flags. Each remaining token
+        // must be `--name` or `--name=value`; `name` is restricted to
+        // `[a-zA-Z0-9-]+`, `value` to the character set real k3s flag values use
+        // (alnum, `.`, `_`, `-`, `/`, `,`, `:`, `=` — the last so a value can
+        // itself contain `key=value` pairs, as the taint example above does).
+        "install_k3s_exec" => {
+            for (i, token) in s.split_whitespace().enumerate() {
+                if i == 0 && (token == "server" || token == "agent") {
+                    continue;
+                }
+                let Some(rest) = token.strip_prefix("--") else {
+                    return Err(LibvirtError::Invalid(format!(
+                        "{label}: flag {token:?} must start with --"
+                    )));
+                };
+                let (name, value) = match rest.split_once('=') {
+                    Some((n, v)) => (n, Some(v)),
+                    None => (rest, None),
+                };
+                let name_ok =
+                    !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+                if !name_ok {
+                    return Err(LibvirtError::Invalid(format!(
+                        "{label}: invalid flag name in {token:?}"
+                    )));
+                }
+                if let Some(v) = value {
+                    let value_ok = !v.is_empty()
+                        && v.chars().all(|c| {
+                            c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | '/' | ',' | ':' | '=')
+                        });
+                    if !value_ok {
+                        return Err(LibvirtError::Invalid(format!(
+                            "{label}: invalid flag value in {token:?}"
+                        )));
+                    }
+                }
+            }
+        }
+        // `INSTALL_K3S_VERSION`: a release tag/channel, e.g. `v1.30.3+k3s1`,
+        // `latest`, `stable`.
+        "install_k3s_version" => {
+            let ok = s
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '-' | '_'));
+            if !ok {
+                return Err(LibvirtError::Invalid(format!(
+                    "{label} contains characters outside the allowed set (alnum, '.', '+', '-', '_')"
+                )));
+            }
+        }
+        _ => {
+            // Unused today, but keep a conservative fallback (no control chars)
+            // rather than silently accepting anything for a future caller.
+            if s.chars().any(|c| c.is_control()) {
+                return Err(LibvirtError::Invalid(format!(
+                    "{label} must not contain control characters"
+                )));
+            }
+        }
     }
     Ok(())
 }
@@ -3878,6 +3956,15 @@ async fn k8s_k3s_uninstall(
     Ok(Json(res))
 }
 
+/// `server_ip` is later spliced verbatim into a Cilium Helm invocation as
+/// `--set k8sServiceHost=<value>` (see `cluster_bootstrap.rs`). A denylist of
+/// whitespace/control characters isn't enough: a value containing a comma
+/// injects additional, arbitrary `--set key=value` pairs past the intended
+/// `k8sServiceHost` one, since Helm treats commas as `--set` pair separators.
+/// This validates the value is actually shaped like an IPv4/IPv6 address or a
+/// DNS hostname — and rejects `,` (and anything else outside that shape,
+/// including but not limited to the previous denylist) even for an otherwise
+/// valid-looking hostname.
 fn validate_bootstrap_server_ip(s: &str) -> Result<(), LibvirtError> {
     if s.is_empty() {
         return Err(LibvirtError::Invalid("server_ip cannot be empty".into()));
@@ -3887,11 +3974,26 @@ fn validate_bootstrap_server_ip(s: &str) -> Result<(), LibvirtError> {
             "server_ip exceeds max length ({BOOTSTRAP_SERVER_IP_MAX})"
         )));
     }
-    if s.chars()
-        .any(|c| c == '\n' || c == '\r' || c == '\0' || c.is_whitespace())
-    {
+    if s.parse::<std::net::IpAddr>().is_ok() {
+        return Ok(());
+    }
+    // Not a literal IP — validate as a DNS hostname: labels of alnum/`-`,
+    // separated by `.`, no leading/trailing/double dots or hyphens at label
+    // edges. This also covers the comma-injection case above, since `,` is
+    // outside the allowed charset.
+    let labels: Vec<&str> = s.split('.').collect();
+    let hostname_ok = !s.starts_with('.')
+        && !s.ends_with('.')
+        && labels.iter().all(|label| {
+            !label.is_empty()
+                && label.len() <= 63
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        });
+    if !hostname_ok {
         return Err(LibvirtError::Invalid(
-            "server_ip must not contain whitespace or control characters".into(),
+            "server_ip must be a valid IPv4/IPv6 address or hostname".into(),
         ));
     }
     Ok(())
@@ -4139,4 +4241,61 @@ pub fn k8s_routes() -> Router<LibvirtManager> {
         .route("/k8s/k3s/install", post(k8s_k3s_install))
         .route("/k8s/k3s/uninstall", post(k8s_k3s_uninstall))
         .route("/k8s/cluster-bootstrap", post(k8s_cluster_bootstrap))
+}
+
+#[cfg(test)]
+mod k3s_install_env_value_tests {
+    use super::*;
+
+    #[test]
+    fn accepts_standard_server_role_with_flags() {
+        assert!(validate_k3s_install_env_value(
+            "server --disable=traefik --node-taint=CriticalAddonsOnly=true:NoExecute",
+            "install_k3s_exec",
+            INSTALL_K3S_EXEC_MAX,
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn accepts_agent_role_with_server_flag() {
+        assert!(validate_k3s_install_env_value(
+            "agent --server=https://1.2.3.4:6443",
+            "install_k3s_exec",
+            INSTALL_K3S_EXEC_MAX,
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn rejects_shell_metacharacters_after_role_token() {
+        assert!(validate_k3s_install_env_value(
+            "server; rm -rf /",
+            "install_k3s_exec",
+            INSTALL_K3S_EXEC_MAX,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn accepts_flags_only_with_no_leading_role_token() {
+        assert!(validate_k3s_install_env_value(
+            "--disable=traefik --write-kubeconfig-mode=644",
+            "install_k3s_exec",
+            INSTALL_K3S_EXEC_MAX,
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn rejects_role_token_only_in_non_leading_position() {
+        // "server" is only tolerated as the *first* token; elsewhere it must
+        // still look like a flag.
+        assert!(validate_k3s_install_env_value(
+            "--disable=traefik server",
+            "install_k3s_exec",
+            INSTALL_K3S_EXEC_MAX,
+        )
+        .is_err());
+    }
 }

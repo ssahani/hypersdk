@@ -38,10 +38,24 @@ pub async fn ensure_bootstrap(
     //
     // When a STABLE controller id is configured (MACHINA_CONTROLLER_ID), reap only
     // OUR own orphans (+ legacy NULL-owner rows) so we never fail a peer
-    // controller's in-flight task in a multi-controller deployment. Without a
-    // configured id the process picks a fresh random id each boot, so owner-scoping
-    // would orphan our own prior-run tasks — in that (single-controller) mode reap
-    // all 'running' rows as before.
+    // controller's in-flight task in a multi-controller deployment.
+    //
+    // Without a configured id, this process's own id (`config.controller_id`) is a
+    // fresh random value each boot (see config.rs), so claimed_by-scoping would
+    // never match our OWN prior-run tasks either — we can't tell "my own orphan"
+    // from "a peer's live task" by identity alone in that case. Nothing enforces
+    // that MACHINA_CONTROLLER_ID is set in every multi-controller deployment, so
+    // do NOT assume "unset" means "single controller, safe to fail every running
+    // row": if a peer happens to also be unset, that would fail its in-flight
+    // work every time any one of them restarts. Fall back to a staleness check
+    // instead: only reap rows that have had no progress in a long time (or were
+    // never claimed at all). A live task's `updated_at` is refreshed at claim
+    // time and again by any progress update, so a peer's genuinely in-flight task
+    // stays well inside the window; a truly orphaned task (worker died, no peer
+    // owns it) eventually crosses it and gets recovered on a later restart. The
+    // threshold is intentionally generous (some operations — backup/clone of a
+    // large disk — may run a long time between progress updates) to bias toward
+    // never killing live work over reaping instantly.
     let reaped = if let Some(id) = std::env::var("MACHINA_CONTROLLER_ID").ok().filter(|s| !s.is_empty()) {
         sqlx::query(
             "UPDATE tasks SET status = 'failed', message = 'controller restarted while task was running', \
@@ -54,7 +68,9 @@ pub async fn ensure_bootstrap(
     } else {
         sqlx::query(
             "UPDATE tasks SET status = 'failed', message = 'controller restarted while task was running', \
-             updated_at = datetime('now') WHERE status = 'running'",
+             updated_at = datetime('now') \
+             WHERE status = 'running' \
+               AND (claimed_by IS NULL OR updated_at < datetime('now', '-60 minutes'))",
         )
         .execute(pool)
         .await?

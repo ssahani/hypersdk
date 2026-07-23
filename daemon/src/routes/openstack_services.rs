@@ -5,7 +5,7 @@
 use axum::{
     extract::{Path, Query},
     routing::{delete, get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use machina_core::{
     build_network_topology, create_heat_stack, create_identity_project, create_identity_user,
@@ -24,6 +24,7 @@ use machina_core::{
 };
 use serde::Deserialize;
 
+use crate::auth::{require_write, RequestActor};
 use crate::error::AppError;
 use crate::openstack_runtime::openstack_cfg;
 use crate::routes::openstack::{ensure_openstack_enabled, log_audit};
@@ -85,8 +86,10 @@ async fn os_get_heat_template(
 }
 
 async fn os_create_heat_stack(
+    Extension(actor): Extension<RequestActor>,
     Json(body): Json<CreateHeatStackRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "openstack:write")?;
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     let stack = create_heat_stack(&cfg, &body).await?;
@@ -95,9 +98,11 @@ async fn os_create_heat_stack(
 }
 
 async fn os_update_heat_stack(
+    Extension(actor): Extension<RequestActor>,
     Path((name, id)): Path<(String, String)>,
     Json(body): Json<UpdateHeatStackRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "openstack:write")?;
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     let stack = update_heat_stack(&cfg, &name, &id, &body).await?;
@@ -106,8 +111,10 @@ async fn os_update_heat_stack(
 }
 
 async fn os_delete_heat_stack(
+    Extension(actor): Extension<RequestActor>,
     Path((name, id)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "openstack:write")?;
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     delete_heat_stack(&cfg, &name, &id).await?;
@@ -140,8 +147,10 @@ async fn os_get_load_balancer(Path(id): Path<String>) -> Result<Json<serde_json:
 }
 
 async fn os_create_load_balancer(
+    Extension(actor): Extension<RequestActor>,
     Json(body): Json<CreateLoadBalancerRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "openstack:write")?;
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     let loadbalancer = create_load_balancer(&cfg, &body).await?;
@@ -150,8 +159,10 @@ async fn os_create_load_balancer(
 }
 
 async fn os_delete_load_balancer(
+    Extension(actor): Extension<RequestActor>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "openstack:write")?;
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     delete_load_balancer(&cfg, &id).await?;
@@ -167,9 +178,11 @@ async fn os_list_lb_listeners(Path(id): Path<String>) -> Result<Json<serde_json:
 }
 
 async fn os_create_lb_listener(
+    Extension(actor): Extension<RequestActor>,
     Path(id): Path<String>,
     Json(body): Json<CreateLbListenerRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "openstack:write")?;
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     let mut req = body;
@@ -182,8 +195,10 @@ async fn os_create_lb_listener(
 }
 
 async fn os_delete_lb_listener(
+    Extension(actor): Extension<RequestActor>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "openstack:write")?;
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     delete_lb_listener(&cfg, &id).await?;
@@ -199,8 +214,10 @@ async fn os_list_lb_pools(Path(id): Path<String>) -> Result<Json<serde_json::Val
 }
 
 async fn os_create_lb_pool(
+    Extension(actor): Extension<RequestActor>,
     Json(body): Json<CreateLbPoolRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "openstack:write")?;
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     let pool = create_lb_pool(&cfg, &body).await?;
@@ -208,7 +225,11 @@ async fn os_create_lb_pool(
     Ok(Json(serde_json::json!({ "pool": pool })))
 }
 
-async fn os_delete_lb_pool(Path(id): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
+async fn os_delete_lb_pool(
+    Extension(actor): Extension<RequestActor>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "openstack:write")?;
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     delete_lb_pool(&cfg, &id).await?;
@@ -226,9 +247,11 @@ async fn os_list_lb_members(
 }
 
 async fn os_create_lb_member(
+    Extension(actor): Extension<RequestActor>,
     Path(pool_id): Path<String>,
     Json(body): Json<CreateLbMemberRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "openstack:write")?;
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     let member = create_lb_member(&cfg, &pool_id, &body).await?;
@@ -237,8 +260,10 @@ async fn os_create_lb_member(
 }
 
 async fn os_delete_lb_member(
+    Extension(actor): Extension<RequestActor>,
     Path((pool_id, member_id)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "openstack:write")?;
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     delete_lb_member(&cfg, &pool_id, &member_id).await?;
@@ -260,8 +285,10 @@ async fn os_list_lb_health_monitors(
 }
 
 async fn os_create_lb_health_monitor(
+    Extension(actor): Extension<RequestActor>,
     Json(body): Json<CreateLbHealthMonitorRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "openstack:write")?;
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     let monitor = create_lb_health_monitor(&cfg, &body).await?;
@@ -270,8 +297,10 @@ async fn os_create_lb_health_monitor(
 }
 
 async fn os_delete_lb_health_monitor(
+    Extension(actor): Extension<RequestActor>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "openstack:write")?;
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     delete_lb_health_monitor(&cfg, &id).await?;
@@ -287,8 +316,10 @@ async fn os_list_projects() -> Result<Json<serde_json::Value>, AppError> {
 }
 
 async fn os_create_project(
+    Extension(actor): Extension<RequestActor>,
     Json(body): Json<CreateIdentityProjectRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "openstack:write")?;
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     let project = create_identity_project(&cfg, &body).await?;
@@ -311,8 +342,10 @@ async fn os_list_users() -> Result<Json<serde_json::Value>, AppError> {
 }
 
 async fn os_create_user(
+    Extension(actor): Extension<RequestActor>,
     Json(body): Json<CreateIdentityUserRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "openstack:write")?;
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     let user = create_identity_user(&cfg, &body).await?;
@@ -328,9 +361,11 @@ async fn os_get_user(Path(id): Path<String>) -> Result<Json<serde_json::Value>, 
 }
 
 async fn os_update_user(
+    Extension(actor): Extension<RequestActor>,
     Path(id): Path<String>,
     Json(body): Json<UpdateIdentityUserRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "openstack:write")?;
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     let user = update_identity_user(&cfg, &id, &body).await?;
@@ -355,8 +390,10 @@ async fn os_list_role_assignments(
 }
 
 async fn os_grant_role_assignment(
+    Extension(actor): Extension<RequestActor>,
     Json(body): Json<RoleAssignmentRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "openstack:write")?;
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     grant_role_assignment(&cfg, &body).await?;
@@ -365,8 +402,10 @@ async fn os_grant_role_assignment(
 }
 
 async fn os_revoke_role_assignment(
+    Extension(actor): Extension<RequestActor>,
     Json(body): Json<RoleAssignmentRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "openstack:write")?;
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     revoke_role_assignment(&cfg, &body).await?;

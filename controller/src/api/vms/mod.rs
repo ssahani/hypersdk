@@ -194,7 +194,12 @@ pub async fn create_vm(
     Json(body): Json<CreateVmBody>,
 ) -> Result<Json<TaskResponse>, ApiError> {
     require_operator(&actor)?;
-    body.vm.validate()
+    // Stricter than the general `validate()`: this runs on the caller's raw,
+    // pre-Atlas-resolution body, so an inline Ceph auth/secret param here can
+    // only be something the operator typed themselves, not a legitimate
+    // server-resolved value — reject it outright rather than merely checking
+    // it's a well-formed UUID (see `validate_operator_submission` doc comment).
+    body.vm.validate_operator_submission()
         .map_err(|e| ApiError::bad_request(e.to_string()))?;
 
     let cluster_id: Uuid = sqlx::query_scalar("SELECT id FROM clusters LIMIT 1")
@@ -1143,7 +1148,12 @@ pub struct MigrateVmBody {
     pub bandwidth_mib: Option<u64>,
     #[serde(default)]
     pub postcopy: bool,
-    #[serde(default)]
+    /// Defaults to true: an omitted/false value leaves the VM defined on
+    /// BOTH source and destination host after migration, which is a
+    /// split-brain risk on shared storage (both hosts could start the same
+    /// VM). A caller that genuinely wants the source left defined (e.g. to
+    /// roll back quickly) must now opt in explicitly with `false`.
+    #[serde(default = "default_undefine_source")]
     pub undefine_source: bool,
     #[serde(default)]
     pub tunnelled: bool,
@@ -1156,6 +1166,10 @@ pub struct MigrateVmBody {
 }
 
 fn default_live() -> bool {
+    true
+}
+
+fn default_undefine_source() -> bool {
     true
 }
 

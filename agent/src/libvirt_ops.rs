@@ -31,6 +31,9 @@ pub struct VmListEntry {
 pub struct LibvirtCtx {
     uri: String,
     pub conn: Connect,
+    /// Last-seen (cpu_time_ns, sampled_at) per VM name, used to turn libvirt's
+    /// cumulative domain CPU time into an instantaneous percentage in `list_vms`.
+    cpu_samples: std::collections::HashMap<String, (u64, std::time::Instant)>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -47,6 +50,7 @@ impl LibvirtCtx {
         Ok(Self {
             uri: uri.to_string(),
             conn,
+            cpu_samples: std::collections::HashMap::new(),
         })
     }
 
@@ -69,39 +73,43 @@ impl LibvirtCtx {
     pub fn list_vms(&mut self) -> Result<Vec<VmListEntry>, LibvirtError> {
         self.ensure_alive()?;
         let vms = domain::list_vms(&self.conn)?;
-        Ok(vms
-            .into_iter()
-            .map(|v| {
-                let running = v.state == "running";
-                let mut entry = VmListEntry {
-                    name: v.name.clone(),
-                    uuid: String::new(),
-                    state: v.state,
-                    vcpus: v.vcpus,
-                    memory_mb: v.memory_mb as u64,
-                    cpu_percent: 0.0,
-                    memory_used_mib: 0,
-                    disk_read_iops: 0,
-                    disk_write_iops: 0,
-                    guest_ip: v.guest_ip.clone().unwrap_or_default(),
-                };
-                if let Ok(dom) = Domain::lookup_by_name(&self.conn, &v.name) {
-                    if let Ok(uuid) = dom.get_uuid_string() {
-                        entry.uuid = uuid;
-                    }
+        let mut out = Vec::with_capacity(vms.len());
+        for v in vms {
+            let running = v.state == "running";
+            let mut entry = VmListEntry {
+                name: v.name.clone(),
+                uuid: String::new(),
+                state: v.state,
+                vcpus: v.vcpus,
+                memory_mb: v.memory_mb as u64,
+                cpu_percent: 0.0,
+                memory_used_mib: 0,
+                disk_read_iops: 0,
+                disk_write_iops: 0,
+                guest_ip: v.guest_ip.clone().unwrap_or_default(),
+            };
+            if let Ok(dom) = Domain::lookup_by_name(&self.conn, &v.name) {
+                if let Ok(uuid) = dom.get_uuid_string() {
+                    entry.uuid = uuid;
                 }
-                if running {
-                    if let Ok(m) =
-                        machina_core::libvirt::metrics::get_vm_metrics(&self.conn, &v.name)
-                    {
-                        entry.memory_used_mib = m.memory_used_mb;
-                        entry.disk_read_iops = m.disk_rd_ops;
-                        entry.disk_write_iops = m.disk_wr_ops;
-                    }
+            }
+            if running {
+                if let Ok(m) = machina_core::libvirt::metrics::get_vm_metrics(&self.conn, &v.name)
+                {
+                    entry.memory_used_mib = m.memory_used_mb;
+                    entry.disk_read_iops = m.disk_rd_ops;
+                    entry.disk_write_iops = m.disk_wr_ops;
+                    entry.cpu_percent =
+                        sample_cpu_percent(&mut self.cpu_samples, &v.name, m.cpu_time_ns, m.vcpus);
                 }
-                entry
-            })
-            .collect())
+            } else {
+                // Stopped: drop any stale sample so a later restart doesn't diff
+                // against a cpu_time_ns from a previous, unrelated boot.
+                self.cpu_samples.remove(&v.name);
+            }
+            out.push(entry);
+        }
+        Ok(out)
     }
 
     pub fn list_networks(&self) -> Result<Vec<machina_core::NetworkInfo>, LibvirtError> {
@@ -258,7 +266,16 @@ impl LibvirtCtx {
             disk_path, None, None,
         )?;
 
-        let xml = domain_xml_from_spec(vm, disk_path, "qcow2", cloud_iso.as_deref())
+        // graphics_password: None auto-generates a random libvirt-native VNC/SPICE
+        // "passwd=" per call (see `domain_xml_from_spec` doc comment) — defense in
+        // depth so the framebuffer isn't unauthenticated at the libvirt/QEMU level,
+        // even on loopback. NOT yet persisted or handed to the agent's own console
+        // proxy (`console_ws::handle_vnc`/`handle_spice`, which is a raw byte-level
+        // relay and doesn't speak RFB/SPICE), and the web VNCViewer currently answers
+        // any credentials challenge with an empty password — so enabling this makes
+        // the in-app console fail auth until a human wires the real password through
+        // one of those paths. Tracked as a follow-up; see the doc comment above.
+        let xml = domain_xml_from_spec(vm, disk_path, "qcow2", cloud_iso.as_deref(), None)
             .map_err(|e| LibvirtError::Invalid(e.to_string()))?;
         let dom = Domain::define_xml(&self.conn, &xml)
             .map_err(|e| LibvirtError::Operation(format!("define VM: {e}")))?;
@@ -1033,6 +1050,44 @@ pub struct GuestHealthSummary {
     pub diagnostics_json: String,
 }
 
+/// Turn libvirt's cumulative domain CPU time (`info.cpu_time`, all vCPUs +
+/// hypervisor overhead, nanoseconds since boot) into an instantaneous CPU
+/// utilization percentage by diffing against the previous sample for this VM
+/// name, normalized by vcpu count (a fully busy N-vCPU guest reads ~100%,
+/// matching typical single-number "CPU %" displays rather than topping out at
+/// N*100%).
+///
+/// Best-effort approximation, not exact: it only reflects usage over the
+/// interval between two `list_vms` polls, so the very first sample after a VM
+/// starts (or after machina-agent restarts, losing its in-memory cache) has
+/// nothing to diff against and reports 0.0 until the next poll. A domain
+/// restart/migration can also make `cpu_time_ns` go backwards relative to the
+/// cached sample; that case is treated as "no data yet" (0.0) rather than
+/// producing a nonsensical negative or huge spike.
+fn sample_cpu_percent(
+    samples: &mut std::collections::HashMap<String, (u64, std::time::Instant)>,
+    name: &str,
+    cpu_time_ns: u64,
+    vcpus: u32,
+) -> f32 {
+    let now = std::time::Instant::now();
+    let pct = match samples.get(name) {
+        Some((prev_ns, prev_at)) if cpu_time_ns >= *prev_ns => {
+            let elapsed_ns = now.duration_since(*prev_at).as_nanos() as f64;
+            if elapsed_ns <= 0.0 {
+                0.0
+            } else {
+                let delta_cpu_ns = (cpu_time_ns - prev_ns) as f64;
+                let vcpus = vcpus.max(1) as f64;
+                ((delta_cpu_ns / elapsed_ns) / vcpus * 100.0).clamp(0.0, 100.0)
+            }
+        }
+        _ => 0.0,
+    };
+    samples.insert(name.to_string(), (cpu_time_ns, now));
+    pct as f32
+}
+
 pub fn disk_path_from_xml(xml: &str) -> Option<String> {
     extract_disk_path(xml)
 }
@@ -1612,5 +1667,49 @@ mod disk_source_tests {
             DiskSource::File("/a.qcow2".to_string()).qemu_img_arg(),
             "/a.qcow2"
         );
+    }
+}
+
+#[cfg(test)]
+mod cpu_percent_tests {
+    use super::sample_cpu_percent;
+    use std::collections::HashMap;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn first_sample_has_nothing_to_diff_against() {
+        let mut samples = HashMap::new();
+        assert_eq!(sample_cpu_percent(&mut samples, "vm1", 1_000_000_000, 2), 0.0);
+        assert!(samples.contains_key("vm1"));
+    }
+
+    #[test]
+    fn full_utilization_of_a_single_vcpu_over_one_second_reads_100_percent() {
+        let mut samples = HashMap::new();
+        let now = Instant::now();
+        samples.insert("vm1".to_string(), (0u64, now - Duration::from_secs(1)));
+        // 1 vCPU busy the whole second => 1s of CPU time accrued.
+        let pct = sample_cpu_percent(&mut samples, "vm1", 1_000_000_000, 1);
+        assert!((pct - 100.0).abs() < 5.0, "pct = {pct}");
+    }
+
+    #[test]
+    fn is_normalized_by_vcpu_count() {
+        let mut samples = HashMap::new();
+        let now = Instant::now();
+        samples.insert("vm1".to_string(), (0u64, now - Duration::from_secs(1)));
+        // 2 vCPUs, only 1 full core-second of work => ~50% utilization.
+        let pct = sample_cpu_percent(&mut samples, "vm1", 1_000_000_000, 2);
+        assert!((pct - 50.0).abs() < 5.0, "pct = {pct}");
+    }
+
+    #[test]
+    fn a_backwards_cpu_time_sample_is_treated_as_no_data_rather_than_negative() {
+        // Can happen across a VM restart/migration where cpu_time_ns resets.
+        let mut samples = HashMap::new();
+        let now = Instant::now();
+        samples.insert("vm1".to_string(), (5_000_000_000u64, now - Duration::from_secs(1)));
+        let pct = sample_cpu_percent(&mut samples, "vm1", 1_000_000_000, 2);
+        assert_eq!(pct, 0.0);
     }
 }

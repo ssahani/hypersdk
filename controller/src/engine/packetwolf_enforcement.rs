@@ -102,15 +102,22 @@ fn normalize_production_policies(raw: &Value) -> Value {
     })
 }
 
+/// Parse a `"ip:port/proto"` TC allow-rule match string. The IP is REQUIRED: this
+/// produces a host-level eBPF/TC egress ALLOW rule against a defaultDeny policy, so
+/// a missing IP must never silently become a match-all wildcard (`0.0.0.0` in this
+/// TC scheme matches any destination) — that would fail OPEN, punching an any-IP
+/// hole through the allowlist for the given port. Reject (`None`) instead of
+/// guessing, so the caller surfaces the mistake rather than installing an overly
+/// broad rule.
 fn parse_port_match(match_str: &str) -> Option<(String, u16, String)> {
-    let (host_port, proto) = match_str.split_once('/')? ;
+    let (host_port, proto) = match_str.split_once('/')?;
     let proto = if proto.is_empty() { "tcp" } else { proto };
-    if let Some((ip, port)) = host_port.rsplit_once(':') {
-        let port: u16 = port.parse().ok()?;
-        return Some((ip.to_string(), port, proto.to_string()));
+    let (ip, port) = host_port.rsplit_once(':')?;
+    if ip.is_empty() {
+        return None;
     }
-    let port: u16 = host_port.parse().ok()?;
-    Some(("0.0.0.0".into(), port, proto.to_string()))
+    let port: u16 = port.parse().ok()?;
+    Some((ip.to_string(), port, proto.to_string()))
 }
 
 fn machina_policy_to_tc_rule(id: &str, kind: &str, match_str: &str, name: &str) -> Option<Value> {
@@ -188,8 +195,24 @@ pub async fn create_enforcement_policy(cfg: &ControllerConfig, body: Value) -> V
         .unwrap_or("")
         .to_string();
     let id = Uuid::new_v4().to_string();
+    let tc_rule = machina_policy_to_tc_rule(&id, &kind, &match_str, &name);
 
-    if let Some(tc_rule) = machina_policy_to_tc_rule(&id, &kind, &match_str, &name) {
+    // A tc_allow/allow_port kind that fails to parse (missing/empty destination
+    // IP, bad port, etc.) must be rejected outright — NOT silently redirected to
+    // the Tetragon local-policy fallback below. That fallback is for genuinely
+    // different policy kinds; routing a malformed TC allow rule through it would
+    // silently install nothing on the TC allowlist while telling the admin the
+    // policy was created, which is just as unsafe as fail-open (enforcement the
+    // admin believes is active is quietly absent).
+    if (kind == "tc_allow" || kind == "allow_port") && tc_rule.is_none() {
+        return json!({
+            "ok": false,
+            "error": "invalid match: tc_allow/allow_port rules require an explicit destination IP, e.g. \"203.0.113.5:443/tcp\" — refusing to create a wildcard-IP allow rule",
+            "api_mode": "production_tc",
+        });
+    }
+
+    if let Some(tc_rule) = tc_rule {
         let current = fabric_get(cfg, "/api/v1/runtime/enforcement/rules").await;
         let mut rules = current
             .get("rules")
@@ -408,5 +431,32 @@ mod tests {
         let norm = normalize_production_status(&raw);
         assert_eq!(norm["mode"], "observe");
         assert_eq!(norm["blocked_events"], 5);
+    }
+
+    #[test]
+    fn parse_port_match_requires_explicit_ip() {
+        // Fail-closed: a match string with no IP must be rejected, not silently
+        // widened into a 0.0.0.0 (match-any) allow rule.
+        assert_eq!(parse_port_match("443/tcp"), None);
+        assert_eq!(parse_port_match("443"), None);
+        assert_eq!(parse_port_match(":443/tcp"), None);
+    }
+
+    #[test]
+    fn parse_port_match_accepts_explicit_ip() {
+        assert_eq!(
+            parse_port_match("203.0.113.5:443/tcp"),
+            Some(("203.0.113.5".into(), 443, "tcp".into()))
+        );
+        // proto defaults to tcp when omitted.
+        assert_eq!(
+            parse_port_match("203.0.113.5:443/"),
+            Some(("203.0.113.5".into(), 443, "tcp".into()))
+        );
+    }
+
+    #[test]
+    fn machina_policy_to_tc_rule_rejects_wildcard_ip() {
+        assert!(machina_policy_to_tc_rule("id1", "tc_allow", "443/tcp", "rule").is_none());
     }
 }

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { Link } from 'react-router'
 import { explainInfraObject } from '../../api/ai'
@@ -22,16 +22,21 @@ export default function MachinaExplainObjectPanel({
   const [data, setData] = useState<Awaited<ReturnType<typeof explainInfraObject>> | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const reqRef = useRef(0)
 
   const load = useCallback(async () => {
+    const reqId = ++reqRef.current
     setLoading(true)
     setError(null)
     try {
-      setData(await explainInfraObject(kind, id))
+      const result = await explainInfraObject(kind, id)
+      if (reqRef.current !== reqId) return // a newer kind/id was selected while this was in flight
+      setData(result)
     } catch (e: unknown) {
+      if (reqRef.current !== reqId) return
       setError(e instanceof Error ? e.message : 'Explain failed')
     } finally {
-      setLoading(false)
+      if (reqRef.current === reqId) setLoading(false)
     }
   }, [kind, id])
 

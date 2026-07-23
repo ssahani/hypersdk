@@ -67,11 +67,56 @@ async fn complete_resolved(
     if resolved.api_key.is_empty() && !uses_local_endpoint(&resolved.kind) {
         return Ok(None);
     }
+    if let Err(e) = validate_base_url(&resolved.base_url) {
+        tracing::warn!(provider = %resolved.kind, "refusing LLM request: {e}");
+        return Ok(None);
+    }
     match resolved.kind.as_str() {
         "anthropic" => anthropic_complete(resolved, system, user).await,
         "google" | "gemini" => google_complete(resolved, system, user).await,
         _ => openai_compatible_complete(resolved, system, user).await,
     }
+}
+
+/// Reject cloud-metadata endpoints for an admin-configured LLM `base_url`
+/// (BYOK / custom OpenAI-compatible endpoints, incl. Ollama and vLLM).
+///
+/// This is intentionally NOT a general private-IP/SSRF blocklist: RFC1918
+/// ranges (10/8, 172.16/12, 192.168/16) and loopback (127.0.0.1, ::1,
+/// localhost) are the whole point of self-hosted local inference (Ollama on
+/// 127.0.0.1:11434, vLLM on a LAN GPU box, etc.) and must keep working.
+/// What has zero legitimate use as an LLM endpoint is the cloud instance
+/// metadata service — a classic SSRF target for stealing IAM/IMDS
+/// credentials — so only those well-known addresses are blocked here.
+fn validate_base_url(base_url: &str) -> Result<(), String> {
+    let trimmed = base_url.trim();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+    let host = trimmed
+        .parse::<reqwest::Url>()
+        .map(|u| u.host_str().unwrap_or("").to_string())
+        .unwrap_or_default();
+    let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+    const BLOCKED_METADATA_HOSTS: &[&str] = &[
+        // AWS / Azure / Alibaba / Oracle / DigitalOcean IMDS (all serve on this address)
+        "169.254.169.254",
+        // GCP metadata server
+        "metadata.google.internal",
+        "metadata.google",
+        "metadata",
+        // AWS IMDSv2 IPv6 endpoint (Url::host_str() never returns a bracketed
+        // literal, even for an IPv6 host, so only the unbracketed form matches)
+        "fd00:ec2::254",
+        // Alibaba Cloud alias
+        "100.100.100.200",
+    ];
+    if BLOCKED_METADATA_HOSTS.contains(&host.as_str()) {
+        return Err(format!(
+            "base_url host '{host}' is a cloud metadata endpoint and is not a valid LLM target"
+        ));
+    }
+    Ok(())
 }
 
 fn uses_local_endpoint(kind: &str) -> bool {

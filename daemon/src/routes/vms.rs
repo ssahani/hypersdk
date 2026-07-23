@@ -26,7 +26,7 @@ use machina_core::{
     VmInfo,
 };
 
-use crate::auth::{effective_linux_user, require_destroy_vm, RequestActor};
+use crate::auth::{effective_linux_user, require_destroy_vm, require_write, RequestActor};
 use crate::conn_query::{connection_label, spawn_libvirt_actor, ConnQuery};
 use crate::error::{ok_json, AppError, Xml};
 use crate::job_registry::JobRegistry;
@@ -213,11 +213,13 @@ fn emit_kubevirt(bus: &Arc<EventBus>, kind: &str, target: &str, status: &str, me
 }
 
 async fn kubevirt_apply_handler(
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     State(manager): State<LibvirtManager>,
     Extension(bus): Extension<Arc<EventBus>>,
     Json(params): Json<KubeVirtBundleParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let cfg = MachinaConfig::load();
     let kv = cfg.kubevirt.clone();
     let kv_for_block = kv.clone();
@@ -263,11 +265,13 @@ async fn kubevirt_apply_handler(
 }
 
 async fn kubevirt_upload_handler(
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     State(manager): State<LibvirtManager>,
     Extension(bus): Extension<Arc<EventBus>>,
     Json(params): Json<KubeVirtBundleParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let cfg = MachinaConfig::load();
     let kv = cfg.kubevirt.clone();
     let kv_for_block = kv.clone();
@@ -358,12 +362,14 @@ async fn openstack_push_preview_handler(
 }
 
 async fn openstack_push_handler(
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     State(manager): State<LibvirtManager>,
     Extension(bus): Extension<Arc<EventBus>>,
     Query(conn_q): Query<ConnQuery>,
     Json(body): Json<LibvirtOpenStackPushBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let cfg = MachinaConfig::load();
     let os = cfg.openstack.clone();
     if !is_openstack_configured(&os) {
@@ -457,11 +463,13 @@ fn validate_qcow2_allowed(path: &str, allowed_prefixes: &[String]) -> Result<(),
 }
 
 async fn kubevirt_start_handler(
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     State(manager): State<LibvirtManager>,
     Extension(bus): Extension<Arc<EventBus>>,
     Json(params): Json<KubeVirtBundleParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let cfg = MachinaConfig::load();
     let kv = cfg.kubevirt.clone();
     let kv_for_block = kv.clone();
@@ -699,6 +707,7 @@ async fn block_commit_handler(
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<BlockCommitBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let flags = block_jobs::block_commit_flags(
         req.shallow,
         req.delete,
@@ -744,6 +753,7 @@ async fn block_pull_handler(
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<BlockPullBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let flags = block_jobs::block_pull_flags(req.bandwidth_bytes);
     let disk = req.disk.clone();
     let bandwidth = req.bandwidth;
@@ -797,6 +807,7 @@ async fn block_job_abort_handler(
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<BlockJobAbortBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let flags = block_jobs::block_job_abort_flags(req.r#async, req.pivot);
     let disk = req.disk.clone();
     let name2 = name.clone();
@@ -816,6 +827,7 @@ async fn set_memtune_handler(
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<MemTuneInfo>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let name2 = name.clone();
     let req2 = req.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
@@ -844,6 +856,7 @@ async fn set_scheduler_handler(
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<SchedulerTuneBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let name2 = name.clone();
     let cpu_shares = req.cpu_shares;
     let vcpu_period = req.vcpu_period;
@@ -869,6 +882,7 @@ async fn pin_vcpu_handler(
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<PinVcpuBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let name2 = name.clone();
     let cpus = req.cpus.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
@@ -886,6 +900,7 @@ async fn set_autostart(
     Path((name, enabled)): Path<(String, String)>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let autostart = enabled == "true" || enabled == "1";
     let name2 = name.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
@@ -988,6 +1003,7 @@ async fn create_vm_handler(
     Extension(actor): Extension<RequestActor>,
     Json(mut req): Json<CreateVmRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     validate_create_vm_payload(&req)?;
     let name = req.name.clone();
     let cfg = MachinaConfig::load();
@@ -1049,6 +1065,7 @@ async fn create_vm_stream_handler(
     Extension(actor): Extension<RequestActor>,
     Json(mut req): Json<CreateVmRequest>,
 ) -> Result<Sse<impl futures_util::Stream<Item = Result<Event, Infallible>> + Send>, AppError> {
+    require_write(&actor, "vms:write")?;
     validate_create_vm_payload(&req)?;
 
     let name = req.name.clone();
@@ -1149,6 +1166,7 @@ async fn set_vcpus(
     Path((name, count)): Path<(String, u32)>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     machina_core::validate::validate_vcpus(count)?;
     let name2 = name.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
@@ -1166,6 +1184,7 @@ async fn set_memory(
     Path((name, mb)): Path<(String, u64)>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     machina_core::validate::validate_memory_mb(mb)?;
     let name2 = name.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
@@ -1184,6 +1203,7 @@ async fn attach_disk_handler(
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<AttachDiskRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let name2 = name.clone();
     let target = req.target.clone();
     let req2 = req.clone();
@@ -1202,6 +1222,7 @@ async fn detach_disk_handler(
     Path((name, target)): Path<(String, String)>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let name2 = name.clone();
     let target2 = target.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
@@ -1220,6 +1241,7 @@ async fn rename_vm_handler(
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<RenameVmRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let name2 = name.clone();
     let new_name = req.new_name.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
@@ -1243,6 +1265,7 @@ async fn resize_disk_handler(
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<ResizeDiskRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let name2 = name.clone();
     let target2 = target.clone();
     let size_gb = req.size_gb;
@@ -1272,6 +1295,7 @@ async fn attach_interface_handler(
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<AttachInterfaceRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let name2 = name.clone();
     let network = req.network.clone();
     let model = req.model.clone();
@@ -1291,6 +1315,7 @@ async fn detach_interface_handler(
     Path((name, mac)): Path<(String, String)>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let name2 = name.clone();
     let mac2 = mac.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
@@ -1319,9 +1344,11 @@ struct SetTagsRequest {
 
 async fn set_vm_tags_handler(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Json(req): Json<SetTagsRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     machina_core::libvirt::extras::set_vm_tags(&name, req.tags.clone())?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "name": name, "tags": req.tags }),
@@ -1382,10 +1409,11 @@ async fn get_memtune_handler(
 
 async fn convert_spice_to_vnc_handler(
     State(manager): State<LibvirtManager>,
-    Extension(_actor): Extension<RequestActor>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let cq = conn_q.connection.clone();
     let mgr = manager.clone();
     let name2 = name.clone();
