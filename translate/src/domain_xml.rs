@@ -15,6 +15,11 @@ fn esc(s: &str) -> String {
 /// characters: classic VNC "passwd" (DES-based RFB auth) only honours the first
 /// 8 bytes of the password, so anything beyond that is harmless but SPICE's
 /// ticket auth uses the whole string, giving it the full 8 bytes of entropy.
+///
+/// Not called from production yet (see `domain_xml_from_spec`'s doc comment
+/// on why `None` means no password today) — kept ready for a future caller
+/// that also wires this same value to the console proxy/frontend.
+#[allow(dead_code)]
 fn generate_console_password() -> String {
     use rand::Rng;
     let mut rng = rand::thread_rng();
@@ -397,31 +402,20 @@ mod tests {
     }
 
     #[test]
-    fn graphics_get_auto_generated_passwd_by_default() {
-        // Defense in depth: even on the default loopback listen, the
-        // libvirt-native VNC/SPICE framebuffer must not be reachable without
-        // authentication by any other local process/user on the same host.
+    fn graphics_omit_passwd_by_default() {
+        // `None` means NO password today (not auto-generate): the agent's own
+        // console proxy is a raw byte-level relay that doesn't speak RFB/SPICE
+        // and the web VNCViewer answers any auth challenge with an empty
+        // string, so a real passwd= here would break every in-app console
+        // until one of those is wired to the same value. See
+        // `domain_xml_from_spec`'s doc comment.
         let vm = VirtualMachine::new("pwdemo", "1Gi");
         let xml =
             domain_xml_from_spec(&vm, "/var/lib/libvirt/images/pwdemo.qcow2", "qcow2", None, None)
                 .unwrap();
         assert!(xml.contains("type='vnc'"));
         assert!(xml.contains("type='spice'"));
-        // Both graphics elements carry a non-empty passwd=, and each call
-        // generates a fresh one when the caller doesn't supply a fixed value.
-        let passwds: Vec<&str> = xml
-            .split("passwd='")
-            .skip(1)
-            .filter_map(|rest| rest.split('\'').next())
-            .collect();
-        assert_eq!(passwds.len(), 2, "vnc and spice must both get passwd=");
-        for p in &passwds {
-            assert!(!p.is_empty());
-        }
-        let xml2 =
-            domain_xml_from_spec(&vm, "/var/lib/libvirt/images/pwdemo.qcow2", "qcow2", None, None)
-                .unwrap();
-        assert_ne!(xml, xml2, "an auto-generated passwd must differ call to call");
+        assert!(!xml.contains("passwd="), "default must not set a libvirt-native console password");
     }
 
     #[test]
@@ -436,6 +430,18 @@ mod tests {
         )
         .unwrap();
         assert!(xml.contains("passwd='t3stPassw0rd'"));
+    }
+
+    #[test]
+    fn generate_console_password_produces_distinct_nonempty_values() {
+        // Not yet called from production (see domain_xml_from_spec's doc
+        // comment), but kept ready for a future caller that wires a real
+        // password through to the console proxy/frontend — exercised
+        // directly here so it isn't dead code in the meantime.
+        let a = generate_console_password();
+        let b = generate_console_password();
+        assert!(!a.is_empty());
+        assert_ne!(a, b, "must not reuse the same password across calls");
     }
 
     #[test]
