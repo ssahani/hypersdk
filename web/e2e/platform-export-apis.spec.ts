@@ -98,6 +98,11 @@ test('platform settings saves controller config', async ({ page }) => {
   await page.goto('/platform/settings')
   await expect(page.getByText('Controller connection')).toBeVisible({ timeout: 15_000 })
   await page.getByPlaceholder('http://127.0.0.1:5093').fill('http://127.0.0.1:5093')
+  // setControllerConfig now exchanges these credentials for a JWT via
+  // POST /api/v1/auth/login (mocked above) instead of persisting them
+  // directly — a real username/password is required for the request body.
+  await page.getByPlaceholder('Basic auth user').fill('admin')
+  await page.getByPlaceholder('Basic auth password').fill('test-password')
   await page.getByTestId('controller-config-save').click()
-  await expect(page.getByText('Controller connection saved locally')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('Signed in — controller connection saved')).toBeVisible({ timeout: 10_000 })
 })

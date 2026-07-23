@@ -748,6 +748,11 @@ export async function mockPlatformApi(page: Page, opts?: {
         json: { pam: { enabled: true }, ldap: { enabled: false }, oidc: { enabled: false } },
       })
     }
+    if (url.includes('/auth/login') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: { token: 'mock-login-jwt-token', username: 'admin', role: 'admin' },
+      })
+    }
     if (url.includes('/system/auth/ldap-settings')) {
       return route.fulfill({
         json: {

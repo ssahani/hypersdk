@@ -1,8 +1,8 @@
 {
-  "host": "175.110.122.71",
-  "generated_at": "2026-07-16T03:22:10.920Z",
-  "passed": 217,
-  "failed": 4,
+  "host": "212.8.248.187",
+  "generated_at": "2026-07-23T17:40:44.136Z",
+  "passed": 212,
+  "failed": 9,
   "skipped": 40,
   "results": [
     {
@@ -44,15 +44,8 @@
     {
       "id": "classic:/create",
       "path": "/create",
-      "status": "failed",
-      "reason": "HTTP 5xx",
-      "apiFailures": [
-        {
-          "url": "https://175.110.122.71:5092/api/v1/guest-images/os-list",
-          "status": 500,
-          "reason": "HTTP 5xx"
-        }
-      ]
+      "status": "passed",
+      "warnings": 0
     },
     {
       "id": "classic:/devices",
@@ -625,17 +618,17 @@
       "reason": "HTTP 5xx",
       "apiFailures": [
         {
-          "url": "https://175.110.122.71:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
+          "url": "https://212.8.248.187:5092/api/v1/platform/controller/api/v1/launchpad/health/apps",
           "status": 503,
           "reason": "HTTP 5xx"
         },
         {
-          "url": "https://175.110.122.71:5092/api/v1/platform/controller/api/v1/launchpad/health/apps",
+          "url": "https://212.8.248.187:5092/api/v1/platform/controller/api/v1/launchpad/favorites",
           "status": 503,
           "reason": "HTTP 5xx"
         },
         {
-          "url": "https://175.110.122.71:5092/api/v1/platform/controller/api/v1/launchpad/catalog",
+          "url": "https://212.8.248.187:5092/api/v1/platform/controller/api/v1/launchpad/catalog",
           "status": 503,
           "reason": "HTTP 5xx"
         }
@@ -648,12 +641,12 @@
       "reason": "HTTP 5xx",
       "apiFailures": [
         {
-          "url": "https://175.110.122.71:5092/api/v1/platform/controller/api/v1/launchpad/apps/%3Aid",
+          "url": "https://212.8.248.187:5092/api/v1/platform/controller/api/v1/launchpad/apps/%3Aid",
           "status": 503,
           "reason": "HTTP 5xx"
         },
         {
-          "url": "https://175.110.122.71:5092/api/v1/platform/controller/api/v1/launchpad/catalog",
+          "url": "https://212.8.248.187:5092/api/v1/platform/controller/api/v1/launchpad/catalog",
           "status": 503,
           "reason": "HTTP 5xx"
         }
@@ -666,7 +659,7 @@
       "reason": "HTTP 5xx",
       "apiFailures": [
         {
-          "url": "https://175.110.122.71:5092/api/v1/platform/controller/api/v1/launchpad/catalog",
+          "url": "https://212.8.248.187:5092/api/v1/platform/controller/api/v1/launchpad/catalog",
           "status": 503,
           "reason": "HTTP 5xx"
         }
@@ -699,32 +692,67 @@
     {
       "id": "platform:/platform/migration?tab=cloud",
       "path": "/platform/migration?tab=cloud",
-      "status": "passed",
-      "warnings": 0
+      "status": "failed",
+      "reason": "HTTP 5xx",
+      "apiFailures": [
+        {
+          "url": "https://212.8.248.187:5092/api/v1/hypersdk/providers/vms?provider=vmware",
+          "status": 500,
+          "reason": "HTTP 5xx"
+        }
+      ]
     },
     {
       "id": "platform:/platform/migration?tab=esxi",
       "path": "/platform/migration?tab=esxi",
-      "status": "passed",
-      "warnings": 0
+      "status": "failed",
+      "reason": "HTTP 5xx",
+      "apiFailures": [
+        {
+          "url": "https://212.8.248.187:5092/api/v1/hypersdk/providers/vms?provider=vmware",
+          "status": 500,
+          "reason": "HTTP 5xx"
+        }
+      ]
     },
     {
       "id": "platform:/platform/migration?tab=openstack",
       "path": "/platform/migration?tab=openstack",
-      "status": "passed",
-      "warnings": 0
+      "status": "failed",
+      "reason": "HTTP 5xx",
+      "apiFailures": [
+        {
+          "url": "https://212.8.248.187:5092/api/v1/hypersdk/providers/vms?provider=vmware",
+          "status": 500,
+          "reason": "HTTP 5xx"
+        }
+      ]
     },
     {
       "id": "platform:/platform/migration?tab=ova",
       "path": "/platform/migration?tab=ova",
-      "status": "passed",
-      "warnings": 0
+      "status": "failed",
+      "reason": "HTTP 5xx",
+      "apiFailures": [
+        {
+          "url": "https://212.8.248.187:5092/api/v1/hypersdk/providers/vms?provider=vmware",
+          "status": 500,
+          "reason": "HTTP 5xx"
+        }
+      ]
     },
     {
       "id": "platform:/platform/migration?tab=vmdk",
       "path": "/platform/migration?tab=vmdk",
-      "status": "passed",
-      "warnings": 0
+      "status": "failed",
+      "reason": "HTTP 5xx",
+      "apiFailures": [
+        {
+          "url": "https://212.8.248.187:5092/api/v1/hypersdk/providers/vms?provider=vmware",
+          "status": 500,
+          "reason": "HTTP 5xx"
+        }
+      ]
     },
     {
       "id": "platform:/platform/mission-control/live",
@@ -1605,8 +1633,15 @@
     {
       "id": "classic:/vms/:name",
       "path": "/vms/:name",
-      "status": "passed",
-      "warnings": 0
+      "status": "failed",
+      "reason": "HTTP 5xx",
+      "apiFailures": [
+        {
+          "url": "https://212.8.248.187:5092/api/v1/vms/win10-msedge/hostname",
+          "status": 503,
+          "reason": "HTTP 5xx"
+        }
+      ]
     },
     {
       "id": "classic:/vms/:name/consolehub",
