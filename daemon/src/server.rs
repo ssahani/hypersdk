@@ -48,7 +48,12 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
     let terminal_store = TerminalSessionStore::new();
     let console_session_store = routes::consolehub::ConsoleSessionStore::new();
     let ssh_terminal_cfg = config.ssh_terminal.clone();
-    let auth_cfg = config.auth.clone();
+    let mut auth_cfg = config.auth.clone();
+    // Mirrors main.rs's bind_rustls-vs-plain-TCP decision so `machina_session`'s `Secure`
+    // attribute (see auth.rs cookie-setting handlers) matches how this instance is actually
+    // being served — never set on plain HTTP (browsers would just drop the cookie), always
+    // set when TLS is really on.
+    auth_cfg.tls_enabled = config.tls.is_effectively_enabled();
     let k8s_inventory_history_cfg = Arc::new(config.k8s_inventory_history.clone());
 
     let terminal_api = terminal::http_routes()

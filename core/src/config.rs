@@ -612,6 +612,18 @@ impl Default for TlsConfig {
     }
 }
 
+impl TlsConfig {
+    /// Mirrors the `tls_enabled` gate in `daemon/src/main.rs` that decides between
+    /// `axum_server::bind_rustls` and a plain TCP listener: `enabled` alone isn't enough,
+    /// the cert/key paths must actually be set or the daemon falls back to plain HTTP.
+    /// Session-cookie `Secure` attribution (see `AuthConfig::tls_enabled`) must agree with
+    /// this or browsers will silently drop the cookie (Secure set, served over HTTP) or we
+    /// leak it in the clear (Secure unset, actually served over HTTPS).
+    pub fn is_effectively_enabled(&self) -> bool {
+        self.enabled && !self.cert_path.is_empty() && !self.key_path.is_empty()
+    }
+}
+
 /// Execute allow-listed host commands as the OIDC-mapped local user (`docs/oidc-run-as-user.md`).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -837,6 +849,12 @@ pub struct AuthConfig {
     /// Max concurrent browser sessions per username. `0` = unlimited (default, no auto-logout).
     #[serde(default)]
     pub max_sessions_per_user: usize,
+    /// Whether the daemon is actually serving over TLS (`TlsConfig::is_effectively_enabled`),
+    /// not just `[tls] enabled = true` in config. Not read from the config file — set once
+    /// at startup in `daemon/src/server.rs::create_app` from the live TLS decision, so the
+    /// `machina_session` cookie's `Secure` attribute matches how the browser really reached us.
+    #[serde(default)]
+    pub tls_enabled: bool,
 }
 
 fn default_max_sessions_global() -> usize {
@@ -1043,6 +1061,7 @@ impl Default for AuthConfig {
             saml: SamlConfig::default(),
             max_sessions_global: default_max_sessions_global(),
             max_sessions_per_user: 0,
+            tls_enabled: false,
         }
     }
 }

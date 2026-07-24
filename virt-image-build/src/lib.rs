@@ -458,6 +458,28 @@ fn run_virt_builder_child(
     // full timeout window, letting a hung process run for up to ~2x the
     // configured limit.
     wait_child_interrupt_streams(child, out_path, deadline)?;
+
+    // A zero exit status from virt-builder is not proof the disk image is
+    // usable: guard against a "false success" where the tool exited 0 but
+    // left no (or a truncated/empty) output file — the caller would
+    // otherwise report the build as successful over a missing/unusable image.
+    match fs::metadata(out_path) {
+        Ok(meta) if meta.len() > 0 => {}
+        Ok(_) => {
+            let _ = fs::remove_file(out_path);
+            bail!(
+                "virt-builder reported success but output image {} is empty",
+                out_path.display()
+            );
+        }
+        Err(e) => {
+            bail!(
+                "virt-builder reported success but output image {} is missing: {e}",
+                out_path.display()
+            );
+        }
+    }
+
     log("[virt-image-build] virt-builder finished successfully");
     Ok(())
 }

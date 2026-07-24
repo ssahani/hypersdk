@@ -1601,7 +1601,9 @@ fn render_notification(frame: &mut Frame, area: Rect, msg: &str, level: NotifyLe
     };
 
     let display = format!("{icon}{msg}");
-    let width = (display.len() as u16 + 4).min(area.width.saturating_sub(4));
+    // `msg` can originate from a daemon HTTP error body (unbounded size); saturating_add
+    // avoids a u16 arithmetic overflow if that text is ever unusually large.
+    let width = (display.len() as u16).saturating_add(4).min(area.width.saturating_sub(4));
     let x = area.width.saturating_sub(width + 2);
     let toast_area = Rect {
         x,

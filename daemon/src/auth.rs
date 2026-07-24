@@ -3,10 +3,11 @@
 // https://zyvor.dev · info@zyvor.dev
 
 use axum::body::Body;
+use axum::extract::ConnectInfo;
 use axum::extract::Query;
 use axum::extract::State;
 use axum::http::{header, Request, StatusCode};
-use axum::middleware::Next;
+use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post};
 use axum::{Extension, Json, Router};
@@ -20,8 +21,9 @@ use rand::Rng;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, RwLock};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tracing::{info, warn};
 
 use crate::error::AppError;
@@ -781,6 +783,117 @@ fn extract_token(req: &Request<Body>) -> Option<String> {
     None
 }
 
+// ── Auth-adjacent rate limiting ────────────────────────────────────
+//
+// `auth_middleware` below explicitly exempts every `/auth/*` path from auth checks
+// (they *are* the authentication), which means `/auth/login` (PAM/LDAP password
+// verification) and `/auth/oidc/login` + `/auth/oidc/callback` (each triggering a
+// real outbound call to the OIDC IdP) are unauthenticated by design and, until now,
+// completely unthrottled — open to brute-force/credential-stuffing and to IdP-request
+// amplification. This is a minimal, self-contained limiter scoped to just those three
+// routes; it deliberately does not replicate `controller/src/rate_limit.rs` (no
+// JWT-subject keying — these routes are pre-auth by definition — no env-var tuning,
+// no bypass header). It follows the same sliding/fixed-window-bucket idiom for
+// consistency with that module.
+
+/// 10 attempts per (client IP, path) per 60s. This is a common baseline for a login
+/// endpoint: generous enough that a user mistyping a password a handful of times, or
+/// a dev/E2E suite logging in repeatedly in a loop, never trips it, while still
+/// bounding brute-force/credential-stuffing traffic (which needs hundreds to
+/// thousands of attempts to be useful) and capping how often an anonymous caller can
+/// force an outbound request to the OIDC IdP via oidc/login or oidc/callback.
+const AUTH_RATE_LIMIT: u32 = 10;
+const AUTH_RATE_WINDOW: Duration = Duration::from_secs(60);
+
+/// Cap on tracked (ip, path) keys before we sweep expired buckets — bounds memory
+/// against a caller spraying requests from many source ports/spoofed-looking IPs.
+/// One window's worth of real traffic to three routes stays well under this.
+const AUTH_RATE_MAX_KEYS: usize = 10_000;
+
+struct AuthRateBucket {
+    window_start: Instant,
+    count: u32,
+}
+
+/// In-memory fixed-window limiter for pre-auth endpoints, keyed by `"{ip}:{path}"` so
+/// that hammering `/auth/login` cannot burn through the quota for `/auth/oidc/login`
+/// (or vice versa). One instance lives for the daemon process lifetime.
+#[derive(Clone)]
+pub struct AuthRateLimiter {
+    inner: Arc<Mutex<HashMap<String, AuthRateBucket>>>,
+}
+
+impl AuthRateLimiter {
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    fn check(&self, key: &str) -> bool {
+        let now = Instant::now();
+        let mut map = match self.inner.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        // Evict fully-expired buckets before the map can grow without bound.
+        if map.len() > AUTH_RATE_MAX_KEYS {
+            map.retain(|_, b| now.duration_since(b.window_start) < AUTH_RATE_WINDOW);
+        }
+        let bucket = map.entry(key.to_string()).or_insert(AuthRateBucket {
+            window_start: now,
+            count: 0,
+        });
+        if now.duration_since(bucket.window_start) >= AUTH_RATE_WINDOW {
+            bucket.window_start = now;
+            bucket.count = 0;
+        }
+        if bucket.count >= AUTH_RATE_LIMIT {
+            return false;
+        }
+        bucket.count += 1;
+        true
+    }
+}
+
+impl Default for AuthRateLimiter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Throttles only `/auth/login`, `/auth/oidc/login`, `/auth/oidc/callback` — the three
+/// pre-auth, unauthenticated routes carved out by `auth_middleware`. Every other route
+/// registered in `auth_routes()` (providers, session, logout, ws-token, …) passes
+/// through untouched, including ones the frontend polls frequently.
+///
+/// Requires `ConnectInfo<SocketAddr>` to be present on the request, which is wired up
+/// in `main.rs` via `.into_make_service_with_connect_info::<SocketAddr>()` on both the
+/// TLS and plaintext listener paths.
+pub async fn auth_rate_limit_middleware(
+    State(limiter): State<AuthRateLimiter>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    req: Request<Body>,
+    next: Next,
+) -> Response {
+    let path = req.uri().path();
+    if path == "/auth/login" || path == "/auth/oidc/login" || path == "/auth/oidc/callback" {
+        let key = format!("{}:{}", addr.ip(), path);
+        if !limiter.check(&key) {
+            warn!("rate limit exceeded for {} from {}", path, addr.ip());
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(serde_json::json!({
+                    "error": "Too many attempts. Please wait a minute and try again.",
+                    "error_code": "rate_limited"
+                })),
+            )
+                .into_response();
+        }
+    }
+    next.run(req).await
+}
+
 /// Auth middleware — checks for valid session cookie.
 /// Skips health check. Applied via route_layer on API/WS routes.
 pub async fn auth_middleware(
@@ -893,6 +1006,30 @@ pub async fn ws_auth_middleware(
 
 // ── Auth handlers (use Extension<SessionStore>) ────────────────────
 
+/// Build the `Set-Cookie` value for a freshly issued `machina_session` token. `Secure` is only
+/// appended when `tls_enabled` is true (the daemon is actually terminating TLS itself, per
+/// `AuthConfig::tls_enabled` / `TlsConfig::is_effectively_enabled`) — setting `Secure`
+/// unconditionally would make browsers silently drop the cookie on any instance still serving
+/// plain HTTP, breaking login rather than protecting anything.
+fn session_cookie(token: &str, tls_enabled: bool) -> String {
+    if tls_enabled {
+        format!("machina_session={token}; Path=/; HttpOnly; Secure; SameSite=Strict")
+    } else {
+        format!("machina_session={token}; Path=/; HttpOnly; SameSite=Strict")
+    }
+}
+
+/// Build the `Set-Cookie` value that clears `machina_session` on logout. Must carry the same
+/// `Secure` attribute the cookie was originally set with, or some browsers won't recognize it as
+/// the same cookie and won't delete it.
+fn clear_session_cookie(tls_enabled: bool) -> &'static str {
+    if tls_enabled {
+        "machina_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0"
+    } else {
+        "machina_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0"
+    }
+}
+
 #[derive(Deserialize)]
 struct LoginRequest {
     username: String,
@@ -936,7 +1073,7 @@ async fn login_handler(
                     role.clone(),
                     AuthSource::Ldap,
                 ));
-                let cookie = format!("machina_session={token}; Path=/; HttpOnly; SameSite=Strict");
+                let cookie = session_cookie(&token, cfg.tls_enabled);
                 stats.inc_auth_attempt("ldap", "success");
                 return (
                     StatusCode::OK,
@@ -981,7 +1118,7 @@ async fn login_handler(
                 get_user_role(&req.username),
                 AuthSource::Pam,
             ));
-            let cookie = format!("machina_session={token}; Path=/; HttpOnly; SameSite=Strict");
+            let cookie = session_cookie(&token, cfg.tls_enabled);
             stats.inc_auth_attempt("pam", "success");
             (
                 StatusCode::OK,
@@ -1002,11 +1139,15 @@ async fn login_handler(
     }
 }
 
-async fn logout_handler(Extension(store): Extension<SessionStore>, req: Request<Body>) -> Response {
+async fn logout_handler(
+    Extension(store): Extension<SessionStore>,
+    Extension(auth): Extension<OidcAuth>,
+    req: Request<Body>,
+) -> Response {
     if let Some(token) = extract_token(&req) {
         store.remove_session(&token);
     }
-    let cookie = "machina_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0";
+    let cookie = clear_session_cookie(auth.0.tls_enabled);
     (
         StatusCode::OK,
         [(header::SET_COOKIE, cookie)],
@@ -1248,7 +1389,7 @@ async fn oidc_callback_handler(
         role,
         AuthSource::Oidc,
     ));
-    let cookie = format!("machina_session={token}; Path=/; HttpOnly; SameSite=Strict");
+    let cookie = session_cookie(&token, auth.0.tls_enabled);
     info!("OIDC login successful for user '{}'", username);
     stats.inc_auth_attempt("oidc", "success");
     (
@@ -1389,6 +1530,7 @@ struct TokenSessionRequest {
 /// Exchange a platform-issued JWT (`?token=` deep link) for a browser session cookie.
 async fn token_session_handler(
     Extension(store): Extension<SessionStore>,
+    Extension(auth): Extension<OidcAuth>,
     Extension(stats): Extension<std::sync::Arc<crate::daemon_stats::DaemonStats>>,
     Json(req): Json<TokenSessionRequest>,
 ) -> Response {
@@ -1419,7 +1561,7 @@ async fn token_session_handler(
             .into_response();
     };
     let session_token = store.create_session(actor.clone());
-    let cookie = format!("machina_session={session_token}; Path=/; HttpOnly; SameSite=Strict");
+    let cookie = session_cookie(&session_token, auth.0.tls_enabled);
     stats.inc_auth_attempt("oidc", "success");
     info!(
         "Platform JWT exchanged for browser session for user '{}'",
@@ -1511,6 +1653,13 @@ pub fn auth_routes(session_store: SessionStore, auth_cfg: AuthConfig) -> Router<
         .route("/ws-token", post(ws_token_handler))
         .route("/admin/sessions", get(admin_list_sessions))
         .route("/admin/sessions/{session_id}", delete(admin_revoke_session))
+        // Scoped to /auth/login, /auth/oidc/login, /auth/oidc/callback only — see
+        // auth_rate_limit_middleware doc comment. Every other route above (providers,
+        // session, logout, ws-token, admin/sessions) passes through untouched.
+        .layer(middleware::from_fn_with_state(
+            AuthRateLimiter::new(),
+            auth_rate_limit_middleware,
+        ))
         .layer(Extension(session_store))
         .layer(Extension(OidcAuth(std::sync::Arc::new(auth_cfg))))
 }

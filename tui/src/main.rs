@@ -65,7 +65,10 @@ async fn main() -> anyhow::Result<()> {
     let terminal = ratatui::init();
     let result = app.run(terminal).await;
 
-    crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture)?;
+    // Best-effort: if disabling mouse capture itself errors (e.g. stdout already gone),
+    // `?` here would skip `ratatui::restore()` below and leave the user's shell in
+    // alternate-screen/raw mode. Never let this step abort the cleanup sequence.
+    let _ = crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture);
     ratatui::restore();
     result
 }

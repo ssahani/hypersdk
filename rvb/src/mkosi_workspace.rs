@@ -43,6 +43,19 @@ fn alloc_staging(vm_hint: &str) -> Result<PathBuf> {
         .map(PathBuf::from)
         .filter(|p| p.is_absolute())
         .unwrap_or_else(|| PathBuf::from("/var/tmp/rvb-mkosi-ws"));
+    // `base` defaults to a fixed, predictable path under world-writable
+    // /var/tmp. Refuse if it already exists as a symlink: a local attacker
+    // could pre-plant one there to redirect every staging directory (and
+    // everything mkosi writes into it during the build, potentially minutes
+    // of work) into a directory they control.
+    if let Ok(meta) = fs::symlink_metadata(&base) {
+        if meta.file_type().is_symlink() {
+            return Err(anyhow!(
+                "refusing to use staging base {} — it exists and is a symlink",
+                base.display()
+            ));
+        }
+    }
     fs::create_dir_all(&base).with_context(|| format!("mkdir {}", base.display()))?;
     let id: u32 = rand::thread_rng().gen();
     let dir = base.join(format!("{safe}-{id:08x}"));
@@ -203,29 +216,92 @@ pub fn build_catalog_template(
     // overwrite an existing file; this pipeline had no such check and would
     // silently `fs::copy`/`qemu-img convert` over — and destroy — whatever
     // already existed at `output`.
-    if output.exists() {
-        return Err(anyhow!(
-            "refusing to overwrite existing file: {}",
-            output.display()
-        ));
-    }
-    let tmp = tempfile::tempdir().context("tempdir for mkosi project")?;
-    let dir = tmp.path();
-    write_mkosi_conf(dir, t)?;
-    let artifact = build_image(dir, staging_hint)?;
+    //
+    // A plain `if output.exists() { bail }` followed later by the actual
+    // write is a check-then-act race: the mkosi build in between can run for
+    // minutes, during which a local attacker with write access to the
+    // destination directory could remove/replace `output` with a symlink and
+    // have the later `fs::copy`/`qemu-img convert` follow it, clobbering an
+    // arbitrary file. Claim the path atomically (O_EXCL) instead, so the
+    // check and the reservation happen in one syscall.
+    let placeholder = match fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(output)
+    {
+        Ok(f) => f,
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Err(anyhow!(
+                "refusing to overwrite existing file: {}",
+                output.display()
+            ));
+        }
+        Err(e) => {
+            return Err(e).with_context(|| format!("reserve output path {}", output.display()))
+        }
+    };
+    drop(placeholder);
 
-    match shape {
-        OutputShape::Qcow2 => {
-            if artifact.extension().and_then(|s| s.to_str()) == Some("qcow2") {
+    // Run the actual build/copy in a closure so any failure path below can
+    // fall through to the cleanup after it: without this, a failed build
+    // would leave our empty reservation placeholder sitting at `output`
+    // forever, and every retry at the same path would then trip the
+    // "refusing to overwrite existing file" check above — even though there
+    // was never a real image there.
+    let result: Result<()> = (|| {
+        let tmp = tempfile::tempdir().context("tempdir for mkosi project")?;
+        let dir = tmp.path();
+        write_mkosi_conf(dir, t)?;
+        let artifact = build_image(dir, staging_hint)?;
+
+        // Re-check right before writing the final bytes: if the reserved
+        // path was swapped out for a symlink while the (potentially long)
+        // build ran, refuse to follow it rather than writing through it.
+        let reserved = fs::symlink_metadata(output)
+            .with_context(|| format!("stat reserved output {}", output.display()))?;
+        if reserved.file_type().is_symlink() {
+            return Err(anyhow!(
+                "refusing to write through symlink at {} (reserved path was replaced)",
+                output.display()
+            ));
+        }
+
+        match shape {
+            OutputShape::Qcow2 => {
+                if artifact.extension().and_then(|s| s.to_str()) == Some("qcow2") {
+                    fs::copy(&artifact, output)
+                        .with_context(|| format!("copy to {}", output.display()))?;
+                } else {
+                    convert_raw_to_qcow2(&artifact, output)?;
+                }
+            }
+            OutputShape::Raw => {
                 fs::copy(&artifact, output)
                     .with_context(|| format!("copy to {}", output.display()))?;
-            } else {
-                convert_raw_to_qcow2(&artifact, output)?;
             }
         }
-        OutputShape::Raw => {
-            fs::copy(&artifact, output).with_context(|| format!("copy to {}", output.display()))?;
+
+        // A successful exit status from mkosi/qemu-img is not proof the
+        // image is usable: guard against a "false success" where the
+        // copy/convert step produced a truncated or empty file.
+        let meta = fs::metadata(output).with_context(|| format!("stat {}", output.display()))?;
+        if meta.len() == 0 {
+            return Err(anyhow!(
+                "build reported success but output image {} is empty",
+                output.display()
+            ));
+        }
+        Ok(())
+    })();
+
+    if result.is_err() {
+        // Only remove it if it's still our untouched empty placeholder —
+        // never touch a file that already has real content written to it.
+        if let Ok(meta) = fs::symlink_metadata(output) {
+            if meta.is_file() && meta.len() == 0 {
+                let _ = fs::remove_file(output);
+            }
         }
     }
-    Ok(())
+    result
 }

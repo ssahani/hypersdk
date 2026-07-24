@@ -33,6 +33,7 @@ mod vm_events;
 
 use clap::Parser;
 use machina_core::{LibvirtManager, MachinaConfig};
+use std::net::SocketAddr;
 use tokio::signal;
 use tracing::info;
 
@@ -188,8 +189,7 @@ async fn main() -> anyhow::Result<()> {
     automation_worker::spawn_automation_worker(manager.clone());
 
     let bind_addr = config.bind_addr();
-    let tls_enabled =
-        config.tls.enabled && !config.tls.cert_path.is_empty() && !config.tls.key_path.is_empty();
+    let tls_enabled = config.tls.is_effectively_enabled();
     let tls_cert_path = config.tls.cert_path.clone();
     let tls_key_path = config.tls.key_path.clone();
 
@@ -207,15 +207,19 @@ async fn main() -> anyhow::Result<()> {
         // bind_rustls opens its own listener — do not TcpListener::bind first or we get EADDRINUSE.
         systemd::notify_ready();
         systemd::spawn_watchdog_pinger();
+        // ConnectInfo<SocketAddr> is required by auth::auth_rate_limit_middleware
+        // (rate-limits /auth/login, /auth/oidc/login, /auth/oidc/callback by client IP).
         axum_server::bind_rustls(bind_addr.parse()?, tls_config)
-            .serve(app.into_make_service())
+            .serve(app.into_make_service_with_connect_info::<SocketAddr>())
             .await?;
     } else {
         info!("listening on {bind_addr}");
         let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
         systemd::notify_ready();
         systemd::spawn_watchdog_pinger();
-        axum::serve(listener, app)
+        // ConnectInfo<SocketAddr> is required by auth::auth_rate_limit_middleware
+        // (rate-limits /auth/login, /auth/oidc/login, /auth/oidc/callback by client IP).
+        axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
             .with_graceful_shutdown(shutdown_signal())
             .await?;
     }

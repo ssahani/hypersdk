@@ -34,16 +34,23 @@ function normalizeSavedController(url: string | null): string | null {
   return u
 }
 
-/** Ensure platform API calls use the daemon→controller proxy, not raw daemon /api/v1 routes. */
-function normalizeControllerBase(raw: string | null): string {
+/**
+ * Ensure platform API calls use the daemon→controller proxy, not raw daemon /api/v1 routes.
+ *
+ * Returns `null` (not a fallback URL) when there is no explicit saved override — this lets
+ * `getControllerBase()` distinguish "nothing saved, keep checking the fallback chain" from
+ * "a saved value normalizes to the proxy", so `VITE_MACHINA_CONTROLLER_URL` can still take
+ * effect when no runtime override exists.
+ */
+function normalizeControllerBase(raw: string | null): string | null {
   const saved = normalizeSavedController(raw)
   if (typeof window === 'undefined') {
-    return saved ?? ''
+    return saved
   }
   const origin = window.location.origin
   const proxy = `${origin}${PLATFORM_CONTROLLER_PROXY}`
 
-  if (!saved) return proxy
+  if (!saved) return null
 
   const sameLogicalHost = (hostname: string) =>
     hostname === window.location.hostname

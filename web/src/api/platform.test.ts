@@ -6,7 +6,10 @@ import {
   resolvePlatformApiUrl,
   usesCoLocatedControllerProxy,
   defaultControllerProxyUrl,
+  getControllerBase,
 } from './platform'
+
+const LS_CONTROLLER = 'machina_platform_controller'
 
 const PROXY_BASE = `http://localhost:3000${PLATFORM_CONTROLLER_PROXY}`
 
@@ -31,6 +34,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
 })
 
 describe('PLATFORM_CONTROLLER_PROXY', () => {
@@ -70,5 +74,22 @@ describe('defaultControllerProxyUrl', () => {
   it('returns a string containing the proxy path', () => {
     const url = defaultControllerProxyUrl()
     expect(url).toContain(PLATFORM_CONTROLLER_PROXY)
+  })
+})
+
+describe('getControllerBase precedence', () => {
+  it('falls back to the same-origin daemon proxy when nothing is saved and no env var is set', () => {
+    expect(getControllerBase()).toBe(PROXY_BASE)
+  })
+
+  it('uses VITE_MACHINA_CONTROLLER_URL when no localStorage override is saved', () => {
+    vi.stubEnv('VITE_MACHINA_CONTROLLER_URL', 'http://dev-controller.example:5093')
+    expect(getControllerBase()).toBe('http://dev-controller.example:5093')
+  })
+
+  it('prefers a saved localStorage override over VITE_MACHINA_CONTROLLER_URL', () => {
+    vi.stubEnv('VITE_MACHINA_CONTROLLER_URL', 'http://dev-controller.example:5093')
+    localStorage.setItem(LS_CONTROLLER, PROXY_BASE)
+    expect(getControllerBase()).toBe(PROXY_BASE)
   })
 })
