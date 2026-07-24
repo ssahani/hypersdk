@@ -178,7 +178,10 @@ export async function waitForControllerVmSnapshotGone(page: Page, snapName: stri
           `${live}/api/v1/platform/controller/api/v1/vms/${platformId}/snapshots`,
           { ignoreHTTPSErrors: true },
         )
-        if (!r.ok()) return true // can't confirm — assume done
+        // A failed request tells us nothing about whether the snapshot is gone —
+        // keep polling (and let the overall timeout surface a real failure) instead
+        // of treating "can't confirm" as "confirmed deleted".
+        if (!r.ok()) return false
         const snaps = (await r.json()) as Array<{ name?: string; status?: string }>
         return !snaps.some((s) => s.name === snapName)
       },
@@ -251,7 +254,10 @@ export async function deleteControllerVmSnapshot(page: Page, snapName: string, t
           `${live}/api/v1/platform/controller/api/v1/vms/${platformId}/snapshots`,
           { ignoreHTTPSErrors: true },
         )
-        if (!r.ok()) return true // can't confirm — assume done
+        // A failed request tells us nothing about whether the snapshot is gone —
+        // keep polling (and let the overall timeout surface a real failure) instead
+        // of treating "can't confirm" as "confirmed deleted".
+        if (!r.ok()) return false
         const snaps = (await r.json()) as Array<{ name?: string; status?: string }>
         return !snaps.some((s) => s.name === snapName)
       },

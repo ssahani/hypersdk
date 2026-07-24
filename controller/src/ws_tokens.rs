@@ -73,4 +73,14 @@ impl WsTokenStore {
             read_only: entry.read_only,
         })
     }
+
+    /// Explicitly invalidate a token before its TTL lapses. Used when the
+    /// ConsoleHub session that minted it is torn down (end_session, or a
+    /// failed session-creation rollback) — without this the ws-token embedded
+    /// in that session's embed_path stayed proxyable against vnc/serial/spice
+    /// for up to its remaining TTL even after the session was "ended".
+    pub async fn revoke(&self, token: &str) {
+        let mut map = self.inner.write().await;
+        map.remove(token);
+    }
 }

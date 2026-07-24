@@ -506,12 +506,10 @@ async fn start_vm(
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if !actor.role.can_write() {
-        return Err(LibvirtError::Forbidden(
-            "Starting a VM requires the operator or admin role.".into(),
-        )
-        .into());
-    }
+    // Role-only check bypassed API-token scope (an operator-role token scoped away
+    // from vms:write could still start any VM); use require_write like every other
+    // mutating handler in this file so both role and token scope are enforced.
+    require_write(&actor, "vms:write")?;
     let name2 = name.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| domain::start_vm(conn, &name2)).await?;
     log_audit("start", &name, "ok");
@@ -525,12 +523,7 @@ async fn stop_vm(
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if !actor.role.can_write() {
-        return Err(LibvirtError::Forbidden(
-            "Stopping a VM requires the operator or admin role.".into(),
-        )
-        .into());
-    }
+    require_write(&actor, "vms:write")?;
     let name2 = name.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| domain::stop_vm(conn, &name2)).await?;
     log_audit("stop", &name, "ok");
@@ -544,12 +537,7 @@ async fn shutdown_vm(
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if !actor.role.can_write() {
-        return Err(LibvirtError::Forbidden(
-            "Shutting down a VM requires the operator or admin role.".into(),
-        )
-        .into());
-    }
+    require_write(&actor, "vms:write")?;
     let name2 = name.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         domain::shutdown_vm(conn, &name2)
@@ -566,12 +554,7 @@ async fn reboot_vm(
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if !actor.role.can_write() {
-        return Err(LibvirtError::Forbidden(
-            "Rebooting a VM requires the operator or admin role.".into(),
-        )
-        .into());
-    }
+    require_write(&actor, "vms:write")?;
     let name2 = name.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| domain::reboot_vm(conn, &name2)).await?;
     vm_events::emit_vm_reboot(&name);
@@ -584,12 +567,7 @@ async fn pause_vm(
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if !actor.role.can_write() {
-        return Err(LibvirtError::Forbidden(
-            "Pausing a VM requires the operator or admin role.".into(),
-        )
-        .into());
-    }
+    require_write(&actor, "vms:write")?;
     let name2 = name.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| domain::pause_vm(conn, &name2)).await?;
     vm_events::emit_vm_paused(&name);
@@ -602,12 +580,7 @@ async fn resume_vm(
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if !actor.role.can_write() {
-        return Err(LibvirtError::Forbidden(
-            "Resuming a VM requires the operator or admin role.".into(),
-        )
-        .into());
-    }
+    require_write(&actor, "vms:write")?;
     let name2 = name.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| domain::resume_vm(conn, &name2)).await?;
     vm_events::emit_vm_resumed(&name);

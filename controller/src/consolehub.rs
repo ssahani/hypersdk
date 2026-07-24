@@ -31,6 +31,11 @@ pub struct ConsoleSessionStore {
 #[derive(Clone)]
 struct LiveConsoleSession {
     expires: Instant,
+    /// The ws-token minted alongside this session (embedded in its embed_path).
+    /// Kept here so ending the session can also revoke the token — otherwise
+    /// the token stays proxyable against vnc/serial/spice until its own TTL
+    /// lapses regardless of the session having been "ended".
+    ws_token: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -154,9 +159,11 @@ impl ConsoleSessionStore {
         id
     }
 
-    async fn remove(&self, id: Uuid) {
+    /// Removes the session and returns its ws-token, if any, so the caller
+    /// can also revoke it from `WsTokenStore`.
+    async fn remove(&self, id: Uuid) -> Option<String> {
         let mut map = self.inner.write().await;
-        map.remove(&id);
+        map.remove(&id).map(|s| s.ws_token)
     }
 
 }
@@ -705,6 +712,7 @@ pub async fn create_session(
             .console_sessions
             .insert(LiveConsoleSession {
                 expires: Instant::now() + ttl,
+                ws_token: ws_token.clone(),
             })
             .await;
         let ns = k8s_namespace.unwrap_or_else(|| "default".into());
@@ -800,6 +808,7 @@ pub async fn create_session(
         .console_sessions
         .insert(LiveConsoleSession {
             expires: Instant::now() + ttl,
+            ws_token: ws_token.clone(),
         })
         .await;
 
@@ -824,7 +833,12 @@ pub async fn create_session(
     .await
     .map_err(|e| {
         let sessions = state.console_sessions.clone();
-        tokio::spawn(async move { sessions.remove(session_id).await });
+        let ws_tokens = state.ws_tokens.clone();
+        tokio::spawn(async move {
+            if let Some(token) = sessions.remove(session_id).await {
+                ws_tokens.revoke(&token).await;
+            }
+        });
         ApiError::internal(e.to_string())
     })?;
 
@@ -844,11 +858,15 @@ pub async fn create_session(
         // Roll back the just-created session if the audit insert fails. Without
         // this the DB-insert path was cleaned up but the audit path was not,
         // leaking a live, proxyable console session (in-memory entry + DB row +
-        // the provisioned session) while returning an error to the caller.
+        // the provisioned session + its ws-token) while returning an error to
+        // the caller.
         let pool = state.pool.clone();
         let sessions = state.console_sessions.clone();
+        let ws_tokens = state.ws_tokens.clone();
         tokio::spawn(async move {
-            sessions.remove(session_id).await;
+            if let Some(token) = sessions.remove(session_id).await {
+                ws_tokens.revoke(&token).await;
+            }
             let _ = sqlx::query("DELETE FROM console_sessions WHERE id = ?")
                 .bind(session_id)
                 .execute(&pool)
@@ -1118,13 +1136,17 @@ pub async fn end_session(
         .execute(&state.pool)
         .await?
     };
-    // Also drop the in-memory proxy authorization (the console proxy gates on
-    // this store) so ending a session actually stops the console immediately,
-    // rather than staying proxyable until the TTL lapses. Only when the caller
-    // owned the session (or was an admin) actually ended it (rows_affected > 0),
-    // matching the DB guard.
+    // Also drop the in-memory session AND revoke its ws-token: the
+    // vnc/serial/spice proxies (console.rs) authorize purely off
+    // `state.ws_tokens`, not this session store, so removing only the
+    // session left the token — embedded in this session's embed_path —
+    // proxyable for the rest of its TTL even after "ending" the session.
+    // Only when the caller owned the session (or was an admin) actually
+    // ended it (rows_affected > 0), matching the DB guard.
     if res.rows_affected() > 0 {
-        state.console_sessions.remove(session_id).await;
+        if let Some(token) = state.console_sessions.remove(session_id).await {
+            state.ws_tokens.revoke(&token).await;
+        }
         return Ok(Json(
             serde_json::json!({ "ended": true, "session_id": session_id.to_string() }),
         ));

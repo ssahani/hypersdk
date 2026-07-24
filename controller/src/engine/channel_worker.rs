@@ -37,11 +37,23 @@ pub fn spawn(pool: SqlitePool, leader: LeaderHandle) {
 }
 
 async fn process_batch(pool: &SqlitePool, client: &reqwest::Client) -> anyhow::Result<()> {
+    // Atomically claim the due rows in one statement (mirroring the
+    // webhook_deliveries.claimed_by pattern in webhook_worker.rs::process_batch)
+    // instead of a separate SELECT followed by an UPDATE-by-id later. A plain
+    // SELECT-then-update-by-id left a window where, if leadership flipped
+    // mid-batch, a second controller could select and deliver the same rows
+    // before the first one updated them.
+    let claim_id = uuid::Uuid::new_v4().to_string();
     let rows: Vec<(uuid::Uuid, String, String, String, String, i32, i32)> = sqlx::query_as(
-        "SELECT id, kind, target, subject, body, attempts, max_attempts FROM channel_deliveries
-         WHERE status = 'pending' AND next_retry_at <= datetime('now')
-         ORDER BY next_retry_at LIMIT 20",
+        "UPDATE channel_deliveries SET status = 'processing', claimed_by = ?
+         WHERE id IN (
+             SELECT id FROM channel_deliveries
+             WHERE status = 'pending' AND next_retry_at <= datetime('now')
+             ORDER BY next_retry_at LIMIT 20
+         )
+         RETURNING id, kind, target, subject, body, attempts, max_attempts",
     )
+    .bind(&claim_id)
     .fetch_all(pool)
     .await?;
 
@@ -148,8 +160,11 @@ async fn mark_retry(
         .await?;
     } else {
         let backoff_secs = 2_i32.saturating_pow(next as u32).min(300);
+        // Release the claim back to 'pending' (clearing claimed_by, same as
+        // webhook_worker.rs does) so the row is eligible to be claimed again
+        // once next_retry_at elapses.
         sqlx::query(
-            "UPDATE channel_deliveries SET attempts = ?, last_error = ?,
+            "UPDATE channel_deliveries SET status = 'pending', claimed_by = NULL, attempts = ?, last_error = ?,
              next_retry_at = datetime('now', '+' || ? || ' seconds') WHERE id = ?",
         )
         .bind(next)
