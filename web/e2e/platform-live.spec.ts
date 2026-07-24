@@ -29,7 +29,7 @@ for (const path of LIVE_ROUTES) {
     await ensureLoggedIn(page, live!, path)
     await expect(page.locator('#login-username')).toHaveCount(0, { timeout: 15_000 })
     await expect(page.locator('body')).not.toBeEmpty({ timeout: 20_000 })
-    await expect(page.getByText('Application error|Something went wrong')).toHaveCount(0)
+    await expect(page.getByText(/Application error|Something went wrong/i)).toHaveCount(0)
     expect(errors.filter((e) => !e.includes('ResizeObserver'))).toEqual([])
   })
 }

@@ -78,12 +78,12 @@ test('live delete vm returns to list without page crash', async ({ page }) => {
 
   await expect(page).toHaveURL(/\/platform\/vms\/?$/, { timeout: 20_000 })
   await expect(page.locator(`[data-testid="machine-card-${vmId}"]`)).toHaveCount(0, { timeout: 120_000 })
-  await expect(page.getByText('Application error|Something went wrong|Machina daemon is not responding')).toHaveCount(0)
+  await expect(page.getByText(/Application error|Something went wrong|Machina daemon is not responding/i)).toHaveCount(0)
   expect(errors.filter((e) => !e.includes('ResizeObserver'))).toEqual([])
 
   const health = await page.request.get(`${live}/api/v1/health`, { ignoreHTTPSErrors: true })
   expect(health.ok()).toBeTruthy()
 
   await page.goto(`${live}/platform/vms/${vmId}`, { waitUntil: 'domcontentloaded' })
-  await expect(page.getByText('Application error|Something went wrong')).toHaveCount(0)
+  await expect(page.getByText(/Application error|Something went wrong/i)).toHaveCount(0)
 })

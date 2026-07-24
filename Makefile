@@ -7,7 +7,7 @@ UNITDIR ?= /usr/lib/systemd/system
 CARGO ?= cargo
 CARGO_FLAGS ?=
 
-.PHONY: all build release debug clean install uninstall fmt lint test check web web-clean start stop restart status help
+.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e check web web-clean start stop restart status deploy run-daemon run-tui help
 
 all: release web ## Build everything (Rust + web)
 

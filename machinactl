@@ -282,6 +282,15 @@ cmd_uninstall() {
     need_root
     step "Uninstalling machina"
 
+    if [[ -t 0 ]]; then
+        warn "This will stop machina-daemon and remove installed binaries, configs, and systemd units."
+        read -rp "Continue? [y/N] " answer
+        if [[ "$answer" != "y" && "$answer" != "Y" ]]; then
+            info "Aborted"
+            return 1
+        fi
+    fi
+
     if systemctl is-active --quiet machina-daemon 2>/dev/null; then
         info "Stopping machina-daemon..."
         systemctl stop machina-daemon
@@ -327,15 +336,22 @@ cmd_deploy() {
     cmd_start
     echo ""
 
-    cmd_verify || true
+    local verify_status=0
+    cmd_verify || verify_status=$?
 
-    step "Deployment Complete"
+    if [[ $verify_status -eq 0 ]]; then
+        step "Deployment Complete"
+    else
+        step "Deployment Complete (with verification failures — see above)"
+    fi
     echo ""
     echo "  🔗 API:     $API_URL"
     echo "  🖥️  TUI:     machina"
     echo "  📊 Status:  ./machinactl status"
     echo "  📜 Logs:    sudo journalctl -u machina-daemon -f"
     echo ""
+
+    return $verify_status
 }
 
 # ── reinstall ───────────────────────────────────────────────────────────

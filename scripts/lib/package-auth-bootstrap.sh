@@ -102,13 +102,21 @@ pkg_env_bootstrap_auth_for_file() {
             ;;
         ragnarok)
             pkg_env_ensure_jwt_secret "${env_file}" "JWT_SECRET"
-            local hash
-            hash=$(PW=Admin@321 pkg_ragnarok_admin_hash) || hash=""
-            if [[ -n "${hash}" ]]; then
-                pkg_env_set_var "${env_file}" "RAGNAROK_ADMIN_PASSWORD_HASH" "${hash}"
-                pkg_ok "RAGNAROK_ADMIN_PASSWORD_HASH set (login admin / Admin@321)"
+            local existing_hash=""
+            if grep -q "^RAGNAROK_ADMIN_PASSWORD_HASH=" "${env_file}" 2>/dev/null; then
+                existing_hash=$(grep "^RAGNAROK_ADMIN_PASSWORD_HASH=" "${env_file}" | tail -1 | cut -d= -f2- | tr -d '\r')
+            fi
+            if [[ -n "${existing_hash}" ]]; then
+                pkg_ok "RAGNAROK_ADMIN_PASSWORD_HASH already set — leaving customized password in place"
             else
-                pkg_warn "Install htpasswd or python3+bcrypt to seed admin — see backend docs"
+                local hash
+                hash=$(PW=Admin@321 pkg_ragnarok_admin_hash) || hash=""
+                if [[ -n "${hash}" ]]; then
+                    pkg_env_set_var "${env_file}" "RAGNAROK_ADMIN_PASSWORD_HASH" "${hash}"
+                    pkg_ok "RAGNAROK_ADMIN_PASSWORD_HASH set (login admin / Admin@321)"
+                else
+                    pkg_warn "Install htpasswd or python3+bcrypt to seed admin — see backend docs"
+                fi
             fi
             ;;
         hypersdk)

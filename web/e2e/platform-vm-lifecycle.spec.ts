@@ -115,7 +115,7 @@ test('machine finder delete from command center does not crash', async ({ page }
   expect((await deleteReq).ok()).toBeTruthy()
 
   await expect(page.getByTestId('machine-card-v1')).toHaveCount(0, { timeout: 10_000 })
-  await expect(page.getByText('Application error|Something went wrong')).toHaveCount(0)
+  await expect(page.getByText(/Application error|Something went wrong/i)).toHaveCount(0)
   expect(errors.filter((e) => !e.includes('ResizeObserver'))).toEqual([])
 })
 
@@ -156,7 +156,7 @@ test('delete vm returns to list without page crash', async ({ page }) => {
   expect((await deleteReq).ok()).toBeTruthy()
 
   await expect(page).toHaveURL(/\/platform\/vms\/?$/, { timeout: 15_000 })
-  await expect(page.getByText('Application error|Something went wrong')).toHaveCount(0)
+  await expect(page.getByText(/Application error|Something went wrong/i)).toHaveCount(0)
   expect(errors.filter((e) => !e.includes('ResizeObserver'))).toEqual([])
 })
 

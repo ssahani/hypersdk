@@ -1149,7 +1149,10 @@ install_files() {
 
     # Backup config
     if [ -f contrib/backup.conf ] && [ ! -f /etc/machina/backup.conf ]; then
-        install -Dm644 contrib/backup.conf /etc/machina/backup.conf
+        # 600, not 644: the file documents an optional api_token field, so treat it as
+        # secret-capable from the start rather than relying on an operator to tighten
+        # permissions later if/when they add one.
+        install -Dm600 contrib/backup.conf /etc/machina/backup.conf
         ok "Backup config -> /etc/machina/backup.conf"
     fi
 

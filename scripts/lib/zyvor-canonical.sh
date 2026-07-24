@@ -8,5 +8,10 @@ zyvor_canonical_root() {
         echo "${parent}/packetwolf"
         return 0
     fi
-    echo "$(cd "${script_dir}/.." && pwd)"
+    # Do NOT silently fall back to the calling repo itself: this function's
+    # copies (sync-*.sh) get distributed into every sibling repo, so a wrong
+    # fallback here would make e.g. "forge" believe it is canonical and
+    # overwrite every OTHER sibling's LICENSE/legal docs with its own.
+    echo "ERROR: canonical Zyvor root not found (expected ${parent}/packetwolf/LICENSE) — refusing to guess" >&2
+    return 1
 }

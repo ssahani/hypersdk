@@ -6,6 +6,13 @@ disable_firewalld() {
     local log_file="${1:-/dev/null}"
     local did=false
 
+    {
+        echo "WARNING: disabling the host firewall entirely (firewalld/ufw stop+disable+mask)."
+        echo "  This opens ALL ports on this host, not just the Machina ports."
+        echo "  Intended for lab / E2E hosts only — for production hosts prefer"
+        echo "  --open-firewall, which opens only the specific port Machina needs."
+    } | tee -a "$log_file" >&2
+
     if command -v systemctl &>/dev/null; then
         if systemctl list-unit-files 2>/dev/null | grep -q '^firewalld\.service'; then
             systemctl stop firewalld >>"$log_file" 2>&1 || true

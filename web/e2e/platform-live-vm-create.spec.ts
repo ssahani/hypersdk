@@ -50,7 +50,7 @@ test('live create VM wizard completes without page crash', async ({ page }) => {
   expect(res.status()).toBeLessThan(500)
 
   await page.waitForTimeout(2000)
-  await expect(page.getByText('Application error|Something went wrong')).toHaveCount(0)
+  await expect(page.getByText(/Application error|Something went wrong/i)).toHaveCount(0)
   expect(errors.filter((e) => !e.includes('ResizeObserver'))).toEqual([])
 })
 

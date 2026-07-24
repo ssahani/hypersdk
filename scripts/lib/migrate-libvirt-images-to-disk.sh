@@ -45,6 +45,14 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# TARGET_ROOT is interpolated inside single-quoted strings that get eval'd (see run()
+# below); reject anything that could break out of that quoting (e.g. a stray "'") and
+# cause arbitrary command execution.
+if [[ ! "$TARGET_ROOT" =~ ^[A-Za-z0-9_./-]+$ ]]; then
+  echo "ERROR: invalid target mount path: '$TARGET_ROOT' (only letters, digits, '.', '/', '_', '-' allowed)" >&2
+  exit 1
+fi
+
 if [[ $EUID -ne 0 ]]; then
   echo "Run as root: sudo $0" >&2
   exit 1
@@ -102,9 +110,57 @@ already_migrated() {
   fi
 }
 
+# Refuse to rsync a live libvirt images directory out from under running VMs unless
+# the operator explicitly opted into --shutdown-vms (or there is nothing running).
+# Copying open/actively-written disk images can yield an inconsistent copy, and the
+# later mv+bind-mount swap happens underneath any qemu process still holding the old
+# file open — a real corruption risk, not just a cosmetic one.
+check_running_vms() {
+  command -v virsh &>/dev/null || return 0
+  local running
+  running="$(virsh list --name 2>/dev/null | sed '/^$/d')"
+  [[ -z "$running" ]] && return 0
+
+  if $SHUTDOWN_VMS; then
+    log "Running VM(s) detected, will shut down (--shutdown-vms): $(tr '\n' ' ' <<<"$running")"
+    return 0
+  fi
+
+  if $DRY_RUN; then
+    log "[dry-run] WARNING: VM(s) currently running: $(tr '\n' ' ' <<<"$running")"
+    log "[dry-run] would refuse to proceed for real without --shutdown-vms"
+    return 0
+  fi
+
+  echo "ERROR: VM(s) currently running: $(tr '\n' ' ' <<<"$running")" >&2
+  echo "  Migrating live disk images while VMs are running risks a corrupted/inconsistent copy." >&2
+  echo "  Re-run with --shutdown-vms to shut them down first, or stop them manually and retry." >&2
+  exit 1
+}
+
+# Abort before a large rsync if the target clearly doesn't have room, rather than
+# discovering a full disk (and a truncated copy) partway through the transfer.
+check_free_space() {
+  local need_kb avail_kb
+  need_kb="$(du -sk "$SOURCE" 2>/dev/null | awk '{print $1}')"
+  avail_kb="$(df -Pk "$TARGET_ROOT" 2>/dev/null | awk 'NR==2{print $4}')"
+  if [[ -z "$need_kb" || -z "$avail_kb" ]]; then
+    log "WARNING: could not determine source/target size — skipping free-space check"
+    return 0
+  fi
+  local need_with_margin=$(( need_kb + need_kb / 10 + 1 ))
+  if (( avail_kb < need_with_margin )); then
+    echo "ERROR: not enough free space on $TARGET_ROOT for the migration" >&2
+    echo "  need ~${need_kb} KB (+10% margin = ${need_with_margin} KB), have ${avail_kb} KB available" >&2
+    exit 1
+  fi
+  log "Free space OK on $TARGET_ROOT: need ~${need_kb} KB (+10% margin), have ${avail_kb} KB"
+}
+
 main() {
   ensure_target_mounted
   already_migrated
+  check_running_vms
 
   log "Layout:"
   df -h "$SOURCE" "$TARGET_ROOT" 2>/dev/null || true
@@ -113,6 +169,8 @@ main() {
   local used
   used="$(du -sh "$SOURCE" 2>/dev/null | awk '{print $1}' || echo '?')"
   log "Source $SOURCE uses ~${used}; target ${TARGET}"
+
+  check_free_space
 
   if ! $YES && ! $DRY_RUN; then
     read -r -p "Migrate $SOURCE -> $TARGET and bind-mount? [y/N] " ans
@@ -123,7 +181,12 @@ main() {
     log "Shutting down running VMs (best-effort)…"
     while read -r name; do
       [[ -z "$name" ]] && continue
-      run "virsh shutdown '$name' || true"
+      if $DRY_RUN; then
+        printf '[dry-run] virsh shutdown %q\n' "$name"
+      else
+        log "virsh shutdown $name"
+        virsh shutdown "$name" || true
+      fi
     done < <(virsh list --name 2>/dev/null || true)
     if ! $DRY_RUN; then
       sleep 5

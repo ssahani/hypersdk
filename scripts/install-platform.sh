@@ -297,8 +297,13 @@ ensure_daemon_platform_proxy_env() {
   [[ -f "$daemon_env" ]] || install -m600 /dev/null "$daemon_env"
   grep -q '^MACHINA_PLATFORM_CONTROLLER_URL=' "$daemon_env" 2>/dev/null \
     || echo 'MACHINA_PLATFORM_CONTROLLER_URL=http://127.0.0.1:5093' >>"$daemon_env"
-  grep -q '^MACHINA_PLATFORM_AUTH=' "$daemon_env" 2>/dev/null \
-    || echo 'MACHINA_PLATFORM_AUTH=admin:admin' >>"$daemon_env"
+  if ! grep -q '^MACHINA_PLATFORM_AUTH=' "$daemon_env" 2>/dev/null; then
+    echo 'MACHINA_PLATFORM_AUTH=admin:admin' >>"$daemon_env"
+    warn "MACHINA_PLATFORM_AUTH defaulted to admin:admin in $daemon_env — the controller" \
+         "refuses to boot with this password in production (set MACHINA_ADMIN_PASSWORD)," \
+         "but you should still set this to match a real controller account before relying" \
+         "on the daemon-to-controller proxy."
+  fi
   chmod 600 "$daemon_env"
 }
 

@@ -73,16 +73,19 @@ package_uninstall_confirm() {
 package_uninstall_stop_processes() {
     local root="$1"
     local b p
-    for b in ${BINARIES:-}; do
+    for b in "${BINARIES[@]:-}"; do
+        [[ -z "${b}" ]] && continue
         pkill -x "${b}" 2>/dev/null || true
         pkill -f "${root}/${b}" 2>/dev/null || true
         pkill -f "/${b}" 2>/dev/null || true
     done
-    for b in ${BINARIES_SUBPATH:-}; do
+    for b in "${BINARIES_SUBPATH[@]:-}"; do
+        [[ -z "${b}" ]] && continue
         pkill -f "${b}" 2>/dev/null || true
     done
     if command -v fuser &>/dev/null; then
-        for p in ${PORTS:-}; do
+        for p in "${PORTS[@]:-}"; do
+            [[ -z "${p}" ]] && continue
             fuser -k "${p}/tcp" 2>/dev/null || true
         done
     fi
@@ -92,7 +95,7 @@ package_uninstall_stop_processes() {
 package_uninstall_remove_local_configs() {
     local root="$1"
     local f
-    for f in ${LOCAL_CONFIGS:-}; do
+    for f in "${LOCAL_CONFIGS[@]:-}"; do
         [[ -z "${f}" ]] && continue
         if [[ -f "${root}/${f}" ]]; then
             rm -f "${root}/${f}"
@@ -107,7 +110,7 @@ package_uninstall_remove_local_configs() {
 
 package_uninstall_remove_system_paths() {
     local path
-    for path in ${SYSTEM_PATHS:-}; do
+    for path in "${SYSTEM_PATHS[@]:-}"; do
         [[ -z "${path}" ]] && continue
         if [[ -e "${path}" ]]; then
             if [[ "${path}" == /etc/* || "${path}" == /var/* || "${path}" == /usr/* ]]; then
@@ -121,7 +124,7 @@ package_uninstall_remove_system_paths() {
 
 package_uninstall_remove_systemd() {
     local u
-    for u in ${SYSTEMD_UNITS:-}; do
+    for u in "${SYSTEMD_UNITS[@]:-}"; do
         [[ -z "${u}" ]] && continue
         sudo systemctl stop "${u}" 2>/dev/null || true
         sudo systemctl disable "${u}" 2>/dev/null || true

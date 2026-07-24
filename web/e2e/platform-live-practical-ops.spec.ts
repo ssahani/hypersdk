@@ -379,7 +379,7 @@ test.describe('Host resources (live)', () => {
     await openLiveVmDetail(page)
     await page.goto(`${live}/platform/hosts`, { waitUntil: 'domcontentloaded' })
     await expect(page.locator('body')).not.toBeEmpty({ timeout: 20_000 })
-    await expect(page.getByText('Application error|Something went wrong')).toHaveCount(0)
+    await expect(page.getByText(/Application error|Something went wrong/i)).toHaveCount(0)
   })
 })
 
@@ -421,7 +421,7 @@ test.describe('Metrics (live)', () => {
     if (await performanceTab.count() > 0) {
       await performanceTab.click()
       await page.waitForTimeout(3000)
-      await expect(page.getByText('Application error|Something went wrong')).toHaveCount(0)
+      await expect(page.getByText(/Application error|Something went wrong/i)).toHaveCount(0)
     }
   })
 })
@@ -436,7 +436,7 @@ test.describe('Console token (live)', () => {
     if (await consoleTab.count() > 0) {
       await consoleTab.click()
       await page.waitForTimeout(3000)
-      await expect(page.getByText('Application error|Something went wrong')).toHaveCount(0)
+      await expect(page.getByText(/Application error|Something went wrong/i)).toHaveCount(0)
     }
   })
 
@@ -457,7 +457,7 @@ test.describe('Console token (live)', () => {
     await openLiveVmDetail(page)
     await page.goto(`${live}/platform/cinema`, { waitUntil: 'domcontentloaded' })
     await expect(page.locator('body')).not.toBeEmpty({ timeout: 20_000 })
-    await expect(page.getByText('Application error|Something went wrong')).toHaveCount(0)
+    await expect(page.getByText(/Application error|Something went wrong/i)).toHaveCount(0)
   })
 })
 
@@ -487,7 +487,7 @@ test.describe('VM adoption (live)', () => {
     await openLiveVmDetail(page)
     await page.goto(`${live}/platform/vms`, { waitUntil: 'domcontentloaded' })
     await expect(page.locator('body')).not.toBeEmpty({ timeout: 20_000 })
-    await expect(page.getByText('Application error|Something went wrong')).toHaveCount(0)
+    await expect(page.getByText(/Application error|Something went wrong/i)).toHaveCount(0)
     // Machine finder page should load with at least the root container
     await expect(page.getByTestId('machine-finder-page')).toBeVisible({ timeout: 20_000 })
     // And contain at least one VM — the configured test VM

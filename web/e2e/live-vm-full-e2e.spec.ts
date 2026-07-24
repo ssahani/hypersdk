@@ -214,7 +214,9 @@ test('W16 — Delete snapshot — removed from libvirt', async ({ page }) => {
         `${liveBaseUrl()}/api/v1/vms/${liveVmId()}/snapshots`,
         { ignoreHTTPSErrors: true },
       )
-      if (!r.ok()) return true
+      // A failed request is inconclusive, not confirmation of deletion — keep polling
+      // rather than treating an HTTP error as "snapshot gone".
+      if (!r.ok()) return false
       const snaps = (await r.json()) as Array<{ name?: string }>
       return !snaps.some((s) => s.name === SNAP_NAME)
     },
