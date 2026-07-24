@@ -61,12 +61,12 @@ export const guestkitMigratePlan = (image_path: string, target = 'kvm') =>
 export const guestkitVmDoctor = (vmId: string, target = 'kvm', explain = false) => {
   const q = new URLSearchParams({ target })
   if (explain) q.set('explain', 'true')
-  return platformFetch<GuestkitDoctorReport>(`/api/v1/guestkit/vms/${vmId}/doctor?${q}`)
+  return platformFetch<GuestkitDoctorReport>(`/api/v1/guestkit/vms/${encodeURIComponent(vmId)}/doctor?${q}`)
 }
 
 export const guestkitVmMigratePlan = (vmId: string, target = 'kvm') => {
   const q = new URLSearchParams({ target })
-  return platformFetch<GuestkitMigratePlanReport>(`/api/v1/guestkit/vms/${vmId}/migrate-plan?${q}`)
+  return platformFetch<GuestkitMigratePlanReport>(`/api/v1/guestkit/vms/${encodeURIComponent(vmId)}/migrate-plan?${q}`)
 }
 
 export const submitGuestkitInspectJob = (image_path: string, name = 'machina-inspect') =>

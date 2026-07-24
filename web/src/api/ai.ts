@@ -266,7 +266,7 @@ export const getAiCost = () => platformFetch<CostAnalysis>('/api/v1/ai/cost')
 export const getAiCapacity = () => platformFetch<CapacityPlan>('/api/v1/ai/capacity')
 export const getAiSecurity = () => platformFetch<SecurityReport>('/api/v1/ai/security')
 
-export const getVmDoctor = (vmId: string) => platformFetch<VmDoctorReport>(`/api/v1/vms/${vmId}/doctor`)
+export const getVmDoctor = (vmId: string) => platformFetch<VmDoctorReport>(`/api/v1/vms/${encodeURIComponent(vmId)}/doctor`)
 
 export const getMigrationAdvisor = (vm: string, provider = 'vmware', os?: string, diskPath?: string) => {
   const q = new URLSearchParams({ vm, provider })
@@ -473,7 +473,7 @@ export const getFleetPowerOptimize = () =>
   )
 
 export const getBaremetalProvision = (id: string) =>
-  platformFetch<{ summary: string; steps: string[] }>(`/api/v1/baremetal/servers/${id}/provision`)
+  platformFetch<{ summary: string; steps: string[] }>(`/api/v1/baremetal/servers/${encodeURIComponent(id)}/provision`)
 
 export interface SreForecast {
   vm_id: string
@@ -764,7 +764,7 @@ export const planBaremetalCapacity = (query: string) =>
 
 export const setBaremetalPower = (id: string, action: 'on' | 'off' | 'cycle', dryRun = true) =>
   platformFetch<{ summary: string; new_state: string; dry_run: boolean }>(
-    `/api/v1/baremetal/servers/${id}/power`,
+    `/api/v1/baremetal/servers/${encodeURIComponent(id)}/power`,
     { method: 'POST', body: JSON.stringify({ action, dry_run: dryRun }) },
   )
 
@@ -843,13 +843,13 @@ export const listAiProviders = () => platformFetch<AiProviderRow[]>('/api/v1/ai/
 export const createAiProvider = (body: Record<string, unknown>) =>
   platformFetch<AiProviderRow>('/api/v1/ai/providers', { method: 'POST', body: JSON.stringify(body) })
 export const patchAiProvider = (id: string, body: Record<string, unknown>) =>
-  platformFetch<AiProviderRow>(`/api/v1/ai/providers/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+  platformFetch<AiProviderRow>(`/api/v1/ai/providers/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) })
 export const deleteAiProvider = (id: string) =>
-  platformFetch<{ deleted: boolean }>(`/api/v1/ai/providers/${id}`, { method: 'DELETE' })
+  platformFetch<{ deleted: boolean }>(`/api/v1/ai/providers/${encodeURIComponent(id)}`, { method: 'DELETE' })
 export const testAiProvider = (id: string) =>
-  platformFetch<{ ok: boolean }>(`/api/v1/ai/providers/${id}/test`, { method: 'POST' })
+  platformFetch<{ ok: boolean }>(`/api/v1/ai/providers/${encodeURIComponent(id)}/test`, { method: 'POST' })
 export const listAiProviderModels = (id: string) =>
-  platformFetch<AiModelRow[]>(`/api/v1/ai/providers/${id}/models`)
+  platformFetch<AiModelRow[]>(`/api/v1/ai/providers/${encodeURIComponent(id)}/models`)
 
 export interface RoutingRuleRow {
   task_class: string
@@ -907,9 +907,9 @@ export const patchAiPrompt = (
   id: string,
   body: { title?: string; body?: string; tags?: string[]; agent_id?: string },
 ) =>
-  platformFetch<AiPromptRow>(`/api/v1/ai/prompts/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+  platformFetch<AiPromptRow>(`/api/v1/ai/prompts/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) })
 export const deleteAiPrompt = (id: string) =>
-  platformFetch<{ deleted: boolean }>(`/api/v1/ai/prompts/${id}`, { method: 'DELETE' })
+  platformFetch<{ deleted: boolean }>(`/api/v1/ai/prompts/${encodeURIComponent(id)}`, { method: 'DELETE' })
 
 export const getMemorySettings = () => platformFetch<MemorySettings>('/api/v1/ai/memory/settings')
 export const patchMemorySettings = (body: Partial<MemorySettings>) =>
@@ -933,9 +933,9 @@ export const getZeusApprovalHub = () =>
   )
 
 export const executeZeusAction = (id: string) =>
-  platformFetch<{ message?: string }>(`/api/v1/ai/actions/${id}/execute`, { method: 'POST' })
+  platformFetch<{ message?: string }>(`/api/v1/ai/actions/${encodeURIComponent(id)}/execute`, { method: 'POST' })
 export const rejectZeusAction = (id: string) =>
-  platformFetch<{ rejected: boolean }>(`/api/v1/ai/actions/${id}/reject`, { method: 'POST' })
+  platformFetch<{ rejected: boolean }>(`/api/v1/ai/actions/${encodeURIComponent(id)}/reject`, { method: 'POST' })
 
 export const listAgentMarketplace = () => platformFetch<AgentPluginRow[]>('/api/v1/ai/marketplace/agents')
 export const installAgentMarketplace = (slug: string) =>
@@ -1092,10 +1092,10 @@ export const getIncidentRoom = (id: string) =>
     runbook_steps: string[]
     pending_approvals: number
     correlated_count: number
-  }>(`/api/v1/ai/incidents/${id}/room`)
+  }>(`/api/v1/ai/incidents/${encodeURIComponent(id)}/room`)
 
 export const ackIncident = (id: string) =>
-  platformFetch<{ acknowledged: boolean }>(`/api/v1/ai/incidents/${id}/ack`, { method: 'POST' })
+  platformFetch<{ acknowledged: boolean }>(`/api/v1/ai/incidents/${encodeURIComponent(id)}/ack`, { method: 'POST' })
 
 export const simulateTwinBatch = (scenarios: Array<{ action: string; target_kind: string; target_id: string }>) =>
   platformFetch<{ results: Array<ImpactAnalysis & { estimated_downtime_sec: number; vms_at_risk: number }> }>(
