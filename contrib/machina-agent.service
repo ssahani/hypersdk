@@ -23,6 +23,10 @@ Restart=always
 RestartSec=5
 TimeoutStopSec=30
 
+# Agent only execs virsh/qemu-img/kubectl/ipmitool/nvidia-smi etc — none need setuid/file-cap
+# escalation (it already runs as root) — safe to block new-privilege acquisition entirely.
+NoNewPrivileges=true
+
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=machina-agent

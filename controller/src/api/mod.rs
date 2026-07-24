@@ -975,18 +975,22 @@ pub fn router(state: AppState) -> Router {
         .route_layer(middleware::from_fn_with_state(rate_limiter.clone(), rate_limit_middleware))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
+    // OIDC login/redirect/callback are unauthenticated by nature (that's the point of the
+    // flow) and each round-trips to the external IdP (discovery + token exchange, optionally
+    // userinfo) — expensive work a caller can trigger without any credential. They belong in
+    // the same rate-limited-public bucket as password login and host join.
     let rate_limited_public = Router::new()
         .route("/api/v1/hosts/join", post(hosts::join_host))
         .route("/api/v1/auth/login", post(crate::auth::login))
+        .route("/api/v1/auth/oidc/login", get(oidc::oidc_login))
+        .route("/api/v1/auth/oidc/redirect", get(oidc::oidc_login_redirect))
+        .route("/api/v1/auth/oidc/callback", get(oidc::oidc_callback))
         .route_layer(middleware::from_fn_with_state(rate_limiter, rate_limit_middleware));
 
     Router::new()
         .route("/api/v1/health", get(health::health))
         .route("/api/v1/health/ready", get(health::ready))
         .route("/api/v1/openapi.json", get(health::openapi))
-        .route("/api/v1/auth/oidc/login", get(oidc::oidc_login))
-        .route("/api/v1/auth/oidc/redirect", get(oidc::oidc_login_redirect))
-        .route("/api/v1/auth/oidc/callback", get(oidc::oidc_callback))
         .route("/install.sh", get(enrollment::install_script))
         .merge(rate_limited_public)
         .merge(console::ws_routes())

@@ -1037,8 +1037,9 @@ install_files_bundle() {
 
     if [ -n "${MACHINA_LICENSE_KEY:-}" ]; then
         mkdir -p /etc/machina
-        printf '%s\n' "$MACHINA_LICENSE_KEY" > /etc/machina/license.key
-        chmod 600 /etc/machina/license.key
+        # Create with restrictive mode from the first byte written — no window where the
+        # license key sits in a world-readable file before a later chmod catches up.
+        (umask 077 && printf '%s\n' "$MACHINA_LICENSE_KEY" > /etc/machina/license.key)
         ok "License key -> /etc/machina/license.key"
     elif [ ! -f /etc/machina/license.key ]; then
         warn "No license key found — set MACHINA_LICENSE_KEY or place key in /etc/machina/license.key"
@@ -1100,16 +1101,19 @@ install_files() {
 
     if [ -n "${MACHINA_LICENSE_KEY:-}" ]; then
         mkdir -p /etc/machina
-        printf '%s\n' "$MACHINA_LICENSE_KEY" > /etc/machina/license.key
-        chmod 600 /etc/machina/license.key
+        # Create with restrictive mode from the first byte written — no window where the
+        # license key sits in a world-readable file before a later chmod catches up.
+        (umask 077 && printf '%s\n' "$MACHINA_LICENSE_KEY" > /etc/machina/license.key)
         ok "License key -> /etc/machina/license.key"
     elif [ ! -f /etc/machina/license.key ]; then
         warn "No license key found — set MACHINA_LICENSE_KEY or place key in /etc/machina/license.key"
     fi
 
-    # Optional env overrides (hyper2kvm-style /etc/default)
+    # Optional env overrides (hyper2kvm-style /etc/default). Mode 600: install-platform.sh
+    # (run later for platform hosts) appends MACHINA_PLATFORM_AUTH, a real basic-auth
+    # credential, into this same file — it must never be world-readable.
     if [ ! -f /etc/default/machina-daemon ]; then
-        install -Dm644 contrib/machina-daemon.default /etc/default/machina-daemon
+        install -Dm600 contrib/machina-daemon.default /etc/default/machina-daemon
         ok "Defaults -> /etc/default/machina-daemon"
     fi
 
@@ -1185,17 +1189,19 @@ ensure_tls_for_https() {
         local hn
         hn=$(hostname -f 2>/dev/null || hostname)
         info "Generating self-signed certificate (browsers show a warning until you replace with your CA)"
+        # umask 077 so key.pem is created non-world-readable from the first byte openssl
+        # writes — no window where the private key sits world-readable before the chmod below.
         if openssl req -help 2>&1 | grep -q -- '-addext'; then
-            log_cmd openssl req -x509 -newkey rsa:4096 \
+            (umask 077 && log_cmd openssl req -x509 -newkey rsa:4096 \
                 -keyout "$key" -out "$cert" \
                 -sha256 -days 3650 -nodes \
                 -subj "/CN=$hn/O=machina" \
-                -addext "subjectAltName=DNS:$hn,DNS:localhost,IP:127.0.0.1"
+                -addext "subjectAltName=DNS:$hn,DNS:localhost,IP:127.0.0.1")
         else
-            log_cmd openssl req -x509 -newkey rsa:4096 \
+            (umask 077 && log_cmd openssl req -x509 -newkey rsa:4096 \
                 -keyout "$key" -out "$cert" \
                 -sha256 -days 3650 -nodes \
-                -subj "/CN=$hn/O=machina"
+                -subj "/CN=$hn/O=machina")
         fi
         [ -f "$cert" ] && [ -f "$key" ] || fail "openssl failed — see $LOG_FILE"
         chmod 600 "$key"

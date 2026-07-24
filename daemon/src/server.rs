@@ -124,6 +124,11 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
         .layer(middleware::from_fn(http_metrics::record_request))
         .layer(Extension(http_metrics))
         .layer(TraceLayer::new_for_http())
+        // Prevent MIME-sniffing on API responses and served static assets.
+        .layer(SetResponseHeaderLayer::overriding(
+            header::X_CONTENT_TYPE_OPTIONS,
+            HeaderValue::from_static("nosniff"),
+        ))
 }
 
 fn find_web_dist() -> Option<PathBuf> {

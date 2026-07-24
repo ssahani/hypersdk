@@ -733,12 +733,14 @@ cmd_tls() {
     hostname=$(hostname -f 2>/dev/null || hostname)
 
     info "Generating self-signed certificate for $hostname..."
-    openssl req -x509 -newkey rsa:4096 \
+    # umask 077 so key_file is created non-world-readable from the first byte openssl
+    # writes — no window where the private key sits world-readable before the chmod below.
+    (umask 077 && openssl req -x509 -newkey rsa:4096 \
         -keyout "$key_file" -out "$cert_file" \
         -sha256 -days 365 -nodes \
         -subj "/CN=$hostname/O=machina" \
         -addext "subjectAltName=DNS:$hostname,DNS:localhost,IP:127.0.0.1" \
-        2>/dev/null
+        2>/dev/null)
 
     chmod 600 "$key_file"
     chmod 644 "$cert_file"

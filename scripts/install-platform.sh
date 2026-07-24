@@ -290,11 +290,16 @@ write_platform_env() {
 
 ensure_daemon_platform_proxy_env() {
   local daemon_env="/etc/default/machina-daemon"
-  touch "$daemon_env"
+  # Create with a restrictive mode up front (in case this runs before install.sh has ever
+  # touched the file), and re-assert it below regardless of prior state: this function
+  # appends MACHINA_PLATFORM_AUTH, a real basic-auth credential the daemon uses to
+  # authenticate to the controller — it must never be left world-readable.
+  [[ -f "$daemon_env" ]] || install -m600 /dev/null "$daemon_env"
   grep -q '^MACHINA_PLATFORM_CONTROLLER_URL=' "$daemon_env" 2>/dev/null \
     || echo 'MACHINA_PLATFORM_CONTROLLER_URL=http://127.0.0.1:5093' >>"$daemon_env"
   grep -q '^MACHINA_PLATFORM_AUTH=' "$daemon_env" 2>/dev/null \
     || echo 'MACHINA_PLATFORM_AUTH=admin:admin' >>"$daemon_env"
+  chmod 600 "$daemon_env"
 }
 
 install_systemd_units() {

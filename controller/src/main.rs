@@ -13,7 +13,9 @@ use machina_controller::state::AppState;
 use machina_controller::sync;
 use machina_controller::tasks::bus::{FanoutTaskBus, InMemoryTaskBus, NatsTaskBus};
 use machina_controller::tasks::{nats_subscriber, worker};
+use axum::http::{header, HeaderValue};
 use tower_http::cors::CorsLayer;
+use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 use tracing::info;
 
@@ -153,7 +155,12 @@ async fn main() -> anyhow::Result<()> {
 
     let app = api::router(state)
         .layer(TraceLayer::new_for_http())
-        .layer(CorsLayer::permissive());
+        .layer(CorsLayer::permissive())
+        // Prevent MIME-sniffing on API responses.
+        .layer(SetResponseHeaderLayer::overriding(
+            header::X_CONTENT_TYPE_OPTIONS,
+            HeaderValue::from_static("nosniff"),
+        ));
 
     let addr: SocketAddr = format!("{}:{}", config.host, config.port).parse()?;
     info!(

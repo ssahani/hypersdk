@@ -19,6 +19,10 @@ Restart=always
 RestartSec=5
 TimeoutStopSec=30
 
+# Controller never execs sudo/pkexec (unlike machina-daemon, which needs new-privilege
+# escalation for its optional polkit run-as-user feature) — safe to block entirely.
+NoNewPrivileges=true
+
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=machina-controller
