@@ -61,6 +61,11 @@ if [[ -z "${HOST}" ]]; then
     exit 1
 fi
 
+# HOST/USER end up spliced verbatim into heredoc text a remote `bash -s`
+# re-parses (BUILD_DIR below, derived from them) — reject shell metacharacters.
+[[ "$HOST" =~ ^[A-Za-z0-9_.:-]+$ ]] || { echo "invalid host: '${HOST}'" >&2; exit 1; }
+[[ "$USER" =~ ^[A-Za-z0-9_.-]+$ ]] || { echo "invalid user: '${USER}'" >&2; exit 1; }
+
 [ -f "${REPO_DIR}/Makefile" ] || { echo "Not in machina repo" >&2; exit 1; }
 
 VERSION="${MACHINA_PACKAGE_VERSION:-$(sed -n 's/^version = "\(.*\)"/\1/p' "${REPO_DIR}/daemon/Cargo.toml" | head -1)}"

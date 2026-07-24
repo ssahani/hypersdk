@@ -55,8 +55,18 @@ parse_args() {
     local prev=""
     for arg in "$@"; do
         case "$prev" in
-            --bind)     BIND_ADDR="$arg";  prev=""; continue ;;
-            --remote)   REMOTE_HOST="$arg"; prev=""; continue ;;
+            --bind)
+                # BIND_ADDR is spliced verbatim into a command string that a
+                # remote shell re-parses (see remote_deploy) — reject shell
+                # metacharacters so it can't inject remote commands.
+                [[ "$arg" =~ ^[A-Za-z0-9_.:-]+$ ]] || fail "Invalid --bind address: '$arg'"
+                BIND_ADDR="$arg";  prev=""; continue ;;
+            --remote)
+                # Reject a leading '-' (would be parsed by ssh as an option,
+                # e.g. -oProxyCommand=...) and require the plain user@host shape.
+                [[ "$arg" == -* ]] && fail "Invalid --remote target: '$arg' (must not start with '-')"
+                [[ "$arg" =~ ^[A-Za-z0-9_.-]+@[A-Za-z0-9_.:-]+$ ]] || fail "Invalid --remote target: '$arg' (expected user@host)"
+                REMOTE_HOST="$arg"; prev=""; continue ;;
         esac
         case "$arg" in
             --bind|--remote) prev="$arg" ;;

@@ -158,7 +158,7 @@ export const getFirewallActivity = (id: string, hours = 24) =>
   platformFetch<Record<string, unknown>>(`/api/v1/zeus-firewall/targets/${id}/activity?hours=${hours}`)
 
 export const getFirewallCompliance = (kind: string) =>
-  platformFetch<Record<string, unknown>>(`/api/v1/zeus-firewall/compliance/${kind}`)
+  platformFetch<Record<string, unknown>>(`/api/v1/zeus-firewall/compliance/${encodeURIComponent(kind)}`)
 
 export const exportFirewallSiem = (hours = 168) =>
   platformFetch<Record<string, unknown>>(`/api/v1/zeus-firewall/siem/export?hours=${hours}`)

@@ -200,7 +200,7 @@ pub fn provision_storage_pool(pool_name: &str, backend: &str, path: &str) -> any
 
 pub fn provision_network(
     network_name: &str,
-    _backend: &str,
+    backend: &str,
     vlan_id: i32,
     bridge: &str,
 ) -> anyhow::Result<()> {
@@ -209,6 +209,19 @@ pub fn provision_network(
     // [alnum._-] up front. The escaping/file-safe logic below is kept as
     // defense-in-depth.
     machina_core::validate::validate_name(network_name).map_err(|e| anyhow::anyhow!("{e}"))?;
+    // This function only ever defines a libvirt bridge-forward network (optionally
+    // VLAN-tagged) below. `backend` used to be accepted and silently discarded, so a
+    // caller requesting e.g. "nat"/"isolated"/"vxlan" got a plain bridged network
+    // back with no indication anything different happened — a false success that
+    // silently drops the requested isolation semantics. Reject anything this code
+    // doesn't actually implement instead of pretending to honor it.
+    let backend_norm = backend.trim().to_ascii_lowercase();
+    if !backend_norm.is_empty() && backend_norm != "bridge" && backend_norm != "linux-bridge" {
+        anyhow::bail!(
+            "unsupported network backend '{backend}' — this agent only provisions bridge \
+             (linux-bridge) networks"
+        );
+    }
     let bridge_name = if bridge.is_empty() { "virbr0" } else { bridge };
     fn xml_escape(s: &str) -> String {
         s.replace('&', "&amp;")

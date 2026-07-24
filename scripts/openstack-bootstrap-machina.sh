@@ -303,10 +303,17 @@ seed_catalog() {
   openstack flavor list -f value -c Name | grep -qx m1.tiny \
     || openstack flavor create --id 1 --ram 512 --disk 1 --vcpus 1 m1.tiny
   if ! openstack image list -f value -c Name | grep -qx cirros-test; then
-    curl -fsSL -o /tmp/cirros.img \
+    # mktemp, not a hardcoded /tmp path: this runs as root, and a fixed,
+    # predictable filename in world-writable /tmp lets a local attacker
+    # pre-plant a symlink/file there and have it seeded into Glance instead
+    # of (or via a race, alongside) the real download.
+    local cirros_img
+    cirros_img="$(mktemp /tmp/cirros-XXXXXX.img)"
+    curl -fsSL -o "$cirros_img" \
       https://download.cirros-cloud.net/0.6.2/cirros-0.6.2-x86_64-disk.img
     openstack image create cirros-test --disk-format qcow2 --container-format bare \
-      --public --file /tmp/cirros.img
+      --public --file "$cirros_img"
+    rm -f "$cirros_img"
   fi
   if ! openstack network list -f value -c Name | grep -qx private; then
     openstack network create private

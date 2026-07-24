@@ -356,6 +356,16 @@ HELPEOF
     esac
 done
 
+# --vm is spliced directly into filesystem paths below (vms/$name.xml,
+# disks/$vm_name_disk...) — reject anything but a plain VM-name-shaped
+# string so a value like "../../etc/cron.d/x" can't escape BACKUP_PATH.
+if [ -n "$VM_FILTER" ]; then
+    case "$VM_FILTER" in
+        */*|*..*) fail "Invalid --vm name: '$VM_FILTER' (must not contain '/' or '..')" ;;
+    esac
+    [[ "$VM_FILTER" =~ ^[A-Za-z0-9_.-]+$ ]] || fail "Invalid --vm name: '$VM_FILTER' (only letters, digits, '.', '_', '-' allowed)"
+fi
+
 # ── Handle verify ────────────────────────────────────────────────────
 
 if [ -n "$VERIFY_DIR" ]; then
@@ -425,20 +435,21 @@ if [ -n "$RESTORE_DIR" ]; then
         # Build a map of disk basenames to original paths from VM XMLs
         declare -A DISK_DEST_MAP
         # Collect mappings into a variable first, then parse (avoids subshell scoping)
-        local disk_mappings=""
+        # NOTE: this whole restore block runs at script top level (not inside a
+        # function), so `local` here is a fatal "local: can only be used in a
+        # function" error — it previously crashed every `--restore` run that hit
+        # a backup with a disks/ directory. Plain assignments only below.
+        disk_mappings=""
         for xml in "$RESTORE_DIR"/vms/*.xml; do
             [ -f "$xml" ] || continue
             # Extract disk source paths from XML (grep -oE, either quote style —
             # libvirt's own dumpxml always emits single-quoted attributes, but
             # this accepts double too rather than assume one).
-            local src_paths
             src_paths=$(grep -oE "source (file|dev)=['\"][^'\"]*['\"]" "$xml" 2>/dev/null \
                 | sed -E "s/^source (file|dev)=//; s/^['\"]//; s/['\"]\$//" || true)
             while IFS= read -r src_path; do
                 [ -z "$src_path" ] && continue
-                local bn
                 bn=$(basename "$src_path")
-                local vm_bn
                 vm_bn="$(basename "$xml" .xml)_${bn}"
                 disk_mappings="${disk_mappings}${bn}|${src_path}"$'\n'
                 disk_mappings="${disk_mappings}${vm_bn}|${src_path}"$'\n'
@@ -447,15 +458,12 @@ if [ -n "$RESTORE_DIR" ]; then
             # has neither file= nor dev=, so it was invisible here entirely —
             # every such disk fell through to the wrong "guess a local path"
             # fallback below instead of restoring into its actual RBD image.
-            local rbd_srcs
             rbd_srcs=$(grep -E "source protocol=['\"]rbd['\"]" "$xml" 2>/dev/null \
                 | grep -oE "name=['\"][^'\"]*['\"]" \
                 | sed -E "s/^name=//; s/^['\"]//; s/['\"]\$//" || true)
             while IFS= read -r rbd_name; do
                 [ -z "$rbd_name" ] && continue
-                local rbd_bn
                 rbd_bn="${rbd_name//\//_}.qcow2"
-                local vm_rbd_bn
                 vm_rbd_bn="$(basename "$xml" .xml)_${rbd_bn}"
                 disk_mappings="${disk_mappings}${rbd_bn}|rbd:${rbd_name}"$'\n'
                 disk_mappings="${disk_mappings}${vm_rbd_bn}|rbd:${rbd_name}"$'\n'
@@ -522,6 +530,13 @@ BACKUP_PATH="$BACKUP_DIR/$DATE"
 
 LOCK_FILE="$BACKUP_DIR/.backup.lock"
 mkdir -p "$BACKUP_DIR" || fail "Cannot create backup directory: $BACKUP_DIR"
+# .backup.lock is a fixed, predictable name; if BACKUP_DIR is ever
+# group/world-writable (e.g. a shared NFS target) a local attacker could
+# pre-plant it as a symlink — plain `exec 9>` follows symlinks and would
+# truncate/open whatever it points to (this backup usually runs as root).
+[ -L "$LOCK_FILE" ] && fail "Refusing to use lock file (symlink detected): $LOCK_FILE"
+# Same predictable-path concern for the timestamped backup directory itself.
+[ -e "$BACKUP_PATH" ] && [ ! -d "$BACKUP_PATH" ] && fail "Refusing to use backup path (not a plain directory): $BACKUP_PATH"
 LOCK_FD=9
 exec 9>"$LOCK_FILE" || fail "Cannot create lock file: $LOCK_FILE"
 if ! flock -n 9; then

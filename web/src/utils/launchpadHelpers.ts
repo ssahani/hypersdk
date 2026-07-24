@@ -91,7 +91,7 @@ export async function openLaunchpadInWorkspace(app: LaunchpadApp): Promise<void>
   window.open(
     url,
     `machina-launchpad-${app.id.replace(/\W+/g, '-')}`,
-    `popup=yes,width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=yes,status=no,resizable=yes,scrollbars=yes`,
+    `popup=yes,width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,location=yes,status=no,resizable=yes,scrollbars=yes,noopener`,
   )
 }
 

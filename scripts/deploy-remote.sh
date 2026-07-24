@@ -322,8 +322,8 @@ parse_flags() {
             --remote-build) REMOTE_BUILD=true; SKIP_INSTALL=true; shift ;;
             --remote-check) REMOTE_CHECK=true; SKIP_INSTALL=true; shift ;;
             --dry-run) DRY_RUN=true; shift ;;
-            --bind) shift; BIND="${1:?}"; shift ;;
-            --platform-bind) shift; PLATFORM_BIND="${1:?}"; shift ;;
+            --bind) shift; BIND="${1:?}"; [[ "$BIND" =~ ^[A-Za-z0-9_.:-]+$ ]] || die "invalid --bind address: '$BIND'"; shift ;;
+            --platform-bind) shift; PLATFORM_BIND="${1:?}"; [[ "$PLATFORM_BIND" =~ ^[A-Za-z0-9_.:-]+$ ]] || die "invalid --platform-bind address: '$PLATFORM_BIND'"; shift ;;
             --ssh-key) shift; SSH_KEY="${1:?}"; shift ;;
             *) REST+=("$1"); shift ;;
         esac
@@ -370,6 +370,14 @@ else
 fi
 
 REMOTE="${USER}@${HOST}"
+
+# USER/HOST/REMOTE_DIR are spliced verbatim (not re-quoted) into remote shell
+# script text throughout this file (e.g. "cd $REMOTE_DIR" inside strings fed to
+# `ssh ... exec bash -s`). Reject shell metacharacters up front so a malformed
+# or hostile argument can't inject commands into the remote bash session.
+[[ "$USER" =~ ^[A-Za-z0-9_.-]+$ ]] || die "invalid username: '$USER' (only letters, digits, '.', '_', '-' allowed)"
+[[ "$HOST" =~ ^[A-Za-z0-9_.:-]+$ ]] || die "invalid host: '$HOST' (only letters, digits, '.', ':', '_', '-' allowed)"
+[[ "$REMOTE_DIR" =~ ^[A-Za-z0-9_./~-]+$ ]] || die "invalid REMOTE_DIR: '$REMOTE_DIR' (unsafe characters)"
 
 if [[ -n "$SSH_KEY" ]]; then
     [[ -f "$SSH_KEY" ]] || die "--ssh-key not found: $SSH_KEY"

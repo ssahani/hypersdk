@@ -3,6 +3,9 @@
 // https://zyvor.dev · info@zyvor.dev
 
 const KEY = 'machina_pinned_vms'
+// Unbounded before this fix — a user (or a "pin all" bulk action) could pin
+// every VM in a large fleet, growing this localStorage entry without limit.
+const MAX_PINNED_VMS = 100
 
 export function getPinnedVMs(): string[] {
   try {
@@ -18,8 +21,12 @@ export function isPinned(name: string): boolean {
 export function togglePin(name: string) {
   const list = getPinnedVMs()
   const idx = list.indexOf(name)
-  if (idx >= 0) list.splice(idx, 1)
-  else list.push(name)
+  if (idx >= 0) {
+    list.splice(idx, 1)
+  } else {
+    list.push(name)
+    if (list.length > MAX_PINNED_VMS) list.splice(0, list.length - MAX_PINNED_VMS)
+  }
   localStorage.setItem(KEY, JSON.stringify(list))
 }
 

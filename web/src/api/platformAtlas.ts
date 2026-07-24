@@ -111,7 +111,7 @@ export const listAtlasVolumes = (query?: Record<string, string>) => {
 }
 export const listAtlasSnapshots = () => platformFetch<AtlasSnapshot[]>(`${A}/snapshots`)
 export const listAtlasBackups = (volumeId?: string) =>
-  platformFetch<AtlasBackup[]>(`${A}/backups${volumeId ? `?volume_id=${volumeId}` : ''}`)
+  platformFetch<AtlasBackup[]>(`${A}/backups${volumeId ? `?volume_id=${encodeURIComponent(volumeId)}` : ''}`)
 export const listAtlasBuckets = () => platformFetch<AtlasBucket[]>(`${A}/buckets`)
 export const listAtlasPolicies = () => platformFetch<AtlasPolicy[]>(`${A}/policies`)
 export const listAtlasJobs = () => platformFetch<AtlasJob[]>(`${A}/jobs`)

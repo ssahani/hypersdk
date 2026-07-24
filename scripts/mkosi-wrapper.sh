@@ -47,5 +47,14 @@ case "$_ws" in
     exit 2
     ;;
 esac
+# $_base (/var/tmp by default) is world-writable; another local user could
+# pre-plant "$_u-$_uid" as a symlink (or a directory they own) before this
+# user's first mkosi run. `mkdir -p` alone would silently accept either and
+# subsequent build output would land wherever the attacker pointed it.
+if [ -e "$_ws" ] && { [ -L "$_ws" ] || [ ! -O "$_ws" ]; }; then
+  echo "machina mkosi wrapper: refusing to use $_ws (symlink or not owned by you)" >&2
+  exit 2
+fi
 mkdir -p "$_ws"
+chmod 700 "$_ws" 2>/dev/null || true
 exec "$REAL" --workspace-directory "$_ws" "$@"

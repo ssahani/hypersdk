@@ -41,7 +41,7 @@ export const createBackupSchedule = (body: {
   })
 
 export const deleteBackupSchedule = (id: string) =>
-  platformFetch<{ deleted: boolean }>(`/api/v1/backup-schedules/${id}`, { method: 'DELETE' })
+  platformFetch<{ deleted: boolean }>(`/api/v1/backup-schedules/${encodeURIComponent(id)}`, { method: 'DELETE' })
 
 // ---------------------------------------------------------------------------
 // Alert rules
@@ -86,7 +86,7 @@ export const createAlertRule = (body: {
   })
 
 export const deleteAlertRule = (id: string) =>
-  platformFetch<{ deleted: boolean }>(`/api/v1/alert-rules/${id}`, { method: 'DELETE' })
+  platformFetch<{ deleted: boolean }>(`/api/v1/alert-rules/${encodeURIComponent(id)}`, { method: 'DELETE' })
 
 // ---------------------------------------------------------------------------
 // Scheduled jobs
@@ -124,7 +124,7 @@ export const createScheduledJob = (body: {
   })
 
 export const deleteScheduledJob = (id: string) =>
-  platformFetch<{ deleted: boolean }>(`/api/v1/scheduled-jobs/${id}`, { method: 'DELETE' })
+  platformFetch<{ deleted: boolean }>(`/api/v1/scheduled-jobs/${encodeURIComponent(id)}`, { method: 'DELETE' })
 
 // ---------------------------------------------------------------------------
 // API-key rotation
@@ -132,7 +132,7 @@ export const deleteScheduledJob = (id: string) =>
 
 export const rotateApiKey = (id: string) =>
   platformFetch<{ id: string; name: string; role: string; token: string }>(
-    `/api/v1/api-keys/${id}/rotate`,
+    `/api/v1/api-keys/${encodeURIComponent(id)}/rotate`,
     { method: 'POST', body: '{}' },
   )
 
@@ -141,7 +141,7 @@ export const rotateApiKey = (id: string) =>
 // ---------------------------------------------------------------------------
 
 export const cordonHost = (id: string, cordon: boolean) =>
-  platformFetch<{ host_id: string; schedulable: boolean }>(`/api/v1/hosts/${id}/cordon`, {
+  platformFetch<{ host_id: string; schedulable: boolean }>(`/api/v1/hosts/${encodeURIComponent(id)}/cordon`, {
     method: 'POST',
     body: JSON.stringify({ cordon }),
   })

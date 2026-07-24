@@ -23,16 +23,20 @@ function shellQuote(value: string): string {
 export function buildGuestScpCommand(plan: GuestFileTransferPlan): GuestFileTransferCommand | null {
   const fileName = plan.fileName.trim()
   if (!fileName) return null
-  const user = plan.sshUser?.trim() || 'ubuntu'
+  // sshUser/hypervisorHost/guestIp can carry attacker-chosen text (e.g. a VM's cloud-init
+  // username set by whoever created the VM) that a *different* operator later copies into
+  // their own shell from this generated command — quote every segment so it can't smuggle
+  // shell metacharacters into that paste, not just the file paths.
+  const user = shellQuote(plan.sshUser?.trim() || 'ubuntu')
   const dest = shellQuote(plan.destPath?.trim() || `/tmp/${fileName}`)
   const local = shellQuote(`./${fileName}`)
 
   if (plan.guestIpPrivate) {
     const host = plan.hypervisorHost?.trim()
     const port = plan.sshNatHostPort
-    if (!host || !port) return null
+    if (!host || !port || !Number.isFinite(port) || port <= 0) return null
     return {
-      command: `scp -P ${port} ${local} ${user}@${host}:${dest}`,
+      command: `scp -P ${Math.trunc(port)} ${local} ${user}@${shellQuote(host)}:${dest}`,
       summary: 'Copy via hypervisor NAT SSH port into the guest',
     }
   }
@@ -40,7 +44,7 @@ export function buildGuestScpCommand(plan: GuestFileTransferPlan): GuestFileTran
   const guest = plan.guestIp?.trim()
   if (guest) {
     return {
-      command: `scp ${local} ${user}@${guest}:${dest}`,
+      command: `scp ${local} ${user}@${shellQuote(guest)}:${dest}`,
       summary: 'Copy directly to the guest IP',
     }
   }

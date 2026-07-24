@@ -14,6 +14,10 @@ source "${SCRIPT_DIR}/lib/e2e-platform-common.sh"
 
 USER="${1:?usage: $0 USER HOST}"
 HOST="${2:?usage: $0 USER HOST}"
+# USER/HOST are spliced verbatim into command strings the remote shell re-parses
+# (e.g. line ~95 below) — reject shell metacharacters up front.
+[[ "$USER" =~ ^[A-Za-z0-9_.-]+$ ]] || { echo "invalid username: '$USER'" >&2; exit 1; }
+[[ "$HOST" =~ ^[A-Za-z0-9_.:-]+$ ]] || { echo "invalid host: '$HOST'" >&2; exit 1; }
 E2E_PLATFORM_BASE="${E2E_PLATFORM_BASE:-http://${HOST}:5093}"
 SSH="ssh -o BatchMode=yes -o StrictHostKeyChecking=no ${USER}@${HOST}"
 
@@ -167,10 +171,26 @@ if obs != 'running' or phase == 'error':
     sys.exit(1)
 print('✅ ${VM_NAME} deployed with zero errors')
 print(v.get('id', ''))
-" | tee /tmp/machina-ubuntu-desktop-vm-id.txt
+"
 
-vm_id="$(tail -1 /tmp/machina-ubuntu-desktop-vm-id.txt)"
-echo "VM_ID=${vm_id}" > /tmp/machina-ubuntu-desktop-e2e.env
-echo "HOST=${HOST}" >> /tmp/machina-ubuntu-desktop-e2e.env
+# Fixed, predictable /tmp paths shared with e2e-libvirt-desktop-playwright-remote.sh
+# (which later `source`s the .env file) — kept as-is for that consumer, but refuse
+# to write through a pre-planted symlink (a local attacker could otherwise point
+# either file at an arbitrary path and have it overwritten, or worse, have attacker
+# shell code sourced by the downstream script).
+VM_ID_FILE=/tmp/machina-ubuntu-desktop-vm-id.txt
+ENV_FILE=/tmp/machina-ubuntu-desktop-e2e.env
+[ -L "$VM_ID_FILE" ] && { echo "❌ refusing to write through symlink: $VM_ID_FILE" >&2; exit 1; }
+[ -L "$ENV_FILE" ] && { echo "❌ refusing to write through symlink: $ENV_FILE" >&2; exit 1; }
+
+echo "$vm_row" | python3 -c "
+import json, sys
+v = json.load(sys.stdin)
+print(v.get('id', ''))
+" | tee "$VM_ID_FILE"
+
+vm_id="$(tail -1 "$VM_ID_FILE")"
+echo "VM_ID=${vm_id}" > "$ENV_FILE"
+echo "HOST=${HOST}" >> "$ENV_FILE"
 
 info "Done — https://${HOST}:5092/platform/vms/${vm_id}"

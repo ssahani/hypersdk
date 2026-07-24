@@ -264,7 +264,11 @@ write_platform_env() {
       grep -q "^${tkey}=" "$file" || printf '%s\n' "$tline" >>"$file"
     done < "$INSTALLER_ROOT/contrib/machina-platform.env"
   else
-    install -Dm644 "$INSTALLER_ROOT/contrib/machina-platform.env" "$file"
+    # Mode 600 from creation: ensure_platform_secrets (below) immediately appends
+    # JWT/agent-token/admin-password secrets into this file, and the final
+    # `chmod 600` at the end of this function previously left a window where a
+    # freshly-created (mode 644, world-readable) file held those secrets.
+    install -Dm600 "$INSTALLER_ROOT/contrib/machina-platform.env" "$file"
   fi
   ensure_platform_secrets
   grep -q '^MACHINA_CONTROLLER_ID=' /etc/default/machina-platform \
