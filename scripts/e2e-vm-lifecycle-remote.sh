@@ -156,11 +156,11 @@ else
 fi
 
 e2e_platform_hdr "EXPORT"
-spec_out="/tmp/machina-vm-export-${VM_NAME}.json"
+spec_out="$(mktemp --suffix=.json "/tmp/machina-vm-export-${VM_NAME}.XXXXXX")"
 e2e_platform_curl "${E2E_PLATFORM_BASE}/api/v1/vms/${vm_id}/spec" >"$spec_out"
 [[ -s "$spec_out" ]] && e2e_platform_ok "spec → ${spec_out}" || e2e_platform_fail "spec export"
 
-xml_out="/tmp/machina-vm-export-${VM_NAME}.xml"
+xml_out="$(mktemp --suffix=.xml "/tmp/machina-vm-export-${VM_NAME}.XXXXXX")"
 http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/vms/${vm_id}/domain-xml")"
 if [[ "$http" == "200" ]]; then
   e2e_platform_curl "${E2E_PLATFORM_BASE}/api/v1/vms/${vm_id}/domain-xml" | python3 -c "

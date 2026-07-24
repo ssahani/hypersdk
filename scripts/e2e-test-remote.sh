@@ -23,8 +23,10 @@ if [[ -z "$PASS" ]]; then
   echo
 fi
 
+# Password is passed via VSPASS (env), not as a positional arg — CLI args are
+# world-readable via `ps` on shared hosts, env vars set this way are not.
 exec env VSPASS="$PASS" E2E_SSH_HOST="$HOST" \
   E2E_AUTH_MODE="${E2E_AUTH_MODE:-auto}" \
   E2E_LDAP_USER="${E2E_LDAP_USER:-}" \
   E2E_LDAP_PASS="${E2E_LDAP_PASS:-}" \
-  "${SCRIPT_DIR}/e2e-test.sh" "$BASE" "$USER" "$PASS" --ssh-host "$HOST" "$@"
+  "${SCRIPT_DIR}/e2e-test.sh" "$BASE" "$USER" --ssh-host "$HOST" "$@"

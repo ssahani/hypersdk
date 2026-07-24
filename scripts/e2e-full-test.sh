@@ -143,9 +143,11 @@ fi
 # Phase 2: daemon E2E
 if [[ "$SKIP_DAEMON_E2E" -eq 0 ]]; then
   e2e_hdr "PHASE 2: DAEMON E2E"
+  # Password goes via VSPASS (env), not a positional arg — CLI args are
+  # world-readable via `ps` on shared hosts, env vars set this way are not.
   if env VSPASS="$E2E_PASSWORD" E2E_SSH_HOST="$E2E_SSH_HOST" E2E_AUTH_MODE="$E2E_AUTH_MODE" \
     E2E_LDAP_USER="${E2E_LDAP_USER:-}" E2E_LDAP_PASS="${E2E_LDAP_PASS:-}" \
-    "${SCRIPT_DIR}/e2e-test.sh" "$E2E_BASE" "$E2E_USER" "$E2E_PASSWORD" \
+    "${SCRIPT_DIR}/e2e-test.sh" "$E2E_BASE" "$E2E_USER" \
     --ssh-host "$E2E_SSH_HOST" --auth "$E2E_AUTH_MODE" "${DAEMON_EXTRA[@]}"; then
     phase_ok "daemon E2E"
   else

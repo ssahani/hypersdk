@@ -46,14 +46,30 @@ run_on_host_via_k8s_bridge() {
   [[ ${#rel[@]} -gt 0 ]] || { echo "⚠️  No runnable tiers in PACKETWOLF_TEST_TIERS=${PACKETWOLF_TEST_TIERS}"; return 0; }
 
   echo "ℹ️  External https://${HOST}:9443 unreachable — on-host tiers via http://127.0.0.1:9191 (k8s port-forward)"
+
+  # Use a per-run unique remote scratch dir instead of a fixed /tmp/packetwolf-e2e
+  # path: a predictable world-writable path lets another local user on the remote
+  # host pre-plant or race a script there that we'd then execute via bash.
+  local remote_dir
+  remote_dir="$(ssh "${SSH_OPTS[@]}" "$REMOTE" 'mktemp -d /tmp/packetwolf-e2e.XXXXXX')"
+  [[ -n "$remote_dir" ]] || { echo "❌ failed to create remote scratch dir on ${REMOTE}" >&2; return 1; }
+
   rsync -az -e "ssh ${SSH_OPTS[*]}" \
     "${rel[@]/#/${PW_SRC}/scripts/}" \
-    "${REMOTE}:/tmp/packetwolf-e2e/" >/dev/null
+    "${REMOTE}:${remote_dir}/" >/dev/null
 
-  ssh "${SSH_OPTS[@]}" "$REMOTE" env PACKETWOLF_VERIFY_API_KEY="$PACKETWOLF_VERIFY_API_KEY" bash -s "${rel[@]}" <<'REMOTE'
+  # ssh concatenates trailing argv words with plain spaces and re-parses the result
+  # in a remote shell, so values must be pre-escaped with %q — otherwise a value
+  # containing spaces/quotes/metacharacters breaks or injects into the remote
+  # command line.
+  ssh "${SSH_OPTS[@]}" "$REMOTE" env \
+    "PACKETWOLF_VERIFY_API_KEY=$(printf '%q' "$PACKETWOLF_VERIFY_API_KEY")" \
+    "PACKETWOLF_REMOTE_DIR=$(printf '%q' "$remote_dir")" \
+    bash -s "${rel[@]}" <<'REMOTE'
 set -euo pipefail
 export PACKETWOLF_E2E_BASE=http://127.0.0.1:9191
 export PACKETWOLF_VERIFY_API_KEY="${PACKETWOLF_VERIFY_API_KEY:?}"
+export PACKETWOLF_REMOTE_DIR="${PACKETWOLF_REMOTE_DIR:?}"
 if ! curl -sf --connect-timeout 3 "http://127.0.0.1:9191/api/v1/anomalies?limit=1" >/dev/null 2>&1; then
   if [[ -x /usr/local/bin/kubectl ]] && [[ -f /etc/packetwolf/k3s.yaml ]]; then
     ns="$(/usr/local/bin/kubectl --kubeconfig=/etc/packetwolf/k3s.yaml get svc -A -o jsonpath='{range .items[?(@.metadata.name=="packetwolf-api")]}{.metadata.namespace}{"\n"}{end}' 2>/dev/null | head -1)"
@@ -71,13 +87,14 @@ for script in "$@"; do
   if [[ "$script" == "e2e-tetragon-verify.sh" ]]; then
     extra=(--allow-fail)
   fi
-  if bash "/tmp/packetwolf-e2e/${script}" "${extra[@]}" "$PACKETWOLF_E2E_BASE"; then
+  if bash "${PACKETWOLF_REMOTE_DIR}/${script}" "${extra[@]}" "$PACKETWOLF_E2E_BASE"; then
     echo "✅ ${script}"
   else
     echo "❌ ${script}"
     FAIL=$((FAIL + 1))
   fi
 done
+rm -rf "${PACKETWOLF_REMOTE_DIR}" 2>/dev/null || true
 exit "$FAIL"
 REMOTE
 }

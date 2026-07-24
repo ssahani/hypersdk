@@ -90,7 +90,16 @@ fi
 
 # D: targeted live Playwright (create, delete, routes, host)
 if [[ "${E2E_SKIP_LIVE_SPECS:-0}" != "1" ]]; then
-  run_phase "live-playwright-specs" bash -c "
+  # USER/PASS/E2E_LDAP_USER/E2E_LDAP_PASS are passed as real environment variables
+  # (via `env`) rather than spliced as literal quoted text into the bash -c script:
+  # a password containing a single quote would otherwise break out of the '...'
+  # quoting below and inject arbitrary shell syntax into this locally-run command.
+  run_phase "live-playwright-specs" env \
+    _E2E_LIVE_USER="$USER" \
+    _E2E_LIVE_PASS="$PASS" \
+    _E2E_LIVE_LDAP_USER="${E2E_LDAP_USER:-}" \
+    _E2E_LIVE_LDAP_PASS="${E2E_LDAP_PASS:-}" \
+    bash -c "
     set -euo pipefail
     cd '${ROOT}/web'
     if ! npm run playwright -- install chromium >/dev/null 2>&1; then
@@ -98,12 +107,12 @@ if [[ "${E2E_SKIP_LIVE_SPECS:-0}" != "1" ]]; then
     fi
     # shellcheck source=lib/e2e-auth.sh
     source '${SCRIPT_DIR}/lib/e2e-auth.sh'
-    export E2E_USER='${USER}'
-    export E2E_PASSWORD='${PASS}'
+    export E2E_USER=\"\$_E2E_LIVE_USER\"
+    export E2E_PASSWORD=\"\$_E2E_LIVE_PASS\"
     export E2E_AUTH_MODE='${E2E_AUTH_MODE:-auto}'
-    export E2E_LDAP_USER='${E2E_LDAP_USER:-}'
-    export E2E_LDAP_PASS='${E2E_LDAP_PASS:-}'
-    e2e_export_playwright_live_env '${BASE}' '${USER}' '${PASS}'
+    export E2E_LDAP_USER=\"\$_E2E_LIVE_LDAP_USER\"
+    export E2E_LDAP_PASS=\"\$_E2E_LIVE_LDAP_PASS\"
+    e2e_export_playwright_live_env '${BASE}' \"\$_E2E_LIVE_USER\" \"\$_E2E_LIVE_PASS\"
     npm run test:e2e -- --workers=1 --timeout=300000 \
       e2e/platform-live.spec.ts \
       e2e/platform-live-vm-create.spec.ts \

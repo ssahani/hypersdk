@@ -20,9 +20,13 @@ if [[ -z "$PASS" ]]; then
 fi
 
 if [[ -z "$VM_ID" && -f /tmp/machina-ubuntu-desktop-e2e.env ]]; then
-  # shellcheck disable=SC1091
-  source /tmp/machina-ubuntu-desktop-e2e.env
-  VM_ID="${E2E_LIBVIRT_VM_ID:-${VM_ID:-}}"
+  # Parse the one key we need instead of `source`-ing this file: it lives at a
+  # predictable, world-writable /tmp path, and sourcing it would run arbitrary
+  # shell code if another local user planted/raced it there.
+  _cached_line="$(grep -m1 -E '^E2E_LIBVIRT_VM_ID=' /tmp/machina-ubuntu-desktop-e2e.env 2>/dev/null || true)"
+  _cached_vm_id="${_cached_line#E2E_LIBVIRT_VM_ID=}"
+  VM_ID="${_cached_vm_id:-$VM_ID}"
+  unset _cached_line _cached_vm_id
 fi
 
 if [[ -z "$VM_ID" ]]; then

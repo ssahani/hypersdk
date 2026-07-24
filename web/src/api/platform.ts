@@ -232,8 +232,13 @@ function controllerUnreachableMessage(body: string, status: number): string | nu
 export async function platformFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const base = getControllerBase()
   const url = resolvePlatformApiUrl(path, base)
+  // Snapshot of whichever credential platformHeaders() actually put on the wire for the most
+  // recent attempt — used below to tell a genuinely-stale token apart from one that was merely
+  // rotated out from under an in-flight request by a concurrent login.
+  let sentAuth: { jwt: string | null; basic: string | null } = { jwt: null, basic: null }
   const buildInit = (source?: RequestInit): RequestInit => {
     const headers = platformHeaders(source?.headers)
+    sentAuth = { jwt: localStorage.getItem(LS_JWT), basic: localStorage.getItem(LS_BASIC) }
     if (source?.body == null || source.body === '') {
       headers.delete('Content-Type')
     }
@@ -253,11 +258,21 @@ export async function platformFetch<T>(path: string, init?: RequestInit): Promis
   if (res!.status === 429) {
     throw new Error('Rate limit exceeded — wait a minute and retry')
   }
-  // Stale platform JWT/basic can 401 against daemon routes when controller URL was misconfigured.
-  if (res!.status === 401 && (localStorage.getItem(LS_JWT) || localStorage.getItem(LS_BASIC))) {
-    localStorage.removeItem(LS_JWT)
-    localStorage.removeItem(LS_BASIC)
-    res = await fetch(url, buildInit(init))
+  if (res!.status === 401) {
+    const rotated = localStorage.getItem(LS_JWT) !== sentAuth.jwt || localStorage.getItem(LS_BASIC) !== sentAuth.basic
+    if (rotated) {
+      // A concurrent setControllerConfig()/login already replaced the credential this request
+      // was sent with — this 401 reflects the *old* token, not the current session. Retry with
+      // whatever is now stored instead of tearing down the fresh session and bouncing the user
+      // straight back to /login right after they signed in.
+      res = await fetch(url, buildInit(init))
+    } else if (sentAuth.jwt || sentAuth.basic) {
+      // Same token before and after: stale platform JWT/basic genuinely rejected. Clear and
+      // retry unauthenticated (some routes are public; others will 401 again below).
+      localStorage.removeItem(LS_JWT)
+      localStorage.removeItem(LS_BASIC)
+      res = await fetch(url, buildInit(init))
+    }
   }
   // A 401 that survives the token-clear/retry means the session is truly expired. Send the
   // user to login instead of throwing a raw "401 " that a non-catching caller would surface

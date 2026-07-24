@@ -21,7 +21,7 @@ use tokio::sync::Semaphore;
 
 use crate::auth::{
     require_api_scope, require_browse_host_paths, require_browser_session_for_host_insight,
-    require_destroy_vm, require_usb_pci, RequestActor,
+    require_destroy_vm, require_usb_pci, require_write, RequestActor,
 };
 use crate::conn_query::{spawn_libvirt_actor, ConnQuery};
 use crate::error::AppError;
@@ -1261,9 +1261,16 @@ async fn list_virt_image_output_roots(
 async fn virt_image_build_handler(
     State(manager): State<LibvirtManager>,
     Extension(actor): Extension<RequestActor>,
+    Extension(vib_slots): Extension<std::sync::Arc<Semaphore>>,
     Query(conn_q): Query<ConnQuery>,
     Json(mut req): Json<virt_image_build::BuildDiskRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    // Spawns a root-privileged, potentially long-running virt-builder invocation.
+    // The sibling async job endpoint (`jobs::post_virt_image_build_job`) gates on
+    // write role and the configured concurrency limiter; this synchronous route
+    // had neither, letting a read-only-role user (or any authenticated caller)
+    // kick off unlimited concurrent builds.
+    require_write(&actor, "vms:write")?;
     if !MachinaConfig::load().libvirt.virt_builder_allowed {
         return Err(AppError::from(LibvirtError::Invalid(
             "virt-builder / virt-image-build is disabled ([libvirt] virt_builder_allowed = false)"
@@ -1282,6 +1289,12 @@ async fn virt_image_build_handler(
     if req.timeout_secs == 0 && timeout_secs > 0 {
         req.timeout_secs = timeout_secs;
     }
+
+    let _permit = vib_slots.acquire().await.map_err(|_| {
+        AppError::from(LibvirtError::Internal(
+            "virt-image-build concurrency limiter closed".into(),
+        ))
+    })?;
 
     let block = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         crate::virt_image_validate::validate_virt_image_build(conn, &req)?;
@@ -1402,6 +1415,7 @@ async fn generate_cloud_init(
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<CloudInitRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "vms:write")?;
     let output_path = req.output_path.clone();
     let hostname = req.hostname.clone();
     let username = req.username.clone();
@@ -1410,6 +1424,12 @@ async fn generate_cloud_init(
     let path = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         let default_dir = storage::primary_vm_disk_base_dir(conn)
             .unwrap_or_else(|| "/var/lib/libvirt/images".to_string());
+        // `output_path` is otherwise an unchecked absolute path: without this,
+        // any caller with vms:write could overwrite an arbitrary file the
+        // daemon can write to, not just create an ISO in an images directory.
+        if !output_path.trim().is_empty() {
+            storage::assert_new_disk_output_parent_allowed(conn, &output_path)?;
+        }
         let cfg = MachinaConfig::load().libvirt;
         extras::generate_cloud_init_iso(
             &output_path,
@@ -1441,6 +1461,10 @@ async fn import_disk(
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<ImportRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    // `source` is an arbitrary absolute path read straight off the hypervisor's
+    // filesystem (see `extras::import_disk_image`), the same class of operation
+    // every other host-path handler in this file gates on.
+    require_browse_host_paths(&actor)?;
     let source = req.source.clone();
     let dest_name = req.dest_name.clone();
     let path = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
@@ -1460,6 +1484,10 @@ async fn live_vcpus_handler(
     Query(conn_q): Query<ConnQuery>,
     Path((name, count)): Path<(String, u32)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    // The offline sibling (`vms::set_vcpus`) gates on write role; this live
+    // hot-plug variant had no check at all, letting any authenticated (incl.
+    // read-only) caller resize a running VM's vCPUs.
+    require_write(&actor, "vms:write")?;
     let name2 = name.clone();
     spawn_libvirt_actor(m, Some(&actor), conn_q, move |conn| {
         extras::live_set_vcpus(conn, &name2, count)
@@ -1476,6 +1504,9 @@ async fn live_memory_handler(
     Query(conn_q): Query<ConnQuery>,
     Path((name, mb)): Path<(String, u64)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    // Same gap as `live_vcpus_handler` above: the offline sibling requires
+    // write role, this live hot-plug variant did not.
+    require_write(&actor, "vms:write")?;
     let name2 = name.clone();
     spawn_libvirt_actor(m, Some(&actor), conn_q, move |conn| {
         extras::live_set_memory(conn, &name2, mb)
@@ -1848,6 +1879,10 @@ async fn save_template_handler(
     Path(name): Path<String>,
     Json(req): Json<SaveTemplateRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    // Writes a new template file under /var/lib/machina/templates referencing
+    // this VM's disk as a backing image; every other handler that writes state
+    // on the caller's behalf gates on write role, this one did not.
+    require_write(&actor, "vms:write")?;
     let name2 = name.clone();
     let template_name = req.template_name.clone();
     spawn_libvirt_actor(m, Some(&actor), conn_q, move |conn| {
@@ -1875,8 +1910,13 @@ struct AuditLogQuery {
 
 async fn get_audit_log(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Query(q): Query<AuditLogQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    // Its siblings below (`/audit/export`, `/audit/verify`) both require the
+    // `audit:read` scope for API-token callers; this one read up to 10,000
+    // audit events (actor, action, target) with no scope check at all.
+    require_api_scope(&actor, "audit:read").map_err(AppError::from)?;
     let mut events = audit::load_audit_events(10_000);
     if let Some(ref a) = q.action {
         let a = a.to_lowercase();

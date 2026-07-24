@@ -48,6 +48,7 @@ declare -a PRODUCTS=(
 
 echo "==> Rebuilding customer tarballs on ${USER}@${HOST}"
 echo "    Workspace: ${TT}"
+FAILED=0
 for entry in "${PRODUCTS[@]}"; do
   name="${entry%%:*}"
   script="${entry#*:}"
@@ -59,8 +60,14 @@ for entry in "${PRODUCTS[@]}"; do
   echo "━━ ${name} ━━"
   "${script}" "${HOST}" "${USER}" "${EXTRA[@]+"${EXTRA[@]}"}" || {
     echo "WARN: ${name} build failed — continuing"
+    FAILED=$((FAILED + 1))
   }
 done
 
 echo ""
+if [[ "${FAILED}" -gt 0 ]]; then
+  echo "==> Done with ${FAILED} product build failure(s)."
+  echo "==> Run E2E: ${SCRIPT_DIR}/test-customer-e2e-remote.sh ${HOST} ${USER} --quick"
+  exit 1
+fi
 echo "==> Done. Run E2E: ${SCRIPT_DIR}/test-customer-e2e-remote.sh ${HOST} ${USER} --quick"

@@ -192,7 +192,7 @@ e2e_platform_assert_json_key "$r" "task_id" "resume"
 e2e_platform_wait_task "vm.power" 120 || true
 e2e_platform_wait_vm_state "$vm_id" "running" 180 || e2e_platform_warn "not running after resume"
 for attempt in $(seq 1 12); do
-  if $SSH "virsh -c ${LIBVIRT_URI} qemu-agent-command ${VM_NAME} '{\"execute\":\"guest-ping\"}' 2>/dev/null | grep -q '\"return\"'"; then
+  if $SSH "virsh -c \"${LIBVIRT_URI}\" qemu-agent-command \"${VM_NAME}\" '{\"execute\":\"guest-ping\"}' 2>/dev/null | grep -q '\"return\"'"; then
     break
   fi
   echo "  guest-ping after resume attempt ${attempt}/12..."

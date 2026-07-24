@@ -311,21 +311,58 @@ pub async fn create_vm(
         .await
         {
             Ok(vol) => {
-                if let Some(native) = vol.backend_native_id.as_deref().filter(|s| !s.is_empty()) {
-                    let source = crate::engine::atlas_vm::rbd_source(&state.config, native);
-                    let mut spec = spec_json.clone();
-                    if let Some(first) = spec
-                        .pointer_mut("/spec/storage")
-                        .and_then(|v| v.as_array_mut())
-                        .and_then(|a| a.first_mut())
-                    {
-                        first["source"] = serde_json::json!(source);
+                let native = vol.backend_native_id.as_deref().filter(|s| !s.is_empty());
+                match native {
+                    Some(native) => {
+                        let source = crate::engine::atlas_vm::rbd_source(&state.config, native);
+                        let mut spec = spec_json.clone();
+                        if let Some(first) = spec
+                            .pointer_mut("/spec/storage")
+                            .and_then(|v| v.as_array_mut())
+                            .and_then(|a| a.first_mut())
+                        {
+                            first["source"] = serde_json::json!(source);
+                        }
+                        // This UPDATE must actually land: `vm.apply` reads spec_json
+                        // straight off this row, so a swallowed failure here (the
+                        // previous `let _ =`) would leave the stored spec pointing at
+                        // no/local source while the real data lives in the Atlas
+                        // volume — the VM boots wrong and the volume is orphaned.
+                        sqlx::query("UPDATE vms SET spec_json = ? WHERE id = ?")
+                            .bind(&spec)
+                            .bind(vm_id)
+                            .execute(&state.pool)
+                            .await
+                            .map_err(|e| {
+                                ApiError::internal(format!(
+                                    "failed to persist Atlas-backed disk source: {e}"
+                                ))
+                            })?;
                     }
-                    let _ = sqlx::query("UPDATE vms SET spec_json = ? WHERE id = ?")
-                        .bind(&spec)
-                        .bind(vm_id)
-                        .execute(&state.pool)
-                        .await;
+                    None => {
+                        // Atlas accepted the request but hadn't bound a backend id by
+                        // the time provision_vm_volume's retry window elapsed (volume
+                        // still "provisioning"). Proceeding here would silently apply
+                        // the VM against its original (non-Atlas) disk source while
+                        // paying for an Atlas volume the VM never attaches to — the
+                        // same silent-fallback this function's Err(e) arm explicitly
+                        // refuses to do. Fail the same way.
+                        let _ = sqlx::query("DELETE FROM vm_disks WHERE vm_id = ?")
+                            .bind(vm_id)
+                            .execute(&state.pool)
+                            .await;
+                        let _ = sqlx::query("DELETE FROM vms WHERE id = ?")
+                            .bind(vm_id)
+                            .execute(&state.pool)
+                            .await;
+                        return Err(ApiError::internal(
+                            "Atlas volume did not finish binding a backend id in time",
+                        )
+                        .with_code("atlas_provision_failed")
+                        .with_remediation(
+                            "Check the Atlas gateway/backend status, then retry VM creation.",
+                        ));
+                    }
                 }
             }
             Err(e) => {

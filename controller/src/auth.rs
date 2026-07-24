@@ -36,6 +36,12 @@ pub fn require_operator(user: &AuthUser) -> Result<(), crate::api::ApiError> {
     }
 }
 
+// Fixed, valid bcrypt hash with no known corresponding plaintext used by this
+// codebase. It exists purely to give `authenticate` something to hash against
+// for unknown usernames — see the comment below.
+const DUMMY_BCRYPT_HASH: &str =
+    "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+
 pub async fn authenticate(
     pool: &sqlx::SqlitePool,
     username: &str,
@@ -47,8 +53,15 @@ pub async fn authenticate(
             .fetch_optional(pool)
             .await?;
 
-    let Some((hash, role)) = row else {
-        return Ok(None);
+    // Always run bcrypt::verify, even for an unknown username, against a fixed
+    // dummy hash — bcrypt is deliberately expensive (~50-100ms), so returning
+    // early for a nonexistent user would make login response time an oracle
+    // for username enumeration. The dummy hash's plaintext is unknown to us,
+    // but that's irrelevant: `role` is None in that branch, so a coincidental
+    // match still falls through to `Ok(None)` below.
+    let (hash, role) = match row {
+        Some((hash, role)) => (hash, Some(role)),
+        None => (DUMMY_BCRYPT_HASH.to_string(), None),
     };
     // bcrypt::verify is deliberately expensive (~50-100ms at default cost). Run it
     // on the blocking pool so it doesn't stall an async runtime worker thread —
@@ -56,14 +69,13 @@ pub async fn authenticate(
     let password = password.to_string();
     let verified =
         tokio::task::spawn_blocking(move || bcrypt::verify(&password, &hash)).await??;
-    if verified {
-        Ok(Some(AuthUser {
+    match (verified, role) {
+        (true, Some(role)) => Ok(Some(AuthUser {
             username: username.to_string(),
             role,
             auth_source: Some("local".into()),
-        }))
-    } else {
-        Ok(None)
+        })),
+        _ => Ok(None),
     }
 }
 

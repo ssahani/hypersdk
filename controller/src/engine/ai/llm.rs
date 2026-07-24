@@ -97,7 +97,7 @@ fn validate_base_url(base_url: &str) -> Result<(), String> {
         .parse::<reqwest::Url>()
         .map(|u| u.host_str().unwrap_or("").to_string())
         .unwrap_or_default();
-    let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+    let host = normalize_host_for_metadata_check(&host);
     const BLOCKED_METADATA_HOSTS: &[&str] = &[
         // AWS / Azure / Alibaba / Oracle / DigitalOcean IMDS (all serve on this address)
         "169.254.169.254",
@@ -105,8 +105,7 @@ fn validate_base_url(base_url: &str) -> Result<(), String> {
         "metadata.google.internal",
         "metadata.google",
         "metadata",
-        // AWS IMDSv2 IPv6 endpoint (Url::host_str() never returns a bracketed
-        // literal, even for an IPv6 host, so only the unbracketed form matches)
+        // AWS IMDSv2 IPv6 endpoint
         "fd00:ec2::254",
         // Alibaba Cloud alias
         "100.100.100.200",
@@ -117,6 +116,28 @@ fn validate_base_url(base_url: &str) -> Result<(), String> {
         ));
     }
     Ok(())
+}
+
+/// Canonicalize a `Url::host_str()` value before comparing it against the
+/// blocklist above.
+///
+/// `host_str()` returns IPv6 hosts bracketed (e.g. `"[fd00:ec2::254]"`) and
+/// leaves an IPv4-mapped IPv6 literal (e.g. `"::ffff:169.254.169.254"`) in its
+/// compressed hextet form (`"::ffff:a9fe:a9fe"`) rather than the dotted-quad
+/// the blocklist is written in — a base_url written either way previously sailed
+/// straight past the literal string comparison and reached the metadata IP
+/// anyway, defeating the SSRF guard entirely.
+fn normalize_host_for_metadata_check(host: &str) -> String {
+    let mut host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+    if let Some(stripped) = host.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+        host = stripped.to_string();
+    }
+    if let Ok(std::net::IpAddr::V6(v6)) = host.parse::<std::net::IpAddr>() {
+        if let Some(v4) = v6.to_ipv4_mapped() {
+            host = v4.to_string();
+        }
+    }
+    host
 }
 
 fn uses_local_endpoint(kind: &str) -> bool {

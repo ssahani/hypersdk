@@ -126,10 +126,17 @@ pub async fn delete_api_key(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_admin(&actor)?;
-    sqlx::query("DELETE FROM api_keys WHERE id = ?")
+    let result = sqlx::query("DELETE FROM api_keys WHERE id = ?")
         .bind(id)
         .execute(&state.pool)
         .await?;
+    // Report the true outcome rather than an unconditional success: a
+    // nonexistent id previously still came back as {"deleted": true}, which
+    // masks typos/races (e.g. two admins deleting the same key concurrently)
+    // from the caller.
+    if result.rows_affected() == 0 {
+        return Err(ApiError::not_found("api key not found"));
+    }
     Ok(Json(serde_json::json!({ "deleted": true })))
 }
 

@@ -78,18 +78,38 @@ fn is_blocked_metadata_host(base: &str) -> bool {
         .parse::<reqwest::Url>()
         .map(|u| u.host_str().unwrap_or("").to_string())
         .unwrap_or_default();
-    let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+    let host = normalize_host_for_metadata_check(&host);
     const BLOCKED_METADATA_HOSTS: &[&str] = &[
         "169.254.169.254",
         "metadata.google.internal",
         "metadata.google",
         "metadata",
-        // Url::host_str() never returns a bracketed IPv6 literal, so only the
-        // unbracketed form can ever match.
         "fd00:ec2::254",
         "100.100.100.200",
     ];
     BLOCKED_METADATA_HOSTS.contains(&host.as_str())
+}
+
+/// Canonicalize a `Url::host_str()` value before comparing it against the
+/// blocklist above.
+///
+/// `host_str()` returns IPv6 hosts bracketed (e.g. `"[fd00:ec2::254]"`) and
+/// leaves an IPv4-mapped IPv6 literal (e.g. `"::ffff:169.254.169.254"`) in its
+/// compressed hextet form (`"::ffff:a9fe:a9fe"`) rather than the dotted-quad
+/// the blocklist is written in — a peer URL written either way previously
+/// sailed straight past the literal string comparison and reached the
+/// metadata IP anyway, defeating the SSRF guard entirely.
+fn normalize_host_for_metadata_check(host: &str) -> String {
+    let mut host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+    if let Some(stripped) = host.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+        host = stripped.to_string();
+    }
+    if let Ok(std::net::IpAddr::V6(v6)) = host.parse::<std::net::IpAddr>() {
+        if let Some(v4) = v6.to_ipv4_mapped() {
+            host = v4.to_string();
+        }
+    }
+    host
 }
 
 async fn fetch_peer_slice(base: &str) -> FleetClusterSlice {
