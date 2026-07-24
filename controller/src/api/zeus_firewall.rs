@@ -891,6 +891,14 @@ pub async fn operator_execute(
     Json(body): Json<zeus_firewall::operator::OperatorExecuteRequest>,
 ) -> Result<Json<zeus_firewall::operator::OperatorExecuteResult>, ApiError> {
     require_operator(&actor)?;
+    if body.force {
+        // `force` skips the approval queue and applies live immediately —
+        // the same class of bypass that fleet_rebalance::execute() gates
+        // behind require_admin for its live-apply path, and that this file
+        // already gates behind require_admin for lockdown/approve_change.
+        // Plain operator role must not be able to skip Zeus approval gates.
+        require_admin(&actor)?;
+    }
     zeus_firewall::operator::execute_secure(&state.pool, &state.config, &body, &actor.username)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))
@@ -903,6 +911,11 @@ pub async fn operator_execute_batch(
     Json(body): Json<zeus_firewall::operator::OperatorBatchExecuteRequest>,
 ) -> Result<Json<zeus_firewall::operator::OperatorBatchExecuteResult>, ApiError> {
     require_operator(&actor)?;
+    if body.force {
+        // See operator_execute: force bypasses approval fleet-wide here, so
+        // it needs the same admin escalation.
+        require_admin(&actor)?;
+    }
     zeus_firewall::operator::execute_secure_batch(
         &state.pool,
         &state.config,
