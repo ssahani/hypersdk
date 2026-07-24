@@ -386,6 +386,20 @@ export default function VNCViewer({
         rfbRef.current = rfb
       }
 
+      const connectExternalNoVnc = async () => {
+        const loadRfb = new Function('return import("/novnc/core/rfb.js")')
+        const module = (await loadRfb()) as { default: new (...args: unknown[]) => Record<string, unknown> }
+        const RFB = module.default
+        if (cancelled || !containerRef.current) return
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rfb: any = new (RFB as any)(containerRef.current, wsUrl, {
+          showDotCursor: showDotCursorRef.current,
+          shared: true,
+        })
+        wireCommon(rfb)
+      }
+
       // Prefer bundled novnc-core (always shipped with the web UI). Fall back to system
       // noVNC at /novnc/ when the daemon serves it (install.sh installs the novnc package).
       try {
@@ -405,21 +419,27 @@ export default function VNCViewer({
           shared: true,
         })
         wireCommon(rfb)
+
+        // The bundled novnc-core package is a much older noVNC build than the system
+        // copy install.sh deploys at /novnc/, and can fail the VNC handshake outright
+        // against some libvirt/QEMU configurations — asynchronously, well after
+        // construction succeeds, so the synchronous try/catch below never observes it.
+        // If the bundled RFB disconnects without ever reaching 'connect', treat that the
+        // same as a construction-time failure and fall back to the known-good system build.
+        let bundledConnected = false
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const bundledRfb = rfb as any
+        bundledRfb.addEventListener('connect', () => { bundledConnected = true })
+        bundledRfb.addEventListener('disconnect', () => {
+          if (!cancelled && !bundledConnected) {
+            console.error('Bundled noVNC RFB failed to connect; falling back to system noVNC')
+            connectExternalNoVnc().catch(() => { if (!cancelled) setStatus('disconnected') })
+          }
+        })
       } catch (e) {
         console.error('Failed to load bundled noVNC RFB:', e)
-
         try {
-          const loadRfb = new Function('return import("/novnc/core/rfb.js")')
-          const module = await loadRfb() as { default: new (...args: unknown[]) => Record<string, unknown> }
-          const RFB = module.default
-          if (cancelled || !containerRef.current) return
-
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const rfb: any = new (RFB as any)(containerRef.current, wsUrl, {
-            showDotCursor: showDotCursorRef.current,
-            shared: true,
-          })
-          wireCommon(rfb)
+          await connectExternalNoVnc()
         } catch {
           setStatus('disconnected')
         }
