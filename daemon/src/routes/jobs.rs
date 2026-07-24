@@ -25,6 +25,7 @@ use uuid::Uuid;
 use virt::connect::Connect;
 use virt_image_build::BuildDiskRequest;
 
+use crate::auth::{require_write, RequestActor};
 use crate::error::AppError;
 use crate::job_registry::{JobDetail, JobRegistry, JobStatus, JobSummary};
 
@@ -60,10 +61,16 @@ async fn get_job_handler(
 
 async fn post_virt_image_build_job(
     State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Extension(jobs): Extension<std::sync::Arc<JobRegistry>>,
     Extension(vib_slots): Extension<Arc<Semaphore>>,
     Json(mut req): Json<BuildDiskRequest>,
 ) -> Result<Json<Value>, AppError> {
+    // Spawns a root-privileged, long-running virt-builder job. Every sibling
+    // mutating handler elsewhere in this codebase gates on write role; this one
+    // previously had no check at all, letting a read-only-role user (or any
+    // authenticated caller) kick off image builds.
+    require_write(&actor, "vms:write")?;
     if !MachinaConfig::load().libvirt.virt_builder_allowed {
         return Err(AppError::from(LibvirtError::Invalid(
             "virt-builder / virt-image-build is disabled ([libvirt] virt_builder_allowed = false)"
@@ -172,9 +179,13 @@ struct PackerGoldenBuildBody {
 
 async fn post_packer_golden_build_job(
     State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Extension(jobs): Extension<std::sync::Arc<JobRegistry>>,
     Json(body): Json<PackerGoldenBuildBody>,
 ) -> Result<Json<Value>, AppError> {
+    // Same rationale as post_virt_image_build_job: spawns a root-privileged
+    // build (bash script + packer) and had no role gate at all.
+    require_write(&actor, "vms:write")?;
     let guest = body.guest.trim().to_string();
     if guest.is_empty() {
         return Err(AppError::from(LibvirtError::Invalid(

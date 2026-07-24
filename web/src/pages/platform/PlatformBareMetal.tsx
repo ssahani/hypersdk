@@ -13,6 +13,7 @@ import {
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import { MacGlassPanel, MacListRow, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import {
@@ -36,6 +37,7 @@ export default function PlatformBareMetal() {
   const [bmcAddress, setBmcAddress] = useState('')
   const [bmcType, setBmcType] = useState('redfish')
   const [saving, setSaving] = useState(false)
+  const [pendingPower, setPendingPower] = useState<{ id: string; name: string; action: PowerAction } | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -200,14 +202,14 @@ export default function PlatformBareMetal() {
                         On
                       </button>
                       <button
-                        onClick={() => void handlePower(s.id, s.hostname, 'off')}
+                        onClick={() => setPendingPower({ id: s.id, name: s.hostname, action: 'off' })}
                         disabled={actionInProgress === s.id || s.state === 'off'}
                         className="px-2 py-1 text-xs rounded bg-red-500/10 text-red-600 hover:bg-red-500/20 disabled:opacity-40"
                       >
                         Off
                       </button>
                       <button
-                        onClick={() => void handlePower(s.id, s.hostname, 'reset')}
+                        onClick={() => setPendingPower({ id: s.id, name: s.hostname, action: 'reset' })}
                         disabled={actionInProgress === s.id}
                         className="px-2 py-1 text-xs rounded bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 disabled:opacity-40"
                       >
@@ -221,6 +223,24 @@ export default function PlatformBareMetal() {
           )}
         </MacGlassPanel>
       </div>
+      <ConfirmDialog
+        open={pendingPower !== null}
+        title={pendingPower?.action === 'reset' ? 'Reset Server' : 'Power Off Server'}
+        message={
+          pendingPower?.action === 'reset'
+            ? `Reset "${pendingPower?.name}"? This power-cycles the physical server immediately, interrupting any running workloads.`
+            : `Power off "${pendingPower?.name}"? This cuts power to the physical server immediately, interrupting any running workloads.`
+        }
+        confirmLabel={pendingPower?.action === 'reset' ? 'Reset' : 'Power off'}
+        variant="danger"
+        onCancel={() => setPendingPower(null)}
+        onConfirm={async () => {
+          const p = pendingPower
+          setPendingPower(null)
+          if (!p) return
+          await handlePower(p.id, p.name, p.action)
+        }}
+      />
     </PlatformPageChrome>
   )
 }

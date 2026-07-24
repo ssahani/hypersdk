@@ -162,18 +162,21 @@ pub async fn atlas_volumes(
     Query(q): Query<VolumeQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
+    // Values are percent-encoded before being joined into the querystring — an
+    // unescaped `&`/`=` in a filter value would otherwise let the caller inject
+    // extra query parameters into the upstream Atlas request.
     let mut parts = Vec::new();
     if let Some(s) = &q.state {
-        parts.push(format!("state={s}"));
+        parts.push(format!("state={}", urlencoding::encode(s)));
     }
     if let Some(b) = &q.backend {
-        parts.push(format!("backend={b}"));
+        parts.push(format!("backend={}", urlencoding::encode(b)));
     }
     if let Some(k) = &q.kind {
-        parts.push(format!("kind={k}"));
+        parts.push(format!("kind={}", urlencoding::encode(k)));
     }
     if let Some(t) = &q.tenant {
-        parts.push(format!("tenant={t}"));
+        parts.push(format!("tenant={}", urlencoding::encode(t)));
     }
     client(&state)?
         .list_volumes(&parts.join("&"))

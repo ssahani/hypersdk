@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { ArrowLeft, Loader2, Network, Trash2 } from 'lucide-react'
 import { getOpenStackSubnet, updateOpenStackSubnet, deleteOpenStackSubnet, type OpenStackSubnet } from '../api/openstackExtras'
@@ -28,18 +28,25 @@ function OpenStackSubnetDetailContent() {
   const [subnet, setSubnet] = useState<OpenStackSubnet | null>(null)
   const [loading, setLoading] = useState(true)
   useBreadcrumbName(subnet?.name)
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: only the newest load may commit so a stale fetch for a
+    // prior subnet can't overwrite the one now shown.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     try {
       const { subnet: s } = await getOpenStackSubnet(id)
+      if (!alive()) return
       setSubnet(s)
     } catch (e: unknown) {
+      if (!alive()) return
       toast.error(formatUserError(e))
       setSubnet(null)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id, toast])
 

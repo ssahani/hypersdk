@@ -64,10 +64,15 @@ pub async fn relay_tetragon_batch(
             "target": packetwolf_bridge::ingest_base_url(cfg),
         });
     }
+    // SECURITY: host_id is attacker/sensor-influenced (it comes straight off the
+    // ingest URL path, not a validated UUID — see api/zeus_security.rs's
+    // ingest_tetragon_events). Percent-encode it before splicing into the outbound
+    // path so a crafted host_id ("../", "?", "#", ...) can't redirect the relay to
+    // a different path/query on the trusted PacketWolf host.
     let url = format!(
-        "{}/{}",
+        "{}/api/v1/ingest/{}",
         cfg.packetwolf_base_url.trim_end_matches('/'),
-        format!("api/v1/ingest/{host_id}")
+        urlencoding::encode(host_id)
     );
     let Ok(client) = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))

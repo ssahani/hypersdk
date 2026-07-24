@@ -152,7 +152,18 @@ async fn acknowledge_alert_handler(
 
 async fn list_webhooks(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    // Webhook URLs (e.g. Slack incoming-webhook URLs) are bearer credentials in
+    // themselves — anyone who has the URL can post as that integration. This
+    // list was readable by any authenticated user regardless of role; gate it
+    // like the save handler below.
+    if !actor.role.can_write() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Viewing webhooks requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     let hooks = automation::load_webhooks();
     Ok(Json(serde_json::json!(hooks)))
 }
@@ -200,7 +211,18 @@ async fn save_schedules_handler(
 
 async fn list_notifications(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    // NotificationChannel::config carries the raw secret (webhook URL, bot
+    // token, ...). This was readable by any authenticated user regardless of
+    // role; gate it like the save handler below so a read-only user can't
+    // exfiltrate the credential.
+    if !actor.role.can_write() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Viewing notification channels requires the operator or admin role.".into(),
+        )
+        .into());
+    }
     let channels = automation::load_notification_channels();
     Ok(Json(serde_json::json!(channels)))
 }

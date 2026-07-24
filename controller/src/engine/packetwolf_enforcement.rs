@@ -275,14 +275,29 @@ pub async fn apply_enforcement_policy(
         // TC rules from PacketWolf may not be in local store — still sync/attach BPF map.
         results.push(fabric_post(cfg, "/api/v1/runtime/enforcement/attach", json!({})).await);
     }
-    // Mark local state only after remote sync is dispatched, so the two stay in agreement.
-    packetwolf_local::mark_policy_applied(policy_id, host_ids);
+    // A fabric_post that couldn't reach/parse the upstream call returns the
+    // sentinel `{"ok": false}` (see fabric_post/post_json) — surface that instead
+    // of unconditionally claiming success, so a dead/unreachable PacketWolf
+    // backend isn't reported as "enforcement applied" when nothing was actually
+    // synced. Mark local state as applied only when the remote sync is confirmed
+    // dispatched, so local and remote state stay in agreement.
+    let synced = !results
+        .iter()
+        .any(|r| r.get("ok").and_then(|v| v.as_bool()) == Some(false));
+    if synced {
+        packetwolf_local::mark_policy_applied(policy_id, host_ids);
+    }
     json!({
-        "ok": true,
+        "ok": synced,
         "api_mode": "production_tc",
         "host_ids": host_ids,
         "packetwolf": results,
-        "summary": format!("Enforcement sync queued for {} host(s)", host_ids.len()),
+        "summary": if synced {
+            format!("Enforcement sync queued for {} host(s)", host_ids.len())
+        } else {
+            "Enforcement sync failed — PacketWolf backend unreachable or rejected the request"
+                .to_string()
+        },
     })
 }
 
@@ -359,8 +374,12 @@ pub async fn delete_enforcement_policy(cfg: &ControllerConfig, policy_id: &str) 
         "defaultDeny": current.get("defaultDeny").and_then(|v| v.as_bool()).unwrap_or(true),
     });
     let pw = fabric_put(cfg, "/api/v1/runtime/enforcement/rules", put_body).await;
+    // fabric_put falls back to the `{"ok": false}` sentinel when the upstream
+    // PUT couldn't be reached/parsed — don't claim the TC allow rule was removed
+    // when it may still be live on the host.
+    let removed = pw.get("ok").and_then(|v| v.as_bool()) != Some(false);
     json!({
-        "ok": true,
+        "ok": removed,
         "api_mode": "production_tc",
         "packetwolf": pw,
     })

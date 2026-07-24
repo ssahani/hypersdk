@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { ArrowLeft, Cloud, GitBranch, HardDrive, Network, RefreshCw, Server, Shield, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import ConfirmDialog from '../../../components/ConfirmDialog'
 import {
   LaunchpadAppIcon,
   MacGlassPanel,
@@ -58,6 +59,7 @@ export default function PlatformFirewallOverview() {
   const [scoreBusy, setScoreBusy] = useState(false)
   const [scoreSample, setScoreSample] = useState<FirewallScore | null>(null)
   const [approvalBusy, setApprovalBusy] = useState(false)
+  const [confirmApplyBatch, setConfirmApplyBatch] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
@@ -269,7 +271,7 @@ export default function PlatformFirewallOverview() {
                 <button type="button" className="btn-secondary text-xs" disabled={operatorBusy} onClick={() => void runOperatorBatch(true)}>
                   Dry-run auto-eligible
                 </button>
-                <button type="button" className="btn-primary text-xs" disabled={operatorBusy || operatorPlan.auto_eligible === 0} onClick={() => void runOperatorBatch(false)}>
+                <button type="button" className="btn-primary text-xs" disabled={operatorBusy || operatorPlan.auto_eligible === 0} onClick={() => setConfirmApplyBatch(true)}>
                   Apply auto-eligible ({operatorPlan.auto_eligible})
                 </button>
               </div>
@@ -393,6 +395,18 @@ export default function PlatformFirewallOverview() {
           </MacGlassPanel>
         </>
       )}
+      <ConfirmDialog
+        open={confirmApplyBatch}
+        title="Apply Firewall Changes"
+        message={`Apply auto-secure firewall profiles to ${operatorPlan?.auto_eligible ?? 0} auto-eligible host(s) now? This changes live firewall rules on those machines.`}
+        confirmLabel="Apply"
+        variant="danger"
+        onCancel={() => setConfirmApplyBatch(false)}
+        onConfirm={() => {
+          setConfirmApplyBatch(false)
+          void runOperatorBatch(false)
+        }}
+      />
     </PageLayout>
   )
 }

@@ -5,7 +5,7 @@
 //! Reverse-proxy selected HyperSDK / hypervisord APIs for bulk OpenStack migrations.
 
 use axum::{
-    extract::{Path, Query},
+    extract::{Extension, Path, Query},
     routing::{get, post},
     Json, Router,
 };
@@ -13,6 +13,7 @@ use machina_core::{HypersdkConfig, LibvirtError, LibvirtManager, MachinaConfig};
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::auth::{require_write, RequestActor};
 use crate::error::AppError;
 
 fn hypersdk_cfg() -> HypersdkConfig {
@@ -140,7 +141,13 @@ async fn hypersdk_get_migration_job(Path(id): Path<String>) -> Result<Json<Value
     ))
 }
 
-async fn hypersdk_submit_migration(Json(body): Json<Value>) -> Result<Json<Value>, AppError> {
+async fn hypersdk_submit_migration(
+    Extension(actor): Extension<RequestActor>,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    // Submits a bulk VM migration job to hypervisord; gate like every other
+    // mutating handler (this previously had no role check at all).
+    require_write(&actor, "vms:write")?;
     let cfg = hypersdk_cfg();
     Ok(Json(
         proxy_post(&cfg, "/api/v1/migrations/submit", body).await?,
@@ -174,9 +181,13 @@ async fn hypersdk_proxy_get(Query(q): Query<HypersdkProxyQuery>) -> Result<Json<
 }
 
 async fn hypersdk_proxy_post(
+    Extension(actor): Extension<RequestActor>,
     Query(q): Query<HypersdkProxyQuery>,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
+    // Open POST proxy onto hypervisord (arbitrary /api/ path + body); require
+    // write role like every other mutating handler.
+    require_write(&actor, "vms:write")?;
     let cfg = hypersdk_cfg();
     let path = validate_proxy_path(&q.path)?;
     Ok(Json(proxy_post(&cfg, path, body).await?))

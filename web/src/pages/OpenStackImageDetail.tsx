@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft, HardDrive, Loader2, Share2 } from 'lucide-react'
 import { getOpenStackImage, type OpenStackImage } from '../api/openstack'
@@ -36,18 +36,25 @@ function OpenStackImageDetailContent() {
   const [loading, setLoading] = useState(true)
   const [shareOpen, setShareOpen] = useState(false)
   useBreadcrumbName(image?.name)
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: only the newest load may commit so a stale fetch for a
+    // prior image can't overwrite the one now shown.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     try {
       const { image: img } = await getOpenStackImage(id)
+      if (!alive()) return
       setImage(img)
     } catch (e: unknown) {
+      if (!alive()) return
       toast.error(formatUserError(e))
       setImage(null)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id, toast])
 

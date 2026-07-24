@@ -115,14 +115,15 @@ pub struct GraphicsSpec {
     #[serde(default = "default_graphics_listen")]
     pub listen: String,
     /// Explicit, clearly-risky opt-in required to bind `listen` to a
-    /// non-loopback address. `translate::domain_xml::graphics_block` always
-    /// emits a random libvirt-native console `passwd=` attribute now, but
-    /// that password isn't yet plumbed to the app's own console proxy (see
-    /// `domain_xml_from_spec`'s doc comment) — so until that follow-up
-    /// lands, a non-loopback listener still exposes a console whose password
-    /// no legitimate client has been given either, on the open network,
-    /// bypassing the agent's token-gated console proxy entirely. Default
-    /// false: `listen` must be loopback unless this is set.
+    /// non-loopback address. `translate::domain_xml::graphics_block` does
+    /// NOT set a libvirt-native console `passwd=` by default (see
+    /// `domain_xml_from_spec`'s doc comment for why: the agent's own console
+    /// proxy doesn't speak RFB/SPICE and the web VNCViewer always answers
+    /// auth challenges with an empty password, so a real `passwd=` would
+    /// break every in-app console today) — so a non-loopback listener
+    /// exposes a completely unauthenticated VNC/SPICE console on the open
+    /// network, bypassing the agent's token-gated console proxy entirely.
+    /// Default false: `listen` must be loopback unless this is set.
     #[serde(default)]
     pub allow_public_listen: bool,
 }
@@ -214,7 +215,19 @@ impl VirtualMachine {
         }
         for vol in &self.spec.storage {
             validate_name(&vol.name)?;
-            parse_size_gib(&vol.size)?;
+            let size_gib = parse_size_gib(&vol.size)?;
+            if size_gib == 0 {
+                return Err(SpecError::Validation(format!(
+                    "storage volume '{}' size must be greater than 0",
+                    vol.name
+                )));
+            }
+            if size_gib > MAX_STORAGE_GIB {
+                return Err(SpecError::Validation(format!(
+                    "storage volume '{}' size exceeds maximum of {MAX_STORAGE_GIB} GiB",
+                    vol.name
+                )));
+            }
             if let Some(source) = vol.source.as_deref() {
                 validate_storage_source(source)?;
             }
@@ -476,6 +489,17 @@ pub fn validate_label(name: &str) -> Result<(), SpecError> {
 /// this keeps downstream KiB math (`memory_mib * 1024`) from overflowing u64.
 const MAX_MEMORY_MIB: u64 = 64 * 1024 * 1024;
 
+/// Upper bound on a single storage volume's size (16 TiB in GiB). Unlike
+/// memory, `parse_size_gib` can't itself overflow (it parses straight to
+/// `u64`, so an out-of-range literal fails to parse rather than saturating),
+/// but nothing capped the *value* until now: `agent::libvirt_ops::apply_vm`
+/// runs only `VirtualMachine::validate()` before sizing the on-disk qcow2 via
+/// `qemu-img create ... <N>G` (see `create_qcow2`) — an unbounded size here
+/// let an operator request an absurdly large (e.g. exabyte-scale) disk file,
+/// exhausting host storage/inodes. `parse_size_gib`'s `0` is rejected too,
+/// since libvirt/qemu-img reject a zero-size disk.
+const MAX_STORAGE_GIB: u64 = 16 * 1024;
+
 pub fn parse_memory_mib(raw: &str) -> Result<u64, SpecError> {
     let s = raw.trim();
     // f64 parse accepts "inf"/"nan"; reject them and negatives up front so they
@@ -545,6 +569,30 @@ mod tests {
         vm.validate().unwrap();
         assert_eq!(vm.total_vcpus(), 1);
         assert_eq!(vm.memory_mib().unwrap(), 32 * 1024);
+    }
+
+    #[test]
+    fn validate_rejects_zero_size_storage_volume() {
+        let mut vm = VirtualMachine::new("zerodisk", "2Gi");
+        vm.spec.storage[0].size = "0Gi".into();
+        assert!(vm.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_oversized_storage_volume() {
+        // Nothing capped the parsed size before; an operator could request an
+        // exabyte-scale qcow2 file (`agent::libvirt_ops::create_qcow2` runs
+        // `qemu-img create ... <N>G` with only `validate()` in front of it).
+        let mut vm = VirtualMachine::new("hugedisk", "2Gi");
+        vm.spec.storage[0].size = "99999999Gi".into();
+        assert!(vm.validate().is_err());
+    }
+
+    #[test]
+    fn validate_accepts_reasonable_storage_volume() {
+        let mut vm = VirtualMachine::new("bigdisk", "2Gi");
+        vm.spec.storage[0].size = "4096Gi".into();
+        assert!(vm.validate().is_ok());
     }
 
     #[test]

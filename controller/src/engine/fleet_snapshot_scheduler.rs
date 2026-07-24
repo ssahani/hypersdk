@@ -32,7 +32,11 @@ async fn tick(state: &AppState) -> anyhow::Result<()> {
     .await?;
 
     for (sched_id, _name, project, tag_filter, disk_only, quiesce, _retain) in rows {
-        enqueue_snapshots_for_schedule(
+        // A failure here must not abort the whole tick: if it did, schedules later in `rows`
+        // would be skipped this tick, and — worse — this schedule's `last_run_at` would stay
+        // stale, so the *next* tick would see it as still due and re-enqueue snapshots for
+        // VMs that already got one in this run (duplicate snapshots). Log and move on instead.
+        if let Err(e) = enqueue_snapshots_for_schedule(
             &state.pool,
             state,
             sched_id,
@@ -41,7 +45,11 @@ async fn tick(state: &AppState) -> anyhow::Result<()> {
             disk_only,
             quiesce,
         )
-        .await?;
+        .await
+        {
+            tracing::warn!("fleet snapshot scheduler: schedule {sched_id} enqueue failed: {e:#}");
+            continue;
+        }
         sqlx::query("UPDATE fleet_snapshot_schedules SET last_run_at = datetime('now') WHERE id = ?")
             .bind(sched_id)
             .execute(&state.pool)
@@ -124,7 +132,10 @@ async fn enqueue_snapshots_for_schedule(
                 .bind(record_id)
                 .execute(pool)
                 .await;
-            return Err(anyhow::anyhow!("enqueue vm.snapshot: {}", e.message));
+            // Log and keep going: aborting here would skip the remaining VMs in this
+            // schedule *and* (via the caller) leave last_run_at stale, causing the whole
+            // schedule — including VMs already enqueued above — to be retried next tick.
+            tracing::warn!("fleet snapshot scheduler: enqueue vm.snapshot for {vm_id}: {}", e.message);
         }
     }
     Ok(())

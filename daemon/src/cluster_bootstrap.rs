@@ -594,10 +594,24 @@ async fn phase_metrics(
         roll.env(k, v);
     }
     match roll.output().await {
-        Ok(o) => append_section(
+        // `Command::output()` returns `Ok` even when the process exits non-zero — it
+        // only errors if spawning failed. A timed-out/failed `rollout status` was
+        // previously logged into stdout_log unconditionally, which reads as success
+        // in the bootstrap transcript even though the deployment never became ready.
+        Ok(o) if o.status.success() => append_section(
             stdout_log,
             "metrics_server_rollout",
             &String::from_utf8_lossy(&o.stdout),
+        ),
+        Ok(o) => append_section(
+            stderr_log,
+            "metrics_server_rollout",
+            &format!(
+                "rollout status failed (exit {:?}): {}{}",
+                o.status.code(),
+                String::from_utf8_lossy(&o.stdout),
+                String::from_utf8_lossy(&o.stderr),
+            ),
         ),
         Err(_) => append_section(
             stderr_log,

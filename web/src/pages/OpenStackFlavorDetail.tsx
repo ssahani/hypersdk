@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft, Cpu, Loader2 } from 'lucide-react'
 import { getOpenStackFlavor, type OpenStackFlavor } from '../api/openstack'
@@ -27,18 +27,25 @@ function OpenStackFlavorDetailContent() {
   const [flavor, setFlavor] = useState<OpenStackFlavor | null>(null)
   const [loading, setLoading] = useState(true)
   useBreadcrumbName(flavor?.name)
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: only the newest load may commit so a stale fetch for a
+    // prior flavor can't overwrite the one now shown.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     try {
       const { flavor: f } = await getOpenStackFlavor(id)
+      if (!alive()) return
       setFlavor(f)
     } catch (e: unknown) {
+      if (!alive()) return
       toast.error(formatUserError(e))
       setFlavor(null)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id, toast])
 

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Cpu, Monitor, RefreshCw, Server } from 'lucide-react'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
@@ -55,6 +55,10 @@ export default function PlatformGpuCommandCenter() {
   const [placementBusy, setPlacementBusy] = useState(false)
   const [pciDevices, setPciDevices] = useState<Array<{ host: string; hostId: string; devices: HostGpuDevice[]; summary: string }>>([])
   const [pciLoading, setPciLoading] = useState(false)
+  // Last-response-wins guard: `workload` changes on every keystroke, so a slow
+  // ranking response for an older query could otherwise land after a newer
+  // one and overwrite it with stale placement candidates.
+  const placementSeq = useRef(0)
 
   const load = useCallback(async () => {
     setError(null)
@@ -69,13 +73,16 @@ export default function PlatformGpuCommandCenter() {
   }, [])
 
   const loadPlacement = useCallback(async () => {
+    const seq = ++placementSeq.current
+    const alive = () => seq === placementSeq.current
     setPlacementBusy(true)
     try {
-      setPlacement(await getGpuPlacement(workload))
+      const p = await getGpuPlacement(workload)
+      if (alive()) setPlacement(p)
     } catch {
-      setPlacement(null)
+      if (alive()) setPlacement(null)
     } finally {
-      setPlacementBusy(false)
+      if (alive()) setPlacementBusy(false)
     }
   }, [workload])
 

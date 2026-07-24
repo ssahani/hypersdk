@@ -199,6 +199,17 @@ impl AtlasClient {
         }
     }
 
+    /// Percent-encode a caller-supplied resource id before it is spliced into a
+    /// URL path or query string. IDs (volume/snapshot/backup/job) ultimately
+    /// come from HTTP path/query parameters one hop up (see `api/atlas.rs`) and
+    /// are never validated as UUIDs before reaching this client — without
+    /// encoding, a `/`, `?`, `&`, or `..` in an id could redirect the request to
+    /// a different Atlas endpoint or smuggle extra query parameters into the
+    /// upstream call made with our privileged service-account bearer token.
+    fn seg(id: &str) -> String {
+        urlencoding::encode(id).into_owned()
+    }
+
     async fn get(&self, path: &str) -> anyhow::Result<serde_json::Value> {
         let resp = self.auth(self.http.get(self.url(path))).send().await?;
         Self::json(resp).await
@@ -299,7 +310,7 @@ impl AtlasClient {
     }
 
     pub async fn get_volume(&self, volume_id: &str) -> anyhow::Result<AtlasVolume> {
-        self.get_as(&format!("/volumes/{volume_id}")).await
+        self.get_as(&format!("/volumes/{}", Self::seg(volume_id))).await
     }
 
     /// Volumes owned by a given product (+ optional resource id).
@@ -308,9 +319,9 @@ impl AtlasClient {
         product: &str,
         resource_id: Option<&str>,
     ) -> anyhow::Result<serde_json::Value> {
-        let mut q = format!("owner_product={product}");
+        let mut q = format!("owner_product={}", Self::seg(product));
         if let Some(rid) = resource_id {
-            q.push_str(&format!("&owner_resource_id={rid}"));
+            q.push_str(&format!("&owner_resource_id={}", Self::seg(rid)));
         }
         self.list_volumes(&q).await
     }
@@ -356,7 +367,7 @@ impl AtlasClient {
     }
 
     pub async fn delete_volume(&self, volume_id: &str) -> anyhow::Result<serde_json::Value> {
-        self.delete(&format!("/volumes/{volume_id}")).await
+        self.delete(&format!("/volumes/{}", Self::seg(volume_id))).await
     }
 
     pub async fn expand_volume(
@@ -366,7 +377,7 @@ impl AtlasClient {
     ) -> anyhow::Result<AtlasJob> {
         let v = self
             .post(
-                &format!("/volumes/{volume_id}/expand"),
+                &format!("/volumes/{}/expand", Self::seg(volume_id)),
                 serde_json::json!({ "new_size_bytes": new_size_bytes }),
             )
             .await?;
@@ -385,7 +396,7 @@ impl AtlasClient {
             body["name"] = serde_json::json!(n);
         }
         let v = self
-            .post(&format!("/volumes/{volume_id}/snapshots"), body)
+            .post(&format!("/volumes/{}/snapshots", Self::seg(volume_id)), body)
             .await?;
         Ok(serde_json::from_value(v)?)
     }
@@ -405,7 +416,7 @@ impl AtlasClient {
             body["namespace"] = serde_json::json!(ns);
         }
         let v = self
-            .post(&format!("/snapshots/{snapshot_id}/clone"), body)
+            .post(&format!("/snapshots/{}/clone", Self::seg(snapshot_id)), body)
             .await?;
         Ok(serde_json::from_value(v)?)
     }
@@ -424,7 +435,7 @@ impl AtlasClient {
             body["namespace"] = serde_json::json!(ns);
         }
         let v = self
-            .post(&format!("/snapshots/{snapshot_id}/restore"), body)
+            .post(&format!("/snapshots/{}/restore", Self::seg(snapshot_id)), body)
             .await?;
         Ok(serde_json::from_value(v)?)
     }
@@ -434,10 +445,11 @@ impl AtlasClient {
         snapshot_id: &str,
         force: bool,
     ) -> anyhow::Result<serde_json::Value> {
+        let seg = Self::seg(snapshot_id);
         let path = if force {
-            format!("/snapshots/{snapshot_id}?force=true")
+            format!("/snapshots/{seg}?force=true")
         } else {
-            format!("/snapshots/{snapshot_id}")
+            format!("/snapshots/{seg}")
         };
         self.delete(&path).await
     }
@@ -487,7 +499,7 @@ impl AtlasClient {
     /// List backups, optionally scoped to one volume.
     pub async fn list_backups(&self, volume_id: Option<&str>) -> anyhow::Result<serde_json::Value> {
         let path = match volume_id {
-            Some(id) => format!("/backups?volume_id={id}"),
+            Some(id) => format!("/backups?volume_id={}", Self::seg(id)),
             None => "/backups".to_string(),
         };
         self.get(&path).await
@@ -508,7 +520,7 @@ impl AtlasClient {
     }
 
     pub async fn delete_backup(&self, backup_id: &str) -> anyhow::Result<serde_json::Value> {
-        self.delete(&format!("/backups/{backup_id}")).await
+        self.delete(&format!("/backups/{}", Self::seg(backup_id))).await
     }
 
     // ---- Jobs -------------------------------------------------------------
@@ -518,7 +530,7 @@ impl AtlasClient {
     }
 
     pub async fn get_job(&self, job_id: &str) -> anyhow::Result<AtlasJob> {
-        self.get_as(&format!("/jobs/{job_id}")).await
+        self.get_as(&format!("/jobs/{}", Self::seg(job_id))).await
     }
 
     /// Poll a job until it reaches a terminal state or the deadline elapses.

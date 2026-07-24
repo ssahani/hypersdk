@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { ArrowLeft, Network, Loader2, Trash2 } from 'lucide-react'
 import type { OpenStackNetwork } from '../api/openstack'
@@ -31,18 +31,25 @@ function OpenStackNetworkDetailContent() {
   const [loading, setLoading] = useState(true)
   const [deleteOpen, setDeleteOpen] = useState(false)
   useBreadcrumbName(net?.name)
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: only the newest load may commit so a stale fetch for a
+    // prior network can't overwrite the one now shown.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     try {
       const { network } = await getOpenStackNetwork(id)
+      if (!alive()) return
       setNet(network)
     } catch (e: unknown) {
+      if (!alive()) return
       toast.error(formatUserError(e))
       setNet(null)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id, toast])
 

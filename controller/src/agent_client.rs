@@ -245,7 +245,7 @@ pub async fn migrate_vm(
     disks_uri: Option<String>,
     copy_storage: bool,
 ) -> anyhow::Result<MigrateVmResponse> {
-    Ok(client
+    let resp = client
         .migrate_vm(MigrateVmRequest {
             vm_name: vm_name.to_string(),
             dest_uri: dest_uri.to_string(),
@@ -259,7 +259,18 @@ pub async fn migrate_vm(
             copy_storage,
         })
         .await?
-        .into_inner())
+        .into_inner();
+    // Unlike most agent RPCs (which signal failure via a gRPC error status),
+    // MigrateVmResponse carries its own ok/message pair. The caller (vm_migrate)
+    // discards this response and unconditionally commits the VM's new host_id +
+    // a 'completed' migration_jobs row — without this check, an agent that
+    // returns ok=false (migration didn't actually happen) would still be
+    // recorded as a successful migration, leaving the VM's DB record pointing
+    // at a host it never moved to while the domain keeps running on the source.
+    if !resp.ok {
+        anyhow::bail!("{}", resp.message);
+    }
+    Ok(resp)
 }
 
 pub async fn clone_vm(

@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { getAuditLog, exportAuditNdjson, AuditEvent } from '../api/extras'
 import { useTranslation } from 'react-i18next'
 import { useToastContext } from '../contexts/ToastContext'
@@ -21,25 +21,30 @@ export default function AuditLogPage() {
   const [qInp, setQInp] = useState('')
   const toast = useToastContext()
   const { t } = useTranslation()
+  // Last-response-wins: a slow response for a previous filter combination
+  // can't overwrite the results of a filter change made after it.
+  const loadSeq = useRef(0)
 
   const fetchLog = useCallback(async () => {
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     try {
       setLoading(true)
       setLoadError(null)
-      setEvents(
-        await getAuditLog({
-          action: actionInp.trim() || undefined,
-          actor: actorInp.trim() || undefined,
-          q: qInp.trim() || undefined,
-          limit: 8000,
-        }),
-      )
+      const data = await getAuditLog({
+        action: actionInp.trim() || undefined,
+        actor: actorInp.trim() || undefined,
+        q: qInp.trim() || undefined,
+        limit: 8000,
+      })
+      if (alive()) setEvents(data)
     } catch (e: unknown) {
+      if (!alive()) return
       const msg = formatUserError(e)
       setLoadError(msg)
       toast.error(`Failed to load audit log: ${msg}`)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [toast, actionInp, actorInp, qInp])
 

@@ -34,18 +34,25 @@ function OpenStackVolumeDetailContent() {
   const [uploadStatus, setUploadStatus] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   useBreadcrumbName(vol?.name)
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: only the newest load may commit so a stale fetch for a
+    // prior volume can't overwrite the one now shown.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     try {
       const { volume } = await getOpenStackVolume(id)
+      if (!alive()) return
       setVol(volume)
     } catch (e: unknown) {
+      if (!alive()) return
       toast.error(formatUserError(e))
       setVol(null)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id, toast])
 

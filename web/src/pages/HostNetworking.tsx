@@ -92,6 +92,9 @@ export default function HostNetworkingPage() {
   const [routeTableStr, setRouteTableStr] = useState('')
   const [routeBusy, setRouteBusy] = useState(false)
   const [confirmRoute, setConfirmRoute] = useState(false)
+  const [deleteBridgeTarget, setDeleteBridgeTarget] = useState<string | null>(null)
+  const [deletePortForwardTarget, setDeletePortForwardTarget] = useState<PortForwardRule | null>(null)
+  const [deleteFirewallRuleTarget, setDeleteFirewallRuleTarget] = useState<FirewallRule | null>(null)
   const [ifaceDiag, setIfaceDiag] = useState<Record<string, string>>({})
   const [ifaceDiagLoading, setIfaceDiagLoading] = useState<string | null>(null)
   const [ifaceFilter, setIfaceFilter] = useState('')
@@ -487,7 +490,7 @@ export default function HostNetworkingPage() {
                     <td className={`px-6 py-3 text-sm font-mono ${statusToneClass('info')}`}>{r.host_port}</td>
                     <td className="px-6 py-3 text-sm font-mono">{r.vm_ip}:{r.vm_port}</td>
                     <td className="px-6 py-3 text-sm text-slate-400">{r.description}</td>
-                    <td className="px-6 py-3 text-right"><button onClick={() => handleDeletePortForward(r)} className="p-1 hover:bg-red-600/20 rounded" aria-label="Delete rule"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
+                    <td className="px-6 py-3 text-right"><button onClick={() => setDeletePortForwardTarget(r)} className="p-1 hover:bg-red-600/20 rounded" aria-label="Delete rule"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
                   </tr>
                 ))}
                 {portForwards.length === 0 && <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-500">No port forwarding rules. Add one to expose a VM service on the host.</td></tr>}
@@ -516,7 +519,7 @@ export default function HostNetworkingPage() {
                     />
                     <span className="font-semibold">{br.name}</span>
                   </div>
-                  {!br.name.startsWith('virbr') && <button onClick={() => handleDeleteBridge(br.name)} className="p-1 hover:bg-red-600/20 rounded" title="Delete" aria-label="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>}
+                  {!br.name.startsWith('virbr') && <button onClick={() => setDeleteBridgeTarget(br.name)} className="p-1 hover:bg-red-600/20 rounded" title="Delete" aria-label="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>}
                 </div>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between text-slate-400"><span>MAC</span><span className="font-mono text-xs">{br.mac}</span></div>
@@ -583,7 +586,7 @@ export default function HostNetworkingPage() {
                     <td className="px-6 py-3 text-sm font-mono">{r.port || 'all'}</td>
                     <td className="px-6 py-3 text-sm">{r.action === 'accept' ? <span className={statusToneClass('ok')}>Allow</span> : <span className={statusToneClass('error')}>Block</span>}</td>
                     <td className="px-6 py-3 text-sm text-slate-400">{r.description}</td>
-                    <td className="px-6 py-3 text-right"><button onClick={() => handleDeleteFirewallRule(r)} className="p-1 hover:bg-red-600/20 rounded" aria-label="Delete rule"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
+                    <td className="px-6 py-3 text-right"><button onClick={() => setDeleteFirewallRuleTarget(r)} className="p-1 hover:bg-red-600/20 rounded" aria-label="Delete rule"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
                   </tr>
                 ))}
                 {firewallRules.length === 0 && <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-500">No per-VM firewall rules. Add rules to control traffic to/from specific VMs.</td></tr>}
@@ -1052,6 +1055,33 @@ export default function HostNetworkingPage() {
         variant="warning"
         onCancel={() => setConfirmRoute(false)}
         onConfirm={() => { setConfirmRoute(false); void doApplyKernelRoute() }}
+      />
+      <ConfirmDialog
+        open={deleteBridgeTarget !== null}
+        title="Delete bridge"
+        message={`Delete bridge '${deleteBridgeTarget}'? Any interfaces or VMs attached to it will lose connectivity.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onCancel={() => setDeleteBridgeTarget(null)}
+        onConfirm={() => { const n = deleteBridgeTarget; setDeleteBridgeTarget(null); if (n) void handleDeleteBridge(n) }}
+      />
+      <ConfirmDialog
+        open={deletePortForwardTarget !== null}
+        title="Delete port forward"
+        message={deletePortForwardTarget ? `Delete port forward ${deletePortForwardTarget.host_port} -> ${deletePortForwardTarget.vm_ip}:${deletePortForwardTarget.vm_port} (${deletePortForwardTarget.protocol})? This will cut off external access via this rule.` : ''}
+        confirmLabel="Delete"
+        variant="danger"
+        onCancel={() => setDeletePortForwardTarget(null)}
+        onConfirm={() => { const r = deletePortForwardTarget; setDeletePortForwardTarget(null); if (r) void handleDeletePortForward(r) }}
+      />
+      <ConfirmDialog
+        open={deleteFirewallRuleTarget !== null}
+        title="Delete firewall rule"
+        message={deleteFirewallRuleTarget ? `Delete ${deleteFirewallRuleTarget.direction} ${deleteFirewallRuleTarget.action} rule for ${deleteFirewallRuleTarget.vm_ip} (${deleteFirewallRuleTarget.protocol}${deleteFirewallRuleTarget.port ? `:${deleteFirewallRuleTarget.port}` : ''})? This may change what traffic is allowed to reach this VM.` : ''}
+        confirmLabel="Delete"
+        variant="danger"
+        onCancel={() => setDeleteFirewallRuleTarget(null)}
+        onConfirm={() => { const r = deleteFirewallRuleTarget; setDeleteFirewallRuleTarget(null); if (r) void handleDeleteFirewallRule(r) }}
       />
     </PageLayout>
   )

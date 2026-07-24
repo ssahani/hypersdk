@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft, Loader2, Users } from 'lucide-react'
 import OpenStackGate from '../components/OpenStackGate'
@@ -33,19 +33,26 @@ function OpenStackIdentityUserDetailContent() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(true)
   useBreadcrumbName(user?.name)
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: only the newest load may commit so a stale fetch for a
+    // prior user can't overwrite the one now shown.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     try {
       const { user: u } = await getOpenStackIdentityUser(id)
+      if (!alive()) return
       setUser(u)
       setEmail(u.email ?? '')
     } catch (e: unknown) {
+      if (!alive()) return
       toast.error(formatUserError(e))
       setUser(null)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id, toast])
 

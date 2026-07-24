@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft, Camera, Loader2 } from 'lucide-react'
 import {
@@ -33,19 +33,26 @@ function OpenStackVolumeSnapshotDetailContent() {
   const [restoreName, setRestoreName] = useState('')
   const [loading, setLoading] = useState(true)
   useBreadcrumbName(snapshot?.name)
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: only the newest load may commit so a stale fetch for a
+    // prior snapshot can't overwrite the one now shown.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     try {
       const { snapshot: s } = await getOpenStackVolumeSnapshot(id)
+      if (!alive()) return
       setSnapshot(s)
       setRestoreName(`${s.name || 'vol'}-restored`)
     } catch (e: unknown) {
+      if (!alive()) return
       toast.error(formatUserError(e))
       setSnapshot(null)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id, toast])
 

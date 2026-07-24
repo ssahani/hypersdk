@@ -12,6 +12,7 @@ import {
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import { MacGlassPanel, MacListRow, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import {
@@ -32,6 +33,7 @@ export default function PlatformHa() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [fencing, setFencing] = useState<string | null>(null)
+  const [pendingFence, setPendingFence] = useState<{ id: string; hostname: string } | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -130,7 +132,7 @@ export default function PlatformHa() {
                   subtitle={h.state}
                   trailing={
                     <button
-                      onClick={() => void handleFence(h.id, h.hostname)}
+                      onClick={() => setPendingFence({ id: h.id, hostname: h.hostname })}
                       disabled={fencing === h.id}
                       className="px-3 py-1 text-xs rounded-md bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-50"
                     >
@@ -169,6 +171,20 @@ export default function PlatformHa() {
           )}
         </MacGlassPanel>
       </div>
+      <ConfirmDialog
+        open={pendingFence !== null}
+        title="Fence Host"
+        message={`Fence host "${pendingFence?.hostname}"? This will forcibly cut power or reset the machine, terminating all running VMs immediately. Only use in an emergency.`}
+        confirmLabel="Fence"
+        variant="danger"
+        onCancel={() => setPendingFence(null)}
+        onConfirm={async () => {
+          const p = pendingFence
+          setPendingFence(null)
+          if (!p) return
+          await handleFence(p.id, p.hostname)
+        }}
+      />
     </PlatformPageChrome>
   )
 }

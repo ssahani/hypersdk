@@ -251,7 +251,7 @@ struct HostCandidate {
 pub async fn pick_host_for_vm(
     pool: &SqlitePool,
     vm_tags: &[String],
-    _memory_mib: i64,
+    memory_mib: i64,
 ) -> anyhow::Result<Uuid> {
     let placement_policy: String =
         sqlx::query_scalar("SELECT placement_policy FROM clusters ORDER BY created_at LIMIT 1")
@@ -279,6 +279,14 @@ pub async fn pick_host_for_vm(
     let mut best_ok: Option<(Uuid, f32)> = None;
     let mut best_any: Option<(Uuid, f32)> = None;
     for h in &hosts {
+        // Hard capacity guard: never place a VM on a host that doesn't actually
+        // have enough free memory for it, no matter how good its (percentage-
+        // based) score looks. Without this a host could be picked purely on
+        // headroom-score/vm_count and pushed into memory over-commit — this is
+        // the same hard check `compute_recommendations` applies to DRS moves.
+        if h.memory_used_mib + memory_mib > h.memory_total_mib {
+            continue;
+        }
         let mem_pct = pct(h.memory_used_mib, h.memory_total_mib);
         let mut score = dest_score(&placement_policy, h.cpu_percent, mem_pct, h.vm_count);
         if score <= 0.0 {
@@ -390,5 +398,38 @@ mod tests {
         assert!(30.0f32 - 20.0 < DRS_HYSTERESIS_MARGIN);
         // dest 40 better -> move.
         assert!(60.0f32 - 20.0 >= DRS_HYSTERESIS_MARGIN);
+    }
+
+    // Overcommit regression: `pick_host_for_vm` used to take `memory_mib` but
+    // never check it (`_memory_mib`), so a VM could be placed on a host with no
+    // free memory purely on percentage-based score. Mirrors the hard capacity
+    // guard `compute_recommendations` already applies to DRS moves.
+    #[tokio::test]
+    async fn pick_host_for_vm_rejects_hosts_without_capacity() {
+        let (state, _rx) = crate::engine::test_support::test_state().await;
+        let full = crate::engine::test_support::seed_host(&state.pool, Uuid::from_u128(1)).await;
+        let roomy = crate::engine::test_support::seed_host(&state.pool, Uuid::from_u128(2)).await;
+        sqlx::query(
+            "UPDATE hosts SET memory_total_mib = 4096, memory_used_mib = 4096 WHERE id = ?",
+        )
+        .bind(full)
+        .execute(&state.pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "UPDATE hosts SET memory_total_mib = 4096, memory_used_mib = 512 WHERE id = ?",
+        )
+        .bind(roomy)
+        .execute(&state.pool)
+        .await
+        .unwrap();
+
+        // A 2 GiB VM cannot fit on `full` (0 MiB free) and must land on `roomy`.
+        let picked = pick_host_for_vm(&state.pool, &[], 2048).await.unwrap();
+        assert_eq!(picked, roomy);
+
+        // No host has room for an 8 GiB VM -> placement must fail, not silently
+        // overcommit the least-bad host.
+        assert!(pick_host_for_vm(&state.pool, &[], 8192).await.is_err());
     }
 }

@@ -70,6 +70,10 @@ type Props = {
 export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: Props) {
   const toast = useToastContext()
   const extrasErrorShown = useRef(false)
+  // Last-response-wins: switching instances (inst.id changes) without a remount
+  // can leave a slow fetch for the previous instance in flight; only the newest
+  // load may commit so instance A's data can't clobber instance B's panel.
+  const loadSeq = useRef(0)
   const [fips, setFips] = useState<OpenStackFloatingIp[]>([])
   const [poolFips, setPoolFips] = useState<OpenStackFloatingIp[]>([])
   const [cinderVols, setCinderVols] = useState<OpenStackAttachedVolume[]>([])
@@ -93,6 +97,8 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
   const [attachNetId, setAttachNetId] = useState('')
 
   const loadExtras = useCallback(async () => {
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     try {
       const [f, allFips, cv, n, fl, imgs] = await Promise.all([
         listOpenStackInstanceFloatingIps(inst.id),
@@ -102,6 +108,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
         listOpenStackFlavors(),
         listOpenStackImages(),
       ])
+      if (!alive()) return
       setFips(f.floating_ips)
       setPoolFips(allFips.floating_ips.filter((ip) => isFloatingIpAvailable(ip, inst.id)))
       setCinderVols(cv.volumes.filter((v) => !volumes.some((a) => a.id === v.id)))
@@ -110,9 +117,9 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
       setImages(imgs.images.filter((img) => img.status === 'ACTIVE'))
       try {
         const ifc = await listOpenStackInstanceInterfaces(inst.id)
-        setIfaces(ifc.interfaces)
+        if (alive()) setIfaces(ifc.interfaces)
       } catch {
-        setIfaces([])
+        if (alive()) setIfaces([])
       }
       setExtNet((prev) => {
         if (prev) return prev
@@ -120,6 +127,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
         return ext ? ext.id : prev
       })
     } catch (e: unknown) {
+      if (!alive()) return
       if (!extrasErrorShown.current) {
         extrasErrorShown.current = true
         toast.error(`Failed to load OpenStack networking extras: ${formatUserError(e)}`)

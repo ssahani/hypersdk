@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Clock, GitBranch, Sparkles } from 'lucide-react'
 import { analyzeIncident, getInfraGraphAt, getTimelineReplay, type IncidentAnalysis } from '../../api/ai'
 import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
@@ -12,6 +12,11 @@ export default function MachinaInfrastructureTimeline({ hours = 4 }: { hours?: n
   const [graphChanges, setGraphChanges] = useState<string[]>([])
   const [graphDiff, setGraphDiff] = useState<{ summary: string; added: string[]; removed: string[]; nodeDelta: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Dragging the replay/scrub sliders re-fires `load` on every tick with no
+  // debounce; without a request-id guard a slower older response could land
+  // after a newer one and overwrite the graph diff for a scrub position the
+  // user has already moved past.
+  const reqRef = useRef(0)
 
   // Freeze the window end per replay-window change. Computing Date.now() in the
   // render body made windowStart/scrubTs new every render, so `load` (and its
@@ -21,6 +26,7 @@ export default function MachinaInfrastructureTimeline({ hours = 4 }: { hours?: n
   const scrubTs = new Date(windowStart + ((windowEnd - windowStart) * scrubPct) / 100).toISOString()
 
   const load = useCallback(async () => {
+    const reqId = ++reqRef.current
     setError(null)
     try {
       const fromIso = new Date(windowStart).toISOString()
@@ -30,6 +36,7 @@ export default function MachinaInfrastructureTimeline({ hours = 4 }: { hours?: n
         getTimelineReplay(fromIso, toIso),
         getInfraGraphAt(scrubTs).catch(() => null),
       ])
+      if (reqRef.current !== reqId) return // a newer slider position was selected while this was in flight
       setAnalysis(incident)
       setGraphChanges(replay.graph_changes ?? [])
       if (at) {
@@ -41,6 +48,7 @@ export default function MachinaInfrastructureTimeline({ hours = 4 }: { hours?: n
         })
       }
     } catch (e: unknown) {
+      if (reqRef.current !== reqId) return
       setError(e instanceof Error ? e.message : 'Timeline unavailable')
     }
   }, [replayHours, scrubTs, windowStart, windowEnd])

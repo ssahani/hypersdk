@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft, Loader2, Server } from 'lucide-react'
 import {
@@ -32,18 +32,25 @@ function OpenStackHypervisorDetailContent() {
   const [hv, setHv] = useState<OpenStackHypervisor | null>(null)
   const [loading, setLoading] = useState(true)
   useBreadcrumbName(hv?.hostname)
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: only the newest load may commit so a stale fetch for a
+    // prior hypervisor can't overwrite the one now shown.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     try {
       const { hypervisor } = await getOpenStackHypervisor(id)
+      if (!alive()) return
       setHv(hypervisor)
     } catch (e: unknown) {
+      if (!alive()) return
       toast.error(formatUserError(e))
       setHv(null)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id, toast])
 

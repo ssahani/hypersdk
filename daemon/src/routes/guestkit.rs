@@ -3,7 +3,7 @@
 // GuestKit worker health proxy for Machina Migration Radar.
 
 use axum::{
-    extract::{Path, Query},
+    extract::{Extension, Path, Query},
     routing::get,
     Json, Router,
 };
@@ -11,6 +11,7 @@ use machina_core::{GuestkitConfig, LibvirtError, LibvirtManager, MachinaConfig};
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::auth::{require_write, RequestActor};
 use crate::error::AppError;
 
 fn guestkit_cfg() -> GuestkitConfig {
@@ -119,7 +120,13 @@ async fn guestkit_get_job(Path(id): Path<String>) -> Result<Json<Value>, AppErro
     Ok(Json(proxy_get(&cfg, &format!("/api/v1/jobs/{id}")).await?))
 }
 
-async fn guestkit_submit_job(Json(body): Json<Value>) -> Result<Json<Value>, AppError> {
+async fn guestkit_submit_job(
+    Extension(actor): Extension<RequestActor>,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, AppError> {
+    // Submits a (potentially long-running) migration-radar job on the
+    // guestkit-worker backend; gate like every other mutating handler.
+    require_write(&actor, "vms:write")?;
     let cfg = guestkit_cfg();
     Ok(Json(proxy_post(&cfg, "/api/v1/jobs", body).await?))
 }
@@ -140,9 +147,13 @@ async fn guestkit_proxy_get(Query(q): Query<GuestkitProxyQuery>) -> Result<Json<
 }
 
 async fn guestkit_proxy_post(
+    Extension(actor): Extension<RequestActor>,
     Query(q): Query<GuestkitProxyQuery>,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
+    // This is an open POST proxy onto the guestkit-worker backend (arbitrary
+    // path + body); require write role like every other mutating handler.
+    require_write(&actor, "vms:write")?;
     let cfg = guestkit_cfg();
     let path = if q.path.starts_with('/') {
         q.path

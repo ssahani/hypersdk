@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { Key, Lock, Shield, Users } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
@@ -74,12 +74,19 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
   const [policyProject, setPolicyProject] = useState('default')
   const [policyMaxVms, setPolicyMaxVms] = useState('50')
   const [policyIsolation, setPolicyIsolation] = useState('shared')
+  // Last-response-wins guard: switching tabs quickly (each tab fetches a
+  // different data set) could otherwise let a slow response for a tab the
+  // user already left overwrite state committed by a newer fetch.
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setError(null)
     try {
       if (activeTab === 'keychain') {
-        setKeychain(await getFleetKeychain())
+        const k = await getFleetKeychain()
+        if (alive()) setKeychain(k)
         return
       }
       const [ov, v, m, f, t] = await Promise.all([
@@ -89,13 +96,14 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
         getFipsMatrix(),
         getTenantIsolationOverview(),
       ])
+      if (!alive()) return
       setOverview(ov)
       setVaults(v)
       setMfa(m)
       setFips(f)
       setTenants(t)
     } catch (e: unknown) {
-      setError(formatUserError(e))
+      if (alive()) setError(formatUserError(e))
     }
   }, [activeTab])
 

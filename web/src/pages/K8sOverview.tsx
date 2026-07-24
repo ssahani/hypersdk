@@ -292,6 +292,7 @@ export default function K8sOverviewPage() {
   const [clusterInventory, setClusterInventory] = useState<K8sClusterInventoryResponse | null>(null)
   const [k8sMetrics, setK8sMetrics] = useState<K8sMetricsResponse | null>(null)
   const [acting, setActing] = useState<string | null>(null)
+  const [drainConfirmNode, setDrainConfirmNode] = useState<string | null>(null)
   const [lastCommand, setLastCommand] = useState('')
   const [loadError, setLoadError] = useState<string | null>(null)
   const [filterPlane, setFilterPlane] = useState<string>('all')
@@ -1605,7 +1606,7 @@ export default function K8sOverviewPage() {
                       </button>
                       <button
                         className={`text-xs disabled:opacity-50 hover:bg-[color-mix(in_srgb,var(--machina-status-error)_30%,transparent)] ${statusPillClasses('error')}`}
-                        onClick={() => void runNodeAction(n.name, 'node_drain')}
+                        onClick={() => setDrainConfirmNode(n.name)}
                         disabled={acting !== null}
                       >
                         Drain
@@ -1652,6 +1653,15 @@ export default function K8sOverviewPage() {
         variant="danger"
         onCancel={() => setK3sConfirmOp(null)}
         onConfirm={() => { setK3sConfirmOp(null); void doRunHostK3sUninstall() }}
+      />
+      <ConfirmDialog
+        open={drainConfirmNode !== null}
+        title="Drain node"
+        message={`Drain node '${drainConfirmNode}'? This evicts all evictable pods from the node so it can be taken out of service.`}
+        confirmLabel="Drain"
+        variant="danger"
+        onCancel={() => setDrainConfirmNode(null)}
+        onConfirm={() => { const n = drainConfirmNode; setDrainConfirmNode(null); if (n) void runNodeAction(n, 'node_drain') }}
       />
       <ConfirmDialog
         open={bootstrapConfirmPhase !== null}

@@ -91,11 +91,32 @@ fn session_username_from_input(raw: &str) -> String {
     raw.to_string()
 }
 
-fn build_user_filter(cfg: &LdapConfig, username: &str) -> String {
-    if username.contains('@') {
-        return format!("(userPrincipalName={username})");
+/// Escape a value per RFC 4515 before interpolating it into an LDAP search filter.
+/// The web login path already restricts usernames to a safe character set (see
+/// `daemon/src/auth.rs::login_handler`), but this module is also reachable from the
+/// admin "LDAP test" endpoint, which does not apply that whitelist — escaping here
+/// closes LDAP filter injection (e.g. `*`, `(`, `)`, `\`) regardless of caller.
+fn escape_ldap_filter_value(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    for c in raw.chars() {
+        match c {
+            '\\' => out.push_str("\\5c"),
+            '*' => out.push_str("\\2a"),
+            '(' => out.push_str("\\28"),
+            ')' => out.push_str("\\29"),
+            '\0' => out.push_str("\\00"),
+            _ => out.push(c),
+        }
     }
-    cfg.user_filter.replace("{username}", username)
+    out
+}
+
+fn build_user_filter(cfg: &LdapConfig, username: &str) -> String {
+    let escaped = escape_ldap_filter_value(username);
+    if username.contains('@') {
+        return format!("(userPrincipalName={escaped})");
+    }
+    cfg.user_filter.replace("{username}", &escaped)
 }
 
 fn resolve_user_dn_and_groups(
@@ -159,7 +180,7 @@ fn lookup_groups_for_upn(
     if base.is_empty() {
         return Ok(Vec::new());
     }
-    let filter = format!("(userPrincipalName={upn})");
+    let filter = format!("(userPrincipalName={})", escape_ldap_filter_value(upn));
     let attrs = vec![cfg.member_attribute.as_str()];
     let (rs, _) = ldap
         .search(base, Scope::Subtree, &filter, attrs)

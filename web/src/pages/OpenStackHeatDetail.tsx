@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePlatformTabState } from '../hooks/usePlatformTabState'
 import { Link, useNavigate, useParams } from 'react-router'
 import { ArrowLeft, Layers, Loader2, Save, Trash2 } from 'lucide-react'
@@ -49,18 +49,26 @@ function OpenStackHeatDetailContent() {
   const [editTemplate, setEditTemplate] = useState('')
   const [tabLoading, setTabLoading] = useState(false)
   useBreadcrumbName(stack?.stack_name)
+  const loadStackSeq = useRef(0)
+  const loadTabSeq = useRef(0)
 
   const loadStack = useCallback(async () => {
     if (!name || !id) return
+    // Last-response-wins: only the newest load may commit so a stale fetch for a
+    // prior stack can't overwrite the one now shown.
+    const seq = ++loadStackSeq.current
+    const alive = () => seq === loadStackSeq.current
     setLoading(true)
     try {
       const { stack: s } = await getOpenStackHeatStack(name, id)
+      if (!alive()) return
       setStack(s)
     } catch (e: unknown) {
+      if (!alive()) return
       toast.error(formatUserError(e))
       setStack(null)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [name, id, toast])
 
@@ -68,23 +76,29 @@ function OpenStackHeatDetailContent() {
 
   const loadTab = useCallback(async () => {
     if (!name || !id || !stack) return
+    const seq = ++loadTabSeq.current
+    const alive = () => seq === loadTabSeq.current
     setTabLoading(true)
     try {
       if (tab === 'resources') {
         const { resources: r } = await listOpenStackHeatResources(name, id)
+        if (!alive()) return
         setResources(r ?? [])
       } else if (tab === 'events') {
         const { events: ev } = await listOpenStackHeatEvents(name, id)
+        if (!alive()) return
         setEvents(ev ?? [])
       } else if (tab === 'template') {
         const { template: t } = await getOpenStackHeatTemplate(name, id)
+        if (!alive()) return
         setTemplate(t ?? '')
         setEditTemplate(t ?? '')
       }
     } catch (e: unknown) {
+      if (!alive()) return
       toast.error(formatUserError(e))
     } finally {
-      setTabLoading(false)
+      if (alive()) setTabLoading(false)
     }
   }, [name, id, stack, tab, toast])
 

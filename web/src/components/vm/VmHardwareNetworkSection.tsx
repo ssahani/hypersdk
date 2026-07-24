@@ -11,6 +11,7 @@ import {
 } from '../../api/platform'
 import { invokeVmLibvirt } from '../../api/platformVmLibvirt'
 import { formatUserError } from '../../utils/apiError'
+import ConfirmDialog from '../ConfirmDialog'
 import VmPendingBadge from '../platform/VmPendingBadge'
 import { MacGlassPanel } from '../platform/mac/PlatformMacUi'
 
@@ -45,6 +46,7 @@ export default function VmHardwareNetworkSection({
   const [nicEditNetwork, setNicEditNetwork] = useState('default')
   const [platformNetworks, setPlatformNetworks] = useState<Array<{ name: string }>>([])
   const [busy, setBusy] = useState(false)
+  const [detachMac, setDetachMac] = useState<string | null>(null)
 
   useEffect(() => {
     void listPlatformNetworks().then(setPlatformNetworks).catch(() => setPlatformNetworks([]))
@@ -96,7 +98,7 @@ export default function VmHardwareNetworkSection({
                     type="button"
                     className="btn-secondary text-xs"
                     disabled={disabled || busy}
-                    onClick={() => void run('Detach NIC queued', () => detachVmNic(vmId, iface.mac_address))}
+                    onClick={() => setDetachMac(iface.mac_address)}
                   >
                     Detach
                   </button>
@@ -175,6 +177,20 @@ export default function VmHardwareNetworkSection({
           </button>
         </div>
       </MacGlassPanel>
+
+      <ConfirmDialog
+        open={detachMac !== null}
+        title="Detach NIC"
+        message={`This will detach the network interface '${detachMac}' from the VM.`}
+        confirmLabel="Detach"
+        variant="warning"
+        onCancel={() => setDetachMac(null)}
+        onConfirm={() => {
+          const mac = detachMac
+          setDetachMac(null)
+          if (mac) void run('Detach NIC queued', () => detachVmNic(vmId, mac))
+        }}
+      />
     </div>
   )
 }

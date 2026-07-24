@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { ArrowLeft, CheckCircle2, GitBranch, Radar, XCircle } from 'lucide-react'
 import { installK8sTetragon, getK8sExportStatus, type K8sExportForwarderStatus } from '../../../api/zeusSecurity'
+import ConfirmDialog from '../../../components/ConfirmDialog'
 import { MacGlassPanel, MacSheet } from '../../../components/platform/mac/PlatformMacUi'
 import PageLayout from '../../../components/PageLayout'
 import CopyButton from '../../../components/CopyButton'
@@ -25,6 +26,7 @@ export default function PlatformFirewallK8s() {
   const [exportNs, setExportNs] = useState('kube-system')
   const [exportStatus, setExportStatus] = useState<K8sExportForwarderStatus | null>(null)
   const [tetragonBusy, setTetragonBusy] = useState(false)
+  const [confirmApply, setConfirmApply] = useState(false)
 
   useEffect(() => {
     getK8sFirewallStatus()
@@ -137,9 +139,7 @@ export default function PlatformFirewallK8s() {
             type="button"
             className="btn-secondary text-sm"
             disabled={!ready}
-            onClick={() => void applyK8sFirewall(namespace, profile, false).then((r) => {
-              toast.success(String(r.summary ?? 'Applied to cluster'))
-            }).catch((e: unknown) => toast.error(formatUserError(e)))}
+            onClick={() => setConfirmApply(true)}
           >
             Apply to cluster
           </button>
@@ -157,6 +157,20 @@ export default function PlatformFirewallK8s() {
           <p className="text-sm text-slate-500">No manifests generated — choose a namespace and profile, then Preview manifests.</p>
         )}
       </MacSheet>
+      <ConfirmDialog
+        open={confirmApply}
+        title="Apply NetworkPolicy"
+        message={`Apply the "${profile}" firewall profile to namespace "${namespace}"? This changes live network policy for workloads in that namespace.`}
+        confirmLabel="Apply"
+        variant="danger"
+        onCancel={() => setConfirmApply(false)}
+        onConfirm={() => {
+          setConfirmApply(false)
+          void applyK8sFirewall(namespace, profile, false).then((r) => {
+            toast.success(String(r.summary ?? 'Applied to cluster'))
+          }).catch((e: unknown) => toast.error(formatUserError(e)))
+        }}
+      />
     </PageLayout>
   )
 }

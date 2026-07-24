@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { Siren, Sparkles } from 'lucide-react'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
@@ -31,6 +31,10 @@ export default function PlatformIncidentCommander() {
   const [runbookBusy, setRunbookBusy] = useState(false)
   const [runbookResult, setRunbookResult] = useState<RunbookExecutionResult | null>(null)
   const [runbookSheetOpen, setRunbookSheetOpen] = useState(false)
+  // Last-response-wins guard: clicking through incidents quickly can otherwise
+  // let a slow room fetch for a previously-selected incident land after a
+  // newer one, showing a war room that doesn't match the selected incident.
+  const roomSeq = useRef(0)
 
   const loadRca = useCallback(async (hours = rcaHours) => {
     setRcaLoading(true)
@@ -62,11 +66,14 @@ export default function PlatformIncidentCommander() {
   useEffect(() => { void load() }, [load])
 
   const openRoom = async (id: string) => {
+    const seq = ++roomSeq.current
+    const alive = () => seq === roomSeq.current
     setSelected(id)
     try {
-      setRoom(await getIncidentRoom(id))
+      const r = await getIncidentRoom(id)
+      if (alive()) setRoom(r)
     } catch (e: unknown) {
-      setError(formatUserError(e))
+      if (alive()) setError(formatUserError(e))
     }
   }
 

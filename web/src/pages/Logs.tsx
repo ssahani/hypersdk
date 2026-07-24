@@ -46,8 +46,14 @@ export default function LogsPage() {
   const [lineCount, setLineCount] = useState(100)
   const [autoRefresh, setAutoRefresh] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Last-response-wins: rapid filter changes (unit/priority/search/etc.) can
+  // leave stale requests in flight; only the newest request may commit so an
+  // old filter's slow response can't overwrite the current filter's results.
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     try {
       setLoading(true)
       setLoadError(null)
@@ -63,11 +69,11 @@ export default function LogsPage() {
         pid: pid.trim() ? Number(pid) : undefined,
         kernel: kernelOnly,
       })
-      setEntries(data)
+      if (alive()) setEntries(data)
     } catch (e: unknown) {
-      setLoadError(formatUserError(e))
+      if (alive()) setLoadError(formatUserError(e))
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [lineCount, priority, unit, boot, since, until, grep, uid, pid, kernelOnly])
 

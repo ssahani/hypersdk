@@ -20,7 +20,7 @@ use machina_core::{
 
 const REMOTE_WRITE_MAX_BYTES: usize = 16 * 1024 * 1024;
 
-use crate::auth::RequestActor;
+use crate::auth::{require_write, RequestActor};
 use crate::conn_query::{apply_impersonation_session_default, spawn_libvirt_actor, ConnQuery};
 use crate::error::AppError;
 use crate::http_metrics::HttpMetrics;
@@ -91,9 +91,11 @@ struct BatchIngestRequest {
 }
 
 async fn post_metrics_ingest_batch(
+    Extension(actor): Extension<RequestActor>,
     Extension(store): Extension<MetricsHistoryStore>,
     Json(req): Json<BatchIngestRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "metrics:write")?;
     if req.points.is_empty() {
         return Err(AppError::from(LibvirtError::Invalid(
             "points array must not be empty".into(),
@@ -114,10 +116,12 @@ async fn post_metrics_ingest_batch(
 }
 
 async fn post_metrics_ingest_remote_write(
+    Extension(actor): Extension<RequestActor>,
     Extension(store): Extension<MetricsHistoryStore>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "metrics:write")?;
     if body.is_empty() {
         return Err(AppError::from(LibvirtError::Invalid(
             "empty remote_write body".into(),
@@ -162,9 +166,11 @@ async fn post_metrics_ingest_remote_write(
 }
 
 async fn post_metrics_ingest_prometheus(
+    Extension(actor): Extension<RequestActor>,
     Extension(store): Extension<MetricsHistoryStore>,
     body: String,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_write(&actor, "metrics:write")?;
     let samples = parse_prometheus_text(&body);
     if samples.is_empty() {
         return Err(AppError::from(LibvirtError::Invalid(

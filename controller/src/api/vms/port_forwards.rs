@@ -67,8 +67,10 @@ async fn vm_host_agent(state: &AppState, vm_id: Uuid) -> Result<(String, String)
 
 pub async fn list_vm_port_forwards(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<crate::agent_client::PortForwardRuleDto>>, ApiError> {
+    require_operator(&actor)?;
     let (guest_ip, agent_addr) = vm_host_agent(&state, id).await?;
     let guest_ip = guest_ip.trim();
     if guest_ip.is_empty() {
@@ -157,8 +159,10 @@ fn read_port_forward_templates(spec: &serde_json::Value) -> Vec<PortForwardTempl
 
 pub async fn list_vm_port_forward_templates(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<PortForwardTemplateDto>>, ApiError> {
+    require_operator(&actor)?;
     let spec: serde_json::Value = sqlx::query_scalar("SELECT spec_json FROM vms WHERE id = ?")
         .bind(id)
         .fetch_one(&state.pool)

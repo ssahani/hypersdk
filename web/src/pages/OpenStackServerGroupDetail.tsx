@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { ArrowLeft, Layers, Loader2 } from 'lucide-react'
 import { getOpenStackServerGroup, deleteOpenStackServerGroup, type OpenStackServerGroup } from '../api/openstackExtras'
@@ -29,18 +29,25 @@ function OpenStackServerGroupDetailContent() {
   const [group, setGroup] = useState<OpenStackServerGroup | null>(null)
   const [loading, setLoading] = useState(true)
   useBreadcrumbName(group?.name)
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: only the newest load may commit so a stale fetch for a
+    // prior server group can't overwrite the one now shown.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     try {
       const { server_group } = await getOpenStackServerGroup(id)
+      if (!alive()) return
       setGroup(server_group)
     } catch (e: unknown) {
+      if (!alive()) return
       toast.error(formatUserError(e))
       setGroup(null)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id, toast])
 

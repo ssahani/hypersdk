@@ -136,8 +136,13 @@ async fn os_detect_handler(
 
 /// Resolve RHEL KVM guest image URL via Red Hat API ( bearer token ).
 async fn rhel_image_url_handler(
+    Extension(actor): Extension<RequestActor>,
     Json(body): Json<RhelUrlBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    // Same class as os_detect_handler above: the daemon shells out to make an
+    // outbound network call on the caller's behalf. Gate it the same way
+    // instead of leaving it reachable by any authenticated (incl. read-only) user.
+    require_write(&actor, "vms:write")?;
     let api = format!(
         "https://api.access.redhat.com/management/v1/images/rhel/{}/{}/",
         body.rhel_version, body.arch

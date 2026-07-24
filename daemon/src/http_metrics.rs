@@ -69,6 +69,15 @@ impl RouteStats {
 
 const MAX_TRACE_SPANS: usize = 256;
 
+/// Cap on distinct (method, route) label combinations. `record_request` runs on every
+/// request — including unauthenticated ones hitting the SPA fallback or 404s — and
+/// `normalize_path` only collapses segments it recognizes as dynamic. Without a cap, an
+/// attacker sweeping many distinct nonexistent paths could grow `inner` without bound
+/// (unbounded memory growth / DoS) before auth is ever checked. Once the cap is hit,
+/// unseen route keys are folded into a shared "other" bucket instead of being dropped,
+/// so the Prometheus counters still account for the traffic.
+const MAX_ROUTE_KEYS: usize = 2000;
+
 #[derive(Clone)]
 pub struct HttpMetrics {
     inner: Arc<Mutex<HashMap<RouteKey, RouteStats>>>,
@@ -92,11 +101,17 @@ impl HttpMetrics {
         trace_id: &str,
         span_id: &str,
     ) {
-        let key = RouteKey {
+        let mut key = RouteKey {
             method: method.to_ascii_uppercase(),
             route: route.to_string(),
         };
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if !guard.contains_key(&key) && guard.len() >= MAX_ROUTE_KEYS {
+            key = RouteKey {
+                method: key.method,
+                route: "other".to_string(),
+            };
+        }
         guard
             .entry(key.clone())
             .or_insert_with(RouteStats::new)

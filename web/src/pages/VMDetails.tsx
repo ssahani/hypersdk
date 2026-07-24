@@ -279,6 +279,7 @@ export default function VMDetailsPage() {
   // Confirmation dialog state for destructive actions
   const [detachDiskTarget, setDetachDiskTarget] = useState<string | null>(null)
   const [detachNicMac, setDetachNicMac] = useState<string | null>(null)
+  const [removeShareTag, setRemoveShareTag] = useState<string | null>(null)
   const [deleteSnapName, setDeleteSnapName] = useState<string | null>(null)
   const [revertSnapName, setRevertSnapName] = useState<string | null>(null)
 
@@ -1178,6 +1179,20 @@ export default function VMDetailsPage() {
 
   const confirmDetachNic = async () => {
     if (detachNicMac) { await handleDetachNic(detachNicMac); setDetachNicMac(null) }
+  }
+
+  const confirmRemoveShare = async () => {
+    const tag = removeShareTag
+    setRemoveShareTag(null)
+    if (!tag || !name) return
+    try {
+      await removeShare(name, tag, conn)
+      toast.success('Shared directory removed')
+      load()
+      setVmXml('')
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    }
   }
 
   const confirmDeleteSnapshot = async () => {
@@ -2131,17 +2146,7 @@ export default function VMDetailsPage() {
                           <td className="px-5 py-2 text-right">
                             <button
                               type="button"
-                              onClick={async () => {
-                                if (!name) return
-                                try {
-                                  await removeShare(name, fs.mount_tag, conn)
-                                  toast.success('Shared directory removed')
-                                  load()
-                                  setVmXml('')
-                                } catch (e: unknown) {
-                                  toast.error(formatUserError(e))
-                                }
-                              }}
+                              onClick={() => setRemoveShareTag(fs.mount_tag)}
                               className="px-2 py-0.5 bg-red-600/20 hover:bg-red-600/30 rounded text-xs text-red-300 transition"
                             >
                               Remove
@@ -3286,6 +3291,14 @@ export default function VMDetailsPage() {
         confirmLabel="Detach"
         onConfirm={confirmDetachNic}
         onCancel={() => setDetachNicMac(null)}
+      />
+      <ConfirmDialog
+        open={removeShareTag !== null}
+        title="Remove Shared Directory"
+        message={`This will remove the virtiofs share '${removeShareTag}' from the VM. Anything inside the guest still using this mount will lose access.`}
+        confirmLabel="Remove"
+        onConfirm={confirmRemoveShare}
+        onCancel={() => setRemoveShareTag(null)}
       />
       <ConfirmDialog
         open={deleteSnapName !== null}

@@ -19,6 +19,7 @@ import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { statusPillClasses } from '../../utils/semanticColors'
+import ConfirmDialog from '../ConfirmDialog'
 
 const GUEST_SUGGESTED_PROMPTS = [
   'Which guests have no connected guest agent?',
@@ -56,6 +57,7 @@ export default function ZeusAssistant() {
   const [nlOpsPlan, setNlOpsPlan] = useState<NlOpsPlan | null>(null)
   const [executingId, setExecutingId] = useState<string | null>(null)
   const [agents, setAgents] = useState<ZeusAgentInfo[]>([])
+  const [confirmAction, setConfirmAction] = useState<ProposedAction | null>(null)
 
   const showGuestPrompts = guestContextActive(contextSummary, contextVmIds)
 
@@ -201,6 +203,19 @@ export default function ZeusAssistant() {
   return (
     <>
       <div className="fixed inset-0 z-[55] bg-black/20 lg:hidden" onClick={closeCopilot} aria-hidden />
+      <ConfirmDialog
+        open={confirmAction !== null}
+        title="Run Autopilot fix"
+        message={confirmAction ? `Run "${confirmAction.label}" now? ${confirmAction.review}` : ''}
+        confirmLabel="Run fix"
+        variant="warning"
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => {
+          const action = confirmAction
+          setConfirmAction(null)
+          if (action) void runAction(action)
+        }}
+      />
       <aside className="fixed right-0 top-0 bottom-0 z-[56] w-full max-w-md border-l border-white/[0.08] bg-slate-900/98 backdrop-blur-xl flex flex-col shadow-2xl animate-fade-in">
         <header className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
           <div className="flex items-center gap-2 min-w-0">
@@ -254,7 +269,7 @@ export default function ZeusAssistant() {
                   type="button"
                   className="btn-primary text-[10px] mt-2"
                   disabled={executingId === a.id}
-                  onClick={() => void runAction(a)}
+                  onClick={() => setConfirmAction(a)}
                 >
                   {executingId === a.id ? 'Running…' : 'Review & run'}
                 </button>

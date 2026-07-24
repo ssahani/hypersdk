@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, RefreshCw, ScrollText, Terminal, X } from 'lucide-react'
 import {
   MacGlassPanel,
@@ -66,8 +66,14 @@ export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  // Last-response-wins guard: eventKind changes on every keystroke, so a slow
+  // response for an earlier filter value could otherwise land after a newer
+  // one and show stale filtered results.
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setError(null)
     try {
       const [console, audit, events] = await Promise.all([
@@ -75,14 +81,16 @@ export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}
         listAuditLogs().catch(() => []),
         listPlatformEvents(eventKind || undefined).catch(() => []),
       ])
+      if (!alive()) return
       setFleet(console)
       setControllerAudit(audit)
       setPlatformEvents(events)
     } catch (e: unknown) {
+      if (!alive()) return
       setError(formatUserError(e))
       setFleet(null)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [eventKind])
 

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft, Loader2, Plug } from 'lucide-react'
 import { getOpenStackPort, updateOpenStackPort, type OpenStackPort } from '../api/openstackExtras'
@@ -28,18 +28,25 @@ function OpenStackPortDetailContent() {
   const [port, setPort] = useState<OpenStackPort | null>(null)
   const [loading, setLoading] = useState(true)
   useBreadcrumbName(port?.name)
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: only the newest load may commit so a stale fetch for a
+    // prior port can't overwrite the one now shown.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     try {
       const { port: p } = await getOpenStackPort(id)
+      if (!alive()) return
       setPort(p)
     } catch (e: unknown) {
+      if (!alive()) return
       toast.error(formatUserError(e))
       setPort(null)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id, toast])
 

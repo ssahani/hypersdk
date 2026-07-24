@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import {
   getHypersdkStatus,
@@ -88,17 +88,25 @@ function OpenStackMigrationsContent() {
     void load()
   }, [load])
 
+  const jobDetailSeq = useRef(0)
+
   const loadJobDetail = useCallback(async (jobId: string) => {
+    // Last-response-wins: clicking a second job before the first fetch resolves
+    // must not let the stale first response overwrite the newly selected job.
+    const seq = ++jobDetailSeq.current
+    const alive = () => seq === jobDetailSeq.current
     setSelectedJobId(jobId)
     setJobDetailLoading(true)
     try {
       const job = await getHypersdkMigrationJob(jobId)
+      if (!alive()) return
       setSelectedJob(job)
     } catch (e: unknown) {
+      if (!alive()) return
       setSelectedJob(null)
       toast.error(formatUserError(e))
     } finally {
-      setJobDetailLoading(false)
+      if (alive()) setJobDetailLoading(false)
     }
   }, [toast])
 

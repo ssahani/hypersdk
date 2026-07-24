@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft, Globe, Loader2 } from 'lucide-react'
 import {
@@ -33,18 +33,25 @@ function OpenStackFloatingIpDetailContent() {
   const [fip, setFip] = useState<OpenStackFloatingIp | null>(null)
   const [loading, setLoading] = useState(true)
   useBreadcrumbName(fip?.address)
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: only the newest load may commit so a stale fetch for a
+    // prior floating IP can't overwrite the one now shown.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     try {
       const { floating_ip } = await getOpenStackFloatingIp(id)
+      if (!alive()) return
       setFip(floating_ip)
     } catch (e: unknown) {
+      if (!alive()) return
       toast.error(formatUserError(e))
       setFip(null)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id, toast])
 

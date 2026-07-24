@@ -14,6 +14,7 @@ import { invokeVmLibvirt } from '../../api/platformVmLibvirt'
 import { formatUserError } from '../../utils/apiError'
 import { listIsos, type ImageFile } from '../../api/extras'
 import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../BrowseHostPathModal'
+import ConfirmDialog from '../ConfirmDialog'
 import VmPendingBadge from '../platform/VmPendingBadge'
 import { MacGlassPanel } from '../platform/mac/PlatformMacUi'
 import { formatBytes } from '../../utils/vm'
@@ -60,6 +61,7 @@ export default function VmHardwareDisksSection({
   const [diskEditBus, setDiskEditBus] = useState('virtio')
   const [diskEditReadonly, setDiskEditReadonly] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [detachTarget, setDetachTarget] = useState<string | null>(null)
 
   useEffect(() => {
     void listIsos()
@@ -121,7 +123,7 @@ export default function VmHardwareDisksSection({
                         type="button"
                         className="btn-secondary text-xs"
                         disabled={disabled || busy}
-                        onClick={() => void run(`Detach ${d.target} queued`, () => detachVmDisk(vmId, d.target))}
+                        onClick={() => setDetachTarget(d.target)}
                       >
                         Detach
                       </button>
@@ -310,6 +312,20 @@ export default function VmHardwareDisksSection({
 
       <BrowseHostPathModal open={isoBrowseOpen} onClose={() => setIsoBrowseOpen(false)} title="Browse for ISO" canSelectFile={isIsoFileName} onSelectPath={(p) => setIsoPath(p)} />
       <BrowseHostPathModal open={attachDiskBrowseOpen} onClose={() => setAttachDiskBrowseOpen(false)} title="Browse for disk" canSelectFile={isHostDiskImageFileName} onSelectPath={(p) => setAttachPath(p)} />
+
+      <ConfirmDialog
+        open={detachTarget !== null}
+        title="Detach disk"
+        message={`This will detach disk '${detachTarget}' from the VM. The disk image will not be deleted.`}
+        confirmLabel="Detach"
+        variant="warning"
+        onCancel={() => setDetachTarget(null)}
+        onConfirm={() => {
+          const target = detachTarget
+          setDetachTarget(null)
+          if (target) void run(`Detach ${target} queued`, () => detachVmDisk(vmId, target))
+        }}
+      />
     </div>
   )
 }
