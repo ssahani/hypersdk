@@ -28,6 +28,7 @@ groups:
     rules:
       - alert: MachinaDaemonAuthFailures
         expr: increase(machina_daemon_auth_failures_total[15m]) > 10
+        for: 5m
         labels:
           severity: warning
         annotations:

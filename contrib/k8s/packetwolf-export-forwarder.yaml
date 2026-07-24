@@ -1,4 +1,4 @@
-# Machina Zeus — PacketWolf export forwarder for Tetragon (cluster-scoped log tail → ingest)
+# Machina Zeus — PacketWolf export forwarder for Tetragon (namespace-scoped log tail → ingest)
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -10,27 +10,33 @@ metadata:
     app.kubernetes.io/managed-by: machina-zeus
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   name: packetwolf-export-forwarder-{{CLUSTER_TOKEN}}
+  namespace: {{NAMESPACE}}
   labels:
     app.kubernetes.io/name: packetwolf-export-forwarder
     app.kubernetes.io/managed-by: machina-zeus
 rules:
+  # forward.py only calls list_namespaced_pod/read_namespaced_pod_log against
+  # TETRAGON_NAMESPACE (== this release's namespace) — scope to a namespaced
+  # Role, not a cluster-wide ClusterRole, to avoid granting pod/log read
+  # access in every other namespace in the cluster.
   - apiGroups: [""]
     resources: ["pods", "pods/log"]
     verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   name: packetwolf-export-forwarder-{{CLUSTER_TOKEN}}
+  namespace: {{NAMESPACE}}
   labels:
     app.kubernetes.io/name: packetwolf-export-forwarder
     app.kubernetes.io/managed-by: machina-zeus
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: Role
   name: packetwolf-export-forwarder-{{CLUSTER_TOKEN}}
 subjects:
   - kind: ServiceAccount
@@ -80,13 +86,25 @@ spec:
         app.kubernetes.io/name: packetwolf-export-forwarder
     spec:
       serviceAccountName: packetwolf-export-forwarder
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: false  # pip install below writes to site-packages; see note
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: forwarder
           image: python:3.12-alpine
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           command: ["/bin/sh", "-eu", "-c"]
           args:
-            - pip install -q kubernetes && exec python /config/forward.py
+            # Pin the client version: an unpinned `pip install kubernetes`
+            # pulls whatever release is newest on every pod (re)start,
+            # which is a supply-chain/reproducibility risk. Bump deliberately.
+            - pip install -q "kubernetes==29.0.0" && exec python /config/forward.py
           env:
             - name: PACKETWOLF_EXPORT_URL
               value: "{{EXPORT_URL}}"

@@ -264,6 +264,13 @@ max_sessions_global = 1000
 
 When `max_sessions_per_user` is `0`, multiple browsers can stay signed in as the same PAM user without evicting each other. Set a positive value only if you want oldest-session eviction per user.
 
+**Daemon login rate limiting (`:5092`)** — `/auth/login`, `/auth/oidc/login`,
+and `/auth/oidc/callback` are throttled to 10 attempts per (client IP, path)
+per 60s (in-memory fixed window, not configurable via env/config). Every
+other daemon route is unaffected. This bounds brute-force/credential-
+stuffing against PAM/LDAP login and caps how often an anonymous caller can
+force an outbound request to the OIDC IdP.
+
 **Controller rate limits (`:5093`)** — in `/etc/default/machina-platform`:
 
 ```bash

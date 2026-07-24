@@ -109,7 +109,7 @@ The **web UI** proxies all `/api/...` and `/ws/...` requests to `machina-daemon`
 DATABASE_URL          sqlite:///var/lib/machina/controller.db   (embedded, no PostgreSQL needed)
 NATS_URL              nats://127.0.0.1:4222   (optional, enables NATS task fan-out)
 MACHINA_AGENT_ADDR    http://127.0.0.1:50051
-MACHINA_JWT_SECRET    change-me
+MACHINA_JWT_SECRET    (random per-process secret if unset; controller refuses to boot on the well-known dev literal unless MACHINA_ALLOW_DEV_SECRETS=1)
 MACHINA_PUBLIC_URL    http://127.0.0.1:5093
 MACHINA_WEB_URL       http://127.0.0.1:5173
 GUESTKIT_ENABLED      true

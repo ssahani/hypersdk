@@ -55,7 +55,9 @@ services. Flags: `--bind ADDR`, `--public-url URL`, `--require-auth`,
 A Helm chart lives at `contrib/k8s/machina/` (chart `machina`, appVersion
 `0.1.0`). It deploys **only** `machina-daemon` on :5092 (`ClusterIP`,
 containerPort named `https`); auth (PAM/LDAP/OIDC/SAML) is rendered into a
-ConfigMap mounted at `/etc/machina`. Env: `MACHINA_JWT_SECRET`,
+Secret mounted at `/etc/machina` (`templates/secret.yaml`) — it holds the
+JWT signing secret and the OIDC client secret, so it is a Secret rather than
+a ConfigMap. Env: `MACHINA_JWT_SECRET`,
 `MACHINA_DAEMON_SKIP_AUTH`.
 
 > The controller/agent tier is **systemd-only** — there are no k8s manifests for
@@ -238,7 +240,7 @@ TLS is active only when `enabled=true` **and** both paths are non-empty.
 | Variable | Effect | Default |
 |----------|--------|---------|
 | `RUST_LOG` | Log filter; if unset, forced to `info,rustls::msgs::handshake=error` | — |
-| `MACHINA_JWT_SECRET` | HMAC secret to validate platform-controller JWTs | `machina-dev-jwt-secret-change-me` |
+| `MACHINA_JWT_SECRET` | HMAC secret to validate platform-controller JWTs | unset → a random secret is generated per process start (sessions won't survive a restart); explicitly setting the literal `machina-dev-jwt-secret-change-me` is detected and ignored in favor of the same random fallback |
 | `MACHINA_DAEMON_SKIP_AUTH` | `=1` bypasses auth (dev only — every request is admin) | unset |
 | `MACHINA_DEFAULT_SSH_USER` | Default SSH user for terminal targets | `ubuntu` |
 | `MACHINA_PLATFORM_CONTROLLER_URL` | Upstream controller URL for the reverse proxy | — |
@@ -255,7 +257,7 @@ TLS is active only when `enabled=true` **and** both paths are non-empty.
 | `DATABASE_URL` | State store | `sqlite:///var/lib/machina/controller.db` (embedded; Postgres via SQLx also supported) |
 | `NATS_URL` | Enables NATS task fan-out | `nats://127.0.0.1:4222` (optional) |
 | `MACHINA_AGENT_ADDR` | gRPC agent address | `http://127.0.0.1:50051` |
-| `MACHINA_JWT_SECRET` | JWT signing secret | `change-me` |
+| `MACHINA_JWT_SECRET` | JWT signing secret | unset → a random secret is generated per process start (sessions won't survive a restart); explicitly set to the literal `machina-dev-jwt-secret-change-me` and the controller **refuses to start** unless `MACHINA_ALLOW_DEV_SECRETS=1`/`MACHINA_SKIP_AUTH=1` |
 | `MACHINA_PUBLIC_URL` | Public controller URL | `http://127.0.0.1:5093` |
 | `MACHINA_WEB_URL` | Web UI URL | `http://127.0.0.1:5173` |
 | `MACHINA_SKIP_AUTH` | `=1` disables JWT auth (dev only) | unset |
@@ -280,9 +282,13 @@ enabled, LDAP is tried first, then PAM. OIDC browser SSO is available via
 
 **Sessions** — on login the daemon sets an `HttpOnly; SameSite=Strict` cookie
 named **`machina_session`** holding a 32-byte random token; server-side session
-TTL is **24h**. Logout clears it. Admins can list/revoke via
-`GET /admin/sessions` and `DELETE /admin/sessions/{id}`. WebSocket connections
-use a single-use token from `POST /api/v1/ws-token` passed as `?token=`.
+TTL is **24h**. The cookie also carries `Secure` whenever TLS is actually
+serving the daemon (`TlsConfig::is_effectively_enabled()` — true by default,
+since HTTPS is on out of the box; see §6), so browsers won't leak it over a
+plaintext fallback listener. Logout clears it with matching attributes.
+Admins can list/revoke via `GET /admin/sessions` and
+`DELETE /admin/sessions/{id}`. WebSocket connections use a single-use token
+from `POST /api/v1/ws-token` passed as `?token=`.
 
 **RBAC roles** — `Admin`, `Operator`, `ReadOnly`:
 

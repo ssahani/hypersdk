@@ -84,6 +84,10 @@ empty or missing, everyone is treated as Admin.** OIDC group mappings
 **Q14. How does the session cookie work?**
 On login the daemon sets an `HttpOnly; SameSite=Strict` cookie named
 `machina_session` with a random token; server-side sessions last 24 hours.
+The cookie also gets `Secure` whenever the daemon is actually serving over
+TLS (the default, since HTTPS is on out of the box) — it's dropped only if
+TLS ends up disabled/misconfigured, so it isn't sent in the clear over a
+real HTTPS deployment.
 
 **Q15. How do WebSocket consoles authenticate?**
 Clients first `POST /api/v1/ws-token` to mint a single-use token, then connect to
