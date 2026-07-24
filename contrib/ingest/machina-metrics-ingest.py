@@ -21,6 +21,10 @@ import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
+# Guards against a misbehaving/malicious client driving an unbounded rfile.read()
+# off of an arbitrary Content-Length header.
+MAX_BODY_BYTES = 10 * 1024 * 1024  # 10 MiB
+
 
 class Handler(BaseHTTPRequestHandler):
     out_path: Path
@@ -29,11 +33,18 @@ class Handler(BaseHTTPRequestHandler):
         if self.path not in ("/", "/ingest"):
             self.send_error(404)
             return
-        length = int(self.headers.get("Content-Length", "0") or 0)
+        try:
+            length = int(self.headers.get("Content-Length", "0") or 0)
+        except ValueError:
+            self.send_error(400, "invalid Content-Length")
+            return
+        if length < 0 or length > MAX_BODY_BYTES:
+            self.send_error(413, "payload too large")
+            return
         raw = self.rfile.read(length) if length > 0 else b"{}"
         try:
             payload = json.loads(raw.decode("utf-8"))
-        except json.JSONDecodeError:
+        except (UnicodeDecodeError, json.JSONDecodeError):
             self.send_error(400, "invalid JSON")
             return
         line = json.dumps(payload, separators=(",", ":"))

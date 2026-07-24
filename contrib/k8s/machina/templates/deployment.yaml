@@ -16,16 +16,23 @@ spec:
         app.kubernetes.io/name: {{ include "machina.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: machina-daemon
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: {{ printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion) | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           ports:
             - containerPort: {{ .Values.daemon.port }}
               name: https
           env:
             - name: MACHINA_JWT_SECRET
-              value: {{ default .Values.auth.jwtSecret .Values.env.MACHINA_JWT_SECRET | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-config" (include "machina.fullname" .)) .Values.configMap.name | quote }}
+                  key: jwtSecret
             - name: MACHINA_DAEMON_SKIP_AUTH
               value: {{ .Values.env.MACHINA_DAEMON_SKIP_AUTH | quote }}
           volumeMounts:
@@ -36,5 +43,5 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
       volumes:
         - name: config
-          configMap:
-            name: {{ default (printf "%s-config" (include "machina.fullname" .)) .Values.configMap.name }}
+          secret:
+            secretName: {{ default (printf "%s-config" (include "machina.fullname" .)) .Values.configMap.name | quote }}

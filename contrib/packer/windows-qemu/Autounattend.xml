@@ -103,6 +103,15 @@
         <ProtectYourPC>1</ProtectYourPC>
       </OOBE>
 
+      <!-- SECURITY NOTE: "Password123!" is a build-time-only placeholder
+           required so Packer/WinRM can authenticate as Administrator while
+           this golden image is being built. It is NOT a secret — treat any
+           VM cloned from this image as having a publicly-known local
+           Administrator password until that password is rotated. Rotating
+           it here would break the Packer build (winrm_password in
+           windows.pkr.hcl must match), so it must be changed downstream
+           (e.g. as part of first-boot/customization tooling) before any
+           cloned VM is exposed to an untrusted network. -->
       <UserAccounts>
         <AdministratorPassword>
           <Value>Password123!</Value>
@@ -110,6 +119,16 @@
         </AdministratorPassword>
       </UserAccounts>
 
+      <!-- LogonCount is intentionally 1, not the historical default of 3:
+           exactly one autologon is needed so FirstLogonCommands (below) can
+           run non-interactively on first boot. Leaving it at 3 meant every
+           VM cloned from this golden image would still auto-login as
+           Administrator (no password prompt) for its first two REAL boots
+           after deployment — do not raise this value without also adding
+           extra FirstLogonCommands steps that actually need it. See also
+           scripts/harden-on-first-boot.ps1, which clears the
+           AutoAdminLogon/DefaultPassword registry remnants that Windows
+           otherwise leaves behind even after LogonCount reaches 0. -->
       <AutoLogon>
         <Password>
           <Value>Password123!</Value>
@@ -117,7 +136,7 @@
         </Password>
         <Username>Administrator</Username>
         <Enabled>true</Enabled>
-        <LogonCount>3</LogonCount>
+        <LogonCount>1</LogonCount>
       </AutoLogon>
 
       <FirstLogonCommands>

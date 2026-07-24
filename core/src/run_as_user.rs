@@ -4,7 +4,6 @@
 
 //! Execute allow-listed host commands as an OIDC-mapped local user (`sudo` or `pkexec`).
 
-use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
 use crate::config::RunAsUserConfig;
@@ -17,11 +16,17 @@ const ALLOWED_PROGRAMS: &[&str] = &[
 ];
 
 fn program_allowed(program: &str) -> bool {
-    let base = Path::new(program)
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or(program);
-    ALLOWED_PROGRAMS.contains(&base)
+    // `program` is the exact string later passed as the literal argument to
+    // pkexec/sudo/the setuid helper (see `wrap_command` below) -- it is never
+    // canonicalized before exec. Matching only the basename here would let a
+    // caller-supplied path like "/tmp/evil/useradd" pass this check (basename
+    // "useradd" is allow-listed) while the privileged backend actually
+    // resolves/execs that attacker-controlled path. Require an exact, bare
+    // command name instead: reject anything containing a path separator.
+    if program.contains('/') {
+        return false;
+    }
+    ALLOWED_PROGRAMS.contains(&program)
 }
 
 fn wrap_command(

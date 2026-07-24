@@ -7,6 +7,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Least-privilege default: this pipeline only builds/tests and never pushes
+# commits, tags, packages, or PR comments, so the GITHUB_TOKEN only needs
+# read access to repo contents (to check out code). Jobs that need more must
+# declare it explicitly at the job level.
+permissions:
+  contents: read
+
 # The machina workspace has path deps on the sibling `hypersdk/guestkit` repo
 # (controller/Cargo.toml: `../../guestkit`). Both repos are laid out as siblings under the
 # workspace so `cargo metadata` can load, then the real gates run: the workspace must build
@@ -25,10 +32,11 @@ jobs:
         with:
           repository: hypersdk/guestkit
           path: guestkit
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable (pinned 2026-07-24)
         with:
+          toolchain: stable
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2 (floating tag, pinned 2026-07-24)
         with:
           workspaces: machina
       - name: Install build dependencies
