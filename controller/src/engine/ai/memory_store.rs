@@ -82,26 +82,22 @@ pub async fn recall_for_user(
     }
     let cap = limit.clamp(1, 20);
     let uid = user_id.unwrap_or("");
-    let rows: Vec<String> = if uid.is_empty() {
-        sqlx::query_scalar(
-            "SELECT summary FROM ai_memory_entries
-             WHERE expires_at IS NULL OR expires_at > datetime('now')
-             ORDER BY created_at DESC LIMIT ?",
-        )
-        .bind(cap)
-        .fetch_all(pool)
-        .await?
-    } else {
-        sqlx::query_scalar(
-            "SELECT summary FROM ai_memory_entries
-             WHERE owner_id = ? AND (expires_at IS NULL OR expires_at > datetime('now'))
-             ORDER BY created_at DESC LIMIT ?",
-        )
-        .bind(uid)
-        .bind(cap)
-        .fetch_all(pool)
-        .await?
-    };
+    // Memory entries are per-owner private data (chat history summaries, etc).
+    // With no identified caller there is no owner to scope by — return nothing
+    // rather than falling through to an unscoped query that would hand back
+    // every user's memories as "recalled" context for whoever is asking.
+    if uid.is_empty() {
+        return Ok(vec![]);
+    }
+    let rows: Vec<String> = sqlx::query_scalar(
+        "SELECT summary FROM ai_memory_entries
+         WHERE owner_id = ? AND (expires_at IS NULL OR expires_at > datetime('now'))
+         ORDER BY created_at DESC LIMIT ?",
+    )
+    .bind(uid)
+    .bind(cap)
+    .fetch_all(pool)
+    .await?;
     Ok(rows)
 }
 

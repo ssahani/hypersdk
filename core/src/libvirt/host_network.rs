@@ -1051,8 +1051,11 @@ pub fn delete_port_forward(
         return Err(LibvirtError::Invalid(format!("Invalid VM IP: {vm_ip}")));
     }
 
-    // Delete PREROUTING DNAT rule
-    let _ = Command::new(find_bin("iptables"))
+    // These deletes are intentionally best-effort (the rule may already be gone), but a
+    // failure was previously discarded with no trace at all — an iptables error unrelated
+    // to "rule not found" (e.g. a locked xtables lock) left the NAT/FORWARD rule in place
+    // while the caller was told the port forward was removed. Log so that case is visible.
+    match Command::new(find_bin("iptables"))
         .args([
             "-t",
             "nat",
@@ -1067,10 +1070,21 @@ pub fn delete_port_forward(
             "--to-destination",
             &format!("{vm_ip}:{vm_port}"),
         ])
-        .output();
+        .output()
+    {
+        Ok(out) if !out.status.success() => {
+            tracing::warn!(
+                "delete_port_forward: iptables PREROUTING delete for {proto}/{host_port}->{vm_ip}:{vm_port} \
+                 failed: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            );
+        }
+        Err(e) => tracing::warn!("delete_port_forward: failed to run iptables (PREROUTING): {e}"),
+        Ok(_) => {}
+    }
 
     // Delete FORWARD rule
-    let _ = Command::new(find_bin("iptables"))
+    match Command::new(find_bin("iptables"))
         .args([
             "-D",
             "FORWARD",
@@ -1083,7 +1097,17 @@ pub fn delete_port_forward(
             "-j",
             "ACCEPT",
         ])
-        .output();
+        .output()
+    {
+        Ok(out) if !out.status.success() => {
+            tracing::warn!(
+                "delete_port_forward: iptables FORWARD delete for {proto}/{vm_ip}:{vm_port} failed: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            );
+        }
+        Err(e) => tracing::warn!("delete_port_forward: failed to run iptables (FORWARD): {e}"),
+        Ok(_) => {}
+    }
 
     Ok(())
 }
@@ -1247,7 +1271,23 @@ pub fn delete_firewall_rule(req: &CreateFirewallRuleRequest) -> Result<(), Libvi
     }
     args.extend(["-j", target]);
 
-    let _ = Command::new(find_bin("iptables")).args(&args).output();
+    // Best-effort (the rule may already be gone) but still worth logging: a swallowed
+    // failure here previously left the FORWARD rule in place while callers were told
+    // it was deleted.
+    match Command::new(find_bin("iptables")).args(&args).output() {
+        Ok(out) if !out.status.success() => {
+            tracing::warn!(
+                "delete_firewall_rule: iptables delete failed for {} {} {}:{}: {}",
+                req.direction,
+                req.protocol,
+                req.vm_ip,
+                req.port,
+                String::from_utf8_lossy(&out.stderr).trim()
+            );
+        }
+        Err(e) => tracing::warn!("delete_firewall_rule: failed to run iptables: {e}"),
+        Ok(_) => {}
+    }
     Ok(())
 }
 

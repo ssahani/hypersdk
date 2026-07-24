@@ -251,28 +251,53 @@ pub async fn create_metal_temporary_preset(
     reason: &str,
     owner: Option<&str>,
 ) -> anyhow::Result<super::TemporaryRule> {
-    let (port, _port2, proto, hours) = match preset {
-        "pxe" => {
-            let (a, b, p, h) = machina_core::metal_preset_temporary_pxe();
-            (a, b, p, h)
-        }
-        "bmc" | _ => {
-            let (a, b, p, h) = machina_core::metal_preset_temporary_bmc();
-            (a, b, p, h)
-        }
+    // Match explicitly and reject unknown presets. The previous `"bmc" | _ =>`
+    // catch-all silently treated *any* unrecognized preset string (a typo, a
+    // future preset name not yet handled, ...) as "bmc", which opens the IPMI
+    // (623) and Redfish/HTTPS (443) management ports for 4h — granting BMC
+    // access nobody asked for instead of surfacing the bad input.
+    let (port, port2, proto, hours) = match preset {
+        "pxe" => machina_core::metal_preset_temporary_pxe(),
+        "bmc" => machina_core::metal_preset_temporary_bmc(),
+        other => anyhow::bail!("unknown temporary preset '{other}' (expected 'pxe' or 'bmc')"),
     };
-    super::temporary::create_temporary_rule(
+
+    let rule = super::temporary::create_temporary_rule(
         pool,
         super::TemporaryRuleRequest {
             target_kind: "bare_metal".into(),
             target_id: id,
             source_cidr: "10.0.0.0/8".into(),
             dest_port: port,
-            protocol: proto,
+            protocol: proto.clone(),
             reason: reason.into(),
             duration_hours: hours,
             owner: owner.map(String::from),
         },
     )
-    .await
+    .await?;
+
+    // Both presets are two-port pairs (bmc: IPMI 623 + Redfish/HTTPS 443; pxe:
+    // DHCP 67 + TFTP 69) but only `port` was ever opened — `port2` was bound
+    // to `_port2` and discarded. That silently granted half of what the
+    // preset promised, which for "bmc" means Redfish/HTTPS access never
+    // actually opens even though the preset claims to allow it.
+    if port2 != port {
+        let _ = super::temporary::create_temporary_rule(
+            pool,
+            super::TemporaryRuleRequest {
+                target_kind: "bare_metal".into(),
+                target_id: id,
+                source_cidr: "10.0.0.0/8".into(),
+                dest_port: port2,
+                protocol: proto,
+                reason: reason.into(),
+                duration_hours: hours,
+                owner: owner.map(String::from),
+            },
+        )
+        .await;
+    }
+
+    Ok(rule)
 }

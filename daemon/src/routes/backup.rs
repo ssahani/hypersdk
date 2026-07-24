@@ -619,9 +619,24 @@ async fn restore_backup(
         backup_dir().to_string_lossy().as_ref(),
     );
 
+    // backup.sh writes no status file for --restore (only for a fresh backup),
+    // so unlike trigger_backup this run has no `/backups/:id/status` to poll.
+    // Discarding stdout/stderr to /dev/null left operators with a bare
+    // "restore_started" and zero way to ever learn whether it actually
+    // succeeded, partially failed (the script `warn`s and continues on
+    // per-VM/per-disk errors), or crashed. Capture combined output to a log
+    // file in the backup dir instead so it can be inspected after the fact.
+    let log_path = dir.join("restore.log");
+    let log_file = std::fs::File::create(&log_path).map_err(|e| {
+        machina_core::LibvirtError::Operation(format!("Failed to create restore log: {e}"))
+    })?;
+    let log_file_err = log_file.try_clone().map_err(|e| {
+        machina_core::LibvirtError::Operation(format!("Failed to create restore log: {e}"))
+    })?;
+
     cmd.stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null());
+        .stdout(std::process::Stdio::from(log_file))
+        .stderr(std::process::Stdio::from(log_file_err));
 
     cmd.spawn().map_err(|e| {
         machina_core::LibvirtError::Operation(format!("Failed to start restore: {e}"))
@@ -630,6 +645,7 @@ async fn restore_backup(
     Ok(Json(json!({
         "status": "restore_started",
         "backup_id": req.backup_id,
+        "log": log_path.to_string_lossy(),
     })))
 }
 

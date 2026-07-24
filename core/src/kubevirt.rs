@@ -367,9 +367,16 @@ pub fn kubevirt_bundle_from_qcow2(
     let virtio_cd =
         include_virtio_cdrom.unwrap_or_else(|| default_include_virtio_cdrom(guest, false));
 
-    let ns = namespace_override
-        .filter(|s| !s.is_empty())
-        .unwrap_or(cfg.default_namespace.as_str());
+    // namespace_override is caller/query-string controlled and, unlike the name
+    // fields below, was interpolated into the generated YAML unsanitized — a
+    // namespace containing a newline could inject arbitrary keys/documents into
+    // the manifest a caller later `kubectl apply`s. Route it through the same
+    // RFC-1123-label sanitizer used for names.
+    let ns = sanitize_k8s_label(
+        namespace_override
+            .filter(|s| !s.is_empty())
+            .unwrap_or(cfg.default_namespace.as_str()),
+    );
     let vm_k8s = sanitize_k8s_label(k8s_name_override.filter(|s| !s.is_empty()).unwrap_or(stem));
     let dv_name = sanitize_k8s_label(
         datavolume_name_override
@@ -388,7 +395,7 @@ pub fn kubevirt_bundle_from_qcow2(
         source_label: stem,
         root_path: path,
         cfg,
-        namespace: ns,
+        namespace: &ns,
         vm_k8s: &vm_k8s,
         dv_name: &dv_name,
         storage_gi,
@@ -423,9 +430,14 @@ pub fn kubevirt_bundle_from_libvirt_vm(
     let guest = resolve_guest_os(None, libvirt_name, root_path, Some(&details.os_type));
     let virtio_cd = include_virtio_cdrom;
 
-    let ns = namespace_override
-        .filter(|s| !s.is_empty())
-        .unwrap_or(cfg.default_namespace.as_str());
+    // See the matching comment in kubevirt_bundle_from_qcow2: this value is
+    // caller-controlled and gets embedded directly in generated YAML, so it
+    // needs the same sanitization as the name fields below.
+    let ns = sanitize_k8s_label(
+        namespace_override
+            .filter(|s| !s.is_empty())
+            .unwrap_or(cfg.default_namespace.as_str()),
+    );
     let vm_k8s = sanitize_k8s_label(
         k8s_name_override
             .filter(|s| !s.is_empty())
@@ -448,7 +460,7 @@ pub fn kubevirt_bundle_from_libvirt_vm(
         source_label: libvirt_name,
         root_path,
         cfg,
-        namespace: ns,
+        namespace: &ns,
         vm_k8s: &vm_k8s,
         dv_name: &dv_name,
         storage_gi,

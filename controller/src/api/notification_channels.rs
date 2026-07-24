@@ -55,11 +55,11 @@ pub async fn list_channels(
 
 fn validate_channel(kind: &str, target: &str) -> Result<(), ApiError> {
     match kind {
-        "slack" | "webhook" => {
-            if !(target.starts_with("https://") || target.starts_with("http://")) {
-                return Err(ApiError::bad_request("target must be an http(s) URL"));
-            }
-        }
+        // Slack/webhook targets are delivered by engine/channel_worker.rs over the
+        // same outbound HTTP path as webhooks.rs — apply the same SSRF guard
+        // (reject loopback/private/link-local literals and localhost aliases) so a
+        // channel can't be used to make the controller call internal-only services.
+        "slack" | "webhook" => super::webhooks::validate_webhook_url(target)?,
         "email" => {
             if !target.contains('@') || target.len() < 3 {
                 return Err(ApiError::bad_request("target must be an email address"));

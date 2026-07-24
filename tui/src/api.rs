@@ -21,8 +21,12 @@ pub struct DaemonClient {
 impl DaemonClient {
     pub fn new(base_url: &str) -> Self {
         // Self-signed certs from install.sh are normal; trust for local admin tool (same as curl -k).
+        // A bounded timeout keeps the TUI's single-threaded event loop from hanging forever
+        // (freezing rendering and input) if the daemon becomes unreachable mid-request.
         let client = reqwest::Client::builder()
             .danger_accept_invalid_certs(true)
+            .timeout(std::time::Duration::from_secs(30))
+            .connect_timeout(std::time::Duration::from_secs(10))
             .build()
             .expect("reqwest client");
         Self {

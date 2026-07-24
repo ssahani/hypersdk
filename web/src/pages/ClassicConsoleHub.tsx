@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { hubLinkClasses } from '../utils/semanticColors'
 import { ArrowLeft } from 'lucide-react'
@@ -64,9 +64,15 @@ export default function ClassicConsoleHub() {
 
   const platformPlan = useMemo(() => (plan ? toPlatformPlan(plan) : null), [plan])
   const platformSession = useMemo(() => (session ? toPlatformSession(session) : null), [session])
+  // Last-response-wins: only the newest load may commit console state, so a
+  // slow fetch for a previously-viewed VM can't wire up a WS URL/token that
+  // point at the wrong VM's console after the user has navigated away.
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
     if (!name) return
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     setError(null)
     try {
@@ -75,6 +81,7 @@ export default function ClassicConsoleHub() {
         getVM(name, conn).catch(() => null),
         listClassicConsoleHubSessions(name, conn).catch(() => []),
       ])
+      if (!alive()) return
       setPlan(hubPlan)
       // Cockpit pattern: pick protocol from VM capabilities, not backend hint
       const defaultProto = getDefaultProtocol(hubPlan)
@@ -83,9 +90,11 @@ export default function ClassicConsoleHub() {
       setHistory(sessions)
       setSession(null)
       const token = await getWsToken()
+      if (!alive()) return
       setWsUrl(classicVncWsUrl(hubPlan, token))
       setSerialWsUrl(classicSerialWsUrl(hubPlan, token))
     } catch (e: unknown) {
+      if (!alive()) return
       // Clear the previous VM's console artifacts so a failed load shows the
       // "unavailable" state instead of the prior VM's still-connected session.
       setPlan(null)
@@ -94,7 +103,7 @@ export default function ClassicConsoleHub() {
       setSerialWsUrl(null)
       setError(formatUserError(e))
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [name, conn])
 

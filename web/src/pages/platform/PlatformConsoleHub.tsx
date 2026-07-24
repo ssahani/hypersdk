@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import {
   createConsoleHubSession,
@@ -65,6 +65,10 @@ export default function PlatformConsoleHub() {
   const [portForwardRules, setPortForwardRules] = useState<VmPortForwardRule[]>([])
   const [inventorySource, setInventorySource] = useState<string | null>(null)
   const [hostId, setHostId] = useState<string | null>(null)
+  // Last-response-wins: only the newest load may commit console state, so a
+  // slow fetch for a previously-viewed VM can't wire up a WS URL/token that
+  // point at the wrong VM's console after the user has navigated away.
+  const loadSeq = useRef(0)
 
   const cinemaChrome = experienceMode === 'cinema' && !isPopout
 
@@ -101,6 +105,8 @@ export default function PlatformConsoleHub() {
 
   const load = useCallback(async () => {
     if (!id) return
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     setError(null)
     try {
@@ -112,6 +118,10 @@ export default function PlatformConsoleHub() {
         listVmTimeline(id).catch(() => []),
         runVmHealthCheck(id).catch(() => null),
       ])
+      // A newer id was selected while this fetch was in flight — bail before
+      // committing any state so a slow prior-VM response can't wire the
+      // console viewer up to the wrong VM's WS URL/token.
+      if (!alive()) return
 
       const hubPlan = planRes.ok ? planRes.v : null
       const wsToken = tokenRes.ok ? tokenRes.v.token : null
@@ -131,7 +141,9 @@ export default function PlatformConsoleHub() {
           : getDefaultProtocol(hubPlan)
         setActiveProtocol(preferred)
         if (hubPlan.guest_ip?.trim()) {
-          listVmPortForwards(id).then(setPortForwardRules).catch(() => setPortForwardRules([]))
+          listVmPortForwards(id)
+            .then((rules) => { if (alive()) setPortForwardRules(rules) })
+            .catch(() => { if (alive()) setPortForwardRules([]) })
         } else {
           setPortForwardRules([])
         }
@@ -196,9 +208,9 @@ export default function PlatformConsoleHub() {
 
       setSession(null)
     } catch (e: unknown) {
-      setError(formatUserError(e))
+      if (alive()) setError(formatUserError(e))
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id, protocolFromUrl])
 

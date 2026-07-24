@@ -448,10 +448,18 @@ pub async fn cross_site_sync(
     let mut hosts_applied = 0usize;
     let mut apply_errors = Vec::new();
     if req.apply_profiles || req.include_lockdown {
-        let online_hosts: Vec<(Uuid,)> =
-            sqlx::query_as("SELECT id FROM hosts WHERE state = 'online' ORDER BY hostname LIMIT 200")
-                .fetch_all(pool)
-                .await?;
+        // Scope host application to the target site only. Without the `site`
+        // filter this pulled every online host in the whole fleet, so a sync
+        // aimed at one site's lockdown/profile would get pushed onto hosts
+        // belonging to every other site too — the same class of bug as an
+        // update touching rows it doesn't own (see gitops.rs's source-scoped
+        // replace/upsert for the reference pattern).
+        let online_hosts: Vec<(Uuid,)> = sqlx::query_as(
+            "SELECT id FROM hosts WHERE state = 'online' AND site = ? ORDER BY hostname LIMIT 200",
+        )
+        .bind(&req.target_site)
+        .fetch_all(pool)
+        .await?;
 
         if req.apply_profiles {
             if let Some(profile) = profiles_to_apply.first() {
@@ -642,6 +650,9 @@ pub async fn federated_siem_tag(pool: &SqlitePool, hours: u32) -> anyhow::Result
 }
 
 pub async fn merge_timeline(pool: &SqlitePool, limit: i64) -> anyhow::Result<Vec<serde_json::Value>> {
+    // Clamp the client-supplied limit: SQLite treats a negative LIMIT as "no limit",
+    // so an unclamped value (e.g. -1) would return the entire timeline unbounded.
+    let limit = limit.clamp(1, 500);
     let rows: Vec<(
         String,
         String,

@@ -134,11 +134,30 @@ pub async fn get_prompt(pool: &SqlitePool, id: Uuid) -> anyhow::Result<Option<Pr
     Ok(row.map(map_row))
 }
 
+/// Returns true if `actor` (username, role) may modify/delete the given prompt:
+/// the owner, or an admin. Org/team-shared prompts are still owner-scoped for
+/// writes — sharing only affects visibility via `list_prompts`.
+async fn can_modify(pool: &SqlitePool, id: Uuid, actor: &str, role: &str) -> anyhow::Result<bool> {
+    if role == "admin" {
+        return Ok(true);
+    }
+    let owner_id: Option<String> = sqlx::query_scalar("SELECT owner_id FROM ai_prompts WHERE id = ?")
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
+    Ok(owner_id.as_deref() == Some(actor))
+}
+
 pub async fn patch_prompt(
     pool: &SqlitePool,
     id: Uuid,
+    actor: &str,
+    role: &str,
     body: &PatchPromptBody,
 ) -> anyhow::Result<PromptRow> {
+    if !can_modify(pool, id, actor, role).await? {
+        anyhow::bail!("prompt not found or not owned by you");
+    }
     let mut tx = pool.begin().await?;
     if let Some(v) = &body.title {
         sqlx::query("UPDATE ai_prompts SET title = ?, updated_at = datetime('now') WHERE id = ?")
@@ -174,7 +193,15 @@ pub async fn patch_prompt(
         .ok_or_else(|| anyhow::anyhow!("prompt not found"))
 }
 
-pub async fn delete_prompt(pool: &SqlitePool, id: Uuid) -> anyhow::Result<bool> {
+pub async fn delete_prompt(
+    pool: &SqlitePool,
+    id: Uuid,
+    actor: &str,
+    role: &str,
+) -> anyhow::Result<bool> {
+    if !can_modify(pool, id, actor, role).await? {
+        return Ok(false);
+    }
     let r = sqlx::query("DELETE FROM ai_prompts WHERE id = ?")
         .bind(id)
         .execute(pool)

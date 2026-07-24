@@ -269,8 +269,14 @@ pub fn create_network(
 pub fn delete_network(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let net = lookup_network(conn, name)?;
 
+    // A swallowed destroy() error here used to fall straight through to undefine():
+    // undefine() on a still-active network only drops the persistent config and
+    // leaves it running as a transient network, so the caller got a plain "deleted"
+    // success while the network (and its dnsmasq/iptables state) kept running.
     if net.is_active().unwrap_or(false) {
-        let _ = net.destroy();
+        net.destroy().map_err(|e| {
+            LibvirtError::Operation(format!("Failed to stop network '{name}': {e}"))
+        })?;
     }
 
     net.undefine()

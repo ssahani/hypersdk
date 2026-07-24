@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft, ChevronRight, Lock, Shield } from 'lucide-react'
 import {
@@ -72,9 +72,14 @@ export default function PlatformFirewallTargetDetail() {
   const [previewSheet, setPreviewSheet] = useState<{ open: boolean; body: string }>({ open: false, body: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: only the newest load may commit so a slow fetch for a
+    // prior target can't overwrite the target the user navigated to.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setError(null)
     try {
       const [d, profs, svc, tl, cps, dr] = await Promise.all([
@@ -85,6 +90,7 @@ export default function PlatformFirewallTargetDetail() {
         listFirewallCheckpoints(id).catch(() => []),
         detectFirewallDrift(id).catch(() => null),
       ])
+      if (!alive()) return
       setDetail(d)
       setProfiles(profs)
       setServices(svc)
@@ -98,7 +104,7 @@ export default function PlatformFirewallTargetDetail() {
         setDrift(dr.drift_detected ? `${dr.summary} — expected: ${dr.expected}` : dr.summary)
       }
     } catch (e: unknown) {
-      setError(formatUserError(e))
+      if (alive()) setError(formatUserError(e))
     }
   }, [id])
 

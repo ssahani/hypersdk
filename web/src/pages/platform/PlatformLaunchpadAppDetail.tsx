@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import {
   ArrowLeft,
@@ -50,6 +50,7 @@ export default function PlatformLaunchpadAppDetail() {
   const [error, setError] = useState<string | null>(null)
   const [techOpen, setTechOpen] = useState(false)
   const [inspectorOpen, setInspectorOpen] = useState(() => searchParams.get('inspect') === '1')
+  const loadSeq = useRef(0)
 
   useEffect(() => {
     setInspectorOpen(searchParams.get('inspect') === '1')
@@ -57,24 +58,32 @@ export default function PlatformLaunchpadAppDetail() {
 
   const load = useCallback(async () => {
     if (!id) return
+    // Last-response-wins: only the newest load may commit so a slow fetch for a
+    // prior app can't overwrite the app the user navigated to.
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     setError(null)
     try {
       try {
         const single = await getLaunchpadApp(decodeURIComponent(id))
+        if (!alive()) return
         setApp(single)
         return
       } catch {
         const catalog = await listLaunchpadCatalog()
         const found = findApp(catalog, id)
         if (!found) throw new Error('App not found')
+        if (!alive()) return
         setApp(found)
       }
     } catch (e: unknown) {
-      setError(formatUserError(e))
-      setApp(null)
+      if (alive()) {
+        setError(formatUserError(e))
+        setApp(null)
+      }
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id])
 

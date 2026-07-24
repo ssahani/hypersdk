@@ -333,7 +333,7 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
     if total_items > visible_height {
         let pos = format!("{}/{}", state.sidebar_selected + 1, total_items,);
         let pos_x = area.x + area.width.saturating_sub(pos.len() as u16 + 2);
-        let pos_y = area.y + area.height - 1;
+        let pos_y = area.y + area.height.saturating_sub(1);
         if pos_x > area.x && pos_y > area.y {
             let pos_area = Rect {
                 x: pos_x,

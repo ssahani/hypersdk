@@ -70,6 +70,10 @@ export default function K8sWorkloadsPage() {
   const [kubevirtCrBusy, setKubevirtCrBusy] = useState(false)
   const [kubevirtVmBusy, setKubevirtVmBusy] = useState<string | null>(null)
   const [deleteKubevirtTarget, setDeleteKubevirtTarget] = useState<{ namespace: string; name: string } | null>(null)
+  const [confirmDeleteResource, setConfirmDeleteResource] = useState<{
+    payload: Parameters<typeof runK8sAction>[0]
+    label: string
+  } | null>(null)
   const [showKubevirtCreate, setShowKubevirtCreate] = useState(false)
   const [kubevirtCreateYaml, setKubevirtCreateYaml] = useState(`apiVersion: kubevirt.io/v1
 kind: VirtualMachine
@@ -545,7 +549,7 @@ spec:
                     <td className="px-3 py-2 text-white font-mono text-xs">{n}</td>
                     <td className="px-3 py-2 text-slate-400">{ns}</td>
                     <td className="px-3 py-2 text-right">
-                      <button type="button" className="text-xs px-2 py-1 rounded bg-rose-500/20 text-rose-200 border border-rose-500/30 disabled:opacity-50" disabled={acting !== null} onClick={() => void runAction({ action: 'delete_job', name: n, namespace: ns })}>Delete</button>
+                      <button type="button" className="text-xs px-2 py-1 rounded bg-rose-500/20 text-rose-200 border border-rose-500/30 disabled:opacity-50" disabled={acting !== null} onClick={() => setConfirmDeleteResource({ payload: { action: 'delete_job', name: n, namespace: ns }, label: `Job ${ns}/${n}` })}>Delete</button>
                     </td>
                   </tr>
                 )
@@ -944,10 +948,13 @@ spec:
                     <button
                       className={`text-xs disabled:opacity-50 hover:bg-[color-mix(in_srgb,var(--machina-status-error)_30%,transparent)] ${statusPillClasses('error')}`}
                       disabled={acting !== null}
-                      onClick={() => void runAction({
-                        action: 'delete_pod',
-                        name: p.metadata?.name ?? '',
-                        namespace: p.metadata.namespace || 'default',
+                      onClick={() => setConfirmDeleteResource({
+                        payload: {
+                          action: 'delete_pod',
+                          name: p.metadata?.name ?? '',
+                          namespace: p.metadata.namespace || 'default',
+                        },
+                        label: `Pod ${p.metadata.namespace || 'default'}/${p.metadata?.name ?? ''}`,
                       })}
                     >
                       Delete
@@ -1020,6 +1027,19 @@ spec:
           } finally {
             setKubevirtVmBusy(null)
           }
+        }}
+      />
+      <ConfirmDialog
+        open={confirmDeleteResource !== null}
+        title="Delete resource"
+        message={confirmDeleteResource ? `Delete ${confirmDeleteResource.label}? This cannot be undone.` : ''}
+        confirmLabel="Delete"
+        variant="danger"
+        onCancel={() => setConfirmDeleteResource(null)}
+        onConfirm={() => {
+          const target = confirmDeleteResource
+          setConfirmDeleteResource(null)
+          if (target) void runAction(target.payload)
         }}
       />
     </PageLayout>

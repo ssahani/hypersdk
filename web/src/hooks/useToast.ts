@@ -49,12 +49,18 @@ export function useToast() {
 
   const removeToast = useCallback((id: string) => {
     cancelTimer(id)
+    // Once the deduped error toast is actually gone, a repeat of the same
+    // error must be able to show again immediately — otherwise a dismissed
+    // (or auto-expired) error toast silently swallows the next occurrence
+    // for the rest of the 8s dedupe window, even though nothing is on screen.
+    if (lastErrorToastRef.current?.id === id) lastErrorToastRef.current = null
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }, [cancelTimer])
 
   const clearAll = useCallback(() => {
     timersRef.current.forEach(clearTimeout)
     timersRef.current.clear()
+    lastErrorToastRef.current = null
     setToasts([])
   }, [])
 
@@ -74,6 +80,7 @@ export function useToast() {
     })
     const timer = setTimeout(() => {
       timersRef.current.delete(id)
+      if (lastErrorToastRef.current?.id === id) lastErrorToastRef.current = null
       setToasts((prev) => prev.filter((t) => t.id !== id))
     }, duration)
     timersRef.current.set(id, timer)

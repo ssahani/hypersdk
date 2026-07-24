@@ -31,7 +31,7 @@ fn prune(map: &mut HashMap<String, Entry>) {
 }
 
 pub fn issue_console_token(instance_id: &str, console_url: &str) -> String {
-    let token = format!("{}-{}", instance_id, uuid_simple());
+    let token = format!("{}-{}", instance_id, random_token_suffix());
     let mut map = store().lock().unwrap_or_else(|e| e.into_inner());
     prune(&mut map);
     map.insert(
@@ -50,13 +50,19 @@ pub fn resolve_console_token(token: &str) -> Option<String> {
     map.get(token).map(|e| e.url.clone())
 }
 
-fn uuid_simple() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let n = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    format!("{n:x}")
+/// Cryptographically random token suffix. The previous implementation used the
+/// current nanosecond timestamp, which is not secret: an attacker who can guess
+/// roughly when a console session was opened (e.g. from a UI action, or by
+/// watching request timing) has only a small search space to brute-force within
+/// the 300s TTL, and `instance_id` — the other half of the token — is routinely
+/// visible to any authenticated user who can list instances. That let anyone who
+/// could enumerate instance IDs guess a live console token and hijack another
+/// tenant's VNC/SPICE session through the proxy.
+fn random_token_suffix() -> String {
+    use rand::RngCore;
+    let mut bytes = [0u8; 24];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 pub async fn remote_console_with_tunnel(

@@ -211,22 +211,32 @@ pub async fn delete_storage_pool(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
     let name = storage_pool_name(&state.pool, id).await?;
-    if q.host_id.is_some() || resolve_online_host(&state.pool, None).await.is_ok() {
-        let host_id = resolve_online_host(&state.pool, q.host_id).await?;
-        let _ = invoke_pool_action(
+    // Best-effort: still prune the controller-side record even when no host is
+    // reachable to run the libvirt delete (e.g. the host is offline). Surface the
+    // host-side outcome instead of silently discarding it, so callers can tell a
+    // clean delete from one where the libvirt pool may still exist on the host.
+    let host_delete_error = match resolve_online_host(&state.pool, q.host_id).await {
+        Ok(host_id) => invoke_pool_action(
             &state,
             host_id,
             "storage.pool.delete",
             &name,
             serde_json::json!({ "name": name }),
         )
-        .await;
-    }
+        .await
+        .err()
+        .map(|e| e.message),
+        Err(e) => Some(e.message),
+    };
     sqlx::query("DELETE FROM storage_pools WHERE id = ?")
         .bind(id)
         .execute(&state.pool)
         .await?;
-    Ok(Json(serde_json::json!({ "deleted": true, "name": name })))
+    Ok(Json(serde_json::json!({
+        "deleted": true,
+        "name": name,
+        "host_delete_error": host_delete_error,
+    })))
 }
 
 #[derive(Debug, Deserialize)]

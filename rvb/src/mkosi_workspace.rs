@@ -146,7 +146,12 @@ pub fn build_image(project_dir: &Path, staging_hint: &str) -> Result<PathBuf> {
         dir_str,
         staging_str
     );
-    let st = Command::new(&bin)
+    // Run and clean up the staging dir on EVERY exit path, including a spawn
+    // failure (e.g. mkosi missing from PATH): the previous code placed the
+    // `remove_dir_all` after the `?` on `.status()`, so a failed spawn returned
+    // early and leaked the just-created staging directory under
+    // /var/tmp/rvb-mkosi-ws forever.
+    let spawn_result = Command::new(&bin)
         .args([
             "--directory",
             dir_str,
@@ -155,13 +160,14 @@ pub fn build_image(project_dir: &Path, staging_hint: &str) -> Result<PathBuf> {
             "build",
         ])
         .status()
-        .with_context(|| format!("spawn {}", bin.display()))?;
+        .with_context(|| format!("spawn {}", bin.display()));
 
     let keep = std::env::var_os("RVB_MKOSI_KEEP_WORKSPACE").is_some();
     if !keep {
         let _ = fs::remove_dir_all(&staging);
     }
 
+    let st = spawn_result?;
     if !st.success() {
         return Err(anyhow!("mkosi build exited with {}", st));
     }
@@ -193,6 +199,16 @@ pub fn build_catalog_template(
     shape: OutputShape,
     staging_hint: &str,
 ) -> Result<()> {
+    // virt-image-build's equivalent path (validate_output_path) refuses to
+    // overwrite an existing file; this pipeline had no such check and would
+    // silently `fs::copy`/`qemu-img convert` over — and destroy — whatever
+    // already existed at `output`.
+    if output.exists() {
+        return Err(anyhow!(
+            "refusing to overwrite existing file: {}",
+            output.display()
+        ));
+    }
     let tmp = tempfile::tempdir().context("tempdir for mkosi project")?;
     let dir = tmp.path();
     write_mkosi_conf(dir, t)?;

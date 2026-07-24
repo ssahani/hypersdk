@@ -291,10 +291,19 @@ export default function VNCViewer({
         refreshRfbViewport(rfb, scaledFitRef.current, scrollRef.current, cockpitMode)
         rfb.resizeSession = false
         rfb.focusOnClick = true
-        rfb.showDotCursor = showDotCursorRef.current
-
+        // Don't assign rfb.showDotCursor here: the RFB constructor already receives
+        // showDotCursor via its options object, and the bundled novnc-core RFB defers its
+        // internal _connect() (which attaches the cursor to the canvas) to a setTimeout(0)
+        // scheduled from inside the constructor. Setting the `showDotCursor` property this
+        // early runs novnc-core's setter synchronously, which calls _refreshCursor() ->
+        // Cursor.change()/clear() -> `this._target.style` while the cursor's `_target` is
+        // still null (attach() hasn't run yet) — throwing "Cannot read properties of null
+        // (reading 'style')" and knocking this whole bundled-RFB path into the system
+        // noVNC fallback on every single connect. Re-applying it once 'connect' fires is
+        // safe: attach() always runs (during _connect()) before the connect event fires.
         rfb.addEventListener('connect', () => {
           if (!cancelled) {
+            rfb.showDotCursor = showDotCursorRef.current
             setStatus('connected')
             vp?.setConnected(true)
             vp?.registerCtrlAltDel?.(() => rfbRef.current?.sendCtrlAltDel?.())

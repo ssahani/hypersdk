@@ -95,9 +95,15 @@ pub async fn list_temporary_rules(
         chrono::DateTime<Utc>,
         Option<String>,
     )> = sqlx::query_as(
+        // `expires_at` is stored as an RFC3339 string (chrono's sqlite encoding, e.g.
+        // "2026-07-24T18:00:00+00:00"), while `datetime('now')` yields SQLite's own
+        // "YYYY-MM-DD HH:MM:SS" format. Comparing the two directly as TEXT is wrong:
+        // the 'T' separator (0x54) sorts after the space (0x20), so any same-day
+        // expiry would always compare as "not yet expired" regardless of the actual
+        // time. Wrapping both sides in datetime() normalizes them before comparing.
         "SELECT id, source_cidr, dest_port, protocol, reason, expires_at, owner
              FROM firewall_temporary_rules
-             WHERE target_id = ? AND applied = true AND expires_at > datetime('now')
+             WHERE target_id = ? AND applied = true AND datetime(expires_at) > datetime('now')
              ORDER BY expires_at",
     )
     .bind(target_id)
@@ -121,9 +127,12 @@ pub async fn list_temporary_rules(
 }
 
 pub async fn expire_temporary_rules(pool: &SqlitePool) -> anyhow::Result<u64> {
+    // Same format mismatch as list_temporary_rules: normalize expires_at through
+    // datetime() so a same-day expiry is actually detected instead of the raw
+    // 'T'-separated string always sorting "in the future" against datetime('now').
     let rows = sqlx::query(
         "UPDATE firewall_temporary_rules SET applied = false
-         WHERE applied = true AND expires_at <= datetime('now')",
+         WHERE applied = true AND datetime(expires_at) <= datetime('now')",
     )
     .execute(pool)
     .await?;

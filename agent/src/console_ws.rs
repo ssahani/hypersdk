@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, Query, State};
@@ -98,6 +99,14 @@ async fn spice_ws(
         .into_response()
 }
 
+/// Cap on how long a console handler waits on the blocking libvirt call that
+/// resolves a VM's console endpoint. A wedged libvirtd (or a socket call that
+/// blocks forever) previously left the WS handshake — and the client — hanging
+/// indefinitely with no error. Note this only bounds the *async* side: the
+/// spawned blocking-pool thread itself keeps running until the libvirt call
+/// returns, since a synchronous FFI call can't be cancelled from the outside.
+const LIBVIRT_RESOLVE_TIMEOUT: Duration = Duration::from_secs(10);
+
 fn resolve_console_pty(xml: &str) -> Option<String> {
     machina_core::xml::extract_attr(xml, "console", "tty")
         .filter(|s| !s.is_empty())
@@ -114,16 +123,19 @@ fn resolve_console_pty(xml: &str) -> Option<String> {
 }
 
 async fn handle_vnc(socket: WebSocket, name: String, libvirt: Arc<Mutex<LibvirtCtx>>) {
-    let resolved = tokio::task::spawn_blocking(move || {
-        let mut ctx = libvirt
-            .lock()
-            .map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
-        ctx.resolve_vnc(&name)
-    })
+    let resolved = tokio::time::timeout(
+        LIBVIRT_RESOLVE_TIMEOUT,
+        tokio::task::spawn_blocking(move || {
+            let mut ctx = libvirt
+                .lock()
+                .map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
+            ctx.resolve_vnc(&name)
+        }),
+    )
     .await;
 
     let (host, port) = match resolved {
-        Ok(Ok((h, p))) if p > 0 => (h, p),
+        Ok(Ok(Ok((h, p)))) if p > 0 => (h, p),
         _ => {
             let (mut sink, _) = socket.split();
             let _ = sink.close().await;
@@ -192,19 +204,22 @@ async fn handle_vnc(socket: WebSocket, name: String, libvirt: Arc<Mutex<LibvirtC
 
 async fn handle_serial(socket: WebSocket, name: String, libvirt: Arc<Mutex<LibvirtCtx>>) {
     let display_name = name.clone();
-    let pty_path = tokio::task::spawn_blocking(move || {
-        let ctx = libvirt
-            .lock()
-            .map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
-        let xml = ctx.get_domain_xml(&name)?;
-        resolve_console_pty(&xml).ok_or_else(|| {
-            machina_core::LibvirtError::Operation(format!("no serial PTY for VM '{name}'"))
-        })
-    })
+    let pty_path = tokio::time::timeout(
+        LIBVIRT_RESOLVE_TIMEOUT,
+        tokio::task::spawn_blocking(move || {
+            let ctx = libvirt
+                .lock()
+                .map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
+            let xml = ctx.get_domain_xml(&name)?;
+            resolve_console_pty(&xml).ok_or_else(|| {
+                machina_core::LibvirtError::Operation(format!("no serial PTY for VM '{name}'"))
+            })
+        }),
+    )
     .await;
 
     let pty_path = match pty_path {
-        Ok(Ok(p)) => p,
+        Ok(Ok(Ok(p))) => p,
         _ => {
             let (mut sink, _) = socket.split();
             let _ = sink
@@ -234,6 +249,7 @@ async fn handle_serial(socket: WebSocket, name: String, libvirt: Arc<Mutex<Libvi
                     .into(),
                 ))
                 .await;
+            let _ = sink.close().await;
             return;
         }
         Err(e) => {
@@ -243,6 +259,7 @@ async fn handle_serial(socket: WebSocket, name: String, libvirt: Arc<Mutex<Libvi
                     format!("\r\nFailed to open console PTY '{pty_path}': {e}\r\n").into(),
                 ))
                 .await;
+            let _ = sink.close().await;
             return;
         }
     };
@@ -261,6 +278,7 @@ async fn handle_serial(socket: WebSocket, name: String, libvirt: Arc<Mutex<Libvi
                     format!("\r\nFailed to open console PTY: {e}\r\n").into(),
                 ))
                 .await;
+            let _ = sink.close().await;
             return;
         }
     };
@@ -315,19 +333,24 @@ async fn handle_serial(socket: WebSocket, name: String, libvirt: Arc<Mutex<Libvi
 }
 
 async fn handle_spice(socket: WebSocket, name: String, libvirt: Arc<Mutex<LibvirtCtx>>) {
-    let lookup = tokio::task::spawn_blocking(move || {
-        let ctx = libvirt
-            .lock()
-            .map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
-        let xml = ctx.get_domain_xml(&name)?;
-        machina_core::libvirt::spice::resolve_spice_endpoint(&name, &xml).ok_or_else(|| {
-            machina_core::LibvirtError::Operation(format!("no SPICE endpoint for VM '{name}'"))
-        })
-    })
+    let lookup = tokio::time::timeout(
+        LIBVIRT_RESOLVE_TIMEOUT,
+        tokio::task::spawn_blocking(move || {
+            let ctx = libvirt
+                .lock()
+                .map_err(|e| machina_core::LibvirtError::Internal(e.to_string()))?;
+            let xml = ctx.get_domain_xml(&name)?;
+            machina_core::libvirt::spice::resolve_spice_endpoint(&name, &xml).ok_or_else(|| {
+                machina_core::LibvirtError::Operation(format!(
+                    "no SPICE endpoint for VM '{name}'"
+                ))
+            })
+        }),
+    )
     .await;
 
     let endpoint = match lookup {
-        Ok(Ok(ep)) => ep,
+        Ok(Ok(Ok(ep))) => ep,
         _ => {
             let (mut sink, _) = socket.split();
             let _ = sink.close().await;

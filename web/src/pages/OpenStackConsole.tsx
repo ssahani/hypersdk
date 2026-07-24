@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import {
   getOpenStackRemoteConsole,
@@ -39,27 +39,36 @@ function OpenStackConsoleContent() {
   const [directUrl, setDirectUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Last-response-wins: only the newest load may commit the console URL, so a
+  // slow fetch for a previously-viewed instance can't embed the wrong
+  // instance's console under the currently displayed one.
+  const loadSeq = useRef(0)
 
   const loadConsole = useCallback(async () => {
     if (!id) return
+    const seq = ++loadSeq.current
+    const alive = () => seq === loadSeq.current
     setLoading(true)
     setError(null)
     try {
       if (useTunnel) {
         const t = await getOpenStackConsoleTunnel(id, consoleType)
+        if (!alive()) return
         setDirectUrl(t.url)
         setUrl(t.proxy_path)
       } else {
         const c = await getOpenStackRemoteConsole(id, consoleType)
+        if (!alive()) return
         setDirectUrl(c.url)
         setUrl(c.url)
       }
     } catch (e: unknown) {
+      if (!alive()) return
       const msg = formatUserError(e)
       setError(msg)
       setUrl(null)
     } finally {
-      setLoading(false)
+      if (alive()) setLoading(false)
     }
   }, [id, consoleType, useTunnel])
 

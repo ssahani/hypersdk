@@ -40,7 +40,11 @@ pub async fn list_webhooks(
     Ok(Json(rows))
 }
 
-fn validate_webhook_url(url: &str) -> Result<(), ApiError> {
+/// Reject webhook targets that resolve (by literal IP or obvious alias) to
+/// private/loopback/link-local network space. Shared with notification_channels.rs
+/// (Slack/webhook channel targets go through the same egress as webhook deliveries
+/// — see engine/channel_worker.rs — so they need the same SSRF guard).
+pub(crate) fn validate_webhook_url(url: &str) -> Result<(), ApiError> {
     let parsed = url::Url::parse(url)
         .map_err(|_| ApiError::bad_request("webhook url is not a valid URL"))?;
     match parsed.scheme() {

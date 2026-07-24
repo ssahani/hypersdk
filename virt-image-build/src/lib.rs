@@ -10,7 +10,7 @@
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
@@ -108,15 +108,23 @@ impl TempPasswordFile {
             std::process::id(),
             random_suffix()
         ));
-        fs::write(&path, format!("{}\n", contents.trim_end_matches('\n')))
-            .with_context(|| format!("write temp password file {}", path.display()))?;
+        // create_new(true) (O_EXCL) so a pre-existing file/symlink at a guessed or
+        // colliding path is rejected rather than opened-and-truncated-through —
+        // otherwise a local attacker who plants a symlink at this predictable
+        // (pid + timestamp) path could redirect the root password write, or read
+        // world-readable contents during the open()->chmod() window.
+        let mut opts = fs::OpenOptions::new();
+        opts.write(true).create_new(true);
         #[cfg(unix)]
         {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = fs::metadata(&path)?.permissions();
-            perms.set_mode(0o600);
-            fs::set_permissions(&path, perms)?;
+            use std::os::unix::fs::OpenOptionsExt;
+            opts.mode(0o600);
         }
+        let mut f = opts
+            .open(&path)
+            .with_context(|| format!("create temp password file {}", path.display()))?;
+        f.write_all(format!("{}\n", contents.trim_end_matches('\n')).as_bytes())
+            .with_context(|| format!("write temp password file {}", path.display()))?;
         Ok(Self { path })
     }
 
@@ -191,15 +199,20 @@ impl TempPubkeyFile {
             std::process::id(),
             random_suffix()
         ));
-        fs::write(&path, format!("{}\n", contents.trim_end_matches('\n')))
-            .with_context(|| format!("write temp pubkey file {}", path.display()))?;
+        // See TempPasswordFile::from_line: O_EXCL avoids following/truncating a
+        // pre-existing file or symlink planted at this predictable path.
+        let mut opts = fs::OpenOptions::new();
+        opts.write(true).create_new(true);
         #[cfg(unix)]
         {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = fs::metadata(&path)?.permissions();
-            perms.set_mode(0o600);
-            fs::set_permissions(&path, perms)?;
+            use std::os::unix::fs::OpenOptionsExt;
+            opts.mode(0o600);
         }
+        let mut f = opts
+            .open(&path)
+            .with_context(|| format!("create temp pubkey file {}", path.display()))?;
+        f.write_all(format!("{}\n", contents.trim_end_matches('\n')).as_bytes())
+            .with_context(|| format!("write temp pubkey file {}", path.display()))?;
         Ok(Self { path })
     }
 
@@ -310,27 +323,51 @@ fn pump_virt_builder_stream<R: Read + Send + 'static>(
     // pump at the FIRST non-UTF-8 byte — common in virt-builder/libguestfs output
     // (progress spinners, localized text) — silently dropping the rest of the
     // stream and closing the pipe early (EPIPE to the child).
+    // Cap how far a single unterminated "line" is allowed to grow. `read_until`
+    // itself has no length limit — for a stuck/corrupted child (or a binary blob
+    // on stderr) emitting bytes with no '\n', a single `read_until` call would
+    // keep appending to `buf` for as long as the child keeps writing, exhausting
+    // memory. Pull bytes in bounded `fill_buf`/`consume` chunks instead so growth
+    // can be capped between chunks, and flush+restart once the cap is hit.
+    const MAX_LINE_BYTES: usize = 1 << 20; // 1 MiB
     let mut br = BufReader::new(r);
     let mut buf = Vec::new();
-    loop {
+    'outer: loop {
         buf.clear();
-        match br.read_until(b'\n', &mut buf) {
-            Ok(0) => break, // EOF
-            Ok(_) => {
-                while matches!(buf.last(), Some(b'\n' | b'\r')) {
-                    buf.pop();
+        loop {
+            let avail = match br.fill_buf() {
+                Ok(a) => a,
+                Err(_) => break 'outer,
+            };
+            if avail.is_empty() {
+                if buf.is_empty() {
+                    break 'outer; // EOF, nothing pending
                 }
-                let text = String::from_utf8_lossy(&buf);
-                let msg = if prefix.is_empty() {
-                    text.into_owned()
-                } else {
-                    format!("{prefix}{text}")
-                };
-                if tx.send(msg).is_err() {
-                    break;
-                }
+                break; // EOF with a trailing partial line to flush below
             }
-            Err(_) => break,
+            if let Some(pos) = avail.iter().position(|&b| b == b'\n') {
+                buf.extend_from_slice(&avail[..=pos]);
+                br.consume(pos + 1);
+                break;
+            }
+            let take = avail.len();
+            buf.extend_from_slice(avail);
+            br.consume(take);
+            if buf.len() >= MAX_LINE_BYTES {
+                break; // oversized unterminated line: flush what we have so far
+            }
+        }
+        while matches!(buf.last(), Some(b'\n' | b'\r')) {
+            buf.pop();
+        }
+        let text = String::from_utf8_lossy(&buf);
+        let msg = if prefix.is_empty() {
+            text.into_owned()
+        } else {
+            format!("{prefix}{text}")
+        };
+        if tx.send(msg).is_err() {
+            break;
         }
     }
 }
@@ -338,10 +375,8 @@ fn pump_virt_builder_stream<R: Read + Send + 'static>(
 fn wait_child_interrupt_streams(
     mut child: Child,
     out_path: &Path,
-    timeout: Option<Duration>,
+    deadline: Option<Instant>,
 ) -> Result<()> {
-    let limit = timeout.filter(|d| !d.is_zero());
-    let deadline = limit.map(|d| Instant::now() + d);
     loop {
         if let Some(status) = child.try_wait().context("virt-builder try_wait")? {
             if !status.success() {
@@ -350,12 +385,12 @@ fn wait_child_interrupt_streams(
             }
             return Ok(());
         }
-        if let (Some(end), Some(lim)) = (deadline, limit) {
+        if let Some(end) = deadline {
             if Instant::now() >= end {
                 let _ = child.kill();
                 let _ = child.wait();
                 let _ = fs::remove_file(out_path);
-                bail!("virt-builder exceeded time limit of {:?}", lim);
+                bail!("virt-builder exceeded its wall-clock time limit");
             }
         }
         thread::sleep(Duration::from_millis(200));
@@ -416,7 +451,13 @@ fn run_virt_builder_child(
     let _ = h_out.join();
     let _ = h_err.join();
 
-    wait_child_interrupt_streams(child, out_path, timeout)?;
+    // Reuse the SAME deadline computed above rather than recomputing a fresh
+    // `Instant::now() + timeout` here: this stage runs after the streaming phase
+    // already consumed part of the wall-clock budget (or all of it, if the child
+    // held its pipes open). Recomputing would silently grant the child a second
+    // full timeout window, letting a hung process run for up to ~2x the
+    // configured limit.
+    wait_child_interrupt_streams(child, out_path, deadline)?;
     log("[virt-image-build] virt-builder finished successfully");
     Ok(())
 }
@@ -502,6 +543,20 @@ pub fn build_disk_image_with_logs(req: &BuildDiskRequest, mut log: impl FnMut(&s
                 .file_name()
                 .and_then(|n| n.to_str())
                 .context("firstboot script file name")?;
+            // `name` comes from the caller-supplied path and is spliced unescaped
+            // into a `--run-command` string, which virt-builder executes via a
+            // shell inside the guest. A crafted file name (e.g. containing `;`,
+            // backticks, or `$()`) would otherwise inject arbitrary guest-root
+            // shell commands beyond the intended `chmod +x`. Restrict to a safe
+            // character set instead of shell-quoting, matching the rest of this
+            // module's "reject, don't escape" approach to untrusted strings.
+            if name.is_empty()
+                || !name
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+            {
+                bail!("firstboot_script file name must match [A-Za-z0-9._-]+: {name}");
+            }
             let guest_path = format!("/root/{name}");
             cmd.arg("--copy-in")
                 .arg(format!("{}:/root/", script.display()));

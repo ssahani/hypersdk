@@ -146,6 +146,19 @@ async fn run_serve(cli: &Cli) -> anyhow::Result<()> {
         secret: console_secret,
     };
 
+    // The console proxy (VNC/SPICE/serial — serial is an interactive root shell)
+    // has no TLS support of its own: it always serves plaintext TCP, regardless
+    // of whether MACHINA_AGENT_TLS_CERT/KEY are configured for the gRPC port.
+    // Anyone positioned on the network path can read the console token (sent as
+    // a `?token=` query param) and the console traffic itself. Terminate TLS in
+    // front of this port (stunnel/nginx/an SSH tunnel) until the proxy gains
+    // native TLS.
+    tracing::warn!(
+        "agent console proxy ({console_addr}) has no built-in TLS and always serves \
+         plaintext, independent of MACHINA_AGENT_TLS_CERT/KEY — put it behind a TLS \
+         terminator (stunnel/nginx/SSH tunnel) if it is reachable off-host"
+    );
+
     info!("machina-agent gRPC on {grpc_addr}, console proxy on {console_addr}");
     tokio::try_join!(
         async {
@@ -182,22 +195,44 @@ async fn run_serve(cli: &Cli) -> anyhow::Result<()> {
             };
             let mut builder = Server::builder();
             match (
-                std::env::var("MACHINA_AGENT_TLS_CERT"),
-                std::env::var("MACHINA_AGENT_TLS_KEY"),
+                std::env::var("MACHINA_AGENT_TLS_CERT").ok(),
+                std::env::var("MACHINA_AGENT_TLS_KEY").ok(),
             ) {
-                (Ok(cert_path), Ok(key_path))
-                    if Path::new(&cert_path).exists() && Path::new(&key_path).exists() =>
-                {
+                (None, None) => {
+                    tracing::warn!(
+                        "MACHINA_AGENT_TLS_CERT/MACHINA_AGENT_TLS_KEY not set — \
+                         gRPC serving UNENCRYPTED plaintext; set env vars in production"
+                    );
+                }
+                (Some(cert_path), Some(key_path)) => {
+                    // Both vars are set — the operator explicitly asked for TLS. Refuse
+                    // to start rather than silently falling back to plaintext if the
+                    // paths turn out not to exist (e.g. a typo, or certs not yet
+                    // provisioned): the previous behavior of downgrading unnoticed to
+                    // an unencrypted root-capable gRPC surface is a fail-open bug.
+                    if !Path::new(&cert_path).exists() || !Path::new(&key_path).exists() {
+                        anyhow::bail!(
+                            "MACHINA_AGENT_TLS_CERT/MACHINA_AGENT_TLS_KEY are set but do not \
+                             both point to existing files (cert='{cert_path}', key='{key_path}') \
+                             — refusing to start rather than silently falling back to plaintext"
+                        );
+                    }
                     let cert = tokio::fs::read_to_string(&cert_path).await?;
                     let key = tokio::fs::read_to_string(&key_path).await?;
                     let tls = ServerTlsConfig::new().identity(Identity::from_pem(cert, key));
                     builder = builder.tls_config(tls)?;
                     info!("agent gRPC TLS enabled");
                 }
-                _ => {
-                    tracing::warn!(
-                        "MACHINA_AGENT_TLS_CERT/MACHINA_AGENT_TLS_KEY not set — \
-                         gRPC serving UNENCRYPTED plaintext; set env vars in production"
+                (cert, key) => {
+                    // Only one of the two is set — almost certainly a misconfiguration,
+                    // not an intentional plaintext choice. Fail closed instead of
+                    // guessing.
+                    anyhow::bail!(
+                        "only one of MACHINA_AGENT_TLS_CERT ({}) / MACHINA_AGENT_TLS_KEY ({}) \
+                         is set — both are required to enable TLS; refusing to start in an \
+                         ambiguous state",
+                        cert.is_some(),
+                        key.is_some()
                     );
                 }
             }

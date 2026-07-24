@@ -4,6 +4,8 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
 import { login as apiLogin, logout as apiLogout, getSession, exchangeTokenForSession } from '../api/auth'
+import { clearAllVmHardwareCache } from '../hooks/useVmHardware'
+import { clearAllKubevirtHardwareCache } from '../hooks/useKubevirtHardware'
 
 interface AuthContextType {
   isAuthenticated: boolean
@@ -94,6 +96,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('machina_platform_jwt')
     localStorage.removeItem('machina_platform_basic')
     localStorage.removeItem('machina-saved-login')
+    // These VM-hardware caches are module-level singletons that outlive this
+    // component tree, so a second user signing in on the same tab could
+    // otherwise see a VM detail response cached under the previous session.
+    clearAllVmHardwareCache()
+    clearAllKubevirtHardwareCache()
     setIsAuthenticated(false)
     setUsername('')
     setSessionId('')

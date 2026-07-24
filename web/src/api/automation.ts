@@ -23,7 +23,7 @@ export interface Alert { id: string; rule_name: string; message: string; severit
 export const listAlertRules = () => readJsonArray<AlertRule>(`${API}/alert-rules`)
 export const saveAlertRules = (rules: AlertRule[]) => apiPost<unknown>(`${API}/alert-rules`, rules)
 export const listAlerts = () => readJsonArray<Alert>(`${API}/alerts`)
-export const acknowledgeAlert = (id: string) => apiPost<unknown>(`${API}/alerts/${id}/ack`, {})
+export const acknowledgeAlert = (id: string) => apiPost<unknown>(`${API}/alerts/${encodeURIComponent(id)}/ack`, {})
 
 // Webhooks
 export interface WebhookConfig { id: string; url: string; events: string[]; enabled: boolean }

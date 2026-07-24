@@ -371,10 +371,25 @@ Fleet exposure monthly,",
 }
 
 fn csv_escape(s: &str) -> String {
+    // Neutralize CSV/Excel formula injection: values here can originate from
+    // user-controlled data (VM names, team tags) and this file is served as
+    // an attachment for humans to open in Excel/Sheets. A cell starting with
+    // =, +, -, or @ is interpreted as a formula by those tools (e.g.
+    // `=cmd|'/c calc'!A1`), so prefix a neutralizing apostrophe before
+    // applying the existing quote/comma/newline escaping.
+    let needs_formula_guard = s
+        .chars()
+        .next()
+        .is_some_and(|c| matches!(c, '=' | '+' | '-' | '@'));
+    let s = if needs_formula_guard {
+        std::borrow::Cow::Owned(format!("'{s}"))
+    } else {
+        std::borrow::Cow::Borrowed(s)
+    };
     if s.contains(',') || s.contains('"') || s.contains('\n') {
         format!("\"{}\"", s.replace('"', "\"\""))
     } else {
-        s.to_string()
+        s.into_owned()
     }
 }
 

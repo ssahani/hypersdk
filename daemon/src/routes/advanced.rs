@@ -20,8 +20,17 @@ use crate::auth::{require_write, require_usb_pci, RequestActor};
 use crate::conn_query::{spawn_libvirt_actor, ConnQuery};
 use crate::error::{AppError, Xml};
 
+/// Upper bound on synchronous PTR lookups performed per request. `addrs`
+/// comes from the in-guest agent, which can be influenced by whatever is
+/// running inside the VM (or a compromised guest) — without a cap, a guest
+/// reporting hundreds of bogus IPv4 addresses could tie up a blocking-pool
+/// thread for a long time (`dns_lookup::lookup_addr` has no timeout of its
+/// own) for every `/interfaces` call.
+const MAX_DNS_PTR_LOOKUPS: usize = 32;
+
 fn enrich_dns_ptr(mut addrs: Vec<GuestIpAddress>) -> Vec<GuestIpAddress> {
     use std::net::IpAddr;
+    let mut lookups = 0usize;
     for a in &mut addrs {
         if a.ip_type != "ipv4" {
             continue;
@@ -37,6 +46,10 @@ fn enrich_dns_ptr(mut addrs: Vec<GuestIpAddress>) -> Vec<GuestIpAddress> {
                 continue;
             }
         }
+        if lookups >= MAX_DNS_PTR_LOOKUPS {
+            break;
+        }
+        lookups += 1;
         match dns_lookup::lookup_addr(&ip) {
             Ok(name) if name != a.address => a.dns_ptr = Some(name),
             _ => {}
@@ -232,6 +245,12 @@ async fn add_share_handler(
     Json(req): Json<ShareRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_write(&actor, "vms:write")?;
+    // add_virtiofs_share/remove_share both do a read-XML → modify → define_xml
+    // full-document replace (same shape as the CD-ROM race this lock was
+    // introduced for): two concurrent share edits on the same VM would read
+    // the same starting XML and the second `define_xml` silently clobbers the
+    // first's change instead of erroring.
+    let _vm_guard = manager.lock_vm(&name).await;
     let name2 = name.clone();
     let tag = req.mount_tag.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
@@ -250,6 +269,8 @@ async fn remove_share_handler(
     Path((name, mount_tag)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_write(&actor, "vms:write")?;
+    // See add_share_handler: same define_xml race.
+    let _vm_guard = manager.lock_vm(&name).await;
     let name2 = name.clone();
     let tag2 = mount_tag.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
@@ -340,6 +361,9 @@ async fn set_boot_order_handler(
     Json(req): Json<BootOrderRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_write(&actor, "vms:write")?;
+    // set_boot_order also does read-XML → modify → define_xml; same lost-update
+    // race as the shared-directory handlers above.
+    let _vm_guard = manager.lock_vm(&name).await;
     let name2 = name.clone();
     let devices = req.devices.clone();
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {

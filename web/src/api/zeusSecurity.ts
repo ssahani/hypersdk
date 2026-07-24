@@ -111,22 +111,22 @@ export const syncSecurityAlerts = () =>
   platformFetch<{ inserted: number; summary: string }>('/api/v1/zeus-security/alerts/sync', { method: 'POST' })
 
 export const getHostSecuritySummary = (hostId: string) =>
-  platformFetch<Record<string, unknown>>(`/api/v1/zeus-security/hosts/${hostId}/summary`)
+  platformFetch<Record<string, unknown>>(`/api/v1/zeus-security/hosts/${encodeURIComponent(hostId)}/summary`)
 
 export const getHostProcesses = (hostId: string, hours = 24) =>
-  platformFetch<{ processes: SecurityEvent[] }>(`/api/v1/zeus-security/hosts/${hostId}/processes?hours=${hours}`)
+  platformFetch<{ processes: SecurityEvent[] }>(`/api/v1/zeus-security/hosts/${encodeURIComponent(hostId)}/processes?hours=${hours}`)
 
 export const getHostConnections = (hostId: string, hours = 24) =>
-  platformFetch<{ connections: SecurityEvent[] }>(`/api/v1/zeus-security/hosts/${hostId}/connections?hours=${hours}`)
+  platformFetch<{ connections: SecurityEvent[] }>(`/api/v1/zeus-security/hosts/${encodeURIComponent(hostId)}/connections?hours=${hours}`)
 
 export const getHostDns = (hostId: string, hours = 24) =>
-  platformFetch<{ dns: SecurityEvent[] }>(`/api/v1/zeus-security/hosts/${hostId}/dns?hours=${hours}`)
+  platformFetch<{ dns: SecurityEvent[] }>(`/api/v1/zeus-security/hosts/${encodeURIComponent(hostId)}/dns?hours=${hours}`)
 
 export const getHostSecurityFiles = (hostId: string, hours = 168) =>
-  platformFetch<{ files: SecurityEvent[] }>(`/api/v1/zeus-security/hosts/${hostId}/files?hours=${hours}`)
+  platformFetch<{ files: SecurityEvent[] }>(`/api/v1/zeus-security/hosts/${encodeURIComponent(hostId)}/files?hours=${hours}`)
 
 export const getHostSecurityPorts = (hostId: string) =>
-  platformFetch<{ ports: Array<Record<string, unknown>> }>(`/api/v1/zeus-security/hosts/${hostId}/ports`)
+  platformFetch<{ ports: Array<Record<string, unknown>> }>(`/api/v1/zeus-security/hosts/${encodeURIComponent(hostId)}/ports`)
 
 export interface ContainerHierarchy {
   host_id?: string
@@ -135,7 +135,7 @@ export interface ContainerHierarchy {
 }
 
 export const getHostContainers = (hostId: string) =>
-  platformFetch<ContainerHierarchy>(`/api/v1/zeus-security/hosts/${hostId}/containers`)
+  platformFetch<ContainerHierarchy>(`/api/v1/zeus-security/hosts/${encodeURIComponent(hostId)}/containers`)
 
 export const installK8sTetragon = (clusterId: string, clusterName?: string) =>
   platformFetch<{ task_id: string; summary: string }>(`/api/v1/zeus-security/k8s/${encodeURIComponent(clusterId)}/tetragon/install`, {
@@ -159,15 +159,15 @@ export const getK8sExportStatus = (clusterId: string, namespace = 'kube-system')
   )
 
 export const getHostSecurityTimeline = (hostId: string, hours = 24) =>
-  platformFetch<{ events: SecurityEvent[] }>(`/api/v1/zeus-security/hosts/${hostId}/timeline?hours=${hours}`)
+  platformFetch<{ events: SecurityEvent[] }>(`/api/v1/zeus-security/hosts/${encodeURIComponent(hostId)}/timeline?hours=${hours}`)
 
 export const getHostProcessGraph = (hostId: string, pid?: number) => {
   const q = pid != null ? `?pid=${pid}` : ''
-  return platformFetch<Record<string, unknown>>(`/api/v1/zeus-security/hosts/${hostId}/process-graph${q}`)
+  return platformFetch<Record<string, unknown>>(`/api/v1/zeus-security/hosts/${encodeURIComponent(hostId)}/process-graph${q}`)
 }
 
 export const installTetragonSensor = (hostId: string) =>
-  platformFetch<{ task_id: string; summary: string }>(`/api/v1/zeus-security/hosts/${hostId}/tetragon/install`, { method: 'POST' })
+  platformFetch<{ task_id: string; summary: string }>(`/api/v1/zeus-security/hosts/${encodeURIComponent(hostId)}/tetragon/install`, { method: 'POST' })
 
 export interface SecurityFabricStatus {
   policy_dir?: string
@@ -187,7 +187,7 @@ export interface HostFabricStatusResponse {
 }
 
 export const getHostFabricStatus = (hostId: string) =>
-  platformFetch<HostFabricStatusResponse>(`/api/v1/zeus-security/hosts/${hostId}/fabric-status`)
+  platformFetch<HostFabricStatusResponse>(`/api/v1/zeus-security/hosts/${encodeURIComponent(hostId)}/fabric-status`)
 
 export const searchZeusSecurity = (query: string, hostId?: string) =>
   platformFetch<{ results: SecurityEvent[] }>('/api/v1/zeus-security/search', {
@@ -326,7 +326,7 @@ export const installFleetTetragon = () =>
   )
 
 export const getHostEnforcement = (hostId: string) =>
-  platformFetch<Record<string, unknown>>(`/api/v1/zeus-security/hosts/${hostId}/enforcement`)
+  platformFetch<Record<string, unknown>>(`/api/v1/zeus-security/hosts/${encodeURIComponent(hostId)}/enforcement`)
 
 export const getAgentSecurityBundle = (hostId: string) =>
   platformFetch<{
@@ -334,4 +334,4 @@ export const getAgentSecurityBundle = (hostId: string) =>
     tracing_policies?: unknown[]
     policy_count?: number
     tetragon_install?: Record<string, unknown>
-  }>(`/api/v1/zeus-security/agents/${hostId}/bundle`)
+  }>(`/api/v1/zeus-security/agents/${encodeURIComponent(hostId)}/bundle`)

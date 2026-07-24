@@ -222,15 +222,26 @@ pub async fn delete_network(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
     let name = network_name(&state.pool, id).await?;
-    if resolve_online_host(&state.pool, q.host_id).await.is_ok() {
-        let host_id = resolve_online_host(&state.pool, q.host_id).await?;
-        let _ = invoke_network_on_host(&state, host_id, "network.delete", &name).await;
-    }
+    // Best-effort: still prune the controller-side record even when no host is
+    // reachable to run the libvirt delete (e.g. the host is offline). Surface the
+    // host-side outcome instead of silently discarding it, so callers can tell a
+    // clean delete from one where the libvirt network may still exist on the host.
+    let host_delete_error = match resolve_online_host(&state.pool, q.host_id).await {
+        Ok(host_id) => invoke_network_on_host(&state, host_id, "network.delete", &name)
+            .await
+            .err()
+            .map(|e| e.message),
+        Err(e) => Some(e.message),
+    };
     sqlx::query("DELETE FROM networks WHERE id = ?")
         .bind(id)
         .execute(&state.pool)
         .await?;
-    Ok(Json(serde_json::json!({ "deleted": true, "name": name })))
+    Ok(Json(serde_json::json!({
+        "deleted": true,
+        "name": name,
+        "host_delete_error": host_delete_error,
+    })))
 }
 
 #[derive(Debug, Deserialize)]

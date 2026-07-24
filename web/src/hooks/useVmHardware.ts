@@ -229,3 +229,13 @@ export function useVmHardware({
 export function invalidateVmHardwareCache(vmId: string | null | undefined) {
   if (vmId) hardwareCache.delete(vmId)
 }
+
+/**
+ * Drop ALL cached VM hardware. This cache is a module-level singleton, so it
+ * otherwise survives logout — call this from the logout path so a second user
+ * signing in on the same browser tab can't see a stale response cached under
+ * the previous session's authorization.
+ */
+export function clearAllVmHardwareCache() {
+  hardwareCache.clear()
+}

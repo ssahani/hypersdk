@@ -45,6 +45,22 @@ fn sync_policy_to_tetragon(
     Ok(())
 }
 
+/// Policy names become filenames under `policy_dir()`/`tetragon_tp_dir()`. The
+/// bundle is applied verbatim from whatever produced it (e.g. a remote
+/// PacketWolf server, relayed through the controller) — a name containing `/`
+/// or `..` would let a crafted or compromised bundle write/delete an arbitrary
+/// file on the host as root instead of a policy JSON file under the intended
+/// directory.
+fn is_safe_policy_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 200
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+        && !name.contains("..")
+        && name != "."
+}
+
 fn tetragon_in_path() -> bool {
     PathBuf::from("/usr/local/lib/tetragon/bpf").is_dir()
         && PathBuf::from("/usr/local/bin/tetragon").is_file()
@@ -97,6 +113,11 @@ pub fn apply_security_bundle(
         let Some(name_str) = name.as_str() else {
             continue;
         };
+        if !is_safe_policy_name(name_str) {
+            return Err(LibvirtError::Invalid(format!(
+                "unsafe tracing policy name in removed_policies: '{name_str}'"
+            )));
+        }
         let path = dir.join(format!("{name_str}.json"));
         if path.is_file() && !dry_run {
             fs::remove_file(&path).map_err(LibvirtError::map_op("remove tetragon policy"))?;
@@ -111,6 +132,11 @@ pub fn apply_security_bundle(
             .and_then(|v| v.as_str())
             .map(String::from)
             .unwrap_or_else(|| format!("policy-{i}"));
+        if !is_safe_policy_name(&name) {
+            return Err(LibvirtError::Invalid(format!(
+                "unsafe tracing policy name in tracing_policies[{i}].metadata.name: '{name}'"
+            )));
+        }
         let path = dir.join(format!("{name}.json"));
         let body = serde_json::to_string_pretty(pol)
             .map_err(|e| LibvirtError::Internal(format!("serialize policy: {e}")))?;

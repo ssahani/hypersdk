@@ -1243,8 +1243,7 @@ pub async fn patch_ai_prompt(
     Json(body): Json<ai::prompts::PatchPromptBody>,
 ) -> Result<Json<ai::prompts::PromptRow>, ApiError> {
     require_operator(&actor)?;
-    let _ = actor;
-    ai::prompts::patch_prompt(&state.pool, id, &body)
+    ai::prompts::patch_prompt(&state.pool, id, &actor.username, &actor.role, &body)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
@@ -1255,9 +1254,8 @@ pub async fn delete_ai_prompt(
     Extension(actor): Extension<AuthUser>,
     axum::extract::Path(id): axum::extract::Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_admin(&actor)?;
-    let _ = actor;
-    let ok = ai::prompts::delete_prompt(&state.pool, id)
+    require_operator(&actor)?;
+    let ok = ai::prompts::delete_prompt(&state.pool, id, &actor.username, &actor.role)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(serde_json::json!({ "deleted": ok })))

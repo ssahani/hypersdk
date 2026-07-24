@@ -219,6 +219,17 @@ pub async fn approve_and_execute(
                 "task_id": task_id.to_string()
             }))
         }
+        // These action_types are proposed by nl_ops / guest_tools and stored as
+        // pending ai_actions, but no executor is wired up for them anywhere in
+        // the codebase. Falling through to the generic "recorded approval"
+        // branch below would mark them 'executed' and audit-log a fabricated
+        // success even though nothing actually ran — reject explicitly instead
+        // so the action is marked 'failed' and the operator knows to follow up
+        // manually rather than trusting a false "done" status.
+        "create_vm" | "migrate_vm" | "vm.snapshot_quiesce" => Err(anyhow::anyhow!(
+            "No executor implemented for action type '{}' — this action cannot be auto-executed yet; perform it manually and reject/close this entry",
+            action.action_type
+        )),
         _ => Ok(serde_json::json!({"message": format!("Recorded approval for {}", action.label)})),
     };
 
@@ -277,10 +288,19 @@ pub async fn approval_hub(pool: &SqlitePool) -> anyhow::Result<serde_json::Value
             .await
             .unwrap_or(0);
     let autopilot = super::autopilot::propose(pool, None).await?;
+    // total_pending must only count items actually present in `zeus_actions`
+    // (rendered by the approvals queue UI) plus firewall_pending (explicitly
+    // broken out in the UI subtitle and reviewed on the dedicated firewall
+    // approvals page). autopilot_proposals are ephemeral recommendations
+    // surfaced through their own /api/v1/ai/autopilot/* endpoints and UI
+    // surfaces (ZeusAssistant, PlatformControlCenter) — they are never
+    // rendered by this hub's consumers, so including their count here made
+    // the nav badge / page header report pending items that the approvals
+    // list could never show (e.g. "1 total" with an empty list).
     Ok(serde_json::json!({
         "zeus_actions": zeus,
         "firewall_pending": firewall_count,
         "autopilot_proposals": autopilot.actions,
-        "total_pending": zeus.len() as i64 + firewall_count + autopilot.actions.len() as i64
+        "total_pending": zeus.len() as i64 + firewall_count
     }))
 }

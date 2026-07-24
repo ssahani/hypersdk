@@ -126,6 +126,12 @@ async fn create_volume(
     let pool2 = pool_name.clone();
     let req2 = req.clone();
     require_write(&actor, "storage:write")?;
+    // Unlike resize_volume (advanced.rs), this had no upper bound at all: a
+    // storage:write actor could request an arbitrarily large capacity_gb,
+    // relying entirely on the pool running out of space to fail it. Reuse the
+    // same 1 GB–10 TB validator every other disk-size input in core goes
+    // through (create.rs, device.rs, virt_builder.rs, virt_install.rs).
+    machina_core::validate::validate_disk_gb(req2.capacity_gb)?;
     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         storage::create_volume(conn, &pool2, &req2.name, req2.capacity_gb, &req2.format)
     })

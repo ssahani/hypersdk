@@ -304,6 +304,7 @@ pub async fn execute_environment(
         let tags_json = serde_json::to_string(&tags).unwrap_or_else(|_| "[]".into());
         let spec_json = env_vm_spec(&name, plan.vcpus_per_vm, plan.memory_gib_per_vm);
 
+        let mut tx = state.pool.begin().await.map_err(|e| ApiError::internal(e.to_string()))?;
         sqlx::query(
             "INSERT INTO vms (id, cluster_id, host_id, name, project, spec_json, desired_state, lifecycle_phase, vcpus, memory_mib, tags)
              VALUES (?, ?, ?, ?, 'environment', ?, 'running', 'creating', ?, ?, ?)",
@@ -316,7 +317,7 @@ pub async fn execute_environment(
         .bind(plan.vcpus_per_vm)
         .bind(mem_mib)
         .bind(&tags_json)
-        .execute(&state.pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
 
@@ -325,9 +326,10 @@ pub async fn execute_environment(
         )
         .bind(Uuid::new_v4())
         .bind(vm_id)
-        .execute(&state.pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
+        tx.commit().await.map_err(|e| ApiError::internal(e.to_string()))?;
 
         let task_id = enqueue_task(
             state,

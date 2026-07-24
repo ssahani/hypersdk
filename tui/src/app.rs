@@ -1632,6 +1632,14 @@ impl App {
 
     // ── Terminal launcher helper ─────────────────────────────────────────
 
+    /// Reap a detached child on a background thread so it doesn't linger as a zombie
+    /// process for the lifetime of the TUI session (Child::drop does not wait()).
+    fn reap_child(mut child: std::process::Child) {
+        std::thread::spawn(move || {
+            let _ = child.wait();
+        });
+    }
+
     fn launch_in_terminal(args: &[&str]) -> Option<String> {
         const TERMINALS: &[&str] = &[
             "gnome-terminal",
@@ -1649,7 +1657,10 @@ impl App {
                 .args(args)
                 .spawn()
                 .ok()
-                .map(|_| term.to_string())
+                .map(|child| {
+                    Self::reap_child(child);
+                    term.to_string()
+                })
         })
     }
 
@@ -1658,11 +1669,14 @@ impl App {
     async fn launch_viewer_by_name(&mut self, name: &str) {
         self.state.status_message = format!("Launching virt-viewer for '{name}'...");
         self.state.add_audit_event("virt-viewer", name, "launched");
-        let _ = std::process::Command::new("virt-viewer")
+        if let Ok(child) = std::process::Command::new("virt-viewer")
             .arg("--connect")
             .arg("qemu:///system")
             .arg(name)
-            .spawn();
+            .spawn()
+        {
+            Self::reap_child(child);
+        }
     }
 
     async fn launch_console_by_name(&mut self, name: &str) {
@@ -1691,11 +1705,8 @@ impl App {
                 let connect_port = if ws_port > 0 { ws_port } else { port };
                 let novnc_url = format!("http://127.0.0.1:6080/vnc.html?host=127.0.0.1&port={connect_port}&autoconnect=true");
 
-                if std::process::Command::new("xdg-open")
-                    .arg(&novnc_url)
-                    .spawn()
-                    .is_ok()
-                {
+                if let Ok(child) = std::process::Command::new("xdg-open").arg(&novnc_url).spawn() {
+                    Self::reap_child(child);
                     self.state.status_message =
                         format!("Opening noVNC for '{name}' ({ctype} port {connect_port})");
                 } else {
@@ -1714,6 +1725,12 @@ impl App {
     }
 
     async fn show_vm_logs_by_name(&mut self, name: &str) {
+        // `name` comes from the daemon's VM list; reject path separators / traversal so a
+        // malicious or buggy daemon response can't make us read arbitrary host files.
+        if name.is_empty() || name.contains(['/', '\\']) || name.contains("..") {
+            self.state.status_message = format!("Refusing to read logs for invalid VM name '{name}'");
+            return;
+        }
         let log_paths = [
             format!("/var/log/libvirt/qemu/{name}.log"),
             format!("/var/log/swtpm/libvirt/qemu/{name}-swtpm.log"),
@@ -1749,20 +1766,27 @@ impl App {
     }
 
     async fn launch_ssh_by_name(&mut self, name: &str) {
-        let ip = std::process::Command::new("virsh")
-            .args(["domifaddr", name])
-            .output()
-            .ok()
-            .and_then(|o| {
-                String::from_utf8_lossy(&o.stdout).lines().find_map(|line| {
-                    let parts: Vec<&str> = line.split_whitespace().collect();
-                    if parts.len() >= 4 && parts[2] == "ipv4" {
-                        Some(parts[3].split('/').next().unwrap_or_default().to_string())
-                    } else {
-                        None
-                    }
+        // `virsh domifaddr` can block for a while (e.g. an unresponsive libvirtd); run it on a
+        // blocking-pool thread so a hang doesn't freeze the TUI's rendering/input loop.
+        let name_owned = name.to_string();
+        let ip = tokio::task::spawn_blocking(move || {
+            std::process::Command::new("virsh")
+                .args(["domifaddr", &name_owned])
+                .output()
+                .ok()
+                .and_then(|o| {
+                    String::from_utf8_lossy(&o.stdout).lines().find_map(|line| {
+                        let parts: Vec<&str> = line.split_whitespace().collect();
+                        if parts.len() >= 4 && parts[2] == "ipv4" {
+                            Some(parts[3].split('/').next().unwrap_or_default().to_string())
+                        } else {
+                            None
+                        }
+                    })
                 })
-            });
+        })
+        .await
+        .unwrap_or(None);
 
         if let Some(ip) = ip {
             if let Some(term) = Self::launch_in_terminal(&["ssh", &ip]) {

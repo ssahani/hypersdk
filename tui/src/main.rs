@@ -33,6 +33,9 @@ struct Cli {
 async fn main() -> anyhow::Result<()> {
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
+        // Mirror the normal-exit cleanup: without this, a panic leaves mouse capture
+        // enabled and the user's shell prints raw escape sequences on every mouse event.
+        let _ = crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture);
         ratatui::restore();
         original_hook(panic_info);
     }));
@@ -47,7 +50,12 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let daemon_url = cli.url.unwrap_or_else(|| config.daemon_url());
-    let refresh_secs = cli.refresh.unwrap_or(config.general.refresh_interval_secs);
+    // Clamp to at least 1s: a 0 (e.g. from `--refresh 0` or a misconfigured config file)
+    // would make the main loop re-poll the daemon on every ~250ms tick, hammering it.
+    let refresh_secs = cli
+        .refresh
+        .unwrap_or(config.general.refresh_interval_secs)
+        .max(1);
 
     let client = api::DaemonClient::new(&daemon_url);
     let mut app = App::new(client, refresh_secs);

@@ -22,6 +22,17 @@ pub struct SiemEvent {
 }
 
 pub async fn export_timeline(pool: &SqlitePool, hours: i32) -> anyhow::Result<SiemFirewallExport> {
+    // Clamp the caller-supplied window. `hours` is spliced into a SQLite
+    // datetime modifier as `'-' || hours || ' hours'`; a negative value (e.g.
+    // -5) produces the malformed modifier "--5 hours", which datetime()
+    // silently resolves to NULL. That makes `created_at >= NULL` false for
+    // every row, so the export "succeeds" with 0 events instead of erroring
+    // or returning the intended window — a caller/typo could think a site
+    // has no firewall activity when the query simply never matched anything.
+    // Also cap the upper bound so a huge value can't be used to pull an
+    // unbounded time range (LIMIT 5000 below still bounds row count, but not
+    // how far back SQLite has to scan).
+    let hours = hours.clamp(1, 24 * 365);
     let rows: Vec<(
         String,
         uuid::Uuid,

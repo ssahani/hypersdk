@@ -26,6 +26,16 @@ const kubevirtHardwareCache = new Map<
   { at: number; vm: PlatformVm | null; row: KubeVirtVmSummaryRow | null }
 >()
 
+/**
+ * Drop ALL cached KubeVirt hardware. This cache is a module-level singleton,
+ * so it otherwise survives logout — call this from the logout path so a
+ * second user signing in on the same browser tab can't see a stale response
+ * cached under the previous session's authorization.
+ */
+export function clearAllKubevirtHardwareCache() {
+  kubevirtHardwareCache.clear()
+}
+
 export function useKubevirtHardware({
   vmId,
   enabled = true,
