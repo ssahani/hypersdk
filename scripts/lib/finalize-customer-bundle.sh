@@ -10,12 +10,20 @@ VERSION="${4:-${V9S_PACKAGE_VERSION:-latest}}"
 LIB="${BUILD_DIR}/scripts/lib"
 
 # License pack (LICENSE, LEGAL-INDEX.txt, docs/legal/, Zyvor terms when applicable)
-if [[ -x "${LIB}/copy-legal-to-bundle.sh" ]]; then
+# NOTE: gate on -f + chmod (not -x) and hard-fail if neither script is found —
+# a missing/non-executable legal-copy script must not silently produce a
+# customer bundle with no LICENSE.
+if [[ -f "${LIB}/copy-legal-to-bundle.sh" ]]; then
+  chmod +x "${LIB}/copy-legal-to-bundle.sh"
   "${LIB}/copy-legal-to-bundle.sh" "${STAGE}" "${BUILD_DIR}"
-elif [[ -x "${LIB}/copy-zyvor-legal-to-bundle.sh" ]]; then
+elif [[ -f "${LIB}/copy-zyvor-legal-to-bundle.sh" ]]; then
+  chmod +x "${LIB}/copy-zyvor-legal-to-bundle.sh"
   extra=()
   [[ -f "${BUILD_DIR}/ZYVOR-COMPANY-TERMS.md" ]] && extra=(--with-accept)
   "${LIB}/copy-zyvor-legal-to-bundle.sh" "${STAGE}" "${BUILD_DIR}" "${extra[@]}"
+else
+  echo "ERROR: missing ${LIB}/copy-legal-to-bundle.sh (and copy-zyvor-legal-to-bundle.sh) — cannot produce a customer bundle without a LICENSE" >&2
+  exit 1
 fi
 if [[ -f "${LIB}/license-accept.sh" ]]; then
   mkdir -p "${STAGE}/.package-lib"

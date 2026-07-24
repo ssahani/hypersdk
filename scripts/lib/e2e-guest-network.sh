@@ -127,10 +127,19 @@ print(json.dumps({
 # Run guest-exec on the hypervisor via SSH + virsh qemu-agent-command.
 e2e_guest_qemu_exec_remote() {
   local ssh_cmd="$1" vm="$2" uri="$3" guest_script="$4"
-  local payload
+  local payload remote_script quoted_script
   payload="$(e2e_guest_qemu_exec_payload "$guest_script")"
+  # Build the remote virsh invocation with each dynamic value shell-escaped for
+  # a single parse pass, then %q-escape the whole thing once more so it survives
+  # as one literal argument to `bash -lc` on the remote end. Do NOT additionally
+  # wrap this in manual single quotes: printf '%q' emits backslash escapes, and a
+  # literal "'" in an escaped value (e.g. a guest_script containing an apostrophe)
+  # would prematurely terminate a hand-written single-quoted wrapper and let the
+  # remainder be re-parsed as shell syntax on the hypervisor.
+  remote_script="virsh -c $(printf '%q' "$uri") qemu-agent-command $(printf '%q' "$vm") $(printf '%q' "$payload")"
+  quoted_script="$(printf '%q' "$remote_script")"
   # shellcheck disable=SC2086
-  $ssh_cmd "bash -lc 'virsh -c $(printf '%q' "$uri") qemu-agent-command $(printf '%q' "$vm") $(printf '%q' "$payload")'" \
+  $ssh_cmd "bash -lc $quoted_script" \
     2>/dev/null || true
 }
 

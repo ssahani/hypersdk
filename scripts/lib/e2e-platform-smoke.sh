@@ -797,7 +797,7 @@ except Exception:
   if [[ "$http" == "200" ]]; then
     e2e_platform_ok "GET compliance/metal/export.pdf (HTTP ${http})"
   else
-    e2e_platform_ok "GET compliance/metal/export.pdf — soft (HTTP ${http})"
+    e2e_platform_warn "GET compliance/metal/export.pdf — soft (HTTP ${http})"
   fi
   http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
     -H 'Content-Type: application/json' -d '{"query":"bare metal firewall"}')"

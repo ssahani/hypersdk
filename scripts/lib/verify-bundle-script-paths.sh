@@ -19,6 +19,11 @@ verify_bundle_script_paths() {
     return 1
   fi
 
+  # Absolute path to the stage dir, used below so the runtime checks can be
+  # run with CWD *outside* the stage dir (see comment at the checks).
+  local stage_abs
+  stage_abs="$(cd "${stage}" && pwd)"
+
   local -a root_scripts=(
     install-cluster.sh apply-cluster-network.sh test-cluster.sh test-host.sh
     install.sh install-everything.sh install-client-deps.sh test-package.sh uninstall.sh
@@ -32,20 +37,31 @@ verify_bundle_script_paths() {
     fi
   done
 
+  # Runtime checks below MUST invoke the script via its absolute path from a
+  # CWD that is *not* the stage dir. If we instead `cd "${stage}"` and ran
+  # `./foo.sh`, a script that (incorrectly) resolves ROOT="$(pwd)" instead of
+  # ROOT via "$(dirname "$0")" would still pass, because CWD would happen to
+  # equal the extract dir in this one test — exactly the bug this check
+  # exists to catch. Running from elsewhere makes the two resolution
+  # strategies actually diverge.
+  local verify_tmpdir
+  verify_tmpdir="$(mktemp -d)"
+  trap 'rm -rf "${verify_tmpdir}"' RETURN
+
   if [[ -x "${stage}/install-cluster.sh" ]]; then
     if [[ ! -f "${stage}/cluster/install-cluster-prereqs.sh" ]]; then
       echo "ERROR: install-cluster.sh present but cluster/install-cluster-prereqs.sh missing" >&2
       bad=1
     fi
-    if ! (cd "${stage}" && ./install-cluster.sh --help >/dev/null 2>&1); then
-      echo "ERROR: install-cluster.sh --help failed (ROOT must be the extract directory)" >&2
+    if ! (cd "${verify_tmpdir}" && "${stage_abs}/install-cluster.sh" --help >/dev/null 2>&1); then
+      echo "ERROR: install-cluster.sh --help failed when run from outside the extract dir (ROOT must resolve via \$0, not \$PWD)" >&2
       bad=1
     fi
   fi
 
   if [[ -x "${stage}/test-host.sh" ]] && grep -q 'pkg_script_help' "${stage}/test-host.sh" 2>/dev/null; then
-    if ! (cd "${stage}" && ./test-host.sh --help >/dev/null 2>&1); then
-      echo "ERROR: test-host.sh --help failed (ROOT must be the extract directory)" >&2
+    if ! (cd "${verify_tmpdir}" && "${stage_abs}/test-host.sh" --help >/dev/null 2>&1); then
+      echo "ERROR: test-host.sh --help failed when run from outside the extract dir (ROOT must resolve via \$0, not \$PWD)" >&2
       bad=1
     fi
   fi

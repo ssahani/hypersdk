@@ -60,5 +60,5 @@ else
   fi
 fi
 
-echo "  › Customer PDFs (${PRODUCT} ${VERSION}) — logo: ${LOGO#${BUILD_DIR}/}"
+echo "  › Customer PDFs (${PRODUCT} ${VERSION}) — logo: ${LOGO#"${BUILD_DIR}"/}"
 "${PY}" "${GEN_PY}" "${STAGE}" "${PRODUCT}" "${LOGO}" --version "${VERSION}"

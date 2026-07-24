@@ -55,7 +55,7 @@ curl_api -X POST "$CONTROLLER/api/v1/hosts/sync-all" -d '{}' >/dev/null || true
 
 while read -r dom; do
   [ -n "$dom" ] || continue
-  [[ "$dom" == e2e-* ]] || [[ "$dom" == ux-e2e-* ]] || [[ "$dom" == ux-screenshot-* ]] && continue
+  [[ "$dom" == e2e-* ]] || [[ "$dom" == e2e_* ]] || [[ "$dom" == ux-e2e-* ]] || [[ "$dom" == ux-screenshot-* ]] && continue
   st=$(sudo virsh domstate "$dom" 2>/dev/null || echo unknown)
   if [ "$st" = 'shut off' ]; then
     sudo virsh autostart "$dom" 2>/dev/null || true
