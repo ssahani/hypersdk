@@ -1112,6 +1112,65 @@ async fn ha_recover(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Compensate a terminally-failed `ha.recover` task: `engine/ha.rs::recover_vms`
+/// moves the VM's `host_id` to the destination BEFORE the recovery task actually
+/// applies/starts it there (so the next 45s scan doesn't re-select the same
+/// victim while recovery is in flight). If the task then fails for good — agent
+/// unreachable, apply_vm error, etc. — that DB write is a "false success": the VM
+/// row points at a host it was never actually created on, observed_state is
+/// untouched (still whatever stale value it had), so reconcile's
+/// `desired != observed` guard never fires either, and the VM is silently
+/// orphaned forever. Revert host_id back to the failed source host (only if
+/// nothing else has since moved it) and give back the recovery attempt so the
+/// next HA scan can retry — mirroring the enqueue-failure compensation already
+/// done inline in `recover_vms`.
+async fn revert_failed_ha_recovery(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
+    let Some(vm_id) = vm_id_from_payload(msg) else {
+        return Ok(());
+    };
+    let Some(dest_host_id) = msg.payload["host_id"]
+        .as_str()
+        .and_then(|s| Uuid::parse_str(s).ok())
+    else {
+        return Ok(());
+    };
+    // Older in-flight payloads (enqueued before this field existed) won't carry
+    // it; nothing safe to revert to in that case.
+    let Some(source_host_id) = msg.payload["recovered_from_host_id"]
+        .as_str()
+        .and_then(|s| Uuid::parse_str(s).ok())
+    else {
+        return Ok(());
+    };
+
+    let result = sqlx::query(
+        "UPDATE vms SET host_id = ?, ha_recovery_count = MAX(ha_recovery_count - 1, 0),
+         updated_at = datetime('now') WHERE id = ? AND host_id = ?",
+    )
+    .bind(source_host_id)
+    .bind(vm_id)
+    .bind(dest_host_id)
+    .execute(&state.pool)
+    .await?;
+
+    if result.rows_affected() > 0 {
+        tracing::warn!(vm_id = %vm_id, dest_host = %dest_host_id, source_host = %source_host_id,
+            "ha.recover failed terminally — reverted host_id so HA can retry recovery instead of leaving the VM stuck pointing at a host it was never created on");
+        let _ = sqlx::query(
+            "INSERT INTO ha_events (id, vm_id, host_id, action, message) VALUES (?, ?, ?, 'ha.recover_failed', ?)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(vm_id)
+        .bind(source_host_id)
+        .bind(format!(
+            "Recovery onto host {dest_host_id} failed and was reverted; will retry once eligible"
+        ))
+        .execute(&state.pool)
+        .await;
+    }
+    Ok(())
+}
+
 async fn host_agent_addr(pool: &SqlitePool, host_id: Uuid) -> anyhow::Result<String> {
     let addr: String = sqlx::query_scalar("SELECT agent_grpc_addr FROM hosts WHERE id = ?")
         .bind(host_id)
@@ -1193,7 +1252,46 @@ async fn vm_snapshot(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> 
     if crate::engine::atlas_vm::vm_is_atlas_backed(&state.pool, vm_id).await {
         let snap_name = msg.payload["name"].as_str().map(str::to_string);
         let jobs = crate::engine::atlas_vm::snapshot_vm(state, vm_id, snap_name.as_deref()).await?;
-        let ids: Vec<&str> = jobs.iter().filter_map(|j| j.job_id()).collect();
+        // `snapshot_vm` only enqueues the Atlas job(s) (202 Accepted); poll each
+        // to a terminal state here before recording 'completed' — persisting
+        // completion off the bare "accepted" response would be a false success
+        // if the snapshot later fails (or is still running) on the Atlas side.
+        let client = crate::engine::atlas_bridge::require_client(&state.config)?;
+        let mut terminal = Vec::with_capacity(jobs.len());
+        for job in jobs {
+            let job = match job.job_id() {
+                Some(jid) => {
+                    client
+                        .wait_for_job(jid, std::time::Duration::from_secs(600))
+                        .await?
+                }
+                None => job,
+            };
+            if job.state == "failed" {
+                sqlx::query("UPDATE snapshot_records SET status = 'failed', message = ? WHERE id = ?")
+                    .bind(job.error.as_deref().unwrap_or("Atlas snapshot failed"))
+                    .bind(record_id)
+                    .execute(&state.pool)
+                    .await?;
+                anyhow::bail!(
+                    "Atlas snapshot failed: {}",
+                    job.error.as_deref().unwrap_or("unknown error")
+                );
+            }
+            if !job.is_terminal() {
+                sqlx::query("UPDATE snapshot_records SET status = 'failed', message = ? WHERE id = ?")
+                    .bind("Atlas snapshot did not finish within the wait budget")
+                    .bind(record_id)
+                    .execute(&state.pool)
+                    .await?;
+                anyhow::bail!(
+                    "Atlas snapshot job {} did not reach a terminal state in time",
+                    job.job_id().unwrap_or("?")
+                );
+            }
+            terminal.push(job);
+        }
+        let ids: Vec<&str> = terminal.iter().filter_map(|j| j.job_id()).collect();
         let summary = ids.join(",");
         sqlx::query(
             "UPDATE snapshot_records SET status = 'completed', message = ?, snapshot_path = ? WHERE id = ?",
@@ -1370,10 +1468,52 @@ async fn vm_backup(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         let keep = msg.payload["keep"].as_i64().unwrap_or(0);
         let bucket = msg.payload["bucket_id"].as_str();
         let jobs = crate::engine::atlas_vm::backup_vm(state, vm_id, bucket, mode, keep).await?;
-        let job_ids: Vec<&str> = jobs.iter().filter_map(|j| j.job_id()).collect();
+        // `backup_vm` only enqueues the Atlas backup job(s) (202 Accepted) — the
+        // `resource.backup_id` a restore needs is not guaranteed to be populated
+        // until the job is terminal. Poll each job here before recording
+        // 'completed'; the previous code stored whatever (possibly empty)
+        // backup id came back immediately, which both mis-reported an
+        // in-progress/failed backup as done and could leave `backup_path` with
+        // no usable id for a later restore.
+        let client = crate::engine::atlas_bridge::require_client(&state.config)?;
+        let mut terminal = Vec::with_capacity(jobs.len());
+        for job in jobs {
+            let job = match job.job_id() {
+                Some(jid) => {
+                    client
+                        .wait_for_job(jid, std::time::Duration::from_secs(1800))
+                        .await?
+                }
+                None => job,
+            };
+            if job.state == "failed" {
+                sqlx::query("UPDATE backup_records SET status = 'failed', message = ? WHERE id = ?")
+                    .bind(job.error.as_deref().unwrap_or("Atlas backup failed"))
+                    .bind(record_id)
+                    .execute(&state.pool)
+                    .await?;
+                anyhow::bail!(
+                    "Atlas backup failed: {}",
+                    job.error.as_deref().unwrap_or("unknown error")
+                );
+            }
+            if !job.is_terminal() {
+                sqlx::query("UPDATE backup_records SET status = 'failed', message = ? WHERE id = ?")
+                    .bind("Atlas backup did not finish within the wait budget")
+                    .bind(record_id)
+                    .execute(&state.pool)
+                    .await?;
+                anyhow::bail!(
+                    "Atlas backup job {} did not reach a terminal state in time",
+                    job.job_id().unwrap_or("?")
+                );
+            }
+            terminal.push(job);
+        }
+        let job_ids: Vec<&str> = terminal.iter().filter_map(|j| j.job_id()).collect();
         // Persist the Atlas backup id(s) (not the job id) so restore can target
         // them; comma-joined when a VM has multiple Atlas volumes.
-        let backup_ids: Vec<String> = jobs.iter().filter_map(|j| j.resource_backup_id()).collect();
+        let backup_ids: Vec<String> = terminal.iter().filter_map(|j| j.resource_backup_id()).collect();
         let stored = backup_ids.join(",");
         sqlx::query(
             "UPDATE backup_records SET status = 'completed', message = ?, backup_path = ? WHERE id = ?",
@@ -1387,7 +1527,7 @@ async fn vm_backup(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
             "vm.backup",
             format!("Atlas backup ({} job(s)) for VM {vm_id}", job_ids.len()),
         );
-        update_task_progress(&state.pool, msg.task_id, 100, "atlas backup queued").await?;
+        update_task_progress(&state.pool, msg.task_id, 100, "atlas backup complete").await?;
         return Ok(());
     }
 
@@ -1757,7 +1897,36 @@ async fn vm_backup_restore(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
             .execute(&state.pool)
             .await?;
         let client = crate::engine::atlas_bridge::require_client(&state.config)?;
-        match client.restore_backup(backup_id, None, mode).await {
+        // `restore_backup` only enqueues the Atlas restore job (202 Accepted);
+        // treating that acceptance as `restore_status = 'completed'` (the
+        // previous behavior) was a false success — a restore that later fails,
+        // or is still copying data, was reported as done. Poll to terminal first.
+        let result = async {
+            let job = client.restore_backup(backup_id, None, mode).await?;
+            let job = match job.job_id() {
+                Some(jid) => {
+                    client
+                        .wait_for_job(jid, std::time::Duration::from_secs(1800))
+                        .await?
+                }
+                None => job,
+            };
+            if job.state == "failed" {
+                anyhow::bail!(
+                    "Atlas restore failed: {}",
+                    job.error.as_deref().unwrap_or("unknown error")
+                );
+            }
+            if !job.is_terminal() {
+                anyhow::bail!(
+                    "Atlas restore job {} did not reach a terminal state in time",
+                    job.job_id().unwrap_or("?")
+                );
+            }
+            Ok::<_, anyhow::Error>(job)
+        }
+        .await;
+        match result {
             Ok(job) => {
                 sqlx::query("UPDATE backup_records SET restore_status = 'completed' WHERE id = ?")
                     .bind(record_id)
@@ -1779,7 +1948,7 @@ async fn vm_backup_restore(state: &AppState, msg: &TaskMessage) -> anyhow::Resul
                 anyhow::bail!("atlas restore failed: {e}");
             }
         }
-        update_task_progress(&state.pool, msg.task_id, 100, "atlas restore queued").await?;
+        update_task_progress(&state.pool, msg.task_id, 100, "atlas restore complete").await?;
         return Ok(());
     }
 
@@ -1976,6 +2145,11 @@ async fn on_task_failure(state: &AppState, msg: &TaskMessage, err: &str) {
     let _ = mark_task_failed(&state.pool, msg.task_id, err).await;
     if let Some(vm_id) = vm_id_from_payload(msg) {
         let _ = vm_lifecycle::set_vm_error(&state.pool, vm_id, err).await;
+    }
+    if msg.operation == "ha.recover" {
+        if let Err(e) = revert_failed_ha_recovery(state, msg).await {
+            tracing::error!(task_id = %msg.task_id, "ha.recover: compensation after terminal failure also failed: {e:#}");
+        }
     }
     crate::engine::webhooks::dispatch_webhooks(
         &state.pool,

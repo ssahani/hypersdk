@@ -45,6 +45,19 @@ async fn main() -> anyhow::Result<()> {
     }
     let config = Arc::new(config);
 
+    // MACHINA_SKIP_AUTH=1 makes `auth_middleware` accept every request as a
+    // hardcoded local admin with no credential check at all (see auth.rs). That
+    // flag flips silently otherwise — nothing else in this process prints a
+    // warning for it — so a dev `.env` accidentally carried into a production
+    // deploy would disable authentication on every API/WS route with zero
+    // signal in the logs. Make it impossible to miss.
+    if std::env::var("MACHINA_SKIP_AUTH").ok().as_deref() == Some("1") {
+        tracing::error!(
+            "MACHINA_SKIP_AUTH=1 — AUTHENTICATION IS DISABLED. Every request is treated as \
+             local admin 'dev' with no credential check. This must NEVER be set in production."
+        );
+    }
+
     // The built-in default is exactly 32 bytes, so a length-only check never fires on
     // it. A shipped default secret lets anyone forge an admin JWT, so REFUSE TO BOOT on
     // the known dev default unless an operator explicitly opts into dev mode. Same for

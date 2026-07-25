@@ -683,7 +683,7 @@ pub async fn create_session(
     Json(body): Json<CreateSessionBody>,
 ) -> Result<Json<ConsoleSessionResponse>, ApiError> {
     check_federated_console_auth(&state, &user)?;
-    let (_vm_name, _host_id, source, k8s_namespace) = vm_meta(&state, id).await?;
+    let (_vm_name, host_id, source, k8s_namespace) = vm_meta(&state, id).await?;
     if source == "kubevirt" {
         let protocol = body
             .protocol
@@ -715,6 +715,62 @@ pub async fn create_session(
                 ws_token: ws_token.clone(),
             })
             .await;
+        // Persist the session (and its audit event) the same way the native path
+        // does. Without this row, `end_session` (which only knows the DB table)
+        // can never find or revoke a KubeVirt console session — the in-memory
+        // entry + its ws-token stayed live until natural TTL expiry with no way
+        // for the owner (or an admin) to end it early, and no audit trail was
+        // ever written for the session start.
+        if let Err(e) = sqlx::query(
+            "INSERT INTO console_sessions (id, vm_id, host_id, actor, protocol, backend, agent_proxy_base, expires_at, audit_id, recording_enabled)
+             VALUES (?,?,?,?,?,'native','',?,?,FALSE)",
+        )
+        .bind(session_id)
+        .bind(id)
+        .bind(host_id)
+        .bind(&user.username)
+        .bind(&protocol)
+        .bind(expires_at)
+        .bind(audit_id)
+        .execute(&state.pool)
+        .await
+        {
+            let sessions = state.console_sessions.clone();
+            let ws_tokens = state.ws_tokens.clone();
+            tokio::spawn(async move {
+                if let Some(token) = sessions.remove(session_id).await {
+                    ws_tokens.revoke(&token).await;
+                }
+            });
+            return Err(ApiError::internal(e.to_string()));
+        }
+        if let Err(e) = sqlx::query(
+            "INSERT INTO audit_logs (id, actor, action, resource_type, resource_id, detail)
+             VALUES (?,?,?,?,?,?)",
+        )
+        .bind(audit_id)
+        .bind(&user.username)
+        .bind("consolehub.session.start")
+        .bind("vm")
+        .bind(id)
+        .bind(SqlxJson(serde_json::json!({ "protocol": protocol, "backend": "native", "session_id": session_id.to_string(), "kubevirt": true })))
+        .execute(&state.pool)
+        .await
+        {
+            let pool = state.pool.clone();
+            let sessions = state.console_sessions.clone();
+            let ws_tokens = state.ws_tokens.clone();
+            tokio::spawn(async move {
+                if let Some(token) = sessions.remove(session_id).await {
+                    ws_tokens.revoke(&token).await;
+                }
+                let _ = sqlx::query("DELETE FROM console_sessions WHERE id = ?")
+                    .bind(session_id)
+                    .execute(&pool)
+                    .await;
+            });
+            return Err(ApiError::internal(e.to_string()));
+        }
         let ns = k8s_namespace.unwrap_or_else(|| "default".into());
         let embed_path = format!(
             "/platform/vms/{id}/consolehub?session={session_id}&native=1&kubevirt=1&namespace={}&token={ws_token}",

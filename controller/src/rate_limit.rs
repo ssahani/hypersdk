@@ -81,6 +81,19 @@ impl RateLimiter {
     }
 }
 
+/// Constant-time byte comparison so the e2e bypass secret can't be recovered
+/// via response-timing (mirrors `packetwolf_ingest::ct_eq`).
+fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
 fn parse_basic_username(value: &str) -> Option<String> {
     let encoded = value.strip_prefix("Basic ")?;
     let decoded = base64::engine::general_purpose::STANDARD
@@ -125,8 +138,14 @@ pub async fn rate_limit_middleware(
 
     if let Some(secret) = &limiter.e2e_bypass_secret {
         if let Some(hdr) = request.headers().get("x-machina-e2e") {
-            if hdr.to_str().ok() == Some(secret.as_str()) {
-                return Ok(next.run(request).await);
+            // Constant-time compare: a `==` here leaks the secret one byte at a
+            // time via response-time differences, letting an attacker brute-force
+            // the bypass token (which lifts all rate-limiting, including on the
+            // password-login route) without ever needing to see it.
+            if let Ok(hdr) = hdr.to_str() {
+                if ct_eq(hdr.as_bytes(), secret.as_bytes()) {
+                    return Ok(next.run(request).await);
+                }
             }
         }
     }

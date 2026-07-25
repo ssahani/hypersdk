@@ -1589,8 +1589,15 @@ fn host_top_process_order(q: &HostProcessesQuery) -> extras::HostTopProcessOrder
 
 async fn get_host_processes(
     State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Query(q): Query<HostProcessesQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    // Each row includes the process's full `/proc/<pid>/cmdline` (see
+    // `read_proc_cmdline` in core), which frequently leaks secrets passed as
+    // CLI args (DB passwords, API keys). Every other host-insight handler in
+    // this file gates on this; this one had no check at all, letting any
+    // authenticated caller — including an API token — scrape it.
+    require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
     let limit = q.limit.unwrap_or(20);
     let order = host_top_process_order(&q);
     let rows = tokio::task::spawn_blocking(move || extras::list_host_top_processes(limit, order))

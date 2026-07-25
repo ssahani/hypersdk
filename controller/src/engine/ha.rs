@@ -29,7 +29,44 @@ pub fn spawn(state: AppState) {
 
 pub async fn scan(state: &AppState) -> anyhow::Result<()> {
     mark_stale_hosts(state).await?;
+    retry_pending_fences(state).await?;
     recover_vms(state).await?;
+    Ok(())
+}
+
+/// Retry fencing any host that is offline, has HA-enabled VMs, and was never
+/// confirmed fenced. `mark_stale_hosts` only attempts a fence the instant a host
+/// transitions to offline; if that single attempt fails (transient IPMI/network
+/// blip, agent briefly unreachable, ipmitool hiccup), nothing ever retried it —
+/// `state = 'online'` is required to re-select a host there, so a host stuck
+/// offline+unfenced stayed that way forever, permanently blocking recovery of
+/// every VM on it until an operator noticed and re-fenced manually. Re-attempt
+/// on every scan (idempotent — fence_host is a no-op-safe power-off command)
+/// until it succeeds or the host comes back online.
+async fn retry_pending_fences(state: &AppState) -> anyhow::Result<()> {
+    let pending: Vec<(Uuid, String)> = sqlx::query_as(
+        "SELECT DISTINCT h.id, h.hostname FROM hosts h
+         JOIN ha_policies hp ON hp.enabled = TRUE
+         JOIN vms v ON v.id = hp.vm_id AND v.host_id = h.id
+         WHERE h.state = 'offline' AND h.fenced = FALSE
+         LIMIT 20",
+    )
+    .fetch_all(&state.pool)
+    .await?;
+
+    for (id, hostname) in pending {
+        match crate::engine::drs::fence_host(state, id).await {
+            Ok(true) => {
+                tracing::info!(host_id = %id, "HA: retried fence of host {hostname} — confirmed fenced, VMs eligible for recovery");
+            }
+            Ok(false) => {
+                tracing::warn!(host_id = %id, "HA: retried fence of host {hostname} — still not confirmed, will retry next scan");
+            }
+            Err(e) => {
+                tracing::warn!(host_id = %id, "HA: retried fence of host {hostname} errored ({e:#}), will retry next scan");
+            }
+        }
+    }
     Ok(())
 }
 
@@ -61,38 +98,14 @@ async fn mark_stale_hosts(state: &AppState) -> anyhow::Result<()> {
         .bind(format!("Host {hostname} marked offline"))
         .execute(&mut *tx)
         .await?;
-        // Attempt to fence whenever the offline host has ANY ha-enabled VM: those are
-        // recovery candidates, and recovery is now gated on the host being confirmed
-        // fenced (see recover_vms). Previously we only fenced when a VM opted in via
-        // fence_on_failure=TRUE, which left every default VM to be recovered against a
-        // possibly-still-running host — a split-brain. Fencing here makes `fenced`
-        // meaningful for all of them.
-        let has_ha_vms: bool = sqlx::query_scalar(
-            "SELECT EXISTS(
-               SELECT 1 FROM ha_policies hp
-               JOIN vms v ON v.id = hp.vm_id
-               WHERE v.host_id = ? AND hp.enabled = TRUE
-             )",
-        )
-        .bind(id)
-        .fetch_one(&mut *tx)
-        .await?;
         tx.commit().await?;
 
-        if has_ha_vms {
-            match crate::engine::drs::fence_host(state, id).await {
-                Ok(true) => {
-                    tracing::info!(host_id = %id, "HA: host {hostname} confirmed fenced — VMs eligible for recovery");
-                }
-                Ok(false) => {
-                    tracing::warn!(host_id = %id, "HA: host {hostname} NOT confirmed fenced (fence reported failure) — recovery blocked to avoid split-brain");
-                }
-                Err(e) => {
-                    tracing::warn!(host_id = %id, "HA: host {hostname} NOT confirmed fenced ({e:#}) — recovery blocked to avoid split-brain");
-                }
-            }
-        }
-
+        // Fencing itself (for hosts with HA-enabled VMs) happens right after this
+        // in `scan` via `retry_pending_fences`, which re-queries `state = 'offline'
+        // AND fenced = FALSE` fresh from the DB — so it picks up this host on the
+        // very same scan, and keeps retrying on subsequent scans if the attempt
+        // fails, instead of a single fence-or-never attempt at the moment of
+        // transition (see its doc comment for the failure-mode this fixed).
         tracing::warn!("HA: host {hostname} ({id}) marked offline");
     }
     Ok(())
@@ -242,6 +255,10 @@ async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
                 "vm_id": vm_id.to_string(),
                 "host_id": dest_host.to_string(),
                 "desired_state": desired,
+                // Recorded so on_task_failure can revert host_id if the recovery
+                // task itself (not just the enqueue) ultimately fails — see the
+                // compensation logic in tasks/worker.rs.
+                "recovered_from_host_id": failed_host.to_string(),
             }),
             Some("vm"),
             Some(vm_id),

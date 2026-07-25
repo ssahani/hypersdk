@@ -71,6 +71,31 @@ async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
             continue;
         }
 
+        // `targeted_dests` only guards against piling up multiple migrations onto
+        // the same host WITHIN this single pass. A live migration can easily run
+        // longer than the 120s tick interval, and the destination's
+        // memory_used_mib/vm_count don't reflect an inbound migration until it
+        // actually completes (same staleness the dest_memory precheck below has),
+        // so the very next tick would otherwise recompute recommendations against
+        // that same still-stale destination and pile a second migration onto a
+        // host that's already got one in flight from a PRIOR tick. Check the tasks
+        // table itself (any pending/running vm.migrate targeting this dest,
+        // regardless of which tick or actor enqueued it) to close that cross-tick
+        // gap.
+        let dest_busy: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM tasks
+             WHERE operation = 'vm.migrate' AND status IN ('pending', 'running')
+               AND json_extract(payload, '$.dest_host_id') = ?",
+        )
+        .bind(dest_id.to_string())
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(0);
+        if dest_busy > 0 {
+            targeted_dests.insert(dest_id);
+            continue;
+        }
+
         let pre = crate::engine::migrate_precheck::run_migrate_precheck(
             &state.pool,
             vm_id,

@@ -14,7 +14,20 @@ use crate::error::AppError;
 
 // ── RBAC ───────────────────────────────────────────────────────────
 
-async fn list_roles(State(_m): State<LibvirtManager>) -> Result<Json<serde_json::Value>, AppError> {
+async fn list_roles(
+    State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    // Enumerates every username on the host with its assigned role — the same
+    // "who is an admin" recon value as `list_tokens` below, which already
+    // requires admin. This had no check at all, letting any authenticated
+    // caller (including a read-only or API-token session) list it.
+    if !actor.role.is_admin() {
+        return Err(machina_core::LibvirtError::Forbidden(
+            "Listing user roles requires the admin role.".into(),
+        )
+        .into());
+    }
     let roles = automation::load_roles();
     let list: Vec<_> = roles
         .into_iter()

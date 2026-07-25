@@ -39,7 +39,7 @@ fn platform_jwt_secret() -> String {
         .clone()
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ControllerConfig {
     pub host: String,
     pub port: u16,
@@ -198,5 +198,71 @@ impl Default for ControllerConfig {
             hermes_path_prefix: std::env::var("HERMES_PATH_PREFIX")
                 .unwrap_or_else(|_| "/launchpad".into()),
         }
+    }
+}
+
+/// Hand-written so a stray `tracing::debug!("{config:?}")` (or similar) can
+/// never leak the JWT signing secret, admin password, or other credentials
+/// this struct carries — a derived `Debug` would print every field verbatim.
+impl std::fmt::Debug for ControllerConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        const REDACTED: &str = "<redacted>";
+        f.debug_struct("ControllerConfig")
+            .field("host", &self.host)
+            .field("port", &self.port)
+            .field("database_url", &self.database_url)
+            .field("nats_url", &self.nats_url)
+            .field("default_agent_addr", &self.default_agent_addr)
+            .field("default_libvirt_uri", &self.default_libvirt_uri)
+            .field("disk_image_dir", &self.disk_image_dir)
+            .field("backup_dir", &self.backup_dir)
+            .field("admin_user", &self.admin_user)
+            .field("admin_password", &REDACTED)
+            .field("jwt_secret", &REDACTED)
+            .field("controller_id", &self.controller_id)
+            .field("public_base_url", &self.public_base_url)
+            .field("web_base_url", &self.web_base_url)
+            .field("guestkit_enabled", &self.guestkit_enabled)
+            .field("guestkit_worker_url", &self.guestkit_worker_url)
+            .field("guestkit_insecure_tls", &self.guestkit_insecure_tls)
+            .field("packetwolf_enabled", &self.packetwolf_enabled)
+            .field("packetwolf_base_url", &self.packetwolf_base_url)
+            .field(
+                "packetwolf_api_key",
+                &self.packetwolf_api_key.as_ref().map(|_| REDACTED),
+            )
+            .field("packetwolf_insecure_tls", &self.packetwolf_insecure_tls)
+            .field("atlas_enabled", &self.atlas_enabled)
+            .field("atlas_base_url", &self.atlas_base_url)
+            .field("atlas_token", &self.atlas_token.as_ref().map(|_| REDACTED))
+            .field("atlas_insecure_tls", &self.atlas_insecure_tls)
+            .field("atlas_tenant_id", &self.atlas_tenant_id)
+            .field("atlas_default_policy", &self.atlas_default_policy)
+            .field("atlas_backup_bucket_id", &self.atlas_backup_bucket_id)
+            .field("atlas_rbd_mon_hosts", &self.atlas_rbd_mon_hosts)
+            .field("atlas_rbd_auth_user", &self.atlas_rbd_auth_user)
+            .field(
+                "atlas_rbd_secret_uuid",
+                &self.atlas_rbd_secret_uuid.as_ref().map(|_| REDACTED),
+            )
+            .field("daemon_base_url", &self.daemon_base_url)
+            .field(
+                "consolehub_session_ttl_secs",
+                &self.consolehub_session_ttl_secs,
+            )
+            .field(
+                "consolehub_require_approval",
+                &self.consolehub_require_approval,
+            )
+            .field(
+                "consolehub_recording_enabled",
+                &self.consolehub_recording_enabled,
+            )
+            .field("consolehub_recording_dir", &self.consolehub_recording_dir)
+            .field("consolehub_require_oidc", &self.consolehub_require_oidc)
+            .field("hermes_api_base", &self.hermes_api_base)
+            .field("hermes_public_base", &self.hermes_public_base)
+            .field("hermes_path_prefix", &self.hermes_path_prefix)
+            .finish()
     }
 }

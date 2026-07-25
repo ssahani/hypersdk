@@ -198,6 +198,14 @@ pub async fn provision_vm_volume(
 }
 
 /// Snapshot every Atlas-backed disk of a VM via the Atlas control plane.
+///
+/// Returns the freshly-enqueued jobs (state `queued`/`running`, not yet
+/// terminal) — same "fire and let the caller poll `/atlas/jobs/{id}`"
+/// contract as the plain (non-VM) `POST /atlas/volumes/{id}/snapshots`
+/// endpoint. Callers that need to know the *actual* outcome (e.g. the
+/// `vm.snapshot` task, which persists a `snapshot_records.status`) must poll
+/// each job to a terminal state themselves before recording success —
+/// treating this function's return as "done" is the false-success bug.
 pub async fn snapshot_vm(
     state: &AppState,
     vm_id: Uuid,

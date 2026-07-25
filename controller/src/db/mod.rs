@@ -80,12 +80,22 @@ pub async fn ensure_bootstrap(
         tracing::warn!("reaped {reaped} task(s) left in 'running' state after restart");
     }
 
+    // These three "check count == 0, then insert" blocks are check-then-act:
+    // in a multi-controller deployment sharing one DB (see the reaper's
+    // MACHINA_CONTROLLER_ID handling above), two controllers can both boot
+    // against an empty DB and both observe count == 0 before either commits
+    // its insert. clusters.name, users.username, and hosts(cluster_id,
+    // hostname) are all UNIQUE, so a plain INSERT would make the loser crash
+    // the whole ensure_bootstrap (and thus startup) on a constraint
+    // violation instead of just no-op'ing. Use INSERT OR IGNORE so the loser
+    // of the race silently defers to whichever controller won it, instead of
+    // failing to start.
     let cluster_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM clusters")
         .fetch_one(pool)
         .await?;
     if cluster_count == 0 {
         let cluster_id = Uuid::new_v4();
-        sqlx::query("INSERT INTO clusters (id, name) VALUES (?, ?)")
+        sqlx::query("INSERT OR IGNORE INTO clusters (id, name) VALUES (?, ?)")
             .bind(cluster_id)
             .bind("default")
             .execute(pool)
@@ -97,13 +107,15 @@ pub async fn ensure_bootstrap(
         .await?;
     if user_count == 0 {
         let hash = bcrypt::hash(admin_password, bcrypt::DEFAULT_COST)?;
-        sqlx::query("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)")
-            .bind(Uuid::new_v4())
-            .bind(admin_user)
-            .bind(hash)
-            .bind("admin")
-            .execute(pool)
-            .await?;
+        sqlx::query(
+            "INSERT OR IGNORE INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(admin_user)
+        .bind(hash)
+        .bind("admin")
+        .execute(pool)
+        .await?;
     }
 
     let host_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM hosts")
@@ -115,7 +127,7 @@ pub async fn ensure_bootstrap(
                 .fetch_one(pool)
                 .await?;
         sqlx::query(
-            "INSERT INTO hosts (id, cluster_id, hostname, address, state, agent_grpc_addr)
+            "INSERT OR IGNORE INTO hosts (id, cluster_id, hostname, address, state, agent_grpc_addr)
              VALUES (?, ?, ?, ?, ?, ?)",
         )
         .bind(Uuid::new_v4())
