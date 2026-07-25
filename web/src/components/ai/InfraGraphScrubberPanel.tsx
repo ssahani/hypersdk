@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { GitBranch } from 'lucide-react'
 import { getInfraGraphAt } from '../../api/ai'
+import { formatUserError } from '../../utils/apiError'
 import { statusToneClass } from '../../utils/semanticColors'
 
 export type InfraGraphDiff = {
@@ -49,7 +50,7 @@ export default function InfraGraphScrubberPanel({
         })
         .catch((e: unknown) => {
           setGraphDiff(null)
-          setError(e instanceof Error ? e.message : 'Graph history unavailable')
+          setError(formatUserError(e))
         })
         .finally(() => setBusy(false))
     }, 300)

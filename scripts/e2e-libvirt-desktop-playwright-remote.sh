@@ -30,13 +30,23 @@ if [[ -z "$VM_ID" && -f /tmp/machina-ubuntu-desktop-e2e.env ]]; then
 fi
 
 if [[ -z "$VM_ID" ]]; then
-  VM_ID="$(curl -sk -u "${USER}:${PASS}" "http://${HOST}:5093/api/v1/vms" | python3 -c "
+  # `curl -u user:pass` puts the password in argv, readable via `ps` by any
+  # local user for the life of the process (same concern the VSPASS comment
+  # above already calls out for the SSH password) — use a netrc file instead
+  # so the credential only ever touches a 0600 temp file, never argv.
+  _netrc="$(mktemp)"
+  chmod 600 "$_netrc"
+  trap 'rm -f "$_netrc"' EXIT
+  printf 'machine %s login %s password %s\n' "$HOST" "$USER" "$PASS" > "$_netrc"
+  VM_ID="$(curl -sk --netrc-file "$_netrc" "http://${HOST}:5093/api/v1/vms" | python3 -c "
 import json, sys
 for v in json.load(sys.stdin):
     if v.get('name') == 'ubuntu-desktop':
         print(v.get('id', ''))
         break
 " 2>/dev/null)"
+  rm -f "$_netrc"
+  trap - EXIT
 fi
 
 [[ -n "$VM_ID" ]] || { echo "❌ VM id required (ubuntu-desktop not found)" >&2; exit 1; }

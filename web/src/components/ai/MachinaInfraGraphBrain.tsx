@@ -12,6 +12,7 @@ import {
   type InfraGraph,
   type PathResult,
 } from '../../api/ai'
+import { formatUserError } from '../../utils/apiError'
 import { statusToneClass } from '../../utils/semanticColors'
 
 export default function MachinaInfraGraphBrain() {
@@ -31,7 +32,7 @@ export default function MachinaInfraGraphBrain() {
     try {
       setGraph(await getInfraGraph())
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Graph unavailable')
+      setError(formatUserError(e))
     }
   }, [])
 
@@ -48,7 +49,7 @@ export default function MachinaInfraGraphBrain() {
         port: port ? Number(port) : undefined,
       }))
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Path analysis failed')
+      setError(formatUserError(e))
     } finally {
       setBusy(false)
     }
@@ -60,7 +61,7 @@ export default function MachinaInfraGraphBrain() {
       const r = await queryInfraGraph(search)
       setSearchHits(r.hits.map((h) => ({ kind: h.kind, id: h.id, name: h.name, detail: h.detail })))
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Search failed')
+      setError(formatUserError(e))
     } finally {
       setBusy(false)
     }

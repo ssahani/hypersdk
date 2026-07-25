@@ -52,6 +52,15 @@ pub fn ldap_authenticate(
     if url.is_empty() {
         return Err("LDAP url is not configured".into());
     }
+    // RFC 4513 §5.1.2: a simple bind with a non-empty DN but an *empty* password is an
+    // "unauthenticated bind" that most LDAP servers accept as success without checking
+    // any credential. Every current caller (web login, admin LDAP-test) already rejects
+    // empty passwords before reaching here, but this module escapes filter values
+    // defensively for the same reason (don't trust callers) — mirror that here too, or a
+    // future caller that forgets the check turns "wrong password" into "any password".
+    if password.is_empty() {
+        return Err("LDAP password must not be empty".into());
+    }
 
     let mut ldap = open_ldap(url, cfg)?;
 

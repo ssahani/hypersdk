@@ -43,6 +43,35 @@ if [[ ! -f "$SERVER_BASE" || "${FORCE_BASE:-0}" == "1" ]]; then
   tmp="${SERVER_BASE}.part"
   rm -f "$tmp"
   curl -fL --retry 3 --retry-delay 5 -o "$tmp" "$DOWNLOAD_URL"
+
+  # Verify against Ubuntu's published SHA256SUMS before this becomes the base
+  # of every VM built from this golden image — an unverified download (MITM,
+  # truncated transfer, compromised mirror) would otherwise be baked in
+  # silently. Best-effort: warn (don't block a hypervisor with no outbound
+  # access to the sums file) rather than hard-fail, but never skip silently.
+  sums_url="$(dirname "$DOWNLOAD_URL")/SHA256SUMS"
+  img_name="$(basename "$DOWNLOAD_URL")"
+  if sums_tmp="$(mktemp)" && curl -fsSL --retry 3 --retry-delay 5 -o "$sums_tmp" "$sums_url" 2>/dev/null; then
+    # SHA256SUMS lines look like "<hash> *filename" (binary mode marker) or
+    # "<hash>  filename" — accept either, with or without the leading '*'.
+    expected="$(awk -v f="$img_name" '{n=$2; sub(/^\*/,"",n); if (n==f) {print $1; exit}}' "$sums_tmp")"
+    rm -f "$sums_tmp"
+    if [[ -z "$expected" ]]; then
+      echo "WARNING: ${img_name} not listed in ${sums_url} — proceeding unverified" >&2
+    else
+      actual="$(sha256sum "$tmp" | awk '{print $1}')"
+      if [[ "$actual" != "$expected" ]]; then
+        rm -f "$tmp"
+        echo "ERROR: checksum mismatch for ${img_name}: expected ${expected}, got ${actual}" >&2
+        exit 1
+      fi
+      log "Checksum verified against ${sums_url}"
+    fi
+  else
+    rm -f "${sums_tmp:-}"
+    echo "WARNING: could not fetch ${sums_url} — proceeding unverified" >&2
+  fi
+
   mv "$tmp" "$SERVER_BASE"
   chmod 644 "$SERVER_BASE"
 fi

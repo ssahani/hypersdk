@@ -31,7 +31,7 @@ export default function MachinaInfrastructureMemory() {
     try {
       setMemory(await getInfrastructureMemory(30))
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Memory unavailable')
+      setError(formatUserError(e))
     }
   }, [])
 
@@ -45,7 +45,7 @@ export default function MachinaInfrastructureMemory() {
       setChangesSummary(r.summary)
       setChanges(r.changes ?? [])
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Changes query failed')
+      setError(formatUserError(e))
     } finally {
       setBusy(false)
     }

@@ -110,10 +110,14 @@ pub async fn delete_channel(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
-    sqlx::query("DELETE FROM notification_channels WHERE id = ?")
+    let deleted = sqlx::query("DELETE FROM notification_channels WHERE id = ?")
         .bind(id)
         .execute(&state.pool)
-        .await?;
+        .await?
+        .rows_affected();
+    if deleted == 0 {
+        return Err(ApiError::not_found("channel not found"));
+    }
     Ok(Json(serde_json::json!({ "deleted": true })))
 }
 

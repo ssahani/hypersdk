@@ -152,7 +152,7 @@ except Exception:
     || e2e_platform_fail "GET /api/v1/vms?managed=false — HTTP ${http}"
 
   e2e_platform_hdr "PLATFORM SMOKE: EVENTS SSE"
-  if curl -sfS -N --max-time 3 -H "$(e2e_platform_auth_header)" "${E2E_PLATFORM_BASE}/api/v1/events/stream" | head -c 1 >/dev/null 2>&1; then
+  if curl -sfS -N --max-time 3 -K <(printf 'header = "%s"\n' "$(e2e_platform_auth_header)") "${E2E_PLATFORM_BASE}/api/v1/events/stream" | head -c 1 >/dev/null 2>&1; then
     e2e_platform_ok "GET /api/v1/events/stream (SSE reachable)"
   else
     e2e_platform_warn "SSE stream not verified (may need auth or timeout)"

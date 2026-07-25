@@ -957,8 +957,14 @@ pub async fn install_vm(
 
 pub async fn get_vm_domain_xml(
     State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    // Domain XML can embed a plaintext VNC/SPICE `passwd=` attribute (see
+    // translate::domain_xml::graphics_block) — gate it like the other
+    // console-credential-bearing reads (get_vm_viewer_vv, get_vm_qemu_logs)
+    // rather than leaving it open to any authenticated (including viewer) role.
+    require_operator(&actor)?;
     let row: (String, Option<Uuid>, String) = sqlx::query_as(
         "SELECT name, host_id, COALESCE(inventory_source, 'libvirt') FROM vms WHERE id = ?",
     )
@@ -1487,9 +1493,7 @@ pub async fn prune_missing_vms(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<PruneMissingResponse>, ApiError> {
-    if actor.role != "admin" {
-        return Err(ApiError::bad_request("admin role required"));
-    }
+    crate::auth::require_admin(&actor)?;
     let result = sqlx::query(
         "DELETE FROM vms WHERE observed_state = 'missing' RETURNING id",
     )

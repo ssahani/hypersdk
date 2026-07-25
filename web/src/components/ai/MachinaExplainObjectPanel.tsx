@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { Link } from 'react-router'
 import { explainInfraObject } from '../../api/ai'
+import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
 
 export default function MachinaExplainObjectPanel({
@@ -34,7 +35,7 @@ export default function MachinaExplainObjectPanel({
       setData(result)
     } catch (e: unknown) {
       if (reqRef.current !== reqId) return
-      setError(e instanceof Error ? e.message : 'Explain failed')
+      setError(formatUserError(e))
     } finally {
       if (reqRef.current === reqId) setLoading(false)
     }

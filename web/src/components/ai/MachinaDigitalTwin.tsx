@@ -10,6 +10,7 @@ import {
   type DigitalTwinGraph,
   type ImpactAnalysis,
 } from '../../api/ai'
+import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, riskTone, statusBadgeClasses, statusToneClass } from '../../utils/semanticColors'
 
 export default function MachinaDigitalTwin() {
@@ -40,7 +41,7 @@ export default function MachinaDigitalTwin() {
         setHostId(firstStorage.name)
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load digital twin')
+      setError(formatUserError(e))
     }
   }, [hostId])
 
@@ -62,7 +63,7 @@ export default function MachinaDigitalTwin() {
       })
       setImpact(result)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Impact simulation failed')
+      setError(formatUserError(e))
     } finally {
       setBusy(false)
     }
@@ -83,7 +84,7 @@ export default function MachinaDigitalTwin() {
       setBatchResults(result.results)
       if (result.results[0]) setImpact(result.results[0])
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Batch simulation failed')
+      setError(formatUserError(e))
     } finally {
       setBatchBusy(false)
     }

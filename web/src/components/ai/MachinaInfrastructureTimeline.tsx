@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Clock, GitBranch, Sparkles } from 'lucide-react'
 import { analyzeIncident, getInfraGraphAt, getTimelineReplay, type IncidentAnalysis } from '../../api/ai'
+import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
 
 export default function MachinaInfrastructureTimeline({ hours = 4 }: { hours?: number }) {
@@ -49,7 +50,7 @@ export default function MachinaInfrastructureTimeline({ hours = 4 }: { hours?: n
       }
     } catch (e: unknown) {
       if (reqRef.current !== reqId) return
-      setError(e instanceof Error ? e.message : 'Timeline unavailable')
+      setError(formatUserError(e))
     }
   }, [replayHours, scrubTs, windowStart, windowEnd])
 

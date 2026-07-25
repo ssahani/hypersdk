@@ -20,6 +20,7 @@ export default function PlatformZeusApprovals() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null)
+  const [confirmExecute, setConfirmExecute] = useState<ZeusActionRow | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -95,7 +96,7 @@ export default function PlatformZeusApprovals() {
               key={a.id}
               title={a.label}
               detail={`${a.review} · Risk: ${a.risk} · ${a.source}`}
-              onApprove={busy === a.id ? undefined : () => void execute(a.id)}
+              onApprove={busy === a.id ? undefined : () => setConfirmExecute(a)}
               onDismiss={busy === a.id ? undefined : () => setRejectTargetId(a.id)}
             />
           ))}
@@ -116,6 +117,19 @@ export default function PlatformZeusApprovals() {
         variant="danger"
         onCancel={() => setRejectTargetId(null)}
         onConfirm={() => { if (rejectTargetId) void doReject(rejectTargetId) }}
+      />
+      <ConfirmDialog
+        open={confirmExecute !== null}
+        title="Approve Zeus action"
+        message={confirmExecute ? `Approve and execute "${confirmExecute.label}"? ${confirmExecute.review} · Risk: ${confirmExecute.risk}` : ''}
+        confirmLabel="Approve"
+        variant="danger"
+        onCancel={() => setConfirmExecute(null)}
+        onConfirm={() => {
+          const a = confirmExecute
+          setConfirmExecute(null)
+          if (a) void execute(a.id)
+        }}
       />
     </PlatformPageChrome>
   )

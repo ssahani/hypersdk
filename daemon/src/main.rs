@@ -207,9 +207,21 @@ async fn main() -> anyhow::Result<()> {
         // bind_rustls opens its own listener — do not TcpListener::bind first or we get EADDRINUSE.
         systemd::notify_ready();
         systemd::spawn_watchdog_pinger();
+        // axum_server (unlike axum::serve) does not take a shutdown future directly; it needs
+        // a Handle so SIGTERM/ctrl-c actually drains in-flight connections (console proxy
+        // WebSockets included) instead of the OS killing the process mid-session.
+        let handle = axum_server::Handle::new();
+        tokio::spawn({
+            let handle = handle.clone();
+            async move {
+                shutdown_signal().await;
+                handle.graceful_shutdown(Some(std::time::Duration::from_secs(30)));
+            }
+        });
         // ConnectInfo<SocketAddr> is required by auth::auth_rate_limit_middleware
         // (rate-limits /auth/login, /auth/oidc/login, /auth/oidc/callback by client IP).
         axum_server::bind_rustls(bind_addr.parse()?, tls_config)
+            .handle(handle)
             .serve(app.into_make_service_with_connect_info::<SocketAddr>())
             .await?;
     } else {

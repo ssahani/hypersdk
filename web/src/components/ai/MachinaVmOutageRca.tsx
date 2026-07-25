@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { analyzeIncident, type IncidentAnalysis } from '../../api/ai'
+import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
 
 export default function MachinaVmOutageRca({ vmId, vmName }: { vmId: string; vmName?: string }) {
@@ -16,7 +17,7 @@ export default function MachinaVmOutageRca({ vmId, vmName }: { vmId: string; vmN
     try {
       setAnalysis(await analyzeIncident({ hours: 4, vm_id: vmId, vm_name: vmName }))
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'RCA unavailable')
+      setError(formatUserError(e))
     } finally {
       setLoading(false)
     }

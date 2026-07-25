@@ -16,6 +16,24 @@ ok()    { echo "✅ $*"; }
 warn()  { echo "⚠️  $*"; }
 fail()  { echo "❌ $*"; }
 
+# API auth: every daemon route below /health requires a bearer token (session
+# cookie or Bearer header) — see daemon/src/auth.rs auth_middleware. Without a
+# credential every call here 401s and every action silently "fails" for every
+# VM (see scripts/backup.sh for the same requirement on the read side). There
+# is no dedicated service token for bulk (write) operations, so this only
+# honors an explicitly supplied token.
+API_TOKEN="${MACHINA_API_TOKEN:-}"
+# The header is fed to curl as a config read from its own stdin (`-K -`)
+# rather than `-H ...` on the command line — see scripts/backup.sh's mcurl
+# for why (argv is readable by any local user via `ps`/proc).
+bcurl() {
+    if [ -n "$API_TOKEN" ]; then
+        printf 'header = "Authorization: Bearer %s"\n' "$API_TOKEN" | curl -sk -K - "$@"
+    else
+        curl -sk "$@"
+    fi
+}
+
 usage() {
     echo "Usage: $0 <action> [vm1 vm2 ...]"
     echo ""
@@ -31,7 +49,9 @@ usage() {
     echo "  status         Quick status of all VMs"
     echo ""
     echo "Environment:"
-    echo "  MACHINA_API  API URL (default: https://localhost:5092/api/v1)"
+    echo "  MACHINA_API        API URL (default: https://localhost:5092/api/v1)"
+    echo "  MACHINA_API_TOKEN  Bearer token (required unless MACHINA_SKIP_AUTH=1 on the daemon;"
+    echo "                     every /vms endpoint requires auth, see auth_middleware)"
     exit 1
 }
 
@@ -41,11 +61,11 @@ ACTION="$1"
 shift
 
 # Check daemon
-curl -sfk "$API/health" > /dev/null 2>&1 || { fail "Daemon not reachable at $API"; exit 1; }
+bcurl -f "$API/health" > /dev/null 2>&1 || { fail "Daemon not reachable at $API"; exit 1; }
 
 # Get VM list
 get_vms() {
-    curl -sfk "$API/vms" 2>/dev/null
+    bcurl -f "$API/vms" 2>/dev/null
 }
 
 get_vm_names_by_state() {
@@ -79,7 +99,7 @@ do_action() {
 
     while read -r name; do
         [ -z "$name" ] && continue
-        result=$(curl -sk -X POST "$API/vms/$name/$endpoint" 2>/dev/null)
+        result=$(bcurl -X POST "$API/vms/$name/$endpoint" 2>/dev/null)
         if echo "$result" | grep -qF "status"; then
             ok "  $name"
         else
@@ -100,7 +120,7 @@ case "$ACTION" in
         echo "📋 Starting VMs"
         while read -r name; do
             [ -z "$name" ] && continue
-            result=$(curl -sk -X POST "$API/vms/$name/start" 2>/dev/null)
+            result=$(bcurl -X POST "$API/vms/$name/start" 2>/dev/null)
             if echo "$result" | grep -qF "started"; then
                 ok "  $name"
             else
@@ -118,7 +138,7 @@ case "$ACTION" in
         echo "⛔ Force stopping VMs"
         while read -r name; do
             [ -z "$name" ] && continue
-            result=$(curl -sk -X POST "$API/vms/$name/stop" 2>/dev/null)
+            result=$(bcurl -X POST "$API/vms/$name/stop" 2>/dev/null)
             if echo "$result" | grep -qF "status"; then
                 ok "  $name"
             else
@@ -136,7 +156,7 @@ case "$ACTION" in
         echo "📋 Shutting down VMs"
         while read -r name; do
             [ -z "$name" ] && continue
-            result=$(curl -sk -X POST "$API/vms/$name/shutdown" 2>/dev/null)
+            result=$(bcurl -X POST "$API/vms/$name/shutdown" 2>/dev/null)
             if echo "$result" | grep -qF "status"; then
                 ok "  $name"
             else
@@ -154,7 +174,7 @@ case "$ACTION" in
         echo "📋 Pausing VMs"
         while read -r name; do
             [ -z "$name" ] && continue
-            result=$(curl -sk -X POST "$API/vms/$name/pause" 2>/dev/null)
+            result=$(bcurl -X POST "$API/vms/$name/pause" 2>/dev/null)
             if echo "$result" | grep -qF "status"; then
                 ok "  $name"
             else
@@ -172,7 +192,7 @@ case "$ACTION" in
         echo "📋 Resuming VMs"
         while read -r name; do
             [ -z "$name" ] && continue
-            result=$(curl -sk -X POST "$API/vms/$name/resume" 2>/dev/null)
+            result=$(bcurl -X POST "$API/vms/$name/resume" 2>/dev/null)
             if echo "$result" | grep -qF "status"; then
                 ok "  $name"
             else
@@ -190,7 +210,7 @@ case "$ACTION" in
         echo "📋 Rebooting VMs"
         while read -r name; do
             [ -z "$name" ] && continue
-            result=$(curl -sk -X POST "$API/vms/$name/reboot" 2>/dev/null)
+            result=$(bcurl -X POST "$API/vms/$name/reboot" 2>/dev/null)
             if echo "$result" | grep -qF "status"; then
                 ok "  $name"
             else
@@ -209,7 +229,7 @@ case "$ACTION" in
         echo "📋 Creating snapshots ($SNAP_NAME)"
         while read -r name; do
             [ -z "$name" ] && continue
-            result=$(curl -sk -X POST "$API/vms/$name/snapshots" \
+            result=$(bcurl -X POST "$API/vms/$name/snapshots" \
                 -H 'Content-Type: application/json' \
                 -d "{\"name\": \"$SNAP_NAME\", \"description\": \"Auto backup $DATE\"}" 2>/dev/null)
             if echo "$result" | grep -qF "created"; then
@@ -221,7 +241,7 @@ case "$ACTION" in
         ;;
 
     snapshot-clean)
-        SNAPS=$(curl -sfk "$API/snapshots" 2>/dev/null)
+        SNAPS=$(bcurl -f "$API/snapshots" 2>/dev/null)
         if [ -z "$SNAPS" ] || [ "$SNAPS" = "[]" ]; then
             info "No snapshots found"
             exit 0
@@ -234,7 +254,7 @@ for s in json.load(sys.stdin):
         print(f'{s[\"vm_name\"]} {s[\"name\"]}')
 " 2>/dev/null | while read -r vm snap; do
             [ -z "$vm" ] && continue
-            result=$(curl -sk -X DELETE "$API/vms/$vm/snapshots/$snap" 2>/dev/null)
+            result=$(bcurl -X DELETE "$API/vms/$vm/snapshots/$snap" 2>/dev/null)
             if echo "$result" | grep -qF "deleted"; then
                 ok "  $vm/$snap"
             else

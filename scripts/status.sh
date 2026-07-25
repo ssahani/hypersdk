@@ -5,14 +5,31 @@ set -eo pipefail
 
 API="${1:-https://localhost:5092/api/v1}"
 
+# API auth: every route below /health requires a bearer token (session cookie
+# or Bearer header) — see daemon/src/auth.rs auth_middleware. Without a
+# credential every call past /health 401s and this script silently prints
+# empty sections instead of the real status (see scripts/backup.sh for the
+# same requirement).
+API_TOKEN="${MACHINA_API_TOKEN:-}"
+# The header is fed to curl as a config read from its own stdin (`-K -`)
+# rather than `-H ...` on the command line — see scripts/backup.sh's mcurl
+# for why (argv is readable by any local user via `ps`/proc).
+scurl() {
+    if [ -n "$API_TOKEN" ]; then
+        printf 'header = "Authorization: Bearer %s"\n' "$API_TOKEN" | curl -sfk -K - "$@"
+    else
+        curl -sfk "$@"
+    fi
+}
+
 printf "📊 machina status\n\n"
 
-HEALTH=$(curl -sfk "$API/health" 2>/dev/null) || { echo "❌ Daemon not reachable at $API"; exit 1; }
+HEALTH=$(scurl "$API/health" 2>/dev/null) || { echo "❌ Daemon not reachable at $API"; exit 1; }
 echo "✅ Daemon: healthy  ($API)"
 echo ""
 
 # Node info
-NODE=$(curl -sfk "$API/node" 2>/dev/null)
+NODE=$(scurl "$API/node" 2>/dev/null)
 if [ -n "$NODE" ]; then
     HOST=$(echo "$NODE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['hostname'])" 2>/dev/null)
     HV=$(echo "$NODE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'{d[\"hypervisor\"]} {d[\"hypervisor_version\"]}')" 2>/dev/null)
@@ -26,7 +43,7 @@ if [ -n "$NODE" ]; then
 fi
 
 # VMs
-VMS=$(curl -sfk "$API/vms" 2>/dev/null)
+VMS=$(scurl "$API/vms" 2>/dev/null)
 if [ -n "$VMS" ]; then
     TOTAL=$(echo "$VMS" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null)
     RUNNING=$(echo "$VMS" | python3 -c "import json,sys; print(sum(1 for v in json.load(sys.stdin) if v['state']=='running'))" 2>/dev/null)
@@ -49,7 +66,7 @@ for v in vms:
 fi
 
 # Metrics for running VMs
-METRICS=$(curl -sfk "$API/metrics" 2>/dev/null)
+METRICS=$(scurl "$API/metrics" 2>/dev/null)
 if [ -n "$METRICS" ] && [ "$METRICS" != "[]" ]; then
     echo "📈 Live metrics"
     echo "$METRICS" | python3 -c "
@@ -70,7 +87,7 @@ if metrics:
 fi
 
 # Networks
-NETS=$(curl -sfk "$API/networks" 2>/dev/null)
+NETS=$(scurl "$API/networks" 2>/dev/null)
 if [ -n "$NETS" ]; then
     NET_TOTAL=$(echo "$NETS" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null)
     NET_ACTIVE=$(echo "$NETS" | python3 -c "import json,sys; print(sum(1 for n in json.load(sys.stdin) if n['active']))" 2>/dev/null)
@@ -86,7 +103,7 @@ for n in json.load(sys.stdin):
 fi
 
 # Storage
-POOLS=$(curl -sfk "$API/storage/pools" 2>/dev/null)
+POOLS=$(scurl "$API/storage/pools" 2>/dev/null)
 if [ -n "$POOLS" ]; then
     POOL_TOTAL=$(echo "$POOLS" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null)
     echo "💾 Storage pools ($POOL_TOTAL)"
@@ -104,7 +121,7 @@ for p in json.load(sys.stdin):
 fi
 
 # Snapshots
-SNAPS=$(curl -sfk "$API/snapshots" 2>/dev/null)
+SNAPS=$(scurl "$API/snapshots" 2>/dev/null)
 if [ -n "$SNAPS" ] && [ "$SNAPS" != "[]" ]; then
     SNAP_COUNT=$(echo "$SNAPS" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null)
     echo "📸 Snapshots ($SNAP_COUNT)"

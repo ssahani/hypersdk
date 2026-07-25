@@ -136,9 +136,13 @@ pub async fn delete_alert_rule(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
-    sqlx::query("DELETE FROM alert_rules WHERE id = ?")
+    let deleted = sqlx::query("DELETE FROM alert_rules WHERE id = ?")
         .bind(id)
         .execute(&state.pool)
-        .await?;
+        .await?
+        .rows_affected();
+    if deleted == 0 {
+        return Err(ApiError::not_found("alert rule not found"));
+    }
     Ok(Json(serde_json::json!({ "deleted": true })))
 }

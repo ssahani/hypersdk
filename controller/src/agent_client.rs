@@ -49,8 +49,9 @@ pub async fn connect(addr: &str) -> anyhow::Result<AgentClient> {
         format!("http://{normalized}")
     };
     // Bound the TCP/TLS dial so an unreachable or blackholed host can't hang the
-    // (single, serial) task worker forever waiting to connect. Per-call timeouts
-    // for hot-path RPCs are applied at the call sites (e.g. host.inventory).
+    // caller forever waiting to connect. Per-call timeouts for read/query RPCs
+    // are applied by `timed`/`read_rpc` below; mutating/long-running ops rely on
+    // a caller-side bound where one is needed (e.g. host.inventory in worker.rs).
     let mut endpoint =
         Endpoint::from_shared(endpoint_url)?.connect_timeout(std::time::Duration::from_secs(10));
     if let Some(ca_path) = use_tls {
@@ -78,24 +79,44 @@ pub async fn connect(addr: &str) -> anyhow::Result<AgentClient> {
     ))
 }
 
-/// Bound read-only inventory RPCs. These list calls are expected to return in
-/// well under a second, so a wedged agent (TCP accepted, then stuck in libvirt)
-/// must not block the single serial task worker forever. Mutating/long-running
-/// ops (apply/migrate/backup/snapshot) are intentionally NOT bounded here — they
+/// Bound read/query RPCs (inventory, status, diagnostics, config lookups).
+/// These calls are expected to return in well under a second, so a wedged agent
+/// (TCP accepted, then stuck in libvirt) must not block the caller forever —
+/// whether that's the single serial task worker, an Axum request handler, or a
+/// background engine loop. Mutating/long-running ops (apply/migrate/backup/
+/// snapshot/package-upgrade/reboot) are intentionally NOT bounded here — they
 /// legitimately run for minutes.
 const READ_RPC_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
-async fn read_rpc<T>(
+// Bug fix: this timeout previously covered only list_vms/list_networks/
+// list_storage_pools even though the comment above claims "per-call timeouts
+// for hot-path RPCs are applied at the call sites" — in reality most read/query
+// RPCs below (get_host_info, heartbeat, get_vm_details, vm_libvirt_query,
+// host_libvirt_query, get_guest_health, list_snapshots, get_console, the linux/
+// firewall observability calls, etc.) are invoked directly from Axum HTTP
+// handlers and engine loops with no timeout at any call site, so a wedged agent
+// (TCP connected, stuck in libvirt) hangs that request/loop forever. `timed`
+// generalizes the same bound to any RPC future, including ones whose caller
+// needs the raw Response (to inspect an ok/message pair) rather than just the
+// inner value.
+async fn timed<T>(
     label: &str,
     fut: impl std::future::Future<Output = Result<tonic::Response<T>, tonic::Status>>,
-) -> anyhow::Result<T> {
+) -> anyhow::Result<tonic::Response<T>> {
     match tokio::time::timeout(READ_RPC_TIMEOUT, fut).await {
-        Ok(res) => Ok(res?.into_inner()),
+        Ok(res) => Ok(res?),
         Err(_) => Err(anyhow::anyhow!(
             "agent {label} timed out after {}s",
             READ_RPC_TIMEOUT.as_secs()
         )),
     }
+}
+
+async fn read_rpc<T>(
+    label: &str,
+    fut: impl std::future::Future<Output = Result<tonic::Response<T>, tonic::Status>>,
+) -> anyhow::Result<T> {
+    Ok(timed(label, fut).await?.into_inner())
 }
 
 pub async fn list_vms(client: &mut AgentClient) -> anyhow::Result<ListVmsResponse> {
@@ -178,13 +199,15 @@ pub async fn get_domain_xml(
     client: &mut AgentClient,
     vm_name: &str,
 ) -> anyhow::Result<String> {
-    Ok(client
-        .get_domain_xml(GetDomainXmlRequest {
+    Ok(timed(
+        "get_domain_xml",
+        client.get_domain_xml(GetDomainXmlRequest {
             vm_name: vm_name.to_string(),
-        })
-        .await?
-        .into_inner()
-        .xml)
+        }),
+    )
+    .await?
+    .into_inner()
+    .xml)
 }
 
 pub async fn delete_vm(client: &mut AgentClient, vm_name: &str) -> anyhow::Result<()> {
@@ -200,36 +223,39 @@ pub async fn heartbeat(
     client: &mut AgentClient,
     host_id: &str,
 ) -> anyhow::Result<HeartbeatResponse> {
-    Ok(client
-        .heartbeat(HeartbeatRequest {
+    read_rpc(
+        "heartbeat",
+        client.heartbeat(HeartbeatRequest {
             host_id: host_id.to_string(),
-        })
-        .await?
-        .into_inner())
+        }),
+    )
+    .await
 }
 
 pub async fn get_console(
     client: &mut AgentClient,
     vm_name: &str,
 ) -> anyhow::Result<GetConsoleResponse> {
-    Ok(client
-        .get_console(GetConsoleRequest {
+    read_rpc(
+        "get_console",
+        client.get_console(GetConsoleRequest {
             vm_name: vm_name.to_string(),
-        })
-        .await?
-        .into_inner())
+        }),
+    )
+    .await
 }
 
 pub async fn get_console_access_plan(
     client: &mut AgentClient,
     vm_name: &str,
 ) -> anyhow::Result<GetConsoleAccessPlanResponse> {
-    Ok(client
-        .get_console_access_plan(GetConsoleAccessPlanRequest {
+    read_rpc(
+        "get_console_access_plan",
+        client.get_console_access_plan(GetConsoleAccessPlanRequest {
             vm_name: vm_name.to_string(),
-        })
-        .await?
-        .into_inner())
+        }),
+    )
+    .await
 }
 
 pub async fn migrate_vm(
@@ -307,10 +333,7 @@ pub async fn maintenance(
 pub async fn get_host_info(
     client: &mut AgentClient,
 ) -> anyhow::Result<GetHostInfoResponse> {
-    Ok(client
-        .get_host_info(GetHostInfoRequest {})
-        .await?
-        .into_inner())
+    read_rpc("get_host_info", client.get_host_info(GetHostInfoRequest {})).await
 }
 
 pub async fn precheck_migrate(
@@ -392,12 +415,13 @@ pub async fn list_snapshots(
     client: &mut AgentClient,
     vm_name: &str,
 ) -> anyhow::Result<ListSnapshotsResponse> {
-    Ok(client
-        .list_snapshots(ListSnapshotsRequest {
+    read_rpc(
+        "list_snapshots",
+        client.list_snapshots(ListSnapshotsRequest {
             vm_name: vm_name.to_string(),
-        })
-        .await?
-        .into_inner())
+        }),
+    )
+    .await
 }
 
 pub async fn backup_vm(
@@ -658,14 +682,16 @@ pub async fn vm_libvirt_query(
     action: &str,
     payload: &serde_json::Value,
 ) -> anyhow::Result<serde_json::Value> {
-    let resp = client
-        .vm_libvirt_query(VmLibvirtQueryRequest {
+    let resp = timed(
+        "vm_libvirt_query",
+        client.vm_libvirt_query(VmLibvirtQueryRequest {
             vm_name: vm_name.to_string(),
             action: action.to_string(),
             payload_json: serde_json::to_string(payload)?,
-        })
-        .await?
-        .into_inner();
+        }),
+    )
+    .await?
+    .into_inner();
     if resp.ok {
         serde_json::from_str(&resp.result_json).map_err(|e| anyhow::anyhow!("decode query: {e}"))
     } else {
@@ -679,14 +705,16 @@ pub async fn vm_libvirt_invoke(
     action: &str,
     payload: &serde_json::Value,
 ) -> anyhow::Result<serde_json::Value> {
-    let resp = client
-        .vm_libvirt_invoke(VmLibvirtInvokeRequest {
+    let resp = timed(
+        "vm_libvirt_invoke",
+        client.vm_libvirt_invoke(VmLibvirtInvokeRequest {
             vm_name: vm_name.to_string(),
             action: action.to_string(),
             payload_json: serde_json::to_string(payload)?,
-        })
-        .await?
-        .into_inner();
+        }),
+    )
+    .await?
+    .into_inner();
     if resp.ok {
         serde_json::from_str(&resp.result_json).map_err(|e| anyhow::anyhow!("decode invoke: {e}"))
     } else {
@@ -699,13 +727,15 @@ pub async fn host_libvirt_query(
     action: &str,
     payload: &serde_json::Value,
 ) -> anyhow::Result<serde_json::Value> {
-    let resp = client
-        .host_libvirt_query(HostLibvirtQueryRequest {
+    let resp = timed(
+        "host_libvirt_query",
+        client.host_libvirt_query(HostLibvirtQueryRequest {
             action: action.to_string(),
             payload_json: serde_json::to_string(payload)?,
-        })
-        .await?
-        .into_inner();
+        }),
+    )
+    .await?
+    .into_inner();
     if resp.ok {
         serde_json::from_str(&resp.result_json)
             .map_err(|e| anyhow::anyhow!("decode host query: {e}"))
@@ -719,13 +749,15 @@ pub async fn host_libvirt_invoke(
     action: &str,
     payload: &serde_json::Value,
 ) -> anyhow::Result<serde_json::Value> {
-    let resp = client
-        .host_libvirt_invoke(HostLibvirtInvokeRequest {
+    let resp = timed(
+        "host_libvirt_invoke",
+        client.host_libvirt_invoke(HostLibvirtInvokeRequest {
             action: action.to_string(),
             payload_json: serde_json::to_string(payload)?,
-        })
-        .await?
-        .into_inner();
+        }),
+    )
+    .await?
+    .into_inner();
     if resp.ok {
         serde_json::from_str(&resp.result_json)
             .map_err(|e| anyhow::anyhow!("decode host invoke: {e}"))
@@ -738,12 +770,14 @@ pub async fn get_vm_details(
     client: &mut AgentClient,
     vm_name: &str,
 ) -> anyhow::Result<machina_core::state::VmDetails> {
-    let resp = client
-        .get_vm_details(GetVmDetailsRequest {
+    let resp = timed(
+        "get_vm_details",
+        client.get_vm_details(GetVmDetailsRequest {
             vm_name: vm_name.to_string(),
-        })
-        .await?
-        .into_inner();
+        }),
+    )
+    .await?
+    .into_inner();
     if resp.ok {
         serde_json::from_str(&resp.details_json)
             .map_err(|e| anyhow::anyhow!("decode vm details: {e}"))
@@ -772,12 +806,14 @@ pub async fn get_guest_health(
     client: &mut AgentClient,
     vm_name: &str,
 ) -> anyhow::Result<GuestHealthResult> {
-    let resp = client
-        .get_guest_health(GetGuestHealthRequest {
+    let resp = timed(
+        "get_guest_health",
+        client.get_guest_health(GetGuestHealthRequest {
             vm_name: vm_name.to_string(),
-        })
-        .await?
-        .into_inner();
+        }),
+    )
+    .await?
+    .into_inner();
     if resp.ok {
         Ok(GuestHealthResult {
             agent_reachable: resp.agent_reachable,
@@ -815,12 +851,14 @@ pub async fn get_guest_observability(
     client: &mut AgentClient,
     vm_name: &str,
 ) -> anyhow::Result<serde_json::Value> {
-    let resp = client
-        .get_guest_observability(GetGuestObservabilityRequest {
+    let resp = timed(
+        "get_guest_observability",
+        client.get_guest_observability(GetGuestObservabilityRequest {
             vm_name: vm_name.to_string(),
-        })
-        .await?
-        .into_inner();
+        }),
+    )
+    .await?
+    .into_inner();
     if !resp.ok {
         anyhow::bail!("{}", resp.message);
     }
@@ -848,10 +886,12 @@ pub async fn install_guest_tools(
 
 pub async fn get_firewall_inventory(addr: &str) -> anyhow::Result<machina_core::FirewallInventory> {
     let mut client = connect(addr).await?;
-    let resp = client
-        .get_firewall_inventory(GetFirewallInventoryRequest {})
-        .await?
-        .into_inner();
+    let resp = timed(
+        "get_firewall_inventory",
+        client.get_firewall_inventory(GetFirewallInventoryRequest {}),
+    )
+    .await?
+    .into_inner();
     if resp.ok {
         serde_json::from_str(&resp.inventory_json)
             .map_err(|e| anyhow::anyhow!("inventory json: {e}"))
@@ -902,10 +942,12 @@ pub async fn get_security_fabric_status(
     addr: &str,
 ) -> anyhow::Result<machina_core::SecurityFabricStatus> {
     let mut client = connect(addr).await?;
-    let resp = client
-        .get_security_fabric_status(GetSecurityFabricStatusRequest {})
-        .await?
-        .into_inner();
+    let resp = timed(
+        "get_security_fabric_status",
+        client.get_security_fabric_status(GetSecurityFabricStatusRequest {}),
+    )
+    .await?
+    .into_inner();
     if resp.ok {
         serde_json::from_str(&resp.status_json).map_err(|e| anyhow::anyhow!("status json: {e}"))
     } else {
@@ -923,12 +965,14 @@ pub async fn get_guest_firewall_ports(
     vm_name: &str,
 ) -> anyhow::Result<GuestFirewallPortsResponse> {
     let mut client = connect(addr).await?;
-    let resp = client
-        .get_guest_firewall_ports(GetGuestFirewallPortsRequest {
+    let resp = timed(
+        "get_guest_firewall_ports",
+        client.get_guest_firewall_ports(GetGuestFirewallPortsRequest {
             vm_name: vm_name.into(),
-        })
-        .await?
-        .into_inner();
+        }),
+    )
+    .await?
+    .into_inner();
     if resp.ok {
         Ok(GuestFirewallPortsResponse {
             agent_reachable: resp.agent_reachable,
@@ -957,10 +1001,12 @@ pub async fn get_guest_firewall_ports(
 
 pub async fn get_firewall_activity(addr: &str, hours: u32) -> anyhow::Result<serde_json::Value> {
     let mut client = connect(addr).await?;
-    let resp = client
-        .get_firewall_activity(GetFirewallActivityRequest { hours })
-        .await?
-        .into_inner();
+    let resp = timed(
+        "get_firewall_activity",
+        client.get_firewall_activity(GetFirewallActivityRequest { hours }),
+    )
+    .await?
+    .into_inner();
     if resp.ok {
         serde_json::from_str(&resp.activity_json).map_err(|e| anyhow::anyhow!("activity json: {e}"))
     } else {
@@ -987,10 +1033,12 @@ pub async fn get_lldp(
 
 pub async fn get_linux_observability(addr: &str) -> anyhow::Result<serde_json::Value> {
     let mut client = connect(addr).await?;
-    let resp = client
-        .get_linux_observability(GetLinuxObservabilityRequest {})
-        .await?
-        .into_inner();
+    let resp = timed(
+        "get_linux_observability",
+        client.get_linux_observability(GetLinuxObservabilityRequest {}),
+    )
+    .await?
+    .into_inner();
     if resp.ok {
         serde_json::from_str(&resp.json).map_err(|e| anyhow::anyhow!("linux obs json: {e}"))
     } else {
@@ -1000,10 +1048,12 @@ pub async fn get_linux_observability(addr: &str) -> anyhow::Result<serde_json::V
 
 pub async fn get_systemd_network_diagnostics(addr: &str) -> anyhow::Result<serde_json::Value> {
     let mut client = connect(addr).await?;
-    let resp = client
-        .get_systemd_network_diagnostics(GetSystemdNetworkDiagnosticsRequest {})
-        .await?
-        .into_inner();
+    let resp = timed(
+        "get_systemd_network_diagnostics",
+        client.get_systemd_network_diagnostics(GetSystemdNetworkDiagnosticsRequest {}),
+    )
+    .await?
+    .into_inner();
     if resp.ok {
         serde_json::from_str(&resp.json).map_err(|e| anyhow::anyhow!("network diag json: {e}"))
     } else {
@@ -1013,10 +1063,12 @@ pub async fn get_systemd_network_diagnostics(addr: &str) -> anyhow::Result<serde
 
 pub async fn get_linux_audit(addr: &str) -> anyhow::Result<serde_json::Value> {
     let mut client = connect(addr).await?;
-    let resp = client
-        .get_linux_audit(GetLinuxAuditRequest {})
-        .await?
-        .into_inner();
+    let resp = timed(
+        "get_linux_audit",
+        client.get_linux_audit(GetLinuxAuditRequest {}),
+    )
+    .await?
+    .into_inner();
     if resp.ok {
         serde_json::from_str(&resp.json).map_err(|e| anyhow::anyhow!("linux audit json: {e}"))
     } else {
@@ -1026,10 +1078,12 @@ pub async fn get_linux_audit(addr: &str) -> anyhow::Result<serde_json::Value> {
 
 pub async fn get_linux_package_updates(addr: &str) -> anyhow::Result<serde_json::Value> {
     let mut client = connect(addr).await?;
-    let resp = client
-        .get_linux_package_updates(GetLinuxPackageUpdatesRequest {})
-        .await?
-        .into_inner();
+    let resp = timed(
+        "get_linux_package_updates",
+        client.get_linux_package_updates(GetLinuxPackageUpdatesRequest {}),
+    )
+    .await?
+    .into_inner();
     if resp.ok {
         serde_json::from_str(&resp.json)
             .map_err(|e| anyhow::anyhow!("linux package updates json: {e}"))
@@ -1071,10 +1125,12 @@ pub async fn host_linux_reboot(addr: &str) -> anyhow::Result<()> {
 
 pub async fn get_linux_filesystems(addr: &str) -> anyhow::Result<serde_json::Value> {
     let mut client = connect(addr).await?;
-    let resp = client
-        .get_linux_filesystems(GetLinuxFilesystemsRequest {})
-        .await?
-        .into_inner();
+    let resp = timed(
+        "get_linux_filesystems",
+        client.get_linux_filesystems(GetLinuxFilesystemsRequest {}),
+    )
+    .await?
+    .into_inner();
     if resp.ok {
         serde_json::from_str(&resp.json).map_err(|e| anyhow::anyhow!("linux filesystems json: {e}"))
     } else {
@@ -1088,13 +1144,15 @@ pub async fn get_linux_top_processes(
     order: &str,
 ) -> anyhow::Result<serde_json::Value> {
     let mut client = connect(addr).await?;
-    let resp = client
-        .get_linux_top_processes(GetLinuxTopProcessesRequest {
+    let resp = timed(
+        "get_linux_top_processes",
+        client.get_linux_top_processes(GetLinuxTopProcessesRequest {
             limit,
             order: order.to_string(),
-        })
-        .await?
-        .into_inner();
+        }),
+    )
+    .await?
+    .into_inner();
     if resp.ok {
         serde_json::from_str(&resp.json).map_err(|e| anyhow::anyhow!("linux processes json: {e}"))
     } else {
@@ -1114,10 +1172,12 @@ pub struct PortForwardRuleDto {
 
 pub async fn list_port_forwards(addr: &str) -> anyhow::Result<Vec<PortForwardRuleDto>> {
     let mut client = connect(addr).await?;
-    let resp = client
-        .list_port_forwards(ListPortForwardsRequest {})
-        .await?
-        .into_inner();
+    let resp = timed(
+        "list_port_forwards",
+        client.list_port_forwards(ListPortForwardsRequest {}),
+    )
+    .await?
+    .into_inner();
     if !resp.message.is_empty() && resp.rules.is_empty() {
         anyhow::bail!(resp.message);
     }
@@ -1190,8 +1250,5 @@ pub async fn delete_port_forward(
 pub async fn list_host_gpus(
     client: &mut AgentClient,
 ) -> anyhow::Result<ListHostGpusResponse> {
-    Ok(client
-        .list_host_gpus(ListHostGpusRequest {})
-        .await?
-        .into_inner())
+    read_rpc("list_host_gpus", client.list_host_gpus(ListHostGpusRequest {})).await
 }

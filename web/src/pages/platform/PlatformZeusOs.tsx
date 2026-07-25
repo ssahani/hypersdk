@@ -377,8 +377,12 @@ export default function PlatformZeusOs() {
                   type="button"
                   className="btn-secondary text-xs"
                   onClick={async () => {
-                    const r = await executeFleetRebalance(true)
-                    setRebalancePreview(r.summary)
+                    try {
+                      const r = await executeFleetRebalance(true)
+                      setRebalancePreview(r.summary)
+                    } catch (e: unknown) {
+                      toast.error(formatUserError(e))
+                    }
                   }}
                 >
                   Preview execute
@@ -484,16 +488,20 @@ export default function PlatformZeusOs() {
                 type="button"
                 className="btn-secondary text-xs"
                 onClick={async () => {
-                  await registerBaremetalServer({
-                    hostname: bmcHost,
-                    bmc_address: bmcAddr,
-                    bmc_vlan: bmcVlan,
-                    pxe_vlan: pxeVlan,
-                    firewall_profile: metalProfile,
-                  })
-                  setBmcHost('')
-                  setBmcAddr('')
-                  await loadBaremetal()
+                  try {
+                    await registerBaremetalServer({
+                      hostname: bmcHost,
+                      bmc_address: bmcAddr,
+                      bmc_vlan: bmcVlan,
+                      pxe_vlan: pxeVlan,
+                      firewall_profile: metalProfile,
+                    })
+                    setBmcHost('')
+                    setBmcAddr('')
+                    await loadBaremetal()
+                  } catch (e: unknown) {
+                    toast.error(formatUserError(e))
+                  }
                 }}
               >
                 Register
@@ -510,11 +518,15 @@ export default function PlatformZeusOs() {
                     <span className="flex gap-2 text-[10px]">
                       <button type="button" className={hubLinkClasses()} onClick={(e) => {
                         e.preventDefault()
-                        void setBaremetalPower(s.id, 'on', true).then((r) => setCapacitySummary(r.summary))
+                        void setBaremetalPower(s.id, 'on', true)
+                          .then((r) => setCapacitySummary(r.summary))
+                          .catch((err: unknown) => toast.error(formatUserError(err)))
                       }}>Power</button>
                       <button type="button" className={hubLinkClasses()} onClick={(e) => {
                         e.preventDefault()
-                        void getBaremetalProvision(s.id).then((r) => setCapacitySummary(r.summary))
+                        void getBaremetalProvision(s.id)
+                          .then((r) => setCapacitySummary(r.summary))
+                          .catch((err: unknown) => toast.error(formatUserError(err)))
                       }}>PXE</button>
                     </span>
                   }
@@ -538,8 +550,12 @@ export default function PlatformZeusOs() {
               type="button"
               className="btn-primary text-xs"
               onClick={async () => {
-                const p = await planBaremetalCapacity('How many servers for 500 AI engineers?')
-                setCapacitySummary(p.summary)
+                try {
+                  const p = await planBaremetalCapacity('How many servers for 500 AI engineers?')
+                  setCapacitySummary(p.summary)
+                } catch (e: unknown) {
+                  toast.error(formatUserError(e))
+                }
               }}
             >
               Plan 500 AI engineers

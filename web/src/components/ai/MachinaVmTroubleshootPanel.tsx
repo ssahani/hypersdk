@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react'
 import { Stethoscope } from 'lucide-react'
 import { troubleshootVm, type DiagnosisReport } from '../../api/ai'
+import { formatUserError } from '../../utils/apiError'
 import { statusBadgeClasses, statusToneClass, riskTone } from '../../utils/semanticColors'
 
 export default function MachinaVmTroubleshootPanel({
@@ -25,7 +26,7 @@ export default function MachinaVmTroubleshootPanel({
     try {
       setReport(await troubleshootVm({ vm_id: vmId, vm_name: vmName, symptom: activeSymptom }))
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Troubleshoot failed')
+      setError(formatUserError(e))
     } finally {
       setLoading(false)
     }

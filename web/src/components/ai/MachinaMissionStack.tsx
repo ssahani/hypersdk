@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Play, Rocket } from 'lucide-react'
 import { MacGlassPanel } from '../platform/mac/PlatformMacUi'
 import { executeMissionStack, getMissionStackStatus, planMissionStack, type MissionStackPlan } from '../../api/ai'
+import { formatUserError } from '../../utils/apiError'
 import { statusToneClass } from '../../utils/semanticColors'
 
 export default function MachinaMissionStack() {
@@ -11,11 +12,16 @@ export default function MachinaMissionStack() {
   const [plan, setPlan] = useState<MissionStackPlan | null>(null)
   const [executeSummary, setExecuteSummary] = useState<string | null>(null)
   const [stackStatus, setStackStatus] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   const refreshStatus = async () => {
-    const s = await getMissionStackStatus()
-    setStackStatus(s.summary)
+    try {
+      const s = await getMissionStackStatus()
+      setStackStatus(s.summary)
+    } catch (e: unknown) {
+      setError(formatUserError(e))
+    }
   }
 
   useEffect(() => { void refreshStatus() }, [])
@@ -23,8 +29,11 @@ export default function MachinaMissionStack() {
   const run = async () => {
     setBusy(true)
     setExecuteSummary(null)
+    setError(null)
     try {
       setPlan(await planMissionStack(query))
+    } catch (e: unknown) {
+      setError(formatUserError(e))
     } finally {
       setBusy(false)
     }
@@ -32,11 +41,14 @@ export default function MachinaMissionStack() {
 
   const previewExecute = async () => {
     setBusy(true)
+    setError(null)
     try {
       const r = await executeMissionStack(query, true)
       setPlan(r.plan)
       setExecuteSummary(r.summary)
       await refreshStatus()
+    } catch (e: unknown) {
+      setError(formatUserError(e))
     } finally {
       setBusy(false)
     }
@@ -53,6 +65,7 @@ export default function MachinaMissionStack() {
           <Play className="w-3 h-3" /> Preview infra
         </button>
       </div>
+      {error && <p className={`text-xs mt-2 ${statusToneClass('error')}`}>{error}</p>}
       {executeSummary && <p className={`text-xs mt-2 ${statusToneClass('ok')}`}>{executeSummary}</p>}
       {stackStatus && <p className="text-xs text-slate-500 mt-1">Stack status: {stackStatus}</p>}
       {plan && (

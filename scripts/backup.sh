@@ -286,12 +286,20 @@ except Exception:
 PY
 ) || API_TOKEN=""
 fi
-# curl wrapper that attaches the bearer header when a token is available. Use an
-# array so the header value (which contains spaces) stays a single argument.
+# curl wrapper that attaches the bearer header when a token is available.
+# The header is fed to curl as a config read from its own stdin (`-K -`)
+# rather than `-H ...` on the command line: argv (including -H values) is
+# readable by any local user via `ps`/proc for the life of the process, a
+# config piped in never touches argv or disk. (A `-K <(...)` process
+# substitution stashed in an array for later expansion is NOT equivalent —
+# the fd can already be closed by the time the deferred command runs; the
+# pipe must be attached to the same curl invocation that consumes it.)
 mcurl() {
-    local -a auth=()
-    [ -n "$API_TOKEN" ] && auth=(-H "Authorization: Bearer $API_TOKEN")
-    curl -sfk "${auth[@]}" "$@"
+    if [ -n "$API_TOKEN" ]; then
+        printf 'header = "Authorization: Bearer %s"\n' "$API_TOKEN" | curl -sfk -K - "$@"
+    else
+        curl -sfk "$@"
+    fi
 }
 
 # Second pass: CLI args override config

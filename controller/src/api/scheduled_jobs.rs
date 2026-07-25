@@ -118,9 +118,13 @@ pub async fn delete_scheduled_job(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
-    sqlx::query("DELETE FROM scheduled_jobs WHERE id = ?")
+    let deleted = sqlx::query("DELETE FROM scheduled_jobs WHERE id = ?")
         .bind(id)
         .execute(&state.pool)
-        .await?;
+        .await?
+        .rows_affected();
+    if deleted == 0 {
+        return Err(ApiError::not_found("scheduled job not found"));
+    }
     Ok(Json(serde_json::json!({ "deleted": true })))
 }

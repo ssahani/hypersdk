@@ -153,7 +153,11 @@ pub async fn api_key(pool: &SqlitePool) -> anyhow::Result<Option<String>> {
     if key.is_empty() {
         Ok(None)
     } else {
-        Ok(Some(key))
+        // Stored value may be an `enc:`-prefixed ciphertext (patch_ai_settings
+        // encrypts via crypto::store_api_key) or legacy plaintext — decrypt so
+        // callers get the real key instead of a ciphertext blob that would be
+        // sent to the LLM provider as a bearer token and silently fail auth.
+        Ok(Some(super::crypto::load_api_key(&key)?))
     }
 }
 

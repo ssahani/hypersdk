@@ -37,7 +37,10 @@ fi
 
 VM_ID="${PLAYWRIGHT_LIBVIRT_VM_ID:-}"
 if [[ -z "$VM_ID" ]]; then
-  VM_ID="$(curl -sk -u "${USER}:${PASS}" "${BASE}/api/v1/platform/controller/api/v1/vms" 2>/dev/null \
+  # `curl -u user:pass` puts the password in argv, readable via `ps` by any
+  # local user for the life of the process — read credentials from a config
+  # via process substitution instead, which never touches argv or disk.
+  VM_ID="$(curl -sk -K <(printf 'user = "%s:%s"\n' "$USER" "$PASS") "${BASE}/api/v1/platform/controller/api/v1/vms" 2>/dev/null \
     | python3 -c "
 import json, sys
 try:

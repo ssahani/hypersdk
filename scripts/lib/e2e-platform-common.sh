@@ -26,12 +26,19 @@ e2e_platform_extra_headers() {
 }
 
 e2e_platform_curl() {
-  local -a hdrs=(-H "$(e2e_platform_auth_header)")
-  if [[ -n "${MACHINA_E2E_BYPASS_SECRET:-}" ]]; then
-    hdrs+=(-H "$(e2e_platform_extra_headers)")
-  fi
+  # Headers (Basic-auth credentials, bypass secret) go through a curl config
+  # read via process substitution rather than `-H ... ` on the command line —
+  # argv (including `-H` values) is readable by any local user via `ps`/
+  # /proc for the life of the process; a config fed over a pipe never touches
+  # argv or disk.
   curl -sk --connect-timeout 10 --max-time "${E2E_PLATFORM_TIMEOUT:-120}" \
-    "${hdrs[@]}" "$@"
+    -K <(
+      printf 'header = "%s"\n' "$(e2e_platform_auth_header)"
+      if [[ -n "${MACHINA_E2E_BYPASS_SECRET:-}" ]]; then
+        printf 'header = "%s"\n' "$(e2e_platform_extra_headers)"
+      fi
+    ) \
+    "$@"
 }
 
 e2e_platform_http_code() {

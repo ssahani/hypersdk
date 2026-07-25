@@ -143,9 +143,15 @@ pub async fn revoke_enrollment_token(
     Path(token): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_admin(&actor)?;
-    sqlx::query("DELETE FROM enrollment_tokens WHERE token = ? AND used_at IS NULL")
+    let revoked = sqlx::query("DELETE FROM enrollment_tokens WHERE token = ? AND used_at IS NULL")
         .bind(&token)
         .execute(&state.pool)
-        .await?;
+        .await?
+        .rows_affected();
+    if revoked == 0 {
+        return Err(ApiError::not_found(
+            "enrollment token not found or already used",
+        ));
+    }
     Ok(Json(serde_json::json!({ "revoked": true })))
 }
