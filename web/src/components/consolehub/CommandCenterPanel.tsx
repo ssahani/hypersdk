@@ -6,6 +6,7 @@ import { ShieldAlert, X } from 'lucide-react'
 import { breakGlassConsoleSession } from '../../api/platform'
 import { getVmDoctor, type VmDoctorReport } from '../../api/ai'
 import { useToastContext } from '../../contexts/ToastContext'
+import { formatUserError } from '../../utils/apiError'
 import type { ConsoleHubSessionRow } from './ConsoleHubSessionHistory'
 import type { VmTimelineEntry } from '../../api/platformVmTimeline'
 import type { GuestAccessHints } from '../../utils/guestAccessHints'
@@ -208,7 +209,7 @@ export default function CommandCenterPanel({
                           setBreakGlassReason('')
                           onPlanRefresh?.()
                         })
-                        .catch((e: unknown) => toast.error(String(e)))
+                        .catch((e: unknown) => toast.error(formatUserError(e)))
                         .finally(() => setBreakGlassBusy(false))
                     }}
                   >

@@ -132,9 +132,24 @@ pub async fn export_csv(pool: &SqlitePool) -> anyhow::Result<String> {
 }
 
 fn csv_escape(s: &str) -> String {
+    // Neutralize CSV/Excel formula injection: recommendation text can embed
+    // user-controlled data (VM names, etc.) and this file is served as an
+    // attachment for humans to open in Excel/Sheets. A cell starting with
+    // =, +, -, or @ is interpreted as a formula by those tools (e.g.
+    // `=cmd|'/c calc'!A1`), so prefix a neutralizing apostrophe before
+    // applying the existing quote/comma escaping.
+    let needs_formula_guard = s
+        .chars()
+        .next()
+        .is_some_and(|c| matches!(c, '=' | '+' | '-' | '@' | '\t' | '\r'));
+    let s = if needs_formula_guard {
+        std::borrow::Cow::Owned(format!("'{s}"))
+    } else {
+        std::borrow::Cow::Borrowed(s)
+    };
     if s.contains(',') || s.contains('"') {
         format!("\"{}\"", s.replace('"', "\"\""))
     } else {
-        s.to_string()
+        s.into_owned()
     }
 }

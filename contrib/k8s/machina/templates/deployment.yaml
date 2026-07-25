@@ -16,6 +16,12 @@ spec:
         app.kubernetes.io/name: {{ include "machina.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+      # machina-daemon talks to Kubernetes clusters it manages via an
+      # operator-supplied kubeconfig (see daemon/src/k8s_kubeconfig.rs), not
+      # via this pod's own ServiceAccount, so it never needs the default SA
+      # token mounted. Disable automount to reduce blast radius if the
+      # container is ever compromised.
+      automountServiceAccountToken: false
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:

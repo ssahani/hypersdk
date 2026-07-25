@@ -154,13 +154,15 @@ async fn evaluate(state: &AppState, t: &WatchTarget) -> anyhow::Result<()> {
     }
 
     // Skip if a power task is already in flight for this VM (mirror reconcile's overlap guard).
+    // Propagate (rather than default to 0) on a query failure: we don't actually know
+    // whether a task is in flight, and defaulting to "none" here risks double-enqueuing
+    // a reset. Failing this tick and retrying next tick is the safe fallback.
     let inflight: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM tasks WHERE resource_id = ? AND operation = 'vm.power' AND status IN ('pending','running')",
     )
     .bind(t.vm_id)
     .fetch_one(&state.pool)
-    .await
-    .unwrap_or(0);
+    .await?;
     if inflight > 0 {
         return Ok(());
     }

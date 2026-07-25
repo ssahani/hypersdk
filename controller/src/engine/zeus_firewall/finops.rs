@@ -380,7 +380,7 @@ fn csv_escape(s: &str) -> String {
     let needs_formula_guard = s
         .chars()
         .next()
-        .is_some_and(|c| matches!(c, '=' | '+' | '-' | '@'));
+        .is_some_and(|c| matches!(c, '=' | '+' | '-' | '@' | '\t' | '\r'));
     let s = if needs_formula_guard {
         std::borrow::Cow::Owned(format!("'{s}"))
     } else {

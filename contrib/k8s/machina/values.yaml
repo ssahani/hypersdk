@@ -22,7 +22,16 @@ daemon:
 
 auth:
   pamService: sshd
-  jwtSecret: "change-me-in-production"
+  # Intentionally left empty rather than shipping a placeholder literal here.
+  # daemon/src/auth.rs only refuses its own hardcoded dev secret
+  # ("machina-dev-jwt-secret-change-me"); any other fixed string —
+  # including a chart-shipped placeholder like "change-me-in-production" —
+  # would be accepted as a real secret and used to sign persistent JWTs,
+  # even though it's public (this file is in the repo). Leaving this unset
+  # makes the daemon fall back to a random per-process secret (safe, but
+  # sessions don't survive a restart) until an operator sets a real value
+  # here or via env.MACHINA_JWT_SECRET / a Secret override.
+  jwtSecret: ""
   ldap:
     enabled: false
     url: ""

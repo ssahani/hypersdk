@@ -160,53 +160,86 @@ pub async fn run_migrate_precheck(
 
     let _ = vcpus;
 
-    if let Ok((source_addr, dest_cpu, dest_lv)) =
-        host_addrs_for_precheck(pool, source_host_id, dest_host_id).await
-    {
-        let source_cpu: String =
-            sqlx::query_scalar("SELECT COALESCE(cpu_model, '') FROM hosts WHERE id = ?")
-                .bind(source_host_id)
-                .fetch_one(pool)
-                .await
-                .unwrap_or_default();
-        let matrix: serde_json::Value = sqlx::query_scalar(
-            "SELECT cpu_compat_matrix FROM clusters ORDER BY created_at LIMIT 1",
-        )
-        .fetch_one(pool)
-        .await
-        .unwrap_or(serde_json::json!([]));
-        let rules: Vec<crate::api::cpu_compat::CpuCompatRule> =
-            serde_json::from_value(matrix).unwrap_or_default();
-        if crate::api::cpu_compat::cpu_compatible(&rules, &source_cpu, &dest_cpu) {
-            checks.push(pass(
-                "cpu_compat",
-                &format!("CPU {source_cpu} compatible with {dest_cpu}"),
-            ));
-        } else {
-            checks.push(fail(
-                "cpu_compat",
-                &format!("CPU {source_cpu} not compatible with {dest_cpu}"),
-                "Use offline migration with CPU baseline or update the CPU compatibility matrix",
-            ));
-        }
-
-        if let Ok(mut client) = crate::agent_client::connect(&source_addr).await {
-            if let Ok(agent_pre) =
-                crate::agent_client::precheck_migrate(&mut client, &vm_name, &dest_cpu, &dest_lv)
+    match host_addrs_for_precheck(pool, source_host_id, dest_host_id).await {
+        Ok((source_addr, dest_cpu, dest_lv)) => {
+            let source_cpu: String =
+                sqlx::query_scalar("SELECT COALESCE(cpu_model, '') FROM hosts WHERE id = ?")
+                    .bind(source_host_id)
+                    .fetch_one(pool)
                     .await
-            {
-                for c in agent_pre.checks {
-                    if c.passed {
-                        checks.push(pass(&c.name, &c.message));
-                    } else {
-                        checks.push(fail(
-                            &c.name,
-                            &c.message,
-                            "See agent migration pre-check details on the source host",
-                        ));
+                    .unwrap_or_default();
+            let matrix: serde_json::Value = sqlx::query_scalar(
+                "SELECT cpu_compat_matrix FROM clusters ORDER BY created_at LIMIT 1",
+            )
+            .fetch_one(pool)
+            .await
+            .unwrap_or(serde_json::json!([]));
+            let rules: Vec<crate::api::cpu_compat::CpuCompatRule> =
+                serde_json::from_value(matrix).unwrap_or_default();
+            if crate::api::cpu_compat::cpu_compatible(&rules, &source_cpu, &dest_cpu) {
+                checks.push(pass(
+                    "cpu_compat",
+                    &format!("CPU {source_cpu} compatible with {dest_cpu}"),
+                ));
+            } else {
+                checks.push(fail(
+                    "cpu_compat",
+                    &format!("CPU {source_cpu} not compatible with {dest_cpu}"),
+                    "Use offline migration with CPU baseline or update the CPU compatibility matrix",
+                ));
+            }
+
+            // Fail closed: if we can't reach the source host's agent, or it can't run
+            // its own pre-check, we have NOT verified migration safety on the source
+            // side (disk space, block-migration support, active snapshots, etc.) — a
+            // missing check here must not be silently treated as a passing one.
+            match crate::agent_client::connect(&source_addr).await {
+                Ok(mut client) => {
+                    match crate::agent_client::precheck_migrate(
+                        &mut client,
+                        &vm_name,
+                        &dest_cpu,
+                        &dest_lv,
+                    )
+                    .await
+                    {
+                        Ok(agent_pre) => {
+                            for c in agent_pre.checks {
+                                if c.passed {
+                                    checks.push(pass(&c.name, &c.message));
+                                } else {
+                                    checks.push(fail(
+                                        &c.name,
+                                        &c.message,
+                                        "See agent migration pre-check details on the source host",
+                                    ));
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            checks.push(fail(
+                                "source_agent_precheck",
+                                &format!("Source host agent could not run its migration pre-check: {e}"),
+                                "Check machina-agent logs on the source host and retry",
+                            ));
+                        }
                     }
                 }
+                Err(e) => {
+                    checks.push(fail(
+                        "source_agent_reachable",
+                        &format!("Cannot reach source host agent to verify migration safety: {e}"),
+                        "Verify machina-agent is running and reachable on the source host and retry",
+                    ));
+                }
             }
+        }
+        Err(e) => {
+            checks.push(fail(
+                "source_host_lookup",
+                &format!("Could not look up source/destination host details: {e}"),
+                "Verify source and destination host records in cluster inventory",
+            ));
         }
     }
 

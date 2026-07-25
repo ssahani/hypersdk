@@ -2120,20 +2120,25 @@ async fn on_task_failure(state: &AppState, msg: &TaskMessage, err: &str) {
         if reset.is_ok() {
             let backoff = std::time::Duration::from_secs(5 * attempts as u64);
             let bus = state.task_bus.clone();
-            let pool = state.pool.clone();
+            let st = state.clone();
             let msg = msg.clone();
             tracing::warn!(task_id = %msg.task_id, op = %msg.operation,
                 "transient failure; retry {attempts}/{MAX_TASK_ATTEMPTS} scheduled in {backoff:?}");
             tokio::spawn(async move {
                 tokio::time::sleep(backoff).await;
                 if let Err(e) = bus.publish("machina.tasks", &msg).await {
-                    // Re-publish failed → no worker will pick it up; fail terminally.
-                    let _ = sqlx::query(
-                        "UPDATE tasks SET status = 'failed', message = ? WHERE id = ? AND status = 'pending'",
+                    // Re-publish failed → no worker will ever pick this task back up,
+                    // so this IS the terminal failure for it. Route through the same
+                    // finalize path as every other terminal failure (mark_task_failed,
+                    // set_vm_error, ha.recover compensation, webhook) — a bare status
+                    // update here previously skipped revert_failed_ha_recovery, leaving
+                    // an ha.recover task's premature host_id write un-reverted whenever
+                    // the task bus itself (not the agent) was the thing that failed.
+                    finalize_terminal_task_failure(
+                        &st,
+                        &msg,
+                        &format!("retry re-publish failed: {e}"),
                     )
-                    .bind(format!("retry re-publish failed: {e}"))
-                    .bind(msg.task_id)
-                    .execute(&pool)
                     .await;
                 }
             });
@@ -2142,6 +2147,16 @@ async fn on_task_failure(state: &AppState, msg: &TaskMessage, err: &str) {
         // Fall through to terminal failure if the reset UPDATE itself failed.
     }
 
+    finalize_terminal_task_failure(state, msg, err).await;
+}
+
+/// Terminal-failure bookkeeping shared by every path that gives up on a task for
+/// good: the direct (non-retried) failure fallthrough above, and the delayed
+/// retry-exhaustion path where re-publishing itself fails. Keeping these in one
+/// place ensures operation-specific compensation (e.g. ha.recover's host_id
+/// revert) always runs, regardless of which failure mode produced the terminal
+/// state.
+async fn finalize_terminal_task_failure(state: &AppState, msg: &TaskMessage, err: &str) {
     let _ = mark_task_failed(&state.pool, msg.task_id, err).await;
     if let Some(vm_id) = vm_id_from_payload(msg) {
         let _ = vm_lifecycle::set_vm_error(&state.pool, vm_id, err).await;
@@ -2214,8 +2229,16 @@ async fn kubevirt_inventory_task(state: &AppState, msg: &TaskMessage) -> anyhow:
         cluster_id
     };
 
-    crate::engine::kubevirt_inventory::sync_cluster(state, cluster_id).await?;
-    update_task_progress(&state.pool, msg.task_id, 100, "kubevirt inventory synced").await?;
+    let outcome = crate::engine::kubevirt_inventory::sync_cluster(state, cluster_id).await?;
+    let progress_msg = if outcome.synced {
+        "kubevirt inventory synced".to_string()
+    } else {
+        format!(
+            "kubevirt inventory sync skipped: {}",
+            outcome.reason.as_deref().unwrap_or("unknown reason")
+        )
+    };
+    update_task_progress(&state.pool, msg.task_id, 100, &progress_msg).await?;
     Ok(())
 }
 

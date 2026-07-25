@@ -76,12 +76,27 @@ pub async fn fetch_inventory_rows(
     Ok(resp.json().await?)
 }
 
-pub async fn sync_cluster(state: &AppState, cluster_id: Uuid) -> anyhow::Result<()> {
+/// Outcome of a `sync_cluster` attempt. `synced == false` means the DB was left
+/// untouched (fetch failure, CRD unavailable, or a list error with no rows) —
+/// callers must not report this as a successful sync.
+#[derive(Debug, Default)]
+pub struct KubevirtSyncOutcome {
+    pub synced: bool,
+    pub reason: Option<String>,
+}
+
+pub async fn sync_cluster(
+    state: &AppState,
+    cluster_id: Uuid,
+) -> anyhow::Result<KubevirtSyncOutcome> {
     let summary = match fetch_inventory_rows(&state.config.daemon_base_url).await {
         Ok(s) => s,
         Err(e) => {
             tracing::warn!("kubevirt inventory fetch failed (keeping DB rows): {e:#}");
-            return Ok(());
+            return Ok(KubevirtSyncOutcome {
+                synced: false,
+                reason: Some(format!("kubevirt inventory fetch failed: {e:#}")),
+            });
         }
     };
 
@@ -90,7 +105,10 @@ pub async fn sync_cluster(state: &AppState, cluster_id: Uuid) -> anyhow::Result<
             list_error = ?summary.list_error,
             "kubevirt CRD unavailable — skip prune"
         );
-        return Ok(());
+        return Ok(KubevirtSyncOutcome {
+            synced: false,
+            reason: Some("kubevirt CRD unavailable on cluster".into()),
+        });
     }
 
     if summary.list_error.is_some() && summary.rows.is_empty() {
@@ -98,7 +116,10 @@ pub async fn sync_cluster(state: &AppState, cluster_id: Uuid) -> anyhow::Result<
             err = ?summary.list_error,
             "kubevirt list error with empty rows — skip prune"
         );
-        return Ok(());
+        return Ok(KubevirtSyncOutcome {
+            synced: false,
+            reason: summary.list_error.clone(),
+        });
     }
 
     let policy = cluster_inventory_policy(&state.pool, cluster_id).await?;
@@ -159,7 +180,11 @@ pub async fn sync_cluster(state: &AppState, cluster_id: Uuid) -> anyhow::Result<
         }
     }
 
-    reconcile_kubevirt_tombstones(state, cluster_id, &seen, &policy).await
+    reconcile_kubevirt_tombstones(state, cluster_id, &seen, &policy).await?;
+    Ok(KubevirtSyncOutcome {
+        synced: true,
+        reason: None,
+    })
 }
 
 async fn reconcile_kubevirt_tombstones(

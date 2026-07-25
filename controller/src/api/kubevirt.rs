@@ -28,14 +28,16 @@ pub async fn sync_inventory(
             .fetch_optional(&state.pool)
             .await?
             .ok_or_else(|| ApiError::bad_request("no cluster configured"))?;
-    crate::engine::kubevirt_inventory::sync_cluster(&state, cluster_id)
+    let outcome = crate::engine::kubevirt_inventory::sync_cluster(&state, cluster_id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
+    let message = outcome.reason.unwrap_or_else(|| {
+        "KubeVirt VMs reconciled with platform inventory (VMware/Proxmox remain import-only)"
+            .into()
+    });
     Ok(Json(KubeVirtSyncResponse {
-        synced: true,
+        synced: outcome.synced,
         cluster_id: cluster_id.to_string(),
-        message:
-            "KubeVirt VMs reconciled with platform inventory (VMware/Proxmox remain import-only)"
-                .into(),
+        message,
     }))
 }

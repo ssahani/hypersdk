@@ -200,59 +200,85 @@ pub async fn run_vm_health_check(pool: &SqlitePool, vm_id: Uuid) -> anyhow::Resu
 
     if observed == "running" {
         if let Some(hid) = host_id {
-            if let Ok(addr) = host_agent_addr(pool, hid).await {
-                if let Ok(mut client) = agent_client::connect(&addr).await {
-                    if let Ok(gh) = agent_client::get_guest_health(&mut client, &name).await {
-                        guest_tools_status = if gh.agent_reachable {
-                            if gh.healthy {
-                                "healthy".into()
-                            } else {
-                                "installed".into()
+            // Fail closed: an inability to reach the host agent or query the guest
+            // must NOT fall through silently and leave `guest_tools_status` at its
+            // stale, possibly-"healthy" cached value — that would report a VM as
+            // healthy purely because we failed to check it. Surface it as an issue
+            // instead so the score reflects the unknown state.
+            let probe_err = match host_agent_addr(pool, hid).await {
+                Ok(addr) => match agent_client::connect(&addr).await {
+                    Ok(mut client) => {
+                        match agent_client::get_guest_health(&mut client, &name).await {
+                            Ok(gh) => {
+                                guest_tools_status = if gh.agent_reachable {
+                                    if gh.healthy {
+                                        "healthy".into()
+                                    } else {
+                                        "installed".into()
+                                    }
+                                } else {
+                                    "not_installed".into()
+                                };
+                                guest_ip = if gh.guest_ip.is_empty() {
+                                    None
+                                } else {
+                                    Some(gh.guest_ip.clone())
+                                };
+                                guest_hostname = if gh.guest_hostname.is_empty() {
+                                    None
+                                } else {
+                                    Some(gh.guest_hostname.clone())
+                                };
+                                if !gh.os_pretty_name.is_empty() {
+                                    os_family = Some(gh.os_pretty_name.clone());
+                                }
+
+                                total += 1;
+                                if gh.agent_reachable {
+                                    passed += 1;
+                                } else {
+                                    issues.push(issue(
+                                        "guest_agent",
+                                        "warning",
+                                        "Guest tools not installed or not responding",
+                                        "Install qemu-guest-agent (Zyvor Guest Tools) for graceful shutdown and monitoring",
+                                        Some("install_guest_tools"),
+                                        Some("Install guest tools"),
+                                    ));
+                                }
+
+                                for msg in gh.issues {
+                                    total += 1;
+                                    issues.push(issue(
+                                        "guest_issue",
+                                        "warning",
+                                        msg,
+                                        "Review guest agent and VM logs",
+                                        None,
+                                        None,
+                                    ));
+                                }
+                                None
                             }
-                        } else {
-                            "not_installed".into()
-                        };
-                        guest_ip = if gh.guest_ip.is_empty() {
-                            None
-                        } else {
-                            Some(gh.guest_ip.clone())
-                        };
-                        guest_hostname = if gh.guest_hostname.is_empty() {
-                            None
-                        } else {
-                            Some(gh.guest_hostname.clone())
-                        };
-                        if !gh.os_pretty_name.is_empty() {
-                            os_family = Some(gh.os_pretty_name.clone());
-                        }
-
-                        total += 1;
-                        if gh.agent_reachable {
-                            passed += 1;
-                        } else {
-                            issues.push(issue(
-                                "guest_agent",
-                                "warning",
-                                "Guest tools not installed or not responding",
-                                "Install qemu-guest-agent (Zyvor Guest Tools) for graceful shutdown and monitoring",
-                                Some("install_guest_tools"),
-                                Some("Install guest tools"),
-                            ));
-                        }
-
-                        for msg in gh.issues {
-                            total += 1;
-                            issues.push(issue(
-                                "guest_issue",
-                                "warning",
-                                msg,
-                                "Review guest agent and VM logs",
-                                None,
-                                None,
-                            ));
+                            Err(e) => Some(e.to_string()),
                         }
                     }
-                }
+                    Err(e) => Some(e.to_string()),
+                },
+                Err(e) => Some(e.to_string()),
+            };
+
+            if let Some(e) = probe_err {
+                guest_tools_status = "unknown".into();
+                total += 1;
+                issues.push(issue(
+                    "guest_agent_unreachable",
+                    "warning",
+                    format!("Could not verify guest health: {e}"),
+                    "Verify machina-agent is reachable on the VM's host and retry",
+                    None,
+                    None,
+                ));
             }
         }
     }
