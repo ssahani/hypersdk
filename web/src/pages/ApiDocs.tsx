@@ -46,7 +46,7 @@ export default function ApiDocs() {
         return r.json()
       })
       .then(setSpec)
-      .catch((e) => setError(`Failed to load OpenAPI spec: ${e.message}`))
+      .catch((e: unknown) => setError(`Failed to load OpenAPI spec: ${formatUserError(e)}`))
   }, [])
 
   const endpoints = useMemo(() => {

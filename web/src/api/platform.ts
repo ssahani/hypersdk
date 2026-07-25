@@ -2412,7 +2412,8 @@ export interface ClusterSummary {
   vm_count: number
   running_vms: number
   offline_hosts: number
-  settings: ClusterSettings
+  /** Only present for operator/admin callers; viewers get everything else. */
+  settings?: ClusterSettings
 }
 
 export interface HaPolicy {

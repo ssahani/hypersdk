@@ -169,13 +169,7 @@ export default function HostNetworkingPage() {
         setRoutesError(null)
       } else {
         setRouting(null)
-        setRoutesError(
-          rt.status === 'rejected'
-            ? rt.reason instanceof Error
-              ? rt.reason.message
-              : String(rt.reason)
-            : null,
-        )
+        setRoutesError(rt.status === 'rejected' ? formatUserError(rt.reason) : null)
       }
 
       // Fetch guest IPs for running VMs

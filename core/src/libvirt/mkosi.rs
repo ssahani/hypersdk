@@ -122,6 +122,22 @@ pub fn materialize_mkosi_if_requested(
 
     let mkosi_bin = resolve_mkosi_executable();
     let image_name = req.mkosi_image.trim().to_string();
+    if !image_name.is_empty() {
+        // `mkosi` is a Python argparse CLI; `image_name` is passed as a bare argv
+        // element right after its own `--image` flag with no `--` separator, so an
+        // unvalidated value starting with '-' can be parsed as a different mkosi
+        // flag instead of the image name (same flag-injection class as
+        // validate_login_username/validate_service_name).
+        if image_name.starts_with('-')
+            || !image_name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+        {
+            return Err(LibvirtError::Invalid(
+                "mkosi_image must start with a letter/digit and contain only letters, digits, dot, underscore, hyphen".into(),
+            ));
+        }
+    }
 
     tracing::info!(
         "mkosi build --directory {} --workspace-directory {} --output-dir {}{}",

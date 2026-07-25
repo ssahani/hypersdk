@@ -145,6 +145,22 @@ fn run_cmd(bin: &str, args: &[&str]) -> Option<Output> {
         .ok()
 }
 
+/// Reject a value that would be passed as a bare (or `keyword value`) argv element to
+/// `nmcli`/`firewall-cmd`/`tuned-adm` if it starts with `-`, so it can't be parsed as an
+/// option/flag instead of the literal name/value it's meant to be (same flag-injection
+/// class as `validate_login_username`/`validate_service_name`/`validate_package_token`).
+/// These host-network/firewall/tuned actions previously had no validation at all on their
+/// request-body-derived strings before reaching `Command`.
+#[cfg(target_os = "linux")]
+fn reject_leading_dash(s: &str, field: &str) -> Result<(), LibvirtError> {
+    if s.starts_with('-') {
+        return Err(LibvirtError::Invalid(format!(
+            "{field} must not start with '-'"
+        )));
+    }
+    Ok(())
+}
+
 #[cfg(target_os = "linux")]
 fn stdout_lines(out: &Output) -> Vec<String> {
     String::from_utf8_lossy(&out.stdout)
@@ -587,6 +603,8 @@ pub fn firewalld_add_service(zone: &str, service: &str) -> Result<String, Libvir
     } else {
         zone.trim()
     };
+    reject_leading_dash(zone, "zone")?;
+    reject_leading_dash(service, "service")?;
     let o = run_cmd(
         "firewall-cmd",
         &["--permanent", "--zone", zone, "--add-service", service],
@@ -631,6 +649,7 @@ pub fn selinux_set_enforce(_enforcing: bool) -> Result<String, LibvirtError> {
 
 #[cfg(target_os = "linux")]
 pub fn tuned_set_profile(profile: &str) -> Result<String, LibvirtError> {
+    reject_leading_dash(profile, "profile")?;
     let o = run_cmd("tuned-adm", &["profile", profile])
         .ok_or_else(|| LibvirtError::Operation("tuned-adm unavailable".into()))?;
     if !o.status.success() {
@@ -653,6 +672,10 @@ pub fn nm_create_bond(name: &str, ifaces: &[String]) -> Result<String, LibvirtEr
         return Err(LibvirtError::Invalid(
             "bond requires at least two interfaces".into(),
         ));
+    }
+    reject_leading_dash(name, "name")?;
+    for iface in ifaces {
+        reject_leading_dash(iface, "interfaces")?;
     }
     let args = [
         "con", "add", "type", "bond", "con-name", name, "ifname", name, "mode", "802.3ad",
@@ -785,6 +808,11 @@ pub fn nm_create_team(name: &str, ifaces: &[String], runner: &str) -> Result<Str
             "team requires at least two interfaces".into(),
         ));
     }
+    reject_leading_dash(name, "name")?;
+    for iface in ifaces {
+        reject_leading_dash(iface, "interfaces")?;
+    }
+    reject_leading_dash(runner, "runner")?;
     let runner_json = if runner.is_empty() {
         "loadbalance"
     } else {
@@ -843,6 +871,8 @@ pub fn nm_create_vlan(name: &str, parent: &str, vlan_id: u32) -> Result<String, 
             "vlan requires parent interface and id 1-4094".into(),
         ));
     }
+    reject_leading_dash(name, "name")?;
+    reject_leading_dash(parent, "parent")?;
     let con_name = if name.is_empty() {
         format!("{parent}.{vlan_id}")
     } else {
@@ -876,6 +906,8 @@ pub fn nm_create_wifi(ssid: &str, password: &str) -> Result<String, LibvirtError
     if ssid.is_empty() {
         return Err(LibvirtError::Invalid("wifi SSID required".into()));
     }
+    reject_leading_dash(ssid, "ssid")?;
+    reject_leading_dash(password, "password")?;
     let args = if password.is_empty() {
         vec!["dev", "wifi", "connect", ssid]
     } else {
@@ -913,6 +945,12 @@ pub fn nm_create_wireguard(
             "wireguard requires name, address, peer key, endpoint".into(),
         ));
     }
+    reject_leading_dash(name, "name")?;
+    reject_leading_dash(address, "address")?;
+    reject_leading_dash(private_key, "private_key")?;
+    reject_leading_dash(peer_public_key, "peer_public_key")?;
+    reject_leading_dash(endpoint, "endpoint")?;
+    reject_leading_dash(allowed_ips, "allowed_ips")?;
     let mut args = vec![
         "con",
         "add",

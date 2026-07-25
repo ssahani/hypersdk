@@ -13,6 +13,20 @@ pub struct GuestListeningPort {
 #[cfg(target_os = "linux")]
 pub fn scan_guest_listening_ports(vm_name: &str) -> Vec<GuestListeningPort> {
     use std::process::Command;
+    // `vm_name` is a bare argv element to `virsh qemu-agent-command <vm_name> ...`
+    // with no `--` separator; unlike most other name-taking functions in this
+    // workspace, nothing upstream of this best-effort probe is guaranteed to have
+    // run `validate::validate_name` first, so guard it here rather than let a name
+    // starting with '-' be parsed as a virsh option.
+    if !vm_name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
+        || vm_name.is_empty()
+        || vm_name.starts_with('-')
+        || vm_name.starts_with('.')
+    {
+        return Vec::new();
+    }
     let exec_json = r#"{"execute":"guest-exec","arguments":{"path":"ss","arg":["-tlnp"],"capture-output":true}}"#;
     let out = match Command::new("virsh")
         .args(["qemu-agent-command", vm_name, exec_json])

@@ -580,7 +580,31 @@ pub async fn create_from_iso(
     .fetch_one(&state.pool)
     .await?;
     if approved == 0 {
-        tracing::warn!(iso_path, "create_from_iso: ISO not in approved content library");
+        // Deliberately a warning, not a hard reject, for the *governance*
+        // check specifically: the actual arbitrary-host-path risk (an
+        // operator pointing a CD-ROM at e.g. `/etc/shadow` or another
+        // project's disk image) is already hard-closed downstream —
+        // `create_vm` calls `body.vm.validate_operator_submission()`, which
+        // runs `spec::vm::validate_install_iso_path` and rejects any
+        // `install_iso` label outside `/var/lib/libvirt/images/` or
+        // `/var/lib/machina/images/` (plus a `..`-traversal guard), for both
+        // this endpoint and `create_from_virt_install`'s identical label.
+        // What's left unenforced here is purely the *content_images
+        // approval* registry — i.e. "was this ISO vetted and marked
+        // available" — for a path that's already confined to machina-owned
+        // directories. Also, `content_images` approval has no separation of
+        // duties from submission (both gated only by `require_operator`, see
+        // `api/content.rs`), so a hard reject would just push the same
+        // operator to self-register+self-approve the path first rather than
+        // stop anything. Whether unapproved-but-in-directory ISOs should be
+        // hard-blocked is a product/governance call, not a security fix —
+        // left as a warning (with actor attribution for audit) pending that
+        // decision.
+        tracing::warn!(
+            iso_path,
+            actor = %actor.username,
+            "create_from_iso: ISO not in approved content library"
+        );
     }
 
     let disk_gib = body.disk_gib.unwrap_or(40);

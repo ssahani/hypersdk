@@ -933,11 +933,18 @@ pub async fn create_session(
 
     let spectator_token = Uuid::new_v4().to_string();
     if recording {
-        let _ = sqlx::query("UPDATE console_sessions SET spectator_token = ? WHERE id = ?")
+        // Propagate a failure here instead of discarding it: the response below
+        // claims `recording_enabled: true` and hands back this exact
+        // spectator_token, but join_spectator_session (see below) authorizes
+        // solely by matching `spectator_token` in the DB row. A silently
+        // dropped UPDATE would hand the caller a token that can never
+        // authenticate a spectate — a false success.
+        sqlx::query("UPDATE console_sessions SET spectator_token = ? WHERE id = ?")
             .bind(&spectator_token)
             .bind(session_id)
             .execute(&state.pool)
-            .await;
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
     }
 
     let embed_path =

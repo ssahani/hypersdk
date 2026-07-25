@@ -336,10 +336,21 @@ async fn consolehub_plan(
 }
 
 async fn list_sessions(
+    Extension(actor): Extension<RequestActor>,
     Extension(store): Extension<ConsoleSessionStore>,
     Path(name): Path<String>,
-) -> Json<Vec<SessionHistoryRow>> {
-    Json(store.list_for_vm(&name).await)
+) -> Result<Json<Vec<SessionHistoryRow>>, AppError> {
+    // Session history (actor/vm_name/protocol/timestamps) is audit data, same
+    // as `/audit` — and the controller's equivalent endpoint
+    // (`controller/src/consolehub.rs::list_sessions`) requires an operator
+    // role. Mirror that here rather than leaving it open to every
+    // authenticated user, including read-only accounts.
+    if actor.role == machina_core::libvirt::automation::Role::ReadOnly {
+        return Err(AppError::from(machina_core::LibvirtError::Forbidden(
+            "Read-only role cannot view console session history".into(),
+        )));
+    }
+    Ok(Json(store.list_for_vm(&name).await))
 }
 
 fn check_oidc_for_console(actor: &RequestActor) -> Result<(), AppError> {

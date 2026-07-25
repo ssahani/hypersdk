@@ -493,6 +493,16 @@ pub fn build_disk_image_with_logs(req: &BuildDiskRequest, mut log: impl FnMut(&s
     if os.is_empty() {
         bail!("os must be non-empty");
     }
+    // `virt-builder` takes `os` as its first, bare positional argv element with no
+    // preceding flag of its own (see `cmd.arg(os)` below), so an unvalidated value
+    // starting with '-' could be parsed as a virt-builder option instead of the
+    // template name. The daemon's HTTP path validates this via
+    // `machina_core::validate::validate_virt_builder_os` before calling here, but
+    // this library function is also reachable directly (e.g. the `virt-image-build`
+    // CLI binary), so enforce it here too rather than relying on every caller.
+    if os.starts_with('-') {
+        bail!("os must not start with '-'");
+    }
 
     let root_pw = resolve_root_password(req)?;
     let ssh_inject = resolve_ssh_inject(req)?;

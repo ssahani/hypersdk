@@ -171,12 +171,40 @@ pub async fn retry_task(
         Option<String>,
         Option<Uuid>,
         Option<Uuid>,
+        String,
     ) = sqlx::query_as(
-        "SELECT operation, payload, resource_type, resource_id, host_id FROM tasks WHERE id = ?",
+        "SELECT operation, payload, resource_type, resource_id, host_id, status FROM tasks WHERE id = ?",
     )
     .bind(id)
     .fetch_one(&state.pool)
     .await?;
+
+    // Only a task that actually finished (failed/cancelled) is safe to retry —
+    // retrying a still-pending/running task would race a duplicate execution
+    // against the original, and retrying an already-completed one would
+    // re-enqueue with stale payload data.
+    if row.5 != "failed" && row.5 != "cancelled" {
+        return Err(ApiError::bad_request(format!(
+            "task is '{}', not failed/cancelled — nothing to retry",
+            row.5
+        )));
+    }
+    // ha.recover carries side effects (host_id write + ha_recovery_count bump)
+    // that engine/ha.rs::recover_vms applies *before* creating the task row —
+    // see cancel_task's compensation above. Blindly re-enqueuing this stale
+    // payload here would skip that bookkeeping, and if the manual retry later
+    // fails, finalize_terminal_task_failure's revert_failed_ha_recovery would
+    // match on host_id and could revert a VM that a *later, unrelated*
+    // successful recovery already moved on — stranding it on the original
+    // failed host. The HA scanner already re-attempts recovery on its own
+    // (recover_vms re-scans any VM whose host_id still points at an offline
+    // host), so there is no safe manual re-entry point here; refuse it.
+    if row.0 == "ha.recover" {
+        return Err(ApiError::bad_request(
+            "ha.recover tasks cannot be manually retried — the HA scanner automatically \
+             re-attempts recovery for any VM still pointing at an offline host",
+        ));
+    }
 
     let new_id =
         crate::tasks::enqueue::enqueue_task(&state, &row.0, row.1, row.2.as_deref(), row.3, row.4)

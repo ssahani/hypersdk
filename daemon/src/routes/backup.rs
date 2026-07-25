@@ -106,6 +106,17 @@ fn validate_backup_id(id: &str) -> Result<(), AppError> {
         )
         .into());
     }
+    // download_backup() passes `id` as the final bare argv element to `tar` (`tar czf -
+    // -C <dir> <id>`) with no `--` separator ahead of it; the digit/dash-only charset
+    // above still allows a leading '-', which tar would parse as an option instead of
+    // the archive member name (same flag-injection class as
+    // validate_login_username/validate_service_name/validate_package_token).
+    if id.starts_with('-') {
+        return Err(
+            machina_core::LibvirtError::Invalid("Backup id must not start with '-'".to_string())
+                .into(),
+        );
+    }
     Ok(())
 }
 

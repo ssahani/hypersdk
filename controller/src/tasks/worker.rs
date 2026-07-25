@@ -1604,7 +1604,13 @@ async fn vm_backup(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
                                 .unwrap_or("backup.qcow2")
                         );
                         let dest = format!("s3://{bucket}/{key}");
-                        let endpoint = cfg["endpoint_url"].as_str().unwrap_or("").to_string();
+                        // Same flag-injection class as `prefix` above: the AWS CLI is a Python
+                        // argparse tool, and `endpoint_url` is passed as a bare argv element
+                        // immediately after its own `--endpoint-url` flag, so an unvalidated
+                        // value starting with '-' could be parsed as a different aws CLI flag
+                        // (e.g. "--no-verify-ssl") instead of the endpoint URL.
+                        let raw_endpoint = cfg["endpoint_url"].as_str().unwrap_or("");
+                        let endpoint = raw_endpoint.trim_start_matches('-').to_string();
                         let src_path = resp.path.clone();
                         let dest_clone = dest.clone();
                         let aws_result = tokio::task::spawn_blocking(move || {

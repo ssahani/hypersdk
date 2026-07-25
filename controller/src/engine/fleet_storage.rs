@@ -132,7 +132,11 @@ pub async fn overview(
             continue;
         };
         for d in arr {
-            let passed = d.get("passed").and_then(|v| v.as_bool()).unwrap_or(true);
+            // Fail closed: a missing/malformed "passed" field means we couldn't
+            // determine the disk's SMART status, not that it's healthy. Defaulting
+            // to `true` here hid disks with unreadable SMART data from the fleet
+            // storage health rollup instead of surfacing them for investigation.
+            let passed = d.get("passed").and_then(|v| v.as_bool()).unwrap_or(false);
             if passed {
                 continue;
             }

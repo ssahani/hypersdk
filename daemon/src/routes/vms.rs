@@ -1387,6 +1387,10 @@ async fn convert_spice_to_vnc_handler(
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_write(&actor, "vms:write")?;
+    // `name` is a bare positional argv element to the Python-argparse-based `virt-xml`
+    // (see graphics_convert::virt_xml_argv), with no `--` separator ahead of it — a name
+    // like "--start" would be parsed as a virt-xml flag instead of the domain name.
+    machina_core::validate::validate_name(&name)?;
     let cq = conn_q.connection.clone();
     let mgr = manager.clone();
     let name2 = name.clone();

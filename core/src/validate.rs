@@ -160,6 +160,15 @@ pub fn validate_virt_builder_os(s: &str) -> Result<(), LibvirtError> {
                 .into(),
         ));
     }
+    // `virt-builder` takes this as its first, bare positional argv element with no
+    // preceding flag of its own (see virt_builder.rs::materialize_virt_builder_if_requested),
+    // so a leading '-' would let it be parsed as a virt-builder option instead of the
+    // template name (same flag-injection class as validate_login_username/validate_service_name).
+    if s.starts_with('-') {
+        return Err(LibvirtError::Invalid(
+            "virt_builder_os must not start with '-'".into(),
+        ));
+    }
     Ok(())
 }
 

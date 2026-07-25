@@ -65,7 +65,7 @@ export default function BackupsPage() {
       setLoading(true)
       const [bResult, vResult, sResult] = await Promise.allSettled([fetchBackups(), listVMs(), getSchedule()])
       if (bResult.status === 'fulfilled') setBackups(bResult.value)
-      else toast.error(`Failed to load backups: ${bResult.reason instanceof Error ? bResult.reason.message : bResult.reason}`)
+      else toast.error(`Failed to load backups: ${formatUserError(bResult.reason)}`)
       if (vResult.status === 'fulfilled') setVms(vResult.value)
       if (sResult.status === 'fulfilled') setScheduleState(sResult.value)
     } catch (e: unknown) {

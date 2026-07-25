@@ -401,7 +401,13 @@ pub fn validate_api_token(token: &str) -> Option<ApiToken> {
 pub fn delete_api_token(token: &str) -> Result<(), LibvirtError> {
     with_json_lock(|| {
         let mut tokens = load_tokens_locked();
-        tokens.remove(&hash_token(token));
+        // HashMap::remove's return value was previously discarded, so deleting a
+        // nonexistent/already-revoked token still returned Ok(()) — the daemon
+        // route then reported {"status": "deleted"} even though nothing was
+        // removed. Surface a NotFound instead of a false success.
+        if tokens.remove(&hash_token(token)).is_none() {
+            return Err(LibvirtError::NotFound("API token not found".into()));
+        }
         save_tokens(&tokens)
     })
 }
@@ -761,6 +767,15 @@ pub fn send_notification(
                 || addr.contains('\n')
                 || addr.contains('\r')
             {
+                return Err(LibvirtError::Invalid("Invalid email address".to_string()));
+            }
+            // `addr` is passed as a bare positional argv element to `sendmail` below
+            // with no `--` separator ahead of it (sendmail's own `--` support is not
+            // reliable across implementations, unlike curl above), so a value like
+            // "-C/tmp/evil.cf@x" (which still contains '@' and no space/newline, so
+            // it would otherwise pass the check above) would be parsed by sendmail
+            // as a command-line option instead of a recipient address.
+            if addr.starts_with('-') {
                 return Err(LibvirtError::Invalid("Invalid email address".to_string()));
             }
             // Sanitize subject to prevent header injection

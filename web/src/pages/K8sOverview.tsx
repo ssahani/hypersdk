@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { Link } from 'react-router'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
@@ -314,7 +314,14 @@ export default function K8sOverviewPage() {
   const [bootstrapLastLog, setBootstrapLastLog] = useState('')
   const [liveNodesCount, setLiveNodesCount] = useState<number | null>(null)
 
+  // Monotonic request id: switching kubectl context fires a new load while the
+  // previous one may still be in flight. Without this guard a slow response
+  // for the old context could resolve last and render its overview/nodes
+  // under the newly-selected context.
+  const reqRef = useRef(0)
+
   const load = useCallback(async (background = false) => {
+    const myReq = ++reqRef.current
     if (background) setRefreshing(true)
     try {
       const [ov, inv, metrics, liveNodes] = await Promise.all([
@@ -323,6 +330,7 @@ export default function K8sOverviewPage() {
         getK8sMetrics(ctxTrim).catch(() => null),
         getK8sNodes(ctxTrim).catch(() => [] as K8sNodeInfo[]),
       ])
+      if (reqRef.current !== myReq) return
       setOverview(ov)
       setClusterInventory(inv)
       setK8sMetrics(metrics)
@@ -330,24 +338,29 @@ export default function K8sOverviewPage() {
       setNodes((inv.nodes?.length ?? 0) > 0 ? inv.nodes : liveNodes)
       setLoadError(null)
       try {
-        setEnvironment(await getK8sEnvironment())
+        const env = await getK8sEnvironment()
+        if (reqRef.current === myReq) setEnvironment(env)
       } catch {
-        setEnvironment(null)
+        if (reqRef.current === myReq) setEnvironment(null)
       }
     } catch (e: unknown) {
+      if (reqRef.current !== myReq) return
       const msg = formatUserError(e)
       setLoadError(msg)
       setOverview(null)
       setClusterInventory(null)
       setNodes([])
       try {
-        setEnvironment(await getK8sEnvironment())
+        const env = await getK8sEnvironment()
+        if (reqRef.current === myReq) setEnvironment(env)
       } catch {
-        setEnvironment(null)
+        if (reqRef.current === myReq) setEnvironment(null)
       }
     } finally {
-      setLoading(false)
-      setRefreshing(false)
+      if (reqRef.current === myReq) {
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
   }, [ctxTrim])
 
@@ -360,17 +373,21 @@ export default function K8sOverviewPage() {
     void load()
   }, [load])
 
+  const invHistReqRef = useRef(0)
   const loadInventoryHistory = useCallback(async () => {
+    const myReq = ++invHistReqRef.current
     setInvHistLoading(true)
     setInvHistErr(null)
     try {
       const r = await getK8sClusterInventoryHistory(100, ctxTrim)
+      if (invHistReqRef.current !== myReq) return
       setInvHist(r)
     } catch (e: unknown) {
+      if (invHistReqRef.current !== myReq) return
       setInvHist(null)
       setInvHistErr(formatUserError(e))
     } finally {
-      setInvHistLoading(false)
+      if (invHistReqRef.current === myReq) setInvHistLoading(false)
     }
   }, [ctxTrim])
 

@@ -248,7 +248,7 @@ export default function NodeInfoPage() {
             pending_count: null,
             summary: null,
             hint: 'Could not load package probe (non-Linux UI build, or API error).',
-            error: pk.status === 'rejected' ? (pk.reason instanceof Error ? pk.reason.message : String(pk.reason)) : null,
+            error: pk.status === 'rejected' ? formatUserError(pk.reason) : null,
             reboot_required: false,
           })
         }

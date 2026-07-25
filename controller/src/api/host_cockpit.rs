@@ -77,6 +77,21 @@ pub async fn host_cockpit_action(
     Json(body): Json<CockpitActionBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
+    // This endpoint forwards `action` verbatim to the agent's host_libvirt_invoke RPC,
+    // which also serves destructive/host-wide actions (storage pool/volume deletion,
+    // network deletion, etc.) that the sibling /hosts/{id}/libvirt endpoint intentionally
+    // gates behind require_admin. Restrict this operator-level route to the cockpit.*
+    // host-configuration actions (firewalld, SELinux, tuned, NetworkManager, packagekit)
+    // plus the package install/remove actions the PackageKit panel drives through here,
+    // so it can't be used as a back door to those admin-only actions.
+    if !body.action.starts_with("cockpit.")
+        && body.action != "host.package.install"
+        && body.action != "host.package.remove"
+    {
+        return Err(ApiError::forbidden(
+            "this endpoint only accepts cockpit.* / host.package.* actions; other host actions require admin via /libvirt",
+        ));
+    }
     let (_, agent_addr) =
         crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, id)
             .await

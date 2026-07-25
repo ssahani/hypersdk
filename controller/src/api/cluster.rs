@@ -20,11 +20,21 @@ pub struct ClusterSummary {
     pub vm_count: i64,
     pub running_vms: i64,
     pub offline_hosts: i64,
-    pub settings: ClusterSettings,
+    /// Only populated for operator/admin callers — this mirrors the same
+    /// `ClusterSettings` payload that `get_settings` gates behind
+    /// `require_operator`, so a viewer hitting the dashboard summary must not
+    /// receive it either. Basic fleet counts above stay visible to all
+    /// authenticated roles since the platform welcome/dashboard views rely on
+    /// them for every role.
+    pub settings: Option<ClusterSettings>,
 }
 
-pub async fn get_cluster(State(state): State<AppState>) -> Result<Json<ClusterSummary>, ApiError> {
-    Ok(Json(build_cluster_summary(&state.pool).await?))
+pub async fn get_cluster(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+) -> Result<Json<ClusterSummary>, ApiError> {
+    let include_settings = require_operator(&actor).is_ok();
+    Ok(Json(build_cluster_summary(&state.pool, include_settings).await?))
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -76,7 +86,10 @@ pub async fn patch_settings(
     Ok(Json(settings))
 }
 
-async fn build_cluster_summary(pool: &SqlitePool) -> Result<ClusterSummary, ApiError> {
+async fn build_cluster_summary(
+    pool: &SqlitePool,
+    include_settings: bool,
+) -> Result<ClusterSummary, ApiError> {
     let row: (uuid::Uuid, String) =
         sqlx::query_as("SELECT id, name FROM clusters ORDER BY created_at LIMIT 1")
             .fetch_one(pool)
@@ -95,9 +108,15 @@ async fn build_cluster_summary(pool: &SqlitePool) -> Result<ClusterSummary, ApiE
         sqlx::query_scalar("SELECT COUNT(*) FROM hosts WHERE state = 'offline'")
             .fetch_one(pool)
             .await?;
-    let settings = drs::get_cluster_settings(pool)
-        .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let settings = if include_settings {
+        Some(
+            drs::get_cluster_settings(pool)
+                .await
+                .map_err(|e| ApiError::internal(e.to_string()))?,
+        )
+    } else {
+        None
+    };
     Ok(ClusterSummary {
         id: row.0.to_string(),
         name: row.1,
@@ -126,5 +145,5 @@ pub async fn patch_cluster(
             .execute(&state.pool)
             .await?;
     }
-    get_cluster(State(state)).await
+    get_cluster(State(state), Extension(actor)).await
 }

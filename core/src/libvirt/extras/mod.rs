@@ -2416,6 +2416,14 @@ pub fn set_timezone(tz: &str) -> Result<(), LibvirtError> {
             "Timezone contains invalid characters".to_string(),
         ));
     }
+    // This is passed as a bare trailing argv element to `timedatectl set-timezone
+    // <tz>` with no `--` separator, same as `set_hostname` above — reject a leading
+    // '-' so it can't be parsed as a timedatectl option instead of the zone name.
+    if tz.starts_with('-') {
+        return Err(LibvirtError::Invalid(
+            "Timezone must not start with '-'".to_string(),
+        ));
+    }
 
     let output = Command::new("timedatectl")
         .args(["set-timezone", tz])

@@ -590,6 +590,13 @@ pub fn rename_vm(conn: &Connect, name: &str, new_name: &str) -> Result<(), Libvi
 
 /// Inject Non-Maskable Interrupt (debug hung guests). Requires running or paused domain.
 pub fn inject_nmi(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
+    // Unlike every other name-taking function in this module (rename/clone/etc.),
+    // this one shells out to `virsh inject-nmi <name>` with `name` as the final
+    // bare argv element and no `--` separator. Validate up front so a caller that
+    // reaches this without going through an already-validated VM record (e.g. a
+    // future direct agent/gRPC entry point) can't smuggle a virsh flag in via a
+    // domain name starting with '-'.
+    crate::validate::validate_name(name)?;
     let domain = lookup_domain(conn, name)?;
     let info = domain
         .get_info()

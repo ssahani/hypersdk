@@ -620,10 +620,16 @@ pub fn check_hardware_compat(conn: &Connect, name: &str) -> Result<HardwareCompa
         .as_ref()
         .map(|x| caps_cpu_modes(x))
         .unwrap_or_default();
+    // Fail closed when the host's domain capabilities XML couldn't be fetched at
+    // all (get_domain_capabilities_xml failed, `caps_xml` is None): assume the
+    // feature is NOT supported rather than defaulting to "supported". The old
+    // `unwrap_or(true)` silently suppressed the tpm/uefi compat warnings below
+    // whenever capabilities were unavailable — the exact case where the operator
+    // most needs the warning, since compatibility genuinely could not be verified.
     let tpm_supported = caps_xml
         .as_ref()
         .map(|x| caps_feature_supported(x, "tpm"))
-        .unwrap_or(true);
+        .unwrap_or(false);
     let uefi_supported = caps_xml
         .as_ref()
         .map(|x| {
@@ -631,7 +637,7 @@ pub fn check_hardware_compat(conn: &Connect, name: &str) -> Result<HardwareCompa
                 || x.contains("firmware=\"efi\"")
                 || x.contains("<enum name='efi'")
         })
-        .unwrap_or(true);
+        .unwrap_or(false);
 
     let (cpu_mode, _) = parse_cpu_mode(&xml);
     let (tpm_value, _) = parse_tpm(&xml);

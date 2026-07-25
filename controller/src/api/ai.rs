@@ -1142,7 +1142,13 @@ pub async fn delete_ai_provider(
     let ok = ai::providers::delete_provider(&state.pool, id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    Ok(Json(serde_json::json!({ "deleted": ok })))
+    // Report the true outcome instead of an unconditional 200: a nonexistent
+    // id previously still came back as {"deleted": false} with a success
+    // status, masking the no-op from the caller.
+    if !ok {
+        return Err(ApiError::not_found("provider not found"));
+    }
+    Ok(Json(serde_json::json!({ "deleted": true })))
 }
 
 pub async fn list_ai_provider_models(
@@ -1258,7 +1264,13 @@ pub async fn delete_ai_prompt(
     let ok = ai::prompts::delete_prompt(&state.pool, id, &actor.username, &actor.role)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    Ok(Json(serde_json::json!({ "deleted": ok })))
+    // Report the true outcome instead of an unconditional 200: a nonexistent
+    // (or not-owned) id previously still came back as {"deleted": false}
+    // with a success status, masking the no-op from the caller.
+    if !ok {
+        return Err(ApiError::not_found("prompt not found or not owned by you"));
+    }
+    Ok(Json(serde_json::json!({ "deleted": true })))
 }
 
 pub async fn get_memory_settings(

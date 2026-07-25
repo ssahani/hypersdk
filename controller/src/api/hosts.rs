@@ -814,7 +814,14 @@ pub async fn host_lldp(
     Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<machina_core::libvirt::host_network::LldpInventory>, ApiError> {
-    require_admin(&actor)?;
+    // Read-only hardware/topology inventory is `require_operator` everywhere
+    // else in this file (list_hosts, get_host, get_host_gpus, get_host_detail)
+    // and in `topology.rs` (cluster/VM topology graphs) — only the destructive
+    // `delete_host` needs `require_admin`. LLDP neighbor data is no more
+    // sensitive than the rack/site placement already returned by `list_hosts`
+    // to any operator, so align it with that precedent instead of standing
+    // out as the one admin-only inventory read.
+    require_operator(&actor)?;
     let row: (String, String) = sqlx::query_as(
         "SELECT hostname, COALESCE(NULLIF(agent_console_addr, ''), agent_grpc_addr)
          FROM hosts WHERE id = ?",
