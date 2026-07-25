@@ -438,10 +438,20 @@ fn validate_install_iso_path(path: &str) -> Result<(), SpecError> {
     Ok(())
 }
 
-/// True if `addr` is empty, a loopback hostname, or parses as a loopback IP.
+/// True if `addr` is a loopback hostname or parses as a loopback IP. An empty
+/// string is deliberately NOT treated as loopback: `domain_xml_from_spec`
+/// embeds this value verbatim as `listen='{addr}'`, and libvirt/qemu resolve
+/// an empty/omitted listen address via `qemu.conf`'s `vnc_listen`/
+/// `spice_listen`, which on some hosts defaults to `0.0.0.0` — silently
+/// treating `""` as safe here would let a caller bypass the loopback-only
+/// default without ever setting `allow_public_listen`. This mirrors
+/// `core::validate::validate_graphics_listen`, which also rejects empty.
 fn is_loopback_listen(addr: &str) -> bool {
     let a = addr.trim();
-    if a.is_empty() || a.eq_ignore_ascii_case("localhost") {
+    if a.is_empty() {
+        return false;
+    }
+    if a.eq_ignore_ascii_case("localhost") {
         return true;
     }
     a.parse::<std::net::IpAddr>()
@@ -688,6 +698,18 @@ mod tests {
     fn validate_allows_loopback_graphics_listen() {
         let mut vm = VirtualMachine::new("vncvm", "2Gi");
         vm.spec.graphics.listen = "::1".into();
+        assert!(vm.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_empty_graphics_listen_without_opt_in() {
+        // An empty `listen` must NOT be silently treated as loopback: libvirt/qemu
+        // resolve an empty/omitted listen address via qemu.conf's vnc_listen/
+        // spice_listen, which can default to 0.0.0.0 on some hosts.
+        let mut vm = VirtualMachine::new("vncvm", "2Gi");
+        vm.spec.graphics.listen = "".into();
+        assert!(vm.validate().is_err());
+        vm.spec.graphics.allow_public_listen = true;
         assert!(vm.validate().is_ok());
     }
 }

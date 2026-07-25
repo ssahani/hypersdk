@@ -567,18 +567,13 @@ impl App {
             KeyCode::Char('a') => self.handle_network_pool_action("start").await,
             KeyCode::Char('z') => self.handle_network_pool_action("stop").await,
 
-            // Snapshot revert
+            // Snapshot revert — destructive (discards current disk state), so route
+            // through the same confirmation dialog as delete rather than firing on
+            // a single keystroke.
             KeyCode::Char('R') => {
                 if let Some((vm, snap)) = self.resolve_snapshot() {
-                    let r = self.client.revert_snapshot(&vm, &snap).await;
-                    self.report_cmd_result(
-                        r,
-                        &format!("Reverted '{vm}' to snapshot '{snap}'"),
-                        "revert-snapshot",
-                        &snap,
-                        true,
-                    )
-                    .await;
+                    self.state.confirm_dialog = Some(Self::revert_snapshot_dialog(&vm, &snap));
+                    self.state.input_mode = InputMode::Confirmation;
                 }
             }
 
@@ -1429,6 +1424,15 @@ impl App {
         }
     }
 
+    fn revert_snapshot_dialog(vm: &str, snap: &str) -> ConfirmationDialog {
+        ConfirmationDialog {
+            title: "Revert Snapshot".to_string(),
+            message: "This will discard the VM's current disk state and restore it to this snapshot.".to_string(),
+            resource_name: format!("{vm}/{snap}"),
+            action: format!("revert-snap:{vm}:{snap}"),
+        }
+    }
+
     fn batch_delete_dialog(&self) -> ConfirmationDialog {
         let count = self.state.selected_items.len();
         ConfirmationDialog {
@@ -1486,6 +1490,17 @@ impl App {
                 )
                 .await;
             }
+            ["revert-snap", vm_name, snap_name] => {
+                let r = self.client.revert_snapshot(vm_name, snap_name).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Reverted '{vm_name}' to snapshot '{snap_name}'"),
+                    "revert-snapshot",
+                    snap_name,
+                    true,
+                )
+                .await;
+            }
             ["delete-network", name] => {
                 let r = self.client.delete_network(name).await;
                 self.report_cmd_result(
@@ -1524,7 +1539,14 @@ impl App {
                     self.browse_pool_volumes_by_name(&pool_name).await;
                 }
             }
-            _ => {}
+            // A resource name containing ':' (unusual, but not rejected for names that
+            // predate machina's own validate_name checks) can make the `splitn(3, ':')`
+            // above yield an arity that doesn't match any arm here. Surface that instead
+            // of silently doing nothing after the user already confirmed the action.
+            _ => {
+                self.state.status_message =
+                    format!("Could not apply confirmed action '{action}' (unexpected format)");
+            }
         }
     }
 

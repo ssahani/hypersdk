@@ -933,7 +933,7 @@ build_rust() {
     if [ "$_build_rc" != "0" ]; then
         echo "⚠️  Last 80 lines of build log ($LOG_FILE):" >&2
         tail -80 "$LOG_FILE" >&2 || true
-        fail "Rust build failed (exit $\_build_rc). Full log: $LOG_FILE"
+        fail "Rust build failed (exit ${_build_rc}). Full log: $LOG_FILE"
     fi
 
     ok "Built: target/release/machina-daemon ($(du -h target/release/machina-daemon | cut -f1))"
@@ -1633,7 +1633,13 @@ MACHINA_BANNER
     local prev_arg=""
     for arg in "$@"; do
         case "$prev_arg" in
-            --bind)   BIND_HOST="$arg"; BIND_EXPLICIT=true; prev_arg=""; continue ;;
+            --bind)
+                # BIND_HOST is later spliced unquoted into the remote install.sh command
+                # line built in remote_deploy() (and into a local sed(1) pattern) — reject
+                # anything but host/IP characters up front so it can't inject shell
+                # metacharacters into the remote --remote SSH session or corrupt the sed.
+                [[ "$arg" =~ ^[A-Za-z0-9_.:-]+$ ]] || fail "--bind value contains invalid characters: $arg"
+                BIND_HOST="$arg"; BIND_EXPLICIT=true; prev_arg=""; continue ;;
             --remote) REMOTE_HOST="$arg"; prev_arg=""; continue ;;
         esac
         case "$arg" in

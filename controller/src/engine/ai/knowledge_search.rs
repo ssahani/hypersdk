@@ -20,6 +20,10 @@ pub struct KnowledgeSearchResult {
     pub hits: Vec<KnowledgeHit>,
 }
 
+fn escape_like(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+}
+
 pub async fn search(pool: &SqlitePool, query: &str) -> anyhow::Result<KnowledgeSearchResult> {
     let q = query.trim();
     let mut hits = Vec::new();
@@ -30,10 +34,10 @@ pub async fn search(pool: &SqlitePool, query: &str) -> anyhow::Result<KnowledgeS
         });
     }
 
-    let pattern = format!("%{q}%");
+    let pattern = format!("%{}%", escape_like(q));
 
     let vms: Vec<(uuid::Uuid, String, String)> = sqlx::query_as(
-        "SELECT id, name, observed_state FROM vms WHERE name LIKE ? OR EXISTS (SELECT 1 FROM json_each(COALESCE(tags,'[]')) WHERE value = ?) LIMIT 12",
+        "SELECT id, name, observed_state FROM vms WHERE name LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM json_each(COALESCE(tags,'[]')) WHERE value = ?) LIMIT 12",
     )
     .bind(&pattern)
     .bind(q)
@@ -51,7 +55,7 @@ pub async fn search(pool: &SqlitePool, query: &str) -> anyhow::Result<KnowledgeS
     }
 
     let hosts: Vec<(uuid::Uuid, String, String)> =
-        sqlx::query_as("SELECT id, hostname, state FROM hosts WHERE hostname LIKE ? LIMIT 8")
+        sqlx::query_as("SELECT id, hostname, state FROM hosts WHERE hostname LIKE ? ESCAPE '\\' LIMIT 8")
             .bind(&pattern)
             .fetch_all(pool)
             .await?;
@@ -67,7 +71,7 @@ pub async fn search(pool: &SqlitePool, query: &str) -> anyhow::Result<KnowledgeS
     }
 
     let apps: Vec<(uuid::Uuid, String)> = sqlx::query_as(
-        "SELECT id, name FROM application_groups WHERE name LIKE ? OR description LIKE ? LIMIT 8",
+        "SELECT id, name FROM application_groups WHERE name LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\' LIMIT 8",
     )
     .bind(&pattern)
     .bind(&pattern)
@@ -85,7 +89,7 @@ pub async fn search(pool: &SqlitePool, query: &str) -> anyhow::Result<KnowledgeS
     }
 
     let tasks: Vec<(uuid::Uuid, String, String)> = sqlx::query_as(
-        "SELECT id, operation, status FROM tasks WHERE operation LIKE ? OR status LIKE ? ORDER BY created_at DESC LIMIT 8",
+        "SELECT id, operation, status FROM tasks WHERE operation LIKE ? ESCAPE '\\' OR status LIKE ? ESCAPE '\\' ORDER BY created_at DESC LIMIT 8",
     )
     .bind(&pattern)
     .bind(&pattern)
@@ -103,7 +107,7 @@ pub async fn search(pool: &SqlitePool, query: &str) -> anyhow::Result<KnowledgeS
     }
 
     let events: Vec<(String, String)> = sqlx::query_as(
-        "SELECT kind, message FROM events WHERE kind LIKE ? OR message LIKE ? ORDER BY created_at DESC LIMIT 8",
+        "SELECT kind, message FROM events WHERE kind LIKE ? ESCAPE '\\' OR message LIKE ? ESCAPE '\\' ORDER BY created_at DESC LIMIT 8",
     )
     .bind(&pattern)
     .bind(&pattern)
@@ -121,7 +125,7 @@ pub async fn search(pool: &SqlitePool, query: &str) -> anyhow::Result<KnowledgeS
     }
 
     let audits: Vec<(String, String)> = sqlx::query_as(
-        "SELECT action, actor FROM audit_logs WHERE action LIKE ? OR actor LIKE ? ORDER BY created_at DESC LIMIT 6",
+        "SELECT action, actor FROM audit_logs WHERE action LIKE ? ESCAPE '\\' OR actor LIKE ? ESCAPE '\\' ORDER BY created_at DESC LIMIT 6",
     )
     .bind(&pattern)
     .bind(&pattern)

@@ -20,6 +20,10 @@ pub struct TerminalSuggestResult {
     pub notes: String,
 }
 
+fn escape_like(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+}
+
 pub async fn suggest(
     pool: &SqlitePool,
     vm_id: Option<Uuid>,
@@ -34,9 +38,12 @@ pub async fn suggest(
         .await?
     } else if let Some(name) = vm_name_hint {
         sqlx::query_as(
-            "SELECT id, name, observed_state, COALESCE(guest_tools_status, 'unknown') FROM vms WHERE name LIKE ? LIMIT 1",
+            "SELECT id, name, observed_state, COALESCE(guest_tools_status, 'unknown') FROM vms WHERE name LIKE ? ESCAPE '\\' LIMIT 1",
         )
-        .bind(name)
+        // Escape only — no wildcards added, this matches the caller-supplied
+        // name literally (case-insensitively) rather than as a substring, so
+        // a VM name containing `_` (common) isn't misread as a wildcard.
+        .bind(escape_like(name))
         .fetch_optional(pool)
         .await?
     } else {

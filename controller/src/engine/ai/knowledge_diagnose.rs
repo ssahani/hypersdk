@@ -20,13 +20,17 @@ pub struct KnowledgeDiagnosis {
     pub failed_task_count: i64,
 }
 
+fn escape_like(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+}
+
 pub async fn diagnose(pool: &SqlitePool, query: &str) -> anyhow::Result<KnowledgeDiagnosis> {
     let q = query.trim();
     let ql = q.to_lowercase();
-    let pattern = format!("%{q}%");
+    let pattern = format!("%{}%", escape_like(q));
 
     let related_vm_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM vms WHERE name LIKE ? OR EXISTS (SELECT 1 FROM json_each(COALESCE(tags,'[]')) WHERE value = ?)")
+        sqlx::query_scalar("SELECT COUNT(*) FROM vms WHERE name LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM json_each(COALESCE(tags,'[]')) WHERE value = ?)")
             .bind(&pattern)
             .bind(q)
             .fetch_one(pool)
@@ -34,7 +38,7 @@ pub async fn diagnose(pool: &SqlitePool, query: &str) -> anyhow::Result<Knowledg
             .unwrap_or(0);
 
     let failed_task_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM tasks WHERE status = 'failed' AND (operation LIKE ? OR created_at > datetime('now', '-7 days'))",
+        "SELECT COUNT(*) FROM tasks WHERE status = 'failed' AND (operation LIKE ? ESCAPE '\\' OR created_at > datetime('now', '-7 days'))",
     )
     .bind(&pattern)
     .fetch_one(pool)

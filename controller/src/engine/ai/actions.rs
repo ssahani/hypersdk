@@ -162,9 +162,6 @@ pub async fn approve_and_execute(
                 .map(|r| serde_json::json!({"message": r.message, "task_ids": r.task_ids}))
                 .map_err(|e| anyhow::anyhow!(e.message))
         }
-        "firewall_change" => Ok(serde_json::json!({
-            "message": "Firewall approval delegated to Zeus Firewall workflow"
-        })),
         "guest.sync_time" | "guest.fstrim" => {
             let vm_id = action
                 .object_ref
@@ -226,10 +223,20 @@ pub async fn approve_and_execute(
         // success even though nothing actually ran — reject explicitly instead
         // so the action is marked 'failed' and the operator knows to follow up
         // manually rather than trusting a false "done" status.
-        "create_vm" | "migrate_vm" | "vm.snapshot_quiesce" => Err(anyhow::anyhow!(
-            "No executor implemented for action type '{}' — this action cannot be auto-executed yet; perform it manually and reject/close this entry",
-            action.action_type
-        )),
+        //
+        // "firewall_change" belongs here too: real firewall approvals go
+        // through the dedicated `firewall_approvals` table/workflow
+        // (engine/zeus_firewall), which this handler never touches — an
+        // ai_actions row of this type had no executor at all, so the old
+        // branch claimed "delegated to Zeus Firewall workflow" and still
+        // marked it 'executed', reporting success for a change that never
+        // happened.
+        "create_vm" | "migrate_vm" | "vm.snapshot_quiesce" | "firewall_change" => {
+            Err(anyhow::anyhow!(
+                "No executor implemented for action type '{}' — this action cannot be auto-executed yet; perform it manually and reject/close this entry",
+                action.action_type
+            ))
+        }
         _ => Ok(serde_json::json!({"message": format!("Recorded approval for {}", action.label)})),
     };
 

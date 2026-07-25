@@ -886,13 +886,26 @@ impl LibvirtCtx {
                 "disk not found: {disk_path}"
             )));
         }
+        // `target_dev` reaches the `virsh` CLI below as a bare positional argument;
+        // unlike `vm_name` (constrained by the domain-lookup below) it was never
+        // validated, so a leading '-' (e.g. "--sourcetype") would be parsed by
+        // virsh as an option rather than the disk target. Restrict it to the
+        // charset real device targets (vda, sdb1, hdc, xvde...) actually use.
+        if target_dev.is_empty() || !target_dev.chars().all(|c| c.is_ascii_alphanumeric()) {
+            return Err(LibvirtError::Invalid(format!(
+                "invalid target device: {target_dev}"
+            )));
+        }
         // Hot-plug on a running domain: without --live the disk is only written to
         // persistent config (visible after reboot) while the op reports success,
-        // so callers wrongly believe it was live-attached.
-        let running = Domain::lookup_by_name(&self.conn, vm_name)
-            .ok()
-            .and_then(|d| d.is_active().ok())
-            .unwrap_or(false);
+        // so callers wrongly believe it was live-attached. This lookup also fails
+        // closed on a nonexistent `vm_name` instead of silently treating it as
+        // "not running" and handing the raw, unvalidated string to the `virsh`
+        // CLI as an argv token (a caller-controlled leading '-' there would be
+        // parsed by virsh as an option, not a domain name).
+        let dom = Domain::lookup_by_name(&self.conn, vm_name)
+            .map_err(|e| LibvirtError::NotFound(format!("VM '{vm_name}': {e}")))?;
+        let running = dom.is_active().unwrap_or(false);
         let mut args = vec![
             "attach-disk",
             vm_name,

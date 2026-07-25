@@ -77,30 +77,37 @@ chmod 600 "$OPENRC_OUT"
 
 if [[ -f "$CONFIG" ]]; then
   if grep -q '^\[openstack\]' "$CONFIG"; then
-  python3 <<PY
+  # CLOUD_NAME/REGION/PROJECT come from the sourced keystonerc (2nd CLI arg / RC file
+  # content — not fully trusted) and were previously interpolated straight into this
+  # Python source via a shell heredoc: a value containing `"""` or a newline could break
+  # out of the string literal and inject arbitrary Python, run as root. Pass them as
+  # argv instead so they're always plain data, never source code.
+  python3 - "$CONFIG" "$CLOUD_NAME" "$CLOUDS_YAML" "$REGION" "$PROJECT" <<'PY'
 from pathlib import Path
-import re
-cfg = Path("$CONFIG").read_text()
-block = """[openstack]
-enabled = true
-cloud_name = "${CLOUD_NAME}"
-clouds_yaml_path = "${CLOUDS_YAML}"
-connect_timeout_secs = 30
-use_env_auth = false
-upload_enabled = true
-upload_timeout_secs = 3600
-default_os_cloud = "${CLOUD_NAME}"
-default_boot_instance = false
-default_flavor = "m1.tiny"
-default_network = "private"
-region = "${REGION}"
-project_name = "${PROJECT}"
-"""
+import re, sys
+cfg_path, cloud_name, clouds_yaml, region, project = sys.argv[1:6]
+cfg = Path(cfg_path).read_text()
+block = (
+    "[openstack]\n"
+    "enabled = true\n"
+    f"cloud_name = {cloud_name!r}\n"
+    f"clouds_yaml_path = {clouds_yaml!r}\n"
+    "connect_timeout_secs = 30\n"
+    "use_env_auth = false\n"
+    "upload_enabled = true\n"
+    "upload_timeout_secs = 3600\n"
+    f"default_os_cloud = {cloud_name!r}\n"
+    "default_boot_instance = false\n"
+    "default_flavor = \"m1.tiny\"\n"
+    "default_network = \"private\"\n"
+    f"region = {region!r}\n"
+    f"project_name = {project!r}\n"
+)
 if re.search(r'^\[openstack\]', cfg, re.M):
     cfg = re.sub(r'(?ms)^\[openstack\].*?(?=^\[|\Z)', block + "\n", cfg)
 else:
     cfg = cfg.rstrip() + "\n\n" + block + "\n"
-Path("$CONFIG").write_text(cfg)
+Path(cfg_path).write_text(cfg)
 PY
   else
     cat >>"$CONFIG" <<EOF

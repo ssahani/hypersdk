@@ -42,6 +42,10 @@ pub struct DiagnosisReport {
     pub recommended_actions: Vec<String>,
 }
 
+fn escape_like(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+}
+
 async fn resolve_vm(
     pool: &SqlitePool,
     vm_id: Option<Uuid>,
@@ -58,9 +62,13 @@ async fn resolve_vm(
     }
     if let Some(name) = vm_name.filter(|n| !n.is_empty()) {
         let row: (Uuid, String, Option<Uuid>, i64, i32, String) = sqlx::query_as(
-            "SELECT id, name, host_id, memory_mib, vcpus, observed_state FROM vms WHERE name LIKE ? LIMIT 1",
+            "SELECT id, name, host_id, memory_mib, vcpus, observed_state FROM vms WHERE name LIKE ? ESCAPE '\\' LIMIT 1",
         )
-        .bind(name)
+        // No wildcards added — this LIKE is used for case-insensitive exact
+        // match against a caller-supplied name, so only escape the input's
+        // own `%`/`_` (common in real VM names) to stop it being
+        // misinterpreted as a wildcard rather than a literal character.
+        .bind(escape_like(name))
         .fetch_one(pool)
         .await?;
         return Ok(row);

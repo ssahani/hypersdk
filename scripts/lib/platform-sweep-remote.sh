@@ -3,7 +3,19 @@
 set -euo pipefail
 
 CONTROLLER="${MACHINA_CONTROLLER_URL:-http://127.0.0.1:5093}"
-AUTH="${MACHINA_PLATFORM_AUTH:-admin:admin}"
+# MACHINA_PLATFORM_AUTH (daemon->controller proxy credential) is NOT the controller's
+# own admin account, and "admin:admin" only authenticates when the controller was
+# started with MACHINA_ALLOW_DEV_SECRETS=1. On a real install the bootstrap admin
+# password is the random MACHINA_ADMIN_PASSWORD generated into /etc/default/machina-platform
+# by install-platform.sh — without reading it, every curl_api call below 401s and the
+# whole sweep (VM cleanup, sync, autostart) silently no-ops behind `|| warn ...`.
+AUTH="${MACHINA_PLATFORM_AUTH:-}"
+if [ -z "$AUTH" ] && [ -r /etc/default/machina-platform ]; then
+  # shellcheck disable=SC1091
+  . /etc/default/machina-platform
+  [ -n "${MACHINA_ADMIN_PASSWORD:-}" ] && AUTH="${MACHINA_ADMIN_USER:-admin}:${MACHINA_ADMIN_PASSWORD}"
+fi
+AUTH="${AUTH:-admin:admin}"
 
 info() { echo "ℹ️  $*"; }
 ok() { echo "✅ $*"; }

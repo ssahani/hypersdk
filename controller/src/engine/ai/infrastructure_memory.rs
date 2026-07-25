@@ -115,18 +115,22 @@ pub struct SimilarIncidentsResult {
     pub summary: String,
 }
 
+fn escape_like(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+}
+
 pub async fn similar(
     pool: &SqlitePool,
     query: &str,
     limit: i64,
 ) -> anyhow::Result<SimilarIncidentsResult> {
     let cap = limit.clamp(1, 20);
-    let pattern = format!("%{}%", query.trim());
+    let pattern = format!("%{}%", escape_like(query.trim()));
 
     let rows: Vec<(DateTime<Utc>, String, String, Option<serde_json::Value>)> = sqlx::query_as(
         "SELECT strftime('%Y-%m-%dT%H:%M:%SZ', created_at), action, actor, detail FROM audit_logs
-         WHERE action LIKE ? OR actor LIKE ?
-            OR detail LIKE ?
+         WHERE action LIKE ? ESCAPE '\\' OR actor LIKE ? ESCAPE '\\'
+            OR detail LIKE ? ESCAPE '\\'
          ORDER BY created_at DESC LIMIT ?",
     )
     .bind(&pattern)

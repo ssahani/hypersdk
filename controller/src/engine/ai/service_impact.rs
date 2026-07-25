@@ -19,15 +19,19 @@ pub struct ServiceImpactResult {
     pub recommendations: Vec<String>,
 }
 
+fn escape_like(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+}
+
 pub async fn simulate(
     pool: &SqlitePool,
     q: &ServiceImpactQuery,
 ) -> anyhow::Result<ServiceImpactResult> {
     let name = q.service.trim();
-    let pattern = format!("%{name}%");
+    let pattern = format!("%{}%", escape_like(name));
 
     let group_id: Option<uuid::Uuid> =
-        sqlx::query_scalar("SELECT id FROM application_groups WHERE name LIKE ? LIMIT 1")
+        sqlx::query_scalar("SELECT id FROM application_groups WHERE name LIKE ? ESCAPE '\\' LIMIT 1")
             .bind(&pattern)
             .fetch_optional(pool)
             .await?;
@@ -56,7 +60,7 @@ pub async fn simulate(
         }
     } else {
         let vms: Vec<String> =
-            sqlx::query_scalar("SELECT name FROM vms WHERE name LIKE ? LIMIT 12")
+            sqlx::query_scalar("SELECT name FROM vms WHERE name LIKE ? ESCAPE '\\' LIMIT 12")
                 .bind(&pattern)
                 .fetch_all(pool)
                 .await

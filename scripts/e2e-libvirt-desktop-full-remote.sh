@@ -80,15 +80,21 @@ bootstrap_guest_network_remote() {
 
 inject_ssh_key_remote() {
   [[ -f "$SSH_KEY" ]] || return 1
-  local pubkey payload
+  local pubkey payload remote_script quoted_script
   pubkey="$(ssh-keygen -y -f "$SSH_KEY" 2>/dev/null | tr -d '\n')"
   [[ -n "$pubkey" ]] || return 1
   payload="$(python3 -c 'import json,sys; print(json.dumps({"execute":"guest-ssh-add-authorized-keys","arguments":{"username":"ubuntu","keys":[sys.argv[1]]}}))' "$pubkey")"
-  $SSH "bash -lc '
-    VM=\"${VM_NAME}\"
-    URI=\"${LIBVIRT_URI}\"
-    virsh -c \"\$URI\" qemu-agent-command \"\$VM\" $(printf '%q' "$payload") | grep -q \"\\\"return\\\"\"
-  '" 2>/dev/null
+  # payload embeds the pubkey's comment field verbatim (attacker/user-controlled if
+  # SSH_KEY points at an arbitrary keyfile) — do NOT %q-escape it and then splice
+  # that into a hand-written single-quoted wrapper: a literal "'" surviving the %q
+  # escaping (rendered as \') closes the wrapper early and lets the remainder be
+  # re-parsed as shell syntax on the remote host (see e2e-guest-network.sh's
+  # e2e_guest_qemu_exec_remote for the identical bug and full explanation). Escape
+  # each dynamic value once, then %q-escape the whole composed command once more
+  # so it survives as a single literal argument to `bash -lc`.
+  remote_script="virsh -c $(printf '%q' "$LIBVIRT_URI") qemu-agent-command $(printf '%q' "$VM_NAME") $(printf '%q' "$payload") | grep -q '\"return\"'"
+  quoted_script="$(printf '%q' "$remote_script")"
+  $SSH "bash -lc $quoted_script" 2>/dev/null
 }
 
 echo "══════════════════════════════════════════"

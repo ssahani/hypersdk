@@ -68,10 +68,14 @@ e2e_login() {
     return 1
   fi
 
-  local r expected_source
-  r="$(${E2E_CURL} -c "$E2E_COOKIE" -X POST "${E2E_BASE}/api/v1/auth/login" \
+  local r expected_source login_payload
+  # Feed the JSON body (password included) to curl over stdin rather than as a -d
+  # argument: -d "...password..." would put the plaintext password in this
+  # process's argv, visible to any local user running `ps` while curl runs.
+  login_payload="{\"username\":\"${E2E_LOGIN_USER}\",\"password\":\"${E2E_LOGIN_PASSWORD}\"}"
+  r="$(printf '%s' "$login_payload" | ${E2E_CURL} -c "$E2E_COOKIE" -X POST "${E2E_BASE}/api/v1/auth/login" \
     -H "Content-Type: application/json" \
-    -d "{\"username\":\"${E2E_LOGIN_USER}\",\"password\":\"${E2E_LOGIN_PASSWORD}\"}")"
+    --data-binary @-)"
   echo "  $r"
   e2e_assert_json_key "$r" "status" "login returns status"
   if ! echo "$r" | grep -q '"status":"ok"'; then

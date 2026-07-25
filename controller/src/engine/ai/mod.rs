@@ -140,14 +140,16 @@ pub async fn build_copilot_base(
                 }
             }
         } else if let Ok(Some((id, name))) = sqlx::query_as::<_, (Uuid, String)>(
-            "SELECT id, name FROM vms WHERE name LIKE ? LIMIT 1",
+            "SELECT id, name FROM vms WHERE name LIKE ? ESCAPE '\\' LIMIT 1",
         )
         .bind(format!(
             "%{}%",
-            message
-                .split_whitespace()
-                .find(|w| w.len() > 2)
-                .unwrap_or("")
+            escape_like(
+                message
+                    .split_whitespace()
+                    .find(|w| w.len() > 2)
+                    .unwrap_or("")
+            )
         ))
         .fetch_optional(pool)
         .await
@@ -467,6 +469,14 @@ pub mod terminal;
 pub mod troubleshoot;
 pub mod worker;
 pub mod zeus_summary;
+
+/// Escape SQLite LIKE metacharacters in user-supplied text before it is
+/// wrapped in `%...%` and bound to a `LIKE ? ESCAPE '\\'` clause — otherwise
+/// a chat message containing `%` or `_` silently widens the match (e.g. `_`
+/// matches any single character) and can select an unintended VM.
+fn escape_like(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+}
 
 fn parse_reach_query(message: &str) -> Option<(String, String, Option<i32>)> {
     let ml = message.to_lowercase();

@@ -127,6 +127,10 @@ pub async fn unified(pool: &SqlitePool) -> anyhow::Result<PredictionsReport> {
     })
 }
 
+fn escape_like(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+}
+
 /// Open ai_incidents for high/critical predictions within 72h horizon (deduped by resource).
 pub async fn promote_critical(pool: &SqlitePool, predictions: &[Prediction]) -> anyhow::Result<()> {
     use super::incident_commander::{self, CreateIncidentRequest};
@@ -137,16 +141,21 @@ pub async fn promote_critical(pool: &SqlitePool, predictions: &[Prediction]) -> 
         if !urgent {
             continue;
         }
+        // Resource names routinely contain `_` (e.g. "db_primary") which SQLite
+        // LIKE treats as a single-char wildcard when unescaped — that made this
+        // dedup check match unrelated resources (e.g. "db-primary" vs
+        // "dbXprimary") and silently skip opening a real incident.
+        let pattern = format!("%{}%", escape_like(&p.resource));
         let exists: bool = sqlx::query_scalar(
             "SELECT EXISTS(
                 SELECT 1 FROM ai_incidents
                 WHERE status IN ('open', 'investigating')
-                  AND (title LIKE ? OR summary LIKE ? OR affected_resources LIKE ?)
+                  AND (title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' OR affected_resources LIKE ? ESCAPE '\\')
             )",
         )
-        .bind(format!("%{}%", p.resource))
-        .bind(format!("%{}%", p.resource))
-        .bind(format!("%{}%", p.resource))
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&pattern)
         .fetch_one(pool)
         .await
         .unwrap_or(false);

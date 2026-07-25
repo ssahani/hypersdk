@@ -22,9 +22,19 @@ polkit.addRule(function(action, subject) {
     if (!program) {
         return polkit.Result.NOT_HANDLED;
     }
-    var base = program.replace(/^.*\//, "");
+    // Exact match only -- core/src/run_as_user.rs::program_allowed() rejects any
+    // path separator, so machina itself only ever asks pkexec to resolve a bare
+    // command name (e.g. "useradd") via pkexec's own trusted PATH, which yields an
+    // absolute path under one of the standard bin dirs here. Extracting just the
+    // basename (as this rule used to) would let anyone else invoking pkexec as the
+    // "machina"/"root" subject smuggle an attacker-controlled absolute path (e.g.
+    // "/tmp/evil/useradd") past this check, since its basename still matches the
+    // allow-list -- defeating the whole point of this rule being a separate,
+    // independent trust boundary from the Rust-side check. Require the full
+    // resolved path to be exactly one of the known-good locations instead.
     var allowed = ["useradd", "userdel", "usermod", "homectl", "chpasswd", "id", "getent"];
-    if (allowed.indexOf(base) === -1) {
+    var m = program.match(/^\/(usr\/)?(s?bin)\/([a-zA-Z0-9_-]+)$/);
+    if (!m || allowed.indexOf(m[3]) === -1) {
         return polkit.Result.NOT_HANDLED;
     }
     return polkit.Result.YES;

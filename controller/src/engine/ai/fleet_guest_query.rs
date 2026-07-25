@@ -131,11 +131,15 @@ fn deterministic_summary(query: &str, matched: usize, scanned: usize) -> Summary
     }
 }
 
+fn escape_like(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+}
+
 async fn resolve_vm_ids(pool: &SqlitePool, req: &FleetGuestQueryRequest) -> anyhow::Result<Vec<Uuid>> {
     if !req.vm_ids.is_empty() {
         return Ok(req.vm_ids.clone());
     }
-    let pattern = format!("%{}%", req.query.trim());
+    let pattern = format!("%{}%", escape_like(req.query.trim()));
     let rows: Vec<(Uuid,)> = sqlx::query_as(
         "SELECT id FROM vms
          WHERE COALESCE(inventory_source, 'libvirt') = 'libvirt'
@@ -155,7 +159,7 @@ async fn resolve_vm_ids(pool: &SqlitePool, req: &FleetGuestQueryRequest) -> anyh
         let rows: Vec<(Uuid,)> = sqlx::query_as(
             "SELECT id FROM vms
              WHERE COALESCE(inventory_source, 'libvirt') = 'libvirt'
-               AND name LIKE ?
+               AND name LIKE ? ESCAPE '\\'
              LIMIT 50",
         )
         .bind(&pattern)

@@ -43,6 +43,7 @@ api() {
 }
 
 DEMO_VM="demo-vm-$$"
+DEMO_FAIL=0
 
 echo ""
 echo "🚀 machina API Demo"
@@ -184,6 +185,7 @@ if echo "$result" | grep -qF "Invalid migration URI"; then
     echo "  ✅ BLOCKED: $result"
 else
     echo "  ❌ NOT BLOCKED: $result"
+    DEMO_FAIL=$((DEMO_FAIL + 1))
 fi
 sleep 1
 
@@ -197,6 +199,7 @@ if echo "$result" | grep -qF "capacity_gb must be"; then
     echo "  ✅ BLOCKED: $result"
 else
     echo "  ❌ NOT BLOCKED: $result"
+    DEMO_FAIL=$((DEMO_FAIL + 1))
 fi
 sleep 1
 
@@ -225,7 +228,11 @@ step "Final VM List"
 api GET /vms
 
 echo ""
-echo "✅ Demo complete!"
+if [ "$DEMO_FAIL" -eq 0 ]; then
+  echo "✅ Demo complete!"
+else
+  echo "❌ Demo complete with ${DEMO_FAIL} security validation(s) NOT BLOCKED (see above)"
+fi
 echo ""
 if declare -F pkg_access_url >/dev/null 2>&1; then
   echo "  Web UI:  $(pkg_access_url https 5092) ($(pkg_primary_host_label))"
@@ -235,3 +242,4 @@ fi
 echo "  🖥️  TUI:     machina"
 echo "  🔗 API:     ${API}/health"
 echo ""
+[ "$DEMO_FAIL" -eq 0 ]

@@ -16,7 +16,8 @@
 # Override the VM it exercises with VM=<name> (default: win10-msedge).
 set -uo pipefail
 
-HOST="${1:?host}"; USER="${2:?user}"; PASS="${3:?pass}"
+HOST="${1:?host}"; USER="${2:?user}"; PASS="${3:-${VSPASS:-}}"
+[ -n "$PASS" ] || { echo "pass required (arg 3, or set VSPASS to avoid it appearing in argv/ps)" >&2; exit 1; }
 BASE="https://${HOST}:5092"
 API="${BASE}/api/v1"
 JAR="$(mktemp)"; TMP="$(mktemp -d)"
@@ -31,8 +32,12 @@ c() { curl -sk -b "$JAR" "$@"; }
 code() { curl -sk -b "$JAR" -o "$TMP/body" -w '%{http_code}' "$@"; }
 
 section "auth"
-lc=$(curl -sk -c "$JAR" -o "$TMP/l" -w '%{http_code}' -X POST "$API/auth/login" \
-  -H 'Content-Type: application/json' -d "{\"username\":\"$USER\",\"password\":\"$PASS\"}")
+# Login payload (password included) is fed to curl over stdin rather than as a -d
+# argument: passing it inline would put the plaintext password in this process's
+# argv, visible to any local user running `ps` while curl runs.
+lc=$(printf '{"username":"%s","password":"%s"}' "$USER" "$PASS" \
+  | curl -sk -c "$JAR" -o "$TMP/l" -w '%{http_code}' -X POST "$API/auth/login" \
+  -H 'Content-Type: application/json' --data-binary @-)
 [ "$lc" = 200 ] && ok "login" || { bad "login" "HTTP $lc"; exit 1; }
 role=$(c "$API/auth/session" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("role"))')
 [ "$role" = admin ] && ok "role=admin" || bad "role" "got $role"

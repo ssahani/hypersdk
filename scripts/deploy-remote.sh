@@ -571,6 +571,15 @@ if ((${#INSTALL_ARGS[@]} > 0)); then
     for a in "${INSTALL_ARGS[@]}"; do REMOTE_INST+=" $(printf '%q' "$a")"; done
 fi
 
+# MACHINA_LICENSE_KEY is spliced into remote command strings below (three call sites).
+# Shell-quote it (like REMOTE_INST above) so a key containing quotes/backticks/$(...)
+# can't break out of the `export MACHINA_LICENSE_KEY="..."` string and inject commands
+# into the `sudo -E bash install.sh` invocation on the remote host.
+LICENSE_KEY_EXPORT=""
+if [[ -n "${MACHINA_LICENSE_KEY:-}" ]]; then
+    LICENSE_KEY_EXPORT="export MACHINA_LICENSE_KEY=$(printf '%q' "$MACHINA_LICENSE_KEY"); "
+fi
+
 QUICK_OPTS=" --no-tests --skip-build"
 [[ -n "$BIND" ]] && QUICK_OPTS+=" --bind $BIND"
 $OPEN_FW && QUICK_OPTS+=" --open-firewall"
@@ -586,7 +595,7 @@ if [ ! -x target/release/machina-daemon ] || [ ! -f web/dist/index.html ]; then
   echo 'Missing target/release/machina-daemon or web/dist — run --quick once first' >&2
   exit 1
 fi
-${MACHINA_LICENSE_KEY:+export MACHINA_LICENSE_KEY=\"$MACHINA_LICENSE_KEY\"; }sudo -E bash install.sh${QUICK_OPTS}
+${LICENSE_KEY_EXPORT}sudo -E bash install.sh${QUICK_OPTS}
 for bin in machina-controller machina-agent; do
   if [ -x target/release/\$bin ]; then
     sudo install -m755 target/release/\$bin /usr/local/bin/\$bin
@@ -604,7 +613,7 @@ export CARGO_BUILD_JOBS=${REMOTE_CARGO_BUILD_JOBS}
 cd $REMOTE_DIR
 sudo bash install.sh --deps-only --no-tests
 make release web
-${MACHINA_LICENSE_KEY:+export MACHINA_LICENSE_KEY=\"$MACHINA_LICENSE_KEY\"; }sudo -E bash install.sh${QUICK_OPTS}
+${LICENSE_KEY_EXPORT}sudo -E bash install.sh${QUICK_OPTS}
 for bin in machina-controller machina-agent; do
   if [ -x target/release/\$bin ]; then
     sudo install -m755 target/release/\$bin /usr/local/bin/\$bin
@@ -629,7 +638,7 @@ else
     ssh_r_bash "$REMOTE" "
 set -euo pipefail
 cd $REMOTE_DIR
-${MACHINA_LICENSE_KEY:+export MACHINA_LICENSE_KEY=\"$MACHINA_LICENSE_KEY\"; }sudo -E bash install.sh${OPTS}${REMOTE_INST}
+${LICENSE_KEY_EXPORT}sudo -E bash install.sh${OPTS}${REMOTE_INST}
 " || die "install failed"
 fi
 
