@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useEffect, useRef } from 'react'
-import { endConsoleHubSession, uploadConsoleSessionReplay } from '../api/platform'
+import { uploadConsoleSessionReplay } from '../api/platform'
 
 function pickRecorderMime(): string | undefined {
   if (typeof MediaRecorder === 'undefined') return undefined
@@ -56,8 +56,10 @@ export function useConsoleSessionRecorder({ canvas, sessionId, recordingActive, 
         const blob = new Blob(chunksRef.current, { type: mime.split(';')[0] })
         if (blob.size === 0) return
         try {
+          // Ending the session itself (regardless of recording) is handled
+          // by MachineCockpit's session-lifecycle effect — this hook is only
+          // responsible for capturing and uploading the replay.
           await uploadConsoleSessionReplay(sid, blob)
-          await endConsoleHubSession(sid).catch(() => undefined)
         } catch {
           /* best-effort audit capture */
         }

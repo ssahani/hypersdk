@@ -148,25 +148,32 @@ pub async fn run_vm_health_check(pool: &SqlitePool, vm_id: Uuid) -> anyhow::Resu
         ));
     }
 
-    let snap_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM snapshot_records WHERE vm_id = ?")
-            .bind(vm_id)
-            .fetch_one(pool)
-            .await
-            .unwrap_or(0);
-
+    // Fail closed: defaulting a query error to 0 (as this used to) makes an unverifiable
+    // snapshot count look identical to "no snapshots", which silently PASSES this check
+    // (0 <= 5) instead of surfacing that we couldn't actually check it.
     total += 1;
-    if snap_count <= 5 {
-        passed += 1;
-    } else {
-        issues.push(issue(
+    match sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM snapshot_records WHERE vm_id = ?")
+        .bind(vm_id)
+        .fetch_one(pool)
+        .await
+    {
+        Ok(snap_count) if snap_count <= 5 => passed += 1,
+        Ok(snap_count) => issues.push(issue(
             "snapshots",
             "warning",
             format!("{snap_count} snapshots — consolidate old snapshots"),
             "Delete or consolidate snapshots older than 30 days",
             Some("open_snapshots"),
             Some("Manage snapshots"),
-        ));
+        )),
+        Err(e) => issues.push(issue(
+            "snapshots_unknown",
+            "warning",
+            format!("Could not verify snapshot count: {e}"),
+            "Retry the health check; if this persists, check controller DB connectivity",
+            None,
+            None,
+        )),
     }
 
     let cpu_pressure: Option<f32> =

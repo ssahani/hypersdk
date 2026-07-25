@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { ShieldAlert, X } from 'lucide-react'
-import { breakGlassConsoleSession } from '../../api/platform'
+import { breakGlassConsoleSession, type ConsoleHubSessionResponse } from '../../api/platform'
 import { getVmDoctor, type VmDoctorReport } from '../../api/ai'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
@@ -47,6 +47,12 @@ type Props = {
   portForwardRules?: VmPortForwardRule[]
   readOnly?: boolean
   onExposeSsh?: () => void
+  /** Called with the real session response once a break-glass session is
+   * successfully created, so the owning page can lift it into `session`
+   * state — without this, `recording_enabled` from the response never
+   * reaches useConsoleAccessPolicy/useConsoleSessionRecorder and the
+   * break-glass session is never actually recorded client-side. */
+  onSessionStart?: (session: ConsoleHubSessionResponse) => void
 }
 
 const TABS: CommandCenterTab[] = ['Overview', 'Health', 'Events', 'AI']
@@ -77,6 +83,7 @@ export default function CommandCenterPanel({
   portForwardRules = [],
   readOnly = false,
   onExposeSsh,
+  onSessionStart,
 }: Props) {
   const toast = useToastContext()
   const [doctor, setDoctor] = useState<VmDoctorReport | null>(null)
@@ -204,9 +211,10 @@ export default function CommandCenterPanel({
                     onClick={() => {
                       setBreakGlassBusy(true)
                       void breakGlassConsoleSession(vmId, { protocol: activeProtocol, reason: breakGlassReason.trim() })
-                        .then(() => {
+                        .then((res) => {
                           toast.success('Break-glass session started — recording enabled')
                           setBreakGlassReason('')
+                          onSessionStart?.(res)
                           onPlanRefresh?.()
                         })
                         .catch((e: unknown) => toast.error(formatUserError(e)))

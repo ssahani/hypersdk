@@ -135,6 +135,15 @@ fn validate_login_username(name: &str) -> Result<(), LibvirtError> {
             "Invalid username characters (allowed: letters, digits, _, -, .)".into(),
         ));
     }
+    // Some call sites pass the username as a bare positional argv element to
+    // `homectl`/`id` without a preceding `--` separator; a leading dash would let
+    // it be parsed as an option (e.g. `homectl create --uid=0 <name>`-style flag
+    // injection) instead of the account name.
+    if name.starts_with('-') {
+        return Err(LibvirtError::Invalid(
+            "Username must not start with '-'".into(),
+        ));
+    }
     Ok(())
 }
 

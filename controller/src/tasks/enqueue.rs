@@ -35,17 +35,15 @@ pub async fn enqueue_task(
     };
     if let Err(e) = state.task_bus.publish("machina.tasks", &msg).await {
         // The task row was already committed as 'pending'. If the bus publish fails no worker
-        // will ever pick it up, so mark it terminally failed instead of leaving it stuck.
-        if let Err(mark_err) = sqlx::query(
-            "UPDATE tasks SET status = 'failed', message = ? WHERE id = ? AND status = 'pending'",
+        // will ever pick it up, so mark it terminally failed instead of leaving it stuck. Route
+        // through the same finalize helper every other terminal failure uses — a bare status
+        // update here would skip set_vm_error/webhook dispatch for this failure mode.
+        crate::tasks::worker::finalize_terminal_task_failure(
+            &state.pool,
+            &msg,
+            &format!("task bus publish failed: {e}"),
         )
-        .bind(format!("task bus publish failed: {e}"))
-        .bind(task_id)
-        .execute(&state.pool)
-        .await
-        {
-            tracing::error!(task_id = %task_id, "failed to mark task failed after publish error: {mark_err:#}");
-        }
+        .await;
         return Err(ApiError::internal(e.to_string()));
     }
     Ok(task_id)

@@ -22,6 +22,13 @@ fn mask_secret(value: &str) -> String {
     "***".into()
 }
 
+/// Sentinel returned in place of stored SAML IdP metadata XML (never echoed back in
+/// full — it can be large and isn't rendered as a plain "***" like other secrets).
+/// `apply_saml_patch` must compare against this same literal so that a client which
+/// round-trips the view unchanged doesn't clobber the stored metadata with the
+/// placeholder text.
+const SAML_METADATA_XML_PLACEHOLDER: &str = "[stored — paste to replace]";
+
 fn role_label(role: OidcDefaultRole) -> &'static str {
     match role {
         OidcDefaultRole::Admin => "admin",
@@ -228,7 +235,7 @@ pub fn saml_settings_view_from_config(cfg: &MachinaConfig) -> SamlSettingsView {
         idp_metadata_xml: if saml.idp_metadata_xml.trim().is_empty() {
             String::new()
         } else {
-            "[stored — paste to replace]".into()
+            SAML_METADATA_XML_PLACEHOLDER.into()
         },
         idp_metadata_xml_set: !saml.idp_metadata_xml.trim().is_empty(),
         name_id_format: saml.name_id_format.clone(),
@@ -260,7 +267,7 @@ pub fn apply_saml_patch(cfg: &mut MachinaConfig, patch: &SamlSettingsPatch) {
         saml.idp_metadata_url = v.clone();
     }
     if let Some(v) = &patch.idp_metadata_xml {
-        if v != "***" {
+        if v != SAML_METADATA_XML_PLACEHOLDER {
             saml.idp_metadata_xml = v.clone();
         }
     }

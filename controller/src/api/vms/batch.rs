@@ -13,6 +13,24 @@ use crate::tasks::enqueue::enqueue_task;
 
 use super::{delete_vm_inventory_row, power_action};
 
+/// Cap on VMs per batch request — matches the `.take(64)` bound used by the
+/// sibling read-only batch endpoints (`batch_vm_parity_summary`,
+/// `batch_vm_guest_ips` in `vms/mod.rs`). Unlike those, these handlers enqueue
+/// a task (or a destructive delete) per VM, so an unbounded `vm_ids` list is a
+/// resource-exhaustion / mass-action vector; reject outright rather than
+/// silently truncating so the caller knows to split the request.
+const MAX_BATCH_VM_IDS: usize = 64;
+
+fn check_batch_size(vm_ids: &[Uuid]) -> Result<(), ApiError> {
+    if vm_ids.len() > MAX_BATCH_VM_IDS {
+        return Err(ApiError::bad_request(format!(
+            "batch request exceeds maximum of {MAX_BATCH_VM_IDS} VMs (got {})",
+            vm_ids.len()
+        )));
+    }
+    Ok(())
+}
+
 #[derive(Debug, Deserialize)]
 pub struct BatchVmPowerBody {
     pub vm_ids: Vec<Uuid>,
@@ -41,6 +59,7 @@ pub async fn batch_vm_power(
     Json(body): Json<BatchVmPowerBody>,
 ) -> Result<Json<BatchVmPowerResponse>, ApiError> {
     require_operator(&actor)?;
+    check_batch_size(&body.vm_ids)?;
     let action = body.action.as_str();
     if !matches!(action, "start" | "stop" | "shutdown" | "reboot" | "pause" | "resume") {
         return Err(ApiError::bad_request("invalid batch power action"));
@@ -96,6 +115,7 @@ pub async fn batch_vm_snapshot(
     Json(body): Json<BatchVmSnapshotBody>,
 ) -> Result<Json<BatchVmPowerResponse>, ApiError> {
     require_operator(&actor)?;
+    check_batch_size(&body.vm_ids)?;
     machina_spec::validate_name(&body.name).map_err(|e| ApiError::bad_request(e.to_string()))?;
     let mut results = Vec::with_capacity(body.vm_ids.len());
     for (i, vm_id) in body.vm_ids.into_iter().enumerate() {
@@ -183,6 +203,7 @@ pub async fn batch_vm_delete(
     Json(body): Json<BatchVmDeleteBody>,
 ) -> Result<Json<BatchVmPowerResponse>, ApiError> {
     require_operator(&actor)?;
+    check_batch_size(&body.vm_ids)?;
     let require: bool = sqlx::query_scalar(
         "SELECT require_vm_delete_approval FROM clusters ORDER BY created_at LIMIT 1",
     )

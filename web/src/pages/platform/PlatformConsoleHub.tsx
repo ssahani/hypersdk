@@ -345,6 +345,7 @@ export default function PlatformConsoleHub() {
         onPlanRefresh={() => void load()}
         experienceMode={experienceMode}
         onExperienceModeChange={setExperienceMode}
+        onSessionStart={setSession}
       />
     </div>
   )

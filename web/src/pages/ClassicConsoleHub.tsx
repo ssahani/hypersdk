@@ -46,6 +46,14 @@ function toPlatformSession(sess: ClassicConsoleHubSessionResponse): ConsoleHubSe
   return { ...sess, vm_id: sess.vm_name }
 }
 
+// Adapts a break-glass response (platform-shaped, keyed by vm_id) back into
+// this page's ClassicConsoleHubSessionResponse (keyed by vm_name) so it can
+// be lifted into local `session` state.
+function fromPlatformSession(sess: ConsoleHubSessionResponse, vmName: string): ClassicConsoleHubSessionResponse {
+  const { vm_id: _vm_id, ...rest } = sess
+  return { ...rest, vm_name: vmName }
+}
+
 export default function ClassicConsoleHub() {
   const { name } = useParams<{ name: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -186,6 +194,7 @@ export default function ClassicConsoleHub() {
             prepend={prepend}
             experienceMode={experienceMode}
             onExperienceModeChange={setExperienceMode}
+            onSessionStart={(s) => setSession(fromPlatformSession(s, name ?? ''))}
           />
         </div>
       ) : !loading ? (

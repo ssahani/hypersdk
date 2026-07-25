@@ -18,7 +18,7 @@ import MachineTimeline from './MachineTimeline'
 import CinemaShell from './CinemaShell'
 import StudioLayout from './StudioLayout'
 import type { ConsoleHubPlan, ConsoleHubSessionResponse } from '../../api/platform'
-import { createConsoleCollaborateLink, createVmSnapshot, fetchConsoleSessionReplay, vmPower } from '../../api/platform'
+import { createConsoleCollaborateLink, createVmSnapshot, endConsoleHubSession, fetchConsoleSessionReplay, vmPower } from '../../api/platform'
 import type { ConsoleHubSessionRow } from './ConsoleHubSessionHistory'
 import type { VmTimelineEntry } from '../../api/platformVmTimeline'
 import { recipeForError, type ConsoleRecipe } from '../../data/consoleRecipes'
@@ -75,6 +75,10 @@ export type MachineCockpitProps = {
   onPlanRefresh?: () => void
   experienceMode?: ConsoleExperienceMode
   onExperienceModeChange?: (mode: ConsoleExperienceMode) => void
+  /** Lifts a freshly-created session (e.g. break-glass) into the owning
+   * page's `session` state so recording_enabled actually flows into
+   * useConsoleAccessPolicy / useConsoleSessionRecorder. */
+  onSessionStart?: (session: ConsoleHubSessionResponse) => void
 }
 
 function CockpitInner({
@@ -106,6 +110,7 @@ function CockpitInner({
   onPlanRefresh,
   experienceMode = 'cinema',
   onExperienceModeChange,
+  onSessionStart,
 }: MachineCockpitProps) {
   const toast = useToastContext()
   const navigate = useNavigate()
@@ -145,6 +150,21 @@ function CockpitInner({
     recordingActive: access.recordingActive,
     readOnly: access.readOnly,
   })
+
+  // Ends the console-hub session server-side (and revokes its ws token) when
+  // the session changes or this cockpit unmounts (navigate-away/tab-close via
+  // React's unmount cleanup) — regardless of whether it was recorded.
+  // Previously only useConsoleSessionRecorder called endConsoleHubSession, and
+  // only when recordingActive, so a non-recorded session (the common case)
+  // was left with ended_at = NULL server-side when the user simply navigated
+  // away. This runs independently of recording state.
+  useEffect(() => {
+    const sid = session?.session_id
+    if (!sid) return
+    return () => {
+      void endConsoleHubSession(sid).catch(() => undefined)
+    }
+  }, [session?.session_id])
 
   const displayProtocols = plan
     ? [...plan.protocols, ...(plan.guest_ip && !plan.protocols.includes('native_ssh') ? ['native_ssh'] : [])]
@@ -527,6 +547,7 @@ function CockpitInner({
       portForwardRules={portForwardRules}
       readOnly={access.readOnly}
       onExposeSsh={plan?.guest_access?.guest_ip_private ? exposeSsh : undefined}
+      onSessionStart={onSessionStart}
       onOpenVmDetail={(tab) => {
         setCommandCenter(false)
         navigate(tab ? `/platform/vms/${vmId}?tab=${tab}` : `/platform/vms/${vmId}`)

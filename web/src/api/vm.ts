@@ -906,6 +906,7 @@ export interface ClassicConsoleHubSessionResponse {
   emergency_url?: string | null
   audit_id: string
   expires_at: string
+  recording_enabled?: boolean
 }
 
 export const getClassicConsoleHubPlan = (name: string, connection?: string | null) =>

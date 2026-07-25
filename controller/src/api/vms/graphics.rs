@@ -41,6 +41,30 @@ pub struct VmGraphicsBody {
     pub graphics_type: String,
     #[serde(default)]
     pub listen: Option<String>,
+    /// Explicit opt-in required to bind `listen` to a non-loopback address —
+    /// mirrors `machina_spec::GraphicsSpec::allow_public_listen`. The agent's
+    /// `graphics.add` invoke (and `virt_xml_add_graphics`) never sets a
+    /// libvirt `passwd=`, so a non-loopback listener exposes a completely
+    /// unauthenticated VNC/SPICE console on the network. Default false.
+    #[serde(default)]
+    pub allow_public_listen: bool,
+}
+
+/// True if `addr` is a loopback hostname or parses as a loopback IP. Mirrors
+/// `machina_spec::vm::is_loopback_listen` — empty is deliberately NOT
+/// treated as loopback since libvirt/qemu can fall back to `qemu.conf`'s
+/// `vnc_listen`/`spice_listen`, which may default to `0.0.0.0`.
+fn is_loopback_listen(addr: &str) -> bool {
+    let a = addr.trim();
+    if a.is_empty() {
+        return false;
+    }
+    if a.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+    a.parse::<std::net::IpAddr>()
+        .map(|ip| ip.is_loopback())
+        .unwrap_or(false)
 }
 
 pub async fn add_vm_graphics(
@@ -56,6 +80,13 @@ pub async fn add_vm_graphics(
         .as_deref()
         .filter(|s| !s.trim().is_empty())
         .unwrap_or("127.0.0.1");
+    if !body.allow_public_listen && !is_loopback_listen(listen) {
+        return Err(ApiError::bad_request(
+            "listen must be loopback (127.0.0.1/::1/localhost) unless allow_public_listen is \
+             explicitly set to true — a non-loopback listener exposes an unauthenticated \
+             VNC/SPICE console on the network",
+        ));
+    }
     let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;

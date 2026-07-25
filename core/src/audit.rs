@@ -146,27 +146,59 @@ fn maybe_rotate_audit_log(cfg: &AuditLogConfig) {
     );
 }
 
+/// Neutralize the tab-delimited log format's own field/line separators so a
+/// value that happens to contain a tab or newline (e.g. free-form error text,
+/// or a filesystem path — both can legally contain either byte on Linux)
+/// can't split into extra fields or forge an additional, unrelated-looking
+/// audit line when the file is read back with `parse_audit_line`.
+fn sanitize_audit_field(s: &str) -> String {
+    if s.contains(['\t', '\n', '\r']) {
+        s.replace('\t', " ").replace(['\n', '\r'], " ")
+    } else {
+        s.to_string()
+    }
+}
+
 pub fn write_audit_event(event: &AuditEvent) {
     let path = audit_log_path();
     if let Some(parent) = path.parent() {
         let _ = fs::create_dir_all(parent);
     }
 
-    let line = if event.actor.is_empty() {
-        format!(
-            "{}\t{}\t{}\t{}\n",
-            event.timestamp, event.action, event.target, event.result
-        )
+    let timestamp = sanitize_audit_field(&event.timestamp);
+    let action = sanitize_audit_field(&event.action);
+    let target = sanitize_audit_field(&event.target);
+    let result = sanitize_audit_field(&event.result);
+    let actor = sanitize_audit_field(&event.actor);
+
+    let line = if actor.is_empty() {
+        format!("{timestamp}\t{action}\t{target}\t{result}\n")
     } else {
-        format!(
-            "{}\t{}\t{}\t{}\t{}\n",
-            event.timestamp, event.action, event.target, event.result, event.actor
-        )
+        format!("{timestamp}\t{action}\t{target}\t{result}\t{actor}\n")
     };
     let line = maybe_sign_audit_line(&line, rotation_cfg().sign_lines);
 
-    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&path) {
-        let _ = file.write_all(line.as_bytes());
+    match OpenOptions::new().create(true).append(true).open(&path) {
+        Ok(mut file) => {
+            if let Err(e) = file.write_all(line.as_bytes()) {
+                tracing::error!(
+                    "audit log write failed for {}: {e} (security event NOT persisted: action={} target={} result={})",
+                    path.display(),
+                    event.action,
+                    event.target,
+                    event.result
+                );
+            }
+        }
+        Err(e) => {
+            tracing::error!(
+                "failed to open audit log {}: {e} (security event NOT persisted: action={} target={} result={})",
+                path.display(),
+                event.action,
+                event.target,
+                event.result
+            );
+        }
     }
     maybe_rotate_audit_log(&rotation_cfg());
     crate::audit_ship::ship_audit_event(event);

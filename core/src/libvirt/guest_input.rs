@@ -29,8 +29,12 @@ pub fn send_linux_keycodes(
         return Err(LibvirtError::Invalid("keycodes must not be empty".into()));
     }
     let domain = lookup_domain(conn, vm_name)?;
+    // `virDomainSendKey` takes an explicit `nkeycodes` count — there is no NUL-terminator
+    // convention for this array (unlike a C string). A trailing `0` used to be appended
+    // and counted, which both injected a phantom keycode-0 press/release into every call
+    // and could push a full-length (16-key) request one over libvirt's
+    // VIR_DOMAIN_SEND_KEY_MAX_KEYS limit, failing a combination the caller actually sent.
     let mut codes: Vec<u32> = keycodes.to_vec();
-    codes.push(0);
     domain
         .send_key(
             sys::VIR_KEYCODE_SET_LINUX,

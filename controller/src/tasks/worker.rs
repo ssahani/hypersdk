@@ -1124,7 +1124,7 @@ async fn ha_recover(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
 /// nothing else has since moved it) and give back the recovery attempt so the
 /// next HA scan can retry — mirroring the enqueue-failure compensation already
 /// done inline in `recover_vms`.
-async fn revert_failed_ha_recovery(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
+async fn revert_failed_ha_recovery(pool: &SqlitePool, msg: &TaskMessage) -> anyhow::Result<()> {
     let Some(vm_id) = vm_id_from_payload(msg) else {
         return Ok(());
     };
@@ -1150,7 +1150,7 @@ async fn revert_failed_ha_recovery(state: &AppState, msg: &TaskMessage) -> anyho
     .bind(source_host_id)
     .bind(vm_id)
     .bind(dest_host_id)
-    .execute(&state.pool)
+    .execute(pool)
     .await?;
 
     if result.rows_affected() > 0 {
@@ -1165,7 +1165,7 @@ async fn revert_failed_ha_recovery(state: &AppState, msg: &TaskMessage) -> anyho
         .bind(format!(
             "Recovery onto host {dest_host_id} failed and was reverted; will retry once eligible"
         ))
-        .execute(&state.pool)
+        .execute(pool)
         .await;
     }
     Ok(())
@@ -2120,7 +2120,7 @@ async fn on_task_failure(state: &AppState, msg: &TaskMessage, err: &str) {
         if reset.is_ok() {
             let backoff = std::time::Duration::from_secs(5 * attempts as u64);
             let bus = state.task_bus.clone();
-            let st = state.clone();
+            let pool = state.pool.clone();
             let msg = msg.clone();
             tracing::warn!(task_id = %msg.task_id, op = %msg.operation,
                 "transient failure; retry {attempts}/{MAX_TASK_ATTEMPTS} scheduled in {backoff:?}");
@@ -2135,7 +2135,7 @@ async fn on_task_failure(state: &AppState, msg: &TaskMessage, err: &str) {
                     // an ha.recover task's premature host_id write un-reverted whenever
                     // the task bus itself (not the agent) was the thing that failed.
                     finalize_terminal_task_failure(
-                        &st,
+                        &pool,
                         &msg,
                         &format!("retry re-publish failed: {e}"),
                     )
@@ -2147,27 +2147,32 @@ async fn on_task_failure(state: &AppState, msg: &TaskMessage, err: &str) {
         // Fall through to terminal failure if the reset UPDATE itself failed.
     }
 
-    finalize_terminal_task_failure(state, msg, err).await;
+    finalize_terminal_task_failure(&state.pool, msg, err).await;
 }
 
 /// Terminal-failure bookkeeping shared by every path that gives up on a task for
-/// good: the direct (non-retried) failure fallthrough above, and the delayed
-/// retry-exhaustion path where re-publishing itself fails. Keeping these in one
-/// place ensures operation-specific compensation (e.g. ha.recover's host_id
+/// good: the direct (non-retried) failure fallthrough above, the delayed
+/// retry-exhaustion path where re-publishing itself fails, the publish-failure
+/// branch in `enqueue_task` (task never even reached a worker), and the
+/// startup orphan-task reaper (`db::ensure_bootstrap` / main.rs) for tasks left
+/// 'running'/'pending' by a controller that crashed mid-task. Keeping these in
+/// one place ensures operation-specific compensation (e.g. ha.recover's host_id
 /// revert) always runs, regardless of which failure mode produced the terminal
-/// state.
-async fn finalize_terminal_task_failure(state: &AppState, msg: &TaskMessage, err: &str) {
-    let _ = mark_task_failed(&state.pool, msg.task_id, err).await;
+/// state. Takes a bare pool rather than `&AppState` so it can be called from
+/// call sites (enqueue, startup reap) that run before or without a full
+/// `AppState`.
+pub async fn finalize_terminal_task_failure(pool: &SqlitePool, msg: &TaskMessage, err: &str) {
+    let _ = mark_task_failed(pool, msg.task_id, err).await;
     if let Some(vm_id) = vm_id_from_payload(msg) {
-        let _ = vm_lifecycle::set_vm_error(&state.pool, vm_id, err).await;
+        let _ = vm_lifecycle::set_vm_error(pool, vm_id, err).await;
     }
     if msg.operation == "ha.recover" {
-        if let Err(e) = revert_failed_ha_recovery(state, msg).await {
+        if let Err(e) = revert_failed_ha_recovery(pool, msg).await {
             tracing::error!(task_id = %msg.task_id, "ha.recover: compensation after terminal failure also failed: {e:#}");
         }
     }
     crate::engine::webhooks::dispatch_webhooks(
-        &state.pool,
+        pool,
         "alert.task_failed",
         serde_json::json!({
             "severity": "error",

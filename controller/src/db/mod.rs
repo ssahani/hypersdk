@@ -56,28 +56,49 @@ pub async fn ensure_bootstrap(
     // threshold is intentionally generous (some operations — backup/clone of a
     // large disk — may run a long time between progress updates) to bias toward
     // never killing live work over reaping instantly.
-    let reaped = if let Some(id) = std::env::var("MACHINA_CONTROLLER_ID").ok().filter(|s| !s.is_empty()) {
-        sqlx::query(
-            "UPDATE tasks SET status = 'failed', message = 'controller restarted while task was running', \
-             updated_at = datetime('now') WHERE status = 'running' AND (claimed_by = ? OR claimed_by IS NULL)",
-        )
-        .bind(id)
-        .execute(pool)
-        .await?
-        .rows_affected()
-    } else {
-        sqlx::query(
-            "UPDATE tasks SET status = 'failed', message = 'controller restarted while task was running', \
-             updated_at = datetime('now') \
-             WHERE status = 'running' \
-               AND (claimed_by IS NULL OR updated_at < datetime('now', '-60 minutes'))",
-        )
-        .execute(pool)
-        .await?
-        .rows_affected()
-    };
-    if reaped > 0 {
-        tracing::warn!("reaped {reaped} task(s) left in 'running' state after restart");
+    // Select (rather than blind-UPDATE) so each reaped row can be run through
+    // finalize_terminal_task_failure below: a task reaped here was 'running',
+    // meaning it may already have taken side effects (e.g. ha.recover writing
+    // the VM's new host_id) before the controller crashed. A bare status
+    // write, as this used to do, skipped set_vm_error/ha.recover's host_id
+    // revert/webhook dispatch entirely, leaving that state stranded forever
+    // since nothing else ever transitions a 'running' row.
+    let reap_rows: Vec<(Uuid, String, serde_json::Value)> =
+        if let Some(id) = std::env::var("MACHINA_CONTROLLER_ID").ok().filter(|s| !s.is_empty()) {
+            sqlx::query_as(
+                "SELECT id, operation, payload FROM tasks \
+                 WHERE status = 'running' AND (claimed_by = ? OR claimed_by IS NULL)",
+            )
+            .bind(id)
+            .fetch_all(pool)
+            .await?
+        } else {
+            sqlx::query_as(
+                "SELECT id, operation, payload FROM tasks \
+                 WHERE status = 'running' \
+                   AND (claimed_by IS NULL OR updated_at < datetime('now', '-60 minutes'))",
+            )
+            .fetch_all(pool)
+            .await?
+        };
+    if !reap_rows.is_empty() {
+        tracing::warn!(
+            "reaping {} task(s) left in 'running' state after restart",
+            reap_rows.len()
+        );
+        for (task_id, operation, payload) in reap_rows {
+            let msg = crate::tasks::TaskMessage {
+                task_id,
+                operation,
+                payload,
+            };
+            crate::tasks::worker::finalize_terminal_task_failure(
+                pool,
+                &msg,
+                "controller restarted while task was running",
+            )
+            .await;
+        }
     }
 
     // These three "check count == 0, then insert" blocks are check-then-act:

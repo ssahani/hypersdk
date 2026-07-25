@@ -162,31 +162,48 @@ pub async fn run_migrate_precheck(
 
     match host_addrs_for_precheck(pool, source_host_id, dest_host_id).await {
         Ok((source_addr, dest_cpu, dest_lv)) => {
-            let source_cpu: String =
-                sqlx::query_scalar("SELECT COALESCE(cpu_model, '') FROM hosts WHERE id = ?")
-                    .bind(source_host_id)
-                    .fetch_one(pool)
-                    .await
-                    .unwrap_or_default();
-            let matrix: serde_json::Value = sqlx::query_scalar(
-                "SELECT cpu_compat_matrix FROM clusters ORDER BY created_at LIMIT 1",
+            // Fail closed here too: `host_addrs_for_precheck` above already proved this
+            // source host row exists, so a failure on this second read is a real (if
+            // transient) DB error, not "no data". Silently defaulting to an empty
+            // string previously made `cpu_compatible` auto-pass (it treats an empty
+            // source model as always compatible) — i.e. the exact fail-open bug this
+            // function was fixed to close, just one query deeper.
+            match sqlx::query_scalar::<_, String>(
+                "SELECT COALESCE(cpu_model, '') FROM hosts WHERE id = ?",
             )
+            .bind(source_host_id)
             .fetch_one(pool)
             .await
-            .unwrap_or(serde_json::json!([]));
-            let rules: Vec<crate::api::cpu_compat::CpuCompatRule> =
-                serde_json::from_value(matrix).unwrap_or_default();
-            if crate::api::cpu_compat::cpu_compatible(&rules, &source_cpu, &dest_cpu) {
-                checks.push(pass(
-                    "cpu_compat",
-                    &format!("CPU {source_cpu} compatible with {dest_cpu}"),
-                ));
-            } else {
-                checks.push(fail(
-                    "cpu_compat",
-                    &format!("CPU {source_cpu} not compatible with {dest_cpu}"),
-                    "Use offline migration with CPU baseline or update the CPU compatibility matrix",
-                ));
+            {
+                Ok(source_cpu) => {
+                    let matrix: serde_json::Value = sqlx::query_scalar(
+                        "SELECT cpu_compat_matrix FROM clusters ORDER BY created_at LIMIT 1",
+                    )
+                    .fetch_one(pool)
+                    .await
+                    .unwrap_or(serde_json::json!([]));
+                    let rules: Vec<crate::api::cpu_compat::CpuCompatRule> =
+                        serde_json::from_value(matrix).unwrap_or_default();
+                    if crate::api::cpu_compat::cpu_compatible(&rules, &source_cpu, &dest_cpu) {
+                        checks.push(pass(
+                            "cpu_compat",
+                            &format!("CPU {source_cpu} compatible with {dest_cpu}"),
+                        ));
+                    } else {
+                        checks.push(fail(
+                            "cpu_compat",
+                            &format!("CPU {source_cpu} not compatible with {dest_cpu}"),
+                            "Use offline migration with CPU baseline or update the CPU compatibility matrix",
+                        ));
+                    }
+                }
+                Err(e) => {
+                    checks.push(fail(
+                        "cpu_compat",
+                        &format!("Could not read source host CPU model to verify compatibility: {e}"),
+                        "Verify the source host record in cluster inventory and retry",
+                    ));
+                }
             }
 
             // Fail closed: if we can't reach the source host's agent, or it can't run

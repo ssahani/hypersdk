@@ -12,7 +12,7 @@ use machina_controller::leader;
 use machina_controller::state::AppState;
 use machina_controller::sync;
 use machina_controller::tasks::bus::{FanoutTaskBus, InMemoryTaskBus, NatsTaskBus};
-use machina_controller::tasks::{nats_subscriber, worker};
+use machina_controller::tasks::{nats_subscriber, worker, TaskMessage};
 use axum::http::{header, HeaderValue};
 use tower_http::cors::CorsLayer;
 use tower_http::set_header::SetResponseHeaderLayer;
@@ -107,17 +107,32 @@ async fn main() -> anyhow::Result<()> {
     // claim these rows — blindly failing them would kill a peer's live task. In that
     // topology, ensure_bootstrap already performs a controller-scoped 'running' reap.
     if config.nats_url.is_none() {
-        match sqlx::query(
-            "UPDATE tasks SET status = 'failed', \
-             message = COALESCE(NULLIF(message,''),'') || ' [orphaned by controller restart]', \
-             updated_at = datetime('now') \
-             WHERE status IN ('pending', 'running')",
+        // Select (rather than blind-UPDATE) so each reaped row can be run through
+        // finalize_terminal_task_failure: a 'running' row may already have taken
+        // side effects (e.g. ha.recover writing the VM's new host_id) before this
+        // restart, and a bare status write skips set_vm_error/ha.recover's host_id
+        // revert/webhook dispatch — the same gap fixed for ensure_bootstrap's reap.
+        match sqlx::query_as::<_, (uuid::Uuid, String, serde_json::Value)>(
+            "SELECT id, operation, payload FROM tasks WHERE status IN ('pending', 'running')",
         )
-        .execute(&pool)
+        .fetch_all(&pool)
         .await
         {
-            Ok(r) if r.rows_affected() > 0 => {
-                info!("reaped {} orphaned in-flight task(s) at startup", r.rows_affected());
+            Ok(rows) if !rows.is_empty() => {
+                info!("reaping {} orphaned in-flight task(s) at startup", rows.len());
+                for (task_id, operation, payload) in rows {
+                    let msg = TaskMessage {
+                        task_id,
+                        operation,
+                        payload,
+                    };
+                    worker::finalize_terminal_task_failure(
+                        &pool,
+                        &msg,
+                        "orphaned by controller restart",
+                    )
+                    .await;
+                }
             }
             Ok(_) => {}
             Err(e) => tracing::warn!("orphan task reap at startup failed: {e:#}"),
