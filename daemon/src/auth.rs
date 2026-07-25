@@ -589,10 +589,26 @@ struct OidcClaims {
     extra: HashMap<String, serde_json::Value>,
 }
 
+/// Shared timeout for every outbound call this daemon makes to an OIDC IdP (discovery,
+/// JWKS, token exchange). Without it, a slow/unresponsive/black-holed IdP would hang the
+/// request task indefinitely — these handlers are reachable pre-auth (rate-limited but
+/// not otherwise bounded), so an unresponsive upstream must not tie up connections forever.
+const OIDC_HTTP_TIMEOUT: Duration = Duration::from_secs(15);
+
+fn oidc_http_client() -> Result<reqwest::Client, AppError> {
+    reqwest::Client::builder()
+        .timeout(OIDC_HTTP_TIMEOUT)
+        .build()
+        .map_err(|e| AppError::from(LibvirtError::Operation(format!("Build OIDC HTTP client: {e}"))))
+}
+
 async fn fetch_oidc_discovery(cfg: &OidcConfig) -> Result<OidcDiscoveryDocument, AppError> {
     let base = cfg.issuer_url.trim_end_matches('/');
     let url = format!("{base}/.well-known/openid-configuration");
-    let res = reqwest::get(&url)
+    let client = oidc_http_client()?;
+    let res = client
+        .get(&url)
+        .send()
         .await
         .map_err(|e| LibvirtError::Operation(format!("Fetch OIDC discovery: {e}")))?;
     if !res.status().is_success() {
@@ -601,15 +617,32 @@ async fn fetch_oidc_discovery(cfg: &OidcConfig) -> Result<OidcDiscoveryDocument,
             res.status()
         ))));
     }
-    res.json::<OidcDiscoveryDocument>().await.map_err(|e| {
+    let doc = res.json::<OidcDiscoveryDocument>().await.map_err(|e| {
         AppError::from(LibvirtError::Operation(format!(
             "Decode OIDC discovery document: {e}"
         )))
-    })
+    })?;
+
+    // OIDC Discovery 1.0 §4.3: the `issuer` in the discovery document MUST exactly
+    // match the URL it was fetched from. `doc.issuer` is what later pins the
+    // id_token's `iss` validation (see `validate_oidc_id_token`), so skipping this
+    // check would let a compromised/misconfigured discovery response (cache
+    // poisoning, a shared reverse proxy, a subdomain mix-up) redirect trust to a
+    // different issuer than the admin configured.
+    if doc.issuer.trim_end_matches('/') != base {
+        return Err(AppError::from(LibvirtError::Forbidden(format!(
+            "OIDC discovery document issuer '{}' does not match configured issuer_url '{}'",
+            doc.issuer, cfg.issuer_url
+        ))));
+    }
+    Ok(doc)
 }
 
 async fn fetch_oidc_jwks(url: &str) -> Result<JwkSet, AppError> {
-    let res = reqwest::get(url)
+    let client = oidc_http_client()?;
+    let res = client
+        .get(url)
+        .send()
         .await
         .map_err(|e| LibvirtError::Operation(format!("Fetch OIDC JWKS: {e}")))?;
     if !res.status().is_success() {
@@ -737,7 +770,7 @@ fn validate_oidc_id_token(
 
     let mut validation = Validation::new(header.alg);
     validation.algorithms = allowed_algs;
-    validation.set_audience(&[cfg.client_id.as_str()]);
+    validation.set_audience(&[cfg.client_id.trim()]);
     validation.set_issuer(&[discovery.issuer.as_str()]);
     validation.set_required_spec_claims(&["exp", "iss", "aud", "sub"]);
     validation.validate_nbf = true;
@@ -1322,14 +1355,17 @@ async fn oidc_callback_handler(
         Ok(doc) => doc,
         Err(e) => return e.into_response(),
     };
-    let client = reqwest::Client::new();
+    let client = match oidc_http_client() {
+        Ok(c) => c,
+        Err(e) => return e.into_response(),
+    };
     let token_res = match client
         .post(&discovery.token_endpoint)
         .form(&[
             ("grant_type", "authorization_code"),
             ("code", code.as_str()),
-            ("redirect_uri", cfg.redirect_url.as_str()),
-            ("client_id", cfg.client_id.as_str()),
+            ("redirect_uri", cfg.redirect_url.trim()),
+            ("client_id", cfg.client_id.trim()),
             ("client_secret", cfg.client_secret.as_str()),
         ])
         .send()

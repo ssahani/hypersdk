@@ -167,7 +167,11 @@ export default function PlatformFirewallCompliance() {
         )}
       </MacGlassPanel>
       <MacGlassPanel title="Global temporary rule">
-        <p className="text-sm text-slate-400 mb-3">Fleet-wide time-boxed allow rule — audited and auto-expires.</p>
+        <p className="text-sm text-slate-400 mb-3">
+          Records a fleet-wide time-boxed allow request for audit purposes only — this does{' '}
+          <strong>not</strong> change any host firewall. No rule is actually opened and nothing
+          auto-expires; treat this as a paper trail, not a live access grant.
+        </p>
         <div className="grid gap-3 md:grid-cols-4 max-w-2xl">
           <input aria-label="Port" className="input text-sm" value={tempPort} onChange={(e) => setTempPort(e.target.value)} placeholder="Port" />
           <select aria-label="Protocol" className="input text-sm" value={tempProtocol} onChange={(e) => setTempProtocol(e.target.value)}>
@@ -186,7 +190,7 @@ export default function PlatformFirewallCompliance() {
                   duration_hours: Number(tempHours),
                   reason: tempReason,
                 })
-                toast.success('Temporary rule created')
+                toast.success('Temporary rule recorded (audit only — not applied to any host firewall)')
               } catch (e: unknown) {
                 toast.error(formatUserError(e))
               }

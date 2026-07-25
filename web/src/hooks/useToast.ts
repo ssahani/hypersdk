@@ -75,7 +75,13 @@ export function useToast() {
       const next = [...prev, { id, message, type, action }]
       if (next.length <= MAX_VISIBLE_TOASTS) return next
       const dropped = next.slice(0, next.length - MAX_VISIBLE_TOASTS)
-      dropped.forEach((t) => cancelTimer(t.id))
+      dropped.forEach((t) => {
+        cancelTimer(t.id)
+        // If the evicted toast was the one tracked for error-dedupe, forget it —
+        // otherwise a repeat of the same error is silently suppressed for the
+        // rest of the 8s window even though nothing is on screen anymore.
+        if (lastErrorToastRef.current?.id === t.id) lastErrorToastRef.current = null
+      })
       return next.slice(-MAX_VISIBLE_TOASTS)
     })
     const timer = setTimeout(() => {

@@ -91,17 +91,28 @@ pub async fn rollback_checkpoint(
     .bind(uuid::Uuid::new_v4())
     .bind(target_kind)
     .bind(target_id)
-    .bind(format!("Rolled back to checkpoint {label}"))
+    .bind(format!(
+        "Rollback to checkpoint {label} recorded (not applied to host firewall)"
+    ))
     .bind(serde_json::json!({ "checkpoint_id": checkpoint_id }))
     .bind(actor)
     .execute(pool)
     .await;
 
+    // Honesty fix (bug-hunt): this function only records a timeline event and
+    // returns the prior snapshot — it never reapplies anything to the host
+    // firewall. A top-level `"ok": true` here reads as "the rollback
+    // succeeded" to any caller that doesn't dig into `note`, which is the same
+    // false-success pattern as the temporary-rule bug in temporary.rs. Use
+    // field names that can't be misread as "the host firewall was rolled
+    // back", and keep `note` explicit for humans reading the raw response.
     Ok(serde_json::json!({
-        "ok": true,
+        "recorded": true,
+        "host_firewall_rolled_back": false,
         "checkpoint_id": checkpoint_id,
         "label": label,
         "restored_state": state,
-        "note": "Rollback snapshot recorded — re-apply adapter operations on host via agent plan"
+        "note": "Rollback snapshot recorded only — the host firewall was NOT changed. \
+                 Re-apply adapter operations on host via agent plan to actually restore this state."
     }))
 }

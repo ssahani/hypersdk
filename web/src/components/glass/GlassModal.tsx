@@ -39,7 +39,11 @@ export function GlassModal({ open, onClose, title, subtitle, children, wide, foo
       if (closeButtonRef.current) closeButtonRef.current.focus()
       else panelRef.current?.focus()
     } else if (prevFocusRef.current) {
-      prevFocusRef.current.focus?.()
+      // The triggering element may have been removed from the DOM while the
+      // modal was open (e.g. confirming a delete removes the row that opened
+      // it) — focusing a detached node is a no-op that silently drops focus,
+      // so only restore it when it's still attached to the document.
+      if (prevFocusRef.current.isConnected) prevFocusRef.current.focus?.()
       prevFocusRef.current = null
     }
   }, [open])

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import type { InputHTMLAttributes } from 'react'
+import { useId, type InputHTMLAttributes } from 'react'
 
 export type GlassInputProps = InputHTMLAttributes<HTMLInputElement> & {
   label?: string
@@ -9,7 +9,12 @@ export type GlassInputProps = InputHTMLAttributes<HTMLInputElement> & {
 }
 
 export function GlassInput({ label, hint, error, className = '', id, required, ...props }: GlassInputProps) {
-  const inputId = id ?? label?.toLowerCase().replace(/\s+/g, '-')
+  // Fall back to a React-generated unique suffix rather than the raw slugified
+  // label: two GlassInputs sharing a label (e.g. "Name" in two side-by-side
+  // forms/modals) would otherwise render duplicate DOM ids, breaking the
+  // label/input association and aria-describedby wiring for both.
+  const generatedId = useId()
+  const inputId = id ?? (label ? `${label.toLowerCase().replace(/\s+/g, '-')}-${generatedId}` : undefined)
   const errorId = inputId ? `${inputId}-error` : undefined
   return (
     <label className="block space-y-1.5">

@@ -339,12 +339,12 @@ export default function PlatformFirewallTargetDetail() {
                       }}
                     />
                     <MacListRow
-                      title="Temporary PXE allow (1h)"
-                      subtitle="Ports 67/69 from admin subnet"
+                      title="Temporary PXE allow (1h) — record only"
+                      subtitle="Audit record of ports 67/69 from admin subnet — does not touch the host firewall"
                       onClick={async () => {
                         try {
                           await createBaremetalTemporaryRule(id, { preset: 'pxe', reason: 'Provisioning window' })
-                          toast.success('Temporary PXE rule queued')
+                          toast.success('Recorded for audit — no host firewall change was made')
                           void load()
                         } catch (e: unknown) {
                           toast.error(formatUserError(e))
@@ -352,12 +352,12 @@ export default function PlatformFirewallTargetDetail() {
                       }}
                     />
                     <MacListRow
-                      title="Temporary BMC access (4h)"
-                      subtitle="IPMI/Redfish from admin subnet"
+                      title="Temporary BMC access (4h) — record only"
+                      subtitle="Audit record of IPMI/Redfish from admin subnet — does not touch the host firewall"
                       onClick={async () => {
                         try {
                           await createBaremetalTemporaryRule(id, { preset: 'bmc', reason: 'Break-glass BMC' })
-                          toast.success('Temporary BMC rule queued')
+                          toast.success('Recorded for audit — no host firewall change was made')
                           void load()
                         } catch (e: unknown) {
                           toast.error(formatUserError(e))
@@ -433,7 +433,7 @@ export default function PlatformFirewallTargetDetail() {
                               ev.stopPropagation()
                               try {
                                 await rollbackFirewall(id, c.id)
-                                toast.success('Rollback recorded')
+                                toast.success('Rollback recorded — host firewall was NOT changed; re-apply manually via agent plan')
                                 void load()
                               } catch (e: unknown) {
                                 toast.error(formatUserError(e))

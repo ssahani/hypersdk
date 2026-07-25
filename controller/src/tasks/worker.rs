@@ -1124,7 +1124,10 @@ async fn ha_recover(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
 /// nothing else has since moved it) and give back the recovery attempt so the
 /// next HA scan can retry — mirroring the enqueue-failure compensation already
 /// done inline in `recover_vms`.
-async fn revert_failed_ha_recovery(pool: &SqlitePool, msg: &TaskMessage) -> anyhow::Result<()> {
+pub(crate) async fn revert_failed_ha_recovery(
+    pool: &SqlitePool,
+    msg: &TaskMessage,
+) -> anyhow::Result<()> {
     let Some(vm_id) = vm_id_from_payload(msg) else {
         return Ok(());
     };

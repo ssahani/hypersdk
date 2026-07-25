@@ -121,6 +121,21 @@ pub async fn cancel_task(
     Path(id): Path<Uuid>,
 ) -> Result<Json<TaskRow>, ApiError> {
     require_operator(&actor)?;
+    // Fetch operation/payload before the cancel so an ha.recover task can be
+    // compensated below: recover_vms (engine/ha.rs) writes the VM's host_id to
+    // the recovery destination and bumps ha_recovery_count *before* the task
+    // row is even created, so a still-'pending' ha.recover task has already
+    // taken that side effect. A bare status write here — same class of bug as
+    // the worker/enqueue/reap terminal-failure paths fixed elsewhere — would
+    // leave the VM silently pointing at a host it was never created on.
+    let row: Option<(String, serde_json::Value)> =
+        sqlx::query_as("SELECT operation, payload FROM tasks WHERE id = ? AND status = 'pending'")
+            .bind(id)
+            .fetch_optional(&state.pool)
+            .await?;
+    let Some((operation, payload)) = row else {
+        return Err(ApiError::bad_request("task not pending or not found"));
+    };
     let updated = sqlx::query(
         "UPDATE tasks SET status = 'cancelled', message = 'cancelled by operator', updated_at = datetime('now')
          WHERE id = ? AND status = 'pending'",
@@ -130,6 +145,16 @@ pub async fn cancel_task(
     .await?;
     if updated.rows_affected() == 0 {
         return Err(ApiError::bad_request("task not pending or not found"));
+    }
+    if operation == "ha.recover" {
+        let msg = crate::tasks::TaskMessage {
+            task_id: id,
+            operation,
+            payload,
+        };
+        if let Err(e) = crate::tasks::worker::revert_failed_ha_recovery(&state.pool, &msg).await {
+            tracing::error!(task_id = %id, "ha.recover: compensation after operator cancel failed: {e:#}");
+        }
     }
     get_task(State(state), Extension(actor), Path(id)).await
 }

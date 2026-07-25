@@ -1493,6 +1493,15 @@ fn validate_service_name(name: &str) -> Result<(), LibvirtError> {
             "Service name contains invalid characters".to_string(),
         ));
     }
+    // service_action() passes this as the last bare argv element to `systemctl
+    // <action> <name>` with no `--` separator — same flag-injection class as
+    // validate_login_username/validate_package_token (e.g. a name of "-H" would
+    // be parsed by systemctl as an option, not a unit name).
+    if name.starts_with('-') {
+        return Err(LibvirtError::Invalid(
+            "Service name must not start with '-'".to_string(),
+        ));
+    }
     Ok(())
 }
 

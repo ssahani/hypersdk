@@ -31,6 +31,18 @@ pub struct TemporaryRule {
     pub reason: String,
     pub expires_at: String,
     pub owner: Option<String>,
+    // Honest-state fields (bug-hunt fix): no code path pushes this rule to the
+    // host's real firewall (core::compile_profile_plan / agent's
+    // apply_firewall_plan only compile named catalog profiles — neither reads
+    // firewall_temporary_rules at all). Prior to this fix the row was written
+    // with `applied = true` and the timeline said "Temporary rule created",
+    // which an operator could reasonably read as "a time-limited allow rule is
+    // now live and will auto-expire" when nothing on the host had changed.
+    // `enforced` must stay `false` until real enforcement plumbing (an
+    // agent_client call to push the rule, plus expiry/retraction tracking in
+    // worker.rs) is built; `note` carries that caveat to API/UI callers.
+    pub enforced: bool,
+    pub note: String,
 }
 
 pub async fn create_temporary_rule(
@@ -39,10 +51,19 @@ pub async fn create_temporary_rule(
 ) -> anyhow::Result<TemporaryRule> {
     let expires = Utc::now() + Duration::hours(req.duration_hours as i64);
     let id = Uuid::new_v4();
+    // `applied` must be false: this INSERT only records intent in the
+    // database. Nothing here (or anywhere else in the codebase) actually
+    // pushes an allow rule to the host firewall, so claiming `applied = true`
+    // was a false-success bug — see the `enforced`/`note` fields on
+    // `TemporaryRule` for the honest, API-visible version of this caveat.
+    // Leaving `applied = false` also makes `list_temporary_rules` (which
+    // selects `WHERE applied = true`) correctly report zero "active" rules,
+    // and makes `expire_temporary_rules` a correct no-op for these rows
+    // (there is nothing enforced to expire).
     sqlx::query(
         "INSERT INTO firewall_temporary_rules
          (id, target_kind, target_id, source_cidr, dest_port, protocol, reason, owner, expires_at, applied)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, true)",
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, false)",
     )
     .bind(id)
     .bind(&req.target_kind)
@@ -63,10 +84,14 @@ pub async fn create_temporary_rule(
     .bind(&req.target_kind)
     .bind(req.target_id)
     .bind(format!(
-        "Temporary {} {}:{} for {}h",
+        "Temporary rule RECORDED (not enforced on host): {} {}:{} for {}h",
         req.protocol, req.source_cidr, req.dest_port, req.duration_hours
     ))
-    .bind(serde_json::json!({ "reason": req.reason, "expires_at": expires.to_rfc3339() }))
+    .bind(serde_json::json!({
+        "reason": req.reason,
+        "expires_at": expires.to_rfc3339(),
+        "enforced": false,
+    }))
     .bind(req.owner.as_deref().unwrap_or("system"))
     .execute(pool)
     .await;
@@ -79,6 +104,10 @@ pub async fn create_temporary_rule(
         reason: req.reason,
         expires_at: expires.to_rfc3339(),
         owner: req.owner,
+        enforced: false,
+        note: "Recorded for audit only — no host firewall change was made. This rule is NOT \
+               live and will NOT auto-expire; enforcement plumbing is not yet implemented."
+            .to_string(),
     })
 }
 
@@ -101,6 +130,11 @@ pub async fn list_temporary_rules(
         // the 'T' separator (0x54) sorts after the space (0x20), so any same-day
         // expiry would always compare as "not yet expired" regardless of the actual
         // time. Wrapping both sides in datetime() normalizes them before comparing.
+        // NOTE: `applied = true` never happens post-honesty-fix (see
+        // create_temporary_rule), so this currently always returns an empty
+        // list — which is correct, since no temporary rule is actually
+        // enforced on any host. Kept as-is so it starts reporting real
+        // "active" rules for free once enforcement plumbing sets `applied`.
         "SELECT id, source_cidr, dest_port, protocol, reason, expires_at, owner
              FROM firewall_temporary_rules
              WHERE target_id = ? AND applied = true AND datetime(expires_at) > datetime('now')
@@ -121,6 +155,13 @@ pub async fn list_temporary_rules(
                 reason,
                 expires_at: expires_at.to_rfc3339(),
                 owner,
+                // Even for a row where `applied = true` in the DB, nothing in
+                // this codebase pushes the rule to a host firewall (see
+                // create_temporary_rule), so this can never honestly claim
+                // `enforced: true`.
+                enforced: false,
+                note: "Recorded for audit only — no host firewall change was made."
+                    .to_string(),
             },
         )
         .collect())
@@ -130,6 +171,15 @@ pub async fn expire_temporary_rules(pool: &SqlitePool) -> anyhow::Result<u64> {
     // Same format mismatch as list_temporary_rules: normalize expires_at through
     // datetime() so a same-day expiry is actually detected instead of the raw
     // 'T'-separated string always sorting "in the future" against datetime('now').
+    //
+    // Note: create_temporary_rule now inserts rows with `applied = false`
+    // (honesty fix — nothing is ever actually pushed to the host firewall),
+    // so this UPDATE currently matches zero rows and is effectively a no-op.
+    // That is correct, not a regression: there is nothing enforced on a host
+    // for this loop to "expire". Leaving the query in place (rather than
+    // deleting it) means it starts doing real work again for free the day
+    // real enforcement plumbing sets `applied = true` on rules it actually
+    // pushed to a host.
     let rows = sqlx::query(
         "UPDATE firewall_temporary_rules SET applied = false
          WHERE applied = true AND datetime(expires_at) <= datetime('now')",
