@@ -1,0 +1,3984 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><title>Page-by-Page Product Manual — Machina</title>
+<style>
+@page{size:A4;margin:15mm 16mm}*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font-family:'Segoe UI',system-ui,sans-serif;color:#1f2937;line-height:1.58;font-size:10.5pt}
+.cover{height:262mm;margin:-15mm -16mm 0;background:linear-gradient(135deg,#7c2d12,#9a3412,#0d1b2a);color:#fff;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;page-break-after:always;position:relative}
+.cover .kicker{letter-spacing:5px;text-transform:uppercase;opacity:.72;margin-bottom:1.4em}
+.cover h1{font-size:3.2em;font-weight:800;letter-spacing:-2px}
+.cover h1 span{color:#fb923c}
+.cover .sub{font-size:1.3em;font-weight:300;opacity:.93;margin:1em 0;max-width:24em}
+.cover .badge{display:inline-block;background:rgba(96,165,250,.2);border:1px solid #fb923c;padding:8px 22px;border-radius:20px;margin-top:2em}
+.cover .foot{position:absolute;bottom:34px;font-size:.82em;opacity:.6}
+h2{page-break-before:always;margin:0 0 .35em;font-size:1.55em;font-weight:750;color:#12203a;border-bottom:2px solid #e5edfb;padding-bottom:.28em}
+h2:first-of-type{page-break-before:avoid}
+h3{margin:1.1em 0 .4em;font-size:1.12em;font-weight:700}
+p,li{margin:.4em 0}ul,ol{margin:.5em 0 .9em 1.4em}
+a{color:#2563eb;text-decoration:none}
+code{background:#eef2f7;padding:1px 6px;border-radius:4px;font-size:.86em;font-family:ui-monospace,Menlo,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:12px 15px;border-radius:9px;overflow-x:auto;margin:.8em 0}
+table{width:100%;border-collapse:collapse;margin:.8em 0 1.1em;font-size:9.5pt}
+th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}th{background:#f1f5f9}
+hr{border:none;border-top:1px solid #e5e7eb;margin:1.2em 0}
+</style></head><body>
+<section class="cover"><div class="kicker">ZyvorAI Labs · Customer Documentation</div>
+<h1>Mach<span>ina</span></h1>
+<div class="sub">Page-by-Page Product Manual</div>
+<div class="badge">2026-07-26</div>
+<div class="foot">zyvor.dev · Confidential — for licensed customers</div></section>
+<main><h2>Page-by-page guides</h2>
+<p>Each guide follows: Purpose → When to use it → How to get there → What you can do → Related pages.</p>
+<p>Every route is also listed in the <a href="../PAGE_INDEX.md">complete page index</a>.</p>
+<h3>Core</h3>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>What it covers</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="core/capabilities.md">Capabilities</a></td>
+<td>Capabilities — Machina Core page at <code>/capabilities</code>.</td>
+</tr>
+<tr>
+<td><a href="core/create.md">Create VM</a></td>
+<td>Create a new libvirt VM.</td>
+</tr>
+<tr>
+<td><a href="core/devices.md">Node Devices</a></td>
+<td>Node Devices — Machina Core page at <code>/devices</code>.</td>
+</tr>
+<tr>
+<td><a href="core/fleet.md">Fleet</a></td>
+<td>Fleet — Machina Core page at <code>/fleet</code>.</td>
+</tr>
+<tr>
+<td><a href="core/home.md">Dashboard</a></td>
+<td>Host dashboard — VM inventory pulse and shortcuts.</td>
+</tr>
+<tr>
+<td><a href="core/host-ssh.md">Host SSH</a></td>
+<td>Host SSH — Machina Core page at <code>/host-ssh</code>.</td>
+</tr>
+<tr>
+<td><a href="core/import.md">Import VM</a></td>
+<td>Import VM — Machina Core page at <code>/import</code>.</td>
+</tr>
+<tr>
+<td><a href="core/services.md">Services</a></td>
+<td>Services — Machina Core page at <code>/services</code>.</td>
+</tr>
+<tr>
+<td><a href="core/settings.md">Wire OpenStack</a></td>
+<td>Wire OpenStack — Machina Core page at <code>/settings?openstack=1</code>.</td>
+</tr>
+<tr>
+<td><a href="core/vms.md">Virtual Machines</a></td>
+<td>Virtual machine inventory for this libvirt host.</td>
+</tr>
+</tbody></table>
+<h3>Infrastructure</h3>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>What it covers</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="infrastructure/backups.md">Snapshot Backups</a></td>
+<td>Snapshot Backups — Machina Infrastructure page at <code>/backups</code>.</td>
+</tr>
+<tr>
+<td><a href="infrastructure/disk-images.md">Disk Images</a></td>
+<td>Disk Images — Machina Infrastructure page at <code>/disk-images</code>.</td>
+</tr>
+<tr>
+<td><a href="infrastructure/host-networking.md">Host Networking</a></td>
+<td>Host Networking — Machina Infrastructure page at <code>/host-networking</code>.</td>
+</tr>
+<tr>
+<td><a href="infrastructure/networks.md">Networks</a></td>
+<td>Networks — Machina Infrastructure page at <code>/networks</code>.</td>
+</tr>
+<tr>
+<td><a href="infrastructure/nwfilters.md">Network Filters</a></td>
+<td>Network Filters — Machina Infrastructure page at <code>/nwfilters</code>.</td>
+</tr>
+<tr>
+<td><a href="infrastructure/secrets.md">Secrets</a></td>
+<td>Secrets — Machina Infrastructure page at <code>/secrets</code>.</td>
+</tr>
+<tr>
+<td><a href="infrastructure/snapshots.md">Snapshots</a></td>
+<td>Snapshots — Machina Infrastructure page at <code>/snapshots</code>.</td>
+</tr>
+<tr>
+<td><a href="infrastructure/storage.md">Storage Pools</a></td>
+<td>Storage Pools — Machina Infrastructure page at <code>/storage</code>.</td>
+</tr>
+</tbody></table>
+<h3>Kubernetes</h3>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>What it covers</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="kubernetes/k8s-kata.md">Kata + Cloud Hypervisor</a></td>
+<td>Kata + Cloud Hypervisor — Machina Kubernetes page at <code>/k8s/kata</code>.</td>
+</tr>
+<tr>
+<td><a href="kubernetes/k8s-workloads.md">K8s Workloads</a></td>
+<td>K8s Workloads — Machina Kubernetes page at <code>/k8s/workloads</code>.</td>
+</tr>
+<tr>
+<td><a href="kubernetes/k8s.md">Kubernetes</a></td>
+<td>Kubernetes — Machina Kubernetes page at <code>/k8s</code>.</td>
+</tr>
+</tbody></table>
+<h3>Monitoring</h3>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>What it covers</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="monitoring/admin-sessions.md">Web Sessions</a></td>
+<td>Web Sessions — Machina Monitoring page at <code>/admin/sessions</code>.</td>
+</tr>
+<tr>
+<td><a href="monitoring/audit.md">Audit Log</a></td>
+<td>Audit Log — Machina Monitoring page at <code>/audit</code>.</td>
+</tr>
+<tr>
+<td><a href="monitoring/events.md">Live Metrics</a></td>
+<td>Live Metrics — Machina Monitoring page at <code>/events</code>.</td>
+</tr>
+<tr>
+<td><a href="monitoring/jobs.md">Daemon Jobs</a></td>
+<td>Daemon Jobs — Machina Monitoring page at <code>/jobs</code>.</td>
+</tr>
+<tr>
+<td><a href="monitoring/logs.md">System Logs</a></td>
+<td>System Logs — Machina Monitoring page at <code>/logs</code>.</td>
+</tr>
+<tr>
+<td><a href="monitoring/node.md">Host Overview</a></td>
+<td>Host Overview — Machina Monitoring page at <code>/node</code>.</td>
+</tr>
+<tr>
+<td><a href="monitoring/system-check.md">System Check</a></td>
+<td>System Check — Machina Monitoring page at <code>/system-check</code>.</td>
+</tr>
+</tbody></table>
+<h3>Openstack</h3>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>What it covers</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="openstack/openstack-create.md">Create Instance</a></td>
+<td>Create Instance — Machina OpenStack page at <code>/openstack/create</code>.</td>
+</tr>
+<tr>
+<td><a href="openstack/openstack-flavors.md">Flavors</a></td>
+<td>Flavors — Machina OpenStack page at <code>/openstack/flavors</code>.</td>
+</tr>
+<tr>
+<td><a href="openstack/openstack-floating-ips.md">Floating IPs</a></td>
+<td>Floating IPs — Machina OpenStack page at <code>/openstack/floating-ips</code>.</td>
+</tr>
+<tr>
+<td><a href="openstack/openstack-heat.md">Heat Orchestration</a></td>
+<td>Heat Orchestration — Machina OpenStack page at <code>/openstack/heat</code>.</td>
+</tr>
+<tr>
+<td><a href="openstack/openstack-identity.md">Identity</a></td>
+<td>Identity — Machina OpenStack page at <code>/openstack/identity</code>.</td>
+</tr>
+<tr>
+<td><a href="openstack/openstack-images.md">Glance Images</a></td>
+<td>Glance Images — Machina OpenStack page at <code>/openstack/images</code>.</td>
+</tr>
+<tr>
+<td><a href="openstack/openstack-instances.md">Instances</a></td>
+<td>Instances — Machina OpenStack page at <code>/openstack/instances</code>.</td>
+</tr>
+<tr>
+<td><a href="openstack/openstack-keypairs.md">Keypairs</a></td>
+<td>Keypairs — Machina OpenStack page at <code>/openstack/keypairs</code>.</td>
+</tr>
+<tr>
+<td><a href="openstack/openstack-load-balancers.md">Load Balancers</a></td>
+<td>Load Balancers — Machina OpenStack page at <code>/openstack/load-balancers</code>.</td>
+</tr>
+<tr>
+<td><a href="openstack/openstack-migrations.md">Migrations</a></td>
+<td>Migrations — Machina OpenStack page at <code>/openstack/migrations</code>.</td>
+</tr>
+<tr>
+<td><a href="openstack/openstack-networking.md">Networking</a></td>
+<td>Networking — Machina OpenStack page at <code>/openstack/networking</code>.</td>
+</tr>
+<tr>
+<td><a href="openstack/openstack-security-groups.md">Security Groups</a></td>
+<td>Security Groups — Machina OpenStack page at <code>/openstack/security-groups</code>.</td>
+</tr>
+<tr>
+<td><a href="openstack/openstack-server-groups.md">Server Groups</a></td>
+<td>Server Groups — Machina OpenStack page at <code>/openstack/server-groups</code>.</td>
+</tr>
+<tr>
+<td><a href="openstack/openstack-topology.md">Network Topology</a></td>
+<td>Network Topology — Machina OpenStack page at <code>/openstack/topology</code>.</td>
+</tr>
+<tr>
+<td><a href="openstack/openstack-volume-snapshots.md">Volume Snapshots</a></td>
+<td>Volume Snapshots — Machina OpenStack page at <code>/openstack/volume-snapshots</code>.</td>
+</tr>
+<tr>
+<td><a href="openstack/openstack-volumes.md">Volumes</a></td>
+<td>Volumes — Machina OpenStack page at <code>/openstack/volumes</code>.</td>
+</tr>
+<tr>
+<td><a href="openstack/openstack.md">Overview</a></td>
+<td>Overview — Machina OpenStack page at <code>/openstack</code>.</td>
+</tr>
+</tbody></table>
+<h3>Platform</h3>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>What it covers</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="platform/platform-activity.md">Activity Monitor</a></td>
+<td>Activity Monitor — Machina Platform page at <code>/platform/activity</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-ai-providers.md">AI Providers</a></td>
+<td>AI Providers — Machina Platform page at <code>/platform/ai-providers</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-api-keys.md">API Keys</a></td>
+<td>API Keys — Machina Platform page at <code>/platform/api-keys</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-applications.md">Applications</a></td>
+<td>Applications — Machina Platform page at <code>/platform/applications</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-backups.md">Backup &amp; Restore</a></td>
+<td>Backup &amp; Restore — Machina Platform page at <code>/platform/backups</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-baremetal.md">Bare Metal</a></td>
+<td>Bare Metal — Machina Platform page at <code>/platform/baremetal</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-blueprints.md">Blueprints</a></td>
+<td>Blueprints — Machina Platform page at <code>/platform/blueprints</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-cloud-init.md">Cloud-Init Studio</a></td>
+<td>Cloud-Init Studio — Machina Platform page at <code>/platform/cloud-init</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-content.md">Images &amp; ISOs</a></td>
+<td>Images &amp; ISOs — Machina Platform page at <code>/platform/content</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-create-advanced.md">Advanced Create</a></td>
+<td>Advanced Create — Machina Platform page at <code>/platform/create-advanced</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-create-iso.md">Create ISO</a></td>
+<td>Create ISO — Machina Platform page at <code>/platform/create-iso</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-datacenter.md">Datacenter View</a></td>
+<td>Datacenter View — Machina Platform page at <code>/platform/datacenter</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-developer.md">Developer Hub</a></td>
+<td>Developer Hub — Machina Platform page at <code>/platform/developer</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-enroll.md">Add Host</a></td>
+<td>Add Host — Machina Platform page at <code>/platform/enroll</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-enterprise.md">Enterprise Features</a></td>
+<td>Enterprise Features — Machina Platform page at <code>/platform/enterprise</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-events.md">Event Log</a></td>
+<td>Event Log — Machina Platform page at <code>/platform/events</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-fleet-snapshots.md">Fleet Snapshots</a></td>
+<td>Fleet Snapshots — Machina Platform page at <code>/platform/fleet-snapshots</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-gpu.md">GPU Command Center</a></td>
+<td>GPU Command Center — Machina Platform page at <code>/platform/gpu</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-ha.md">High Availability</a></td>
+<td>High Availability — Machina Platform page at <code>/platform/ha</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-hosts.md">Hosts</a></td>
+<td>Hosts — Machina Platform page at <code>/platform/hosts</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-integrations.md">Integrations</a></td>
+<td>Integrations — Machina Platform page at <code>/platform/integrations</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-launchpad.md">Launchpad</a></td>
+<td>Launchpad — Machina Platform page at <code>/platform/launchpad</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-maintenance.md">Maintenance</a></td>
+<td>Maintenance — Machina Platform page at <code>/platform/maintenance</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-marketplace.md">Marketplace</a></td>
+<td>Marketplace — Machina Platform page at <code>/platform/marketplace</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-migration.md">Migration Assistant</a></td>
+<td>Migration Assistant — Machina Platform page at <code>/platform/migration</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-network-canvas.md">Network Canvas</a></td>
+<td>Network Canvas — Machina Platform page at <code>/platform/network-canvas</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-networks.md">Networks</a></td>
+<td>Networks — Machina Platform page at <code>/platform/networks</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-notifications.md">Alerts</a></td>
+<td>Alerts — Machina Platform page at <code>/platform/notifications</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-observability.md">Observability</a></td>
+<td>Observability — Machina Platform page at <code>/platform/observability</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-placement.md">Disaster Recovery</a></td>
+<td>Disaster Recovery — Machina Platform page at <code>/platform/placement</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-policy.md">Policy</a></td>
+<td>Policy — Machina Platform page at <code>/platform/policy</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-projects.md">Stage Manager</a></td>
+<td>Stage Manager — Machina Platform page at <code>/platform/projects</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-recommendations.md">Recommendations</a></td>
+<td>Recommendations — Machina Platform page at <code>/platform/recommendations</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-reports.md">Reports</a></td>
+<td>Reports — Machina Platform page at <code>/platform/reports</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-settings.md">Settings</a></td>
+<td>Settings — Machina Platform page at <code>/platform/settings</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-soc.md">Security Operations</a></td>
+<td>Security Operations — Machina Platform page at <code>/platform/soc</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-storage-atlas.md">Storage (Atlas)</a></td>
+<td>Storage (Atlas) — Machina Platform page at <code>/platform/storage-atlas</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-storage-tiers.md">Storage Tiers</a></td>
+<td>Storage Tiers — Machina Platform page at <code>/platform/storage-tiers</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-storage.md">Disk Utility</a></td>
+<td>Disk Utility — Machina Platform page at <code>/platform/storage</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-support.md">Support</a></td>
+<td>Support — Machina Platform page at <code>/platform/support</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-tasks.md">Tasks</a></td>
+<td>Tasks — Machina Platform page at <code>/platform/tasks</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-templates.md">Templates</a></td>
+<td>Templates — Machina Platform page at <code>/platform/templates</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-topology.md">Topology</a></td>
+<td>Topology — Machina Platform page at <code>/platform/topology</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-upgrade.md">Upgrade Matrix</a></td>
+<td>Upgrade Matrix — Machina Platform page at <code>/platform/upgrade</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-users.md">Users &amp; Groups</a></td>
+<td>Users &amp; Groups — Machina Platform page at <code>/platform/users</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-vm-builder.md">VM Builder</a></td>
+<td>VM Builder — Machina Platform page at <code>/platform/vm-builder</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-vms.md">Virtual Machines</a></td>
+<td>Fleet VM finder across enrolled hosts.</td>
+</tr>
+<tr>
+<td><a href="platform/platform-webhooks.md">Webhooks</a></td>
+<td>Webhooks — Machina Platform page at <code>/platform/webhooks</code>.</td>
+</tr>
+<tr>
+<td><a href="platform/platform.md">Mission Control</a></td>
+<td>Mission Control — multi-host platform overview.</td>
+</tr>
+</tbody></table>
+<h3>Platform Security</h3>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>What it covers</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="platform-security/platform-zeus-approvals.md">Approvals</a></td>
+<td>Approvals — Machina Platform / Security page at <code>/platform/zeus/approvals</code>.</td>
+</tr>
+<tr>
+<td><a href="platform-security/platform-zeus-configure.md">Configure Zeus</a></td>
+<td>Configure Zeus — Machina Platform / Security page at <code>/platform/zeus/configure</code>.</td>
+</tr>
+<tr>
+<td><a href="platform-security/platform-zeus-incidents.md">Incident Commander</a></td>
+<td>Incident Commander — Machina Platform / Security page at <code>/platform/zeus/incidents</code>.</td>
+</tr>
+<tr>
+<td><a href="platform-security/platform-zeus-rightsizing.md">Rightsizing</a></td>
+<td>Rightsizing — Machina Platform / Security page at <code>/platform/zeus/rightsizing</code>.</td>
+</tr>
+<tr>
+<td><a href="platform-security/platform-zeus-security.md">Zeus Security</a></td>
+<td>Zeus Security — Machina Platform / Security page at <code>/platform/zeus/security</code>.</td>
+</tr>
+<tr>
+<td><a href="platform-security/platform-zeus.md">Zeus AI</a></td>
+<td>Zeus AI assistant for Machina operations.</td>
+</tr>
+</tbody></table>
+<hr>
+<p>100 guides. Regenerate: <code>node scripts/customer-docs/generate-guide-index.mjs</code>.</p>
+<hr>
+<h2>Capabilities</h2>
+<h3>Purpose</h3>
+<p>Capabilities — Machina Core page at <code>/capabilities</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/capabilities</code></li>
+<li>Nav: <strong>Core → Capabilities</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/capabilities</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Create VM</h2>
+<h3>Purpose</h3>
+<p>Create a new libvirt VM.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/create</code></li>
+<li>Nav: <strong>Core → Create VM</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/create</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Node Devices</h2>
+<h3>Purpose</h3>
+<p>Node Devices — Machina Core page at <code>/devices</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/devices</code></li>
+<li>Nav: <strong>Core → Node Devices</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/devices</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Fleet</h2>
+<h3>Purpose</h3>
+<p>Fleet — Machina Core page at <code>/fleet</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/fleet</code></li>
+<li>Nav: <strong>Core → Fleet</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/fleet</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Dashboard</h2>
+<h3>Purpose</h3>
+<p>Host dashboard — VM inventory pulse and shortcuts.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/</code></li>
+<li>Nav: <strong>Core → Dashboard</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Host SSH</h2>
+<h3>Purpose</h3>
+<p>Host SSH — Machina Core page at <code>/host-ssh</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/host-ssh</code></li>
+<li>Nav: <strong>Core → Host SSH</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/host-ssh</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Import VM</h2>
+<h3>Purpose</h3>
+<p>Import VM — Machina Core page at <code>/import</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/import</code></li>
+<li>Nav: <strong>Core → Import VM</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/import</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Services</h2>
+<h3>Purpose</h3>
+<p>Services — Machina Core page at <code>/services</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/services</code></li>
+<li>Nav: <strong>Core → Services</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/services</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Wire OpenStack</h2>
+<h3>Purpose</h3>
+<p>Wire OpenStack — Machina Core page at <code>/settings?openstack=1</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/settings?openstack=1</code></li>
+<li>Nav: <strong>Core → Wire OpenStack</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/settings?openstack=1</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Virtual Machines</h2>
+<h3>Purpose</h3>
+<p>Virtual machine inventory for this libvirt host.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/vms</code></li>
+<li>Nav: <strong>Core → Virtual Machines</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/vms</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Snapshot Backups</h2>
+<h3>Purpose</h3>
+<p>Snapshot Backups — Machina Infrastructure page at <code>/backups</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/backups</code></li>
+<li>Nav: <strong>Infrastructure → Snapshot Backups</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/backups</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Disk Images</h2>
+<h3>Purpose</h3>
+<p>Disk Images — Machina Infrastructure page at <code>/disk-images</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/disk-images</code></li>
+<li>Nav: <strong>Infrastructure → Disk Images</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/disk-images</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Host Networking</h2>
+<h3>Purpose</h3>
+<p>Host Networking — Machina Infrastructure page at <code>/host-networking</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/host-networking</code></li>
+<li>Nav: <strong>Infrastructure → Host Networking</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/host-networking</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Networks</h2>
+<h3>Purpose</h3>
+<p>Networks — Machina Infrastructure page at <code>/networks</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/networks</code></li>
+<li>Nav: <strong>Infrastructure → Networks</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/networks</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Network Filters</h2>
+<h3>Purpose</h3>
+<p>Network Filters — Machina Infrastructure page at <code>/nwfilters</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/nwfilters</code></li>
+<li>Nav: <strong>Infrastructure → Network Filters</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/nwfilters</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Secrets</h2>
+<h3>Purpose</h3>
+<p>Secrets — Machina Infrastructure page at <code>/secrets</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/secrets</code></li>
+<li>Nav: <strong>Infrastructure → Secrets</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/secrets</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Snapshots</h2>
+<h3>Purpose</h3>
+<p>Snapshots — Machina Infrastructure page at <code>/snapshots</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/snapshots</code></li>
+<li>Nav: <strong>Infrastructure → Snapshots</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/snapshots</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Storage Pools</h2>
+<h3>Purpose</h3>
+<p>Storage Pools — Machina Infrastructure page at <code>/storage</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/storage</code></li>
+<li>Nav: <strong>Infrastructure → Storage Pools</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/storage</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Kata + Cloud Hypervisor</h2>
+<h3>Purpose</h3>
+<p>Kata + Cloud Hypervisor — Machina Kubernetes page at <code>/k8s/kata</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/k8s/kata</code></li>
+<li>Nav: <strong>Kubernetes → Kata + Cloud Hypervisor</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/k8s/kata</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>K8s Workloads</h2>
+<h3>Purpose</h3>
+<p>K8s Workloads — Machina Kubernetes page at <code>/k8s/workloads</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/k8s/workloads</code></li>
+<li>Nav: <strong>Kubernetes → K8s Workloads</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/k8s/workloads</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Kubernetes</h2>
+<h3>Purpose</h3>
+<p>Kubernetes — Machina Kubernetes page at <code>/k8s</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/k8s</code></li>
+<li>Nav: <strong>Kubernetes → Kubernetes</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/k8s</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Web Sessions</h2>
+<h3>Purpose</h3>
+<p>Web Sessions — Machina Monitoring page at <code>/admin/sessions</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/admin/sessions</code></li>
+<li>Nav: <strong>Monitoring → Web Sessions</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/admin/sessions</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Audit Log</h2>
+<h3>Purpose</h3>
+<p>Audit Log — Machina Monitoring page at <code>/audit</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/audit</code></li>
+<li>Nav: <strong>Monitoring → Audit Log</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/audit</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Live Metrics</h2>
+<h3>Purpose</h3>
+<p>Live Metrics — Machina Monitoring page at <code>/events</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/events</code></li>
+<li>Nav: <strong>Monitoring → Live Metrics</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/events</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Daemon Jobs</h2>
+<h3>Purpose</h3>
+<p>Daemon Jobs — Machina Monitoring page at <code>/jobs</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/jobs</code></li>
+<li>Nav: <strong>Monitoring → Daemon Jobs</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/jobs</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>System Logs</h2>
+<h3>Purpose</h3>
+<p>System Logs — Machina Monitoring page at <code>/logs</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/logs</code></li>
+<li>Nav: <strong>Monitoring → System Logs</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/logs</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Host Overview</h2>
+<h3>Purpose</h3>
+<p>Host Overview — Machina Monitoring page at <code>/node</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/node</code></li>
+<li>Nav: <strong>Monitoring → Host Overview</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/node</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>System Check</h2>
+<h3>Purpose</h3>
+<p>System Check — Machina Monitoring page at <code>/system-check</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/system-check</code></li>
+<li>Nav: <strong>Monitoring → System Check</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/system-check</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Create Instance</h2>
+<h3>Purpose</h3>
+<p>Create Instance — Machina OpenStack page at <code>/openstack/create</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/openstack/create</code></li>
+<li>Nav: <strong>OpenStack → Create Instance</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/openstack/create</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Flavors</h2>
+<h3>Purpose</h3>
+<p>Flavors — Machina OpenStack page at <code>/openstack/flavors</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/openstack/flavors</code></li>
+<li>Nav: <strong>OpenStack → Flavors</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/openstack/flavors</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Floating IPs</h2>
+<h3>Purpose</h3>
+<p>Floating IPs — Machina OpenStack page at <code>/openstack/floating-ips</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/openstack/floating-ips</code></li>
+<li>Nav: <strong>OpenStack → Floating IPs</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/openstack/floating-ips</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Heat Orchestration</h2>
+<h3>Purpose</h3>
+<p>Heat Orchestration — Machina OpenStack page at <code>/openstack/heat</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/openstack/heat</code></li>
+<li>Nav: <strong>OpenStack → Heat Orchestration</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/openstack/heat</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Identity</h2>
+<h3>Purpose</h3>
+<p>Identity — Machina OpenStack page at <code>/openstack/identity</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/openstack/identity</code></li>
+<li>Nav: <strong>OpenStack → Identity</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/openstack/identity</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Glance Images</h2>
+<h3>Purpose</h3>
+<p>Glance Images — Machina OpenStack page at <code>/openstack/images</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/openstack/images</code></li>
+<li>Nav: <strong>OpenStack → Glance Images</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/openstack/images</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Instances</h2>
+<h3>Purpose</h3>
+<p>Instances — Machina OpenStack page at <code>/openstack/instances</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/openstack/instances</code></li>
+<li>Nav: <strong>OpenStack → Instances</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/openstack/instances</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Keypairs</h2>
+<h3>Purpose</h3>
+<p>Keypairs — Machina OpenStack page at <code>/openstack/keypairs</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/openstack/keypairs</code></li>
+<li>Nav: <strong>OpenStack → Keypairs</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/openstack/keypairs</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Load Balancers</h2>
+<h3>Purpose</h3>
+<p>Load Balancers — Machina OpenStack page at <code>/openstack/load-balancers</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/openstack/load-balancers</code></li>
+<li>Nav: <strong>OpenStack → Load Balancers</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/openstack/load-balancers</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Migrations</h2>
+<h3>Purpose</h3>
+<p>Migrations — Machina OpenStack page at <code>/openstack/migrations</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/openstack/migrations</code></li>
+<li>Nav: <strong>OpenStack → Migrations</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/openstack/migrations</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Networking</h2>
+<h3>Purpose</h3>
+<p>Networking — Machina OpenStack page at <code>/openstack/networking</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/openstack/networking</code></li>
+<li>Nav: <strong>OpenStack → Networking</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/openstack/networking</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Security Groups</h2>
+<h3>Purpose</h3>
+<p>Security Groups — Machina OpenStack page at <code>/openstack/security-groups</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/openstack/security-groups</code></li>
+<li>Nav: <strong>OpenStack → Security Groups</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/openstack/security-groups</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Server Groups</h2>
+<h3>Purpose</h3>
+<p>Server Groups — Machina OpenStack page at <code>/openstack/server-groups</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/openstack/server-groups</code></li>
+<li>Nav: <strong>OpenStack → Server Groups</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/openstack/server-groups</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Network Topology</h2>
+<h3>Purpose</h3>
+<p>Network Topology — Machina OpenStack page at <code>/openstack/topology</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/openstack/topology</code></li>
+<li>Nav: <strong>OpenStack → Network Topology</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/openstack/topology</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Volume Snapshots</h2>
+<h3>Purpose</h3>
+<p>Volume Snapshots — Machina OpenStack page at <code>/openstack/volume-snapshots</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/openstack/volume-snapshots</code></li>
+<li>Nav: <strong>OpenStack → Volume Snapshots</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/openstack/volume-snapshots</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Volumes</h2>
+<h3>Purpose</h3>
+<p>Volumes — Machina OpenStack page at <code>/openstack/volumes</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/openstack/volumes</code></li>
+<li>Nav: <strong>OpenStack → Volumes</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/openstack/volumes</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Overview</h2>
+<h3>Purpose</h3>
+<p>Overview — Machina OpenStack page at <code>/openstack</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/openstack</code></li>
+<li>Nav: <strong>OpenStack → Overview</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/openstack</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Activity Monitor</h2>
+<h3>Purpose</h3>
+<p>Activity Monitor — Machina Platform page at <code>/platform/activity</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/activity</code></li>
+<li>Nav: <strong>Platform → Activity Monitor</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/activity</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>AI Providers</h2>
+<h3>Purpose</h3>
+<p>AI Providers — Machina Platform page at <code>/platform/ai-providers</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/ai-providers</code></li>
+<li>Nav: <strong>Platform → AI Providers</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/ai-providers</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>API Keys</h2>
+<h3>Purpose</h3>
+<p>API Keys — Machina Platform page at <code>/platform/api-keys</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/api-keys</code></li>
+<li>Nav: <strong>Platform → API Keys</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/api-keys</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Applications</h2>
+<h3>Purpose</h3>
+<p>Applications — Machina Platform page at <code>/platform/applications</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/applications</code></li>
+<li>Nav: <strong>Platform → Applications</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/applications</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Backup &amp; Restore</h2>
+<h3>Purpose</h3>
+<p>Backup &amp; Restore — Machina Platform page at <code>/platform/backups</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/backups</code></li>
+<li>Nav: <strong>Platform → Backup &amp; Restore</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/backups</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Bare Metal</h2>
+<h3>Purpose</h3>
+<p>Bare Metal — Machina Platform page at <code>/platform/baremetal</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/baremetal</code></li>
+<li>Nav: <strong>Platform → Bare Metal</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/baremetal</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Blueprints</h2>
+<h3>Purpose</h3>
+<p>Blueprints — Machina Platform page at <code>/platform/blueprints</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/blueprints</code></li>
+<li>Nav: <strong>Platform → Blueprints</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/blueprints</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Cloud-Init Studio</h2>
+<h3>Purpose</h3>
+<p>Cloud-Init Studio — Machina Platform page at <code>/platform/cloud-init</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/cloud-init</code></li>
+<li>Nav: <strong>Platform → Cloud-Init Studio</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/cloud-init</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Images &amp; ISOs</h2>
+<h3>Purpose</h3>
+<p>Images &amp; ISOs — Machina Platform page at <code>/platform/content</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/content</code></li>
+<li>Nav: <strong>Platform → Images &amp; ISOs</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/content</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Advanced Create</h2>
+<h3>Purpose</h3>
+<p>Advanced Create — Machina Platform page at <code>/platform/create-advanced</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/create-advanced</code></li>
+<li>Nav: <strong>Platform → Advanced Create</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/create-advanced</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Create ISO</h2>
+<h3>Purpose</h3>
+<p>Create ISO — Machina Platform page at <code>/platform/create-iso</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/create-iso</code></li>
+<li>Nav: <strong>Platform → Create ISO</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/create-iso</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Datacenter View</h2>
+<h3>Purpose</h3>
+<p>Datacenter View — Machina Platform page at <code>/platform/datacenter</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/datacenter</code></li>
+<li>Nav: <strong>Platform → Datacenter View</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/datacenter</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Developer Hub</h2>
+<h3>Purpose</h3>
+<p>Developer Hub — Machina Platform page at <code>/platform/developer</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/developer</code></li>
+<li>Nav: <strong>Platform → Developer Hub</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/developer</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Add Host</h2>
+<h3>Purpose</h3>
+<p>Add Host — Machina Platform page at <code>/platform/enroll</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/enroll</code></li>
+<li>Nav: <strong>Platform → Add Host</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/enroll</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Enterprise Features</h2>
+<h3>Purpose</h3>
+<p>Enterprise Features — Machina Platform page at <code>/platform/enterprise</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/enterprise</code></li>
+<li>Nav: <strong>Platform → Enterprise Features</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/enterprise</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Event Log</h2>
+<h3>Purpose</h3>
+<p>Event Log — Machina Platform page at <code>/platform/events</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/events</code></li>
+<li>Nav: <strong>Platform → Event Log</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/events</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Fleet Snapshots</h2>
+<h3>Purpose</h3>
+<p>Fleet Snapshots — Machina Platform page at <code>/platform/fleet-snapshots</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/fleet-snapshots</code></li>
+<li>Nav: <strong>Platform → Fleet Snapshots</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/fleet-snapshots</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>GPU Command Center</h2>
+<h3>Purpose</h3>
+<p>GPU Command Center — Machina Platform page at <code>/platform/gpu</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/gpu</code></li>
+<li>Nav: <strong>Platform → GPU Command Center</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/gpu</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>High Availability</h2>
+<h3>Purpose</h3>
+<p>High Availability — Machina Platform page at <code>/platform/ha</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/ha</code></li>
+<li>Nav: <strong>Platform → High Availability</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/ha</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Hosts</h2>
+<h3>Purpose</h3>
+<p>Hosts — Machina Platform page at <code>/platform/hosts</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/hosts</code></li>
+<li>Nav: <strong>Platform → Hosts</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/hosts</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Integrations</h2>
+<h3>Purpose</h3>
+<p>Integrations — Machina Platform page at <code>/platform/integrations</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/integrations</code></li>
+<li>Nav: <strong>Platform → Integrations</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/integrations</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Launchpad</h2>
+<h3>Purpose</h3>
+<p>Launchpad — Machina Platform page at <code>/platform/launchpad</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/launchpad</code></li>
+<li>Nav: <strong>Platform → Launchpad</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/launchpad</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Maintenance</h2>
+<h3>Purpose</h3>
+<p>Maintenance — Machina Platform page at <code>/platform/maintenance</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/maintenance</code></li>
+<li>Nav: <strong>Platform → Maintenance</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/maintenance</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Marketplace</h2>
+<h3>Purpose</h3>
+<p>Marketplace — Machina Platform page at <code>/platform/marketplace</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/marketplace</code></li>
+<li>Nav: <strong>Platform → Marketplace</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/marketplace</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Migration Assistant</h2>
+<h3>Purpose</h3>
+<p>Migration Assistant — Machina Platform page at <code>/platform/migration</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/migration</code></li>
+<li>Nav: <strong>Platform → Migration Assistant</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/migration</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Network Canvas</h2>
+<h3>Purpose</h3>
+<p>Network Canvas — Machina Platform page at <code>/platform/network-canvas</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/network-canvas</code></li>
+<li>Nav: <strong>Platform → Network Canvas</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/network-canvas</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Networks</h2>
+<h3>Purpose</h3>
+<p>Networks — Machina Platform page at <code>/platform/networks</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/networks</code></li>
+<li>Nav: <strong>Platform → Networks</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/networks</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Alerts</h2>
+<h3>Purpose</h3>
+<p>Alerts — Machina Platform page at <code>/platform/notifications</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/notifications</code></li>
+<li>Nav: <strong>Platform → Alerts</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/notifications</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Observability</h2>
+<h3>Purpose</h3>
+<p>Observability — Machina Platform page at <code>/platform/observability</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/observability</code></li>
+<li>Nav: <strong>Platform → Observability</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/observability</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Disaster Recovery</h2>
+<h3>Purpose</h3>
+<p>Disaster Recovery — Machina Platform page at <code>/platform/placement</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/placement</code></li>
+<li>Nav: <strong>Platform → Disaster Recovery</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/placement</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Policy</h2>
+<h3>Purpose</h3>
+<p>Policy — Machina Platform page at <code>/platform/policy</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/policy</code></li>
+<li>Nav: <strong>Platform → Policy</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/policy</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Stage Manager</h2>
+<h3>Purpose</h3>
+<p>Stage Manager — Machina Platform page at <code>/platform/projects</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/projects</code></li>
+<li>Nav: <strong>Platform → Stage Manager</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/projects</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Recommendations</h2>
+<h3>Purpose</h3>
+<p>Recommendations — Machina Platform page at <code>/platform/recommendations</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/recommendations</code></li>
+<li>Nav: <strong>Platform → Recommendations</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/recommendations</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Reports</h2>
+<h3>Purpose</h3>
+<p>Reports — Machina Platform page at <code>/platform/reports</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/reports</code></li>
+<li>Nav: <strong>Platform → Reports</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/reports</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Settings</h2>
+<h3>Purpose</h3>
+<p>Settings — Machina Platform page at <code>/platform/settings</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/settings</code></li>
+<li>Nav: <strong>Platform → Settings</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/settings</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Security Operations</h2>
+<h3>Purpose</h3>
+<p>Security Operations — Machina Platform page at <code>/platform/soc</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/soc</code></li>
+<li>Nav: <strong>Platform → Security Operations</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/soc</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Storage (Atlas)</h2>
+<h3>Purpose</h3>
+<p>Storage (Atlas) — Machina Platform page at <code>/platform/storage-atlas</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/storage-atlas</code></li>
+<li>Nav: <strong>Platform → Storage (Atlas)</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/storage-atlas</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Storage Tiers</h2>
+<h3>Purpose</h3>
+<p>Storage Tiers — Machina Platform page at <code>/platform/storage-tiers</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/storage-tiers</code></li>
+<li>Nav: <strong>Platform → Storage Tiers</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/storage-tiers</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Disk Utility</h2>
+<h3>Purpose</h3>
+<p>Disk Utility — Machina Platform page at <code>/platform/storage</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/storage</code></li>
+<li>Nav: <strong>Platform → Disk Utility</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/storage</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Support</h2>
+<h3>Purpose</h3>
+<p>Support — Machina Platform page at <code>/platform/support</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/support</code></li>
+<li>Nav: <strong>Platform → Support</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/support</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Tasks</h2>
+<h3>Purpose</h3>
+<p>Tasks — Machina Platform page at <code>/platform/tasks</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/tasks</code></li>
+<li>Nav: <strong>Platform → Tasks</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/tasks</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Templates</h2>
+<h3>Purpose</h3>
+<p>Templates — Machina Platform page at <code>/platform/templates</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/templates</code></li>
+<li>Nav: <strong>Platform → Templates</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/templates</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Topology</h2>
+<h3>Purpose</h3>
+<p>Topology — Machina Platform page at <code>/platform/topology</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/topology</code></li>
+<li>Nav: <strong>Platform → Topology</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/topology</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Upgrade Matrix</h2>
+<h3>Purpose</h3>
+<p>Upgrade Matrix — Machina Platform page at <code>/platform/upgrade</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/upgrade</code></li>
+<li>Nav: <strong>Platform → Upgrade Matrix</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/upgrade</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Users &amp; Groups</h2>
+<h3>Purpose</h3>
+<p>Users &amp; Groups — Machina Platform page at <code>/platform/users</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/users</code></li>
+<li>Nav: <strong>Platform → Users &amp; Groups</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/users</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>VM Builder</h2>
+<h3>Purpose</h3>
+<p>VM Builder — Machina Platform page at <code>/platform/vm-builder</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/vm-builder</code></li>
+<li>Nav: <strong>Platform → VM Builder</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/vm-builder</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Virtual Machines</h2>
+<h3>Purpose</h3>
+<p>Fleet VM finder across enrolled hosts.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/vms</code></li>
+<li>Nav: <strong>Platform → Virtual Machines</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/vms</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Webhooks</h2>
+<h3>Purpose</h3>
+<p>Webhooks — Machina Platform page at <code>/platform/webhooks</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/webhooks</code></li>
+<li>Nav: <strong>Platform → Webhooks</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/webhooks</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Mission Control</h2>
+<h3>Purpose</h3>
+<p>Mission Control — multi-host platform overview.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform</code></li>
+<li>Nav: <strong>Platform → Mission Control</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Approvals</h2>
+<h3>Purpose</h3>
+<p>Approvals — Machina Platform / Security page at <code>/platform/zeus/approvals</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/zeus/approvals</code></li>
+<li>Nav: <strong>Platform / Security → Approvals</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/zeus/approvals</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Configure Zeus</h2>
+<h3>Purpose</h3>
+<p>Configure Zeus — Machina Platform / Security page at <code>/platform/zeus/configure</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/zeus/configure</code></li>
+<li>Nav: <strong>Platform / Security → Configure Zeus</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/zeus/configure</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Incident Commander</h2>
+<h3>Purpose</h3>
+<p>Incident Commander — Machina Platform / Security page at <code>/platform/zeus/incidents</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/zeus/incidents</code></li>
+<li>Nav: <strong>Platform / Security → Incident Commander</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/zeus/incidents</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Rightsizing</h2>
+<h3>Purpose</h3>
+<p>Rightsizing — Machina Platform / Security page at <code>/platform/zeus/rightsizing</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/zeus/rightsizing</code></li>
+<li>Nav: <strong>Platform / Security → Rightsizing</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/zeus/rightsizing</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Zeus Security</h2>
+<h3>Purpose</h3>
+<p>Zeus Security — Machina Platform / Security page at <code>/platform/zeus/security</code>.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/zeus/security</code></li>
+<li>Nav: <strong>Platform / Security → Zeus Security</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/zeus/security</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Zeus AI</h2>
+<h3>Purpose</h3>
+<p>Zeus AI assistant for Machina operations.</p>
+<h3>When to use it</h3>
+<ul>
+<li>Open this page when the job matches the purpose above</li>
+<li>Use Mission Control (<code>/platform</code>) for fleet-wide work; use Core routes for this host only</li>
+<li>Confirm PAM/OIDC login and roles if actions are missing</li>
+</ul>
+<h3>How to get there</h3>
+<ul>
+<li>Route: <code>/platform/zeus</code></li>
+<li>Nav: <strong>Platform / Security → Zeus AI</strong> (or spotlight / Finder search)</li>
+</ul>
+<h3>What you can do</h3>
+<ol>
+<li>Open <code>/platform/zeus</code> against the Machina daemon (<code>https://&lt;host&gt;:5092</code>).</li>
+<li>Use filters and host/VM selectors when the page provides them.</li>
+<li>Drill into a VM, host, or OpenStack resource for consoles and detail panels.</li>
+<li>For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).</li>
+</ol>
+<p>If the page stays empty, check daemon health (<code>/api/v1/health</code>), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.</p>
+<h3>Related pages</h3>
+<ul>
+<li><a href="../../getting-started.md">Getting Started</a></li>
+<li><a href="../../PAGE_INDEX.md">Page index</a></li>
+</ul>
+<hr>
+<h2>Machina — Complete page index</h2>
+<p>Every primary navigable dashboard route.</p>
+<p><em>Generated: 2026-07-26 · 100 routes</em></p>
+<p>Regenerate: <code>node scripts/customer-docs/generate-page-index.mjs</code></p>
+<h3>Core</h3>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>Route</th>
+<th>Purpose</th>
+<th>Guide</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Dashboard</td>
+<td><code>/</code></td>
+<td>Host dashboard — VM inventory pulse and shortcuts.</td>
+<td><a href="pages/core/home.md">Open</a></td>
+</tr>
+<tr>
+<td>Virtual Machines</td>
+<td><code>/vms</code></td>
+<td>Virtual machine inventory for this libvirt host.</td>
+<td><a href="pages/core/vms.md">Open</a></td>
+</tr>
+<tr>
+<td>Create VM</td>
+<td><code>/create</code></td>
+<td>Create a new libvirt VM.</td>
+<td><a href="pages/core/create.md">Open</a></td>
+</tr>
+<tr>
+<td>Import VM</td>
+<td><code>/import</code></td>
+<td>Import VM — Machina Core page at <code>/import</code>.</td>
+<td><a href="pages/core/import.md">Open</a></td>
+</tr>
+<tr>
+<td>Fleet</td>
+<td><code>/fleet</code></td>
+<td>Fleet — Machina Core page at <code>/fleet</code>.</td>
+<td><a href="pages/core/fleet.md">Open</a></td>
+</tr>
+<tr>
+<td>Host SSH</td>
+<td><code>/host-ssh</code></td>
+<td>Host SSH — Machina Core page at <code>/host-ssh</code>.</td>
+<td><a href="pages/core/host-ssh.md">Open</a></td>
+</tr>
+<tr>
+<td>Wire OpenStack</td>
+<td><code>/settings?openstack=1</code></td>
+<td>Wire OpenStack — Machina Core page at <code>/settings?openstack=1</code>.</td>
+<td><a href="pages/core/settings.md">Open</a></td>
+</tr>
+<tr>
+<td>Capabilities</td>
+<td><code>/capabilities</code></td>
+<td>Capabilities — Machina Core page at <code>/capabilities</code>.</td>
+<td><a href="pages/core/capabilities.md">Open</a></td>
+</tr>
+<tr>
+<td>Node Devices</td>
+<td><code>/devices</code></td>
+<td>Node Devices — Machina Core page at <code>/devices</code>.</td>
+<td><a href="pages/core/devices.md">Open</a></td>
+</tr>
+<tr>
+<td>Services</td>
+<td><code>/services</code></td>
+<td>Services — Machina Core page at <code>/services</code>.</td>
+<td><a href="pages/core/services.md">Open</a></td>
+</tr>
+</tbody></table>
+<h3>Platform</h3>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>Route</th>
+<th>Purpose</th>
+<th>Guide</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Mission Control</td>
+<td><code>/platform</code></td>
+<td>Mission Control — multi-host platform overview.</td>
+<td><a href="pages/platform/platform.md">Open</a></td>
+</tr>
+<tr>
+<td>Virtual Machines</td>
+<td><code>/platform/vms</code></td>
+<td>Fleet VM finder across enrolled hosts.</td>
+<td><a href="pages/platform/platform-vms.md">Open</a></td>
+</tr>
+<tr>
+<td>Hosts</td>
+<td><code>/platform/hosts</code></td>
+<td>Hosts — Machina Platform page at <code>/platform/hosts</code>.</td>
+<td><a href="pages/platform/platform-hosts.md">Open</a></td>
+</tr>
+<tr>
+<td>Applications</td>
+<td><code>/platform/applications</code></td>
+<td>Applications — Machina Platform page at <code>/platform/applications</code>.</td>
+<td><a href="pages/platform/platform-applications.md">Open</a></td>
+</tr>
+<tr>
+<td>Launchpad</td>
+<td><code>/platform/launchpad</code></td>
+<td>Launchpad — Machina Platform page at <code>/platform/launchpad</code>.</td>
+<td><a href="pages/platform/platform-launchpad.md">Open</a></td>
+</tr>
+<tr>
+<td>Datacenter View</td>
+<td><code>/platform/datacenter</code></td>
+<td>Datacenter View — Machina Platform page at <code>/platform/datacenter</code>.</td>
+<td><a href="pages/platform/platform-datacenter.md">Open</a></td>
+</tr>
+<tr>
+<td>Disk Utility</td>
+<td><code>/platform/storage</code></td>
+<td>Disk Utility — Machina Platform page at <code>/platform/storage</code>.</td>
+<td><a href="pages/platform/platform-storage.md">Open</a></td>
+</tr>
+<tr>
+<td>Storage (Atlas)</td>
+<td><code>/platform/storage-atlas</code></td>
+<td>Storage (Atlas) — Machina Platform page at <code>/platform/storage-atlas</code>.</td>
+<td><a href="pages/platform/platform-storage-atlas.md">Open</a></td>
+</tr>
+<tr>
+<td>Storage Tiers</td>
+<td><code>/platform/storage-tiers</code></td>
+<td>Storage Tiers — Machina Platform page at <code>/platform/storage-tiers</code>.</td>
+<td><a href="pages/platform/platform-storage-tiers.md">Open</a></td>
+</tr>
+<tr>
+<td>Networks</td>
+<td><code>/platform/networks</code></td>
+<td>Networks — Machina Platform page at <code>/platform/networks</code>.</td>
+<td><a href="pages/platform/platform-networks.md">Open</a></td>
+</tr>
+<tr>
+<td>Images &amp; ISOs</td>
+<td><code>/platform/content</code></td>
+<td>Images &amp; ISOs — Machina Platform page at <code>/platform/content</code>.</td>
+<td><a href="pages/platform/platform-content.md">Open</a></td>
+</tr>
+<tr>
+<td>Templates</td>
+<td><code>/platform/templates</code></td>
+<td>Templates — Machina Platform page at <code>/platform/templates</code>.</td>
+<td><a href="pages/platform/platform-templates.md">Open</a></td>
+</tr>
+<tr>
+<td>Cloud-Init Studio</td>
+<td><code>/platform/cloud-init</code></td>
+<td>Cloud-Init Studio — Machina Platform page at <code>/platform/cloud-init</code>.</td>
+<td><a href="pages/platform/platform-cloud-init.md">Open</a></td>
+</tr>
+<tr>
+<td>Create ISO</td>
+<td><code>/platform/create-iso</code></td>
+<td>Create ISO — Machina Platform page at <code>/platform/create-iso</code>.</td>
+<td><a href="pages/platform/platform-create-iso.md">Open</a></td>
+</tr>
+<tr>
+<td>Bare Metal</td>
+<td><code>/platform/baremetal</code></td>
+<td>Bare Metal — Machina Platform page at <code>/platform/baremetal</code>.</td>
+<td><a href="pages/platform/platform-baremetal.md">Open</a></td>
+</tr>
+<tr>
+<td>Migration Assistant</td>
+<td><code>/platform/migration</code></td>
+<td>Migration Assistant — Machina Platform page at <code>/platform/migration</code>.</td>
+<td><a href="pages/platform/platform-migration.md">Open</a></td>
+</tr>
+<tr>
+<td>VM Builder</td>
+<td><code>/platform/vm-builder</code></td>
+<td>VM Builder — Machina Platform page at <code>/platform/vm-builder</code>.</td>
+<td><a href="pages/platform/platform-vm-builder.md">Open</a></td>
+</tr>
+<tr>
+<td>Advanced Create</td>
+<td><code>/platform/create-advanced</code></td>
+<td>Advanced Create — Machina Platform page at <code>/platform/create-advanced</code>.</td>
+<td><a href="pages/platform/platform-create-advanced.md">Open</a></td>
+</tr>
+<tr>
+<td>Blueprints</td>
+<td><code>/platform/blueprints</code></td>
+<td>Blueprints — Machina Platform page at <code>/platform/blueprints</code>.</td>
+<td><a href="pages/platform/platform-blueprints.md">Open</a></td>
+</tr>
+<tr>
+<td>Tasks</td>
+<td><code>/platform/tasks</code></td>
+<td>Tasks — Machina Platform page at <code>/platform/tasks</code>.</td>
+<td><a href="pages/platform/platform-tasks.md">Open</a></td>
+</tr>
+<tr>
+<td>Network Canvas</td>
+<td><code>/platform/network-canvas</code></td>
+<td>Network Canvas — Machina Platform page at <code>/platform/network-canvas</code>.</td>
+<td><a href="pages/platform/platform-network-canvas.md">Open</a></td>
+</tr>
+<tr>
+<td>Security Operations</td>
+<td><code>/platform/soc</code></td>
+<td>Security Operations — Machina Platform page at <code>/platform/soc</code>.</td>
+<td><a href="pages/platform/platform-soc.md">Open</a></td>
+</tr>
+<tr>
+<td>Policy</td>
+<td><code>/platform/policy</code></td>
+<td>Policy — Machina Platform page at <code>/platform/policy</code>.</td>
+<td><a href="pages/platform/platform-policy.md">Open</a></td>
+</tr>
+<tr>
+<td>Webhooks</td>
+<td><code>/platform/webhooks</code></td>
+<td>Webhooks — Machina Platform page at <code>/platform/webhooks</code>.</td>
+<td><a href="pages/platform/platform-webhooks.md">Open</a></td>
+</tr>
+<tr>
+<td>Backup &amp; Restore</td>
+<td><code>/platform/backups</code></td>
+<td>Backup &amp; Restore — Machina Platform page at <code>/platform/backups</code>.</td>
+<td><a href="pages/platform/platform-backups.md">Open</a></td>
+</tr>
+<tr>
+<td>Fleet Snapshots</td>
+<td><code>/platform/fleet-snapshots</code></td>
+<td>Fleet Snapshots — Machina Platform page at <code>/platform/fleet-snapshots</code>.</td>
+<td><a href="pages/platform/platform-fleet-snapshots.md">Open</a></td>
+</tr>
+<tr>
+<td>Disaster Recovery</td>
+<td><code>/platform/placement</code></td>
+<td>Disaster Recovery — Machina Platform page at <code>/platform/placement</code>.</td>
+<td><a href="pages/platform/platform-placement.md">Open</a></td>
+</tr>
+<tr>
+<td>High Availability</td>
+<td><code>/platform/ha</code></td>
+<td>High Availability — Machina Platform page at <code>/platform/ha</code>.</td>
+<td><a href="pages/platform/platform-ha.md">Open</a></td>
+</tr>
+<tr>
+<td>Upgrade Matrix</td>
+<td><code>/platform/upgrade</code></td>
+<td>Upgrade Matrix — Machina Platform page at <code>/platform/upgrade</code>.</td>
+<td><a href="pages/platform/platform-upgrade.md">Open</a></td>
+</tr>
+<tr>
+<td>Maintenance</td>
+<td><code>/platform/maintenance</code></td>
+<td>Maintenance — Machina Platform page at <code>/platform/maintenance</code>.</td>
+<td><a href="pages/platform/platform-maintenance.md">Open</a></td>
+</tr>
+<tr>
+<td>Recommendations</td>
+<td><code>/platform/recommendations</code></td>
+<td>Recommendations — Machina Platform page at <code>/platform/recommendations</code>.</td>
+<td><a href="pages/platform/platform-recommendations.md">Open</a></td>
+</tr>
+<tr>
+<td>Alerts</td>
+<td><code>/platform/notifications</code></td>
+<td>Alerts — Machina Platform page at <code>/platform/notifications</code>.</td>
+<td><a href="pages/platform/platform-notifications.md">Open</a></td>
+</tr>
+<tr>
+<td>Observability</td>
+<td><code>/platform/observability</code></td>
+<td>Observability — Machina Platform page at <code>/platform/observability</code>.</td>
+<td><a href="pages/platform/platform-observability.md">Open</a></td>
+</tr>
+<tr>
+<td>Activity Monitor</td>
+<td><code>/platform/activity</code></td>
+<td>Activity Monitor — Machina Platform page at <code>/platform/activity</code>.</td>
+<td><a href="pages/platform/platform-activity.md">Open</a></td>
+</tr>
+<tr>
+<td>Topology</td>
+<td><code>/platform/topology</code></td>
+<td>Topology — Machina Platform page at <code>/platform/topology</code>.</td>
+<td><a href="pages/platform/platform-topology.md">Open</a></td>
+</tr>
+<tr>
+<td>Reports</td>
+<td><code>/platform/reports</code></td>
+<td>Reports — Machina Platform page at <code>/platform/reports</code>.</td>
+<td><a href="pages/platform/platform-reports.md">Open</a></td>
+</tr>
+<tr>
+<td>GPU Command Center</td>
+<td><code>/platform/gpu</code></td>
+<td>GPU Command Center — Machina Platform page at <code>/platform/gpu</code>.</td>
+<td><a href="pages/platform/platform-gpu.md">Open</a></td>
+</tr>
+<tr>
+<td>Settings</td>
+<td><code>/platform/settings</code></td>
+<td>Settings — Machina Platform page at <code>/platform/settings</code>.</td>
+<td><a href="pages/platform/platform-settings.md">Open</a></td>
+</tr>
+<tr>
+<td>Users &amp; Groups</td>
+<td><code>/platform/users</code></td>
+<td>Users &amp; Groups — Machina Platform page at <code>/platform/users</code>.</td>
+<td><a href="pages/platform/platform-users.md">Open</a></td>
+</tr>
+<tr>
+<td>Stage Manager</td>
+<td><code>/platform/projects</code></td>
+<td>Stage Manager — Machina Platform page at <code>/platform/projects</code>.</td>
+<td><a href="pages/platform/platform-projects.md">Open</a></td>
+</tr>
+<tr>
+<td>Add Host</td>
+<td><code>/platform/enroll</code></td>
+<td>Add Host — Machina Platform page at <code>/platform/enroll</code>.</td>
+<td><a href="pages/platform/platform-enroll.md">Open</a></td>
+</tr>
+<tr>
+<td>API Keys</td>
+<td><code>/platform/api-keys</code></td>
+<td>API Keys — Machina Platform page at <code>/platform/api-keys</code>.</td>
+<td><a href="pages/platform/platform-api-keys.md">Open</a></td>
+</tr>
+<tr>
+<td>Integrations</td>
+<td><code>/platform/integrations</code></td>
+<td>Integrations — Machina Platform page at <code>/platform/integrations</code>.</td>
+<td><a href="pages/platform/platform-integrations.md">Open</a></td>
+</tr>
+<tr>
+<td>Marketplace</td>
+<td><code>/platform/marketplace</code></td>
+<td>Marketplace — Machina Platform page at <code>/platform/marketplace</code>.</td>
+<td><a href="pages/platform/platform-marketplace.md">Open</a></td>
+</tr>
+<tr>
+<td>AI Providers</td>
+<td><code>/platform/ai-providers</code></td>
+<td>AI Providers — Machina Platform page at <code>/platform/ai-providers</code>.</td>
+<td><a href="pages/platform/platform-ai-providers.md">Open</a></td>
+</tr>
+<tr>
+<td>Enterprise Features</td>
+<td><code>/platform/enterprise</code></td>
+<td>Enterprise Features — Machina Platform page at <code>/platform/enterprise</code>.</td>
+<td><a href="pages/platform/platform-enterprise.md">Open</a></td>
+</tr>
+<tr>
+<td>Developer Hub</td>
+<td><code>/platform/developer</code></td>
+<td>Developer Hub — Machina Platform page at <code>/platform/developer</code>.</td>
+<td><a href="pages/platform/platform-developer.md">Open</a></td>
+</tr>
+<tr>
+<td>Support</td>
+<td><code>/platform/support</code></td>
+<td>Support — Machina Platform page at <code>/platform/support</code>.</td>
+<td><a href="pages/platform/platform-support.md">Open</a></td>
+</tr>
+<tr>
+<td>Event Log</td>
+<td><code>/platform/events</code></td>
+<td>Event Log — Machina Platform page at <code>/platform/events</code>.</td>
+<td><a href="pages/platform/platform-events.md">Open</a></td>
+</tr>
+</tbody></table>
+<h3>Platform / Security</h3>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>Route</th>
+<th>Purpose</th>
+<th>Guide</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Zeus AI</td>
+<td><code>/platform/zeus</code></td>
+<td>Zeus AI assistant for Machina operations.</td>
+<td><a href="pages/platform-security/platform-zeus.md">Open</a></td>
+</tr>
+<tr>
+<td>Configure Zeus</td>
+<td><code>/platform/zeus/configure</code></td>
+<td>Configure Zeus — Machina Platform / Security page at <code>/platform/zeus/configure</code>.</td>
+<td><a href="pages/platform-security/platform-zeus-configure.md">Open</a></td>
+</tr>
+<tr>
+<td>Zeus Security</td>
+<td><code>/platform/zeus/security</code></td>
+<td>Zeus Security — Machina Platform / Security page at <code>/platform/zeus/security</code>.</td>
+<td><a href="pages/platform-security/platform-zeus-security.md">Open</a></td>
+</tr>
+<tr>
+<td>Incident Commander</td>
+<td><code>/platform/zeus/incidents</code></td>
+<td>Incident Commander — Machina Platform / Security page at <code>/platform/zeus/incidents</code>.</td>
+<td><a href="pages/platform-security/platform-zeus-incidents.md">Open</a></td>
+</tr>
+<tr>
+<td>Approvals</td>
+<td><code>/platform/zeus/approvals</code></td>
+<td>Approvals — Machina Platform / Security page at <code>/platform/zeus/approvals</code>.</td>
+<td><a href="pages/platform-security/platform-zeus-approvals.md">Open</a></td>
+</tr>
+<tr>
+<td>Rightsizing</td>
+<td><code>/platform/zeus/rightsizing</code></td>
+<td>Rightsizing — Machina Platform / Security page at <code>/platform/zeus/rightsizing</code>.</td>
+<td><a href="pages/platform-security/platform-zeus-rightsizing.md">Open</a></td>
+</tr>
+</tbody></table>
+<h3>Infrastructure</h3>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>Route</th>
+<th>Purpose</th>
+<th>Guide</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Storage Pools</td>
+<td><code>/storage</code></td>
+<td>Storage Pools — Machina Infrastructure page at <code>/storage</code>.</td>
+<td><a href="pages/infrastructure/storage.md">Open</a></td>
+</tr>
+<tr>
+<td>Disk Images</td>
+<td><code>/disk-images</code></td>
+<td>Disk Images — Machina Infrastructure page at <code>/disk-images</code>.</td>
+<td><a href="pages/infrastructure/disk-images.md">Open</a></td>
+</tr>
+<tr>
+<td>Snapshots</td>
+<td><code>/snapshots</code></td>
+<td>Snapshots — Machina Infrastructure page at <code>/snapshots</code>.</td>
+<td><a href="pages/infrastructure/snapshots.md">Open</a></td>
+</tr>
+<tr>
+<td>Snapshot Backups</td>
+<td><code>/backups</code></td>
+<td>Snapshot Backups — Machina Infrastructure page at <code>/backups</code>.</td>
+<td><a href="pages/infrastructure/backups.md">Open</a></td>
+</tr>
+<tr>
+<td>Networks</td>
+<td><code>/networks</code></td>
+<td>Networks — Machina Infrastructure page at <code>/networks</code>.</td>
+<td><a href="pages/infrastructure/networks.md">Open</a></td>
+</tr>
+<tr>
+<td>Network Filters</td>
+<td><code>/nwfilters</code></td>
+<td>Network Filters — Machina Infrastructure page at <code>/nwfilters</code>.</td>
+<td><a href="pages/infrastructure/nwfilters.md">Open</a></td>
+</tr>
+<tr>
+<td>Host Networking</td>
+<td><code>/host-networking</code></td>
+<td>Host Networking — Machina Infrastructure page at <code>/host-networking</code>.</td>
+<td><a href="pages/infrastructure/host-networking.md">Open</a></td>
+</tr>
+<tr>
+<td>Secrets</td>
+<td><code>/secrets</code></td>
+<td>Secrets — Machina Infrastructure page at <code>/secrets</code>.</td>
+<td><a href="pages/infrastructure/secrets.md">Open</a></td>
+</tr>
+</tbody></table>
+<h3>Kubernetes</h3>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>Route</th>
+<th>Purpose</th>
+<th>Guide</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Kubernetes</td>
+<td><code>/k8s</code></td>
+<td>Kubernetes — Machina Kubernetes page at <code>/k8s</code>.</td>
+<td><a href="pages/kubernetes/k8s.md">Open</a></td>
+</tr>
+<tr>
+<td>K8s Workloads</td>
+<td><code>/k8s/workloads</code></td>
+<td>K8s Workloads — Machina Kubernetes page at <code>/k8s/workloads</code>.</td>
+<td><a href="pages/kubernetes/k8s-workloads.md">Open</a></td>
+</tr>
+<tr>
+<td>Kata + Cloud Hypervisor</td>
+<td><code>/k8s/kata</code></td>
+<td>Kata + Cloud Hypervisor — Machina Kubernetes page at <code>/k8s/kata</code>.</td>
+<td><a href="pages/kubernetes/k8s-kata.md">Open</a></td>
+</tr>
+</tbody></table>
+<h3>OpenStack</h3>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>Route</th>
+<th>Purpose</th>
+<th>Guide</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Overview</td>
+<td><code>/openstack</code></td>
+<td>Overview — Machina OpenStack page at <code>/openstack</code>.</td>
+<td><a href="pages/openstack/openstack.md">Open</a></td>
+</tr>
+<tr>
+<td>Instances</td>
+<td><code>/openstack/instances</code></td>
+<td>Instances — Machina OpenStack page at <code>/openstack/instances</code>.</td>
+<td><a href="pages/openstack/openstack-instances.md">Open</a></td>
+</tr>
+<tr>
+<td>Create Instance</td>
+<td><code>/openstack/create</code></td>
+<td>Create Instance — Machina OpenStack page at <code>/openstack/create</code>.</td>
+<td><a href="pages/openstack/openstack-create.md">Open</a></td>
+</tr>
+<tr>
+<td>Server Groups</td>
+<td><code>/openstack/server-groups</code></td>
+<td>Server Groups — Machina OpenStack page at <code>/openstack/server-groups</code>.</td>
+<td><a href="pages/openstack/openstack-server-groups.md">Open</a></td>
+</tr>
+<tr>
+<td>Keypairs</td>
+<td><code>/openstack/keypairs</code></td>
+<td>Keypairs — Machina OpenStack page at <code>/openstack/keypairs</code>.</td>
+<td><a href="pages/openstack/openstack-keypairs.md">Open</a></td>
+</tr>
+<tr>
+<td>Flavors</td>
+<td><code>/openstack/flavors</code></td>
+<td>Flavors — Machina OpenStack page at <code>/openstack/flavors</code>.</td>
+<td><a href="pages/openstack/openstack-flavors.md">Open</a></td>
+</tr>
+<tr>
+<td>Migrations</td>
+<td><code>/openstack/migrations</code></td>
+<td>Migrations — Machina OpenStack page at <code>/openstack/migrations</code>.</td>
+<td><a href="pages/openstack/openstack-migrations.md">Open</a></td>
+</tr>
+<tr>
+<td>Volumes</td>
+<td><code>/openstack/volumes</code></td>
+<td>Volumes — Machina OpenStack page at <code>/openstack/volumes</code>.</td>
+<td><a href="pages/openstack/openstack-volumes.md">Open</a></td>
+</tr>
+<tr>
+<td>Volume Snapshots</td>
+<td><code>/openstack/volume-snapshots</code></td>
+<td>Volume Snapshots — Machina OpenStack page at <code>/openstack/volume-snapshots</code>.</td>
+<td><a href="pages/openstack/openstack-volume-snapshots.md">Open</a></td>
+</tr>
+<tr>
+<td>Glance Images</td>
+<td><code>/openstack/images</code></td>
+<td>Glance Images — Machina OpenStack page at <code>/openstack/images</code>.</td>
+<td><a href="pages/openstack/openstack-images.md">Open</a></td>
+</tr>
+<tr>
+<td>Networking</td>
+<td><code>/openstack/networking</code></td>
+<td>Networking — Machina OpenStack page at <code>/openstack/networking</code>.</td>
+<td><a href="pages/openstack/openstack-networking.md">Open</a></td>
+</tr>
+<tr>
+<td>Security Groups</td>
+<td><code>/openstack/security-groups</code></td>
+<td>Security Groups — Machina OpenStack page at <code>/openstack/security-groups</code>.</td>
+<td><a href="pages/openstack/openstack-security-groups.md">Open</a></td>
+</tr>
+<tr>
+<td>Floating IPs</td>
+<td><code>/openstack/floating-ips</code></td>
+<td>Floating IPs — Machina OpenStack page at <code>/openstack/floating-ips</code>.</td>
+<td><a href="pages/openstack/openstack-floating-ips.md">Open</a></td>
+</tr>
+<tr>
+<td>Load Balancers</td>
+<td><code>/openstack/load-balancers</code></td>
+<td>Load Balancers — Machina OpenStack page at <code>/openstack/load-balancers</code>.</td>
+<td><a href="pages/openstack/openstack-load-balancers.md">Open</a></td>
+</tr>
+<tr>
+<td>Network Topology</td>
+<td><code>/openstack/topology</code></td>
+<td>Network Topology — Machina OpenStack page at <code>/openstack/topology</code>.</td>
+<td><a href="pages/openstack/openstack-topology.md">Open</a></td>
+</tr>
+<tr>
+<td>Heat Orchestration</td>
+<td><code>/openstack/heat</code></td>
+<td>Heat Orchestration — Machina OpenStack page at <code>/openstack/heat</code>.</td>
+<td><a href="pages/openstack/openstack-heat.md">Open</a></td>
+</tr>
+<tr>
+<td>Identity</td>
+<td><code>/openstack/identity</code></td>
+<td>Identity — Machina OpenStack page at <code>/openstack/identity</code>.</td>
+<td><a href="pages/openstack/openstack-identity.md">Open</a></td>
+</tr>
+</tbody></table>
+<h3>Monitoring</h3>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>Route</th>
+<th>Purpose</th>
+<th>Guide</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Host Overview</td>
+<td><code>/node</code></td>
+<td>Host Overview — Machina Monitoring page at <code>/node</code>.</td>
+<td><a href="pages/monitoring/node.md">Open</a></td>
+</tr>
+<tr>
+<td>Live Metrics</td>
+<td><code>/events</code></td>
+<td>Live Metrics — Machina Monitoring page at <code>/events</code>.</td>
+<td><a href="pages/monitoring/events.md">Open</a></td>
+</tr>
+<tr>
+<td>System Check</td>
+<td><code>/system-check</code></td>
+<td>System Check — Machina Monitoring page at <code>/system-check</code>.</td>
+<td><a href="pages/monitoring/system-check.md">Open</a></td>
+</tr>
+<tr>
+<td>Daemon Jobs</td>
+<td><code>/jobs</code></td>
+<td>Daemon Jobs — Machina Monitoring page at <code>/jobs</code>.</td>
+<td><a href="pages/monitoring/jobs.md">Open</a></td>
+</tr>
+<tr>
+<td>System Logs</td>
+<td><code>/logs</code></td>
+<td>System Logs — Machina Monitoring page at <code>/logs</code>.</td>
+<td><a href="pages/monitoring/logs.md">Open</a></td>
+</tr>
+<tr>
+<td>Audit Log</td>
+<td><code>/audit</code></td>
+<td>Audit Log — Machina Monitoring page at <code>/audit</code>.</td>
+<td><a href="pages/monitoring/audit.md">Open</a></td>
+</tr>
+<tr>
+<td>Web Sessions</td>
+<td><code>/admin/sessions</code></td>
+<td>Web Sessions — Machina Monitoring page at <code>/admin/sessions</code>.</td>
+<td><a href="pages/monitoring/admin-sessions.md">Open</a></td>
+</tr>
+</tbody></table>
+<h3>Related</h3>
+<ul>
+<li><a href="README.md">Customer docs home</a></li>
+<li><a href="pages/README.md">Page-by-page guides</a></li>
+</ul>
+</main></body></html>

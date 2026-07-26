@@ -3,9 +3,19 @@
 **Enterprise Linux hypervisor management platform.**
 
 
-## 📖 Feature Guide
+## Customer documentation
 
-**[Machina — Customer Feature Guide](docs/machina-customer-feature-guide.md)** — a complete, customer-facing reference covering all **98 features** across **12 areas**, grounded in the product's actual capabilities. Also available as a print-ready **[PDF](docs/machina-customer-feature-guide.pdf)**.
+**[docs/customer/](docs/customer/README.md)** — product-wide customer package:
+
+| Doc | What it covers |
+|-----|----------------|
+| [Getting Started](docs/customer/getting-started.md) | Login, first workflows |
+| [Page-by-page guides](docs/customer/pages/README.md) | How every primary screen works |
+| [Complete page index](docs/customer/PAGE_INDEX.md) | All nav routes |
+| [Admin basics](docs/customer/admin-basics.md) | Ports, PAM/OIDC, deploy |
+| [PDFs](docs/customer/pdf/) | Printable manuals (`node scripts/customer-docs/build-customer-pdfs.mjs`) |
+
+**[Feature Guide](docs/machina-customer-feature-guide.md)** — capability map across **12** domains ([PDF](docs/machina-customer-feature-guide.pdf)).
 
 Unified control plane for **VMs, networks, storage, snapshots, and day-two operations** on bare-metal worker nodes — web UI with VNC/SPICE consoles, terminal UI, REST API, and `machinactl` for fleet automation. Built on **libvirt/QEMU/KVM**.
 

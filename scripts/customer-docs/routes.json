@@ -1,0 +1,504 @@
+{
+  "routes": [
+    {
+      "label": "Dashboard",
+      "path": "/",
+      "category": "Core"
+    },
+    {
+      "label": "Virtual Machines",
+      "path": "/vms",
+      "category": "Core"
+    },
+    {
+      "label": "Create VM",
+      "path": "/create",
+      "category": "Core"
+    },
+    {
+      "label": "Import VM",
+      "path": "/import",
+      "category": "Core"
+    },
+    {
+      "label": "Fleet",
+      "path": "/fleet",
+      "category": "Core"
+    },
+    {
+      "label": "Mission Control",
+      "path": "/platform",
+      "category": "Platform"
+    },
+    {
+      "label": "Virtual Machines",
+      "path": "/platform/vms",
+      "category": "Platform"
+    },
+    {
+      "label": "Hosts",
+      "path": "/platform/hosts",
+      "category": "Platform"
+    },
+    {
+      "label": "Applications",
+      "path": "/platform/applications",
+      "category": "Platform"
+    },
+    {
+      "label": "Launchpad",
+      "path": "/platform/launchpad",
+      "category": "Platform"
+    },
+    {
+      "label": "Datacenter View",
+      "path": "/platform/datacenter",
+      "category": "Platform"
+    },
+    {
+      "label": "Disk Utility",
+      "path": "/platform/storage",
+      "category": "Platform"
+    },
+    {
+      "label": "Storage (Atlas)",
+      "path": "/platform/storage-atlas",
+      "category": "Platform"
+    },
+    {
+      "label": "Storage Tiers",
+      "path": "/platform/storage-tiers",
+      "category": "Platform"
+    },
+    {
+      "label": "Networks",
+      "path": "/platform/networks",
+      "category": "Platform"
+    },
+    {
+      "label": "Images & ISOs",
+      "path": "/platform/content",
+      "category": "Platform"
+    },
+    {
+      "label": "Templates",
+      "path": "/platform/templates",
+      "category": "Platform"
+    },
+    {
+      "label": "Cloud-Init Studio",
+      "path": "/platform/cloud-init",
+      "category": "Platform"
+    },
+    {
+      "label": "Create ISO",
+      "path": "/platform/create-iso",
+      "category": "Platform"
+    },
+    {
+      "label": "Bare Metal",
+      "path": "/platform/baremetal",
+      "category": "Platform"
+    },
+    {
+      "label": "Migration Assistant",
+      "path": "/platform/migration",
+      "category": "Platform"
+    },
+    {
+      "label": "VM Builder",
+      "path": "/platform/vm-builder",
+      "category": "Platform"
+    },
+    {
+      "label": "Advanced Create",
+      "path": "/platform/create-advanced",
+      "category": "Platform"
+    },
+    {
+      "label": "Blueprints",
+      "path": "/platform/blueprints",
+      "category": "Platform"
+    },
+    {
+      "label": "Tasks",
+      "path": "/platform/tasks",
+      "category": "Platform"
+    },
+    {
+      "label": "Network Canvas",
+      "path": "/platform/network-canvas",
+      "category": "Platform"
+    },
+    {
+      "label": "Zeus AI",
+      "path": "/platform/zeus",
+      "category": "Platform / Security"
+    },
+    {
+      "label": "Configure Zeus",
+      "path": "/platform/zeus/configure",
+      "category": "Platform / Security"
+    },
+    {
+      "label": "Zeus Security",
+      "path": "/platform/zeus/security",
+      "category": "Platform / Security"
+    },
+    {
+      "label": "Security Operations",
+      "path": "/platform/soc",
+      "category": "Platform"
+    },
+    {
+      "label": "Policy",
+      "path": "/platform/policy",
+      "category": "Platform"
+    },
+    {
+      "label": "Webhooks",
+      "path": "/platform/webhooks",
+      "category": "Platform"
+    },
+    {
+      "label": "Backup & Restore",
+      "path": "/platform/backups",
+      "category": "Platform"
+    },
+    {
+      "label": "Fleet Snapshots",
+      "path": "/platform/fleet-snapshots",
+      "category": "Platform"
+    },
+    {
+      "label": "Disaster Recovery",
+      "path": "/platform/placement",
+      "category": "Platform"
+    },
+    {
+      "label": "High Availability",
+      "path": "/platform/ha",
+      "category": "Platform"
+    },
+    {
+      "label": "Upgrade Matrix",
+      "path": "/platform/upgrade",
+      "category": "Platform"
+    },
+    {
+      "label": "Incident Commander",
+      "path": "/platform/zeus/incidents",
+      "category": "Platform / Security"
+    },
+    {
+      "label": "Approvals",
+      "path": "/platform/zeus/approvals",
+      "category": "Platform / Security"
+    },
+    {
+      "label": "Maintenance",
+      "path": "/platform/maintenance",
+      "category": "Platform"
+    },
+    {
+      "label": "Recommendations",
+      "path": "/platform/recommendations",
+      "category": "Platform"
+    },
+    {
+      "label": "Alerts",
+      "path": "/platform/notifications",
+      "category": "Platform"
+    },
+    {
+      "label": "Observability",
+      "path": "/platform/observability",
+      "category": "Platform"
+    },
+    {
+      "label": "Activity Monitor",
+      "path": "/platform/activity",
+      "category": "Platform"
+    },
+    {
+      "label": "Topology",
+      "path": "/platform/topology",
+      "category": "Platform"
+    },
+    {
+      "label": "Rightsizing",
+      "path": "/platform/zeus/rightsizing",
+      "category": "Platform / Security"
+    },
+    {
+      "label": "Reports",
+      "path": "/platform/reports",
+      "category": "Platform"
+    },
+    {
+      "label": "GPU Command Center",
+      "path": "/platform/gpu",
+      "category": "Platform"
+    },
+    {
+      "label": "Settings",
+      "path": "/platform/settings",
+      "category": "Platform"
+    },
+    {
+      "label": "Users & Groups",
+      "path": "/platform/users",
+      "category": "Platform"
+    },
+    {
+      "label": "Stage Manager",
+      "path": "/platform/projects",
+      "category": "Platform"
+    },
+    {
+      "label": "Add Host",
+      "path": "/platform/enroll",
+      "category": "Platform"
+    },
+    {
+      "label": "API Keys",
+      "path": "/platform/api-keys",
+      "category": "Platform"
+    },
+    {
+      "label": "Integrations",
+      "path": "/platform/integrations",
+      "category": "Platform"
+    },
+    {
+      "label": "Marketplace",
+      "path": "/platform/marketplace",
+      "category": "Platform"
+    },
+    {
+      "label": "AI Providers",
+      "path": "/platform/ai-providers",
+      "category": "Platform"
+    },
+    {
+      "label": "Enterprise Features",
+      "path": "/platform/enterprise",
+      "category": "Platform"
+    },
+    {
+      "label": "Developer Hub",
+      "path": "/platform/developer",
+      "category": "Platform"
+    },
+    {
+      "label": "Support",
+      "path": "/platform/support",
+      "category": "Platform"
+    },
+    {
+      "label": "Event Log",
+      "path": "/platform/events",
+      "category": "Platform"
+    },
+    {
+      "label": "Storage Pools",
+      "path": "/storage",
+      "category": "Infrastructure"
+    },
+    {
+      "label": "Disk Images",
+      "path": "/disk-images",
+      "category": "Infrastructure"
+    },
+    {
+      "label": "Snapshots",
+      "path": "/snapshots",
+      "category": "Infrastructure"
+    },
+    {
+      "label": "Snapshot Backups",
+      "path": "/backups",
+      "category": "Infrastructure"
+    },
+    {
+      "label": "Networks",
+      "path": "/networks",
+      "category": "Infrastructure"
+    },
+    {
+      "label": "Network Filters",
+      "path": "/nwfilters",
+      "category": "Infrastructure"
+    },
+    {
+      "label": "Host Networking",
+      "path": "/host-networking",
+      "category": "Infrastructure"
+    },
+    {
+      "label": "Secrets",
+      "path": "/secrets",
+      "category": "Infrastructure"
+    },
+    {
+      "label": "Kubernetes",
+      "path": "/k8s",
+      "category": "Kubernetes"
+    },
+    {
+      "label": "K8s Workloads",
+      "path": "/k8s/workloads",
+      "category": "Kubernetes"
+    },
+    {
+      "label": "Kata + Cloud Hypervisor",
+      "path": "/k8s/kata",
+      "category": "Kubernetes"
+    },
+    {
+      "label": "Host SSH",
+      "path": "/host-ssh",
+      "category": "Core"
+    },
+    {
+      "label": "Wire OpenStack",
+      "path": "/settings?openstack=1",
+      "category": "Core"
+    },
+    {
+      "label": "Overview",
+      "path": "/openstack",
+      "category": "OpenStack"
+    },
+    {
+      "label": "Instances",
+      "path": "/openstack/instances",
+      "category": "OpenStack"
+    },
+    {
+      "label": "Create Instance",
+      "path": "/openstack/create",
+      "category": "OpenStack"
+    },
+    {
+      "label": "Server Groups",
+      "path": "/openstack/server-groups",
+      "category": "OpenStack"
+    },
+    {
+      "label": "Keypairs",
+      "path": "/openstack/keypairs",
+      "category": "OpenStack"
+    },
+    {
+      "label": "Flavors",
+      "path": "/openstack/flavors",
+      "category": "OpenStack"
+    },
+    {
+      "label": "Migrations",
+      "path": "/openstack/migrations",
+      "category": "OpenStack"
+    },
+    {
+      "label": "Volumes",
+      "path": "/openstack/volumes",
+      "category": "OpenStack"
+    },
+    {
+      "label": "Volume Snapshots",
+      "path": "/openstack/volume-snapshots",
+      "category": "OpenStack"
+    },
+    {
+      "label": "Glance Images",
+      "path": "/openstack/images",
+      "category": "OpenStack"
+    },
+    {
+      "label": "Networking",
+      "path": "/openstack/networking",
+      "category": "OpenStack"
+    },
+    {
+      "label": "Security Groups",
+      "path": "/openstack/security-groups",
+      "category": "OpenStack"
+    },
+    {
+      "label": "Floating IPs",
+      "path": "/openstack/floating-ips",
+      "category": "OpenStack"
+    },
+    {
+      "label": "Load Balancers",
+      "path": "/openstack/load-balancers",
+      "category": "OpenStack"
+    },
+    {
+      "label": "Network Topology",
+      "path": "/openstack/topology",
+      "category": "OpenStack"
+    },
+    {
+      "label": "Heat Orchestration",
+      "path": "/openstack/heat",
+      "category": "OpenStack"
+    },
+    {
+      "label": "Identity",
+      "path": "/openstack/identity",
+      "category": "OpenStack"
+    },
+    {
+      "label": "Host Overview",
+      "path": "/node",
+      "category": "Monitoring"
+    },
+    {
+      "label": "Live Metrics",
+      "path": "/events",
+      "category": "Monitoring"
+    },
+    {
+      "label": "System Check",
+      "path": "/system-check",
+      "category": "Monitoring"
+    },
+    {
+      "label": "Capabilities",
+      "path": "/capabilities",
+      "category": "Core"
+    },
+    {
+      "label": "Node Devices",
+      "path": "/devices",
+      "category": "Core"
+    },
+    {
+      "label": "Services",
+      "path": "/services",
+      "category": "Core"
+    },
+    {
+      "label": "Daemon Jobs",
+      "path": "/jobs",
+      "category": "Monitoring"
+    },
+    {
+      "label": "System Logs",
+      "path": "/logs",
+      "category": "Monitoring"
+    },
+    {
+      "label": "Audit Log",
+      "path": "/audit",
+      "category": "Monitoring"
+    },
+    {
+      "label": "Web Sessions",
+      "path": "/admin/sessions",
+      "category": "Monitoring"
+    }
+  ]
+}

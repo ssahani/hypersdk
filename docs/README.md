@@ -6,6 +6,7 @@ Enterprise Linux hypervisor management platform
 
 | Goal | Document |
 |------|----------|
+| **Customer docs (page-by-page UI manual · PDFs)** | [customer/README.md](customer/README.md) |
 | **Handbook (product · admin · FAQ · troubleshooting)** | [handbook/README.md](handbook/README.md) |
 | Infrastructure vision | [machina-infrastructure-vision.md](machina-infrastructure-vision.md) |
 | KubeVirt migration | [kubevirt-migration.md](kubevirt-migration.md) |
