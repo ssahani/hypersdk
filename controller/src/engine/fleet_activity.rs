@@ -54,7 +54,7 @@ pub async fn overview(
 
     let vm_rows: Vec<(Uuid, String, Option<Uuid>, String, f32, i64, i64)> = sqlx::query_as(
         "SELECT v.id, v.name, v.host_id, v.observed_state,
-                COALESCE(m.cpu_percent, 0), COALESCE(m.memory_used_mib, 0), v.memory_mib
+                COALESCE(m.cpu_percent, 0.0), COALESCE(m.memory_used_mib, 0), v.memory_mib
          FROM vms v
          LEFT JOIN vm_metrics m ON m.vm_id = v.id
          WHERE v.observed_state = 'running'
@@ -90,13 +90,17 @@ pub async fn overview(
     .fetch_all(pool)
     .await?;
 
+    // `/proc/pressure/*` reports `avg10` already as a 0-100 percentage (kernel
+    // PSI docs), not a 0-1 fraction — multiplying by 100 here inflated every
+    // reading 100x (e.g. a real 17.67% IO stall showed as "1767%"), which in
+    // turn tripped the `io > 50.0` "under pressure" threshold on almost any
+    // nonzero pressure.
     fn psi_pct(obs: &serde_json::Value, key: &str) -> f64 {
         obs.get("pressure")
             .and_then(|p| p.get(key))
             .and_then(|i| i.get("some"))
             .and_then(|v| v.as_f64())
             .unwrap_or(0.0)
-            * 100.0
     }
 
     let mut hosts = Vec::new();

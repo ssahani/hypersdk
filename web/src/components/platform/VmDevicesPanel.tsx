@@ -39,7 +39,7 @@ export default function VmDevicesPanel({ vmId, hostId, details, domainXml = '', 
   const [wdAction, setWdAction] = useState('reset')
   const [busy, setBusy] = useState(false)
   const [usbDevices, setUsbDevices] = useState<Array<{ vendor_id: string; product_id: string; description?: string }>>([])
-  const [pciDevices, setPciDevices] = useState<Array<{ address: string; name?: string }>>([])
+  const [pciDevices, setPciDevices] = useState<Array<{ slot: string; vendor?: string; device?: string }>>([])
 
   useEffect(() => {
     if (!hostId) return
@@ -48,7 +48,7 @@ export default function VmDevicesPanel({ vmId, hostId, details, domainXml = '', 
       try {
         const [usb, pci] = await Promise.all([
           queryHostLibvirt<Array<{ vendor_id: string; product_id: string; description?: string }>>(hostId, 'host.usb'),
-          queryHostLibvirt<Array<{ address: string; name?: string }>>(hostId, 'host.pci'),
+          queryHostLibvirt<Array<{ slot: string; vendor?: string; device?: string }>>(hostId, 'host.pci'),
         ])
         if (!cancelled) {
           setUsbDevices(usb ?? [])
@@ -181,19 +181,22 @@ export default function VmDevicesPanel({ vmId, hostId, details, domainXml = '', 
           {pciDevices.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-slate-400">PCI</p>
-              {pciDevices.slice(0, 8).map((d) => (
-                <div key={d.address} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                  <span className="text-slate-300 font-mono text-xs truncate">{d.address}{d.name ? ` · ${d.name}` : ''}</span>
-                  <button
-                    type="button"
-                    className="btn-secondary text-xs shrink-0"
-                    disabled={busy}
-                    onClick={() => void run('PCI attached', () => invokeVmLibvirt(vmId, 'pci.attach', { pci: d.address }))}
-                  >
-                    Attach
-                  </button>
-                </div>
-              ))}
+              {pciDevices.slice(0, 8).map((d) => {
+                const label = [d.vendor, d.device].filter(Boolean).join(' ')
+                return (
+                  <div key={d.slot} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <span className="text-slate-300 font-mono text-xs truncate">{d.slot}{label ? ` · ${label}` : ''}</span>
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs shrink-0"
+                      disabled={busy}
+                      onClick={() => void run('PCI attached', () => invokeVmLibvirt(vmId, 'pci.attach', { pci: d.slot }))}
+                    >
+                      Attach
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           )}
         </MacGlassPanel>

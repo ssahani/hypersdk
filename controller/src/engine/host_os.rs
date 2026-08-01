@@ -512,18 +512,22 @@ pub async fn diagnose_host(
         },
     ];
     if let Ok(obs) = linux_observability(pool, cfg, host_id).await {
+        // `avg10` from `/proc/pressure/io` is already a 0-100 percentage, not
+        // a 0-1 fraction — `io > 0.3` fired on almost any nonzero pressure,
+        // and `io * 100.0` in the evidence string double-inflated the display
+        // (e.g. a real 17.67% read as "1767%").
         let io = obs
             .get("pressure")
             .and_then(|p| p.get("io"))
             .and_then(|i| i.get("some"))
             .and_then(|v| v.as_f64())
             .unwrap_or(0.0);
-        if io > 0.3 {
+        if io > 30.0 {
             diag.hypotheses
                 .push(super::ai::knowledge_diagnose::DiagnoseHypothesis {
                     title: "IO pressure on hypervisor".into(),
                     confidence: 0.82,
-                    evidence: format!("PSI io some {:.0}%", io * 100.0),
+                    evidence: format!("PSI io some {:.0}%", io),
                     action: "Check storage pool latency and running VM disk IOPS.".into(),
                 });
             fix_actions.push(OsDiagnoseAction {

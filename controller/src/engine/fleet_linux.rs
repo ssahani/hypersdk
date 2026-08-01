@@ -61,13 +61,16 @@ pub async fn overview(
         let Some(obs) = obs else {
             continue;
         };
+        // `avg10` from `/proc/pressure/io` is already a 0-100 percentage —
+        // multiplying by 100 here inflated it 100x (e.g. 17.67% read as
+        // "1767%"), which falsely tripped the `io > 50.0` pressure threshold
+        // below on almost any nonzero real pressure.
         let io = obs
             .get("pressure")
             .and_then(|p| p.get("io"))
             .and_then(|i| i.get("some"))
             .and_then(|v| v.as_f64())
-            .unwrap_or(0.0)
-            * 100.0;
+            .unwrap_or(0.0);
         let thermal_max = obs
             .get("thermal")
             .and_then(|t| t.as_array())

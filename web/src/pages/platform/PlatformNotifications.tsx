@@ -100,6 +100,18 @@ export default function PlatformNotifications() {
         <ul className="space-y-3">
           {rows.map((n) => {
             const act = actionForKind(n.kind, n.payload, tier)
+            // Most notification producers set `payload.message`, but SOC
+            // detection alerts (engine/soc/detection.rs) and PacketWolf
+            // security alerts (engine/zeus_security.rs) set `payload.title`
+            // instead — without this fallback, every one of those rows
+            // rendered as just the bare `kind` ("soc.alert") with no
+            // description at all.
+            const description =
+              typeof n.payload.message === 'string'
+                ? n.payload.message
+                : typeof n.payload.title === 'string'
+                  ? n.payload.title
+                  : null
             return (
               <li key={n.id} className={`rounded-2xl border p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition ${
                 n.delivered ? 'border-white/[0.04] bg-slate-900/30 opacity-70' : statusSurfaceClasses('warn')
@@ -107,7 +119,7 @@ export default function PlatformNotifications() {
                 <div>
                   <span className={n.delivered ? 'text-slate-500' : `${statusToneClass('warn')} font-medium`}>{n.kind}</span>
                   <div className="text-xs text-slate-500 mt-1">{new Date(n.created_at).toLocaleString()}</div>
-                  {typeof n.payload.message === 'string' && <p className="text-sm text-slate-400 mt-1">{n.payload.message}</p>}
+                  {description && <p className="text-sm text-slate-400 mt-1">{description}</p>}
                 </div>
                 <div className="flex gap-2 shrink-0 flex-wrap">
                   <ExplainButton screen="notification" objectRef={{ kind: n.kind, ...n.payload }} />

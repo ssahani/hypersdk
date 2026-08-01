@@ -59,7 +59,7 @@ export default function PlatformVmAdvanced({
   const xmlDirty = useRef(false)
   const [isos, setIsos] = useState<Array<{ name: string; path?: string; size_bytes?: number }>>([])
   const [usbDevices, setUsbDevices] = useState<Array<{ vendor_id: string; product_id: string; description?: string }>>([])
-  const [pciDevices, setPciDevices] = useState<Array<{ address: string; name?: string }>>([])
+  const [pciDevices, setPciDevices] = useState<Array<{ slot: string; vendor?: string; device?: string }>>([])
   const [loading, setLoading] = useState(false)
 
   const run = useCallback(
@@ -104,7 +104,7 @@ export default function PlatformVmAdvanced({
         const [isoRes, usbRes, pciRes] = await Promise.all([
           queryHostLibvirt<{ files: Array<{ name: string; path?: string; size_bytes?: number }> }>(hostId, 'browse.isos').catch(() => null),
           queryHostLibvirt<Array<{ vendor_id: string; product_id: string; description?: string }>>(hostId, 'host.usb').catch(() => []),
-          queryHostLibvirt<Array<{ address: string; name?: string }>>(hostId, 'host.pci').catch(() => []),
+          queryHostLibvirt<Array<{ slot: string; vendor?: string; device?: string }>>(hostId, 'host.pci').catch(() => []),
         ])
         setIsos(isoRes?.files ?? [])
         setUsbDevices(Array.isArray(usbRes) ? usbRes : [])
@@ -263,8 +263,8 @@ export default function PlatformVmAdvanced({
             <p className="text-xs text-slate-500 mb-2">PCI devices</p>
             <ul className="text-xs text-slate-400 space-y-1 max-h-32 overflow-auto mb-2">
               {pciDevices.map((d) => (
-                <li key={d.address}>
-                  <button type="button" className="hover:text-sky-300 font-mono" onClick={() => setPciBdf(d.address)}>{d.address} {d.name ?? ''}</button>
+                <li key={d.slot}>
+                  <button type="button" className="hover:text-sky-300 font-mono" onClick={() => setPciBdf(d.slot)}>{d.slot} {d.vendor ?? ''} {d.device ?? ''}</button>
                 </li>
               ))}
             </ul>

@@ -271,9 +271,12 @@ export default function PlatformHostDetailPage() {
       .finally(() => setCordonBusy(false))
   }
 
-  const cpuPsi = (linuxObs?.pressure?.cpu?.some ?? 0) * 100
-  const memPsi = (linuxObs?.pressure?.memory?.some ?? 0) * 100
-  const ioPsi = (linuxObs?.pressure?.io?.some ?? 0) * 100
+  // `/proc/pressure/*` avg10 is already a 0-100 percentage (see NodeInfo.tsx's
+  // matching, unmultiplied usage) — multiplying by 100 here inflated every
+  // reading 100x (e.g. a real 17.67% IO stall showed as "1767%").
+  const cpuPsi = linuxObs?.pressure?.cpu?.some ?? 0
+  const memPsi = linuxObs?.pressure?.memory?.some ?? 0
+  const ioPsi = linuxObs?.pressure?.io?.some ?? 0
 
   const hostTone = host?.state === 'online' ? 'ok' : host?.state === 'offline' ? 'error' : 'warn'
 
@@ -607,11 +610,11 @@ export default function PlatformHostDetailPage() {
                     <MacGlassPanel title="Pressure stall (PSI)">
                       <div className="space-y-3">
                         {psiBar('CPU some', cpuPsi)}
-                        {psiBar('CPU full', (linuxObs.pressure?.cpu?.full ?? 0) * 100)}
+                        {psiBar('CPU full', linuxObs.pressure?.cpu?.full ?? 0)}
                         {psiBar('Memory some', memPsi)}
-                        {psiBar('Memory full', (linuxObs.pressure?.memory?.full ?? 0) * 100)}
+                        {psiBar('Memory full', linuxObs.pressure?.memory?.full ?? 0)}
                         {psiBar('I/O some', ioPsi)}
-                        {psiBar('I/O full', (linuxObs.pressure?.io?.full ?? 0) * 100)}
+                        {psiBar('I/O full', linuxObs.pressure?.io?.full ?? 0)}
                       </div>
                     </MacGlassPanel>
                     {(linuxObs.disk_io ?? []).length > 0 && (

@@ -157,6 +157,7 @@ fn clone_vm_xml_only(
     })?;
     let new_xml = remove_xml_element(&new_xml, "uuid");
     let new_xml = randomize_mac_addresses(&new_xml);
+    let new_xml = super::graphics_convert::ensure_graphics_present(&new_xml, "127.0.0.1");
     Domain::define_xml(conn, &new_xml)
         .map_err(LibvirtError::map_op("Failed to define cloned VM"))?;
     Ok(())
@@ -206,6 +207,7 @@ fn define_cloned_domain(
     let new_xml = remove_xml_element(&new_xml, "uuid");
     let new_xml = randomize_mac_addresses(&new_xml);
     let new_xml = repoint_disks(&new_xml, disk_map);
+    let new_xml = super::graphics_convert::ensure_graphics_present(&new_xml, "127.0.0.1");
     Domain::define_xml(conn, &new_xml)
         .map_err(|e| LibvirtError::Operation(format!("define cloned VM: {e}")))?;
     Ok(())

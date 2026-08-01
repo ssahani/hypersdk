@@ -118,13 +118,14 @@ pub async fn assemble(
         });
         if let Some(ref mut h) = brief {
             if let Ok(obs) = crate::engine::host_os::linux_observability(pool, cfg, id).await {
+                // `avg10` from `/proc/pressure/io` is already a 0-100
+                // percentage — multiplying by 100 here inflated it 100x.
                 let io = obs
                     .get("pressure")
                     .and_then(|p| p.get("io"))
                     .and_then(|i| i.get("some"))
                     .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0)
-                    * 100.0;
+                    .unwrap_or(0.0);
                 h.io_pressure_pct = Some(io);
                 h.linux_summary = Some(format!("IO PSI {:.0}%", io));
             }

@@ -63,7 +63,6 @@ export default function PlatformFirewallPorts() {
         { label: 'Total ports', value: String(ports.length), icon: <Network className="w-4 h-4" /> },
         { label: 'Critical', value: String(criticalCount), tone: criticalCount > 0 ? 'warn' : 'default' },
         { label: 'Warning', value: String(warningCount), tone: warningCount > 0 ? 'warn' : 'default' },
-        { label: 'Filtered', value: String(filtered.length) },
       ]}
       insight={explain ? (
         <MacGlassPanel title="Zeus insight" subtitle="Exposure recommendation">

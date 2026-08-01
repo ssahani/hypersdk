@@ -14,10 +14,16 @@ pub struct PciDevice {
     pub iommu_group: String,
 }
 
-/// List host PCI devices by parsing `lspci -vmm` output.
+/// List host PCI devices by parsing `lspci -vmm -D` output.
+///
+/// `-D` forces `Slot` to always include the PCI domain (`0000:03:00.0`
+/// rather than `03:00.0`) — callers (the PCI hostdev attach/detach UI) feed
+/// `slot` straight into `parse_pci_bdf`, which requires a domain-qualified
+/// `dom:bus:slot.func` address and rejects anything with fewer than three
+/// `:`-separated segments.
 pub fn list_pci_devices() -> Result<Vec<PciDevice>, LibvirtError> {
     let output = Command::new("lspci")
-        .args(["-vmm"])
+        .args(["-vmm", "-D"])
         .output()
         .map_err(LibvirtError::map_op("Failed to run lspci"))?;
 

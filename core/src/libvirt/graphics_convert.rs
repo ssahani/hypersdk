@@ -81,6 +81,32 @@ pub fn graphics_elements_xml(listen: &str, graphics_type: &str) -> String {
     out.join("\n    ")
 }
 
+/// Splice a default VNC `<graphics>` device into domain XML that has none.
+///
+/// Every VM-creation path in this codebase (`create.rs`, `virt_install.rs`,
+/// `translate::domain_xml`) already defaults to VNC, so a fresh VM can never
+/// end up headless. Clone/snapshot-clone paths are different: they copy the
+/// *source* domain's XML verbatim, so a VM originally defined outside those
+/// paths (e.g. a manual `virsh define`/`virt-install --graphics none` run
+/// directly on the host) without a display device silently propagates that
+/// gap to every clone. Call this after cloning so the copy always has a
+/// console option beyond serial.
+pub fn ensure_graphics_present(xml: &str, listen: &str) -> String {
+    if xml.contains("<graphics ") || xml.contains("<graphics>") {
+        return xml.to_string();
+    }
+    let Some(pos) = xml.rfind("</devices>") else {
+        return xml.to_string();
+    };
+    let mut out = String::with_capacity(xml.len() + listen.len() + 96);
+    out.push_str(&xml[..pos]);
+    out.push_str("    ");
+    out.push_str(&graphics_elements_xml(listen, "vnc"));
+    out.push('\n');
+    out.push_str(&xml[pos..]);
+    out
+}
+
 /// True when active or inactive domain XML contains a SPICE graphics device.
 pub fn domain_has_spice_graphics(xml: &str) -> bool {
     for block in crate::xml::split_blocks(xml, "graphics") {
@@ -201,5 +227,26 @@ mod tests {
         assert!(!super::domain_has_spice_graphics(
             "<domain><graphics type='vnc' listen='127.0.0.1'/></domain>"
         ));
+    }
+
+    #[test]
+    fn ensure_graphics_present_injects_vnc_when_missing() {
+        let xml = "<domain>\n  <devices>\n    <disk/>\n  </devices>\n</domain>";
+        let out = super::ensure_graphics_present(xml, "127.0.0.1");
+        assert!(out.contains("<graphics type='vnc'"));
+        assert!(out.contains("<disk/>"));
+        assert!(out.find("<graphics").unwrap() < out.find("</devices>").unwrap());
+    }
+
+    #[test]
+    fn ensure_graphics_present_leaves_existing_graphics_untouched() {
+        let xml = "<domain>\n  <devices>\n    <graphics type='spice' listen='127.0.0.1'/>\n  </devices>\n</domain>";
+        assert_eq!(super::ensure_graphics_present(xml, "127.0.0.1"), xml);
+    }
+
+    #[test]
+    fn ensure_graphics_present_is_a_noop_without_a_devices_close_tag() {
+        let xml = "<domain><devices><disk/>";
+        assert_eq!(super::ensure_graphics_present(xml, "127.0.0.1"), xml);
     }
 }
