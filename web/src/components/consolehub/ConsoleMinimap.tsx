@@ -26,8 +26,12 @@ export default function ConsoleMinimap() {
   )
 
   if (!vp) return null
-  const { guestWidth, guestHeight, viewportWidth, viewportHeight, scrollLeft, scrollTop, monitors } = vp
+  const { guestWidth, guestHeight, viewportWidth, viewportHeight, scrollLeft, scrollTop, monitors, mode } = vp
   if (guestWidth <= 0 || guestHeight <= 0) return null
+  // Fit/Fill/Stretch always render the whole guest within the panel (CSS
+  // object-fit, overflow-hidden) — there's nothing to pan, ever, in these
+  // modes. Only Native/Scroll/Zoom can actually overflow and need panning.
+  if (mode === 'fit' || mode === 'fill' || mode === 'stretch') return null
   if (guestWidth <= viewportWidth && guestHeight <= viewportHeight) return null
 
   const scaleX = MINI_W / guestWidth

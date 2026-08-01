@@ -3,6 +3,9 @@
 
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
+use std::sync::OnceLock;
+use std::time::Duration;
+use tokio::sync::mpsc;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -192,13 +195,93 @@ pub async fn list_traces(pool: &SqlitePool, limit: i64) -> anyhow::Result<Vec<Tr
     .map_err(|e| e.into())
 }
 
-pub async fn record_trace(
-    pool: &SqlitePool,
-    method: &str,
-    path: &str,
+struct PendingSpan {
+    method: String,
+    path: String,
     status_code: i32,
     duration_ms: i32,
-) {
+}
+
+static TRACE_TX: OnceLock<mpsc::Sender<PendingSpan>> = OnceLock::new();
+
+/// Starts the background task that batches trace-span writes into one INSERT
+/// per second instead of one per request. Call once at controller startup
+/// (see main.rs, alongside webhook_worker::spawn/channel_worker::spawn) before
+/// any request reaches `record_trace`.
+///
+/// This replaced a per-request `tokio::spawn` that ran its own INSERT (plus,
+/// originally, a prune DELETE) against the shared SQLite pool on every single
+/// `/api/v1/*` request — a direct, request-rate-scaling source of contention
+/// against SQLite's single writer lock. A previous attempt to fix that same
+/// contention by raising `max_connections` and parallelizing an unrelated
+/// handler's sub-queries made things far worse (queries observed up to 69s)
+/// because both changes *increased* how many writers could pile onto the lock
+/// at once. Batching takes the opposite, safer approach: it doesn't touch pool
+/// size or per-request concurrency at all, it just reduces how often this
+/// path needs the writer lock in the first place, from N times/sec (N =
+/// request rate) down to at most once per second.
+pub fn spawn_trace_writer(pool: SqlitePool) {
+    let (tx, mut rx) = mpsc::channel::<PendingSpan>(2000);
+    if TRACE_TX.set(tx).is_err() {
+        return; // already spawned
+    }
+    tokio::spawn(async move {
+        let mut flush_count: u64 = 0;
+        loop {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            let mut batch = Vec::new();
+            while let Ok(span) = rx.try_recv() {
+                batch.push(span);
+            }
+            if batch.is_empty() {
+                continue;
+            }
+            insert_batch(&pool, &batch).await;
+            flush_count += 1;
+            // Same rationale as the old counter: a rolling buffer doesn't need
+            // to sit at exactly 5000 rows every second, so prune only every
+            // 20th flush (~20s) rather than on every one.
+            if flush_count % 20 == 0 {
+                let _ = sqlx::query(
+                    "DELETE FROM api_trace_spans WHERE id NOT IN (
+                        SELECT id FROM api_trace_spans ORDER BY recorded_at DESC LIMIT 5000
+                     )",
+                )
+                .execute(&pool)
+                .await;
+            }
+        }
+    });
+}
+
+async fn insert_batch(pool: &SqlitePool, batch: &[PendingSpan]) {
+    let mut sql = String::from(
+        "INSERT INTO api_trace_spans (id, method, path, status_code, duration_ms, recorded_at) VALUES ",
+    );
+    for i in 0..batch.len() {
+        if i > 0 {
+            sql.push(',');
+        }
+        sql.push_str("(?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))");
+    }
+    let mut query = sqlx::query(&sql);
+    for span in batch {
+        query = query
+            .bind(Uuid::new_v4())
+            .bind(&span.method)
+            .bind(&span.path)
+            .bind(span.status_code)
+            .bind(span.duration_ms);
+    }
+    let _ = query.execute(pool).await;
+}
+
+/// Enqueues a trace span for the batched writer above. Synchronous and
+/// non-blocking (a bounded-channel `try_send`): if the writer task is
+/// somehow falling behind and the queue is full, the span is dropped rather
+/// than blocking the request or growing memory without bound — acceptable
+/// for a best-effort telemetry feed.
+pub fn record_trace(method: &str, path: &str, status_code: i32, duration_ms: i32) {
     // Truncate on a UTF-8 char boundary — `path` is the untrusted request URI and a
     // fixed byte-offset slice would panic if byte 256 splits a multi-byte char.
     let path = if path.len() > 256 {
@@ -210,24 +293,14 @@ pub async fn record_trace(
     } else {
         path
     };
-    let _ = sqlx::query(
-        "INSERT INTO api_trace_spans (id, method, path, status_code, duration_ms, recorded_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))",
-    )
-    .bind(Uuid::new_v4())
-    .bind(method)
-    .bind(path)
-    .bind(status_code)
-    .bind(duration_ms)
-    .execute(pool)
-    .await;
-
-    let _ = sqlx::query(
-        "DELETE FROM api_trace_spans WHERE id NOT IN (
-            SELECT id FROM api_trace_spans ORDER BY recorded_at DESC LIMIT 5000
-         )",
-    )
-    .execute(pool)
-    .await;
+    if let Some(tx) = TRACE_TX.get() {
+        let _ = tx.try_send(PendingSpan {
+            method: method.to_string(),
+            path: path.to_string(),
+            status_code,
+            duration_ms,
+        });
+    }
 }
 
 pub async fn prometheus_slo_gauges(pool: &SqlitePool) -> String {

@@ -201,6 +201,20 @@ function CockpitInner({
     }
   }, [plan, experienceMode, onExperienceModeChange])
 
+  // If the plan no longer advertises the current protocol (e.g. serial removed
+  // because the domain has no PTY), fall back so Studio isn't stuck on a dead console.
+  useEffect(() => {
+    if (!plan || displayProtocols.length === 0) return
+    if (displayProtocols.includes(activeProtocol)) return
+    const fallback = plan.recommended && displayProtocols.includes(plan.recommended)
+      ? plan.recommended
+      : (displayProtocols.find((p) => p === 'novnc' || p === 'spice' || p === 'webrtc_spice') ?? displayProtocols[0])
+    if (fallback) {
+      onProtocolChange(fallback)
+      setLens(fallback === 'serial' ? 'serial' : fallback === 'native_ssh' ? 'shell' : 'display')
+    }
+  }, [plan, displayProtocols, activeProtocol, onProtocolChange])
+
   const switchLens = useCallback(
     (next: ConsoleLens | 'native_ssh') => {
       const resolved = next === 'native_ssh' ? 'shell' : next
@@ -637,22 +651,11 @@ function CockpitInner({
   }
 
   if (studioActive) {
-    const secondary =
-      lens === 'display' ? (
-        <ConsoleHubSession
-          protocol="serial"
-          vmName={vmName}
-          wsUrl={wsUrl}
-          serialWsUrl={serialWsUrl}
-          session={session}
-          guestIp={plan?.guest_ip ?? undefined}
-          kubeVirtNamespace={kubeVirtNamespace ?? undefined}
-          fillViewport
-          cockpitMode
-          connectKey={connectKey}
-        />
-      ) : undefined
-
+    // Display, Serial, and Shell are each a full-size lens tab (switched via
+    // ViewLensBar) — never rendered side by side. A prior side-by-side Split
+    // mode (fixed-ratio grid, on by default, then made opt-in) still read as
+    // a cramped shared screen rather than genuinely independent consoles, so
+    // it's gone: one console fills the panel, switching lenses is one click.
     return (
       <div className="flex flex-col flex-1 min-h-0 w-full">
         {prepend}
@@ -694,7 +697,6 @@ function CockpitInner({
               )}
             </MachineCanvas>
           }
-          secondary={secondary}
           timeline={<MachineTimeline sessions={history} timeline={machineTimeline} />}
         />
         {opsShelf}
@@ -736,6 +738,7 @@ function CockpitInner({
         activeProtocol={activeProtocol}
         onProtocolChange={onProtocolChange}
         recommended={plan?.recommended}
+        availableProtocols={displayProtocols}
       />
       <MachineCanvas vmState={vmState} healthScore={healthScore} className="flex-1">
         {loading ? (
@@ -751,6 +754,7 @@ function CockpitInner({
                   onCtrlAltDel={() => void sendCtrlAltDel()}
                   onExplain={() => switchLens('ai')}
                   onSwitchLens={(l) => switchLens(l as ConsoleLens)}
+                  availableProtocols={displayProtocols}
                 />
                 <ConsoleMinimap />
               </>

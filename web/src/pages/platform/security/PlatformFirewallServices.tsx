@@ -82,7 +82,7 @@ export default function PlatformFirewallServices() {
       emptySubtitle={services.length === 0 ? 'Firewall profiles will populate when Zeus agents sync rules.' : 'Clear the search filter to see all services.'}
     >
       <div className="flex flex-wrap gap-2 mb-4">
-        <div className="relative max-w-xs">
+        <div className="relative max-w-xs flex-1">
           <input
             className={`input text-sm w-full ${filter ? 'pr-8' : 'pr-4'}`}
             aria-label="Filter firewall services"

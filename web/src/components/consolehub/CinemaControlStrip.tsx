@@ -185,7 +185,7 @@ export default function CinemaControlStrip({
 
   return (
     <div
-      className={`absolute bottom-4 left-1/2 -translate-x-1/2 z-30 transition-opacity duration-300 ${show && !idle ? 'opacity-100' : 'opacity-0 pointer-events-none hover:opacity-100 hover:pointer-events-auto'}`}
+      className={`absolute bottom-4 left-1/2 -translate-x-1/2 z-30 transition-opacity duration-300 ${show && !idle ? 'opacity-100' : 'opacity-30 hover:opacity-100'}`}
       data-testid="cinema-control-strip"
       data-idle={idle ? 'true' : 'false'}
     >
@@ -398,12 +398,16 @@ export default function CinemaControlStrip({
               ) : null}
               {onSwitchLens ? (
                 <>
-                  <button type="button" className="block w-full text-left px-2 py-1.5 text-xs text-slate-200 hover:bg-white/10 rounded" onClick={() => { onSwitchLens('serial'); setMoreOpen(false) }}>
-                    Serial
-                  </button>
-                  <button type="button" className="block w-full text-left px-2 py-1.5 text-xs text-slate-200 hover:bg-white/10 rounded" onClick={() => { onSwitchLens('shell'); setMoreOpen(false) }}>
-                    Shell
-                  </button>
+                  {!displayProtocols?.length || displayProtocols.includes('serial') ? (
+                    <button type="button" className="block w-full text-left px-2 py-1.5 text-xs text-slate-200 hover:bg-white/10 rounded" onClick={() => { onSwitchLens('serial'); setMoreOpen(false) }}>
+                      Serial
+                    </button>
+                  ) : null}
+                  {!displayProtocols?.length || displayProtocols.includes('native_ssh') || displayProtocols.includes('ssh') ? (
+                    <button type="button" className="block w-full text-left px-2 py-1.5 text-xs text-slate-200 hover:bg-white/10 rounded" onClick={() => { onSwitchLens('shell'); setMoreOpen(false) }}>
+                      Shell
+                    </button>
+                  ) : null}
                 </>
               ) : null}
               {spiceDisplay && onToggleSpiceAudio ? (

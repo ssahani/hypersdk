@@ -152,7 +152,7 @@ export default function PlatformGpuCommandCenter() {
           <PlatformEmptyState
             icon={Cpu}
             title="No GPU inventory yet"
-            subtitle="Tag hosts with gpu, nvidia, mig, vgpu, or cuda on host detail — discovery agent feeds Phase 54 v2."
+            subtitle="Tag hosts with gpu, nvidia, mig, vgpu, or cuda on host detail — the discovery agent picks them up automatically."
           >
             <Link to="/platform/hosts" className={`tahoe-btn-ghost text-sm ${hubLinkClasses()}`}>Browse hosts</Link>
             <Link to="/platform/zeus" className="tahoe-btn-primary text-sm">Open Zeus OS</Link>

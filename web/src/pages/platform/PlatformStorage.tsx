@@ -8,9 +8,9 @@ import ErrorBanner from '../../components/ErrorBanner'
 import DetailTabs from '../../components/platform/DetailTabs'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton, platformStatSubtitle } from '../../components/platform/PlatformPageChrome'
 import { usePlatformTabState } from '../../hooks/usePlatformTabState'
+import { useFleetSettings } from '../../hooks/useFleetSettings'
 import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
 import { storageErrorPresentation } from '../../utils/storageErrorPresentation'
-import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import StoragePoolWizard from '../../components/platform/StoragePoolWizard'
 import {
@@ -24,7 +24,6 @@ import {
   bindStoragePoolTier,
   deleteStoragePool,
   discoverStoragePools,
-  getFleetStorage,
   getStorageBackupSla,
   getStorageTiersOverview,
   listPlatformHosts,
@@ -72,7 +71,7 @@ export default function PlatformStorage() {
   const [tab, setTab] = usePlatformTabState<TabId>(STORAGE_TABS.map((t) => t.id), { defaultTab: 'disks' })
 
   const [rows, setRows] = useState<StoragePool[]>([])
-  const [fleetStorage, setFleetStorage] = useState<FleetStorageOverview | null>(null)
+  const { data: fleetStorage } = useFleetSettings('storage', tab === 'disks')
   const [tiers, setTiers] = useState<StorageTierOverview[]>([])
   const [slaPolicies, setSlaPolicies] = useState<StorageBackupSla[]>([])
   const [hostCount, setHostCount] = useState(0)
@@ -161,11 +160,6 @@ export default function PlatformStorage() {
   }, [toast])
 
   useEffect(() => { void load(true) }, [load])
-
-  useEffect(() => {
-    if (tab !== 'disks') return
-    void getFleetStorage().then(setFleetStorage).catch(() => setFleetStorage(null))
-  }, [tab])
 
   const runDiscover = async () => {
     setDiscovering(true)
@@ -809,7 +803,6 @@ export default function PlatformStorage() {
           </button>
         </div>
       </MacSheet>
-      {tab === 'disks' && <FleetSettingsPane kind="storage" />}
       <ConfirmDialog
         open={confirmVolume !== null}
         title="Delete Volume"

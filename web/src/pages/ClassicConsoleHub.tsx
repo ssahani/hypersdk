@@ -14,6 +14,7 @@ import {
   type ClassicConsoleHubSessionResponse,
 } from '../api/vm'
 import type { ConsoleHubPlan, ConsoleHubSessionResponse } from '../api/platform'
+import { listPlatformVms } from '../api/platform'
 import { getWsToken } from '../api/client'
 import { formatUserError } from '../utils/apiError'
 import MachineCockpit from '../components/consolehub/MachineCockpit'
@@ -38,8 +39,9 @@ function classicSerialWsUrl(plan: ClassicConsoleHubPlan, token: string): string 
   return classicWsUrl(path, token)
 }
 
-function toPlatformPlan(plan: ClassicConsoleHubPlan): ConsoleHubPlan {
-  return { ...plan, vm_id: plan.vm_name }
+function toPlatformPlan(plan: ClassicConsoleHubPlan, platformVmId: string | null): ConsoleHubPlan {
+  // MachineCockpit / hardware / power APIs expect the controller UUID, not the libvirt name.
+  return { ...plan, vm_id: platformVmId ?? plan.vm_name }
 }
 
 function toPlatformSession(sess: ClassicConsoleHubSessionResponse): ConsoleHubSessionResponse {
@@ -69,8 +71,13 @@ export default function ClassicConsoleHub() {
   const [history, setHistory] = useState<ConsoleHubSessionRow[]>([])
   const [wsUrl, setWsUrl] = useState<string | null>(null)
   const [serialWsUrl, setSerialWsUrl] = useState<string | null>(null)
+  const [platformVmId, setPlatformVmId] = useState<string | null>(null)
+  const [platformHostId, setPlatformHostId] = useState<string | null>(null)
 
-  const platformPlan = useMemo(() => (plan ? toPlatformPlan(plan) : null), [plan])
+  const platformPlan = useMemo(
+    () => (plan ? toPlatformPlan(plan, platformVmId) : null),
+    [plan, platformVmId],
+  )
   const platformSession = useMemo(() => (session ? toPlatformSession(session) : null), [session])
   // Last-response-wins: only the newest load may commit console state, so a
   // slow fetch for a previously-viewed VM can't wire up a WS URL/token that
@@ -84,12 +91,18 @@ export default function ClassicConsoleHub() {
     setLoading(true)
     setError(null)
     try {
-      const [hubPlan, vm, sessions] = await Promise.all([
+      const [hubPlan, vm, sessions, platformVms] = await Promise.all([
         getClassicConsoleHubPlan(name, conn),
         getVM(name, conn).catch(() => null),
         listClassicConsoleHubSessions(name, conn).catch(() => []),
+        listPlatformVms().catch(() => []),
       ])
       if (!alive()) return
+      const linked = Array.isArray(platformVms)
+        ? platformVms.find((v) => v.name === name) ?? null
+        : null
+      setPlatformVmId(linked?.id ?? null)
+      setPlatformHostId(linked?.host_id ?? null)
       setPlan(hubPlan)
       // Cockpit pattern: pick protocol from VM capabilities, not backend hint
       const defaultProto = getDefaultProtocol(hubPlan)
@@ -109,6 +122,8 @@ export default function ClassicConsoleHub() {
       setSession(null)
       setWsUrl(null)
       setSerialWsUrl(null)
+      setPlatformVmId(null)
+      setPlatformHostId(null)
       setError(formatUserError(e))
     } finally {
       if (alive()) setLoading(false)
@@ -177,7 +192,7 @@ export default function ClassicConsoleHub() {
       {plan ? (
         <div className="flex flex-col flex-1 min-h-0 h-full">
           <MachineCockpit
-            vmId={name}
+            vmId={platformVmId ?? name}
             vmName={name}
             plan={platformPlan}
             session={platformSession}
@@ -195,6 +210,8 @@ export default function ClassicConsoleHub() {
             experienceMode={experienceMode}
             onExperienceModeChange={setExperienceMode}
             onSessionStart={(s) => setSession(fromPlatformSession(s, name ?? ''))}
+            hostId={platformHostId}
+            inventorySource="libvirt"
           />
         </div>
       ) : !loading ? (

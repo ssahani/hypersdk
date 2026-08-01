@@ -554,6 +554,44 @@ async fn run_kubectl_timeout(
     })
 }
 
+/// User-facing cap for a kubectl error snippet — much smaller than
+/// `SNIPPET_MAX_BYTES` (which is for raw output previews), since this text
+/// goes straight into an HTTP error body shown in the UI.
+const ERROR_SNIPPET_MAX_BYTES: usize = 400;
+
+/// A crashed subprocess (Go runtime panic/SIGABRT from kubectl or a plugin)
+/// writes a stack dump to stderr — goroutine addresses, PC registers, raw hex
+/// — instead of a human-readable error. That's not truncatable into anything
+/// useful, so detect it and swap in a clean message instead of leaking raw
+/// memory addresses and internals to the browser. The full dump is still
+/// logged server-side (via the `warn!` at the call site) for diagnosis.
+fn sanitize_kubectl_stderr(stderr: &str) -> String {
+    let looks_like_crash_dump = stderr.contains("goroutine ")
+        || stderr.contains("SIGABRT")
+        || stderr.contains("SIGSEGV")
+        || stderr.starts_with("panic:")
+        || stderr.contains("\npanic:")
+        || stderr.contains("runtime/cgo:")
+        || stderr.contains("runtime: g ")
+        || stderr.contains("pthread_create failed");
+    if looks_like_crash_dump {
+        return "kubectl subprocess crashed unexpectedly — this is usually transient host resource pressure; retry, or check daemon logs for the full crash dump.".to_string();
+    }
+    truncate_error_snippet(stderr)
+}
+
+fn truncate_error_snippet(text: &str) -> String {
+    let t = text.trim();
+    if t.len() <= ERROR_SNIPPET_MAX_BYTES {
+        return t.to_string();
+    }
+    let mut end = ERROR_SNIPPET_MAX_BYTES;
+    while end > 0 && !t.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}… ({} more bytes, see daemon logs)", &t[..end], t.len() - end)
+}
+
 async fn run_kubectl_json_timeout(
     args: &[String],
     timeout_secs: u64,
@@ -567,7 +605,8 @@ async fn run_kubectl_json_timeout(
         let msg = if res.stderr.trim().is_empty() {
             "kubectl command failed".to_string()
         } else {
-            res.stderr
+            warn!("kubectl command failed ({}): {}", res.command, res.stderr);
+            sanitize_kubectl_stderr(&res.stderr)
         };
         return Err(LibvirtError::Operation(msg));
     }
@@ -1955,7 +1994,7 @@ async fn try_etcdctl_member_list(
         Err(e) => return (None, Some(format!("kubectl exec etcd: {e}"))),
     };
     let out = res.stdout.trim().to_string();
-    let err = res.stderr.trim().to_string();
+    let err = sanitize_kubectl_stderr(&res.stderr);
     if res.ok && !out.is_empty() {
         (Some(out), None)
     } else if res.ok && out.is_empty() {
@@ -2106,7 +2145,7 @@ async fn k8s_cluster_inventory(
             } else {
                 "livez probe failed"
             };
-            cluster_health_notes.push(format!("livez: {}", truncate_snippet(hint)));
+            cluster_health_notes.push(format!("livez: {}", sanitize_kubectl_stderr(hint)));
         } else {
             cluster_health_notes.push("livez: kubectl error".to_string());
         }
@@ -2120,7 +2159,7 @@ async fn k8s_cluster_inventory(
             } else {
                 "readyz probe failed"
             };
-            cluster_health_notes.push(format!("readyz: {}", truncate_snippet(hint)));
+            cluster_health_notes.push(format!("readyz: {}", sanitize_kubectl_stderr(hint)));
         } else {
             cluster_health_notes.push("readyz: kubectl error".to_string());
         }
@@ -2658,7 +2697,8 @@ async fn k8s_kata_deploy(
         let msg = if res.stderr.trim().is_empty() {
             format!("{tool} failed (exit {}): {}", res.exit_code, res.command)
         } else {
-            res.stderr.clone()
+            warn!("{tool} command failed ({}): {}", res.command, res.stderr);
+            sanitize_kubectl_stderr(&res.stderr)
         };
         return Err(LibvirtError::Operation(msg).into());
     }
@@ -2801,7 +2841,8 @@ async fn k8s_helm_releases(
     }
     let res = run_helm_timeout_kube(&inner, 45, ctx).await?;
     if !res.ok {
-        return Err(LibvirtError::Operation(res.stderr.clone()).into());
+        warn!("helm list command failed ({}): {}", res.command, res.stderr);
+        return Err(LibvirtError::Operation(sanitize_kubectl_stderr(&res.stderr)).into());
     }
     let v: Value = serde_json::from_str(&res.stdout)
         .map_err(|e| LibvirtError::Operation(format!("helm list JSON: {e}")))?;
@@ -2814,6 +2855,10 @@ struct KubeVirtVmSummaryRow {
     namespace: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     spec_running: Option<bool>,
+    /// `spec.runStrategy` — the modern KubeVirt run-intent field; `spec.running` and this are
+    /// mutually exclusive (a VM sets one or the other, never both).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    spec_run_strategy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     vm_printable_status: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3085,6 +3130,11 @@ async fn k8s_kubevirt_vm_summary(
             .get("spec")
             .and_then(|s| s.get("running"))
             .and_then(|x| x.as_bool());
+        let spec_run_strategy = vm
+            .get("spec")
+            .and_then(|s| s.get("runStrategy"))
+            .and_then(|x| x.as_str())
+            .map(|s| s.to_string());
         let vm_printable_status = vm
             .get("status")
             .and_then(|s| s.get("printableStatus"))
@@ -3118,6 +3168,7 @@ async fn k8s_kubevirt_vm_summary(
             name: name.to_string(),
             namespace: ns.to_string(),
             spec_running,
+            spec_run_strategy,
             vm_printable_status,
             vm_ready,
             guest_ip,
@@ -3172,9 +3223,14 @@ async fn k8s_kubevirt_delete_vm(
     ];
     let res = run_kubectl_timeout(&args, KUBECTL_TIMEOUT_SECS, ctx).await?;
     if !res.ok {
-        return Err(AppError::from(LibvirtError::Operation(format!(
+        warn!(
             "kubectl delete virtualmachine failed (exit {}): {}{}",
             res.exit_code, res.stderr, res.stdout
+        );
+        return Err(AppError::from(LibvirtError::Operation(format!(
+            "kubectl delete virtualmachine failed (exit {}): {}",
+            res.exit_code,
+            sanitize_kubectl_stderr(&res.stderr)
         ))));
     }
     Ok(Json(serde_json::json!({
@@ -3234,9 +3290,14 @@ async fn k8s_kubevirt_vm_lifecycle(
         ];
         let stop_res = run_kubectl_timeout(&stop_args, KUBECTL_TIMEOUT_SECS, ctx).await?;
         if !stop_res.ok {
-            return Err(AppError::from(LibvirtError::Operation(format!(
+            warn!(
                 "kubevirt restart (stop phase) failed (exit {}): {}{}",
                 stop_res.exit_code, stop_res.stderr, stop_res.stdout
+            );
+            return Err(AppError::from(LibvirtError::Operation(format!(
+                "kubevirt restart (stop phase) failed (exit {}): {}",
+                stop_res.exit_code,
+                sanitize_kubectl_stderr(&stop_res.stderr)
             ))));
         }
         let start_args = vec![
@@ -3252,9 +3313,14 @@ async fn k8s_kubevirt_vm_lifecycle(
         ];
         let start_res = run_kubectl_timeout(&start_args, KUBECTL_TIMEOUT_SECS, ctx).await?;
         if !start_res.ok {
-            return Err(AppError::from(LibvirtError::Operation(format!(
+            warn!(
                 "kubevirt restart (start phase) failed (exit {}): {}{}",
                 start_res.exit_code, start_res.stderr, start_res.stdout
+            );
+            return Err(AppError::from(LibvirtError::Operation(format!(
+                "kubevirt restart (start phase) failed (exit {}): {}",
+                start_res.exit_code,
+                sanitize_kubectl_stderr(&start_res.stderr)
             ))));
         }
         return Ok(Json(serde_json::json!({
@@ -3278,9 +3344,14 @@ async fn k8s_kubevirt_vm_lifecycle(
     ];
     let res = run_kubectl_timeout(&args, KUBECTL_TIMEOUT_SECS, ctx).await?;
     if !res.ok {
-        return Err(AppError::from(LibvirtError::Operation(format!(
+        warn!(
             "kubevirt {action} failed (exit {}): {}{}",
             res.exit_code, res.stderr, res.stdout
+        );
+        return Err(AppError::from(LibvirtError::Operation(format!(
+            "kubevirt {action} failed (exit {}): {}",
+            res.exit_code,
+            sanitize_kubectl_stderr(&res.stderr)
         ))));
     }
     Ok(Json(serde_json::json!({
@@ -3371,9 +3442,14 @@ async fn k8s_kubevirt_vm_spec(
     ];
     let res = run_kubectl_timeout(&args, KUBECTL_TIMEOUT_SECS, ctx).await?;
     if !res.ok {
-        return Err(AppError::from(LibvirtError::Operation(format!(
+        warn!(
             "kubevirt spec patch failed (exit {}): {}{}",
             res.exit_code, res.stderr, res.stdout
+        );
+        return Err(AppError::from(LibvirtError::Operation(format!(
+            "kubevirt spec patch failed (exit {}): {}",
+            res.exit_code,
+            sanitize_kubectl_stderr(&res.stderr)
         ))));
     }
     Ok(Json(serde_json::json!({
@@ -3632,7 +3708,8 @@ async fn k8s_action(
         let msg = if res.stderr.trim().is_empty() {
             format!("k8s action failed: {}", res.command)
         } else {
-            res.stderr.clone()
+            warn!("kubectl action failed ({}): {}", res.command, res.stderr);
+            sanitize_kubectl_stderr(&res.stderr)
         };
         return Err(LibvirtError::Operation(msg).into());
     }
@@ -3893,7 +3970,8 @@ async fn k8s_k3s_install(
                 res.exit_code, res.command
             )
         } else {
-            res.stderr.clone()
+            warn!("k3s install script failed ({}): {}", res.command, res.stderr);
+            sanitize_kubectl_stderr(&res.stderr)
         };
         return Err(LibvirtError::Operation(msg).into());
     }
@@ -3949,7 +4027,8 @@ async fn k8s_k3s_uninstall(
                 res.exit_code, res.command
             )
         } else {
-            res.stderr.clone()
+            warn!("k3s uninstall script failed ({}): {}", res.command, res.stderr);
+            sanitize_kubectl_stderr(&res.stderr)
         };
         return Err(LibvirtError::Operation(msg).into());
     }
@@ -4140,7 +4219,8 @@ async fn k8s_metrics(
                 }
             }
         } else {
-            nodes_error = Some(truncate_snippet(&res.stderr));
+            warn!("kubectl top nodes failed: {}", res.stderr);
+            nodes_error = Some(sanitize_kubectl_stderr(&res.stderr));
         }
     } else if let Err(e) = &nodes_res {
         nodes_error = Some(e.to_string());
@@ -4160,7 +4240,8 @@ async fn k8s_metrics(
                 }
             }
         } else {
-            pods_error = Some(truncate_snippet(&res.stderr));
+            warn!("kubectl top pods failed: {}", res.stderr);
+            pods_error = Some(sanitize_kubectl_stderr(&res.stderr));
         }
     } else if let Err(e) = &pods_res {
         pods_error = Some(e.to_string());

@@ -87,6 +87,7 @@ See the full matrix in [admin-configuration.md](admin-configuration.md#deploymen
 
 | Guide | What's inside |
 |-------|---------------|
+| **[Customer page-by-page manual](../customer/README.md)** | Learn every dashboard screen, with printable PDFs |
 | [Product Guide](product-guide.md) | Concepts, every surface (CLI/API/UI/TUI), and feature deep-dives: VM lifecycle, storage, networks, snapshots, consoles, fleet, integrations. |
 | [Administration & Configuration](admin-configuration.md) | Deploy/run models, ports, full `config.toml` + env-var reference, auth/RBAC, TLS, building from source, production checklist. |
 | [FAQ](faq.md) | 30+ real questions on auth, ports, deploy, VMs, consoles, backups, integrations. |

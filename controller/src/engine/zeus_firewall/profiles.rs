@@ -69,5 +69,6 @@ pub fn plan_for_profile(name: &str, dry_run: bool) -> anyhow::Result<FirewallPla
         stealth_level: None,
         preset: None,
         dry_run,
+        zone_cidrs: Default::default(),
     })
 }

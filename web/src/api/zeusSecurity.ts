@@ -51,6 +51,12 @@ export interface SecurityEvent {
   file?: { path?: string; action?: string }
   k8s?: { namespace?: string; pod?: string; container?: string }
   verdict?: string
+  // `/zeus-security/fleet/timeline` (unlike the per-host timeline above) returns
+  // this flatter shape instead — same event feed, different endpoint/schema.
+  message?: string
+  namespace?: string
+  source?: string
+  type?: string
 }
 
 export const getZeusSecurityStatus = () => platformFetch<ZeusSecurityStatus>('/api/v1/zeus-security/status')

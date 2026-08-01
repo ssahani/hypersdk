@@ -266,7 +266,7 @@ export default function VmDevicesPanel({ vmId, hostId, details, domainXml = '', 
               <MacListRow
                 key={d.target}
                 title={d.target}
-                subtitle={`${d.device} · ${d.driver}${d.cache ? ` · cache ${d.cache}` : ''}${d.capacity_bytes ? ` · ${(d.capacity_bytes / (1024 ** 3)).toFixed(1)} GiB cap` : ''}${d.physical_bytes ? ` · ${(d.physical_bytes / (1024 ** 3)).toFixed(1)} GiB used` : ''}`}
+                subtitle={`${d.device} · ${d.driver}${d.cache ? ` · cache ${d.cache}` : ''}${d.capacity_bytes ? ` · ${(d.capacity_bytes / (1024 ** 3)).toFixed(1)} GiB cap` : ''}${d.physical_bytes ? ` · ${(d.physical_bytes / (1024 ** 3)).toFixed(1)} GiB on host` : ''}`}
               />
             ))}
           </div>

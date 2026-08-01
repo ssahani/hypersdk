@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 // Fleet Linux health rollup (Phase 36).
 
+use futures_util::future::join_all;
 use serde::Serialize;
 use sqlx::SqlitePool;
 use uuid::Uuid;
@@ -38,13 +39,26 @@ pub async fn overview(
     .fetch_all(pool)
     .await?;
 
+    // Each per-host RPC can take up to the agent's read timeout (see
+    // agent_client::READ_RPC_TIMEOUT) if that host's agent is wedged. Fetching
+    // sequentially meant one slow/wedged host stalled every other host behind
+    // it in line; this endpoint is polled by several always-on shell widgets; a
+    // single wedged agent turned into a 30-60s stall for the whole platform
+    // shell. Fetching concurrently caps worst case at one RPC timeout instead
+    // of `hosts.len()` of them.
+    let observations = join_all(rows.into_iter().map(|(id, hostname)| async move {
+        let obs = host_os::linux_observability(pool, cfg, id).await.ok();
+        (id, hostname, obs)
+    }))
+    .await;
+
     let mut hosts = Vec::new();
     let mut pressure_hosts = 0usize;
     let mut thermal_alerts = 0usize;
     let mut smart_alerts = 0usize;
 
-    for (id, hostname) in rows {
-        let Ok(obs) = host_os::linux_observability(pool, cfg, id).await else {
+    for (id, hostname, obs) in observations {
+        let Some(obs) = obs else {
             continue;
         };
         let io = obs

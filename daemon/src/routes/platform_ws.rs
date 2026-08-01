@@ -96,7 +96,11 @@ async fn platform_vnc_ws_proxy(
     Query(q): Query<PlatformWsQuery>,
 ) -> impl IntoResponse {
     let path = format!("{}/ws/v1/platform/vnc/{vm_id}", controller_ws_base());
-    ws.on_upgrade(move |socket| relay_platform_ws(socket, path, q.token))
+    // See daemon/src/routes/ws.rs::vnc_handler — novnc-core requests the
+    // 'binary' subprotocol and Chrome fails the connection (code 1006) unless
+    // the server echoes it back, even though the HTTP upgrade itself succeeds.
+    ws.protocols(["binary"])
+        .on_upgrade(move |socket| relay_platform_ws(socket, path, q.token))
 }
 
 async fn platform_serial_ws_proxy(

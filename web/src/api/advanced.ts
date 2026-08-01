@@ -88,14 +88,37 @@ export const getVmJobStats = (vmName: string) =>
   readJsonObject<VmJobStats>(`${API}/vms/${encodeURIComponent(vmName)}/job/stats`)
 
 export interface CpuCompareResult {
+  /** True when the host can run this guest CPU definition (identical or host is a superset). */
   compatible: boolean
   summary: string
-  host_model?: string
-  guest_arch?: string
+  /** Raw libvirt compare label: identical | superset | incompatible | unknown */
+  label: string
+  code: number
 }
 
-export const compareCpu = (body: { host_model?: string; guest_arch?: string; guest_model?: string }) =>
-  apiPost<CpuCompareResult>(`${API}/cpu/compare`, body)
+type CpuCompareApiResult = {
+  code: number
+  label: string
+}
+
+/** Compare a guest `<cpu>…</cpu>` XML fragment against this host (`virConnectCompareCPU`). */
+export async function compareCpu(body: { cpu_xml: string; flags?: number }): Promise<CpuCompareResult> {
+  const raw = await apiPost<CpuCompareApiResult>(`${API}/cpu/compare`, {
+    cpu_xml: body.cpu_xml,
+    flags: body.flags ?? 0,
+  })
+  const label = raw.label || 'unknown'
+  const compatible = label === 'identical' || label === 'superset'
+  const summary =
+    label === 'identical'
+      ? 'Guest CPU definition is identical to this host.'
+      : label === 'superset'
+        ? 'Host CPU is a superset of the guest definition (safe to run here).'
+        : label === 'incompatible'
+          ? 'Guest CPU is incompatible with this host.'
+          : `CPU compare result: ${label} (code ${raw.code}).`
+  return { compatible, summary, label, code: raw.code }
+}
 
 export const getLocalFirewallInventory = () =>
   readJsonObject<Record<string, unknown>>(`${API}/zeus-firewall/local/inventory`)

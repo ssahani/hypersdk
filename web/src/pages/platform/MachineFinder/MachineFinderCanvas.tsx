@@ -81,7 +81,15 @@ function GridLens({ state, compact }: { state: MachineFinderState; compact?: boo
       {groups.map((group) => (
         <section key={group.key}>
           <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">{group.label}</h3>
-          <div className={`grid gap-4 ${compact ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'}`}>
+          {/* `grid-cols-N` resolves to `repeat(N, minmax(0, 1fr))`, which lets a
+              track shrink to 0 whenever fixed-width siblings (smart-folders
+              sidebar, command center) leave little room for `main`. The fixed
+              icon (w-20/w-24) then overflows its cell while the name <p>
+              (a normal block box) collapses to that same sliver, making
+              `truncate` clip almost the whole label. `auto-fill`/`minmax`
+              gives each card a legible floor width and just wraps to fewer
+              columns instead of shrinking below it. */}
+          <div className={`grid gap-4 ${compact ? 'grid-cols-[repeat(auto-fill,minmax(9rem,1fr))]' : 'grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))]'}`}>
             {group.vms.map((vm) => (
               <LivingMachineCard
                 key={vm.id}

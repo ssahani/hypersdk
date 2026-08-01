@@ -24,7 +24,6 @@ import { usePlatformTabState } from '../../hooks/usePlatformTabState'
 import ErrorBanner from '../../components/ErrorBanner'
 import PageSkeleton from '../../components/PageSkeleton'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
-import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import HostEnrollWizard from '../../components/platform/HostEnrollWizard'
 import { BuildStepTimeline } from '../../components/BuildStepTimeline'
 import {
@@ -563,7 +562,6 @@ export default function PlatformMaintenance() {
           )}
         </>
       )}
-      {tab === 'updates' && <FleetSettingsPane kind="updates" />}
       <HostEnrollWizard open={enrollOpen} onClose={() => { setEnrollOpen(false); void loadSchedules() }} />
       <ConfirmDialog
         open={confirmApplyUpgradeHost}

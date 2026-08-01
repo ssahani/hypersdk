@@ -29,7 +29,7 @@ export default function PlatformWebhooks({ embedded }: { embedded?: boolean } = 
   const [deliveryFilter, setDeliveryFilter] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [url, setUrl] = useState('https://example.com/hook')
+  const [url, setUrl] = useState('')
   const [adding, setAdding] = useState(false)
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [showRemoveTest, setShowRemoveTest] = useState(false)
@@ -74,7 +74,14 @@ export default function PlatformWebhooks({ embedded }: { embedded?: boolean } = 
             e.preventDefault()
             const target = url.trim()
             if (!target || adding) return
-            if (!/^https?:\/\/.+/i.test(target)) {
+            let parsed: URL
+            try {
+              parsed = new URL(target)
+            } catch {
+              toast.error('Enter a valid http(s) webhook URL')
+              return
+            }
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
               toast.error('Enter a valid http(s) webhook URL')
               return
             }
@@ -82,6 +89,7 @@ export default function PlatformWebhooks({ embedded }: { embedded?: boolean } = 
             try {
               await createWebhook({ url: target, events: ['vm.create', 'vm.delete', 'ha.recover'] })
               toast.success('Webhook added')
+              setUrl('')
               await load()
             } catch (err: unknown) {
               toast.error(formatUserError(err))

@@ -154,8 +154,11 @@ pub fn set_cpu_topology(
     Ok(())
 }
 
-fn replace_or_insert_vcpu(xml: &str, vcpus: u32) -> String {
-    let replacement = format!("<vcpu placement='static'>{vcpus}</vcpu>");
+/// Rewrite `<vcpu>` so `current` is the boot/active count and the element body is the
+/// maximum (with hotplug headroom). Domains created with max == current cannot grow live.
+pub(crate) fn replace_or_insert_vcpu(xml: &str, vcpus: u32) -> String {
+    let max = super::create::vcpu_max_for(vcpus).max(vcpus);
+    let replacement = format!("<vcpu placement='static' current='{vcpus}'>{max}</vcpu>");
     if let Some(start) = xml.find("<vcpu") {
         if let Some(end) = xml[start..].find('>') {
             let close = start + end + 1; // index just past the first '>'
@@ -178,6 +181,23 @@ fn replace_or_insert_vcpu(xml: &str, vcpus: u32) -> String {
         return format!("{}\n  {}\n{}", &xml[..idx], replacement, &xml[idx..]);
     }
     xml.to_string()
+}
+
+/// Parse persistent-domain max vCPUs from inactive XML (`<vcpu>…</vcpu>` body, else `current`).
+pub(crate) fn parse_vcpu_max_from_xml(xml: &str) -> Option<u32> {
+    let start = xml.find("<vcpu")?;
+    let gt = xml[start..].find('>')? + start;
+    let tag = &xml[start..=gt];
+    if tag.trim_end().ends_with("/>") {
+        return crate::xml::extract_attr(tag, "vcpu", "current").and_then(|s| s.parse().ok());
+    }
+    let after = &xml[gt + 1..];
+    let end = after.find("</vcpu>")?;
+    let body = after[..end].trim();
+    if let Ok(n) = body.parse::<u32>() {
+        return Some(n);
+    }
+    crate::xml::extract_attr(tag, "vcpu", "current").and_then(|s| s.parse().ok())
 }
 
 fn replace_or_insert_topology(xml: &str, sockets: u32, cores: u32, threads: u32) -> String {
@@ -301,4 +321,24 @@ pub fn snapshot_precheck(
         estimated_bytes,
         available_bytes: None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn replace_vcpu_sets_current_and_headroom_max() {
+        let xml = "<domain>\n  <vcpu placement='static'>2</vcpu>\n  <memory unit='KiB'>1</memory>\n</domain>";
+        let out = replace_or_insert_vcpu(xml, 3);
+        assert!(out.contains("current='3'"), "{out}");
+        assert!(out.contains(">8</vcpu>"), "{out}");
+        assert_eq!(parse_vcpu_max_from_xml(&out), Some(8));
+    }
+
+    #[test]
+    fn parse_vcpu_max_plain_element() {
+        let xml = "<vcpu placement='static'>2</vcpu>";
+        assert_eq!(parse_vcpu_max_from_xml(xml), Some(2));
+    }
 }

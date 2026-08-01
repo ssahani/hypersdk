@@ -11,8 +11,27 @@ pub async fn connect(database_url: &str) -> anyhow::Result<SqlitePool> {
         .create_if_missing(true)
         .journal_mode(SqliteJournalMode::Wal)
         .pragma("foreign_keys", "ON")
+        // WAL already gives durability at checkpoint boundaries, so the extra
+        // fsync FULL does on every commit is unneeded belt-and-suspenders here
+        // and was a real contributor to write-lock hold time under the
+        // concurrent writers below (reconcile, channel_worker, webhook_worker,
+        // leader election, per-request trace spans, ...).
+        .pragma("synchronous", "NORMAL")
         .busy_timeout(Duration::from_secs(5));
 
+    // Deliberately small: SQLite allows exactly one writer no matter how many
+    // connections the pool hands out, so a bigger pool doesn't add write
+    // throughput — it only admits more simultaneous contenders for that one
+    // writer lock. Tried raising this to 16 to help concurrent readers and it
+    // made things much worse (queries observed up to 69s): with 16 slots, up
+    // to 16 writers (reconcile, channel_worker, webhook_worker, leader
+    // election, per-request trace spans, ...) can pile onto the lock at once,
+    // and once enough of those are individually stuck in their own 5s
+    // busy_timeout, the pool itself saturates — new requests, including plain
+    // SELECTs, then queue for a *pool connection* behind a stack of blocked
+    // writers. The small pool was accidentally acting as admission control;
+    // keep it small until write contention is reduced some other way (see
+    // observability::record_trace's prune throttling).
     let pool = SqlitePoolOptions::new()
         .max_connections(4)
         .connect_with(options)

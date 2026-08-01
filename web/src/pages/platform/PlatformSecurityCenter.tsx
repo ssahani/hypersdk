@@ -301,9 +301,9 @@ export default function PlatformSecurityCenter() {
               <p className="text-sm text-slate-500">No critical security events in the current window.</p>
             ) : (
               <ul className="space-y-2">
-                {critical.slice(0, 8).map((ev) => (
-                  <li key={`${String(ev.host_id ?? '')}-${String(ev.kind ?? '')}-${String(ev.summary ?? '')}`} className={`text-sm flex flex-wrap items-center justify-between gap-2 ${statusToneClass('error')}`}>
-                    <span>{String(ev.summary ?? ev.kind ?? 'event')}</span>
+                {critical.slice(0, 8).map((ev, i) => (
+                  <li key={ev.id ? String(ev.id) : `${String(ev.host_id ?? '')}-${String(ev.kind ?? ev.type ?? '')}-${i}`} className={`text-sm flex flex-wrap items-center justify-between gap-2 ${statusToneClass('error')}`}>
+                    <span>{String(ev.description ?? ev.summary ?? ev.message ?? ev.anomaly_type ?? ev.kind ?? ev.type ?? 'event')}</span>
                     <EbpfActionMenu
                       hostId={ev.host_id ? String(ev.host_id) : undefined}
                       suggestedKind="deny_process"

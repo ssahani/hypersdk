@@ -115,6 +115,7 @@ pub async fn plan_target(
         stealth_level: stealth,
         preset: body.preset,
         dry_run: body.dry_run,
+        zone_cidrs: state.config.firewall_zones.clone(),
     };
     zeus_firewall::plan_target(&state.pool, &state.config, &id, req)
         .await
@@ -139,6 +140,7 @@ pub async fn apply_target(
         stealth_level: stealth,
         preset: body.preset,
         dry_run: false,
+        zone_cidrs: state.config.firewall_zones.clone(),
     };
     zeus_firewall::apply_target(&state.pool, &state.config, &id, req, &actor.username)
         .await
@@ -590,15 +592,17 @@ pub struct K8sPlanBody {
 }
 
 pub async fn k8s_plan(
+    State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<K8sPlanBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_operator(&actor)?;
-    let manifests = zeus_firewall::k8s::compile_plan(&body.namespace, &body.profile)
-        .await
-        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    let (manifests, warnings) =
+        zeus_firewall::k8s::compile_plan(&state.config, &body.namespace, &body.profile)
+            .await
+            .map_err(|e| ApiError::bad_request(e.to_string()))?;
     Ok(Json(
-        serde_json::json!({ "manifests": manifests, "dry_run": body.dry_run }),
+        serde_json::json!({ "manifests": manifests, "dry_run": body.dry_run, "warnings": warnings }),
     ))
 }
 
@@ -609,6 +613,7 @@ pub async fn k8s_apply(
 ) -> Result<Json<machina_core::FirewallPlanResult>, ApiError> {
     require_operator(&actor)?;
     zeus_firewall::k8s::apply_plan(
+        &state.config,
         &state.pool,
         &body.namespace,
         &body.profile,

@@ -110,7 +110,14 @@ function launchpadAppPath(id: string, suffix = '') {
 
 export const listLaunchpadApps = () => platformFetch<LaunchpadApp[]>('/api/v1/launchpad/apps')
 export const listLaunchpadCatalog = () => platformFetch<LaunchpadApp[]>('/api/v1/launchpad/catalog')
-export const listLaunchpadFavorites = () => platformFetch<LaunchpadApp[]>('/api/v1/launchpad/favorites')
+export const listLaunchpadFavorites = async (): Promise<LaunchpadApp[]> => {
+  try {
+    return await platformFetch<LaunchpadApp[]>('/api/v1/launchpad/favorites')
+  } catch {
+    // Hermes may return HTML 404 when the favorites route is missing — treat as empty dock.
+    return []
+  }
+}
 export const getLaunchpadApp = (id: string) => platformFetch<LaunchpadApp>(launchpadAppPath(id))
 export const getLaunchpadDiagnosis = (id: string) =>
   platformFetch<LaunchpadDiagnosis>(launchpadAppPath(id, '/diagnosis'))

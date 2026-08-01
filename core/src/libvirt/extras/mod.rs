@@ -591,7 +591,16 @@ pub fn live_set_vcpus(conn: &Connect, name: &str, vcpus: u32) -> Result<(), Libv
             virt::sys::VIR_DOMAIN_AFFECT_LIVE | virt::sys::VIR_DOMAIN_AFFECT_CONFIG,
         )
         .map_err(|e| {
-            LibvirtError::Operation(format!("Failed to live-set vCPUs for '{name}': {e}"))
+            let msg = e.to_string();
+            if msg.contains("greater than max allowable") {
+                LibvirtError::Operation(format!(
+                    "Failed to live-set vCPUs for '{name}': {e}. \
+                     The running domain max is too low — raise max (Edit CPU / topology) and reboot, \
+                     or shut down and set vCPUs offline."
+                ))
+            } else {
+                LibvirtError::Operation(format!("Failed to live-set vCPUs for '{name}': {e}"))
+            }
         })?;
     Ok(())
 }

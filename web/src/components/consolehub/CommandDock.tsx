@@ -10,11 +10,19 @@ type Props = {
   onCtrlAltDel?: () => void
   onExplain?: () => void
   onSwitchLens?: (lens: string) => void
+  /** When set, hide Serial / SSH dock buttons unless the plan advertises them. */
+  availableProtocols?: string[]
 }
 
 const ZOOM_LEVELS: ZoomLevel[] = [75, 100, 125, 150, 200]
 
-export default function CommandDock({ visible = true, onCtrlAltDel, onExplain, onSwitchLens }: Props) {
+export default function CommandDock({
+  visible = true,
+  onCtrlAltDel,
+  onExplain,
+  onSwitchLens,
+  availableProtocols,
+}: Props) {
   const vp = useConsoleViewportOptional()
   const [show, setShow] = useState(true)
   const [idle, setIdle] = useState(false)
@@ -71,8 +79,12 @@ export default function CommandDock({ visible = true, onCtrlAltDel, onExplain, o
         ) : null}
         {onSwitchLens ? (
           <>
-            <button type="button" className={btn} onClick={() => onSwitchLens('serial')}>Serial</button>
-            <button type="button" className={btn} onClick={() => onSwitchLens('shell')}>SSH</button>
+            {!availableProtocols || availableProtocols.includes('serial') ? (
+              <button type="button" className={btn} onClick={() => onSwitchLens('serial')}>Serial</button>
+            ) : null}
+            {!availableProtocols || availableProtocols.includes('native_ssh') || availableProtocols.includes('ssh') ? (
+              <button type="button" className={btn} onClick={() => onSwitchLens('shell')}>SSH</button>
+            ) : null}
           </>
         ) : null}
         {onExplain ? (

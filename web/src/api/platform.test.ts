@@ -1,12 +1,17 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+
+const redirectToLoginOnce = vi.hoisted(() => vi.fn())
+vi.mock('./authRedirect', () => ({ redirectToLoginOnce }))
+
 import {
   PLATFORM_CONTROLLER_PROXY,
   resolvePlatformApiUrl,
   usesCoLocatedControllerProxy,
   defaultControllerProxyUrl,
   getControllerBase,
+  platformFetch,
 } from './platform'
 
 const LS_CONTROLLER = 'machina_platform_controller'
@@ -30,11 +35,13 @@ const makeLocalStorageMock = () => {
 beforeEach(() => {
   vi.stubGlobal('window', windowStub)
   vi.stubGlobal('localStorage', makeLocalStorageMock())
+  redirectToLoginOnce.mockClear()
 })
 
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
+  vi.restoreAllMocks()
 })
 
 describe('PLATFORM_CONTROLLER_PROXY', () => {
@@ -91,5 +98,33 @@ describe('getControllerBase precedence', () => {
     vi.stubEnv('VITE_MACHINA_CONTROLLER_URL', 'http://dev-controller.example:5093')
     localStorage.setItem(LS_CONTROLLER, PROXY_BASE)
     expect(getControllerBase()).toBe(PROXY_BASE)
+  })
+})
+
+describe('platformFetch 401 handling', () => {
+  it('does not redirect to login on co-located proxy 401 (controller auth failure)', async () => {
+    localStorage.setItem(LS_CONTROLLER, PROXY_BASE)
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 401 })))
+
+    await expect(platformFetch('/api/v1/launchpad/config')).rejects.toMatchObject({
+      error_code: 'controller_unauthorized',
+    })
+    expect(redirectToLoginOnce).not.toHaveBeenCalled()
+  })
+
+  it('redirects to login on direct-controller 401 after credential clear', async () => {
+    // Must be a non-local host so normalizeControllerBase does not rewrite to the proxy.
+    localStorage.setItem(LS_CONTROLLER, 'http://controller.example:5093')
+    localStorage.setItem('machina_platform_jwt', 'stale-token')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ error: 'unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      })),
+    )
+
+    await expect(platformFetch('/api/v1/hosts')).rejects.toThrow(/401|unauthorized/i)
+    expect(redirectToLoginOnce).toHaveBeenCalled()
   })
 })

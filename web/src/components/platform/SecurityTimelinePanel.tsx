@@ -21,8 +21,8 @@ export default function SecurityTimelinePanel({
           {events.slice(0, 40).map((e, i) => (
             <MacListRow
               key={e.id ?? i}
-              title={e.summary || e.kind || 'event'}
-              subtitle={[e.host_id, e.severity, e.timestamp].filter(Boolean).join(' · ')}
+              title={e.summary || e.message || e.kind || e.type || 'event'}
+              subtitle={[e.host_id, e.source, e.namespace, e.severity, e.timestamp].filter(Boolean).join(' · ')}
             />
           ))}
         </div>

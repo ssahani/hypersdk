@@ -222,6 +222,15 @@ pub struct FirewallPlanRequest {
     pub stealth_level: Option<StealthLevel>,
     pub preset: Option<String>,
     pub dry_run: bool,
+    /// Zone name → CIDR map (e.g. `admin-network` → `10.0.0.0/8`), injected by
+    /// the controller from `MACHINA_FIREWALL_ZONES` just before dispatch — not
+    /// meant to be populated by API callers. Resolves symbolic
+    /// `FirewallProfileRule::sources` into real source restrictions; when a
+    /// source isn't found here it's applied unrestricted with a warning
+    /// pushed onto `FirewallPlanResult::diff.warnings` rather than silently
+    /// dropped.
+    #[serde(default)]
+    pub zone_cidrs: std::collections::HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -18,7 +18,7 @@ export default function PlatformApiKeys({ embedded }: { embedded?: boolean } = {
   const [rows, setRows] = useState<ApiKeyRow[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [name, setName] = useState('automation')
+  const [name, setName] = useState('')
   const [role, setRole] = useState('operator')
   const [newToken, setNewToken] = useState<string | null>(null)
   const [deleteKeyId, setDeleteKeyId] = useState<string | null>(null)
@@ -83,6 +83,7 @@ export default function PlatformApiKeys({ embedded }: { embedded?: boolean } = {
             try {
               const res = await createApiKey({ name: name.trim(), role })
               setNewToken(res.token)
+              setName('')
               toast.success('API key created')
               await load()
             } catch (err: unknown) { toast.error(formatUserError(err)) }

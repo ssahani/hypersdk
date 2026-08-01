@@ -10,10 +10,33 @@ import { statusToneClass } from '../../../utils/semanticColors'
 
 type ActivityEvent = Record<string, unknown> & { target?: string; group?: string }
 
+function field(obj: unknown, key: string): unknown {
+  if (!obj || typeof obj !== 'object') return undefined
+  return (obj as Record<string, unknown>)[key]
+}
+
+// PacketWolf SecurityEvent nests details under process/network/dns objects;
+// some legacy flow shapes put flat fields at the top level — try both.
+function processBinary(e: ActivityEvent): unknown {
+  return field(e.process, 'binary') ?? e.process_name ?? (typeof e.process === 'string' ? e.process : undefined)
+}
+function eventPort(e: ActivityEvent): unknown {
+  return field(e.network, 'port') ?? e.destination_port ?? e.port ?? e.target_port
+}
+function dnsQuery(e: ActivityEvent): unknown {
+  return field(e.dns, 'query') ?? e.dns_query ?? e.domain
+}
+function sourceIp(e: ActivityEvent): unknown {
+  return field(e.network, 'src_ip') ?? e.source_ip ?? e.source
+}
+function destinationIp(e: ActivityEvent): unknown {
+  return field(e.network, 'dst_ip') ?? e.destination_ip ?? e.destination
+}
+
 function eventTitle(e: ActivityEvent): string {
   const verdict = e.verdict ?? e.action ?? e.kind
-  const port = e.destination_port ?? e.port ?? e.target_port
-  const proc = e.process ?? e.process_name
+  const port = eventPort(e)
+  const proc = processBinary(e)
   if (proc && port) return `${String(proc)} · ${String(verdict || 'flow')} port ${port}`
   if (proc) return `${String(proc)} · ${String(verdict || 'flow')}`
   if (port) return `${String(verdict || 'flow')} · port ${port}`
@@ -21,14 +44,13 @@ function eventTitle(e: ActivityEvent): string {
 }
 
 function eventSubtitle(e: ActivityEvent): string {
-  const domain = e.dns_query ?? e.domain ?? e.destination
   const parts = [
     e.target,
-    e.process ?? e.process_name,
-    domain,
-    e.source_ip ?? e.source,
-    e.destination_ip ?? e.destination,
-  ].filter(Boolean)
+    processBinary(e),
+    dnsQuery(e),
+    sourceIp(e),
+    destinationIp(e),
+  ].filter((p) => p !== undefined && p !== null && p !== '' && typeof p !== 'object')
   return parts.map(String).join(' · ')
 }
 

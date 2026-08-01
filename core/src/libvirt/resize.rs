@@ -99,16 +99,45 @@ pub fn set_vcpus(conn: &Connect, name: &str, vcpus: u32) -> Result<(), LibvirtEr
     let domain = lookup_domain(conn, name)?;
     // Online CPU hotplug: for a running guest apply LIVE|CONFIG so the change takes effect
     // immediately AND persists across reboot. If the live change is rejected (e.g. the
-    // guest can't hot-unplug down to a lower count), fall back to CONFIG-only so it still
-    // applies on next boot rather than failing the whole operation.
+    // guest can't hot-unplug down to a lower count, or max vCPUs is too low), fall back to
+    // raising the persistent max via define_xml + CONFIG-only so it still applies on next
+    // boot rather than failing the whole operation.
     if domain_is_live(&domain)
         && domain.set_vcpus_flags(vcpus, AFFECT_LIVE_AND_CONFIG).is_ok()
     {
         return Ok(());
     }
+    ensure_persistent_vcpu_max(conn, name, vcpus)?;
+    let domain = lookup_domain(conn, name)?;
     domain
         .set_vcpus_flags(vcpus, virt::sys::VIR_DOMAIN_AFFECT_CONFIG)
         .map_err(|e| LibvirtError::Operation(format!("Failed to set vCPUs for '{name}': {e}")))?;
+    Ok(())
+}
+
+/// Raise inactive-domain max vCPUs when `vcpus` exceeds the current maximum.
+/// Live hotplug still cannot exceed the max that was active at guest start — that needs a reboot.
+fn ensure_persistent_vcpu_max(
+    conn: &Connect,
+    name: &str,
+    vcpus: u32,
+) -> Result<(), LibvirtError> {
+    use virt::sys::VIR_DOMAIN_XML_INACTIVE;
+
+    let domain = lookup_domain(conn, name)?;
+    let xml = domain
+        .get_xml_desc(VIR_DOMAIN_XML_INACTIVE)
+        .map_err(LibvirtError::map_op("Failed to get inactive XML"))?;
+    let max = super::cpu_memory::parse_vcpu_max_from_xml(&xml).unwrap_or(0);
+    if max >= vcpus {
+        return Ok(());
+    }
+    let new_xml = super::cpu_memory::replace_or_insert_vcpu(&xml, vcpus);
+    virt::domain::Domain::define_xml(conn, &new_xml).map_err(|e| {
+        LibvirtError::Operation(format!(
+            "Failed to raise max vCPUs for '{name}' before set: {e}"
+        ))
+    })?;
     Ok(())
 }
 

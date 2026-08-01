@@ -281,10 +281,13 @@ export async function platformFetch<T>(path: string, init?: RequestInit): Promis
       res = await fetch(url, buildInit(init))
     }
   }
-  // A 401 that survives the token-clear/retry means the session is truly expired. Send the
-  // user to login instead of throwing a raw "401 " that a non-catching caller would surface
-  // as an uncaught pageerror ("Application error").
-  if (res!.status === 401) {
+  // A 401 that survives the token-clear/retry:
+  // - Direct controller URL → credential is gone; send the user to login.
+  // - Co-located daemon→controller proxy → the daemon PAM/session cookie may still be
+  //   valid. A 401 here usually means MACHINA_PLATFORM_AUTH is missing/wrong on the
+  //   daemon. Redirecting to /login loops (daemon session still good), remounts the
+  //   shell, and leaves WebSockets stuck on "Connecting".
+  if (res!.status === 401 && !usesCoLocatedControllerProxy(base)) {
     redirectToLoginOnce()
   }
   if (!res!.ok) {
@@ -306,7 +309,18 @@ export async function platformFetch<T>(path: string, init?: RequestInit): Promis
     } catch {
       /* plain text */
     }
-    throw parsed ?? new Error(body || `${res!.status} ${res!.statusText}`)
+    if (parsed) throw parsed
+    if (res!.status === 401 && usesCoLocatedControllerProxy(base)) {
+      throw Object.assign(
+        new Error(
+          'Platform controller authentication failed (HTTP 401). '
+            + 'On the host set MACHINA_PLATFORM_AUTH in /etc/default/machina-daemon '
+            + 'to a valid controller user:password, then restart machina-daemon.',
+        ),
+        { error_code: 'controller_unauthorized' },
+      )
+    }
+    throw new Error(body || `${res!.status} ${res!.statusText}`)
   }
   if (res!.status === 204) return null as T
   return (await res!.json()) as T

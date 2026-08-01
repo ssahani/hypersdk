@@ -8,6 +8,7 @@ use super::profiles::profile_by_name;
 use super::types::{
     FirewallBackend, FirewallPlanRequest, FirewallPlanResult, FirewallRule, StealthLevel,
 };
+use super::zones::resolve_source_cidr;
 use crate::LibvirtError;
 
 pub fn compile_profile_plan(
@@ -43,6 +44,7 @@ pub fn compile_profile_plan(
         .ok_or_else(|| LibvirtError::Invalid(format!("Unknown profile: {profile_name}")))?;
 
     let mut operations = Vec::new();
+    let mut warnings = Vec::new();
     let backend = detect_backend();
     match backend {
         FirewallBackend::Ufw => {
@@ -54,10 +56,44 @@ pub fn compile_profile_plan(
         _ => {
             operations.push("iptables -P INPUT DROP".into());
             for rule in &profile.rules {
-                operations.push(format!(
-                    "iptables -A INPUT -p {} --dport {} -j ACCEPT",
-                    rule.protocol, rule.ports
-                ));
+                let named_sources: Vec<&str> = rule
+                    .sources
+                    .iter()
+                    .map(String::as_str)
+                    .filter(|s| *s != "any")
+                    .collect();
+                let mut resolved: Vec<String> = Vec::new();
+                let mut unresolved: Vec<&str> = Vec::new();
+                for source in &named_sources {
+                    match resolve_source_cidr(source, &req.zone_cidrs) {
+                        Some(cidr) => resolved.push(cidr),
+                        None => unresolved.push(source),
+                    }
+                }
+                if !unresolved.is_empty() {
+                    // A rule that claims "admin-network"/"monitoring"-style source
+                    // restrictions but has nowhere to resolve them used to silently
+                    // become `-p {proto} --dport {port} -j ACCEPT` with no `-s` at
+                    // all — e.g. ProductionServer's "SSH from admin-network only"
+                    // opened port 22 to every source. Surface it instead of hiding it.
+                    warnings.push(format!(
+                        "Rule for port {} references source(s) {:?} with no configured CIDR (set MACHINA_FIREWALL_ZONES) — applied without a source restriction.",
+                        rule.ports, unresolved
+                    ));
+                }
+                if resolved.is_empty() {
+                    operations.push(format!(
+                        "iptables -A INPUT -p {} --dport {} -j ACCEPT",
+                        rule.protocol, rule.ports
+                    ));
+                } else {
+                    for cidr in resolved {
+                        operations.push(format!(
+                            "iptables -A INPUT -p {} --dport {} -s {} -j ACCEPT",
+                            rule.protocol, rule.ports, cidr
+                        ));
+                    }
+                }
             }
         }
     }
@@ -90,7 +126,8 @@ pub fn compile_profile_plan(
         })
         .collect();
 
-    let diff = compute_diff(&current.rules, &after_rules);
+    let mut diff = compute_diff(&current.rules, &after_rules);
+    diff.warnings.extend(warnings);
     Ok(FirewallPlanResult { diff, operations })
 }
 

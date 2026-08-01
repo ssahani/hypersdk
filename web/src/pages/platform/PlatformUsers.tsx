@@ -15,7 +15,6 @@ import OperatingSurfaceLayout from '../../components/platform/OperatingSurfaceLa
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import { usePlatformTabState } from '../../hooks/usePlatformTabState'
-import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import {
   createUser,
   deleteUser,
@@ -318,7 +317,6 @@ export default function PlatformUsers({ embedded }: { embedded?: boolean } = {})
           </MacGlassPanel>
         )}
       </OperatingSurfaceLayout>
-      <FleetSettingsPane kind="users" />
       <ConfirmDialog
         open={deleteUserId !== null}
         title="Delete User"

@@ -334,9 +334,16 @@ pub fn get_hardware_summary(conn: &Connect, name: &str) -> Result<VmHardwareSumm
     let (firmware_value, secure_boot) = parse_firmware(&config_xml);
     let fw_badges = vec!["restart_required".into()];
 
+    let os_pretty = guest.as_ref().and_then(|g| g.os_pretty_name.as_deref());
+    let is_windows = is_windows_os(&details.os_type, os_pretty);
+
     let (tpm_value, tpm2) = parse_tpm(&config_xml);
     let tpm_badges = if tpm_value == "Not configured" {
-        vec!["restart_required".into(), "windows_recommended".into()]
+        let mut b = vec!["restart_required".to_string()];
+        if is_windows {
+            b.push("windows_recommended".into());
+        }
+        b
     } else {
         vec!["restart_required".into()]
     };
@@ -384,9 +391,6 @@ pub fn get_hardware_summary(conn: &Connect, name: &str) -> Result<VmHardwareSumm
     if vfio {
         migration_badges.push("migration_unsafe".into());
     }
-
-    let os_pretty = guest.as_ref().and_then(|g| g.os_pretty_name.as_deref());
-    let is_windows = is_windows_os(&details.os_type, os_pretty);
 
     let windows_readiness = if is_windows {
         Some(build_windows_readiness(
@@ -447,10 +451,10 @@ pub fn get_hardware_summary(conn: &Connect, name: &str) -> Result<VmHardwareSumm
         guest_agent: HardwareSection {
             label: "Guest agent".into(),
             value: guest_agent_value.into(),
-            badges: if agent_running {
-                vec![]
-            } else {
+            badges: if !agent_running && is_windows {
                 vec!["windows_recommended".into()]
+            } else {
+                vec![]
             },
         },
         host_devices: HardwareSection {

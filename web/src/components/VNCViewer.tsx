@@ -171,20 +171,18 @@ function scheduleCockpitViewportRefresh(
   requestAnimationFrame(tick)
 }
 
-/** Cinema/Studio: keep noVNC at native 1:1 and CSS-scale the container for Fit/Fill. */
-function cockpitCssTransform(
-  mode: ViewportMode,
-  zoom: number,
-  guestW: number,
-  guestH: number,
-  viewportW: number,
-  viewportH: number,
-): string | undefined {
-  if (mode === 'stretch') return undefined
+/**
+ * Cinema/Studio: keep noVNC at native 1:1. Fit/Fill are handled by forcing the canvas
+ * to fill its container (like Stretch) and letting CSS object-fit (contain/cover) do
+ * the aspect-aware scaling — see containerRef's className below. A hand-computed CSS
+ * transform here previously assumed the wrapper's pre-transform box was the guest's
+ * native resolution, but min-w-full/min-h-full actually forces it to viewport size,
+ * so the scale factor was applied to the wrong base box (top-left anchored crop/misalign).
+ * Only Zoom still needs an explicit transform since it's a user-picked percentage, not
+ * a fit-to-container computation.
+ */
+function cockpitCssTransform(mode: ViewportMode, zoom: number): string | undefined {
   if (mode === 'zoom') return `scale(${zoom / 100})`
-  if (guestW <= 0 || guestH <= 0 || viewportW <= 0 || viewportH <= 0) return undefined
-  if (mode === 'fit') return `scale(${Math.min(viewportW / guestW, viewportH / guestH)})`
-  if (mode === 'fill') return `scale(${Math.max(viewportW / guestW, viewportH / guestH)})`
   return undefined
 }
 
@@ -529,6 +527,37 @@ export default function VNCViewer({
     vp,
   ])
 
+  /**
+   * Cinema Fit/Fill force the canvas to fill its container via CSS object-fit (see
+   * containerRef above) instead of noVNC's own scaleViewport/autoscale, which previously
+   * blanked the canvas in cockpit mode (see git history). But noVNC's pointer math
+   * (Display.absX/absY) still divides by its internal _scale, which _updateScale() pins
+   * to 1 whenever scaleViewport is off — so uncorrected, clicks drift away from the
+   * cursor as the CSS-scaled size diverges from the native framebuffer size. Set _scale
+   * to the actual contain/cover ratio so clicks land where they visually appear. Must run
+   * after the two refresh effects above, which reset _scale to 1 via _updateScale().
+   */
+  useEffect(() => {
+    if (!cockpitMode || !vp || status !== 'connected') return
+    const { mode, guestWidth, guestHeight, viewportWidth, viewportHeight } = vp
+    if (mode !== 'fit' && mode !== 'fill') return
+    if (guestWidth <= 0 || guestHeight <= 0 || viewportWidth <= 0 || viewportHeight <= 0) return
+    const ratio = mode === 'fit'
+      ? Math.min(viewportWidth / guestWidth, viewportHeight / guestHeight)
+      : Math.max(viewportWidth / guestWidth, viewportHeight / guestHeight)
+    const display = (rfbRef.current as unknown as { _display?: { scale: number } } | null)?._display
+    if (display && Number.isFinite(ratio) && ratio > 0) display.scale = ratio
+  }, [
+    cockpitMode,
+    status,
+    vp?.mode,
+    vp?.guestWidth,
+    vp?.guestHeight,
+    vp?.viewportWidth,
+    vp?.viewportHeight,
+    vp,
+  ])
+
   useEffect(() => {
     if (!cockpitMode || !vp || !scrollRef.current) return
     const el = scrollRef.current
@@ -570,7 +599,7 @@ export default function VNCViewer({
   const statusText = status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting...' : status === 'loading' ? 'Loading VNC client...' : 'Disconnected'
   const cockpitTransform =
     cockpitMode && vp
-      ? cockpitCssTransform(vp.mode, vp.zoom, vp.guestWidth, vp.guestHeight, vp.viewportWidth, vp.viewportHeight)
+      ? cockpitCssTransform(vp.mode, vp.zoom)
       : undefined
   const cockpitFitSurface =
     cockpitMode && vp && (vp.mode === 'fit' || vp.mode === 'fill' || vp.mode === 'stretch')
@@ -688,7 +717,11 @@ export default function VNCViewer({
       >
         <div
           ref={scaleWrapperRef}
-          className={previewMode ? 'w-full h-full flex items-center justify-center' : 'inline-block min-w-full min-h-full'}
+          className={
+            previewMode || cockpitFitSurface
+              ? 'w-full h-full flex items-center justify-center'
+              : 'inline-block min-w-full min-h-full'
+          }
           style={{
             transform: cockpitTransform,
             transformOrigin: previewMode ? 'center center' : 'top left',
@@ -701,13 +734,17 @@ export default function VNCViewer({
                 ? 'max-w-full max-h-full [&_canvas]:max-w-full [&_canvas]:max-h-full [&_canvas]:object-contain'
                 : cockpitMode && vp?.mode === 'stretch'
                   ? 'w-full h-full [&_canvas]:!w-full [&_canvas]:!h-full'
-                  : ''
+                  : cockpitMode && vp?.mode === 'fit'
+                    ? 'w-full h-full [&_canvas]:!w-full [&_canvas]:!h-full [&_canvas]:object-contain'
+                    : cockpitMode && vp?.mode === 'fill'
+                      ? 'w-full h-full [&_canvas]:!w-full [&_canvas]:!h-full [&_canvas]:object-cover'
+                      : ''
             }
           />
         </div>
         {cockpitMode && status === 'connected' ? (
           <p className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 max-w-md text-center text-xs text-slate-400 bg-black/70 border border-white/10 rounded-lg px-3 py-2 pointer-events-none">
-            Blank display? Linux cloud images often log to <strong className="text-slate-200">Serial</strong> only — use Serial or SSH in the dock. Click the canvas, then try <strong className="text-slate-200">Native</strong> or <strong className="text-slate-200">Ctrl+Alt+Del</strong>.
+            Blank display? Cloud images often have no graphical login — use <strong className="text-slate-200">Shell</strong> (SSH) in the dock when available, or click the canvas and try <strong className="text-slate-200">Ctrl+Alt+Del</strong>. Serial appears only when the VM has a serial console.
           </p>
         ) : null}
       </div>

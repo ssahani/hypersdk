@@ -72,25 +72,17 @@
 }
 
 .login-page-macos .login-glass {
-  background: var(--macos-login-card);
-  border: 1px solid var(--macos-login-card-border);
-  border-radius: var(--macos-login-radius);
-  backdrop-filter: blur(28px) saturate(1.35);
-  -webkit-backdrop-filter: blur(28px) saturate(1.35);
-  box-shadow:
-    0 28px 70px rgba(0, 0, 0, 0.55),
-    0 1px 0 rgba(255, 255, 255, 0.08) inset;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
   animation: none;
 }
 
 .login-page-macos .login-glass-border::before {
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.22),
-    rgba(255, 255, 255, 0.06),
-    rgba(255, 255, 255, 0.04)
-  );
-  opacity: 0.9;
+  display: none;
 }
 
 .login-page-macos .login-logo-ring {

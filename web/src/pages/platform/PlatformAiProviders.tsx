@@ -51,10 +51,10 @@ export default function PlatformAiProviders({ embedded }: { embedded?: boolean }
   const [rules, setRules] = useState<RoutingRuleRow[]>([])
   const [ruleDrafts, setRuleDrafts] = useState<Record<string, RuleDraft>>({})
   const [ruleModels, setRuleModels] = useState<Record<string, AiModelRow[]>>({})
-  const [name, setName] = useState('OpenAI')
+  const [name, setName] = useState('')
   const [kind, setKind] = useState('openai')
   const [baseUrl, setBaseUrl] = useState('')
-  const [modelId, setModelId] = useState('gpt-4o-mini')
+  const [modelId, setModelId] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [deleteProviderId, setDeleteProviderId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -148,17 +148,18 @@ export default function PlatformAiProviders({ embedded }: { embedded?: boolean }
     >
       <MacGlassPanel title="Add provider" subtitle="API keys are stored encrypted and never returned on GET">
         <div className="grid md:grid-cols-2 gap-3">
-          <input className="input" aria-label="Provider name" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+          <input className="input" aria-label="Provider name" placeholder="OpenAI" value={name} onChange={(e) => setName(e.target.value)} />
           <select className="input" aria-label="Provider kind" value={kind} onChange={(e) => setKind(e.target.value)}>
             {PROVIDER_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
           </select>
           <input aria-label="Base URL" className="input md:col-span-2" placeholder="Base URL (optional — Ollama/vLLM/Azure)" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
-          <input aria-label="Default model ID" className="input" placeholder="Default model" value={modelId} onChange={(e) => setModelId(e.target.value)} />
+          <input aria-label="Default model ID" className="input" placeholder="gpt-4o-mini" value={modelId} onChange={(e) => setModelId(e.target.value)} />
           <input aria-label="API key" className="input" type="password" autoComplete="off" placeholder="API key" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
         </div>
         <button
           type="button"
           className="btn-primary mt-3"
+          disabled={!name.trim() || !modelId.trim()}
           onClick={async () => {
             try {
               await createAiProvider({
@@ -169,6 +170,9 @@ export default function PlatformAiProviders({ embedded }: { embedded?: boolean }
                 is_default: providers.length === 0,
                 models: [{ model_id: modelId, display_name: modelId }],
               })
+              setName('')
+              setBaseUrl('')
+              setModelId('')
               setApiKey('')
               toast.success('Provider added')
               await load()

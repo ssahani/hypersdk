@@ -16,8 +16,11 @@ export function inferConsoleMonitors(guestWidth: number, guestHeight: number): C
   if (aspect < 1.65) return []
 
   const panelW = guestHeight >= 900 ? 1920 : 1280
-  let count = Math.round(guestWidth / panelW)
-  count = Math.max(2, Math.min(4, count))
+  const count = Math.min(4, Math.round(guestWidth / panelW))
+  // A single ultra-wide panel (e.g. 2560x1080) can pass the aspect/width gate
+  // above yet round down to one panel-width slice — that's one monitor, not a
+  // forced-minimum two, so don't split it.
+  if (count < 2) return []
   const sliceW = Math.floor(guestWidth / count)
 
   return Array.from({ length: count }, (_, i) => ({

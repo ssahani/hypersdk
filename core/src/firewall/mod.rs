@@ -16,6 +16,7 @@ pub mod profiles;
 pub mod scan;
 pub mod score;
 pub mod types;
+pub mod zones;
 
 pub use apply::{apply_plan, compile_profile_plan};
 pub use cloud::{
@@ -43,3 +44,4 @@ pub use metal::{
 pub use profiles::{builtin_profiles, profile_by_name};
 pub use score::compute_firewall_score;
 pub use types::*;
+pub use zones::{is_cidr, parse_zone_env, resolve_source_cidr};

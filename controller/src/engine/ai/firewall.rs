@@ -156,6 +156,7 @@ pub async fn simulate_plan(
             stealth_level: None,
             preset: None,
             dry_run: true,
+            zone_cidrs: Default::default(),
         },
     )
     .await?;

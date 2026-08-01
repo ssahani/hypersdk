@@ -77,10 +77,15 @@ export default function InfrastructureEarthGlobe({ mission, className = '' }: Pr
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [webGlPreferred] = useState(() => typeof window !== 'undefined' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   const globeSites = useMemo(() => sitesFromMission(mission), [mission])
-  const webGlActive = useWebGlGlobe(canvasRef, globeSites, webGlPreferred)
+  const webGlStatus = useWebGlGlobe(canvasRef, globeSites, webGlPreferred)
 
   useEffect(() => {
-    if (webGlActive) return undefined
+    // Only fall back once WebGL has definitively failed — while 'pending' the
+    // async WebGL boot (see useWebGlGlobe) may still claim this canvas, and a
+    // canvas can only ever bind one context type for its lifetime. Grabbing a
+    // 2D context here during 'pending' would permanently break WebGL's later
+    // getContext('webgl') call on the same element.
+    if (webGlStatus !== 'unavailable') return undefined
     const canvas = canvasRef.current
     if (!canvas) return undefined
     const ctx = canvas.getContext('2d')
@@ -167,7 +172,7 @@ export default function InfrastructureEarthGlobe({ mission, className = '' }: Pr
 
     raf = requestAnimationFrame(draw)
     return () => cancelAnimationFrame(raf)
-  }, [globeSites, webGlActive])
+  }, [globeSites, webGlStatus])
 
   return (
     <div
@@ -177,7 +182,7 @@ export default function InfrastructureEarthGlobe({ mission, className = '' }: Pr
       <div className="relative">
         <canvas ref={canvasRef} className="w-full h-[220px] sm:h-[260px]" aria-label="Infrastructure Earth globe" />
         <p className="absolute bottom-2 left-3 text-[10px] text-slate-500">
-          {webGlActive ? 'WebGL globe' : 'Canvas globe'} · {globeSites.length} site marker{globeSites.length === 1 ? '' : 's'}
+          {webGlStatus === 'active' ? 'WebGL globe' : webGlStatus === 'pending' ? 'Loading globe…' : 'Canvas globe'} · {globeSites.length} site marker{globeSites.length === 1 ? '' : 's'}
         </p>
       </div>
       {globeSites.length > 0 && (

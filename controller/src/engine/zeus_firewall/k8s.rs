@@ -1,5 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
+use crate::config::ControllerConfig;
 use machina_core::{
     apply_k8s_plan, compile_k8s_policies, detect_k8s_backend, k8s_cluster_ready,
     FirewallPlanRequest,
@@ -24,13 +25,15 @@ pub fn status() -> K8sFirewallStatus {
 }
 
 pub async fn compile_plan(
+    cfg: &ControllerConfig,
     namespace: &str,
     profile: &str,
-) -> anyhow::Result<Vec<machina_core::K8sPolicyManifest>> {
-    Ok(compile_k8s_policies(namespace, profile)?)
+) -> anyhow::Result<(Vec<machina_core::K8sPolicyManifest>, Vec<String>)> {
+    Ok(compile_k8s_policies(namespace, profile, &cfg.firewall_zones)?)
 }
 
 pub async fn apply_plan(
+    cfg: &ControllerConfig,
     pool: &SqlitePool,
     namespace: &str,
     profile: &str,
@@ -43,6 +46,7 @@ pub async fn apply_plan(
         stealth_level: None,
         preset: None,
         dry_run,
+        zone_cidrs: cfg.firewall_zones.clone(),
     };
     let result = apply_k8s_plan(namespace, &req)?;
     if !dry_run {

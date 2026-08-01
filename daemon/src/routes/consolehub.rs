@@ -152,6 +152,7 @@ fn build_protocol_list(
     guest_ip: &str,
     guest_ip_host_observed: bool,
     os_hint: &str,
+    serial_available: bool,
 ) -> Vec<String> {
     let mut out = vec!["novnc".into()];
     if console_type == "spice" {
@@ -175,7 +176,12 @@ fn build_protocol_list(
             out.push("rdp".into());
         }
     }
-    out.push("serial".into());
+    // Only advertise serial when the domain XML has a console/serial PTY path.
+    // Otherwise the WS opens, prints "No console PTY…", and immediately closes —
+    // worse than hiding the lens.
+    if serial_available {
+        out.push("serial".into());
+    }
     out
 }
 
@@ -277,6 +283,7 @@ async fn build_plan(
         &guest_ip_for_protocols,
         guest_ip_host_observed,
         &os_hint,
+        serial_available,
     );
 
     Ok(ConsoleHubPlan {

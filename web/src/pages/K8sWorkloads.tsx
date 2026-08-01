@@ -755,7 +755,7 @@ spec:
           )}
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[72rem]" aria-label="Services">
+          <table className="w-full text-sm min-w-[72rem]" aria-label="KubeVirt VirtualMachines">
             <thead>
               <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
                 <th scope="col" className="text-left px-4 py-3">Name</th>
@@ -774,7 +774,13 @@ spec:
             <tbody className="divide-y divide-slate-700/30">
               {kubevirtRows.map((v) => {
                 const key = `${v.namespace}/${v.name}`
-                const rr = `${v.spec_running === true ? 'on' : v.spec_running === false ? 'off' : '—'} / ${v.vm_ready === true ? 'yes' : v.vm_ready === false ? 'no' : '—'}`
+                const runState =
+                  v.spec_running === true ? 'on'
+                  : v.spec_running === false ? 'off'
+                  : v.spec_run_strategy === 'Halted' ? 'off'
+                  : v.spec_run_strategy === 'Always' ? 'on'
+                  : v.spec_run_strategy ?? '—'
+                const rr = `${runState} / ${v.vm_ready === true ? 'yes' : v.vm_ready === false ? 'no' : '—'}`
                 return (
                   <tr key={key} className="hover:bg-slate-700/30">
                     <td className="px-4 py-3 text-white font-medium">{v.name}</td>

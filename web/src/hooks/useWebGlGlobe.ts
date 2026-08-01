@@ -16,21 +16,31 @@ function healthColor(pct: number): number {
   return 0xf87171
 }
 
+/**
+ * 'pending' means WebGL hasn't been decided yet (the `import('three')` below is
+ * async, so this is true for at least one tick after mount) — callers must NOT
+ * touch the canvas with a 2D context while pending, since a canvas can only ever
+ * bind one context type for its lifetime. Claiming it with getContext('2d')
+ * during 'pending' permanently breaks the later getContext('webgl') call.
+ */
+export type WebGlGlobeStatus = 'pending' | 'active' | 'unavailable'
+
 export function useWebGlGlobe(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   sites: WebGlGlobeSite[],
   enabled: boolean,
-): boolean {
-  const [webGlActive, setWebGlActive] = useState(false)
+): WebGlGlobeStatus {
+  const [status, setStatus] = useState<WebGlGlobeStatus>('pending')
 
   useEffect(() => {
     if (!enabled) {
-      setWebGlActive(false)
+      setStatus('unavailable')
       return undefined
     }
     const canvas = canvasRef.current
     if (!canvas) return undefined
 
+    setStatus('pending')
     let disposed = false
     let raf = 0
     let cleanupScene: (() => void) | undefined
@@ -40,7 +50,7 @@ export function useWebGlGlobe(
       try {
         THREE = await import('three')
       } catch {
-        if (!disposed) setWebGlActive(false)
+        if (!disposed) setStatus('unavailable')
         return
       }
       if (disposed || !canvasRef.current) return
@@ -49,7 +59,7 @@ export function useWebGlGlobe(
       try {
         renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true })
       } catch {
-        if (!disposed) setWebGlActive(false)
+        if (!disposed) setStatus('unavailable')
         return
       }
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
@@ -99,7 +109,7 @@ export function useWebGlGlobe(
       ro.observe(canvas)
       resize()
 
-      if (!disposed) setWebGlActive(true)
+      if (!disposed) setStatus('active')
       let frame = 0
 
       const draw = () => {
@@ -124,11 +134,14 @@ export function useWebGlGlobe(
 
     return () => {
       disposed = true
-      setWebGlActive(false)
+      // Not 'unavailable': cleanup also runs when deps change and boot() is
+      // about to restart, and 'unavailable' would wrongly invite the 2D
+      // fallback to claim the canvas for the moment before the next 'pending'.
+      setStatus('pending')
       cancelAnimationFrame(raf)
       cleanupScene?.()
     }
   }, [canvasRef, enabled, sites])
 
-  return webGlActive
+  return status
 }

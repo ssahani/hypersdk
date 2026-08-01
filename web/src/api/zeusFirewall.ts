@@ -455,21 +455,22 @@ export const executeOperatorSecureBatch = (body: {
 export interface FirewallPolicyRow {
   id: string
   name: string
-  profile: string
   spec_yaml: string
-  enabled: boolean
 }
 
 export const listFirewallPolicies = () =>
   platformFetch<FirewallPolicyRow[]>('/api/v1/zeus-firewall/policies')
 
-export const createFirewallPolicy = (body: { name: string; profile: string; spec_yaml: string; enabled?: boolean }) =>
-  platformFetch<FirewallPolicyRow>('/api/v1/zeus-firewall/policies', {
+// The backend's PolicyBody (and its create-response) only ever has
+// name/spec_yaml (+id on response) — no profile/enabled columns exist on
+// firewall_policies, so sending those was a no-op silently dropped server-side.
+export const createFirewallPolicy = (body: { name: string; spec_yaml: string }) =>
+  platformFetch<{ id: string; name: string }>('/api/v1/zeus-firewall/policies', {
     method: 'POST',
     body: JSON.stringify(body),
   })
 
-export const simulateFirewallPolicy = (body: Record<string, unknown>) =>
+export const simulateFirewallPolicy = (body: { target_id: string; profile?: string }) =>
   platformFetch<Record<string, unknown>>('/api/v1/zeus-firewall/simulate', {
     method: 'POST',
     body: JSON.stringify(body),

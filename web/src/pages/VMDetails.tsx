@@ -2399,8 +2399,21 @@ export default function VMDetailsPage() {
               type="button"
               className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition"
               onClick={async () => {
+                if (!name) return
                 try {
-                  setCpuCompare(await compareCpu({ guest_arch: vm?.arch ?? 'x86_64' }))
+                  let xml = vmXml
+                  if (!xml || xml.startsWith('Failed')) {
+                    xml = await getVMXml(name, conn)
+                    setVmXml(xml)
+                  }
+                  const cpuMatch =
+                    xml.match(/<cpu\b[^>]*>[\s\S]*?<\/cpu>/i)
+                    ?? xml.match(/<cpu\b[^/>]*\/?>/i)
+                  if (!cpuMatch?.[0]) {
+                    toast.error('Domain XML has no <cpu> element to compare')
+                    return
+                  }
+                  setCpuCompare(await compareCpu({ cpu_xml: cpuMatch[0] }))
                 } catch (e: unknown) {
                   toast.error(formatUserError(e))
                 }

@@ -207,7 +207,7 @@ export default function PlatformVmDetail() {
   const [ha, setHa] = useState<HaPolicy>({ enabled: false, restart_attempts: 3, restart_priority: 'medium', fence_on_failure: false, anti_affinity: false })
   const [specJson, setSpecJson] = useState<string>('')
   const [specData, setSpecData] = useState<Record<string, unknown> | null>(null)
-  const [snapName, setSnapName] = useState('snap-01')
+  const [snapName, setSnapName] = useState('')
   const [snapDiskOnly, setSnapDiskOnly] = useState(true)
   const [snapQuiesce, setSnapQuiesce] = useState(false)
   const [snapStorageMode, setSnapStorageMode] = useState('')
@@ -2015,7 +2015,7 @@ export default function PlatformVmDetail() {
                   disabled={!!snapPrecheck?.blocked}
                   onClick={() => {
                     const body: CreateVmSnapshotBody = {
-                      name: snapName,
+                      name: snapName.trim() || 'snap-01',
                       disk_only: snapDiskOnly,
                       quiesce: snapQuiesce,
                       storage_mode: snapStorageMode || undefined,

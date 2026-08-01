@@ -21,7 +21,6 @@ type Props = {
   onAi?: () => void
   onOpenCinema?: () => void
   primary: ReactNode
-  secondary?: ReactNode
   timeline?: ReactNode
 }
 
@@ -42,11 +41,8 @@ export default function StudioLayout({
   onAi,
   onOpenCinema,
   primary,
-  secondary,
   timeline,
 }: Props) {
-  const split = lens === 'display' && secondary
-
   return (
     <div className="flex flex-col flex-1 min-h-0 w-full" data-testid="studio-layout">
       <MachineCommandStrip
@@ -67,16 +63,12 @@ export default function StudioLayout({
         activeProtocol={activeProtocol}
         onProtocolChange={onProtocolChange}
         recommended={recommended}
+        availableProtocols={displayProtocols}
       />
-      <div className={`flex-1 min-h-0 grid gap-2 ${split ? 'grid-cols-1 lg:grid-cols-[3fr_2fr]' : 'grid-cols-1'}`}>
+      <div className="flex-1 min-h-0 grid grid-cols-1">
         <div className="min-h-0 flex flex-col rounded-xl overflow-hidden bg-[#0a0a0c] border border-white/[0.06]">
           {primary}
         </div>
-        {split && secondary ? (
-          <div className="min-h-0 flex flex-col rounded-xl overflow-hidden bg-[#0a0a0c] border border-white/[0.06] hidden lg:flex">
-            {secondary}
-          </div>
-        ) : null}
       </div>
       {timeline ? (
         <details className="shrink-0 mt-2 rounded-lg border border-white/[0.06] bg-black/40">

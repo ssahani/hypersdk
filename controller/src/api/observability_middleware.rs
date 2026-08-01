@@ -12,7 +12,7 @@ use crate::engine::observability;
 use crate::state::AppState;
 
 pub async fn trace_middleware(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     request: Request<Body>,
     next: Next,
 ) -> Response {
@@ -23,10 +23,7 @@ pub async fn trace_middleware(
     if path.starts_with("/api/v1/") {
         let status = response.status().as_u16() as i32;
         let duration_ms = start.elapsed().as_millis().min(i32::MAX as u128) as i32;
-        let pool = state.pool.clone();
-        tokio::spawn(async move {
-            observability::record_trace(&pool, &method, &path, status, duration_ms).await;
-        });
+        observability::record_trace(&method, &path, status, duration_ms);
     }
     response
 }

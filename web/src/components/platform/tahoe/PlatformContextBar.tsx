@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, NavLink, useLocation } from 'react-router'
 import { Bell, ChevronDown, Server, Sparkles } from 'lucide-react'
 import { useFleetDesktop } from '../../../hooks/useFleetDesktop'
@@ -58,6 +59,8 @@ export default function PlatformContextBar() {
   const ctx = contextNavForPath(location.pathname, tier)
   const AppIcon = ctx?.appIcon
   const [moreOpen, setMoreOpen] = useState(false)
+  const [moreMenuPos, setMoreMenuPos] = useState<{ top: number; left: number } | null>(null)
+  const moreButtonRef = useRef<HTMLButtonElement>(null)
 
   const { visible, overflow } = useMemo(() => {
     if (!ctx || ctx.items.length <= 1) return { visible: [] as ContextNavItem[], overflow: [] as ContextNavItem[] }
@@ -112,31 +115,45 @@ export default function PlatformContextBar() {
             {overflow.length > 0 ? (
               <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
                 <button
+                  ref={moreButtonRef}
                   type="button"
                   className={`tahoe-context-pill tahoe-context-more ${overflowActive ? 'tahoe-context-pill-active' : ''}`}
                   aria-expanded={moreOpen}
-                  onClick={() => setMoreOpen((open) => !open)}
+                  onClick={() => {
+                    if (!moreOpen && moreButtonRef.current) {
+                      const rect = moreButtonRef.current.getBoundingClientRect()
+                      setMoreMenuPos({ top: rect.bottom + 6, left: rect.left })
+                    }
+                    setMoreOpen((open) => !open)
+                  }}
                 >
                   More
                   <ChevronDown className={`h-3 w-3 transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
                 </button>
-                {moreOpen ? (
-                  <div className="tahoe-context-overflow-menu">
-                    {overflow.map((item) => {
-                      const active = isContextNavActive(location.pathname, location.search, item)
-                      return (
-                        <Link
-                          key={item.to}
-                          to={item.to}
-                          className={`tahoe-context-overflow-item ${active ? 'tahoe-context-overflow-item-active' : ''}`}
-                          onClick={() => setMoreOpen(false)}
-                        >
-                          {item.label}
-                        </Link>
-                      )
-                    })}
-                  </div>
-                ) : null}
+                {moreOpen && moreMenuPos
+                  ? createPortal(
+                      <div
+                        className="tahoe-context-overflow-menu"
+                        style={{ position: 'fixed', top: moreMenuPos.top, left: moreMenuPos.left }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {overflow.map((item) => {
+                          const active = isContextNavActive(location.pathname, location.search, item)
+                          return (
+                            <Link
+                              key={item.to}
+                              to={item.to}
+                              className={`tahoe-context-overflow-item ${active ? 'tahoe-context-overflow-item-active' : ''}`}
+                              onClick={() => setMoreOpen(false)}
+                            >
+                              {item.label}
+                            </Link>
+                          )
+                        })}
+                      </div>,
+                      document.body,
+                    )
+                  : null}
               </div>
             ) : null}
           </nav>

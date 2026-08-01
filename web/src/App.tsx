@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router'
+import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate, useSearchParams } from 'react-router'
 import { MotionConfig } from 'framer-motion'
 import { ZyvorFooter } from './components/ZyvorBrand';
 import { Suspense, useState, useCallback, useMemo, useEffect } from 'react'
@@ -28,6 +28,7 @@ import { OPEN_HELP_EVENT } from './utils/openHelp'
 import PageSkeleton from './components/PageSkeleton'
 import { AiProvider } from './contexts/AiContext'
 import { useSequenceShortcuts } from './hooks/useSequenceShortcut'
+import { safePostLoginPath } from './api/authRedirect'
 import { useKeyboardShortcut, isInputFocused } from './hooks/useKeyboardShortcut'
 import { useRecordRecentPage } from './hooks/useRecordRecentPage'
 import { usePlatformInfo } from './contexts/PlatformInfoContext'
@@ -303,6 +304,13 @@ function HomeRoute() {
   return <Dashboard />
 }
 
+/** Authenticated visit to `/login?next=…` must honor `next` (not drop to `/` → Mission Control). */
+function PostLoginRedirect() {
+  const [params] = useSearchParams()
+  const dest = safePostLoginPath(params.get('next'), '/')
+  return <Navigate to={dest} replace />
+}
+
 function AuthenticatedShell() {
   return (
     <WebSocketProvider>
@@ -393,7 +401,7 @@ function AuthenticatedShellRoutes() {
               <AppErrorBoundary resetKey={location.pathname}>
               <Suspense fallback={<PageSkeleton />}>
                 <Routes>
-                <Route path="/login" element={<Navigate to="/" replace />} />
+                <Route path="/login" element={<PostLoginRedirect />} />
                 <Route path="/" element={<HomeRoute />} />
                 <Route path="/vms" element={<VMList />} />
                 <Route path="/vms/:name" element={<VMDetails />} />

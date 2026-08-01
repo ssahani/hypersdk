@@ -2,7 +2,9 @@
 
 use machina_agent::pb::host_agent_client::HostAgentClient;
 use machina_agent::pb::*;
+use std::collections::HashMap;
 use std::path::Path;
+use std::sync::{Mutex, OnceLock};
 use tonic::service::interceptor::InterceptedService;
 use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint, Identity};
 
@@ -38,6 +40,19 @@ pub fn normalize_agent_addr(addr: &str) -> String {
     s.to_string()
 }
 
+/// One gRPC channel per agent address, reused for the life of the process. Tonic
+/// channels handle reconnection transparently and are designed to be cloned/shared
+/// (cheap, no I/O), so caching them avoids re-paying a TCP/TLS handshake on every
+/// single RPC. Without this, a handler that awaits N hosts serially (e.g. the
+/// fleet/desktop dashboard overview) paid a full dial per host per request — on a
+/// single-host dev deployment this alone made that endpoint consistently take
+/// ~2s. The auth token is still read fresh per call below, so token rotation
+/// keeps working even though the underlying channel is cached.
+fn channel_cache() -> &'static Mutex<HashMap<String, Channel>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, Channel>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
 pub async fn connect(addr: &str) -> anyhow::Result<AgentClient> {
     let normalized = normalize_agent_addr(addr);
     let use_tls = std::env::var("MACHINA_AGENT_CA")
@@ -48,28 +63,46 @@ pub async fn connect(addr: &str) -> anyhow::Result<AgentClient> {
     } else {
         format!("http://{normalized}")
     };
-    // Bound the TCP/TLS dial so an unreachable or blackholed host can't hang the
-    // caller forever waiting to connect. Per-call timeouts for read/query RPCs
-    // are applied by `timed`/`read_rpc` below; mutating/long-running ops rely on
-    // a caller-side bound where one is needed (e.g. host.inventory in worker.rs).
-    let mut endpoint =
-        Endpoint::from_shared(endpoint_url)?.connect_timeout(std::time::Duration::from_secs(10));
-    if let Some(ca_path) = use_tls {
-        let ca = tokio::fs::read_to_string(&ca_path).await?;
-        let mut tls = ClientTlsConfig::new().ca_certificate(Certificate::from_pem(ca));
-        if let (Ok(cert_path), Ok(key_path)) = (
-            std::env::var("MACHINA_AGENT_CLIENT_CERT"),
-            std::env::var("MACHINA_AGENT_CLIENT_KEY"),
-        ) {
-            if Path::new(&cert_path).exists() && Path::new(&key_path).exists() {
-                let cert = tokio::fs::read_to_string(&cert_path).await?;
-                let key = tokio::fs::read_to_string(&key_path).await?;
-                tls = tls.identity(Identity::from_pem(cert, key));
+
+    let cached = channel_cache()
+        .lock()
+        .unwrap()
+        .get(&endpoint_url)
+        .cloned();
+    let channel = match cached {
+        Some(ch) => ch,
+        None => {
+            // Bound the TCP/TLS dial so an unreachable or blackholed host can't
+            // hang the caller forever waiting to connect. Per-call timeouts for
+            // read/query RPCs are applied by `timed`/`read_rpc` below;
+            // mutating/long-running ops rely on a caller-side bound where one is
+            // needed (e.g. host.inventory in worker.rs).
+            let mut endpoint = Endpoint::from_shared(endpoint_url.clone())?
+                .connect_timeout(std::time::Duration::from_secs(10));
+            if let Some(ca_path) = use_tls {
+                let ca = tokio::fs::read_to_string(&ca_path).await?;
+                let mut tls = ClientTlsConfig::new().ca_certificate(Certificate::from_pem(ca));
+                if let (Ok(cert_path), Ok(key_path)) = (
+                    std::env::var("MACHINA_AGENT_CLIENT_CERT"),
+                    std::env::var("MACHINA_AGENT_CLIENT_KEY"),
+                ) {
+                    if Path::new(&cert_path).exists() && Path::new(&key_path).exists() {
+                        let cert = tokio::fs::read_to_string(&cert_path).await?;
+                        let key = tokio::fs::read_to_string(&key_path).await?;
+                        tls = tls.identity(Identity::from_pem(cert, key));
+                    }
+                }
+                endpoint = endpoint.tls_config(tls)?;
             }
+            let ch = endpoint.connect().await?;
+            channel_cache()
+                .lock()
+                .unwrap()
+                .insert(endpoint_url, ch.clone());
+            ch
         }
-        endpoint = endpoint.tls_config(tls)?;
-    }
-    let channel = endpoint.connect().await?;
+    };
+
     let token = std::env::var("MACHINA_AGENT_TOKEN")
         .ok()
         .filter(|s| !s.is_empty());

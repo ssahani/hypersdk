@@ -219,8 +219,12 @@ pub async fn plan_target(
     pool: &SqlitePool,
     cfg: &ControllerConfig,
     target_id: &str,
-    req: FirewallPlanRequest,
+    mut req: FirewallPlanRequest,
 ) -> anyhow::Result<FirewallPlanResult> {
+    // Server-owned: the zone→CIDR map is config, not something an API caller
+    // supplies — inject it here so every path to compile_profile_plan/apply_plan
+    // (local host or remote agent) gets it, regardless of which handler built `req`.
+    req.zone_cidrs = cfg.firewall_zones.clone();
     if target_id != "local" {
         if let Ok(id) = Uuid::parse_str(target_id) {
             if sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM hosts WHERE id = ?")
@@ -246,9 +250,10 @@ pub async fn apply_target(
     pool: &SqlitePool,
     cfg: &ControllerConfig,
     target_id: &str,
-    req: FirewallPlanRequest,
+    mut req: FirewallPlanRequest,
     actor: &str,
 ) -> anyhow::Result<FirewallPlanResult> {
+    req.zone_cidrs = cfg.firewall_zones.clone();
     if target_id != "local" {
         if let Ok(id) = Uuid::parse_str(target_id) {
             if sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM hosts WHERE id = ?")

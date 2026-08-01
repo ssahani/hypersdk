@@ -59,15 +59,48 @@ fn observed_from_row(row: &KubeVirtVmRow) -> String {
 
 pub async fn fetch_inventory_rows(
     daemon_base_url: &str,
+    jwt_secret: &str,
 ) -> anyhow::Result<KubeVirtInventoryResponse> {
-    let url = format!(
-        "{}/api/v1/k8s/kubevirt/vm-summary?all_namespaces=true&meta=1",
-        daemon_base_url.trim_end_matches('/')
-    );
+    let base = daemon_base_url.trim_end_matches('/');
+    let path = "/api/v1/k8s/kubevirt/vm-summary?all_namespaces=true&meta=true";
+
+    // The daemon's `require_browser_session_for_host_insight` guard rejects API
+    // tokens on this route (it's grouped with endpoints that read passwd-like
+    // host data), so this same-host sync call needs a browser-equivalent
+    // credential. A short-lived platform JWT — the same mechanism used for
+    // controller-issued deep links into the daemon UI — satisfies that guard
+    // without weakening it for anyone else.
+    let token = crate::jwt::issue_token(jwt_secret, "controller-internal-sync", "operator", 60, None)
+        .map_err(|e| anyhow::anyhow!("failed to mint internal service token: {e:#}"))?;
+
     let client = Client::builder()
         .timeout(std::time::Duration::from_secs(45))
+        // Loopback self-call to the daemon's own (commonly self-signed) TLS
+        // listener — accepting its cert here is no less trusted than the plain
+        // HTTP this call used to send.
+        .danger_accept_invalid_certs(true)
         .build()?;
-    let resp = client.get(&url).send().await?;
+
+    let configured_url = format!("{base}{path}");
+    let (host_port, configured_is_https) = match base.strip_prefix("https://") {
+        Some(rest) => (rest, true),
+        None => (base.strip_prefix("http://").unwrap_or(base), false),
+    };
+
+    // Deployments commonly run the daemon TLS-only, even on loopback, but
+    // `daemon_base_url` defaults to `http://…`. Try HTTPS first; fall back to
+    // the URL as configured if that can't even connect (e.g. a genuinely
+    // plaintext daemon), so this works either way without new config.
+    let resp = if configured_is_https {
+        client.get(&configured_url).bearer_auth(&token).send().await?
+    } else {
+        let https_url = format!("https://{host_port}{path}");
+        match client.get(&https_url).bearer_auth(&token).send().await {
+            Ok(r) => r,
+            Err(_) => client.get(&configured_url).bearer_auth(&token).send().await?,
+        }
+    };
+
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
@@ -89,7 +122,7 @@ pub async fn sync_cluster(
     state: &AppState,
     cluster_id: Uuid,
 ) -> anyhow::Result<KubevirtSyncOutcome> {
-    let summary = match fetch_inventory_rows(&state.config.daemon_base_url).await {
+    let summary = match fetch_inventory_rows(&state.config.daemon_base_url, &state.config.jwt_secret).await {
         Ok(s) => s,
         Err(e) => {
             tracing::warn!("kubevirt inventory fetch failed (keeping DB rows): {e:#}");

@@ -99,6 +99,13 @@ pub struct ControllerConfig {
     pub hermes_api_base: String,
     pub hermes_public_base: String,
     pub hermes_path_prefix: String,
+    /// Zone name → CIDR map for firewall profile rule sources (e.g.
+    /// `admin-network` → `10.0.0.0/8`), from `MACHINA_FIREWALL_ZONES`
+    /// (`name=cidr,name=cidr`, malformed entries skipped). Injected into
+    /// outgoing `FirewallPlanRequest`s so host/K8s firewall backends can
+    /// resolve symbolic rule sources into real source restrictions instead of
+    /// silently applying them unrestricted.
+    pub firewall_zones: std::collections::HashMap<String, String>,
 }
 
 impl Default for ControllerConfig {
@@ -197,6 +204,9 @@ impl Default for ControllerConfig {
             hermes_public_base: std::env::var("HERMES_PUBLIC_BASE").unwrap_or_default(),
             hermes_path_prefix: std::env::var("HERMES_PATH_PREFIX")
                 .unwrap_or_else(|_| "/launchpad".into()),
+            firewall_zones: std::env::var("MACHINA_FIREWALL_ZONES")
+                .map(|raw| machina_core::parse_zone_env(&raw))
+                .unwrap_or_default(),
         }
     }
 }
@@ -263,6 +273,7 @@ impl std::fmt::Debug for ControllerConfig {
             .field("hermes_api_base", &self.hermes_api_base)
             .field("hermes_public_base", &self.hermes_public_base)
             .field("hermes_path_prefix", &self.hermes_path_prefix)
+            .field("firewall_zones", &self.firewall_zones.keys().collect::<Vec<_>>())
             .finish()
     }
 }

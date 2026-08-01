@@ -15,6 +15,12 @@ describe('consoleMonitors', () => {
     expect(inferConsoleMonitors(1920, 1080)).toEqual([])
   })
 
+  it('does not split a single 2560x1080 ultrawide into two monitors', () => {
+    // Passes the aspect/width gate but rounds to one 1920-wide panel — a
+    // forced minimum of 2 previously misclassified this as dual-monitor.
+    expect(inferConsoleMonitors(2560, 1080)).toEqual([])
+  })
+
   it('scroll target for active monitor', () => {
     const m = inferConsoleMonitors(3840, 1080)!
     expect(monitorScrollTarget(m, 1)).toEqual({ left: 1920, top: 0 })

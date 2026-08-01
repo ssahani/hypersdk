@@ -9,6 +9,18 @@
 let scheduled = false
 
 /**
+ * Resolve a post-login destination from `?next=` (or an explicit value).
+ * Only same-origin relative paths are accepted — blocks open redirects (`//evil`, `https://…`).
+ */
+export function safePostLoginPath(next: string | null | undefined, fallback = '/'): string {
+  const raw = (next ?? '').trim()
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.includes('://')) {
+    return fallback
+  }
+  return raw
+}
+
+/**
  * Navigate to the login page on a persistent 401. Debounced (fires once) and a no-op when
  * already on the login page, so concurrent failing requests don't loop or thrash history.
  * Callers should invoke this only AFTER any token-refresh/retry has also failed.

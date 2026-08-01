@@ -15,6 +15,7 @@ type Props = {
 
 export default function HostFleetCard({ host, linux, selected, onSelect }: Props) {
   const online = host.state === 'online' && !host.maintenance_mode
+  const linuxPressure = linux?.status === 'pressure' || linux?.status === 'thermal'
   const memPct = host.memory_total_mib && host.memory_total_mib > 0
     ? Math.round(((host.memory_used_mib ?? 0) / host.memory_total_mib) * 100)
     : null
@@ -35,7 +36,9 @@ export default function HostFleetCard({ host, linux, selected, onSelect }: Props
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">Libvirt host · {linux?.status ?? 'Linux ok'}</p>
         </div>
-        <span className={statusPillClasses(online ? 'ok' : 'warn')}>{online ? 'Healthy' : host.state}</span>
+        <span className={statusPillClasses(online && !linuxPressure ? 'ok' : 'warn')}>
+          {!online ? host.state : linuxPressure ? 'Under pressure' : 'Healthy'}
+        </span>
       </header>
       <dl className="grid grid-cols-2 gap-2 text-xs text-slate-400 mb-3">
         <div><dt className="text-slate-600">VMs</dt><dd className="text-slate-200">{host.vm_count}</dd></div>
@@ -70,6 +73,7 @@ export function HostCommandCenter({
   }
 
   const online = host.state === 'online' && !host.maintenance_mode
+  const linuxPressure = linux?.status === 'pressure' || linux?.status === 'thermal'
   const memPct = host.memory_total_mib && host.memory_total_mib > 0
     ? Math.round(((host.memory_used_mib ?? 0) / host.memory_total_mib) * 100)
     : null
@@ -86,7 +90,11 @@ export function HostCommandCenter({
     <DetailPanel
       title="Host Command Center"
       subtitle={host.hostname}
-      statusBadge={<span className={statusPillClasses(online ? 'ok' : 'warn')}>{online ? 'Healthy' : host.state}</span>}
+      statusBadge={
+        <span className={statusPillClasses(online && !linuxPressure ? 'ok' : 'warn')}>
+          {!online ? host.state : linuxPressure ? 'Under pressure' : 'Healthy'}
+        </span>
+      }
       footer={
         <Link
           to={`/platform/hosts/${host.id}`}

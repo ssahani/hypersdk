@@ -860,12 +860,21 @@ impl LibvirtCtx {
         let source = resolve_disk_source(&xml).ok_or_else(|| {
             LibvirtError::Operation(format!("no disk source found for VM '{vm_name}'"))
         })?;
-        let status = Command::new("qemu-img")
-            .args(["convert", "-O", "qcow2", &source.qemu_img_arg(), dest_path])
-            .status()
+        // `-U` / force-share: allow reading while QEMU holds the write lock (running
+        // guests and external-snapshot overlays). Without it convert fails with a
+        // opaque "qemu-img backup failed" on almost every live VM.
+        let output = Command::new("qemu-img")
+            .args(["convert", "-U", "-O", "qcow2", &source.qemu_img_arg(), dest_path])
+            .output()
             .map_err(|e| LibvirtError::Operation(format!("qemu-img convert: {e}")))?;
-        if !status.success() {
-            return Err(LibvirtError::Operation("qemu-img backup failed".into()));
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            let detail = if stderr.is_empty() {
+                "qemu-img backup failed".into()
+            } else {
+                format!("qemu-img backup failed: {stderr}")
+            };
+            return Err(LibvirtError::Operation(detail));
         }
         Ok(dest_path.to_string())
     }
@@ -1021,21 +1030,17 @@ impl LibvirtCtx {
     }
 
     pub fn install_guest_tools(&self, name: &str) -> Result<(), LibvirtError> {
-        use virt::domain::Domain;
-        let dom = Domain::lookup_by_name(&self.conn, name)
-            .map_err(|e| LibvirtError::NotFound(format!("VM '{name}': {e}")))?;
-        let xml = dom
-            .get_xml_desc(0)
-            .map_err(|e| LibvirtError::Operation(e.to_string()))?;
-        if xml.contains("org.qemu.guest_agent.0") {
-            return Ok(());
+        // Use the shared ensure path so a missing virtio-serial controller is
+        // added (config-only + restart required) instead of failing hotplug with
+        // "no virtio-serial controllers are available".
+        let outcome = machina_core::libvirt::qga_channel::ensure_guest_agent_channel(&self.conn, name)?;
+        if outcome.requires_restart {
+            tracing::info!(
+                vm = %name,
+                added_controller = outcome.added_controller,
+                "guest-agent channel staged; reboot required before agent is usable"
+            );
         }
-        let channel = r#"<channel type='unix'>
-  <target type='virtio' name='org.qemu.guest_agent.0'/>
-</channel>"#;
-        let flags = virt::sys::VIR_DOMAIN_AFFECT_CONFIG | virt::sys::VIR_DOMAIN_AFFECT_LIVE;
-        dom.attach_device_flags(channel, flags)
-            .map_err(|e| LibvirtError::Operation(format!("attach guest agent channel: {e}")))?;
         Ok(())
     }
 }

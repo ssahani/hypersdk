@@ -239,6 +239,7 @@ export interface KubeVirtVmSummaryRow {
   name: string
   namespace: string
   spec_running?: boolean | null
+  spec_run_strategy?: string | null
   vm_printable_status?: string | null
   vm_ready?: boolean | null
   guest_ip?: string | null

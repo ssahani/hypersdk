@@ -29,6 +29,15 @@ pub async fn summarize(pool: &SqlitePool) -> anyhow::Result<ZeusOsSummary> {
         .fetch_one(pool)
         .await?;
 
+    // These 9 lookups are independent read-only queries, but they all share
+    // one SQLite connection pool with a small `max_connections` (see
+    // db/mod.rs) that's deliberately kept small as informal admission control
+    // against SQLite's single-writer lock. Fanning these out concurrently via
+    // tokio::join!/try_join! was tried and made total latency much worse:
+    // every incoming request to this handler suddenly needed 9 simultaneous
+    // connections instead of 1, and a busy dashboard polling this endpoint
+    // could exhaust the pool outright, queuing even unrelated requests behind
+    // it. Sequential awaits here reuse the pool far more gently.
     let cost = super::cost::analyze(pool).await?;
     let security = super::security::scan(pool).await?;
     let sre = super::sre_predict::forecast(pool).await?;

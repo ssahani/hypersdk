@@ -70,15 +70,28 @@ pub fn get_pending_config(conn: &Connect, name: &str) -> Result<PendingConfig, L
 fn diff_configs(active: &str, inactive: &str) -> Vec<PendingChange> {
     let mut out = Vec::new();
 
-    if vcpu_spec(active) != vcpu_spec(inactive) {
+    let active_current = vcpu_current(active);
+    let inactive_current = vcpu_current(inactive);
+    if active_current != inactive_current {
         out.push(PendingChange {
             category: "cpu".into(),
             summary: format!(
-                "vCPU topology changed (running: {}, persistent: {})",
-                vcpu_spec(active),
-                vcpu_spec(inactive)
+                "vCPU count changed (running: {}, persistent: {})",
+                active_current, inactive_current
             ),
         });
+    } else {
+        let active_max = vcpu_max(active);
+        let inactive_max = vcpu_max(inactive);
+        if active_max != inactive_max {
+            out.push(PendingChange {
+                category: "cpu".into(),
+                summary: format!(
+                    "Max vCPUs changed (running max: {}, persistent max: {}) — reboot to enable live hotplug",
+                    active_max, inactive_max
+                ),
+            });
+        }
     }
 
     if memory_kib(active) != memory_kib(inactive) {
@@ -103,19 +116,34 @@ fn diff_configs(active: &str, inactive: &str) -> Vec<PendingChange> {
     out
 }
 
-fn vcpu_spec(xml: &str) -> String {
-    let block = crate::xml::split_blocks(xml, "vcpu").into_iter().next();
-    block
-        .map(|b| {
-            let text = crate::xml::extract_text(&b, "vcpu").unwrap_or_default();
-            let placement = crate::xml::extract_attr(&b, "vcpu", "placement").unwrap_or_default();
-            if placement.is_empty() {
-                text
-            } else {
-                format!("{text} ({placement})")
-            }
-        })
-        .unwrap_or_default()
+fn vcpu_block(xml: &str) -> Option<String> {
+    crate::xml::split_blocks(xml, "vcpu").into_iter().next()
+}
+
+fn vcpu_current(xml: &str) -> String {
+    let Some(b) = vcpu_block(xml) else {
+        return String::new();
+    };
+    let max = crate::xml::extract_text(&b, "vcpu").unwrap_or_default();
+    let current = crate::xml::extract_attr(&b, "vcpu", "current").unwrap_or_else(|| max.clone());
+    let placement = crate::xml::extract_attr(&b, "vcpu", "placement").unwrap_or_default();
+    if placement.is_empty() {
+        current
+    } else {
+        format!("{current} ({placement})")
+    }
+}
+
+fn vcpu_max(xml: &str) -> String {
+    let Some(b) = vcpu_block(xml) else {
+        return String::new();
+    };
+    let max = crate::xml::extract_text(&b, "vcpu").unwrap_or_default();
+    if max.is_empty() {
+        crate::xml::extract_attr(&b, "vcpu", "current").unwrap_or_default()
+    } else {
+        max
+    }
 }
 
 fn memory_kib(xml: &str) -> u64 {

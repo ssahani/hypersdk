@@ -39,6 +39,8 @@ type Props = {
   onProtocolChange?: (protocol: string) => void
   /** Backend recommendation — used only to guide users who are on the wrong lens. */
   recommended?: string
+  /** When set, hide Serial / Shell unless the plan advertises them. */
+  availableProtocols?: string[]
 }
 
 export default function ViewLensBar({
@@ -48,6 +50,7 @@ export default function ViewLensBar({
   activeProtocol,
   onProtocolChange,
   recommended,
+  availableProtocols,
 }: Props) {
   // Cockpit pattern: only hint when the user is on the wrong lens for the VM type.
   // Never nudge away from Display toward Serial — serial is a last resort.
@@ -58,10 +61,19 @@ export default function ViewLensBar({
         ? 'This VM has a SPICE display — switch to Display for the graphics console.'
         : null
 
+  const lenses = LENSES.filter(({ id }) => {
+    if (!availableProtocols || availableProtocols.length === 0) return true
+    if (id === 'serial') return availableProtocols.includes('serial')
+    if (id === 'shell') {
+      return availableProtocols.includes('native_ssh') || availableProtocols.includes('ssh')
+    }
+    return true
+  })
+
   return (
     <div className="flex flex-col gap-2 shrink-0">
       <div className="flex flex-wrap gap-1.5">
-        {LENSES.map(({ id, label, icon: Icon }) => {
+        {lenses.map(({ id, label, icon: Icon }) => {
           const isActive = active === id
           return (
             <button

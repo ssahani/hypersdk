@@ -27,6 +27,7 @@ export default function PlatformTopology() {
   const [loading, setLoading] = useState(true)
   const [incidentQuery, setIncidentQuery] = useState('network partition host offline')
   const [similarIncidents, setSimilarIncidents] = useState<Array<{ label: string; score: number; summary: string }>>([])
+  const [memorySearch, setMemorySearch] = useState<{ searched: boolean; summary: string }>({ searched: false, summary: '' })
   const [trafficHosts, setTrafficHosts] = useState<Array<Record<string, unknown>>>([])
 
   const load = useCallback(async () => {
@@ -112,18 +113,24 @@ export default function PlatformTopology() {
                 score: i.similarity ?? 0,
                 summary: i.summary ?? '',
               })))
-            }).catch(() => setSimilarIncidents([]))}
+              setMemorySearch({ searched: true, summary: r.summary ?? '' })
+            }).catch(() => {
+              setSimilarIncidents([])
+              setMemorySearch({ searched: true, summary: 'Search failed — try again.' })
+            })}
           >
             Search memory
           </button>
         </div>
-        {similarIncidents.length > 0 && (
+        {similarIncidents.length > 0 ? (
           <ul className="text-xs text-slate-400 space-y-1">
             {similarIncidents.map((i) => (
               <li key={i.label}>{i.label} ({i.score.toFixed(2)}) — {i.summary}</li>
             ))}
           </ul>
-        )}
+        ) : memorySearch.searched ? (
+          <p className="text-xs text-slate-500">{memorySearch.summary || 'No similar incidents found.'}</p>
+        ) : null}
       </MacGlassPanel>
       <div className="flex flex-wrap gap-3 text-sm">
         <Link to="/platform/zeus?tab=brain" className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>

@@ -1451,6 +1451,15 @@ async fn vm_backup(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
 
+    // Clear sticky last_error from a prior failed backup so the VM detail banner
+    // doesn't keep showing the old failure while this retry is in flight.
+    vm_lifecycle::set_vm_phase_clear_error(
+        &state.pool,
+        vm_id,
+        vm_lifecycle::PHASE_BACKING_UP,
+    )
+    .await?;
+
     let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(vm_id)
         .fetch_optional(&state.pool)
@@ -2097,6 +2106,18 @@ fn is_transient_connect_error(err: &str) -> bool {
     MARKERS.iter().any(|m| e.contains(m))
 }
 
+/// SQLite `SQLITE_BUSY`/`SQLITE_LOCKED` (code 5/6) from contention on the shared
+/// controller.db under concurrent writers (reconcile, channel_worker, webhook_worker,
+/// per-request tracing, ...). The write never committed, so — unlike a mid-call
+/// transport drop — there's no ambiguity about a destructive op partially applying;
+/// it's always safe to retry. Without this, a task that loses the race against the
+/// pool's busy_timeout gets stamped as a permanent VM-level error for a purely
+/// infra/DB-contention hiccup.
+fn is_transient_db_busy_error(err: &str) -> bool {
+    let e = err.to_ascii_lowercase();
+    e.contains("database is locked") || e.contains("code: 5") || e.contains("code: 6")
+}
+
 async fn on_task_failure(state: &AppState, msg: &TaskMessage, err: &str) {
     // Count this attempt. Retry transient connect failures with backoff instead of
     // failing terminally, so a momentary agent restart / network blip during a
@@ -2112,7 +2133,9 @@ async fn on_task_failure(state: &AppState, msg: &TaskMessage, err: &str) {
     .flatten()
     .unwrap_or(MAX_TASK_ATTEMPTS);
 
-    if attempts < MAX_TASK_ATTEMPTS && is_transient_connect_error(err) {
+    if attempts < MAX_TASK_ATTEMPTS
+        && (is_transient_connect_error(err) || is_transient_db_busy_error(err))
+    {
         // Reset to pending (clearing the owner) and re-publish after a linear
         // backoff. The failed run already released its scheduler key, so the
         // re-published task dispatches cleanly on its next arrival.
@@ -2825,6 +2848,9 @@ async fn vm_guest_tools_install(state: &AppState, msg: &TaskMessage) -> anyhow::
         .as_str()
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or_else(|| anyhow::anyhow!("vm_id missing"))?;
+    // Clear sticky last_error from a prior failed attach so success doesn't leave
+    // the VM detail banner stuck on the old failure.
+    vm_lifecycle::set_vm_phase_clear_error(&state.pool, vm_id, vm_lifecycle::PHASE_IDLE).await?;
     let row: (String, Option<Uuid>) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
         .bind(vm_id)
         .fetch_optional(&state.pool)
@@ -2836,7 +2862,7 @@ async fn vm_guest_tools_install(state: &AppState, msg: &TaskMessage) -> anyhow::
     agent_client::install_guest_tools(&mut client, &row.0).await?;
     crate::engine::vm_health::sync_guest_tools(&state.pool, vm_id, &row.0, host_id).await;
     sqlx::query(
-        "UPDATE vms SET guest_tools_status = 'installed', updated_at = datetime('now') WHERE id = ?",
+        "UPDATE vms SET guest_tools_status = 'installed', last_error = '', updated_at = datetime('now') WHERE id = ?",
     )
     .bind(vm_id)
     .execute(&state.pool)
@@ -2969,6 +2995,19 @@ mod scheduler_tests {
         assert!(!is_transient_connect_error(
             "status: DeadlineExceeded, message: timed out"
         ));
+    }
+
+    #[test]
+    fn db_busy_classifier_matches_sqlite_lock_errors() {
+        use super::is_transient_db_busy_error;
+        assert!(is_transient_db_busy_error(
+            "error returned from database: (code: 5) database is locked: (code: 5) database is locked"
+        ));
+        assert!(is_transient_db_busy_error("database is locked"));
+        assert!(!is_transient_db_busy_error(
+            "status: NotFound, message: domain 'x' not found"
+        ));
+        assert!(!is_transient_db_busy_error("task handler panicked"));
     }
 
     #[test]

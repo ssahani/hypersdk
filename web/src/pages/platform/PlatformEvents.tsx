@@ -148,7 +148,7 @@ export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative max-w-xs">
+        <div className="relative max-w-xs flex-1">
           <input
             className={`input text-sm w-full font-mono ${query ? 'pr-8' : ''}`}
             aria-label="Filter log messages"
@@ -167,7 +167,7 @@ export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}
 
       <MacGlassPanel title="Platform events" subtitle="GET /api/v1/events — controller event bus">
         <div className="flex flex-wrap gap-2 mb-3">
-          <div className="relative max-w-xs">
+          <div className="relative max-w-xs flex-1">
             <input
               className={`input text-sm w-full font-mono ${eventKind ? 'pr-8' : ''}`}
               aria-label="Filter by event kind"

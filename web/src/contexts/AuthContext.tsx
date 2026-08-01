@@ -4,6 +4,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
 import { login as apiLogin, logout as apiLogout, getSession, exchangeTokenForSession } from '../api/auth'
+import { safePostLoginPath } from '../api/authRedirect'
 import { clearAllVmHardwareCache } from '../hooks/useVmHardware'
 import { clearAllKubevirtHardwareCache } from '../hooks/useKubevirtHardware'
 
@@ -30,10 +31,12 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
 })
 
-/** Login page is outside the router; normalize URL before mounting the authenticated shell. */
+/** Login page is outside the router; honor `?next=` then mount the authenticated shell. */
 function clearLoginPathFromUrl() {
   if (window.location.pathname === '/login') {
-    window.history.replaceState(null, '', '/')
+    const params = new URLSearchParams(window.location.search)
+    const dest = safePostLoginPath(params.get('next'), '/')
+    window.history.replaceState(null, '', dest)
   }
 }
 

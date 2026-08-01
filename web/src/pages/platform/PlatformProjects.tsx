@@ -11,7 +11,6 @@ import GlassDataTable from '../../components/platform/GlassDataTable'
 import OperatingSurfaceLayout from '../../components/platform/OperatingSurfaceLayout'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
-import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import { getFleetSpaces, type FleetSpacesOverview } from '../../api/platform'
 import { useActiveWorkspace } from '../../hooks/useActiveWorkspace'
 import { formatUserError } from '../../utils/apiError'
@@ -205,7 +204,6 @@ export default function PlatformProjects({ embedded }: { embedded?: boolean } = 
           </>
         ) : null}
       </OperatingSurfaceLayout>
-      <FleetSettingsPane kind="spaces" />
     </PlatformPageChrome>
   )
 }

@@ -83,7 +83,9 @@ async fn kubevirt_vnc_ws_handler(
     {
         return (StatusCode::BAD_REQUEST, "invalid namespace or VM name").into_response();
     }
-    ws.on_upgrade(move |socket| {
+    // See vnc_handler below — novnc-core requests the 'binary' subprotocol and
+    // Chrome fails the connection (code 1006) unless the server echoes it back.
+    ws.protocols(["binary"]).on_upgrade(move |socket| {
         kubevirt_k8s_ws_proxy::proxy_kubevirt_ws(socket, namespace, name, "vnc")
     })
 }
@@ -257,7 +259,7 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
                 let _ = sink
                     .send(Message::Text(
                         format!(
-                            "\r\nNo console PTY found for VM '{}'. Is it running?\r\n",
+                            "\r\nNo serial/console PTY for VM '{}' (domain has no <serial>/<console> pty, or it is shut off).\r\n",
                             name
                         )
                         .into(),
@@ -271,7 +273,7 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
             let _ = sink
                 .send(Message::Text(
                     format!(
-                        "\r\nNo console PTY found for VM '{}'. Is it running?\r\n",
+                        "\r\nNo serial/console PTY for VM '{}' (domain has no <serial>/<console> pty, or it is shut off).\r\n",
                         name
                     )
                     .into(),
@@ -383,7 +385,14 @@ async fn vnc_handler(
         }
     };
 
-    ws.on_upgrade(move |socket| handle_vnc_proxy(socket, name, host, port))
+    // novnc-core (the bundled VNC client) opens the socket with
+    // `new WebSocket(url, ['binary'])`. Per RFC 6455 §4.1, if the client offers
+    // subprotocols and the server's response doesn't select one of them, the
+    // client MUST fail the connection — Chrome does this immediately (code
+    // 1006) even though the raw HTTP upgrade itself succeeds. Echoing the
+    // offered protocol back satisfies that requirement.
+    ws.protocols(["binary"])
+        .on_upgrade(move |socket| handle_vnc_proxy(socket, name, host, port))
 }
 
 async fn handle_vnc_proxy(socket: WebSocket, name: String, host: String, port: u16) {

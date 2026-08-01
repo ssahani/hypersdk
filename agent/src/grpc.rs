@@ -1351,6 +1351,7 @@ impl HostAgent for AgentService {
                 stealth_level: None,
                 preset: None,
                 dry_run: req.dry_run,
+                zone_cidrs: Default::default(),
             });
         let mut plan_req = plan;
         plan_req.dry_run = req.dry_run;

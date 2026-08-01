@@ -36,10 +36,10 @@ const CARDS: Array<{
   { id: 'recovery', label: 'Recovery', subtitle: 'Snapshots', icon: HardDrive, href: '/platform/backups' },
   { id: 'gpu', label: 'GPU Command Center', subtitle: 'Scheduling', icon: Sparkles, href: '/platform/gpu' },
   { id: 'migrate', label: 'Migration Planner', subtitle: 'Drag & drop', icon: Boxes, href: '/platform/vms?lens=migration' },
-  { id: 'golden', label: 'Golden Image Builder', subtitle: 'Templates', icon: Wrench, href: '/platform/vm-builder' },
+  { id: 'golden', label: 'Golden Image Builder', subtitle: 'Templates', icon: Wrench, href: '/platform/templates' },
   { id: 'console', label: 'Machina Cinema', subtitle: 'Live console', icon: Monitor, action: 'console' },
   { id: 'live-wall', label: 'Live Preview Wall', subtitle: 'Fleet grid', icon: Monitor, href: '/platform/mission-control/live' },
-  { id: 'trace', label: 'PacketWolf Trace', subtitle: 'Network path', icon: Terminal, href: '/platform/zeus' },
+  { id: 'trace', label: 'PacketWolf Trace', subtitle: 'Network path', icon: Terminal, href: '/platform/network-canvas' },
 ]
 
 export default function MissionControlLaunchpad({ onCreateVm, lastVm }: Props) {
