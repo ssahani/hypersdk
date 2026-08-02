@@ -1028,6 +1028,17 @@ pub async fn ws_auth_middleware(
             req.extensions_mut().insert(actor);
             return next.run(req).await;
         }
+        // The controller relays KubeVirt console WS connections here as a
+        // trusted server-to-server hop (mirroring how it relays libvirt VNC
+        // to the agent) after validating its own ws-token on the browser
+        // side — see controller/src/console.rs's kubevirt branch. It proves
+        // itself with the same short-lived platform JWT already used for
+        // its other daemon-internal calls (kubevirt_inventory.rs), not a
+        // token from this daemon's own (unrelated) ws-token store.
+        if let Some(actor) = actor_from_platform_jwt(tok) {
+            req.extensions_mut().insert(actor);
+            return next.run(req).await;
+        }
     }
 
     (

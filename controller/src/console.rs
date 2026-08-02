@@ -94,6 +94,26 @@ pub async fn issue_ws_token(
     Ok(Json(serde_json::json!({ "token": token })))
 }
 
+/// KubeVirt VMs have no `host_id`/agent — their console lives on whichever
+/// daemon has `kubectl` access to the cluster (`daemon/src/kubevirt_k8s_ws_proxy.rs`).
+/// `None` for a libvirt VM (the common case, checked first so a plain DB
+/// error doesn't misroute a normal console open).
+async fn kubevirt_target(pool: &sqlx::SqlitePool, vm_id: Uuid) -> Option<(String, String)> {
+    let row: Option<(String, Option<String>, String)> = sqlx::query_as(
+        "SELECT name, k8s_namespace, COALESCE(inventory_source, 'libvirt') FROM vms WHERE id = ?",
+    )
+    .bind(vm_id)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+    let (name, namespace, source) = row?;
+    if source != "kubevirt" {
+        return None;
+    }
+    Some((namespace.unwrap_or_else(|| "default".into()), name))
+}
+
 pub async fn vnc_ws_proxy(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
@@ -104,6 +124,11 @@ pub async fn vnc_ws_proxy(
         return (axum::http::StatusCode::UNAUTHORIZED, "invalid token").into_response();
     };
     let read_only = grant.read_only;
+    if let Some((namespace, name)) = kubevirt_target(&state.pool, vm_id).await {
+        return ws.on_upgrade(move |socket| {
+            proxy_to_daemon_kubevirt(socket, state, namespace, name, "vnc", read_only)
+        });
+    }
     ws.on_upgrade(move |socket| proxy_to_agent_vnc(socket, state, vm_id, read_only))
 }
 
@@ -124,6 +149,11 @@ pub async fn serial_ws_proxy(
             "read-only session may not open an interactive serial console",
         )
             .into_response();
+    }
+    if let Some((namespace, name)) = kubevirt_target(&state.pool, vm_id).await {
+        return ws.on_upgrade(move |socket| {
+            proxy_to_daemon_kubevirt(socket, state, namespace, name, "console", false)
+        });
     }
     ws.on_upgrade(move |socket| proxy_to_agent_serial(socket, state, vm_id, false))
 }
@@ -215,6 +245,153 @@ async fn proxy_to_agent_vnc(socket: WebSocket, state: AppState, vm_id: Uuid, rea
     tokio::select! {
         _ = c2a => { a2c_abort.abort(); },
         _ = a2c => { c2a_abort.abort(); },
+    }
+}
+
+/// Dial a `wss://` URL on the daemon's own (commonly self-signed) TLS
+/// listener — accepting its cert here is no more trusting than the plain
+/// HTTP `kubevirt_inventory.rs`'s self-call used to send before it grew the
+/// same https-first probe.
+async fn dial_daemon_kubevirt_ws(
+    url: &str,
+) -> Result<
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+    tokio_tungstenite::tungstenite::Error,
+> {
+    let connector = native_tls::TlsConnector::builder()
+        .danger_accept_invalid_certs(true)
+        .build()
+        .map_err(|e| {
+            tokio_tungstenite::tungstenite::Error::Io(std::io::Error::other(e.to_string()))
+        })?;
+    let (stream, _resp) = tokio_tungstenite::connect_async_tls_with_config(
+        url,
+        None,
+        false,
+        Some(tokio_tungstenite::Connector::NativeTls(connector)),
+    )
+    .await?;
+    Ok(stream)
+}
+
+/// Relay a KubeVirt VNC/serial console to the daemon's `kubectl proxy`-backed
+/// endpoint (`daemon/src/kubevirt_k8s_ws_proxy.rs`) — the same shape as
+/// `proxy_to_agent_vnc`/`proxy_to_agent_serial`, just with the daemon in
+/// place of an agent, since KubeVirt VMs have no `host_id`/agent of their
+/// own. This controller has already validated the browser's ws-token above;
+/// it authenticates itself to the daemon with a short-lived platform JWT
+/// (the same internal-service mechanism `kubevirt_inventory.rs` already uses
+/// for its own daemon calls), which `ws_auth_middleware` accepts as a
+/// fallback alongside the daemon's regular local ws-tokens.
+async fn proxy_to_daemon_kubevirt(
+    browser: WebSocket,
+    state: AppState,
+    namespace: String,
+    name: String,
+    tail: &'static str,
+    read_only: bool,
+) {
+    let enc_ns = urlencoding::encode(&namespace);
+    let enc_name = urlencoding::encode(&name);
+    let base = state.config.daemon_base_url.trim_end_matches('/');
+    let host_port = base
+        .strip_prefix("https://")
+        .or_else(|| base.strip_prefix("http://"))
+        .unwrap_or(base);
+    let configured_is_https = base.starts_with("https://");
+
+    let token = match crate::jwt::issue_token(
+        &state.config.jwt_secret,
+        "controller-internal-console",
+        "operator",
+        60,
+        None,
+    ) {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::warn!("kubevirt {tail}: failed to mint internal service token: {e:#}");
+            let (mut sink, _) = browser.split();
+            let _ = sink.close().await;
+            return;
+        }
+    };
+    let path = format!("/ws/v1/k8s-kubevirt/{enc_ns}/{enc_name}/{tail}?token={token}");
+
+    // `daemon_base_url` commonly defaults to `http://…` even though this
+    // deployment's daemon is TLS-only on that same address (mirrors the
+    // exact https-then-http probing kubevirt_inventory.rs already does for
+    // its own daemon self-call) — a plain `ws://` handshake against a
+    // TLS-only port gets back TLS bytes that the WS upgrade parser can't
+    // read as HTTP at all ("invalid HTTP version"), not a clean connection
+    // error, so this can't be told apart from a real failure without trying
+    // wss first regardless of what's configured.
+    let wss_url = format!("wss://{host_port}{path}");
+    let daemon_ws = match dial_daemon_kubevirt_ws(&wss_url).await {
+        Ok(stream) => stream,
+        Err(e) if configured_is_https => {
+            tracing::warn!("kubevirt {tail}: daemon relay dial failed: {e}");
+            let (mut sink, _) = browser.split();
+            let _ = sink.close().await;
+            return;
+        }
+        Err(wss_err) => {
+            let ws_url = format!("ws://{host_port}{path}");
+            match connect_async(&ws_url).await {
+                Ok((stream, _)) => stream,
+                Err(ws_err) => {
+                    tracing::warn!(
+                        "kubevirt {tail}: daemon relay dial failed (wss: {wss_err}; ws: {ws_err})"
+                    );
+                    let (mut sink, _) = browser.split();
+                    let _ = sink.close().await;
+                    return;
+                }
+            }
+        }
+    };
+
+    let (mut client_sink, mut client_stream) = browser.split();
+    let (mut daemon_sink, mut daemon_stream) = daemon_ws.split();
+
+    let c2d = tokio::spawn(async move {
+        while let Some(Ok(msg)) = client_stream.next().await {
+            let up = match msg {
+                Message::Binary(b) if !read_only => TsMessage::Binary(bytes::Bytes::from(b.to_vec())),
+                Message::Text(t) if !read_only => TsMessage::Text(t.to_string().into()),
+                Message::Close(_) => {
+                    let _ = daemon_sink.send(TsMessage::Close(None)).await;
+                    break;
+                }
+                _ => continue,
+            };
+            if daemon_sink.send(up).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    let d2c = tokio::spawn(async move {
+        while let Some(Ok(msg)) = daemon_stream.next().await {
+            let down = match msg {
+                TsMessage::Binary(b) => Message::Binary(b.into()),
+                TsMessage::Text(t) => Message::Text(t.to_string().into()),
+                TsMessage::Close(_) => {
+                    let _ = client_sink.send(Message::Close(None)).await;
+                    break;
+                }
+                _ => continue,
+            };
+            if client_sink.send(down).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    let c2d_abort = c2d.abort_handle();
+    let d2c_abort = d2c.abort_handle();
+    tokio::select! {
+        _ = c2d => { d2c_abort.abort(); }
+        _ = d2c => { c2d_abort.abort(); }
     }
 }
 

@@ -233,19 +233,23 @@ async fn vm_meta(
     Ok(row)
 }
 
-fn kubevirt_plan(vm_id: Uuid, vm_name: &str, namespace: &str, ws_token: &str) -> ConsoleHubPlan {
-    let enc_ns = urlencoding::encode(namespace);
-    let enc_name = urlencoding::encode(vm_name);
+fn kubevirt_plan(vm_id: Uuid, vm_name: &str, ws_token: &str) -> ConsoleHubPlan {
     ConsoleHubPlan {
         vm_id: vm_id.to_string(),
         vm_name: vm_name.to_string(),
         recommended: "novnc".into(),
         native: NativeConsoleInfo {
             console_type: "vnc".into(),
-            ws_path: format!("/ws/v1/k8s-kubevirt/{enc_ns}/{enc_name}/vnc?token={ws_token}"),
-            serial_ws_path: format!(
-                "/ws/v1/k8s-kubevirt/{enc_ns}/{enc_name}/console?token={ws_token}"
-            ),
+            // Same daemon relay path libvirt VMs use — vnc_ws_proxy/serial_ws_proxy
+            // in console.rs validate this controller-issued token (as always) and
+            // branch on inventory_source to relay to the daemon's KubeVirt proxy
+            // instead of an agent. The old direct `/ws/v1/k8s-kubevirt/...` path
+            // embedded this same controller-only token, but the daemon validated
+            // it against its own unrelated ws-token store and always rejected it
+            // (401) before the KubeVirt handler ever ran — every console tile
+            // failed silently.
+            ws_path: format!("/ws/v1/platform/vnc/{vm_id}?token={ws_token}"),
+            serial_ws_path: format!("/ws/v1/platform/serial/{vm_id}?token={ws_token}"),
             available: true,
         },
         guest_ip: None,
@@ -270,7 +274,7 @@ async fn kubevirt_plan_enriched(
     namespace: &str,
     ws_token: &str,
 ) -> ConsoleHubPlan {
-    let mut plan = kubevirt_plan(vm_id, vm_name, namespace, ws_token);
+    let mut plan = kubevirt_plan(vm_id, vm_name, ws_token);
     let row: Option<(Option<String>, serde_json::Value)> =
         sqlx::query_as("SELECT guest_ip, spec_json FROM vms WHERE id = ?")
             .bind(vm_id)
