@@ -7,6 +7,7 @@ import {
   getConsoleHubPlan,
   issuePlatformVmWsToken,
   platformVmVncWsUrl,
+  platformVncWsUrl,
   type ConsoleHubPlan,
 } from '../../../api/platform'
 import VNCViewer from '../../VNCViewer'
@@ -44,7 +45,15 @@ export default function ConsoleTheatrePreview({
         issuePlatformVmWsToken(vmId).catch(() => null),
       ])
       setPlan(hubPlan)
-      if (tokenRes?.token) {
+      // KubeVirt VMs (host_id is null) have no agent-backed generic proxy
+      // session — the generic /ws/v1/platform/vnc/{vmId} URL closes the
+      // socket immediately (empty Close frame -> browser reports code
+      // 1005). getConsoleHubPlan already resolves the correct per-inventory
+      // path (e.g. /ws/v1/k8s-kubevirt/{ns}/{name}/vnc); prefer it whenever
+      // it's a VNC path, matching PlatformConsoleHub's own precedence.
+      if (hubPlan?.native?.ws_path && hubPlan.native.console_type !== 'spice') {
+        setWsUrl(platformVncWsUrl(hubPlan.native.ws_path))
+      } else if (tokenRes?.token) {
         setWsUrl(platformVmVncWsUrl(vmId, tokenRes.token))
       } else {
         setWsUrl(null)

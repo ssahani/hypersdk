@@ -90,7 +90,12 @@ function categoryAccent(category: OsFlavor['category']): string {
 export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial }: SimpleCreateVmWizardProps) {
   const { info } = usePlatformInfo()
   const [step, setStep] = useState(0)
-  const [name, setName] = useState('new-vm')
+  // Not 'new-vm': that name is a near-certain collision — the fleet already
+  // has a VM literally named "new-vm" on this deployment, and it's the kind
+  // of generic default any repeat wizard run would reuse. An empty default
+  // forces a deliberate name instead of a blind click-through to a doomed
+  // "Create VM" submission.
+  const [name, setName] = useState('')
   const [os, setOs] = useState('ubuntu-24.04')
   const [osFilter, setOsFilter] = useState<(typeof OS_CATEGORIES)[number]>('All')
   const [sizeState, setSizeState] = useState<VmWizardSizeState>({
