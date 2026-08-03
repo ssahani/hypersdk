@@ -45,10 +45,17 @@ function createApi(cfg) {
   }
 
   async function login() {
-    return api('POST', '/api/v1/auth/login', {
+    const r = await api('POST', '/api/v1/auth/login', {
       username: cfg.username,
       password: cfg.password,
     });
+    if (r.status < 200 || r.status >= 300) {
+      throw new Error(`login failed ${r.status}: ${String(r.body || '').slice(0, 160)}`);
+    }
+    if (!cookie) {
+      throw new Error('login succeeded but no session cookie was set');
+    }
+    return r;
   }
 
   return { api, login, getCookie: () => cookie };

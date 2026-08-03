@@ -60,6 +60,9 @@ npm run host
 # Health/session + storage/network live inventory + discover
 npm run storage
 
+# Zeus firewall deep + API keys/webhooks/nwfilter/cordon
+npm run zeus
+
 # CDP UI (classic Pause/Resume, platform tabs, finder, cinema) — needs CDP
 ./chrome-launch.sh &
 npm run ui
@@ -72,6 +75,7 @@ npm run ui-catalog
 npm run ui-hardware
 npm run ui-host
 npm run ui-storage
+npm run ui-zeus
 
 # Full page sweep
 npm run pages -- --loops 1
