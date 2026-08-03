@@ -33,9 +33,13 @@ npm run api -- --loops 1
 # Interactive ops (power, screenshot, volumes, clone guard, reboot)
 npm run ops
 
+# Disk/NIC/rename/linked-clone lifecycle
+npm run lifecycle
+
 # CDP UI (classic Pause/Resume, platform tabs, finder, cinema) — needs CDP
 ./chrome-launch.sh &
 npm run ui
+npm run ui-settings
 
 # Full page sweep
 npm run pages -- --loops 1

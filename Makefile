@@ -7,7 +7,7 @@ UNITDIR ?= /usr/lib/systemd/system
 CARGO ?= cargo
 CARGO_FLAGS ?=
 
-.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-ops regression-ui regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
+.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-ops regression-lifecycle regression-ui regression-ui-settings regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
 
 all: release web ## Build everything (Rust + web)
 
@@ -52,8 +52,14 @@ regression-api: ## Live API heartbeat sweep (MACHINA_BASE_URL / USER / PASS; LOO
 regression-ops: ## Live interactive ops (power, screenshot, volumes, clone guard)
 	cd scripts/regression && npm install --silent && node ops-interactive.js
 
+regression-lifecycle: ## Live disk/nic/rename/clone lifecycle
+	cd scripts/regression && npm install --silent && node ops-lifecycle.js
+
 regression-ui: ## Live CDP UI (Pause/Resume, platform tabs; needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-interactive.js
+
+regression-ui-settings: ## Live CDP settings/nav smoke (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-settings.js
 
 regression-pages: ## Live CDP page sweep (needs Chrome :9222; LOOPS=N; see scripts/regression/README.md)
 	cd scripts/regression && npm install --silent && node page-sweep.js --loops $(LOOPS)
