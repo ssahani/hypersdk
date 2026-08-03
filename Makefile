@@ -7,7 +7,7 @@ UNITDIR ?= /usr/lib/systemd/system
 CARGO ?= cargo
 CARGO_FLAGS ?=
 
-.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-ops regression-lifecycle regression-platform regression-infra regression-fleet regression-mission regression-catalog regression-hardware regression-host regression-storage regression-zeus regression-audit regression-volume regression-disk regression-power regression-net regression-guest regression-ui regression-ui-settings regression-ui-wizards regression-ui-security regression-ui-k8s-os regression-ui-mission regression-ui-catalog regression-ui-hardware regression-ui-host regression-ui-storage regression-ui-zeus regression-ui-audit regression-ui-volume regression-ui-power regression-ui-net regression-ui-guest regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
+.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-ops regression-lifecycle regression-platform regression-infra regression-fleet regression-mission regression-catalog regression-hardware regression-host regression-storage regression-zeus regression-audit regression-volume regression-disk regression-power regression-net regression-guest regression-parity regression-ui regression-ui-settings regression-ui-wizards regression-ui-security regression-ui-k8s-os regression-ui-mission regression-ui-catalog regression-ui-hardware regression-ui-host regression-ui-storage regression-ui-zeus regression-ui-audit regression-ui-volume regression-ui-power regression-ui-net regression-ui-guest regression-ui-parity regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
 
 all: release web ## Build everything (Rust + web)
 
@@ -100,6 +100,9 @@ regression-net: ## Live classic NIC attach/detach ↔ platform nics + HA/SOC/eve
 regression-guest: ## Live VM doctor/guest health/pending-config + AI cost/capacity
 	cd scripts/regression && npm install --silent && node ops-guest.js
 
+regression-parity: ## Live batch parity + policy/marketplace/upgrade/cloud-init
+	cd scripts/regression && npm install --silent && node ops-parity.js
+
 regression-ui: ## Live CDP UI (Pause/Resume, platform tabs; needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-interactive.js
 
@@ -147,6 +150,9 @@ regression-ui-net: ## Live CDP networks/HA/SOC/events/GPU shells (needs Chrome :
 
 regression-ui-guest: ## Live CDP observability/reports/rightsizing/doctor shells (needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-guest.js
+
+regression-ui-parity: ## Live CDP content/policy/marketplace/upgrade shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-parity.js
 
 regression-pages: ## Live CDP page sweep (needs Chrome :9222; LOOPS=N; see scripts/regression/README.md)
 	cd scripts/regression && npm install --silent && node page-sweep.js --loops $(LOOPS)

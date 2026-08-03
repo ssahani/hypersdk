@@ -2,6 +2,13 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+## 2026-08-03 parity / catalog batch
+
+| Item | Result |
+|------|--------|
+| `ops-parity.js` | **23/23 PASS** — guest-ips/pending-config batch, policy, marketplace, upgrade, cloud-init validate, CSV exports, Atlas disabled 503 |
+| `ui-parity.js` | **13/13 PASS** — content/blueprints/marketplace/policy/upgrade/migration/devices/logs (retry on empty load) |
+
 ## 2026-08-03 guest/doctor + AI cost/capacity
 
 | Item | Result |
@@ -25,6 +32,7 @@ Rolling notes from deployed-host sweeps. Update as new loops complete.
 - Login 429 retries + UI `tryLogin`
 
 ```bash
+npm run parity && npm run ui-parity
 npm run guest && npm run ui-guest
 npm run power && npm run ui-power && npm run net && npm run ui-net
 ```
