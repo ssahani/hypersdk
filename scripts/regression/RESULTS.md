@@ -2,6 +2,17 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+## 2026-08-03 alerts / backups / SOC playbooks
+
+| Item | Result |
+|------|--------|
+| `ops-alerts.js` | **24/24 PASS** — alert-rules CRUD, SOC playbooks CRUD+patch, playbook-runs, SOC rules/alert patch, notification deliver, backup targets+schedules CRUD, timeline / VM backups list / fleet backups / backup-SLA / showback / migrations / users |
+| `ui-alerts.js` | **10/10 PASS** — notifications / backups / webhooks / SOC / audit / users / events / alert-rules / operations / observability |
+
+```bash
+npm run alerts && npm run ui-alerts
+```
+
 ## 2026-08-03 planner / schedules / AI writes
 
 | Item | Result |
@@ -48,4 +59,5 @@ npm run planner && npm run ui-planner
 npm run resize && npm run ui-resize
 npm run operations && npm run ui-operations
 npm run planner && npm run ui-planner
+npm run alerts && npm run ui-alerts
 ```
