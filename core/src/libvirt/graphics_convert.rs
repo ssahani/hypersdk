@@ -117,16 +117,79 @@ pub fn domain_has_spice_graphics(xml: &str) -> bool {
     false
 }
 
+/// True when domain XML contains a VNC graphics device.
+pub fn domain_has_vnc_graphics(xml: &str) -> bool {
+    for block in crate::xml::split_blocks(xml, "graphics") {
+        if crate::xml::extract_attr(&block, "graphics", "type").as_deref() == Some("vnc") {
+            return true;
+        }
+    }
+    false
+}
+
+fn dump_domain_xml(libvirt_uri: &str, vm_name: &str) -> Result<String, LibvirtError> {
+    let out = Command::new("virsh")
+        .args(["-c", libvirt_uri, "dumpxml", vm_name])
+        .output()
+        .map_err(|e| LibvirtError::Operation(format!("virsh dumpxml spawn failed: {e}")))?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        return Err(LibvirtError::Operation(format!(
+            "virsh dumpxml failed: {stderr}"
+        )));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).to_string())
+}
+
+fn is_unsupported_convert_to_vnc_flag(err: &LibvirtError) -> bool {
+    let msg = err.to_string().to_ascii_lowercase();
+    msg.contains("unrecognized arguments: --convert-to-vnc")
+        || msg.contains("unrecognized argument: --convert-to-vnc")
+        || msg.contains("unrecognized arguments: '--convert-to-vnc'")
+}
+
+/// Convert SPICE graphics to VNC.
+///
+/// Newer `virt-install` builds expose `--convert-to-vnc`. Ubuntu/virtinst 4.x
+/// does not, so fall back to remove-SPICE + ensure-VNC via portable virt-xml
+/// device ops (and no-op when the domain is already VNC-only).
 pub fn virt_xml_convert_spice_to_vnc(
     libvirt_uri: &str,
     vm_name: &str,
 ) -> Result<String, LibvirtError> {
-    run_virt_xml(
+    match run_virt_xml(
         libvirt_uri,
         vm_name,
         VirtXmlAction::Edit,
         &["--convert-to-vnc"],
-    )
+    ) {
+        Ok(msg) => return Ok(msg),
+        Err(e) if is_unsupported_convert_to_vnc_flag(&e) => {}
+        Err(e) => return Err(e),
+    }
+
+    let xml = dump_domain_xml(libvirt_uri, vm_name)?;
+    if !domain_has_spice_graphics(&xml) {
+        return Ok(
+            "No SPICE graphics present; domain already uses VNC or has no display".into(),
+        );
+    }
+
+    let remove_msg = run_virt_xml(
+        libvirt_uri,
+        vm_name,
+        VirtXmlAction::RemoveDevice,
+        &["--remove-device", "--graphics", "type=spice"],
+    )?;
+
+    let xml_after = dump_domain_xml(libvirt_uri, vm_name)?;
+    if domain_has_vnc_graphics(&xml_after) {
+        return Ok(remove_msg);
+    }
+
+    let listen = "127.0.0.1";
+    let add_msg = virt_xml_add_graphics(libvirt_uri, vm_name, "vnc", listen)?;
+    Ok(format!("{remove_msg}\n{add_msg}"))
 }
 
 pub fn virt_xml_add_graphics(
@@ -227,6 +290,19 @@ mod tests {
         assert!(!super::domain_has_spice_graphics(
             "<domain><graphics type='vnc' listen='127.0.0.1'/></domain>"
         ));
+        assert!(super::domain_has_vnc_graphics(
+            "<domain><graphics type='vnc' listen='127.0.0.1'/></domain>"
+        ));
+        assert!(!super::domain_has_vnc_graphics(xml));
+    }
+
+    #[test]
+    fn unsupported_convert_flag_detection() {
+        let err = crate::LibvirtError::Operation(
+            "virt-xml failed: usage: virt-xml [options]\nvirt-xml: error: unrecognized arguments: --convert-to-vnc\n"
+                .into(),
+        );
+        assert!(super::is_unsupported_convert_to_vnc_flag(&err));
     }
 
     #[test]
