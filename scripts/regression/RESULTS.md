@@ -6,9 +6,9 @@ Rolling notes from deployed-host sweeps. Update as new loops complete.
 
 | Item | Result |
 |------|--------|
-| `ops-disk.js` | **11/11 PASS** — volume resize/clone, disk attach/detach with XML verify; `GET …/disks` still empty until controller deploy of live fallback |
+| `ops-disk.js` | **11/11 PASS** — volume resize/clone, disk attach/detach with XML verify |
 | Login harden | `lib/api.js` retries on 429; UI suites use `tryLogin`; `loginBrowser` reuses session + retries |
-| **Controller fix** | `list_vm_disks` falls back to live libvirt disks when `vm_disks` table empty (adopted VMs) |
+| **Controller fix (deployed)** | `list_vm_disks` falls back to live libvirt disks — verified `vda` for chrome-e2e-vm |
 
 ## Prior waves
 
