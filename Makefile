@@ -7,7 +7,7 @@ UNITDIR ?= /usr/lib/systemd/system
 CARGO ?= cargo
 CARGO_FLAGS ?=
 
-.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-ops regression-lifecycle regression-platform regression-infra regression-fleet regression-mission regression-catalog regression-hardware regression-host regression-storage regression-zeus regression-audit regression-volume regression-disk regression-power regression-net regression-guest regression-parity regression-admin regression-ai regression-operations regression-resize regression-ui regression-ui-settings regression-ui-wizards regression-ui-security regression-ui-k8s-os regression-ui-mission regression-ui-catalog regression-ui-hardware regression-ui-host regression-ui-storage regression-ui-zeus regression-ui-audit regression-ui-volume regression-ui-power regression-ui-net regression-ui-guest regression-ui-parity regression-ui-admin regression-ui-ai regression-ui-operations regression-ui-resize regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
+.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-ops regression-lifecycle regression-platform regression-infra regression-fleet regression-mission regression-catalog regression-hardware regression-host regression-storage regression-zeus regression-audit regression-volume regression-disk regression-power regression-net regression-guest regression-parity regression-admin regression-ai regression-operations regression-resize regression-planner regression-ui regression-ui-settings regression-ui-wizards regression-ui-security regression-ui-k8s-os regression-ui-mission regression-ui-catalog regression-ui-hardware regression-ui-host regression-ui-storage regression-ui-zeus regression-ui-audit regression-ui-volume regression-ui-power regression-ui-net regression-ui-guest regression-ui-parity regression-ui-admin regression-ui-ai regression-ui-operations regression-ui-resize regression-ui-planner regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
 
 all: release web ## Build everything (Rust + web)
 
@@ -115,6 +115,9 @@ regression-operations: ## Live developer/support/runbooks/fleet desktop + guest 
 regression-resize: ## Live platform vCPU/memory resize + spice-to-vnc + AI troubleshoot
 	cd scripts/regression && npm install --silent && node ops-resize.js
 
+regression-planner: ## Live VM schedules / jobs / blueprints + AI planner writes
+	cd scripts/regression && npm install --silent && node ops-planner.js
+
 regression-ui: ## Live CDP UI (Pause/Resume, platform tabs; needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-interactive.js
 
@@ -177,6 +180,9 @@ regression-ui-operations: ## Live CDP developer/support/operations shells (needs
 
 regression-ui-resize: ## Live CDP create/vm-builder/templates resize shells (needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-resize.js
+
+regression-ui-planner: ## Live CDP blueprints/vm-builder/observability/SOC shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-planner.js
 
 regression-pages: ## Live CDP page sweep (needs Chrome :9222; LOOPS=N; see scripts/regression/README.md)
 	cd scripts/regression && npm install --silent && node page-sweep.js --loops $(LOOPS)

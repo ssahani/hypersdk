@@ -2,6 +2,17 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+## 2026-08-03 planner / schedules / AI writes
+
+| Item | Result |
+|------|--------|
+| `ops-planner.js` | **24/24 PASS** — VM schedule CRUD, scheduled-jobs CRUD, blueprints CRUD, AI generate/vm-builder/spotlight/explain/runbook/attack-path/services-impact/knowledge, host sync task, spice-absent negative, observability + SOC overview |
+| `ui-planner.js` | **10/10 PASS** — blueprints / vm-builder / create-advanced / create / templates / observability / SOC / operations / maintenance / recommendations |
+
+```bash
+npm run planner && npm run ui-planner
+```
+
 ## 2026-08-03 resize + spice→vnc fix
 
 | Item | Result |
@@ -36,4 +47,5 @@ Rolling notes from deployed-host sweeps. Update as new loops complete.
 ```bash
 npm run resize && npm run ui-resize
 npm run operations && npm run ui-operations
+npm run planner && npm run ui-planner
 ```
