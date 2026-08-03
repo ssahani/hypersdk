@@ -51,6 +51,9 @@ npm run mission
 # Jobs/audit/guest-health/network CRUD/HA/CD-ROM guards
 npm run catalog
 
+# Hardware inventory/compat/SOC/K8s/send-key
+npm run hardware
+
 # CDP UI (classic Pause/Resume, platform tabs, finder, cinema) — needs CDP
 ./chrome-launch.sh &
 npm run ui
@@ -60,6 +63,7 @@ npm run ui-security
 npm run ui-k8s-os
 npm run ui-mission
 npm run ui-catalog
+npm run ui-hardware
 
 # Full page sweep
 npm run pages -- --loops 1

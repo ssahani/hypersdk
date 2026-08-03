@@ -7,7 +7,7 @@ UNITDIR ?= /usr/lib/systemd/system
 CARGO ?= cargo
 CARGO_FLAGS ?=
 
-.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-ops regression-lifecycle regression-platform regression-infra regression-fleet regression-mission regression-catalog regression-ui regression-ui-settings regression-ui-wizards regression-ui-security regression-ui-k8s-os regression-ui-mission regression-ui-catalog regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
+.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-ops regression-lifecycle regression-platform regression-infra regression-fleet regression-mission regression-catalog regression-hardware regression-ui regression-ui-settings regression-ui-wizards regression-ui-security regression-ui-k8s-os regression-ui-mission regression-ui-catalog regression-ui-hardware regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
 
 all: release web ## Build everything (Rust + web)
 
@@ -70,6 +70,9 @@ regression-mission: ## Live browse disks/FS/fleet activity/reports/observability
 regression-catalog: ## Live jobs/audit/guest-health/network CRUD/HA/CD-ROM guards
 	cd scripts/regression && npm install --silent && node ops-catalog.js
 
+regression-hardware: ## Live hardware inventory/compat/SOC/K8s/send-key
+	cd scripts/regression && npm install --silent && node ops-hardware.js
+
 regression-ui: ## Live CDP UI (Pause/Resume, platform tabs; needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-interactive.js
 
@@ -90,6 +93,9 @@ regression-ui-mission: ## Live CDP mission/observability/reports/GPU shells (nee
 
 regression-ui-catalog: ## Live CDP jobs/audit/snapshots/HA/notifications shells (needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-catalog.js
+
+regression-ui-hardware: ## Live CDP VM detail/SOC/AI/K8s hardware shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-hardware.js
 
 regression-pages: ## Live CDP page sweep (needs Chrome :9222; LOOPS=N; see scripts/regression/README.md)
 	cd scripts/regression && npm install --silent && node page-sweep.js --loops $(LOOPS)

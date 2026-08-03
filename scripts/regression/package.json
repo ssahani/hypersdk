@@ -15,6 +15,7 @@
     "fleet": "node ops-fleet.js",
     "mission": "node ops-mission.js",
     "catalog": "node ops-catalog.js",
+    "hardware": "node ops-hardware.js",
     "ui": "node ui-interactive.js",
     "ui-settings": "node ui-settings.js",
     "ui-wizards": "node ui-wizards.js",
@@ -22,7 +23,8 @@
     "ui-k8s-os": "node ui-k8s-os.js",
     "ui-mission": "node ui-mission.js",
     "ui-catalog": "node ui-catalog.js",
-    "once": "node api-sweep.js --loops 1 && node ops-interactive.js && node ops-lifecycle.js && node ops-platform.js && node ops-infra.js && node ops-fleet.js && node ops-mission.js && node ops-catalog.js && node page-sweep.js --loops 1",
+    "ui-hardware": "node ui-hardware.js",
+    "once": "node api-sweep.js --loops 1 && node ops-interactive.js && node ops-lifecycle.js && node ops-platform.js && node ops-infra.js && node ops-fleet.js && node ops-mission.js && node ops-catalog.js && node ops-hardware.js && node page-sweep.js --loops 1",
     "continuous": "node page-sweep.js --loops 0"
   },
   "dependencies": {
