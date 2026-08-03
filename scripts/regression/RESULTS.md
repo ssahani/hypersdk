@@ -2,19 +2,19 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
-## 2026-08-03 disk attach + login harden + platform disks fix
+## 2026-08-03 platform power + NICs list
 
 | Item | Result |
 |------|--------|
-| `ops-disk.js` | **11/11 PASS** — volume resize/clone, disk attach/detach with XML verify |
-| Login harden | `lib/api.js` retries on 429; UI suites use `tryLogin`; `loginBrowser` reuses session + retries |
-| **Controller fix (deployed)** | `list_vm_disks` falls back to live libvirt disks — verified `vda` for chrome-e2e-vm |
+| `ops-power.js` | **11/11 PASS** — classic + platform pause/resume (task wait), disks live, console |
+| `ui-power.js` | **10/10 PASS** — VM detail / consolehub / tasks / mission-control |
+| **Controller** | `GET /api/v1/vms/{id}/nics` — live libvirt NIC inventory (deploy pending in this note) |
 
-## Prior waves
+## Prior fixes (deployed)
 
-ops-volume 22 · ui-volume 15 · ops-audit 23 · ops-zeus 32 · ops-storage 23 · ops-host 34
+- Platform disks live fallback for adopted VMs (`vda` verified)
+- Login 429 retries + UI `tryLogin`
 
 ```bash
-npm run disk
-# after controller deploy: platform-disks should be count>=1 for chrome-e2e-vm
+npm run power && npm run ui-power
 ```

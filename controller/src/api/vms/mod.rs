@@ -1486,6 +1486,56 @@ async fn live_vm_disks_fallback(
         .collect())
 }
 
+#[derive(Debug, Serialize)]
+pub struct VmNicRow {
+    pub mac_address: String,
+    pub network: String,
+    pub model: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ip: Option<String>,
+}
+
+/// Live NIC inventory from libvirt (no separate vm_nics table yet).
+pub async fn list_vm_nics(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<VmNicRow>>, ApiError> {
+    let row: (String, Option<Uuid>, String) = sqlx::query_as(
+        "SELECT name, host_id, COALESCE(inventory_source, 'libvirt') FROM vms WHERE id = ?",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await?;
+    if row.2 == "kubevirt" {
+        return Ok(Json(vec![]));
+    }
+    let Some(host_id) = row.1 else {
+        return Ok(Json(vec![]));
+    };
+    let (_, agent_addr) =
+        crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut client = crate::agent_client::connect(&agent_addr)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let details = crate::agent_client::get_vm_details(&mut client, &row.0)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(
+        details
+            .interfaces
+            .into_iter()
+            .map(|i| VmNicRow {
+                mac_address: i.mac_address,
+                network: i.source,
+                model: i.model,
+                ip: i.ip,
+            })
+            .collect(),
+    ))
+}
+
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct VmMetricsRow {
     pub vm_id: Uuid,

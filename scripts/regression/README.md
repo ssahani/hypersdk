@@ -72,6 +72,9 @@ npm run volume
 # Volume resize/clone + classic disk attach/detach
 npm run disk
 
+# Classic+platform pause/resume tasks + NIC inventory
+npm run power
+
 # CDP UI (classic Pause/Resume, platform tabs, finder, cinema) — needs CDP
 ./chrome-launch.sh &
 npm run ui
@@ -87,6 +90,7 @@ npm run ui-storage
 npm run ui-zeus
 npm run ui-audit
 npm run ui-volume
+npm run ui-power
 
 # Full page sweep
 npm run pages -- --loops 1

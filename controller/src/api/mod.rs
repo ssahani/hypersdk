@@ -140,6 +140,7 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/vms/{id}/disks/resize/{target}",
             post(vms::resize_vm_disk),
         )
+        .route("/api/v1/vms/{id}/nics", get(vms::list_vm_nics))
         .route("/api/v1/vms/{id}/nics/attach", post(vms::attach_vm_nic))
         .route(
             "/api/v1/vms/{id}/nics/detach/{mac}",
