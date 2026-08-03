@@ -66,6 +66,9 @@ npm run zeus
 # Audit/templates/compliance/simulate/terminal session
 npm run audit
 
+# Volume CRUD + VM console/observability
+npm run volume
+
 # CDP UI (classic Pause/Resume, platform tabs, finder, cinema) — needs CDP
 ./chrome-launch.sh &
 npm run ui
@@ -80,6 +83,7 @@ npm run ui-host
 npm run ui-storage
 npm run ui-zeus
 npm run ui-audit
+npm run ui-volume
 
 # Full page sweep
 npm run pages -- --loops 1
