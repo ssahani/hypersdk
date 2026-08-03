@@ -42,12 +42,16 @@ npm run platform
 # Networks/node/metrics/platform inventory/AI/Zeus firewall
 npm run infra
 
+# Devices/services/catalog/batch power/OpenStack+K8s status
+npm run fleet
+
 # CDP UI (classic Pause/Resume, platform tabs, finder, cinema) — needs CDP
 ./chrome-launch.sh &
 npm run ui
 npm run ui-settings
 npm run ui-wizards
 npm run ui-security
+npm run ui-k8s-os
 
 # Full page sweep
 npm run pages -- --loops 1

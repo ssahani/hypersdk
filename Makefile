@@ -7,7 +7,7 @@ UNITDIR ?= /usr/lib/systemd/system
 CARGO ?= cargo
 CARGO_FLAGS ?=
 
-.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-ops regression-lifecycle regression-platform regression-infra regression-ui regression-ui-settings regression-ui-wizards regression-ui-security regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
+.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-ops regression-lifecycle regression-platform regression-infra regression-fleet regression-ui regression-ui-settings regression-ui-wizards regression-ui-security regression-ui-k8s-os regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
 
 all: release web ## Build everything (Rust + web)
 
@@ -61,6 +61,9 @@ regression-platform: ## Live platform console/precheck/sync/pause + KubeVirt gua
 regression-infra: ## Live networks/node/metrics/platform inventory/AI/Zeus firewall reads
 	cd scripts/regression && npm install --silent && node ops-infra.js
 
+regression-fleet: ## Live devices/services/catalog/batch power/OpenStack+K8s status
+	cd scripts/regression && npm install --silent && node ops-fleet.js
+
 regression-ui: ## Live CDP UI (Pause/Resume, platform tabs; needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-interactive.js
 
@@ -72,6 +75,9 @@ regression-ui-wizards: ## Live CDP create/wizard/OpenStack shells (needs Chrome 
 
 regression-ui-security: ## Live CDP Zeus security/SOC/policy shells (needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-security.js
+
+regression-ui-k8s-os: ## Live CDP K8s + OpenStack management shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-k8s-os.js
 
 regression-pages: ## Live CDP page sweep (needs Chrome :9222; LOOPS=N; see scripts/regression/README.md)
 	cd scripts/regression && npm install --silent && node page-sweep.js --loops $(LOOPS)
