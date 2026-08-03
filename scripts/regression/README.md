@@ -57,6 +57,9 @@ npm run hardware
 # Host stats/PCI/USB/secrets CRUD/rightsizing/Zeus firewall
 npm run host
 
+# Health/session + storage/network live inventory + discover
+npm run storage
+
 # CDP UI (classic Pause/Resume, platform tabs, finder, cinema) — needs CDP
 ./chrome-launch.sh &
 npm run ui
@@ -68,6 +71,7 @@ npm run ui-mission
 npm run ui-catalog
 npm run ui-hardware
 npm run ui-host
+npm run ui-storage
 
 # Full page sweep
 npm run pages -- --loops 1

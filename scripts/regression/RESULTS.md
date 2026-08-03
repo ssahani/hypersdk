@@ -2,36 +2,25 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
-## 2026-08-03 host extras + secrets
+## 2026-08-03 storage + health
 
 | Suite | Result |
 |-------|--------|
-| `ops-host.js` | **34/34 PASS** — host stats/FS/PCI/USB/IOMMU/interfaces/virt, libvirt boot/memtune/cputune, send-key alt_tab, AI rightsizing + GPU placement, Zeus firewall, **secrets define/list/delete** |
-| `ui-host.js` | **19/19 PASS** — node/devices/secrets, placement/maintenance/launchpad/applications, rightsizing/approvals/incidents/firewall |
+| `ops-storage.js` | **23/23 PASS** — daemon health/problems, auth session, controller health/ready, storage pools live + tiers + backup-sla + discover, networks live + discover, backups timeline, prometheus, VM logs/consolehub |
+| `ui-storage.js` | **17/17 PASS** — classic storage/networks/backups + platform storage/networks/backups/observability/storage-atlas |
 
-## 2026-08-03 hardware + SOC/K8s
-
-| Suite | Result |
-|-------|--------|
-| `ops-hardware.js` | **26/26 PASS** |
-| `ui-hardware.js` | **18 PASS / 1 SOFT** |
-
-## 2026-08-03 mission + catalog
+## Prior waves (same host)
 
 | Suite | Result |
 |-------|--------|
-| `ops-mission.js` | **20/20 PASS** |
-| `ui-mission.js` | **23/23 PASS** |
-| `ops-catalog.js` | **32/32 PASS** |
-| `ui-catalog.js` | **25/25 PASS** |
-
-## Cumulative (same host)
-
-ops-fleet 15 · ui-k8s-os 22 · ops-infra 20 · ops-platform 15 · ops-lifecycle 11 · ops-interactive 14 · ui-security/wizards/settings/interactive all green
+| `ops-host` / `ui-host` | 34 / 19 |
+| `ops-hardware` / `ui-hardware` | 26 / 18+1 soft |
+| `ops-catalog` / `ui-catalog` | 32 / 25 |
+| `ops-mission` / `ui-mission` | 20 / 23 |
 
 ```bash
 export MACHINA_BASE_URL=https://212.8.248.187:5092
 export MACHINA_USER=sus MACHINA_PASS=max
 ./chrome-launch.sh &
-npm run host && npm run ui-host
+npm run storage && npm run ui-storage
 ```
