@@ -3,6 +3,18 @@
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
 
+## 2026-08-03 diag / developer / air-gap (+ bundle delete fix)
+
+| Item | Result |
+|------|--------|
+| `ops-diag.js` | **26/26 PASS** — users/me + prune, VM/host diagnose + health-check, libvirt-details, cockpit.storage/network/system, SOC/cluster/AI settings patches, developer/support/openapi, cpu-compat/content/MFA, air-gap create/get/list/delete, publish-template roundtrip |
+| `ui-diag.js` | **10/10 PASS** — developer / support / users / enterprise / hosts / host detail / VM detail / settings / HA / SOC |
+| **Fix** | `DELETE /api/v1/enterprise/air-gap/bundles/{id}` — create/list existed without delete; leftover `reg-ag-*` bundles could not be cleaned |
+
+```bash
+npm run diag && npm run ui-diag
+```
+
 ## 2026-08-03 policy / templates / marketplace
 
 | Item | Result |
@@ -97,4 +109,6 @@ npm run planner && npm run ui-planner
 npm run alerts && npm run ui-alerts
 npm run enterprise && npm run ui-enterprise
 npm run apps && npm run ui-apps
+npm run policy && npm run ui-policy
+npm run diag && npm run ui-diag
 ```

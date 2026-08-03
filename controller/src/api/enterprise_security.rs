@@ -106,6 +106,24 @@ pub async fn get_air_gap_bundle(
         .map_err(|e| ApiError::not_found(e.to_string()))
 }
 
+pub async fn delete_air_gap_bundle(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&actor)?;
+    enterprise_security::delete_air_gap_bundle(&state.pool, id)
+        .await
+        .map_err(|e| {
+            if e.to_string().contains("not found") {
+                ApiError::not_found(e.to_string())
+            } else {
+                ApiError::internal(e.to_string())
+            }
+        })?;
+    Ok(Json(serde_json::json!({ "deleted": true, "id": id })))
+}
+
 pub async fn sync_vault_provider(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,

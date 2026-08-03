@@ -799,7 +799,8 @@ pub fn router(state: AppState) -> Router {
         )
         .route(
             "/api/v1/enterprise/air-gap/bundles/{id}",
-            get(enterprise_security::get_air_gap_bundle),
+            get(enterprise_security::get_air_gap_bundle)
+                .delete(enterprise_security::delete_air_gap_bundle),
         )
         .route(
             "/api/v1/enterprise/fips/matrix",

@@ -321,6 +321,17 @@ pub async fn get_air_gap_bundle(pool: &SqlitePool, id: Uuid) -> anyhow::Result<A
     .ok_or_else(|| anyhow::anyhow!("bundle not found"))
 }
 
+pub async fn delete_air_gap_bundle(pool: &SqlitePool, id: Uuid) -> anyhow::Result<()> {
+    let res = sqlx::query("DELETE FROM air_gap_bundles WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    if res.rows_affected() == 0 {
+        anyhow::bail!("bundle not found");
+    }
+    Ok(())
+}
+
 /// Real SHA-256 hex digest. Previously a 64-bit non-cryptographic SipHash
 /// (`DefaultHasher`) was labelled `sha256:`, misrepresenting integrity — trivially
 /// collidable and giving no tamper protection for the air-gap inventory export.
