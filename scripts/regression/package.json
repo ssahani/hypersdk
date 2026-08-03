@@ -10,9 +10,11 @@
     "api": "node api-sweep.js",
     "ops": "node ops-interactive.js",
     "lifecycle": "node ops-lifecycle.js",
+    "platform": "node ops-platform.js",
     "ui": "node ui-interactive.js",
     "ui-settings": "node ui-settings.js",
-    "once": "node api-sweep.js --loops 1 && node ops-interactive.js && node ops-lifecycle.js && node page-sweep.js --loops 1",
+    "ui-wizards": "node ui-wizards.js",
+    "once": "node api-sweep.js --loops 1 && node ops-interactive.js && node ops-lifecycle.js && node ops-platform.js && node page-sweep.js --loops 1",
     "continuous": "node page-sweep.js --loops 0"
   },
   "dependencies": {

@@ -36,10 +36,14 @@ npm run ops
 # Disk/NIC/rename/linked-clone lifecycle
 npm run lifecycle
 
+# Platform console/precheck/host-sync/pause + KubeVirt console guard
+npm run platform
+
 # CDP UI (classic Pause/Resume, platform tabs, finder, cinema) — needs CDP
 ./chrome-launch.sh &
 npm run ui
 npm run ui-settings
+npm run ui-wizards
 
 # Full page sweep
 npm run pages -- --loops 1

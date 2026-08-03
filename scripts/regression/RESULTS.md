@@ -2,29 +2,27 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
-## 2026-08-03 lifecycle + settings
+## 2026-08-03 platform + wizards
 
 | Suite | Result |
 |-------|--------|
-| `ops-lifecycle.js` | **11/11 PASS** — volume create → attach `vdb` → detach → delete; NIC attach/detach; stop/start; rename round-trip; linked clone + cleanup; platform VM detail |
-| `ui-settings.js` | **15/15 PASS** — `/settings`, platform settings/users/zeus/hosts/networks/storage, fleet, node, audit |
+| `ops-platform.js` | **15/15 PASS** — boot/memtune/cputune, tags round-trip, snapshots list, jobs/backups/audit, platform VNC + ConsoleHub plan, snapshot **precheck only** (no create), host sync task, platform pause/resume tasks, KubeVirt detail + console `400 vm has no host` |
+| `ui-wizards.js` | **12/12 PASS** — `/create`, `/import`, platform builders/templates/migration, OpenStack create/images/flavors |
 
-First lifecycle attempt orphaned a deleted volume in domain XML (attach succeeded in config; detach-before-delete order now enforced; XML verified). Host recovered before re-run.
-
-## 2026-08-03 interactive ops + UI
+## Prior suites (same host)
 
 | Suite | Result |
 |-------|--------|
+| `ops-lifecycle.js` | **11/11 PASS** |
 | `ops-interactive.js` | **14/14 PASS** |
 | `ui-interactive.js` | **11/11 PASS** |
+| `ui-settings.js` | **15/15 PASS** |
 
-## Continuous page/API (same host)
-
-Page sweeps **120+** loops / **0 hard fails**; API **8000+** loops clean. Softs: `fixtures/known-softs.md`.
+Continuous page/API still running (occasional SOFT/CDP contention when UI tests share Chrome).
 
 ```bash
 export MACHINA_BASE_URL=https://212.8.248.187:5092
 export MACHINA_USER=sus MACHINA_PASS=max
 ./chrome-launch.sh &
-npm run ops && npm run lifecycle && npm run ui && npm run ui-settings
+npm run platform && npm run ui-wizards
 ```
