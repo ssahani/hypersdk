@@ -1421,7 +1421,7 @@ pub async fn list_vm_disks(
         Ok(live) if !live.is_empty() => Ok(Json(live)),
         Ok(_) => Ok(Json(rows)),
         Err(e) => {
-            tracing::debug!(vm_id = %id, error = %e, "live disk fallback unavailable");
+            tracing::debug!(vm_id = %id, error = ?e, "live disk fallback unavailable");
             Ok(Json(rows))
         }
     }
