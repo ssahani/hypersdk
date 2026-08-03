@@ -3,6 +3,17 @@
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
 
+## 2026-08-03 obs / compliance / consolehub / reports
+
+| Item | Result |
+|------|--------|
+| `ops-obs.js` | **41/41 PASS** — observability SLOs/traces, prometheus, capacity/finops, AI compliance/frameworks/export/remediate, incidents analyze/ack/room, marketplace agents install/uninstall, remediate hub, rightsizing/GPU placement, migration readiness+advisor, CSV exports, API key rotate, upgrade matrix, SOC integrations (+ test negative), MFA/FIPS/tenants, fleet GPU/console, host GPUs/linux observability, baremetal, cloud-init validate, kubevirt sync, ConsoleHub plan/explain/access-approve/break-glass/collaborate/end |
+| `ui-obs.js` | **10/10 PASS** — observability / reports / upgrade / api-keys / GPU / baremetal / zeus incidents / compliance / approvals / enterprise |
+
+```bash
+npm run obs && npm run ui-obs
+```
+
 ## 2026-08-03 diag / developer / air-gap (+ bundle delete fix)
 
 | Item | Result |
@@ -111,4 +122,5 @@ npm run enterprise && npm run ui-enterprise
 npm run apps && npm run ui-apps
 npm run policy && npm run ui-policy
 npm run diag && npm run ui-diag
+npm run obs && npm run ui-obs
 ```
