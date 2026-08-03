@@ -35,12 +35,36 @@ async function ensureChrome(cdpBase, maxWaitMs = 20000) {
   return false;
 }
 
-async function connectCdp(cdpBase) {
+async function connectCdp(cdpBase, { freshPage = false, url = 'about:blank' } = {}) {
   const ok = await ensureChrome(cdpBase);
   if (!ok) throw new Error(`chrome CDP not ready at ${cdpBase}`);
-  const targets = await getJson(`${cdpBase}/json/list`);
-  const page = targets.find((t) => t.type === 'page');
-  if (!page) throw new Error('no CDP page target');
+  let page;
+  if (freshPage) {
+    // Open a dedicated tab so we don't fight a long-running page-sweep session.
+    page = await new Promise((resolve, reject) => {
+      const req = http.request(
+        `${cdpBase}/json/new?${encodeURIComponent(url)}`,
+        { method: 'PUT' },
+        (res) => {
+          let d = '';
+          res.on('data', (c) => (d += c));
+          res.on('end', () => {
+            try {
+              resolve(JSON.parse(d));
+            } catch (e) {
+              reject(e);
+            }
+          });
+        },
+      );
+      req.on('error', reject);
+      req.end();
+    });
+  } else {
+    const targets = await getJson(`${cdpBase}/json/list`);
+    page = targets.find((t) => t.type === 'page');
+  }
+  if (!page || !page.webSocketDebuggerUrl) throw new Error('no CDP page target');
   const ws = new WebSocket(page.webSocketDebuggerUrl);
   let id = 0;
   const pending = new Map();

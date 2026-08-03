@@ -27,12 +27,20 @@ export MACHINA_BASE_URL=https://HOST:5092
 export MACHINA_USER=sus
 export MACHINA_PASS=max
 
-# One API + one page sweep (page sweep needs CDP :9222)
+# API heartbeat
 npm run api -- --loops 1
+
+# Interactive ops (power, screenshot, volumes, clone guard, reboot)
+npm run ops
+
+# CDP UI (classic Pause/Resume, platform tabs, finder, cinema) — needs CDP
+./chrome-launch.sh &
+npm run ui
+
+# Full page sweep
 npm run pages -- --loops 1
 
-# Continuous (do not stop)
-npm run api -- --forever
+# Continuous page sweep
 npm run pages -- --forever
 ```
 
