@@ -26,6 +26,7 @@
     "net": "node ops-net.js",
     "guest": "node ops-guest.js",
     "parity": "node ops-parity.js",
+    "admin": "node ops-admin.js",
     "ai": "node ops-ai.js",
     "ui": "node ui-interactive.js",
     "ui-settings": "node ui-settings.js",
@@ -44,8 +45,8 @@
     "ui-net": "node ui-net.js",
     "ui-guest": "node ui-guest.js",
     "ui-parity": "node ui-parity.js",
-    "ui-ai": "node ui-ai.js",
-    "once": "node api-sweep.js --loops 1 && node ops-interactive.js && node ops-lifecycle.js && node ops-platform.js && node ops-infra.js && node ops-fleet.js && node ops-mission.js && node ops-catalog.js && node ops-hardware.js && node ops-host.js && node ops-storage.js && node ops-zeus.js && node ops-audit.js && node ops-volume.js && node ops-disk.js && node ops-power.js && node ops-net.js && node ops-guest.js && node ops-parity.js && node ops-ai.js && node page-sweep.js --loops 1",
+    "ui-admin": "node ui-admin.js",
+    "once": "node api-sweep.js --loops 1 && node ops-interactive.js && node ops-lifecycle.js && node ops-platform.js && node ops-infra.js && node ops-fleet.js && node ops-mission.js && node ops-catalog.js && node ops-hardware.js && node ops-host.js && node ops-storage.js && node ops-zeus.js && node ops-audit.js && node ops-volume.js && node ops-disk.js && node ops-power.js && node ops-net.js && node ops-guest.js && node ops-parity.js && node ops-admin.js && node ops-ai.js && node page-sweep.js --loops 1",
     "continuous": "node page-sweep.js --loops 0"
   },
   "dependencies": {

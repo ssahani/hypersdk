@@ -7,7 +7,7 @@ UNITDIR ?= /usr/lib/systemd/system
 CARGO ?= cargo
 CARGO_FLAGS ?=
 
-.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-ops regression-lifecycle regression-platform regression-infra regression-fleet regression-mission regression-catalog regression-hardware regression-host regression-storage regression-zeus regression-audit regression-volume regression-disk regression-power regression-net regression-guest regression-parity regression-ai regression-ui regression-ui-settings regression-ui-wizards regression-ui-security regression-ui-k8s-os regression-ui-mission regression-ui-catalog regression-ui-hardware regression-ui-host regression-ui-storage regression-ui-zeus regression-ui-audit regression-ui-volume regression-ui-power regression-ui-net regression-ui-guest regression-ui-parity regression-ui-ai regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
+.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-ops regression-lifecycle regression-platform regression-infra regression-fleet regression-mission regression-catalog regression-hardware regression-host regression-storage regression-zeus regression-audit regression-volume regression-disk regression-power regression-net regression-guest regression-parity regression-admin regression-ai regression-ui regression-ui-settings regression-ui-wizards regression-ui-security regression-ui-k8s-os regression-ui-mission regression-ui-catalog regression-ui-hardware regression-ui-host regression-ui-storage regression-ui-zeus regression-ui-audit regression-ui-volume regression-ui-power regression-ui-net regression-ui-guest regression-ui-parity regression-ui-admin regression-ui-ai regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
 
 all: release web ## Build everything (Rust + web)
 
@@ -103,6 +103,9 @@ regression-guest: ## Live VM doctor/guest health/pending-config + AI cost/capaci
 regression-parity: ## Live batch parity + policy/marketplace/upgrade/cloud-init
 	cd scripts/regression && npm install --silent && node ops-parity.js
 
+regression-admin: ## Live enrollment tokens + platform NIC/autostart tasks + diagnose/NMI
+	cd scripts/regression && npm install --silent && node ops-admin.js
+
 regression-ai: ## Live Zeus AI twin/graph/incidents/compliance/cost hubs
 	cd scripts/regression && npm install --silent && node ops-ai.js
 
@@ -156,6 +159,9 @@ regression-ui-guest: ## Live CDP observability/reports/rightsizing/doctor shells
 
 regression-ui-parity: ## Live CDP content/policy/marketplace/upgrade shells (needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-parity.js
+
+regression-ui-admin: ## Live CDP enroll/hosts/users/admin shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-admin.js
 
 regression-ui-ai: ## Live CDP Zeus AI / approvals / incidents shells (needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-ai.js
