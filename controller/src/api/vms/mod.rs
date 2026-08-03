@@ -1411,7 +1411,79 @@ pub async fn list_vm_disks(
     .bind(id)
     .fetch_all(&state.pool)
     .await?;
-    Ok(Json(rows))
+    if !rows.is_empty() {
+        return Ok(Json(rows));
+    }
+
+    // Adopted / inventory-discovered VMs often have no vm_disks rows yet.
+    // Fall back to live libvirt disk inventory so the UI is not empty.
+    match live_vm_disks_fallback(&state, id).await {
+        Ok(live) if !live.is_empty() => Ok(Json(live)),
+        Ok(_) => Ok(Json(rows)),
+        Err(e) => {
+            tracing::debug!(vm_id = %id, error = %e, "live disk fallback unavailable");
+            Ok(Json(rows))
+        }
+    }
+}
+
+async fn live_vm_disks_fallback(
+    state: &AppState,
+    id: Uuid,
+) -> Result<Vec<VmDiskRow>, ApiError> {
+    let row: (String, Option<Uuid>, String) = sqlx::query_as(
+        "SELECT name, host_id, COALESCE(inventory_source, 'libvirt') FROM vms WHERE id = ?",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await?;
+    if row.2 == "kubevirt" {
+        return Ok(vec![]);
+    }
+    let Some(host_id) = row.1 else {
+        return Ok(vec![]);
+    };
+    let (_, agent_addr) =
+        crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+    let mut client = crate::agent_client::connect(&agent_addr)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let details = crate::agent_client::get_vm_details(&mut client, &row.0)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(details
+        .disks
+        .into_iter()
+        .filter(|d| d.device == "disk" || d.device.is_empty())
+        .map(|d| {
+            let size_gib = d
+                .capacity_bytes
+                .map(|b| (b / (1024 * 1024 * 1024)) as i64)
+                .unwrap_or(0);
+            let name = if d.target.is_empty() {
+                d.source
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or("disk")
+                    .to_string()
+            } else {
+                d.target.clone()
+            };
+            VmDiskRow {
+                id: Uuid::new_v4(),
+                name,
+                size_gib,
+                storage_class: "discovered".into(),
+                path: if d.source.is_empty() {
+                    None
+                } else {
+                    Some(d.source)
+                },
+            }
+        })
+        .collect())
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]

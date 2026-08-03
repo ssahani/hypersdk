@@ -21,6 +21,7 @@
     "zeus": "node ops-zeus.js",
     "audit": "node ops-audit.js",
     "volume": "node ops-volume.js",
+    "disk": "node ops-disk.js",
     "ui": "node ui-interactive.js",
     "ui-settings": "node ui-settings.js",
     "ui-wizards": "node ui-wizards.js",

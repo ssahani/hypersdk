@@ -3,6 +3,10 @@
 const https = require('https');
 const http = require('http');
 
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 function createApi(cfg) {
   let cookie = '';
   const insecure = cfg.baseUrl.startsWith('https:');
@@ -44,21 +48,37 @@ function createApi(cfg) {
     });
   }
 
-  async function login() {
-    const r = await api('POST', '/api/v1/auth/login', {
-      username: cfg.username,
-      password: cfg.password,
-    });
-    if (r.status < 200 || r.status >= 300) {
-      throw new Error(`login failed ${r.status}: ${String(r.body || '').slice(0, 160)}`);
+  async function login({ retries = 4, waitMs = 65000 } = {}) {
+    let lastErr;
+    for (let i = 0; i <= retries; i++) {
+      const r = await api('POST', '/api/v1/auth/login', {
+        username: cfg.username,
+        password: cfg.password,
+      });
+      if (r.status >= 200 && r.status < 300) {
+        if (!cookie) throw new Error('login succeeded but no session cookie was set');
+        return r;
+      }
+      lastErr = new Error(`login failed ${r.status}: ${String(r.body || '').slice(0, 160)}`);
+      const rateLimited = r.status === 429 || /rate_limited|Too many attempts/i.test(r.body || '');
+      if (!rateLimited || i === retries) break;
+      await sleep(waitMs);
     }
-    if (!cookie) {
-      throw new Error('login succeeded but no session cookie was set');
-    }
-    return r;
+    throw lastErr;
   }
 
-  return { api, login, getCookie: () => cookie };
+  /** Soft login for CDP UI runners — never fail the suite on PAM rate limits. */
+  async function tryLogin() {
+    try {
+      await login({ retries: 2, waitMs: 65000 });
+      return true;
+    } catch (e) {
+      console.log('API_LOGIN_SKIP', String(e.message || e).slice(0, 140));
+      return false;
+    }
+  }
+
+  return { api, login, tryLogin, getCookie: () => cookie };
 }
 
 module.exports = { createApi };

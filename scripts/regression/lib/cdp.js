@@ -110,11 +110,29 @@ async function connectCdp(cdpBase, { freshPage = false, url = 'about:blank' } = 
 async function loginBrowser(cdp, cfg) {
   await cdp.send('Page.navigate', { url: `${cfg.baseUrl}/` });
   await new Promise((r) => setTimeout(r, 1200));
+  // Reuse existing browser session when possible to avoid PAM rate limits.
+  const already = await cdp.evalAsync(
+    `fetch('/api/v1/auth/session',{credentials:'include'}).then(r=>r.json()).then(j=>!!j.authenticated).catch(()=>false)`,
+  );
+  if (already) return { reused: true };
   const user = JSON.stringify(cfg.username);
   const pass = JSON.stringify(cfg.password);
-  await cdp.evalAsync(
-    `fetch('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({username:${user},password:${pass}})}).then(r=>r.json())`,
-  );
+  let last = null;
+  for (let i = 0; i < 4; i++) {
+    last = await cdp.evalAsync(
+      `(async()=>{
+        const r=await fetch('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({username:${user},password:${pass}})});
+        const t=await r.text();
+        return {status:r.status,body:t.slice(0,200)};
+      })()`,
+    );
+    if (last && last.status >= 200 && last.status < 300) return { reused: false };
+    if (!(last && (last.status === 429 || /rate_limited|Too many attempts/i.test(last.body || '')))) {
+      throw new Error(`browser login failed ${last && last.status}: ${last && last.body}`);
+    }
+    await new Promise((r) => setTimeout(r, 65000));
+  }
+  throw new Error(`browser login rate-limited: ${last && last.body}`);
 }
 
 module.exports = { getJson, ensureChrome, connectCdp, loginBrowser };

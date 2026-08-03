@@ -50,7 +50,8 @@ async function clickByText(cdp, label) {
 }
 
 (async () => {
-  await login();
+  // Power actions need a daemon cookie; retry through PAM rate limits.
+  await login({ retries: 5, waitMs: 65000 });
   // ensure running
   const v = await api('GET', `/api/v1/vms/${VM}`);
   const st = JSON.parse(v.body).state;

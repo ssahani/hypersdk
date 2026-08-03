@@ -69,6 +69,9 @@ npm run audit
 # Volume CRUD + VM console/observability
 npm run volume
 
+# Volume resize/clone + classic disk attach/detach
+npm run disk
+
 # CDP UI (classic Pause/Resume, platform tabs, finder, cinema) — needs CDP
 ./chrome-launch.sh &
 npm run ui

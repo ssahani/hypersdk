@@ -12,7 +12,7 @@ const { connectCdp, loginBrowser } = require('./lib/cdp');
 const { createLogger } = require('./lib/log');
 
 const cfg = loadConfig();
-const { login } = createApi(cfg);
+const { tryLogin } = createApi(cfg);
 const log = createLogger(cfg.resultsDir, 'ui-settings');
 
 const PATHS = [
@@ -34,7 +34,7 @@ const PATHS = [
 ];
 
 (async () => {
-  await login();
+  await tryLogin();
   const cdp = await connectCdp(cfg.cdpUrl, { freshPage: true, url: cfg.baseUrl + '/' });
   await loginBrowser(cdp, cfg);
   let pass = 0;

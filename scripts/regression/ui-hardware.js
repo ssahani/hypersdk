@@ -11,7 +11,7 @@ const { connectCdp, loginBrowser } = require('./lib/cdp');
 const { createLogger } = require('./lib/log');
 
 const cfg = loadConfig();
-const { login } = createApi(cfg);
+const { tryLogin } = createApi(cfg);
 const log = createLogger(cfg.resultsDir, 'ui-hardware');
 const PID = process.env.MACHINA_PLATFORM_VM_ID || '3b2803c9-68e9-4235-b0f8-ef46a42c7a80';
 
@@ -38,7 +38,7 @@ const PATHS = [
 ];
 
 (async () => {
-  await login();
+  await tryLogin();
   const cdp = await connectCdp(cfg.cdpUrl, { freshPage: true, url: cfg.baseUrl + '/' });
   await loginBrowser(cdp, cfg);
   let pass = 0;
