@@ -19,6 +19,7 @@
     "host": "node ops-host.js",
     "storage": "node ops-storage.js",
     "zeus": "node ops-zeus.js",
+    "audit": "node ops-audit.js",
     "ui": "node ui-interactive.js",
     "ui-settings": "node ui-settings.js",
     "ui-wizards": "node ui-wizards.js",
@@ -30,7 +31,8 @@
     "ui-host": "node ui-host.js",
     "ui-storage": "node ui-storage.js",
     "ui-zeus": "node ui-zeus.js",
-    "once": "node api-sweep.js --loops 1 && node ops-interactive.js && node ops-lifecycle.js && node ops-platform.js && node ops-infra.js && node ops-fleet.js && node ops-mission.js && node ops-catalog.js && node ops-hardware.js && node ops-host.js && node ops-storage.js && node ops-zeus.js && node page-sweep.js --loops 1",
+    "ui-audit": "node ui-audit.js",
+    "once": "node api-sweep.js --loops 1 && node ops-interactive.js && node ops-lifecycle.js && node ops-platform.js && node ops-infra.js && node ops-fleet.js && node ops-mission.js && node ops-catalog.js && node ops-hardware.js && node ops-host.js && node ops-storage.js && node ops-zeus.js && node ops-audit.js && node page-sweep.js --loops 1",
     "continuous": "node page-sweep.js --loops 0"
   },
   "dependencies": {

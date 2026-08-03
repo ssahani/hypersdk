@@ -63,6 +63,9 @@ npm run storage
 # Zeus firewall deep + API keys/webhooks/nwfilter/cordon
 npm run zeus
 
+# Audit/templates/compliance/simulate/terminal session
+npm run audit
+
 # CDP UI (classic Pause/Resume, platform tabs, finder, cinema) — needs CDP
 ./chrome-launch.sh &
 npm run ui
@@ -76,6 +79,7 @@ npm run ui-hardware
 npm run ui-host
 npm run ui-storage
 npm run ui-zeus
+npm run ui-audit
 
 # Full page sweep
 npm run pages -- --loops 1
