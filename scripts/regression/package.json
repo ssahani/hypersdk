@@ -23,6 +23,7 @@
     "volume": "node ops-volume.js",
     "disk": "node ops-disk.js",
     "power": "node ops-power.js",
+    "net": "node ops-net.js",
     "ui": "node ui-interactive.js",
     "ui-settings": "node ui-settings.js",
     "ui-wizards": "node ui-wizards.js",
@@ -37,7 +38,8 @@
     "ui-audit": "node ui-audit.js",
     "ui-volume": "node ui-volume.js",
     "ui-power": "node ui-power.js",
-    "once": "node api-sweep.js --loops 1 && node ops-interactive.js && node ops-lifecycle.js && node ops-platform.js && node ops-infra.js && node ops-fleet.js && node ops-mission.js && node ops-catalog.js && node ops-hardware.js && node ops-host.js && node ops-storage.js && node ops-zeus.js && node ops-audit.js && node ops-volume.js && node ops-disk.js && node ops-power.js && node page-sweep.js --loops 1",
+    "ui-net": "node ui-net.js",
+    "once": "node api-sweep.js --loops 1 && node ops-interactive.js && node ops-lifecycle.js && node ops-platform.js && node ops-infra.js && node ops-fleet.js && node ops-mission.js && node ops-catalog.js && node ops-hardware.js && node ops-host.js && node ops-storage.js && node ops-zeus.js && node ops-audit.js && node ops-volume.js && node ops-disk.js && node ops-power.js && node ops-net.js && node page-sweep.js --loops 1",
     "continuous": "node page-sweep.js --loops 0"
   },
   "dependencies": {

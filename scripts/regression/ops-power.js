@@ -125,12 +125,9 @@ async function ensureRunning() {
   });
 
   await mark('platform-nics', async () => {
-    const r = await api('GET', `${P}/api/v1/vms/${PID}/nics`);
-    if (r.status === 404) return 'SOFT endpoint not deployed yet';
-    if (!ok(r.status) || isHtml(r.body)) throw new Error(`${r.status}`);
-    const j = JSON.parse(r.body);
+    const j = await getJson(`${P}/api/v1/vms/${PID}/nics`);
     if (!Array.isArray(j) || j.length < 1) throw new Error('no nics');
-    return `count=${j.length} mac=${j[0].mac_address}`;
+    return `count=${j.length} mac=${j[0].mac_address || j[0].mac || '?'}`;
   });
 
   await mark('libvirt-details-nics', async () => {
