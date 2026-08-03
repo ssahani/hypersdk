@@ -2,6 +2,17 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+## 2026-08-03 enterprise / maintenance / network
+
+| Item | Result |
+|------|--------|
+| `ops-enterprise.js` | **32/32 PASS** — maintenance schedules CRUD, fleet snapshot schedules CRUD, notification channels CRUD+test, host cordon on/off, cluster/leadership/settings/cert, enterprise MFA/vault/FIPS/tenants, network segments/IPAM/canvas, fleet DNA/finder/updates, SOC ASM, templates marketplace/missing, guestkit + linux updates |
+| `ui-enterprise.js` | **10/10 PASS** — enterprise / maintenance / network-canvas / networks / hosts / HA / placement / templates / SOC / hosts/finder |
+
+```bash
+npm run enterprise && npm run ui-enterprise
+```
+
 ## 2026-08-03 alerts / backups / SOC playbooks
 
 | Item | Result |
@@ -60,4 +71,5 @@ npm run resize && npm run ui-resize
 npm run operations && npm run ui-operations
 npm run planner && npm run ui-planner
 npm run alerts && npm run ui-alerts
+npm run enterprise && npm run ui-enterprise
 ```
