@@ -11,10 +11,12 @@
     "ops": "node ops-interactive.js",
     "lifecycle": "node ops-lifecycle.js",
     "platform": "node ops-platform.js",
+    "infra": "node ops-infra.js",
     "ui": "node ui-interactive.js",
     "ui-settings": "node ui-settings.js",
     "ui-wizards": "node ui-wizards.js",
-    "once": "node api-sweep.js --loops 1 && node ops-interactive.js && node ops-lifecycle.js && node ops-platform.js && node page-sweep.js --loops 1",
+    "ui-security": "node ui-security.js",
+    "once": "node api-sweep.js --loops 1 && node ops-interactive.js && node ops-lifecycle.js && node ops-platform.js && node ops-infra.js && node page-sweep.js --loops 1",
     "continuous": "node page-sweep.js --loops 0"
   },
   "dependencies": {

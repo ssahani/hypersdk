@@ -39,11 +39,15 @@ npm run lifecycle
 # Platform console/precheck/host-sync/pause + KubeVirt console guard
 npm run platform
 
+# Networks/node/metrics/platform inventory/AI/Zeus firewall
+npm run infra
+
 # CDP UI (classic Pause/Resume, platform tabs, finder, cinema) — needs CDP
 ./chrome-launch.sh &
 npm run ui
 npm run ui-settings
 npm run ui-wizards
+npm run ui-security
 
 # Full page sweep
 npm run pages -- --loops 1
