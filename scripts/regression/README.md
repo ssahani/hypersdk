@@ -54,6 +54,9 @@ npm run catalog
 # Hardware inventory/compat/SOC/K8s/send-key
 npm run hardware
 
+# Host stats/PCI/USB/secrets CRUD/rightsizing/Zeus firewall
+npm run host
+
 # CDP UI (classic Pause/Resume, platform tabs, finder, cinema) — needs CDP
 ./chrome-launch.sh &
 npm run ui
@@ -64,6 +67,7 @@ npm run ui-k8s-os
 npm run ui-mission
 npm run ui-catalog
 npm run ui-hardware
+npm run ui-host
 
 # Full page sweep
 npm run pages -- --loops 1
