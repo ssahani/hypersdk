@@ -2,6 +2,18 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+
+## 2026-08-03 policy / templates / marketplace
+
+| Item | Result |
+|------|--------|
+| `ops-policy.js` | **26/26 PASS** — templates seed + sync-git negative, storage pool get/volumes/refresh/snapshot-policy, network gitops/IPAM, fence events, maintenance-mission, marketplace plugins + hypersdk install/uninstall, policy rules/quotas, recommendations, rightsizing/cost/budget/routing/memory, vault sync, port-forward guest-IP negative |
+| `ui-policy.js` | **10/10 PASS** — templates / marketplace / recommendations / policy / storage / content / enterprise / rightsizing / network-canvas / maintenance |
+
+```bash
+npm run policy && npm run ui-policy
+```
+
 ## 2026-08-03 apps / fleet desktop / SOC ops (+ application delete fix)
 
 | Item | Result |
