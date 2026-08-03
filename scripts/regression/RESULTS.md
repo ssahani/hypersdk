@@ -2,21 +2,28 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+## 2026-08-03 hardware + SOC/K8s
+
+| Suite | Result |
+|-------|--------|
+| `ops-hardware.js` | **26/26 PASS** — host inventory/history, VM hardware-summary/compat/HA policy, send-key validation+esc, SOC alerts/events, AI agents, OpenStack unconfigured 400, K8s ns/nodes/pods |
+| `ui-hardware.js` | **18 PASS / 1 SOFT** — platform VM+consolehub, Zeus/SOC/AI providers, K8s workloads, OpenStack (classic VM detail hydrate race) |
+
 ## 2026-08-03 mission + catalog
 
 | Suite | Result |
 |-------|--------|
-| `ops-mission.js` | **20/20 PASS** — browse disks, host FS, ConsoleHub, topology, fleet activity/mission/gpu, reports, observability, Atlas off, baremetal |
-| `ui-mission.js` | **23/23 PASS** — mission-control, observability, activity, reports, GPU, topology, hubs, api-docs/ssh/disk-images/system-check |
-| `ops-catalog.js` | **32/32 PASS** — jobs/audit/logs/templates/snapshots/backups, guest-health, guestkit 403, CD-ROM missing-ISO/device guards, **network ephemeral CRUD**, HA/webhooks/notifications, platform host+metrics |
-| `ui-catalog.js` | **25/25 PASS** — jobs/audit/snapshots/backups/nwfilters/secrets/capabilities/events/logs/sessions/host-networking + platform HA/webhooks/notifications/hosts/storage/tasks/settings |
+| `ops-mission.js` | **20/20 PASS** |
+| `ui-mission.js` | **23/23 PASS** |
+| `ops-catalog.js` | **32/32 PASS** — jobs/audit, guest-health, CD-ROM guards, **network ephemeral CRUD**, HA/webhooks |
+| `ui-catalog.js` | **25/25 PASS** |
 
 ## 2026-08-03 fleet + K8s/OpenStack UI
 
 | Suite | Result |
 |-------|--------|
-| `ops-fleet.js` | **15/15 PASS** — VM logs, devices (149), services (186), projects/users/apps/templates/tasks, AI agents + Zeus summary, OpenStack status (disabled), K8s contexts, **batch pause/resume** |
-| `ui-k8s-os.js` | **22/22 PASS** — `/k8s*`, full OpenStack nav, applications/marketplace/enterprise/developer/support |
+| `ops-fleet.js` | **15/15 PASS** |
+| `ui-k8s-os.js` | **22/22 PASS** |
 
 ## Cumulative suites (same host)
 
@@ -35,5 +42,5 @@ Rolling notes from deployed-host sweeps. Update as new loops complete.
 export MACHINA_BASE_URL=https://212.8.248.187:5092
 export MACHINA_USER=sus MACHINA_PASS=max
 ./chrome-launch.sh &
-npm run mission && npm run catalog && npm run ui-mission && npm run ui-catalog
+npm run hardware && npm run ui-hardware
 ```
