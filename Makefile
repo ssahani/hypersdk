@@ -7,7 +7,7 @@ UNITDIR ?= /usr/lib/systemd/system
 CARGO ?= cargo
 CARGO_FLAGS ?=
 
-.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e check web web-clean start stop restart status deploy run-daemon run-tui help
+.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
 
 all: release web ## Build everything (Rust + web)
 
@@ -40,6 +40,17 @@ web-test: ## Run web unit tests (vitest)
 
 web-e2e: web ## Build web and run Playwright smoke tests
 	cd web && npm run test:e2e
+
+regression-setup: ## Install deps for scripts/regression (CDP + API sweeps)
+	cd scripts/regression && npm install
+
+LOOPS ?= 1
+
+regression-api: ## Live API heartbeat sweep (MACHINA_BASE_URL / USER / PASS; LOOPS=N)
+	cd scripts/regression && npm install --silent && node api-sweep.js --loops $(LOOPS)
+
+regression-pages: ## Live CDP page sweep (needs Chrome :9222; LOOPS=N; see scripts/regression/README.md)
+	cd scripts/regression && npm install --silent && node page-sweep.js --loops $(LOOPS)
 
 check: ## Run cargo check
 	$(CARGO) check --workspace

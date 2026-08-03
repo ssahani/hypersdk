@@ -16,6 +16,8 @@
     "test:e2e:features": "node scripts/run-playwright.mjs -c playwright.feature-matrix.config.ts",
     "test:e2e:features:live": "node scripts/run-playwright.mjs -c playwright.feature-matrix.live.config.ts",
     "test:e2e:ui": "node scripts/run-playwright.mjs --ui",
+    "test:regression:api": "npm --prefix ../scripts/regression install --silent && node ../scripts/regression/api-sweep.js --loops 1",
+    "test:regression:pages": "npm --prefix ../scripts/regression install --silent && node ../scripts/regression/page-sweep.js --loops 1",
     "check-ui-tokens": "node scripts/check-ui-tokens.mjs",
     "generate-openapi": "node ../scripts/generate-openapi.mjs",
     "generate-openapi:check": "node ../scripts/generate-openapi.mjs --check",

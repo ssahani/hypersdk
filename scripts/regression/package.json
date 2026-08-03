@@ -1,0 +1,17 @@
+{
+  "name": "machina-regression",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Live-host CDP + API regression sweeps for Machina",
+  "type": "commonjs",
+  "scripts": {
+    "install-deps": "npm install",
+    "pages": "node page-sweep.js",
+    "api": "node api-sweep.js",
+    "once": "node page-sweep.js --loops 1 && node api-sweep.js --loops 1",
+    "continuous": "node page-sweep.js --loops 0"
+  },
+  "dependencies": {
+    "ws": "^8.21.1"
+  }
+}

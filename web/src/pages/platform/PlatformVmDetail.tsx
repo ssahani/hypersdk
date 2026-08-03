@@ -655,16 +655,31 @@ export default function PlatformVmDetail() {
       setSnapPrecheck(null)
       return
     }
+    let ignore = false
     setSnapPrecheckLoading(true)
-    void precheckVmSnapshot(id, {
-      name: snapName.trim() || 'snap-01',
-      disk_only: snapDiskOnly,
-      quiesce: snapQuiesce,
-      storage_mode: snapStorageMode || undefined,
-    })
-      .then(setSnapPrecheck)
-      .catch(() => setSnapPrecheck(null))
-      .finally(() => setSnapPrecheckLoading(false))
+    // Debounced so precheck isn't refired on every keystroke of the name field,
+    // and `ignore` drops the response of a request superseded by a newer one.
+    const timer = setTimeout(() => {
+      void precheckVmSnapshot(id, {
+        name: snapName.trim() || 'snap-01',
+        disk_only: snapDiskOnly,
+        quiesce: snapQuiesce,
+        storage_mode: snapStorageMode || undefined,
+      })
+        .then((r) => {
+          if (!ignore) setSnapPrecheck(r)
+        })
+        .catch(() => {
+          if (!ignore) setSnapPrecheck(null)
+        })
+        .finally(() => {
+          if (!ignore) setSnapPrecheckLoading(false)
+        })
+    }, 400)
+    return () => {
+      ignore = true
+      clearTimeout(timer)
+    }
   }, [tab, id, vm?.inventory_source, snapName, snapDiskOnly, snapQuiesce, snapStorageMode])
 
   useEffect(() => {
