@@ -2,6 +2,18 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+## 2026-08-03 apps / fleet desktop / SOC ops (+ application delete fix)
+
+| Item | Result |
+|------|--------|
+| `ops-apps.js` | **28/28 PASS** — application group CRUD (+ start action), fleet desktop hubs, operations runbook execute, SOC ingest/forward, AI firewall explain/secure-plan, autopilot propose, baremetal capacity, segment connectivity, host cockpit, proxmox sync, air-gap bundles |
+| `ui-apps.js` | **10/10 PASS** — applications / operations / baremetal / fleet-snapshots / network-canvas / SOC / zeus / approvals / enterprise / hosts |
+| **Fix** | `DELETE /api/v1/applications/{id}` — create existed without delete; leftover `reg-app*` groups could not be cleaned |
+
+```bash
+npm run apps && npm run ui-apps
+```
+
 ## 2026-08-03 enterprise / maintenance / network
 
 | Item | Result |
@@ -72,4 +84,5 @@ npm run operations && npm run ui-operations
 npm run planner && npm run ui-planner
 npm run alerts && npm run ui-alerts
 npm run enterprise && npm run ui-enterprise
+npm run apps && npm run ui-apps
 ```

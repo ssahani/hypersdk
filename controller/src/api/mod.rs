@@ -532,7 +532,7 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/applications",
             get(applications::list_applications).post(applications::create_application),
         )
-        .route("/api/v1/applications/{id}", get(applications::get_application))
+        .route("/api/v1/applications/{id}", get(applications::get_application).delete(applications::delete_application))
         .route(
             "/api/v1/applications/{id}/actions",
             post(applications::run_application_action),

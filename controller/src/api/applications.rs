@@ -115,6 +115,33 @@ pub async fn create_application(
     get_application(State(state), Extension(actor), Path(id)).await
 }
 
+pub async fn delete_application(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    let mut tx = state.pool.begin().await?;
+    let existed: Option<String> = sqlx::query_scalar("SELECT name FROM application_groups WHERE id = ?")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?;
+    let Some(name) = existed else {
+        return Err(ApiError::not_found("application not found"));
+    };
+    sqlx::query("DELETE FROM application_group_vms WHERE group_id = ?")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM application_groups WHERE id = ?")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    state.emit_event("application.delete", format!("Deleted application group {name}"));
+    Ok(Json(serde_json::json!({ "deleted": true, "id": id })))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ApplicationActionBody {
     pub action: String,
