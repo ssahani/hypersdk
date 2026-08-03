@@ -45,6 +45,12 @@ npm run infra
 # Devices/services/catalog/batch power/OpenStack+K8s status
 npm run fleet
 
+# Browse disks / fleet activity / reports / observability / Atlas
+npm run mission
+
+# Jobs/audit/guest-health/network CRUD/HA/CD-ROM guards
+npm run catalog
+
 # CDP UI (classic Pause/Resume, platform tabs, finder, cinema) — needs CDP
 ./chrome-launch.sh &
 npm run ui
@@ -52,6 +58,8 @@ npm run ui-settings
 npm run ui-wizards
 npm run ui-security
 npm run ui-k8s-os
+npm run ui-mission
+npm run ui-catalog
 
 # Full page sweep
 npm run pages -- --loops 1

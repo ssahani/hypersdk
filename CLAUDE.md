@@ -34,6 +34,9 @@ make regression-setup
 export MACHINA_BASE_URL=https://HOST:5092 MACHINA_USER=sus MACHINA_PASS=max
 ./scripts/regression/chrome-launch.sh &   # CDP :9222
 make regression-api LOOPS=1               # no Chrome needed
+make regression-ops                       # power / screenshot / volumes
+make regression-mission                   # fleet activity / reports / Atlas
+make regression-catalog                   # guest-health / network CRUD / HA
 make regression-pages LOOPS=1             # needs CDP
 # continuous: cd scripts/regression && node page-sweep.js --forever
 # see scripts/regression/README.md
