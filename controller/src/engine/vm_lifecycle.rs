@@ -65,12 +65,13 @@ pub async fn set_vm_error(pool: &SqlitePool, vm_id: Uuid, message: &str) -> anyh
 }
 
 pub async fn sync_phase_from_observed(pool: &SqlitePool, vm_id: Uuid) -> anyhow::Result<()> {
-    let row: Option<(String, String, String)> =
-        sqlx::query_as("SELECT desired_state, observed_state, lifecycle_phase FROM vms WHERE id = ?")
-            .bind(vm_id)
-            .fetch_optional(pool)
-            .await?;
-    let Some((desired, observed, current_phase)) = row else {
+    let row: Option<(String, String, String, String)> = sqlx::query_as(
+        "SELECT desired_state, observed_state, lifecycle_phase, COALESCE(last_error, '') FROM vms WHERE id = ?",
+    )
+    .bind(vm_id)
+    .fetch_optional(pool)
+    .await?;
+    let Some((desired, observed, current_phase, last_error)) = row else {
         return Ok(());
     };
     // RETIRED is a sticky, operator-set phase that blocks future starts. It must
@@ -89,5 +90,12 @@ pub async fn sync_phase_from_observed(pool: &SqlitePool, vm_id: Uuid) -> anyhow:
         (_, "running") | (_, "blocked") => PHASE_RUNNING,
         _ => PHASE_IDLE,
     };
-    set_vm_phase(pool, vm_id, phase).await
+    // Drop stale "already running" resume/start failures once inventory agrees the guest is up.
+    let stale_already_running = matches!(observed.as_str(), "running" | "blocked")
+        && last_error.to_ascii_lowercase().contains("already running");
+    if phase == PHASE_RUNNING && (current_phase == PHASE_ERROR || stale_already_running) {
+        set_vm_phase_clear_error(pool, vm_id, phase).await
+    } else {
+        set_vm_phase(pool, vm_id, phase).await
+    }
 }

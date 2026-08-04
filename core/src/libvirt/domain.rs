@@ -292,7 +292,25 @@ pub fn pause_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
 }
 
 pub fn resume_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
-    domain_action(conn, name, "resume", |d| d.resume().map(|_| ()))
+    let domain = lookup_domain(conn, name)?;
+    let info = domain
+        .get_info()
+        .map_err(|e| LibvirtError::Operation(format!("Failed to query VM '{name}': {e}")))?;
+    // Idempotent: resume on an already-running domain is a no-op (libvirt otherwise
+    // returns VIR_ERR_OPERATION_INVALID and the UI sticky-banners it forever).
+    if info.state == VIR_DOMAIN_RUNNING || info.state == VIR_DOMAIN_BLOCKED {
+        return Ok(());
+    }
+    if info.state != VIR_DOMAIN_PAUSED && info.state != VIR_DOMAIN_PMSUSPENDED {
+        return Err(LibvirtError::Invalid(format!(
+            "Cannot resume VM '{name}': domain is {} (expected paused or suspended)",
+            state_to_string(info.state)
+        )));
+    }
+    domain
+        .resume()
+        .map(|_| ())
+        .map_err(|e| LibvirtError::Operation(format!("Failed to resume VM '{name}': {e}")))
 }
 
 /// Optional `virDomainUndefineFlags` bits when removing a persistent domain definition.

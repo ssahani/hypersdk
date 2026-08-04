@@ -5,6 +5,10 @@ import type { StructuredPlatformError } from '../components/StructuredErrorBanne
 export function vmErrorPresentation(lastError: string | null | undefined): StructuredPlatformError | null {
   if (!lastError?.trim()) return null
   const msg = lastError
+  // Stale no-op power failures — VM is already in the desired state.
+  if (/domain is already running|already running/i.test(msg) && /resume|start/i.test(msg)) {
+    return null
+  }
   if (/nodomain|domain not found|no domain with matching name/i.test(msg)) {
     return {
       error_code: 'domain_missing',
