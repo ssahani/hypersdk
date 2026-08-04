@@ -3,6 +3,17 @@
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
 
+## 2026-08-04 hub / network / webhooks / users / ops overview
+
+| Item | Result |
+|------|--------|
+| `ops-hub.js` | **25/25 PASS** — network create/deactivate/activate/delete, webhook toggle roundtrip, template get + approval patch, user create/patch/delete, HA status, cluster leadership/settings, operations overview/showback, IPAM pools, AI cost budget/routing/memory/actions hub, scheduled jobs, notifications, cloud-init validate, install.sh, Zeus k8s export-status, task cancel/retry negatives |
+| `ui-hub.js` | **10/10 PASS** — infrastructure / workloads / administration / resources / operations / datacenter / HA / cloud-init / users / webhooks |
+
+```bash
+npm run hub && npm run ui-hub
+```
+
 ## 2026-08-04 providers / prompts / content / blueprints (+ content delete)
 
 | Item | Result |
@@ -161,4 +172,5 @@ npm run obs && npm run ui-obs
 npm run security && npm run ui-fabric
 npm run provision && npm run ui-provision
 npm run providers && npm run ui-providers
+npm run hub && npm run ui-hub
 ```
