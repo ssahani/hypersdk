@@ -3,6 +3,17 @@
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
 
+## 2026-08-04 devhub (developer / operations / templates / policy)
+
+| Item | Result |
+|------|--------|
+| `ops-devhub.js` | **32/32 PASS** — health/ready, developer/openapi/terraform/support/install.sh, cluster+settings+leadership, operations overview/runbooks/executions, templates+marketplace+missing-images, storage-tiers/backup-sla, policy rules/quotas/export, segments gitops, topology+network-canvas, task cancel/retry negatives, AI network-explain/runbook/spotlight/explain + schema negative |
+| `ui-devhub.js` | **10/10 PASS** — developer / support / operations / templates / policy / storage-tiers / topology / ha / projects / enterprise |
+
+```bash
+npm run devhub && npm run ui-devhub
+```
+
 ## 2026-08-04 healthx (doctor / diagnose / guest expected fails)
 
 | Item | Result |

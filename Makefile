@@ -187,6 +187,9 @@ regression-aifleet: ## Live Zeus AI summary/security/agents/copilot smoke
 regression-healthx: ## Live VM/host doctor diagnose health-check + guest expected fails
 	cd scripts/regression && npm install --silent && node ops-healthx.js
 
+regression-devhub: ## Live developer/operations/templates/policy/cluster smoke
+	cd scripts/regression && npm install --silent && node ops-devhub.js
+
 regression-ui: ## Live CDP UI (Pause/Resume, platform tabs; needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-interactive.js
 
@@ -321,6 +324,9 @@ regression-ui-aifleet: ## Live CDP Zeus AI fleet shells (needs Chrome :9222)
 
 regression-ui-healthx: ## Live CDP health/doctor/support shells (needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-healthx.js
+
+regression-ui-devhub: ## Live CDP developer/ops/templates/policy shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-devhub.js
 
 regression-pages: ## Live CDP page sweep (needs Chrome :9222; LOOPS=N; see scripts/regression/README.md)
 	cd scripts/regression && npm install --silent && node page-sweep.js --loops $(LOOPS)
