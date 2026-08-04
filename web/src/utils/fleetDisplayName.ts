@@ -23,6 +23,7 @@ export function isUsableHostAddress(address?: string | null): boolean {
 /** Human-friendly host label for cards, VM detail, and fleet titles. */
 export function formatPlatformHostLabel(
   host: Pick<PlatformHost, 'hostname' | 'address'> | null | undefined,
+  opts?: { fallbackAddress?: string | null },
 ): string {
   if (!host) return 'No host'
   const hostname = host.hostname?.trim()
@@ -34,7 +35,12 @@ export function formatPlatformHostLabel(
   if (!placeholder && usableAddr && hostname !== address) return `${hostname} · ${address}`
   if (!placeholder) return hostname!
   if (usableAddr) return address!
-  return hostname || address || 'Unknown host'
+
+  const fallback = opts?.fallbackAddress?.trim()
+  if (fallback && isUsableHostAddress(fallback)) {
+    return `${fallback} · re-enroll host`
+  }
+  return 'Local hypervisor · update enrollment'
 }
 
 /** Prefer a meaningful cluster name; fall back to primary host identity for single-node fleets. */

@@ -1,11 +1,12 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Clock, Loader2, Network, Play, Users, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, Loader2, Network, Play, Terminal, Users, XCircle } from 'lucide-react'
 import type {
   GuestNetworkConfig,
   GuestObservabilitySnapshot,
   VmGuestHealthReport,
+  VmPortForwardRule,
 } from '../../api/platform'
 import {
   applyGuestNetwork,
@@ -17,6 +18,12 @@ import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { qgaHealthy } from '../../utils/guestAgentUx'
 import { statusPillClasses, statusSurfaceClasses, statusToneClass } from '../../utils/semanticColors'
+import {
+  exposeGuestPortOnVm,
+  isPrivateGuestIp,
+  sshNatHostPort,
+  type NatRuleLike,
+} from '../../utils/vmPortForwardServices'
 
 export function installStateLabel(state: string) {
   switch (state) {
@@ -54,6 +61,7 @@ export type RunGuestActionFn = (
 
 type Props = {
   vmId: string
+  vmName?: string
   loading?: boolean
   report: VmGuestHealthReport | null
   error?: string | null
@@ -64,10 +72,14 @@ type Props = {
   onStartVm?: () => void
   installing?: boolean
   onRunAction?: RunGuestActionFn
+  portForwardRules?: VmPortForwardRule[] | NatRuleLike[]
+  hypervisorAddress?: string
+  onPortForwardRefresh?: () => void
 }
 
 export default function GuestAgentDiagnosticsPanel({
   vmId,
+  vmName,
   loading,
   report,
   error,
@@ -78,6 +90,9 @@ export default function GuestAgentDiagnosticsPanel({
   onStartVm,
   installing,
   onRunAction,
+  portForwardRules = [],
+  hypervisorAddress,
+  onPortForwardRefresh,
 }: Props) {
   const toast = useToastContext()
   const [actionBusy, setActionBusy] = useState<string | null>(null)
@@ -86,6 +101,8 @@ export default function GuestAgentDiagnosticsPanel({
   const [iface, setIface] = useState('')
   const [addressCidr, setAddressCidr] = useState('')
   const [gateway, setGateway] = useState('')
+  const [dnsServers, setDnsServers] = useState('')
+  const [staticRoute, setStaticRoute] = useState('')
   const obs: GuestObservabilitySnapshot | undefined = report?.guest_observability
 
   const loadNetwork = async () => {
@@ -403,6 +420,24 @@ export default function GuestAgentDiagnosticsPanel({
                 placeholder="192.168.122.1"
               />
             </label>
+            <label className="text-xs text-slate-500 space-y-1 sm:col-span-2">
+              <span>DNS (space or comma separated)</span>
+              <input
+                className="input w-full text-xs font-mono"
+                value={dnsServers}
+                onChange={(e) => setDnsServers(e.target.value)}
+                placeholder="1.1.1.1 8.8.8.8"
+              />
+            </label>
+            <label className="text-xs text-slate-500 space-y-1">
+              <span>Extra route</span>
+              <input
+                className="input w-full text-xs font-mono"
+                value={staticRoute}
+                onChange={(e) => setStaticRoute(e.target.value)}
+                placeholder="10.0.0.0/8 via 192.168.122.1"
+              />
+            </label>
           </div>
           <button
             type="button"
@@ -412,26 +447,41 @@ export default function GuestAgentDiagnosticsPanel({
               void runAction(
                 'net',
                 async () => {
+                  const dns = dnsServers
+                    .split(/[,\s]+/)
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                  const routes: Array<{ to: string; via: string }> = []
+                  const routeRaw = staticRoute.trim()
+                  if (routeRaw) {
+                    const m = routeRaw.match(/^(\S+)\s+via\s+(\S+)$/i)
+                    if (!m) {
+                      throw new Error('Extra route must look like: 10.0.0.0/8 via 192.168.122.1')
+                    }
+                    routes.push({ to: m[1], via: m[2] })
+                  }
                   await applyGuestNetwork(vmId, {
                     iface: iface.trim(),
                     address_cidr: addressCidr.trim(),
                     gateway: gateway.trim() || undefined,
+                    dns: dns.length ? dns : undefined,
+                    routes: routes.length ? routes : undefined,
                     replace: true,
                   })
                   await loadNetwork()
                 },
-                'Guest IP / gateway applied',
+                'Guest network applied',
               )
             }
           >
             {actionBusy === 'net' ? <Loader2 className="w-3 h-3 animate-spin inline" /> : null}
-            Apply IP + gateway
+            Apply network
           </button>
           <p className="text-[11px] text-slate-600">
             Auto-detects NetworkManager, systemd-networkd, netplan, or wicked; falls back to{' '}
-            <code className="font-mono">ip</code> if needed. Persistence depends on the guest stack
-            (NM/netplan/wicked write config; networkd uses a runtime drop-in under{' '}
-            <code className="font-mono">/run</code>).
+            <code className="font-mono">ip</code> if needed. NM / netplan / wicked / networkd write
+            persistent config under <code className="font-mono">/etc</code>; iproute2 fallback is
+            runtime-only until reboot.
           </p>
         </div>
       )}
@@ -467,13 +517,60 @@ export default function GuestAgentDiagnosticsPanel({
             </button>
           </>
         )}
+        {(() => {
+          const guestIp =
+            report.guest_ip?.trim() ||
+            obs?.ip_addresses?.find((a) => a.ip_type !== 'ipv6' && !a.address.startsWith('127.'))
+              ?.address ||
+            ''
+          const sshExposed = Boolean(sshNatHostPort(portForwardRules))
+          const canExpose =
+            agentActive &&
+            vmName &&
+            guestIp &&
+            isPrivateGuestIp(guestIp) &&
+            !sshExposed
+          if (!canExpose && !sshExposed) return null
+          return (
+            <button
+              type="button"
+              className="btn-secondary text-xs inline-flex items-center gap-1"
+              disabled={!!actionBusy || sshExposed || !vmName}
+              title={
+                sshExposed
+                  ? `SSH already exposed${hypervisorAddress ? ` on ${hypervisorAddress}` : ''}`
+                  : 'Create a hypervisor NAT rule for guest port 22'
+              }
+              onClick={() =>
+                void runAction(
+                  'ssh',
+                  async () => {
+                    await exposeGuestPortOnVm(vmId, vmName!, 22, portForwardRules)
+                    onPortForwardRefresh?.()
+                  },
+                  'SSH exposed on hypervisor',
+                )
+              }
+            >
+              {actionBusy === 'ssh' ? <Loader2 className="w-3 h-3 animate-spin inline" /> : <Terminal className="w-3 h-3" />}
+              {sshExposed ? 'SSH exposed' : 'Expose SSH'}
+            </button>
+          )
+        })()}
         {onInstall && report.install_state !== 'running' && (
           <button type="button" className="btn-secondary text-xs" disabled={installing} onClick={onInstall}>
             {installing ? <Loader2 className="w-3 h-3 animate-spin inline" /> : null}
-            Attach channel
+            Attach virtio channel
           </button>
         )}
       </div>
+      {onInstall && report.install_state !== 'running' && (
+        <p className="text-[11px] text-slate-600">
+          Attach virtio channel only adds the QEMU guest-agent serial device. It does not inject
+          guestkit-agent into the disk — install or start the agent inside the guest after the
+          channel is present.
+        </p>
+      )}
     </div>
   )
 }

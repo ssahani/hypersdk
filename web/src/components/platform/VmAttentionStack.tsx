@@ -137,7 +137,7 @@ export default function VmAttentionStack({
             {onInstallGuestTools && (
               <button type="button" className="btn-secondary text-xs" disabled={guestToolsInstalling} onClick={onInstallGuestTools}>
                 {guestToolsInstalling ? <Loader2 className="w-3 h-3 animate-spin inline" /> : null}
-                Attach channel
+                Attach virtio channel
               </button>
             )}
             <button

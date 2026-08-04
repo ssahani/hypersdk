@@ -49,8 +49,8 @@ export default function GuestToolsStrip({
 
   const detail =
     guestHealth?.install_state === 'channel_only'
-      ? 'Virtio channel is attached — start guestkit-agent inside the guest (QGA-compatible).'
-      : 'Guest agent is not fully active — attach the channel and install guestkit-agent inside the VM.'
+      ? 'Virtio channel is attached — start guestkit-agent inside the guest (QGA-compatible). Attaching the channel does not install the binary.'
+      : 'Guest agent is not fully active — attach the virtio channel on the hypervisor, then install/start guestkit-agent inside the VM.'
 
   if (compact) {
     return (
@@ -67,7 +67,7 @@ export default function GuestToolsStrip({
           )}
           {onInstall && (
             <button type="button" className="btn-secondary text-xs py-1 px-2" disabled={installing} onClick={onInstall}>
-              {installing ? 'Installing…' : 'Attach channel'}
+              {installing ? 'Installing…' : 'Attach virtio channel'}
             </button>
           )}
           <button type="button" className="p-1 text-slate-500 hover:text-slate-300" onClick={dismiss} aria-label="Dismiss">
@@ -101,7 +101,7 @@ export default function GuestToolsStrip({
         )}
         {onInstall && (
           <button type="button" className="btn-secondary text-xs flex items-center gap-1" disabled={installing} onClick={onInstall}>
-            <Download className="w-3 h-3" /> {installing ? 'Queuing…' : 'Attach channel'}
+            <Download className="w-3 h-3" /> {installing ? 'Queuing…' : 'Attach virtio channel'}
           </button>
         )}
         <button type="button" className="btn-secondary text-xs" onClick={dismiss}>Dismiss</button>

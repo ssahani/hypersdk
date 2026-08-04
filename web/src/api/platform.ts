@@ -1065,11 +1065,20 @@ export type GuestNetworkConfig = {
   backend_detail?: string
 }
 
+export type GuestStaticRoute = {
+  to: string
+  via: string
+}
+
 export type GuestNetworkApplyRequest = {
   iface: string
   address_cidr: string
   gateway?: string
   replace?: boolean
+  /** DNS nameservers (IPv4). */
+  dns?: string[]
+  /** Extra static routes (in addition to default gateway). */
+  routes?: GuestStaticRoute[]
 }
 
 export const getGuestNetwork = (vmId: string) =>

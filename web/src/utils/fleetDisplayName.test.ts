@@ -26,6 +26,21 @@ describe('fleetDisplayName', () => {
     )
   })
 
+  it('uses UI host as hint when enrollment is loopback-only', () => {
+    expect(
+      formatPlatformHostLabel(
+        { hostname: 'localhost', address: '127.0.0.1' },
+        { fallbackAddress: '212.8.248.187' },
+      ),
+    ).toBe('212.8.248.187 · re-enroll host')
+  })
+
+  it('labels loopback enrollment without a usable fallback', () => {
+    expect(formatPlatformHostLabel({ hostname: 'localhost', address: '127.0.0.1' })).toBe(
+      'Local hypervisor · update enrollment',
+    )
+  })
+
   it('uses host identity when cluster name is default', () => {
     expect(
       formatFleetDisplayTitle(

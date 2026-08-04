@@ -48,6 +48,9 @@ pub struct GuestServiceUnit {
     pub name: String,
     pub status: String,
     pub detail: String,
+    /// When true, UI may offer start/stop/restart (unit is on the safe allowlist).
+    #[serde(default)]
+    pub controllable: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -420,6 +423,45 @@ fn validate_ipv4(ip: &str) -> Result<String, LibvirtError> {
     Ok(i.to_string())
 }
 
+fn validate_route_dest(to: &str) -> Result<String, LibvirtError> {
+    let t = to.trim().to_ascii_lowercase();
+    if t == "default" || t == "0.0.0.0/0" {
+        return Ok("default".into());
+    }
+    validate_cidr(to)
+}
+
+fn validate_dns_list(dns: &[String]) -> Result<Vec<String>, LibvirtError> {
+    let mut out = Vec::new();
+    for d in dns {
+        let t = d.trim();
+        if t.is_empty() {
+            continue;
+        }
+        out.push(validate_ipv4(t)?);
+        if out.len() > 8 {
+            return Err(LibvirtError::Invalid("too many DNS servers (max 8)".into()));
+        }
+    }
+    Ok(out)
+}
+
+fn validate_static_routes(routes: &[GuestStaticRoute]) -> Result<Vec<(String, String)>, LibvirtError> {
+    let mut out = Vec::new();
+    for r in routes {
+        let to = validate_route_dest(&r.to)?;
+        let via = validate_ipv4(&r.via)?;
+        if to == "default" {
+            continue; // default is handled via gateway field
+        }
+        out.push((to, via));
+        if out.len() > 16 {
+            return Err(LibvirtError::Invalid("too many static routes (max 16)".into()));
+        }
+    }
+    Ok(out)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GuestNetworkInterface {
     pub name: String,
@@ -440,6 +482,14 @@ pub struct GuestNetworkConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuestStaticRoute {
+    /// Destination CIDR (e.g. `10.0.0.0/8`) or `default`.
+    pub to: String,
+    /// Next hop IPv4.
+    pub via: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GuestNetworkApplyRequest {
     pub iface: String,
     /// IPv4 CIDR e.g. 192.168.122.50/24
@@ -449,6 +499,12 @@ pub struct GuestNetworkApplyRequest {
     /// When true, replace existing IPv4 config on the iface (flush / method=manual overwrite).
     #[serde(default)]
     pub replace: bool,
+    /// DNS nameservers (IPv4). Applied when the guest stack supports it (NM/netplan/networkd).
+    #[serde(default)]
+    pub dns: Vec<String>,
+    /// Extra static routes (in addition to the default gateway).
+    #[serde(default)]
+    pub routes: Vec<GuestStaticRoute>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -558,11 +614,38 @@ fn guest_ip_bin(vm_name: &str) -> String {
 }
 
 #[cfg(target_os = "linux")]
+fn apply_extra_ip_routes(
+    vm_name: &str,
+    iface: &str,
+    routes: &[(String, String)],
+) -> Result<(), LibvirtError> {
+    if routes.is_empty() {
+        return Ok(());
+    }
+    let ip = guest_ip_bin(vm_name);
+    for (to, via) in routes {
+        let (code, _out, err) = guest_exec_command(
+            vm_name,
+            &ip,
+            &["route", "replace", to, "via", via, "dev", iface],
+        )?;
+        if code != 0 {
+            return Err(LibvirtError::Operation(format!(
+                "ip route replace {to} via {via} failed: {err}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
 fn apply_via_networkmanager(
     vm_name: &str,
     iface: &str,
     cidr: &str,
     gw: Option<&str>,
+    dns: &[String],
+    routes: &[(String, String)],
 ) -> Result<String, LibvirtError> {
     let nmcli = guest_find_bin(vm_name, &["nmcli"]).ok_or_else(|| {
         LibvirtError::Operation("nmcli not found in guest".into())
@@ -628,6 +711,22 @@ fn apply_via_networkmanager(
         args.push("ipv4.gateway".into());
         args.push("".into());
     }
+    if !dns.is_empty() {
+        args.push("ipv4.dns".into());
+        args.push(dns.join(" "));
+        args.push("ipv4.ignore-auto-dns".into());
+        args.push("yes".into());
+    }
+    if !routes.is_empty() {
+        // nmcli wants "dest/prefix via gateway" space-separated entries.
+        let route_str = routes
+            .iter()
+            .map(|(to, via)| format!("{to} {via}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        args.push("ipv4.routes".into());
+        args.push(route_str);
+    }
     let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
     let (c, _, e) = guest_exec_command(vm_name, &nmcli, &arg_refs)?;
     if c != 0 {
@@ -645,7 +744,7 @@ fn apply_via_networkmanager(
             )));
         }
     }
-    Ok(format!("NetworkManager profile `{con}`"))
+    Ok(format!("NetworkManager profile `{con}` (persistent)"))
 }
 
 #[cfg(target_os = "linux")]
@@ -654,19 +753,26 @@ fn apply_via_systemd_networkd(
     iface: &str,
     cidr: &str,
     gw: Option<&str>,
+    dns: &[String],
+    routes: &[(String, String)],
 ) -> Result<String, LibvirtError> {
-    // Drop a runtime .network under /run so we don't fight package-managed /etc units permanently.
-    let gw_line = gw
-        .map(|g| format!("Gateway={g}\n"))
-        .unwrap_or_default();
-    let body = format!(
-        "[Match]\nName={iface}\n\n[Network]\nDHCP=no\nAddress={cidr}\n{gw_line}"
-    );
-    // Escape for single-quoted sh -c: only need to bar single quotes.
+    // Persist under /etc so config survives reboot (unlike a /run drop-in).
+    let mut net_body = String::from("[Network]\nDHCP=no\n");
+    net_body.push_str(&format!("Address={cidr}\n"));
+    if let Some(g) = gw {
+        net_body.push_str(&format!("Gateway={g}\n"));
+    }
+    for d in dns {
+        net_body.push_str(&format!("DNS={d}\n"));
+    }
+    let mut body = format!("[Match]\nName={iface}\n\n{net_body}");
+    for (to, via) in routes {
+        body.push_str(&format!("\n[Route]\nDestination={to}\nGateway={via}\n"));
+    }
     let body_escaped = body.replace('\'', "'\\''");
-    let path = format!("/run/systemd/network/10-machina-{iface}.network");
+    let path = format!("/etc/systemd/network/10-machina-{iface}.network");
     let script = format!(
-        "mkdir -p /run/systemd/network && printf '%s' '{body_escaped}' > '{path}' && \
+        "mkdir -p /etc/systemd/network && printf '%s' '{body_escaped}' > '{path}' && \
          networkctl reload && networkctl reconfigure '{iface}'",
     );
     let (c, out, err) = guest_exec_command(vm_name, "/bin/sh", &["-c", &script])?;
@@ -675,7 +781,7 @@ fn apply_via_systemd_networkd(
             "systemd-networkd apply failed (exit {c}): {err} {out}"
         )));
     }
-    Ok(format!("systemd-networkd runtime unit {path}"))
+    Ok(format!("systemd-networkd persistent unit {path}"))
 }
 
 #[cfg(target_os = "linux")]
@@ -684,15 +790,33 @@ fn apply_via_netplan(
     iface: &str,
     cidr: &str,
     gw: Option<&str>,
+    dns: &[String],
+    routes: &[(String, String)],
 ) -> Result<String, LibvirtError> {
     let netplan = guest_find_bin(vm_name, &["netplan"]).ok_or_else(|| {
         LibvirtError::Operation("netplan not found in guest".into())
     })?;
-    let gw_yaml = gw
-        .map(|g| format!("      routes:\n        - to: default\n          via: {g}\n"))
-        .unwrap_or_default();
+    let mut routes_yaml = String::new();
+    if gw.is_some() || !routes.is_empty() {
+        routes_yaml.push_str("      routes:\n");
+        if let Some(g) = gw {
+            routes_yaml.push_str(&format!("        - to: default\n          via: {g}\n"));
+        }
+        for (to, via) in routes {
+            routes_yaml.push_str(&format!("        - to: {to}\n          via: {via}\n"));
+        }
+    }
+    let dns_yaml = if dns.is_empty() {
+        String::new()
+    } else {
+        let mut s = String::from("      nameservers:\n        addresses:\n");
+        for d in dns {
+            s.push_str(&format!("          - {d}\n"));
+        }
+        s
+    };
     let yaml = format!(
-        "network:\n  version: 2\n  ethernets:\n    {iface}:\n      dhcp4: false\n      addresses:\n        - {cidr}\n{gw_yaml}"
+        "network:\n  version: 2\n  ethernets:\n    {iface}:\n      dhcp4: false\n      addresses:\n        - {cidr}\n{dns_yaml}{routes_yaml}"
     );
     let yaml_esc = yaml.replace('\'', "'\\''");
     let path = "/etc/netplan/99-machina-guest.yaml";
@@ -705,7 +829,7 @@ fn apply_via_netplan(
             "netplan apply failed (exit {c}): {err} {out}"
         )));
     }
-    Ok(format!("netplan {path}"))
+    Ok(format!("netplan {path} (persistent)"))
 }
 
 #[cfg(target_os = "linux")]
@@ -714,6 +838,8 @@ fn apply_via_wicked(
     iface: &str,
     cidr: &str,
     gw: Option<&str>,
+    dns: &[String],
+    routes: &[(String, String)],
 ) -> Result<String, LibvirtError> {
     // wicked ifconfig is awkward; prefer writing ifcfg + wicked ifup, else fall through to ip.
     let wicked = guest_find_bin(vm_name, &["wicked"]);
@@ -725,6 +851,9 @@ fn apply_via_wicked(
     );
     if let Some(g) = gw {
         ifcfg.push_str(&format!("DEFAULT_ROUTE='yes'\nGATEWAY='{g}'\n"));
+    }
+    if !dns.is_empty() {
+        ifcfg.push_str(&format!("NETCONFIG_DNS_STATIC_SERVERS='{}'\n", dns.join(" ")));
     }
     let ifcfg_esc = ifcfg.replace('\'', "'\\''");
     let path = format!("/etc/sysconfig/network/ifcfg-{iface}");
@@ -738,7 +867,8 @@ fn apply_via_wicked(
             "wicked/ifcfg apply failed (exit {c}): {err} {out}"
         )));
     }
-    Ok(format!("wicked ifcfg-{iface}"))
+    apply_extra_ip_routes(vm_name, iface, routes)?;
+    Ok(format!("wicked ifcfg-{iface} (persistent)"))
 }
 
 #[cfg(target_os = "linux")]
@@ -748,6 +878,8 @@ fn apply_via_iproute2(
     cidr: &str,
     gw: Option<&str>,
     replace: bool,
+    dns: &[String],
+    routes: &[(String, String)],
 ) -> Result<String, LibvirtError> {
     let ip = guest_ip_bin(vm_name);
     if replace {
@@ -779,7 +911,18 @@ fn apply_via_iproute2(
             )));
         }
     }
-    Ok("iproute2 (runtime)".into())
+    apply_extra_ip_routes(vm_name, iface, routes)?;
+    if !dns.is_empty() {
+        // Best-effort runtime resolv.conf — not managed by a persistent stack.
+        let content = dns
+            .iter()
+            .map(|d| format!("nameserver {d}\n"))
+            .collect::<String>();
+        let esc = content.replace('\'', "'\\''");
+        let script = format!("printf '%s' '{esc}' > /etc/resolv.conf");
+        let _ = guest_exec_command(vm_name, "/bin/sh", &["-c", &script]);
+    }
+    Ok("iproute2 (runtime — reboot may clear addresses/routes)".into())
 }
 
 /// Read guest NICs (QGA) + IPv4 routes (guest-exec ip) + detected network backend.
@@ -878,7 +1021,7 @@ pub fn get_guest_network_config(vm_name: &str) -> Result<GuestNetworkConfig, Lib
     }
 }
 
-/// Apply IPv4 address (+ optional default gateway) using the guest's native network stack.
+/// Apply IPv4 address (+ optional default gateway, DNS, static routes) using the guest's native network stack.
 pub fn apply_guest_network_config(
     vm_name: &str,
     req: &GuestNetworkApplyRequest,
@@ -898,38 +1041,57 @@ pub fn apply_guest_network_config(
             Some(g) if !g.trim().is_empty() => Some(validate_ipv4(g)?),
             _ => None,
         };
+        let dns = validate_dns_list(&req.dns)?;
+        let routes = validate_static_routes(&req.routes)?;
         let (backend, detect_detail) = detect_guest_net_backend(vm_name);
         let gw_ref = gw.as_deref();
 
         let mut used = match backend {
             GuestNetBackend::NetworkManager => {
-                apply_via_networkmanager(vm_name, &iface, &cidr, gw_ref)
+                apply_via_networkmanager(vm_name, &iface, &cidr, gw_ref, &dns, &routes)
             }
             GuestNetBackend::SystemdNetworkd => {
-                apply_via_systemd_networkd(vm_name, &iface, &cidr, gw_ref)
+                apply_via_systemd_networkd(vm_name, &iface, &cidr, gw_ref, &dns, &routes)
             }
-            GuestNetBackend::Netplan => apply_via_netplan(vm_name, &iface, &cidr, gw_ref),
-            GuestNetBackend::Wicked => apply_via_wicked(vm_name, &iface, &cidr, gw_ref),
+            GuestNetBackend::Netplan => {
+                apply_via_netplan(vm_name, &iface, &cidr, gw_ref, &dns, &routes)
+            }
+            GuestNetBackend::Wicked => {
+                apply_via_wicked(vm_name, &iface, &cidr, gw_ref, &dns, &routes)
+            }
             GuestNetBackend::Iproute2 => {
-                apply_via_iproute2(vm_name, &iface, &cidr, gw_ref, req.replace)
+                apply_via_iproute2(vm_name, &iface, &cidr, gw_ref, req.replace, &dns, &routes)
             }
         };
 
         // If the preferred stack failed, fall through to iproute2 so the op still works.
         if used.is_err() && backend != GuestNetBackend::Iproute2 {
             let primary_err = used.as_ref().err().map(|e| e.to_string()).unwrap_or_default();
-            used = apply_via_iproute2(vm_name, &iface, &cidr, gw_ref, req.replace).map(|s| {
-                format!("{s} (fallback after {}: {primary_err})", backend.as_str())
-            });
+            used = apply_via_iproute2(vm_name, &iface, &cidr, gw_ref, req.replace, &dns, &routes)
+                .map(|s| format!("{s} (fallback after {}: {primary_err})", backend.as_str()));
         }
 
         let how = used?;
         let cfg = get_guest_network_config(vm_name).ok();
+        let extras = {
+            let mut bits = Vec::new();
+            if !dns.is_empty() {
+                bits.push(format!("dns {}", dns.join(",")));
+            }
+            if !routes.is_empty() {
+                bits.push(format!("{} static route(s)", routes.len()));
+            }
+            if bits.is_empty() {
+                String::new()
+            } else {
+                format!(" · {}", bits.join(" · "))
+            }
+        };
         Ok(GuestAgentActionResult {
             action: "network_apply".into(),
             ok: true,
             message: format!(
-                "{iface} → {cidr}{} via {how} · {detect_detail}",
+                "{iface} → {cidr}{} via {how}{extras} · {detect_detail}",
                 gw.as_ref()
                     .map(|g| format!(" gw {g}"))
                     .unwrap_or_default()
@@ -989,8 +1151,9 @@ pub fn run_guest_service_action(
     }
 }
 
-/// Best-effort list of controllable guest services (demo + common optional units).
-pub fn list_guest_service_units(vm_name: &str) -> Vec<(String, String, String)> {
+/// Inventory of guest systemd services: running units + controllable allowlist.
+/// Protected units (ssh/network/agent) appear as read-only when running.
+pub fn list_guest_service_units(vm_name: &str) -> Vec<GuestServiceUnit> {
     #[cfg(not(target_os = "linux"))]
     {
         let _ = vm_name;
@@ -998,41 +1161,132 @@ pub fn list_guest_service_units(vm_name: &str) -> Vec<(String, String, String)> 
     }
     #[cfg(target_os = "linux")]
     {
-        const CANDIDATES: &[&str] = &[
+        const CONTROLLABLE: &[&str] = &[
             "machina-demo.service",
             "cron.service",
             "cronie.service",
             "atd.service",
             "rsyslog.service",
+            "nginx.service",
+            "httpd.service",
+            "apache2.service",
+            "redis.service",
+            "redis-server.service",
+            "postgresql.service",
+            "mysqld.service",
+            "mariadb.service",
+            "docker.service",
+            "containerd.service",
+            "chronyd.service",
+            "ntpd.service",
+            "fail2ban.service",
+            "cups.service",
+            "snapd.service",
+            "unattended-upgrades.service",
         ];
-        let mut out = Vec::new();
-        for unit in CANDIDATES {
+
+        fn unit_base(unit: &str) -> String {
+            unit.strip_suffix(".service")
+                .unwrap_or(unit)
+                .to_ascii_lowercase()
+        }
+
+        fn is_controllable(unit: &str) -> bool {
             if validate_guest_service_unit(unit).is_err() {
+                return false;
+            }
+            let full = if unit.ends_with(".service") {
+                unit.to_string()
+            } else {
+                format!("{unit}.service")
+            };
+            CONTROLLABLE
+                .iter()
+                .any(|c| c.eq_ignore_ascii_case(&full))
+        }
+
+        let mut by_name: std::collections::BTreeMap<String, GuestServiceUnit> =
+            std::collections::BTreeMap::new();
+
+        // One guest-exec: list running units (inventory).
+        if let Ok((0, out)) = guest_exec_systemctl(
+            vm_name,
+            &[
+                "list-units",
+                "--type=service",
+                "--state=running",
+                "--no-legend",
+                "--no-pager",
+                "--plain",
+            ],
+        ) {
+            for line in out.lines().take(60) {
+                let unit = line.split_whitespace().next().unwrap_or("").trim();
+                if unit.is_empty() || !unit.ends_with(".service") {
+                    continue;
+                }
+                // Skip template instances with weird chars beyond our validator charset except @.
+                if unit
+                    .chars()
+                    .any(|c| !(c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '@'))
+                {
+                    continue;
+                }
+                let name = unit_base(unit);
+                let controllable = is_controllable(unit);
+                by_name.insert(
+                    name.clone(),
+                    GuestServiceUnit {
+                        name,
+                        status: "active".into(),
+                        detail: if controllable {
+                            format!("systemd · {unit} · controllable")
+                        } else {
+                            format!("systemd · {unit}")
+                        },
+                        controllable,
+                    },
+                );
+            }
+        }
+
+        // Ensure allowlisted units appear even when inactive.
+        for unit in CONTROLLABLE {
+            if validate_guest_service_unit(unit).is_err() {
+                continue;
+            }
+            let name = unit_base(unit);
+            if by_name.contains_key(&name) {
                 continue;
             }
             match guest_exec_systemctl(vm_name, &["is-active", unit]) {
                 Ok((code, status)) => {
-                    let st = if code == 0 && status.trim() == "active" {
-                        "active"
-                    } else if status.trim().is_empty() {
-                        "unknown"
-                    } else {
-                        status.trim()
-                    };
-                    // Skip units that don't exist (exit 4 typically).
+                    let st = status.trim();
                     if code == 4 || st == "not-found" || st.contains("could not be found") {
                         continue;
                     }
-                    out.push((
-                        unit.trim_end_matches(".service").to_string(),
-                        st.to_string(),
-                        format!("systemd · {unit}"),
-                    ));
+                    let active = code == 0 && st == "active";
+                    by_name.insert(
+                        name.clone(),
+                        GuestServiceUnit {
+                            name,
+                            status: if active {
+                                "active".into()
+                            } else if st.is_empty() {
+                                "unknown".into()
+                            } else {
+                                st.to_string()
+                            },
+                            detail: format!("systemd · {unit} · controllable"),
+                            controllable: true,
+                        },
+                    );
                 }
                 Err(_) => continue,
             }
         }
-        out
+
+        by_name.into_values().collect()
     }
 }
 
@@ -1112,18 +1366,16 @@ pub fn run_guest_agent_action(
                 })
             }
             "list_services" => {
-                let services = list_guest_service_units(name)
-                    .into_iter()
-                    .map(|(name, status, detail)| GuestServiceUnit {
-                        name,
-                        status,
-                        detail,
-                    })
-                    .collect::<Vec<_>>();
+                let services = list_guest_service_units(name);
+                let controllable_n = services.iter().filter(|s| s.controllable).count();
                 Ok(GuestAgentActionResult {
                     action: "list_services".into(),
                     ok: true,
-                    message: format!("{} controllable unit(s)", services.len()),
+                    message: format!(
+                        "{} unit(s) · {} controllable",
+                        services.len(),
+                        controllable_n
+                    ),
                     time: None,
                     fs_freeze: None,
                     fstrim: Vec::new(),

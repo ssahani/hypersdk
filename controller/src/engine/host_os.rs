@@ -463,7 +463,10 @@ pub async fn vm_guest_services(
                             .and_then(|d| d.as_str())
                             .unwrap_or("")
                             .into(),
-                        controllable: true,
+                        controllable: item
+                            .get("controllable")
+                            .and_then(|c| c.as_bool())
+                            .unwrap_or(false),
                     });
                 }
             }

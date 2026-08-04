@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Cloud, Loader2, RefreshCw } from 'lucide-react'
 import { getVmGuestObservability, type GuestObservabilitySnapshot } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
@@ -9,12 +9,18 @@ import { statusPillClasses } from '../../utils/semanticColors'
 type Props = {
   vmId: string
   className?: string
+  /** Prefill from guest health so the strip is not empty on first paint. */
+  initial?: GuestObservabilitySnapshot | null
 }
 
-export default function GuestObservabilityStrip({ vmId, className = '' }: Props) {
-  const [obs, setObs] = useState<GuestObservabilitySnapshot | null>(null)
+export default function GuestObservabilityStrip({ vmId, className = '', initial }: Props) {
+  const [obs, setObs] = useState<GuestObservabilitySnapshot | null>(initial ?? null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (initial) setObs(initial)
+  }, [initial])
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -24,11 +30,17 @@ export default function GuestObservabilityStrip({ vmId, className = '' }: Props)
       setObs(r as GuestObservabilitySnapshot)
     } catch (e: unknown) {
       setError(formatUserError(e))
-      setObs(null)
     } finally {
       setLoading(false)
     }
   }, [vmId])
+
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  const ipv4 =
+    obs?.ip_addresses?.filter((a) => a.ip_type !== 'ipv6' && !a.address.startsWith('127.')) ?? []
 
   return (
     <div className={`rounded-xl border border-white/[0.06] bg-slate-900/40 p-3 text-sm space-y-2 ${className}`}>
@@ -48,11 +60,26 @@ export default function GuestObservabilityStrip({ vmId, className = '' }: Props)
         </button>
       </div>
       {error && <p className="text-xs text-amber-300/90">{error}</p>}
+      {!obs && !error && loading && (
+        <p className="text-xs text-slate-500 flex items-center gap-2">
+          <Loader2 className="w-3 h-3 animate-spin" /> Pulling guest agent snapshot…
+        </p>
+      )}
       {!obs && !error && !loading && (
-        <p className="text-xs text-slate-500">Pull cloud-init status, filesystems, and sessions directly from the guest agent.</p>
+        <p className="text-xs text-slate-500">
+          Guest agent did not return observability data yet. Refresh after the agent is active.
+        </p>
       )}
       {obs && (
         <dl className="grid gap-2 text-xs sm:grid-cols-2">
+          {(obs.os_pretty_name || obs.os_kernel) && (
+            <div className="sm:col-span-2">
+              <dt className="text-slate-500">Guest OS</dt>
+              <dd className="text-slate-200">
+                {[obs.os_pretty_name, obs.os_kernel, obs.os_arch].filter(Boolean).join(' · ')}
+              </dd>
+            </div>
+          )}
           {obs.cloud_init_status && (
             <div>
               <dt className="text-slate-500">Cloud-init</dt>
@@ -63,6 +90,41 @@ export default function GuestObservabilityStrip({ vmId, className = '' }: Props)
             <div>
               <dt className="text-slate-500">Hostname</dt>
               <dd className="text-slate-200 font-mono">{obs.hostname}</dd>
+            </div>
+          )}
+          {obs.time && (
+            <div>
+              <dt className="text-slate-500">Clock skew</dt>
+              <dd className="text-slate-200 font-mono">
+                {Math.abs(obs.time.delta_ms) < 1000
+                  ? `${obs.time.delta_ms} ms`
+                  : `${(obs.time.delta_ms / 1000).toFixed(1)} s`}
+              </dd>
+            </div>
+          )}
+          {(obs.users?.length ?? 0) > 0 && (
+            <div className="sm:col-span-2">
+              <dt className="text-slate-500 mb-1">Sessions</dt>
+              <dd className="flex flex-wrap gap-1">
+                {obs.users!.slice(0, 8).map((u) => (
+                  <span key={`${u.username}-${u.login_time ?? ''}`} className={statusPillClasses('neutral')}>
+                    {u.username}
+                  </span>
+                ))}
+              </dd>
+            </div>
+          )}
+          {ipv4.length > 0 && (
+            <div className="sm:col-span-2">
+              <dt className="text-slate-500 mb-1">Internal IPs</dt>
+              <dd className="flex flex-wrap gap-1 font-mono text-slate-300">
+                {ipv4.slice(0, 6).map((a) => (
+                  <span key={`${a.name}-${a.address}`} className={statusPillClasses('neutral')}>
+                    {a.address}
+                    <span className="text-slate-500"> · {a.name}</span>
+                  </span>
+                ))}
+              </dd>
             </div>
           )}
           {(obs.filesystems?.length ?? 0) > 0 && (
@@ -78,6 +140,12 @@ export default function GuestObservabilityStrip({ vmId, className = '' }: Props)
                   )
                 })}
               </dd>
+            </div>
+          )}
+          {obs.fs_freeze?.frozen && (
+            <div className="sm:col-span-2">
+              <dt className="text-slate-500">Filesystem freeze</dt>
+              <dd className="text-amber-200/90">{obs.fs_freeze.detail}</dd>
             </div>
           )}
         </dl>

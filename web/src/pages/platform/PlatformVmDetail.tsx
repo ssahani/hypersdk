@@ -105,11 +105,7 @@ import { getVmGuestFirewallPorts, type GuestPortReport } from '../../api/zeusFir
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError, isPlatformNotFoundError } from '../../utils/apiError'
-import {
-  formatPlatformHostLabel,
-  isPlaceholderHostname,
-  isUsableHostAddress,
-} from '../../utils/fleetDisplayName'
+import { formatPlatformHostLabel } from '../../utils/fleetDisplayName'
 import { GUEST_TOAST_CHANNEL_ATTACH, qgaHealthy } from '../../utils/guestAgentUx'
 import { toastQueuedOperation } from '../../utils/platformTaskToast'
 import { purgeVmShortcuts } from '../../utils/vmShortcuts'
@@ -274,7 +270,8 @@ export default function PlatformVmDetail() {
   const [guestPorts, setGuestPorts] = useState<GuestPortReport | null>(null)
   const [guestPortsLoading, setGuestPortsLoading] = useState(false)
   const [guestHealth, setGuestHealth] = useState<VmGuestHealthReport | null>(null)
-  const [guestHealthLoading, setGuestHealthLoading] = useState(false)
+  // Start true so first Guest health paint shows "Testing…" instead of an empty placeholder.
+  const [guestHealthLoading, setGuestHealthLoading] = useState(true)
   const [guestHealthError, setGuestHealthError] = useState<string | null>(null)
   const [guestHealthRefreshedAt, setGuestHealthRefreshedAt] = useState<Date | null>(null)
   const [guestServices, setGuestServices] = useState<VmGuestServicesReport | null>(null)
@@ -399,6 +396,9 @@ export default function PlatformVmDetail() {
     setVm(null)
     setTopology(null)
     setMigrations([])
+    setGuestHealth(null)
+    setGuestHealthLoading(true)
+    setGuestHealthError(null)
     // Let the next VM auto-pick its own migration destination.
     destHostAutoSetRef.current = false
   }, [id])
@@ -581,8 +581,11 @@ export default function PlatformVmDetail() {
   }, [id])
 
   useEffect(() => {
-    if (id) void loadGuestHealth()
-  }, [id, loadGuestHealth])
+    if (!id) return
+    void loadGuestHealth()
+    // Prefetch services so the Guest services tab is warm on first open.
+    void loadGuestServices({ quiet: true })
+  }, [id, loadGuestHealth, loadGuestServices])
 
   useEffect(() => {
     if (!id || !vm || vm.observed_state !== 'running' || vm.inventory_source === 'kubevirt') return
@@ -774,9 +777,9 @@ export default function PlatformVmDetail() {
 
   const hostRow = hosts.find((h) => h.id === vm?.host_id)
   const hostLabel = hostRow
-    ? (isPlaceholderHostname(hostRow.hostname) && !isUsableHostAddress(hostRow.address)
-      ? `${hostRow.hostname} — update host enrollment`
-      : formatPlatformHostLabel(hostRow))
+    ? formatPlatformHostLabel(hostRow, {
+        fallbackAddress: typeof window !== 'undefined' ? window.location.hostname : undefined,
+      })
     : 'No host'
 
   const resolvedGuestIp =
@@ -1797,6 +1800,7 @@ export default function PlatformVmDetail() {
               <MacGlassPanel title="Guest OS health" subtitle="Live QGA · GuestKit offline disk · cloud-init">
                 <GuestAgentDiagnosticsPanel
                   vmId={id!}
+                  vmName={vm.name}
                   loading={guestHealthLoading}
                   report={guestHealth}
                   error={guestHealthError}
@@ -1813,8 +1817,15 @@ export default function PlatformVmDetail() {
                   }
                   installing={guestInstalling}
                   onRunAction={runGuestAction}
+                  portForwardRules={portForwardRules}
+                  hypervisorAddress={hypervisorAddress}
+                  onPortForwardRefresh={() => void loadPortForwards()}
                 />
-                <GuestObservabilityStrip vmId={id!} className="mt-4" />
+                <GuestObservabilityStrip
+                  vmId={id!}
+                  className="mt-4"
+                  initial={guestHealth?.guest_observability}
+                />
                 <GuestFsFreezeBanner vmId={id!} className="mt-3" />
                 <div className="mt-4">
                   <GuestkitOfflineAssurancePanel
