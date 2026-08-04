@@ -7,7 +7,7 @@ UNITDIR ?= /usr/lib/systemd/system
 CARGO ?= cargo
 CARGO_FLAGS ?=
 
-.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-ops regression-lifecycle regression-platform regression-infra regression-fleet regression-mission regression-catalog regression-hardware regression-host regression-storage regression-zeus regression-audit regression-volume regression-disk regression-power regression-net regression-guest regression-parity regression-admin regression-ai regression-operations regression-resize regression-planner regression-alerts regression-enterprise regression-apps regression-policy regression-diag regression-obs regression-security regression-provision regression-providers regression-hub regression-hunt regression-atlas regression-guestkit regression-batch regression-aiops regression-watchdog regression-linuxhost regression-firewallx regression-authz regression-ui regression-ui-settings regression-ui-wizards regression-ui-security regression-ui-k8s-os regression-ui-mission regression-ui-catalog regression-ui-hardware regression-ui-host regression-ui-storage regression-ui-zeus regression-ui-audit regression-ui-volume regression-ui-power regression-ui-net regression-ui-guest regression-ui-parity regression-ui-admin regression-ui-ai regression-ui-operations regression-ui-resize regression-ui-planner regression-ui-alerts regression-ui-enterprise regression-ui-apps regression-ui-policy regression-ui-diag regression-ui-obs regression-ui-fabric regression-ui-provision regression-ui-providers regression-ui-hub regression-ui-hunt regression-ui-atlas regression-ui-guestkit regression-ui-batch regression-ui-aiops regression-ui-watchdog regression-ui-linuxhost regression-ui-firewallx regression-ui-authz regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
+.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-ops regression-lifecycle regression-platform regression-infra regression-fleet regression-mission regression-catalog regression-hardware regression-host regression-storage regression-zeus regression-audit regression-volume regression-disk regression-power regression-net regression-guest regression-parity regression-admin regression-ai regression-operations regression-resize regression-planner regression-alerts regression-enterprise regression-apps regression-policy regression-diag regression-obs regression-security regression-provision regression-providers regression-hub regression-hunt regression-atlas regression-guestkit regression-batch regression-aiops regression-watchdog regression-linuxhost regression-firewallx regression-authz regression-fleetx regression-ui regression-ui-settings regression-ui-wizards regression-ui-security regression-ui-k8s-os regression-ui-mission regression-ui-catalog regression-ui-hardware regression-ui-host regression-ui-storage regression-ui-zeus regression-ui-audit regression-ui-volume regression-ui-power regression-ui-net regression-ui-guest regression-ui-parity regression-ui-admin regression-ui-ai regression-ui-operations regression-ui-resize regression-ui-planner regression-ui-alerts regression-ui-enterprise regression-ui-apps regression-ui-policy regression-ui-diag regression-ui-obs regression-ui-fabric regression-ui-provision regression-ui-providers regression-ui-hub regression-ui-hunt regression-ui-atlas regression-ui-guestkit regression-ui-batch regression-ui-aiops regression-ui-watchdog regression-ui-linuxhost regression-ui-firewallx regression-ui-authz regression-ui-fleetx regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
 
 all: release web ## Build everything (Rust + web)
 
@@ -175,6 +175,9 @@ regression-firewallx: ## Live deep Zeus firewall reads + dry-run
 regression-authz: ## Live OIDC/MFA/api-keys/enroll edges
 	cd scripts/regression && npm install --silent && node ops-authz.js
 
+regression-fleetx: ## Live fleet hubs + storage/network discover smoke
+	cd scripts/regression && npm install --silent && node ops-fleetx.js
+
 regression-ui: ## Live CDP UI (Pause/Resume, platform tabs; needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-interactive.js
 
@@ -297,6 +300,9 @@ regression-ui-firewallx: ## Live CDP firewall deep shells (needs Chrome :9222)
 
 regression-ui-authz: ## Live CDP enterprise/auth shells (needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-authz.js
+
+regression-ui-fleetx: ## Live CDP fleet hubs/finder shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-fleetx.js
 
 regression-pages: ## Live CDP page sweep (needs Chrome :9222; LOOPS=N; see scripts/regression/README.md)
 	cd scripts/regression && npm install --silent && node page-sweep.js --loops $(LOOPS)

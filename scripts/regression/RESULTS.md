@@ -3,6 +3,17 @@
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
 
+## 2026-08-04 fleet hubs + live discover (fleetx)
+
+| Item | Result |
+|------|--------|
+| `ops-fleetx.js` | **21/21 PASS** — fleet general/shortcuts/users/network/storage/console/updates/spaces/dna/mission/linux-health/finder/keychain, storage+networks live/discover, AI fleet summary/local, launchpad unavailable soft |
+| `ui-fleetx.js` | **10/10 PASS** — finder / datacenter / storage / networks / network-canvas / fleet-snapshots / gpu / activity / topology / launchpad |
+
+```bash
+npm run fleetx && npm run ui-fleetx
+```
+
 ## 2026-08-04 gap queue (atlas → authz)
 
 | Item | Result |
