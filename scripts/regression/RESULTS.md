@@ -3,6 +3,17 @@
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
 
+## 2026-08-04 eventx (events/tasks/audit filters + deliver)
+
+| Item | Result |
+|------|--------|
+| `ops-eventx.js` | **26/26 PASS** — events kind/vm filters, tasks operation/failed/get + missing 404, audit action/resource_type, notifications kind+deliver, webhook deliveries + retry negative, api-keys schema, zeus timeline/enforcement/compliance, AI routing rules, MFA policies, SOC integrations + test negative, storage activate/deactivate negatives, network segments + graphics schema negatives, guestkit job soft 503 |
+| `ui-eventx.js` | **10/10 PASS** — events / tasks / notifications / webhooks / activity / api-keys / soc / marketplace / users / content |
+
+```bash
+npm run eventx && npm run ui-eventx
+```
+
 ## 2026-08-04 devhub (developer / operations / templates / policy)
 
 | Item | Result |
