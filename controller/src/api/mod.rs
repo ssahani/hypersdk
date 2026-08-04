@@ -194,6 +194,14 @@ pub fn router(state: AppState) -> Router {
             get(host_os::vm_guest_observability),
         )
         .route("/api/v1/vms/{id}/guest/services", get(host_os::vm_guest_services))
+        .route(
+            "/api/v1/vms/{id}/guest/services/{unit}/{action}",
+            post(host_os::vm_guest_service_action),
+        )
+        .route(
+            "/api/v1/vms/{id}/guest/network",
+            get(host_os::vm_guest_network_get).post(host_os::vm_guest_network_apply),
+        )
         .route("/api/v1/vms/{id}/guest/sync-time", post(host_os::vm_guest_sync_time))
         .route("/api/v1/vms/{id}/guest/fstrim", post(host_os::vm_guest_fstrim))
         .route(

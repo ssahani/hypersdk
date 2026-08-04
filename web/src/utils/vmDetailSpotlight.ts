@@ -4,7 +4,7 @@ import type { VmDoctorReport } from '../api/ai'
 import type { VmGuestHealthReport, VmPendingConfig } from '../api/platform'
 import { qgaHealthy } from './guestAgentUx'
 import type { GuestAccessHints } from './guestAccessHints'
-import { sshNatHostPort, type NatRuleLike } from './vmPortForwardServices'
+import type { NatRuleLike } from './vmPortForwardServices'
 
 export type VmDetailBlocker =
   | 'pending_config'
@@ -33,14 +33,8 @@ export function vmDetailBlockers(input: {
   ) {
     blockers.push('guest_ip_missing')
   }
-  if (
-    input.observedState === 'running'
-    && input.guestAccess?.guest_ip_private
-    && input.guestIp?.trim()
-    && !sshNatHostPort(input.portForwardRules ?? [])
-  ) {
-    blockers.push('ssh_not_exposed')
-  }
+  // SSH NAT exposure is Access-tab setup, not a hard VM fault — omit from the
+  // yellow "N blockers" badge (still surfaced in Access / connect hub).
   return blockers
 }
 

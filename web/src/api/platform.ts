@@ -1046,13 +1046,52 @@ export type GuestAgentActionResult = {
   time?: GuestObservabilitySnapshot['time']
   fs_freeze?: GuestObservabilitySnapshot['fs_freeze']
   fstrim?: Array<{ mountpoint: string; trimmed_bytes: number; error: string }>
+  services?: Array<{ name: string; status: string; detail: string }>
+  network?: GuestNetworkConfig
 }
+
+export type GuestNetworkInterface = {
+  name: string
+  mac?: string | null
+  addresses: string[]
+}
+
+export type GuestNetworkConfig = {
+  interfaces: GuestNetworkInterface[]
+  routes: string[]
+  default_gateway?: string | null
+  /** Detected stack: networkmanager | systemd-networkd | netplan | wicked | iproute2 */
+  backend?: string
+  backend_detail?: string
+}
+
+export type GuestNetworkApplyRequest = {
+  iface: string
+  address_cidr: string
+  gateway?: string
+  replace?: boolean
+}
+
+export const getGuestNetwork = (vmId: string) =>
+  platformFetch<GuestNetworkConfig>(`/api/v1/vms/${vmId}/guest/network`)
+
+export const applyGuestNetwork = (vmId: string, body: GuestNetworkApplyRequest) =>
+  platformFetch<GuestAgentActionResult>(`/api/v1/vms/${vmId}/guest/network`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 
 export const guestSyncTime = (vmId: string) =>
   platformFetch<GuestAgentActionResult>(`/api/v1/vms/${vmId}/guest/sync-time`, { method: 'POST' })
 
 export const guestFstrim = (vmId: string) =>
   platformFetch<GuestAgentActionResult>(`/api/v1/vms/${vmId}/guest/fstrim`, { method: 'POST' })
+
+export const guestServiceAction = (vmId: string, unit: string, action: 'start' | 'stop' | 'restart') =>
+  platformFetch<GuestAgentActionResult>(
+    `/api/v1/vms/${vmId}/guest/services/${encodeURIComponent(unit)}/${action}`,
+    { method: 'POST' },
+  )
 
 export const getGuestFsFreezeStatus = (vmId: string) =>
   platformFetch<GuestAgentActionResult>(`/api/v1/vms/${vmId}/guest/fs-freeze-status`)
@@ -1101,7 +1140,7 @@ export type VmGuestServicesReport = {
   vm_id: string
   vm_name: string
   agent_reachable: boolean
-  services: Array<{ name: string; status: string; detail: string }>
+  services: Array<{ name: string; status: string; detail: string; controllable?: boolean }>
   summary: string
 }
 

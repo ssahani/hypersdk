@@ -200,6 +200,59 @@ pub async fn vm_guest_services(
         .map_err(ApiError::from_upstream)
 }
 
+pub async fn vm_guest_service_action(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path((id, unit, action)): Path<(Uuid, String, String)>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    host_os::vm_guest_service_action(&state.pool, &state.config, id, &unit, &action)
+        .await
+        .map(Json)
+        .map_err(ApiError::from_upstream)
+}
+
+pub async fn vm_guest_network_get(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    host_os::vm_guest_network_get(&state.pool, &state.config, id)
+        .await
+        .map(Json)
+        .map_err(ApiError::from_upstream)
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct GuestNetworkApplyBody {
+    pub iface: String,
+    pub address_cidr: String,
+    #[serde(default)]
+    pub gateway: Option<String>,
+    #[serde(default)]
+    pub replace: bool,
+}
+
+pub async fn vm_guest_network_apply(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<GuestNetworkApplyBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    let req = serde_json::json!({
+        "iface": body.iface,
+        "address_cidr": body.address_cidr,
+        "gateway": body.gateway,
+        "replace": body.replace,
+    });
+    host_os::vm_guest_network_apply(&state.pool, &state.config, id, &req)
+        .await
+        .map(Json)
+        .map_err(ApiError::from_upstream)
+}
+
 pub async fn vm_guest_sync_time(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,

@@ -86,6 +86,7 @@ import {
   type VmHealthReport,
   getVmGuestHealth,
   getVmGuestServices,
+  guestServiceAction,
   diagnoseVm,
   getVmTopology,
   getConsoleHubPlan,
@@ -280,6 +281,7 @@ export default function PlatformVmDetail() {
   const [guestServicesError, setGuestServicesError] = useState<string | null>(null)
   const [topology, setTopology] = useState<TopologyGraph | null>(null)
   const [guestServicesLoading, setGuestServicesLoading] = useState(false)
+  const [guestServiceBusy, setGuestServiceBusy] = useState<string | null>(null)
   const [vmDiagnose, setVmDiagnose] = useState<VmOsDiagnoseReport | null>(null)
   const [vmDiagnoseLoading, setVmDiagnoseLoading] = useState(false)
   const [migrations, setMigrations] = useState<VmMigrationRecord[]>([])
@@ -484,9 +486,9 @@ export default function PlatformVmDetail() {
     }
   }, [id])
 
-  const loadGuestHealth = useCallback(async () => {
+  const loadGuestHealth = useCallback(async (opts?: { quiet?: boolean }) => {
     if (!id) return
-    setGuestHealthLoading(true)
+    if (!opts?.quiet) setGuestHealthLoading(true)
     setGuestHealthError(null)
     try {
       const gh = await getVmGuestHealth(id)
@@ -499,16 +501,17 @@ export default function PlatformVmDetail() {
         setContextSummary(chip || null)
       }
     } catch (e: unknown) {
-      setGuestHealth(null)
+      if (!opts?.quiet) setGuestHealth(null)
       setGuestHealthError(formatUserError(e))
     } finally {
       setGuestHealthLoading(false)
     }
   }, [id])
 
-  const loadGuestServices = useCallback(async () => {
+  const loadGuestServices = useCallback(async (opts?: { quiet?: boolean }) => {
     if (!id) return
-    setGuestServicesLoading(true)
+    // Keep existing rows visible while refreshing after start/stop (avoids "Loading…" flash in UX/demo).
+    if (!opts?.quiet) setGuestServicesLoading(true)
     setGuestServicesError(null)
     try {
       setGuestServices(await getVmGuestServices(id))
@@ -519,6 +522,24 @@ export default function PlatformVmDetail() {
       setGuestServicesLoading(false)
     }
   }, [id])
+
+  const runGuestServiceAction = useCallback(
+    async (unit: string, action: 'start' | 'stop' | 'restart') => {
+      if (!id) return
+      const key = `${unit}:${action}`
+      setGuestServiceBusy(key)
+      try {
+        const r = await guestServiceAction(id, unit, action)
+        toast.success(r.message || `${action} ${unit}`)
+      } catch (e: unknown) {
+        toast.error(formatUserError(e))
+      } finally {
+        setGuestServiceBusy(null)
+      }
+      void loadGuestServices({ quiet: true })
+    },
+    [id, loadGuestServices, toast],
+  )
 
   const queueGuestToolsInstall = useCallback(async () => {
     if (!id) return
@@ -539,7 +560,7 @@ export default function PlatformVmDetail() {
       try {
         await fn()
         toast.success(success)
-        await loadGuestHealth()
+        await loadGuestHealth({ quiet: true })
       } catch (e: unknown) {
         toast.error(formatUserError(e))
       }
@@ -1781,7 +1802,7 @@ export default function PlatformVmDetail() {
                   error={guestHealthError}
                   vmState={vm.observed_state}
                   lastRefreshedAt={guestHealthRefreshedAt}
-                  onRefresh={() => void loadGuestHealth()}
+                  onRefresh={() => void loadGuestHealth({ quiet: Boolean(guestHealth) })}
                   onStartVm={
                     vm.observed_state === 'stopped' || vm.observed_state === 'shut off' || vm.observed_state === 'shutoff'
                       ? () => void act('Start queued', () => vmPower(id, 'start'))
@@ -1824,7 +1845,7 @@ export default function PlatformVmDetail() {
 
           {tab === 'guestServices' && (
             <div className="space-y-4 pt-2">
-              <MacGlassPanel title="Guest services" subtitle="Agent + listening process inventory (v1)">
+              <MacGlassPanel title="Guest services" subtitle="Live guestkit-agent inventory · start/stop controllable units">
                 {guestServicesLoading && (
                   <p className="text-sm text-slate-500 flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" /> Loading guest services…
@@ -1840,7 +1861,10 @@ export default function PlatformVmDetail() {
                 )}
                 {!guestServicesLoading && !guestServicesError && guestServices && (
                   <>
-                    <p className="text-xs text-slate-500 mb-3">{guestServices.summary}</p>
+                    <p className="text-xs text-slate-500 mb-3">
+                      {guestServices.summary}
+                      {!guestServices.agent_reachable ? ' · Guest agent unreachable' : ''}
+                    </p>
                     {(guestServices.services ?? []).length === 0 ? (
                       <PlatformEmptyState
                         icon={Server}
@@ -1849,7 +1873,50 @@ export default function PlatformVmDetail() {
                       />
                     ) : (
                       (guestServices.services ?? []).map((s, i) => (
-                        <MacListRow key={`${s.name}-${i}`} title={s.name} subtitle={`${s.status} · ${s.detail}`} />
+                        <MacListRow
+                          key={`${s.name}-${i}`}
+                          title={s.name}
+                          subtitle={`${s.status} · ${s.detail}`}
+                          trailing={
+                            s.controllable ? (
+                              <div className="flex gap-1">
+                                <button
+                                  type="button"
+                                  className="btn-secondary text-[10px] px-2 py-0.5"
+                                  disabled={!!guestServiceBusy}
+                                  onClick={() => void runGuestServiceAction(s.name, 'start')}
+                                >
+                                  {guestServiceBusy === `${s.name}:start` ? (
+                                    <Loader2 className="w-3 h-3 animate-spin inline" />
+                                  ) : null}
+                                  Start
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-secondary text-[10px] px-2 py-0.5"
+                                  disabled={!!guestServiceBusy}
+                                  onClick={() => void runGuestServiceAction(s.name, 'stop')}
+                                >
+                                  {guestServiceBusy === `${s.name}:stop` ? (
+                                    <Loader2 className="w-3 h-3 animate-spin inline" />
+                                  ) : null}
+                                  Stop
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-secondary text-[10px] px-2 py-0.5"
+                                  disabled={!!guestServiceBusy}
+                                  onClick={() => void runGuestServiceAction(s.name, 'restart')}
+                                >
+                                  {guestServiceBusy === `${s.name}:restart` ? (
+                                    <Loader2 className="w-3 h-3 animate-spin inline" />
+                                  ) : null}
+                                  Restart
+                                </button>
+                              </div>
+                            ) : undefined
+                          }
+                        />
                       ))
                     )}
                   </>

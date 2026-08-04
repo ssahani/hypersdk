@@ -44,6 +44,13 @@ pub struct GuestFstrimResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuestServiceUnit {
+    pub name: String,
+    pub status: String,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GuestAgentActionResult {
     pub action: String,
     pub ok: bool,
@@ -54,6 +61,10 @@ pub struct GuestAgentActionResult {
     pub fs_freeze: Option<FsFreezeStatus>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fstrim: Vec<GuestFstrimResult>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub services: Vec<GuestServiceUnit>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub network: Option<GuestNetworkConfig>,
 }
 
 pub fn get_guest_users(vm_name: &str) -> Vec<GuestUserSession> {
@@ -124,14 +135,42 @@ pub fn sync_guest_time_to_host(conn: &Connect, name: &str) -> Result<GuestTimeIn
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| LibvirtError::Internal(e.to_string()))?;
-    domain
-        .set_time(
-            now.as_secs() as i64,
-            now.subsec_nanos() as i32,
-            sys::VIR_DOMAIN_TIME_SYNC,
-        )
-        .map_err(|e| LibvirtError::Operation(format!("guest set_time: {e}")))?;
-    get_guest_time_info(conn, name)
+    let qga = domain.set_time(
+        now.as_secs() as i64,
+        now.subsec_nanos() as i32,
+        sys::VIR_DOMAIN_TIME_SYNC,
+    );
+    if let Err(e) = qga {
+        // guestkit / some QGA builds reject guest-set-time ("missing time"). Fall
+        // back to guest-exec date -s so Sync still works from the UX.
+        #[cfg(target_os = "linux")]
+        {
+            let secs = now.as_secs();
+            let (code, _out, err) = guest_exec_command(
+                name,
+                "/bin/date",
+                &["-u", "-s", &format!("@{secs}")],
+            )?;
+            if code != 0 {
+                return Err(LibvirtError::Operation(format!(
+                    "guest set_time failed ({e}); date -s fallback failed: {err}"
+                )));
+            }
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            return Err(LibvirtError::Operation(format!("guest set_time: {e}")));
+        }
+    }
+    get_guest_time_info(conn, name).or_else(|_| {
+        // get_time may also be incomplete; synthesize from host after successful set.
+        let host_now = Utc::now();
+        Ok(GuestTimeInfo {
+            guest_time_rfc3339: host_now.to_rfc3339(),
+            host_time_rfc3339: host_now.to_rfc3339(),
+            delta_ms: 0,
+        })
+    })
 }
 
 pub fn get_fs_freeze_status(vm_name: &str) -> FsFreezeStatus {
@@ -215,6 +254,788 @@ pub fn run_guest_fstrim(vm_name: &str) -> Result<Vec<GuestFstrimResult>, Libvirt
     }
 }
 
+/// Validate a systemd unit name for guest-exec systemctl actions.
+pub fn validate_guest_service_unit(unit: &str) -> Result<String, LibvirtError> {
+    let u = unit.trim();
+    if u.is_empty() || u.len() > 128 {
+        return Err(LibvirtError::Invalid("invalid guest service unit name".into()));
+    }
+    if !u
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '@')
+        || u.starts_with('-')
+        || u.starts_with('.')
+    {
+        return Err(LibvirtError::Invalid(format!(
+            "invalid guest service unit name: {u}"
+        )));
+    }
+    let base = u.strip_suffix(".service").unwrap_or(u).to_ascii_lowercase();
+    const BLOCKED: &[&str] = &[
+        "sshd",
+        "ssh",
+        "networking",
+        "network",
+        "systemd-networkd",
+        "NetworkManager",
+        "networkmanager",
+        "dbus",
+        "systemd",
+        "guestkit-agent",
+        "zyvor-guest-agent",
+        "qemu-guest-agent",
+    ];
+    if BLOCKED.iter().any(|b| base.eq_ignore_ascii_case(b)) {
+        return Err(LibvirtError::Invalid(format!(
+            "refusing to control protected guest unit: {u}"
+        )));
+    }
+    let normalized = if u.ends_with(".service") {
+        u.to_string()
+    } else {
+        format!("{u}.service")
+    };
+    Ok(normalized)
+}
+
+#[cfg(target_os = "linux")]
+fn guest_exec_command(
+    vm_name: &str,
+    path: &str,
+    args: &[&str],
+) -> Result<(i32, String, String), LibvirtError> {
+    use super::guest_agent::qemu_agent_command;
+    use base64::Engine;
+
+    if !vm_name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
+        || vm_name.is_empty()
+        || vm_name.starts_with('-')
+    {
+        return Err(LibvirtError::Invalid("invalid VM name".into()));
+    }
+    if path.is_empty() || !path.starts_with('/') {
+        return Err(LibvirtError::Invalid("guest-exec path must be absolute".into()));
+    }
+    let exec_json = serde_json::json!({
+        "execute": "guest-exec",
+        "arguments": {
+            "path": path,
+            "arg": args,
+            "capture-output": true,
+        }
+    })
+    .to_string();
+    let v = qemu_agent_command(vm_name, &exec_json).ok_or_else(|| {
+        LibvirtError::Operation("guest-exec failed — is guestkit-agent running?".into())
+    })?;
+    let pid = v
+        .get("return")
+        .and_then(|r| r.get("pid"))
+        .and_then(|p| p.as_u64())
+        .ok_or_else(|| LibvirtError::Operation("guest-exec returned no pid".into()))?;
+    let mut last = None;
+    for _ in 0..40 {
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        let status_json =
+            format!(r#"{{"execute":"guest-exec-status","arguments":{{"pid":{pid}}}}}"#);
+        let st = qemu_agent_command(vm_name, &status_json)
+            .ok_or_else(|| LibvirtError::Operation("guest-exec-status failed".into()))?;
+        let ret = st.get("return").cloned().unwrap_or(st);
+        if ret.get("exited").and_then(|x| x.as_bool()).unwrap_or(false) {
+            last = Some(ret);
+            break;
+        }
+    }
+    let ret = last.ok_or_else(|| LibvirtError::Operation("guest-exec timed out".into()))?;
+    let code = ret.get("exitcode").and_then(|c| c.as_i64()).unwrap_or(-1) as i32;
+    let decode = |key: &str| -> String {
+        ret.get(key)
+            .and_then(|d| d.as_str())
+            .and_then(|b64| {
+                base64::engine::general_purpose::STANDARD
+                    .decode(b64.trim())
+                    .ok()
+            })
+            .map(|b| String::from_utf8_lossy(&b).trim().to_string())
+            .unwrap_or_default()
+    };
+    Ok((code, decode("out-data"), decode("err-data")))
+}
+
+#[cfg(target_os = "linux")]
+fn guest_exec_systemctl(
+    vm_name: &str,
+    args: &[&str],
+) -> Result<(i32, String), LibvirtError> {
+    let systemctl = guest_find_bin(vm_name, &["systemctl"])
+        .unwrap_or_else(|| "/usr/bin/systemctl".into());
+    let (code, out, _err) = guest_exec_command(vm_name, &systemctl, args)?;
+    Ok((code, out))
+}
+
+fn validate_iface(iface: &str) -> Result<String, LibvirtError> {
+    let i = iface.trim();
+    if i.is_empty()
+        || i.len() > 32
+        || !i
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+        || i.starts_with('-')
+        || i == "lo"
+    {
+        return Err(LibvirtError::Invalid(format!("invalid interface: {iface}")));
+    }
+    Ok(i.to_string())
+}
+
+fn validate_cidr(cidr: &str) -> Result<String, LibvirtError> {
+    let c = cidr.trim();
+    // Minimal: a.b.c.d/nn
+    let (ip, prefix) = c
+        .split_once('/')
+        .ok_or_else(|| LibvirtError::Invalid("address must be CIDR (e.g. 192.168.122.50/24)".into()))?;
+    let pref: u8 = prefix
+        .parse()
+        .map_err(|_| LibvirtError::Invalid("invalid CIDR prefix".into()))?;
+    if pref > 32 {
+        return Err(LibvirtError::Invalid("CIDR prefix must be 0-32".into()));
+    }
+    let parts: Vec<_> = ip.split('.').collect();
+    if parts.len() != 4
+        || parts.iter().any(|p| p.parse::<u8>().is_err())
+    {
+        return Err(LibvirtError::Invalid("invalid IPv4 address".into()));
+    }
+    Ok(format!("{ip}/{pref}"))
+}
+
+fn validate_ipv4(ip: &str) -> Result<String, LibvirtError> {
+    let i = ip.trim();
+    let parts: Vec<_> = i.split('.').collect();
+    if parts.len() != 4 || parts.iter().any(|p| p.parse::<u8>().is_err()) {
+        return Err(LibvirtError::Invalid(format!("invalid IPv4: {ip}")));
+    }
+    Ok(i.to_string())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuestNetworkInterface {
+    pub name: String,
+    pub mac: Option<String>,
+    pub addresses: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuestNetworkConfig {
+    pub interfaces: Vec<GuestNetworkInterface>,
+    pub routes: Vec<String>,
+    pub default_gateway: Option<String>,
+    /// Detected guest stack: `networkmanager` | `systemd-networkd` | `netplan` | `wicked` | `iproute2` | `unknown`
+    #[serde(default)]
+    pub backend: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub backend_detail: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuestNetworkApplyRequest {
+    pub iface: String,
+    /// IPv4 CIDR e.g. 192.168.122.50/24
+    pub address_cidr: String,
+    #[serde(default)]
+    pub gateway: Option<String>,
+    /// When true, replace existing IPv4 config on the iface (flush / method=manual overwrite).
+    #[serde(default)]
+    pub replace: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GuestNetBackend {
+    NetworkManager,
+    SystemdNetworkd,
+    Netplan,
+    Wicked,
+    Iproute2,
+}
+
+impl GuestNetBackend {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::NetworkManager => "networkmanager",
+            Self::SystemdNetworkd => "systemd-networkd",
+            Self::Netplan => "netplan",
+            Self::Wicked => "wicked",
+            Self::Iproute2 => "iproute2",
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn guest_bin_exists(vm_name: &str, path: &str) -> bool {
+    guest_exec_command(vm_name, "/bin/test", &["-x", path])
+        .map(|(c, _, _)| c == 0)
+        .unwrap_or(false)
+}
+
+#[cfg(target_os = "linux")]
+fn guest_find_bin(vm_name: &str, names: &[&str]) -> Option<String> {
+    let prefixes = ["/usr/sbin", "/sbin", "/usr/bin", "/bin"];
+    for name in names {
+        for pref in prefixes {
+            let p = format!("{pref}/{name}");
+            if guest_bin_exists(vm_name, &p) {
+                return Some(p);
+            }
+        }
+    }
+    None
+}
+
+/// Prefer the stack that actually owns guest networking on this distro.
+#[cfg(target_os = "linux")]
+fn detect_guest_net_backend(vm_name: &str) -> (GuestNetBackend, String) {
+    // Single guest-exec probe — avoids N round-trips for systemctl/which.
+    // No `set -e`: failed is-active checks must not abort before we print a tag.
+    let probe = r#"
+PATH=/usr/sbin:/sbin:/usr/bin:/bin:$PATH
+has() { command -v "$1" >/dev/null 2>&1; }
+active() {
+  local u="$1"
+  systemctl is-active --quiet "$u" 2>/dev/null && return 0
+  /bin/systemctl is-active --quiet "$u" 2>/dev/null && return 0
+  /usr/bin/systemctl is-active --quiet "$u" 2>/dev/null && return 0
+  return 1
+}
+if active NetworkManager || active NetworkManager.service; then
+  if has nmcli; then echo NM; exit 0; fi
+fi
+NP=0; has netplan && NP=1
+ND=0
+if active systemd-networkd || active systemd-networkd.service; then ND=1; fi
+if [ "$NP" = 1 ] && [ "$ND" = 1 ]; then echo NETPLAN; exit 0; fi
+if [ "$ND" = 1 ]; then echo NETWORKD; exit 0; fi
+if [ "$NP" = 1 ]; then echo NETPLAN; exit 0; fi
+if active wicked || active wickedd || has wicked; then echo WICKED; exit 0; fi
+if has ip; then echo IP; exit 0; fi
+echo IP
+"#;
+    let (code, out, _err) = guest_exec_command(vm_name, "/bin/sh", &["-c", probe])
+        .unwrap_or((1, String::new(), String::new()));
+    let tag = if code == 0 {
+        out.lines().next().unwrap_or("IP").trim()
+    } else {
+        "IP"
+    };
+    match tag {
+        "NM" => (
+            GuestNetBackend::NetworkManager,
+            "NetworkManager is active (nmcli)".into(),
+        ),
+        "NETWORKD" => (
+            GuestNetBackend::SystemdNetworkd,
+            "systemd-networkd is active".into(),
+        ),
+        "NETPLAN" => (
+            GuestNetBackend::Netplan,
+            "netplan detected".into(),
+        ),
+        "WICKED" => (
+            GuestNetBackend::Wicked,
+            "wicked network service detected".into(),
+        ),
+        _ => (
+            GuestNetBackend::Iproute2,
+            "no NM/networkd/netplan/wicked — using iproute2".into(),
+        ),
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn guest_ip_bin(vm_name: &str) -> String {
+    guest_find_bin(vm_name, &["ip"]).unwrap_or_else(|| "/sbin/ip".into())
+}
+
+#[cfg(target_os = "linux")]
+fn apply_via_networkmanager(
+    vm_name: &str,
+    iface: &str,
+    cidr: &str,
+    gw: Option<&str>,
+) -> Result<String, LibvirtError> {
+    let nmcli = guest_find_bin(vm_name, &["nmcli"]).ok_or_else(|| {
+        LibvirtError::Operation("nmcli not found in guest".into())
+    })?;
+    // Resolve active connection for this device.
+    let (code, out, err) = guest_exec_command(
+        vm_name,
+        &nmcli,
+        &["-t", "-f", "NAME,DEVICE", "connection", "show", "--active"],
+    )?;
+    if code != 0 {
+        return Err(LibvirtError::Operation(format!("nmcli con show failed: {err}")));
+    }
+    let mut con = out
+        .lines()
+        .filter_map(|l| {
+            let (name, dev) = l.split_once(':')?;
+            if dev == iface {
+                Some(name.to_string())
+            } else {
+                None
+            }
+        })
+        .next();
+    if con.is_none() {
+        // Create a dedicated connection profile for this NIC.
+        let name = format!("machina-{iface}");
+        let (c, _, e) = guest_exec_command(
+            vm_name,
+            &nmcli,
+            &[
+                "connection",
+                "add",
+                "type",
+                "ethernet",
+                "ifname",
+                iface,
+                "con-name",
+                &name,
+            ],
+        )?;
+        if c != 0 {
+            return Err(LibvirtError::Operation(format!(
+                "nmcli connection add failed: {e}"
+            )));
+        }
+        con = Some(name);
+    }
+    let con = con.unwrap();
+    let mut args = vec![
+        "connection".into(),
+        "modify".into(),
+        con.clone(),
+        "ipv4.method".into(),
+        "manual".into(),
+        "ipv4.addresses".into(),
+        cidr.to_string(),
+    ];
+    if let Some(g) = gw {
+        args.push("ipv4.gateway".into());
+        args.push(g.to_string());
+    } else {
+        args.push("ipv4.gateway".into());
+        args.push("".into());
+    }
+    let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    let (c, _, e) = guest_exec_command(vm_name, &nmcli, &arg_refs)?;
+    if c != 0 {
+        return Err(LibvirtError::Operation(format!(
+            "nmcli connection modify failed: {e}"
+        )));
+    }
+    let (c, _, e) = guest_exec_command(vm_name, &nmcli, &["connection", "up", &con])?;
+    if c != 0 {
+        // device reapply is a softer fallback
+        let (c2, _, e2) = guest_exec_command(vm_name, &nmcli, &["device", "reapply", iface])?;
+        if c2 != 0 {
+            return Err(LibvirtError::Operation(format!(
+                "nmcli connection up failed: {e}; reapply: {e2}"
+            )));
+        }
+    }
+    Ok(format!("NetworkManager profile `{con}`"))
+}
+
+#[cfg(target_os = "linux")]
+fn apply_via_systemd_networkd(
+    vm_name: &str,
+    iface: &str,
+    cidr: &str,
+    gw: Option<&str>,
+) -> Result<String, LibvirtError> {
+    // Drop a runtime .network under /run so we don't fight package-managed /etc units permanently.
+    let gw_line = gw
+        .map(|g| format!("Gateway={g}\n"))
+        .unwrap_or_default();
+    let body = format!(
+        "[Match]\nName={iface}\n\n[Network]\nDHCP=no\nAddress={cidr}\n{gw_line}"
+    );
+    // Escape for single-quoted sh -c: only need to bar single quotes.
+    let body_escaped = body.replace('\'', "'\\''");
+    let path = format!("/run/systemd/network/10-machina-{iface}.network");
+    let script = format!(
+        "mkdir -p /run/systemd/network && printf '%s' '{body_escaped}' > '{path}' && \
+         networkctl reload && networkctl reconfigure '{iface}'",
+    );
+    let (c, out, err) = guest_exec_command(vm_name, "/bin/sh", &["-c", &script])?;
+    if c != 0 {
+        return Err(LibvirtError::Operation(format!(
+            "systemd-networkd apply failed (exit {c}): {err} {out}"
+        )));
+    }
+    Ok(format!("systemd-networkd runtime unit {path}"))
+}
+
+#[cfg(target_os = "linux")]
+fn apply_via_netplan(
+    vm_name: &str,
+    iface: &str,
+    cidr: &str,
+    gw: Option<&str>,
+) -> Result<String, LibvirtError> {
+    let netplan = guest_find_bin(vm_name, &["netplan"]).ok_or_else(|| {
+        LibvirtError::Operation("netplan not found in guest".into())
+    })?;
+    let gw_yaml = gw
+        .map(|g| format!("      routes:\n        - to: default\n          via: {g}\n"))
+        .unwrap_or_default();
+    let yaml = format!(
+        "network:\n  version: 2\n  ethernets:\n    {iface}:\n      dhcp4: false\n      addresses:\n        - {cidr}\n{gw_yaml}"
+    );
+    let yaml_esc = yaml.replace('\'', "'\\''");
+    let path = "/etc/netplan/99-machina-guest.yaml";
+    let script = format!(
+        "printf '%s' '{yaml_esc}' > '{path}' && '{netplan}' apply",
+    );
+    let (c, out, err) = guest_exec_command(vm_name, "/bin/sh", &["-c", &script])?;
+    if c != 0 {
+        return Err(LibvirtError::Operation(format!(
+            "netplan apply failed (exit {c}): {err} {out}"
+        )));
+    }
+    Ok(format!("netplan {path}"))
+}
+
+#[cfg(target_os = "linux")]
+fn apply_via_wicked(
+    vm_name: &str,
+    iface: &str,
+    cidr: &str,
+    gw: Option<&str>,
+) -> Result<String, LibvirtError> {
+    // wicked ifconfig is awkward; prefer writing ifcfg + wicked ifup, else fall through to ip.
+    let wicked = guest_find_bin(vm_name, &["wicked"]);
+    let (ip_part, prefix) = cidr
+        .split_once('/')
+        .ok_or_else(|| LibvirtError::Invalid("bad cidr".into()))?;
+    let mut ifcfg = format!(
+        "BOOTPROTO='static'\nSTARTMODE='auto'\nIPADDR='{ip_part}'\nPREFIXLEN='{prefix}'\n"
+    );
+    if let Some(g) = gw {
+        ifcfg.push_str(&format!("DEFAULT_ROUTE='yes'\nGATEWAY='{g}'\n"));
+    }
+    let ifcfg_esc = ifcfg.replace('\'', "'\\''");
+    let path = format!("/etc/sysconfig/network/ifcfg-{iface}");
+    let mut script = format!("printf '%s' '{ifcfg_esc}' > '{path}'");
+    if let Some(ref w) = wicked {
+        script.push_str(&format!(" && '{w}' ifup '{iface}'"));
+    }
+    let (c, out, err) = guest_exec_command(vm_name, "/bin/sh", &["-c", &script])?;
+    if c != 0 {
+        return Err(LibvirtError::Operation(format!(
+            "wicked/ifcfg apply failed (exit {c}): {err} {out}"
+        )));
+    }
+    Ok(format!("wicked ifcfg-{iface}"))
+}
+
+#[cfg(target_os = "linux")]
+fn apply_via_iproute2(
+    vm_name: &str,
+    iface: &str,
+    cidr: &str,
+    gw: Option<&str>,
+    replace: bool,
+) -> Result<String, LibvirtError> {
+    let ip = guest_ip_bin(vm_name);
+    if replace {
+        let (code, _out, err) =
+            guest_exec_command(vm_name, &ip, &["-4", "addr", "flush", "dev", iface])?;
+        if code != 0 {
+            return Err(LibvirtError::Operation(format!(
+                "ip addr flush {iface} failed: {err}"
+            )));
+        }
+    }
+    let (code, _out, err) =
+        guest_exec_command(vm_name, &ip, &["addr", "add", cidr, "dev", iface])?;
+    if code != 0 && !(code == 2 && !replace) {
+        return Err(LibvirtError::Operation(format!(
+            "ip addr add {cidr} dev {iface} failed (exit {code}): {err}"
+        )));
+    }
+    let _ = guest_exec_command(vm_name, &ip, &["link", "set", iface, "up"]);
+    if let Some(gateway) = gw {
+        let (code, _out, err) = guest_exec_command(
+            vm_name,
+            &ip,
+            &["route", "replace", "default", "via", gateway, "dev", iface],
+        )?;
+        if code != 0 {
+            return Err(LibvirtError::Operation(format!(
+                "ip route replace default via {gateway} failed: {err}"
+            )));
+        }
+    }
+    Ok("iproute2 (runtime)".into())
+}
+
+/// Read guest NICs (QGA) + IPv4 routes (guest-exec ip) + detected network backend.
+pub fn get_guest_network_config(vm_name: &str) -> Result<GuestNetworkConfig, LibvirtError> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = vm_name;
+        return Err(LibvirtError::Invalid(
+            "guest network requires Linux hypervisor".into(),
+        ));
+    }
+    #[cfg(target_os = "linux")]
+    {
+        use super::guest_agent::qemu_agent_command;
+        let (backend, backend_detail) = detect_guest_net_backend(vm_name);
+        let mut interfaces = Vec::new();
+        if let Some(v) =
+            qemu_agent_command(vm_name, r#"{"execute":"guest-network-get-interfaces"}"#)
+        {
+            if let Some(arr) = v.get("return").and_then(|r| r.as_array()) {
+                for iface in arr {
+                    let name = iface
+                        .get("name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    if name.is_empty() || name == "lo" {
+                        continue;
+                    }
+                    let mac = iface
+                        .get("hardware-address")
+                        .and_then(|m| m.as_str())
+                        .map(|s| s.to_string());
+                    let mut addresses = Vec::new();
+                    if let Some(ips) = iface.get("ip-addresses").and_then(|a| a.as_array()) {
+                        for ip in ips {
+                            let typ = ip.get("ip-address-type").and_then(|t| t.as_str()).unwrap_or("");
+                            let addr = ip.get("ip-address").and_then(|a| a.as_str()).unwrap_or("");
+                            let prefix = ip.get("prefix").and_then(|p| p.as_u64()).unwrap_or(0);
+                            if typ == "ipv4" && !addr.is_empty() {
+                                addresses.push(format!("{addr}/{prefix}"));
+                            }
+                        }
+                    }
+                    interfaces.push(GuestNetworkInterface { name, mac, addresses });
+                }
+            }
+        }
+        let ip = guest_ip_bin(vm_name);
+        if let Ok((0, addr_out, _)) =
+            guest_exec_command(vm_name, &ip, &["-4", "-o", "addr", "show"])
+        {
+            for line in addr_out.lines() {
+                let parts: Vec<_> = line.split_whitespace().collect();
+                if parts.len() < 4 || parts[2] != "inet" {
+                    continue;
+                }
+                let name = parts[1];
+                let cidr = parts[3];
+                if let Some(iface) = interfaces.iter_mut().find(|i| i.name == name) {
+                    if !iface.addresses.iter().any(|a| a == cidr) {
+                        iface.addresses.push(cidr.to_string());
+                    }
+                } else if name != "lo" {
+                    interfaces.push(GuestNetworkInterface {
+                        name: name.to_string(),
+                        mac: None,
+                        addresses: vec![cidr.to_string()],
+                    });
+                }
+            }
+        }
+        let mut routes = Vec::new();
+        let mut default_gateway = None;
+        if let Ok((0, route_out, _)) =
+            guest_exec_command(vm_name, &ip, &["-4", "route", "show"])
+        {
+            for line in route_out.lines() {
+                let l = line.trim();
+                if l.is_empty() {
+                    continue;
+                }
+                routes.push(l.to_string());
+                if l.starts_with("default via ") {
+                    default_gateway = l.split_whitespace().nth(2).map(|s| s.to_string());
+                }
+            }
+        }
+        Ok(GuestNetworkConfig {
+            interfaces,
+            routes,
+            default_gateway,
+            backend: backend.as_str().into(),
+            backend_detail,
+        })
+    }
+}
+
+/// Apply IPv4 address (+ optional default gateway) using the guest's native network stack.
+pub fn apply_guest_network_config(
+    vm_name: &str,
+    req: &GuestNetworkApplyRequest,
+) -> Result<GuestAgentActionResult, LibvirtError> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (vm_name, req);
+        return Err(LibvirtError::Invalid(
+            "guest network requires Linux hypervisor".into(),
+        ));
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let iface = validate_iface(&req.iface)?;
+        let cidr = validate_cidr(&req.address_cidr)?;
+        let gw = match &req.gateway {
+            Some(g) if !g.trim().is_empty() => Some(validate_ipv4(g)?),
+            _ => None,
+        };
+        let (backend, detect_detail) = detect_guest_net_backend(vm_name);
+        let gw_ref = gw.as_deref();
+
+        let mut used = match backend {
+            GuestNetBackend::NetworkManager => {
+                apply_via_networkmanager(vm_name, &iface, &cidr, gw_ref)
+            }
+            GuestNetBackend::SystemdNetworkd => {
+                apply_via_systemd_networkd(vm_name, &iface, &cidr, gw_ref)
+            }
+            GuestNetBackend::Netplan => apply_via_netplan(vm_name, &iface, &cidr, gw_ref),
+            GuestNetBackend::Wicked => apply_via_wicked(vm_name, &iface, &cidr, gw_ref),
+            GuestNetBackend::Iproute2 => {
+                apply_via_iproute2(vm_name, &iface, &cidr, gw_ref, req.replace)
+            }
+        };
+
+        // If the preferred stack failed, fall through to iproute2 so the op still works.
+        if used.is_err() && backend != GuestNetBackend::Iproute2 {
+            let primary_err = used.as_ref().err().map(|e| e.to_string()).unwrap_or_default();
+            used = apply_via_iproute2(vm_name, &iface, &cidr, gw_ref, req.replace).map(|s| {
+                format!("{s} (fallback after {}: {primary_err})", backend.as_str())
+            });
+        }
+
+        let how = used?;
+        let cfg = get_guest_network_config(vm_name).ok();
+        Ok(GuestAgentActionResult {
+            action: "network_apply".into(),
+            ok: true,
+            message: format!(
+                "{iface} → {cidr}{} via {how} · {detect_detail}",
+                gw.as_ref()
+                    .map(|g| format!(" gw {g}"))
+                    .unwrap_or_default()
+            ),
+            time: None,
+            fs_freeze: None,
+            fstrim: Vec::new(),
+            services: Vec::new(),
+            network: cfg,
+        })
+    }
+}
+
+/// Start / stop / restart a guest systemd unit via guestkit-agent (QGA guest-exec).
+pub fn run_guest_service_action(
+    vm_name: &str,
+    unit: &str,
+    action: &str,
+) -> Result<GuestAgentActionResult, LibvirtError> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (vm_name, unit, action);
+        return Err(LibvirtError::Invalid(
+            "guest service actions require Linux hypervisor".into(),
+        ));
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let unit = validate_guest_service_unit(unit)?;
+        let act = action.trim().to_ascii_lowercase();
+        if !matches!(act.as_str(), "start" | "stop" | "restart") {
+            return Err(LibvirtError::Invalid(format!(
+                "unsupported guest service action: {action}"
+            )));
+        }
+        let (code, out) = guest_exec_systemctl(vm_name, &[act.as_str(), &unit])?;
+        if code != 0 {
+            return Err(LibvirtError::Operation(format!(
+                "systemctl {act} {unit} failed (exit {code}): {out}"
+            )));
+        }
+        let (st_code, status) = guest_exec_systemctl(vm_name, &["is-active", &unit])?;
+        let active = st_code == 0 && status.trim() == "active";
+        Ok(GuestAgentActionResult {
+            action: format!("service_{act}"),
+            ok: true,
+            message: format!(
+                "{unit} {act} ok · is-active={}",
+                if active { "active" } else { status.trim() }
+            ),
+            time: None,
+            fs_freeze: None,
+            fstrim: Vec::new(),
+            services: Vec::new(),
+            network: None,
+        })
+    }
+}
+
+/// Best-effort list of controllable guest services (demo + common optional units).
+pub fn list_guest_service_units(vm_name: &str) -> Vec<(String, String, String)> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = vm_name;
+        return Vec::new();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        const CANDIDATES: &[&str] = &[
+            "machina-demo.service",
+            "cron.service",
+            "cronie.service",
+            "atd.service",
+            "rsyslog.service",
+        ];
+        let mut out = Vec::new();
+        for unit in CANDIDATES {
+            if validate_guest_service_unit(unit).is_err() {
+                continue;
+            }
+            match guest_exec_systemctl(vm_name, &["is-active", unit]) {
+                Ok((code, status)) => {
+                    let st = if code == 0 && status.trim() == "active" {
+                        "active"
+                    } else if status.trim().is_empty() {
+                        "unknown"
+                    } else {
+                        status.trim()
+                    };
+                    // Skip units that don't exist (exit 4 typically).
+                    if code == 4 || st == "not-found" || st.contains("could not be found") {
+                        continue;
+                    }
+                    out.push((
+                        unit.trim_end_matches(".service").to_string(),
+                        st.to_string(),
+                        format!("systemd · {unit}"),
+                    ));
+                }
+                Err(_) => continue,
+            }
+        }
+        out
+    }
+}
+
 pub fn run_guest_agent_action(
     conn: &Connect,
     name: &str,
@@ -228,47 +1049,108 @@ pub fn run_guest_agent_action(
         ));
     }
     #[cfg(target_os = "linux")]
-    match action.trim().to_ascii_lowercase().as_str() {
-        "sync_time" | "sync-time" => {
-            let time = sync_guest_time_to_host(conn, name)?;
-            Ok(GuestAgentActionResult {
-                action: "sync_time".into(),
-                ok: true,
-                message: format!("Guest time synced (delta was {} ms)", time.delta_ms),
-                time: Some(time),
-                fs_freeze: None,
-                fstrim: Vec::new(),
-            })
+    {
+        let trimmed = action.trim();
+        if let Some(rest) = trimmed.strip_prefix("service_start:") {
+            return run_guest_service_action(name, rest, "start");
         }
-        "fs_freeze_status" | "fs-freeze-status" => {
-            let fs = get_fs_freeze_status(name);
-            Ok(GuestAgentActionResult {
-                action: "fs_freeze_status".into(),
-                ok: true,
-                message: fs.detail.clone(),
-                time: None,
-                fs_freeze: Some(fs),
-                fstrim: Vec::new(),
-            })
+        if let Some(rest) = trimmed.strip_prefix("service_stop:") {
+            return run_guest_service_action(name, rest, "stop");
         }
-        "fstrim" | "trim" => {
-            let fstrim = run_guest_fstrim(name)?;
-            let total: u64 = fstrim.iter().map(|r| r.trimmed_bytes).sum();
-            Ok(GuestAgentActionResult {
-                action: "fstrim".into(),
-                ok: true,
-                message: format!(
-                    "TRIM on {} mount(s), {} bytes reported",
-                    fstrim.len(),
-                    total
-                ),
-                time: None,
-                fs_freeze: None,
-                fstrim,
-            })
+        if let Some(rest) = trimmed.strip_prefix("service_restart:") {
+            return run_guest_service_action(name, rest, "restart");
         }
-        other => Err(LibvirtError::Invalid(format!(
-            "unknown guest agent action: {other}"
-        ))),
+        if let Some(rest) = trimmed.strip_prefix("network_apply:") {
+            let req: GuestNetworkApplyRequest = serde_json::from_str(rest).map_err(|e| {
+                LibvirtError::Invalid(format!("network_apply JSON: {e}"))
+            })?;
+            return apply_guest_network_config(name, &req);
+        }
+        match trimmed.to_ascii_lowercase().as_str() {
+            "sync_time" | "sync-time" => {
+                let time = sync_guest_time_to_host(conn, name)?;
+                Ok(GuestAgentActionResult {
+                    action: "sync_time".into(),
+                    ok: true,
+                    message: format!("Guest time synced (delta was {} ms)", time.delta_ms),
+                    time: Some(time),
+                    fs_freeze: None,
+                    fstrim: Vec::new(),
+                    services: Vec::new(),
+                    network: None,
+                })
+            }
+            "fs_freeze_status" | "fs-freeze-status" => {
+                let fs = get_fs_freeze_status(name);
+                Ok(GuestAgentActionResult {
+                    action: "fs_freeze_status".into(),
+                    ok: true,
+                    message: fs.detail.clone(),
+                    time: None,
+                    fs_freeze: Some(fs),
+                    fstrim: Vec::new(),
+                    services: Vec::new(),
+                    network: None,
+                })
+            }
+            "fstrim" | "trim" => {
+                let fstrim = run_guest_fstrim(name)?;
+                let total: u64 = fstrim.iter().map(|r| r.trimmed_bytes).sum();
+                Ok(GuestAgentActionResult {
+                    action: "fstrim".into(),
+                    ok: true,
+                    message: format!(
+                        "TRIM on {} mount(s), {} bytes reported",
+                        fstrim.len(),
+                        total
+                    ),
+                    time: None,
+                    fs_freeze: None,
+                    fstrim,
+                    services: Vec::new(),
+                    network: None,
+                })
+            }
+            "list_services" => {
+                let services = list_guest_service_units(name)
+                    .into_iter()
+                    .map(|(name, status, detail)| GuestServiceUnit {
+                        name,
+                        status,
+                        detail,
+                    })
+                    .collect::<Vec<_>>();
+                Ok(GuestAgentActionResult {
+                    action: "list_services".into(),
+                    ok: true,
+                    message: format!("{} controllable unit(s)", services.len()),
+                    time: None,
+                    fs_freeze: None,
+                    fstrim: Vec::new(),
+                    services,
+                    network: None,
+                })
+            }
+            "get_network" | "network" => {
+                let network = get_guest_network_config(name)?;
+                Ok(GuestAgentActionResult {
+                    action: "get_network".into(),
+                    ok: true,
+                    message: format!(
+                        "{} iface(s), {} route(s)",
+                        network.interfaces.len(),
+                        network.routes.len()
+                    ),
+                    time: None,
+                    fs_freeze: None,
+                    fstrim: Vec::new(),
+                    services: Vec::new(),
+                    network: Some(network),
+                })
+            }
+            other => Err(LibvirtError::Invalid(format!(
+                "unknown guest agent action: {other}"
+            ))),
+        }
     }
 }

@@ -48,16 +48,10 @@ pub fn get_pending_config(conn: &Connect, name: &str) -> Result<PendingConfig, L
         .get_xml_desc(VIR_DOMAIN_XML_INACTIVE)
         .map_err(LibvirtError::map_op("Failed to get inactive XML"))?;
 
-    let mut changes = diff_configs(&active_xml, &inactive_xml);
-
-    if changes.is_empty()
-        && normalize_for_compare(&active_xml) != normalize_for_compare(&inactive_xml)
-    {
-        changes.push(PendingChange {
-            category: "domain".into(),
-            summary: "Persistent domain XML differs from the running configuration".into(),
-        });
-    }
+    let changes = diff_configs(&active_xml, &inactive_xml);
+    // Do not fall back to a coarse full-XML string compare: live dumps always include
+    // runtime-only noise (domain id, seclabel labels, vnet targets, channel paths, pty
+    // sources) that is not a real needs-shutdown config change.
 
     Ok(PendingConfig {
         needs_shutdown: !changes.is_empty(),
@@ -154,9 +148,19 @@ fn memory_kib(xml: &str) -> u64 {
 }
 
 fn disk_fingerprint(d: &DiskInfo) -> String {
+    let source = if d.source == "unknown" { "" } else { d.source.as_str() };
+    // Empty CD-ROMs often differ only by whether libvirt wrote `type='raw'` on
+    // the live vs persistent driver element — not a real needs-shutdown change.
+    let driver = if d.device == "cdrom" && source.is_empty() {
+        "raw"
+    } else if d.driver == "unknown" || d.driver.is_empty() {
+        ""
+    } else {
+        d.driver.as_str()
+    };
     format!(
         "{}:{}:{}:{}:{}:{}",
-        d.target, d.device, d.source, d.driver, d.cache, d.readonly
+        d.target, d.device, source, driver, d.cache, d.readonly
     )
 }
 
@@ -342,7 +346,8 @@ fn diff_vsock(active: &str, inactive: &str, out: &mut Vec<PendingChange>) {
     }
 }
 
-/// Strip runtime-only XML before coarse string comparison.
+/// Strip runtime-only XML before coarse string comparison (kept for tests / future use).
+#[allow(dead_code)]
 fn normalize_for_compare(xml: &str) -> String {
     let mut out = String::new();
     let mut skip_depth = 0i32;
@@ -370,4 +375,33 @@ fn normalize_for_compare(xml: &str) -> String {
         out.push('\n');
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::DiskInfo;
+
+    fn disk(target: &str, device: &str, source: &str, driver: &str) -> DiskInfo {
+        DiskInfo {
+            device: device.into(),
+            source: source.into(),
+            driver: driver.into(),
+            target: target.into(),
+            bus: "sata".into(),
+            cache: String::new(),
+            readonly: true,
+            shareable: false,
+            capacity_bytes: None,
+            allocation_bytes: None,
+            physical_bytes: None,
+        }
+    }
+
+    #[test]
+    fn empty_cdrom_driver_raw_vs_unknown_not_a_diff() {
+        let live = disk("sdb", "cdrom", "unknown", "unknown");
+        let cfg = disk("sdb", "cdrom", "", "raw");
+        assert_eq!(disk_fingerprint(&live), disk_fingerprint(&cfg));
+    }
 }

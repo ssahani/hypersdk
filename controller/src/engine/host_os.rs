@@ -400,6 +400,8 @@ pub struct VmGuestServiceRow {
     pub name: String,
     pub status: String,
     pub detail: String,
+    #[serde(default)]
+    pub controllable: bool,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -417,10 +419,6 @@ pub async fn vm_guest_services(
     vm_id: Uuid,
 ) -> anyhow::Result<VmGuestServicesReport> {
     let health = vm_guest_health(pool, cfg, vm_id).await?;
-    let ports =
-        crate::engine::zeus_firewall::guest_ports::vm_guest_ports(pool, cfg, &vm_id.to_string())
-            .await
-            .ok();
     let mut services = Vec::new();
     if health.agent_reachable {
         services.push(VmGuestServiceRow {
@@ -432,27 +430,46 @@ pub async fn vm_guest_services(
             }
             .into(),
             detail: health.os_pretty_name.clone(),
+            controllable: false,
         });
-    }
-    if let Some(ref p) = ports {
-        for port in p.ports.iter().take(12) {
-            services.push(VmGuestServiceRow {
-                name: port
-                    .process
-                    .clone()
-                    .unwrap_or_else(|| format!("{}:{}", port.protocol, port.port)),
-                status: "listening".into(),
-                detail: format!("{} · {}", port.protocol, port.port),
-            });
+        let row: (String, Uuid) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
+            .bind(vm_id)
+            .fetch_optional(pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("vm not found"))?;
+        let (_, addr) = resolve_agent_addr(pool, cfg, row.1).await?;
+        let mut client = agent_client::connect(&addr).await?;
+        if let Ok(val) = agent_client::guest_agent_action(&mut client, &row.0, "list_services").await
+        {
+            if let Some(arr) = val.get("services").and_then(|s| s.as_array()) {
+                for item in arr {
+                    let name = item
+                        .get("name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    if name.is_empty() {
+                        continue;
+                    }
+                    services.push(VmGuestServiceRow {
+                        name,
+                        status: item
+                            .get("status")
+                            .and_then(|s| s.as_str())
+                            .unwrap_or("unknown")
+                            .into(),
+                        detail: item
+                            .get("detail")
+                            .and_then(|d| d.as_str())
+                            .unwrap_or("")
+                            .into(),
+                        controllable: true,
+                    });
+                }
+            }
         }
     }
-    for issue in &health.issues {
-        services.push(VmGuestServiceRow {
-            name: "issue".into(),
-            status: "warn".into(),
-            detail: issue.clone(),
-        });
-    }
+    // Listening ports belong on Security / guest-ports — do not clutter Guest services.
     Ok(VmGuestServicesReport {
         vm_id: health.vm_id,
         vm_name: health.vm_name,
@@ -460,6 +477,69 @@ pub async fn vm_guest_services(
         summary: format!("{} service row(s) from guest agent", services.len()),
         services,
     })
+}
+
+pub async fn vm_guest_service_action(
+    pool: &SqlitePool,
+    cfg: &ControllerConfig,
+    vm_id: Uuid,
+    unit: &str,
+    action: &str,
+) -> anyhow::Result<serde_json::Value> {
+    let row: (String, Uuid) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
+        .bind(vm_id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("vm not found"))?;
+    let (_, addr) = resolve_agent_addr(pool, cfg, row.1).await?;
+    let mut client = agent_client::connect(&addr).await?;
+    let keyed = match action.trim().to_ascii_lowercase().as_str() {
+        "start" => format!("service_start:{unit}"),
+        "stop" => format!("service_stop:{unit}"),
+        "restart" => format!("service_restart:{unit}"),
+        other => anyhow::bail!("unsupported guest service action: {other}"),
+    };
+    agent_client::guest_agent_action(&mut client, &row.0, &keyed).await
+}
+
+pub async fn vm_guest_network_get(
+    pool: &SqlitePool,
+    cfg: &ControllerConfig,
+    vm_id: Uuid,
+) -> anyhow::Result<serde_json::Value> {
+    let row: (String, Uuid) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
+        .bind(vm_id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("vm not found"))?;
+    let (_, addr) = resolve_agent_addr(pool, cfg, row.1).await?;
+    let mut client = agent_client::connect(&addr).await?;
+    let val = agent_client::guest_agent_action(&mut client, &row.0, "get_network").await?;
+    Ok(val
+        .get("network")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({
+            "interfaces": [],
+            "routes": [],
+            "default_gateway": null
+        })))
+}
+
+pub async fn vm_guest_network_apply(
+    pool: &SqlitePool,
+    cfg: &ControllerConfig,
+    vm_id: Uuid,
+    req: &serde_json::Value,
+) -> anyhow::Result<serde_json::Value> {
+    let row: (String, Uuid) = sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
+        .bind(vm_id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("vm not found"))?;
+    let (_, addr) = resolve_agent_addr(pool, cfg, row.1).await?;
+    let mut client = agent_client::connect(&addr).await?;
+    let keyed = format!("network_apply:{req}");
+    agent_client::guest_agent_action(&mut client, &row.0, &keyed).await
 }
 
 #[derive(Debug, Clone, Serialize)]

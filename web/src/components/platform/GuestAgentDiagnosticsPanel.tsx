@@ -1,9 +1,18 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useState } from 'react'
-import { CheckCircle2, Clock, Loader2, Play, Users, XCircle } from 'lucide-react'
-import type { GuestObservabilitySnapshot, VmGuestHealthReport } from '../../api/platform'
-import { guestFstrim, guestSyncTime } from '../../api/platform'
+import { useEffect, useState } from 'react'
+import { CheckCircle2, Clock, Loader2, Network, Play, Users, XCircle } from 'lucide-react'
+import type {
+  GuestNetworkConfig,
+  GuestObservabilitySnapshot,
+  VmGuestHealthReport,
+} from '../../api/platform'
+import {
+  applyGuestNetwork,
+  getGuestNetwork,
+  guestFstrim,
+  guestSyncTime,
+} from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { qgaHealthy } from '../../utils/guestAgentUx'
@@ -72,7 +81,40 @@ export default function GuestAgentDiagnosticsPanel({
 }: Props) {
   const toast = useToastContext()
   const [actionBusy, setActionBusy] = useState<string | null>(null)
+  const [net, setNet] = useState<GuestNetworkConfig | null>(null)
+  const [netLoading, setNetLoading] = useState(false)
+  const [iface, setIface] = useState('')
+  const [addressCidr, setAddressCidr] = useState('')
+  const [gateway, setGateway] = useState('')
   const obs: GuestObservabilitySnapshot | undefined = report?.guest_observability
+
+  const loadNetwork = async () => {
+    if (!vmId) return
+    setNetLoading(true)
+    try {
+      const cfg = await getGuestNetwork(vmId)
+      setNet(cfg)
+      const first = cfg.interfaces.find((i) => i.name !== 'lo') ?? cfg.interfaces[0]
+      if (first) {
+        setIface((prev) => prev || first.name)
+        if (!addressCidr && first.addresses[0]) setAddressCidr(first.addresses[0])
+      }
+      if (!gateway && cfg.default_gateway) setGateway(cfg.default_gateway)
+    } catch {
+      setNet(null)
+    } finally {
+      setNetLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (report && qgaHealthy(report)) {
+      void loadNetwork()
+    } else {
+      setNet(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh when health identity changes
+  }, [vmId, report?.agent_ping, report?.install_state])
 
   const runAction = async (key: string, fn: () => Promise<unknown>, success: string) => {
     if (onRunAction) {
@@ -272,6 +314,125 @@ export default function GuestAgentDiagnosticsPanel({
                 {a.source ? <span className="text-slate-600"> ({a.source})</span> : null}
               </p>
             ))}
+        </div>
+      )}
+
+      {agentActive && (
+        <div className="rounded-xl border border-white/[0.06] bg-slate-900/40 p-3 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium text-slate-200 flex items-center gap-2">
+              <Network className="w-4 h-4 text-slate-400" />
+              Guest network
+            </p>
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              disabled={netLoading || !!actionBusy}
+              onClick={() => void loadNetwork()}
+            >
+              {netLoading ? <Loader2 className="w-3 h-3 animate-spin inline" /> : null}
+              Refresh
+            </button>
+          </div>
+          {net && (
+            <div className="text-xs text-slate-400 space-y-1">
+              {(net.backend || net.backend_detail) && (
+                <p className="text-slate-500">
+                  Stack:{' '}
+                  <span className="text-slate-300 font-mono">{net.backend || 'unknown'}</span>
+                  {net.backend_detail ? (
+                    <span className="text-slate-600"> — {net.backend_detail}</span>
+                  ) : null}
+                </p>
+              )}
+              {net.interfaces.map((i) => (
+                <p key={i.name} className="font-mono">
+                  {i.name}
+                  {i.mac ? <span className="text-slate-600"> · {i.mac}</span> : null}
+                  {i.addresses.length
+                    ? ` · ${i.addresses.join(', ')}`
+                    : ' · (no IPv4)'}
+                </p>
+              ))}
+              {net.default_gateway && (
+                <p className="font-mono text-slate-300">
+                  default via {net.default_gateway}
+                </p>
+              )}
+              {net.routes.length > 0 && (
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-slate-500">Routes ({net.routes.length})</summary>
+                  <pre className="mt-1 whitespace-pre-wrap font-mono text-[11px] text-slate-500">
+                    {net.routes.join('\n')}
+                  </pre>
+                </details>
+              )}
+            </div>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <label className="text-xs text-slate-500 space-y-1">
+              <span>Interface</span>
+              <input
+                className="input w-full text-xs font-mono"
+                value={iface}
+                onChange={(e) => setIface(e.target.value)}
+                placeholder="enp1s0"
+                list={`guest-ifaces-${vmId}`}
+              />
+              <datalist id={`guest-ifaces-${vmId}`}>
+                {(net?.interfaces ?? []).map((i) => (
+                  <option key={i.name} value={i.name} />
+                ))}
+              </datalist>
+            </label>
+            <label className="text-xs text-slate-500 space-y-1">
+              <span>IPv4 CIDR</span>
+              <input
+                className="input w-full text-xs font-mono"
+                value={addressCidr}
+                onChange={(e) => setAddressCidr(e.target.value)}
+                placeholder="192.168.122.50/24"
+              />
+            </label>
+            <label className="text-xs text-slate-500 space-y-1">
+              <span>Gateway</span>
+              <input
+                className="input w-full text-xs font-mono"
+                value={gateway}
+                onChange={(e) => setGateway(e.target.value)}
+                placeholder="192.168.122.1"
+              />
+            </label>
+          </div>
+          <button
+            type="button"
+            className="btn-secondary text-xs"
+            disabled={!!actionBusy || !iface.trim() || !addressCidr.trim()}
+            onClick={() =>
+              void runAction(
+                'net',
+                async () => {
+                  await applyGuestNetwork(vmId, {
+                    iface: iface.trim(),
+                    address_cidr: addressCidr.trim(),
+                    gateway: gateway.trim() || undefined,
+                    replace: true,
+                  })
+                  await loadNetwork()
+                },
+                'Guest IP / gateway applied',
+              )
+            }
+          >
+            {actionBusy === 'net' ? <Loader2 className="w-3 h-3 animate-spin inline" /> : null}
+            Apply IP + gateway
+          </button>
+          <p className="text-[11px] text-slate-600">
+            Auto-detects NetworkManager, systemd-networkd, netplan, or wicked; falls back to{' '}
+            <code className="font-mono">ip</code> if needed. Persistence depends on the guest stack
+            (NM/netplan/wicked write config; networkd uses a runtime drop-in under{' '}
+            <code className="font-mono">/run</code>).
+          </p>
         </div>
       )}
 
