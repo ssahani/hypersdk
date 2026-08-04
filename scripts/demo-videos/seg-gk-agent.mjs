@@ -66,7 +66,7 @@ await iface.fill('enp1s0');
 await cidr.fill('192.168.122.56/24');
 await gw.fill('192.168.122.1');
 await page.waitForTimeout(1000);
-await page.getByRole('button', { name: /Apply IP \+ gateway/i }).first().click();
+await page.getByRole('button', { name: /Apply network|Apply IP \+ gateway/i }).first().click();
 await page.waitForTimeout(8000);
 mark('network-applied');
 

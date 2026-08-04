@@ -38,9 +38,11 @@ export function formatPlatformHostLabel(
 
   const fallback = opts?.fallbackAddress?.trim()
   if (fallback && isUsableHostAddress(fallback)) {
-    return `${fallback} · re-enroll host`
+    // Prefer a usable UI / management address over the alarming "re-enroll" copy.
+    // Operators still fix enrollment under Hosts; the VM hero should not look broken.
+    return fallback
   }
-  return 'Local hypervisor · update enrollment'
+  return 'Local hypervisor'
 }
 
 /** Prefer a meaningful cluster name; fall back to primary host identity for single-node fleets. */
