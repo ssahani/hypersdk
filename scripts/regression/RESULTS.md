@@ -3,6 +3,18 @@
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
 
+## 2026-08-04 provision / join / IaC export (+ empty-spec export fix)
+
+| Item | Result |
+|------|--------|
+| `ops-provision.js` | **31/31 PASS** — host detail/validate/cockpit, package-upgrade dry-run, cockpit invoke negatives, OIDC status/login-disabled, hosts join negative, webhook purge, spectator validate, guestkit status + schema negatives, templates marketplace/readiness, from-template/iso/virt-install schema + ISO path negative, VM spec/ws-token/adopt/prune/migrate schema, IaC export JSON+zip, network get, maintenance exit, postcheck |
+| `ui-provision.js` | **10/10 PASS** — migration / templates / content / launchpad / developer / VM detail / hosts / networks / create-iso / create-advanced |
+| **Fix** | IaC `GET /api/v1/vms/{id}/export[.zip]` failed with `missing field api_version` when `spec_json` was empty/`{}` (libvirt-synced VMs); now falls back to columnar vcpus/memory/project |
+
+```bash
+npm run provision && npm run ui-provision
+```
+
 ## 2026-08-04 security fabric / multisite / Zeus AI
 
 | Item | Result |
@@ -135,4 +147,5 @@ npm run policy && npm run ui-policy
 npm run diag && npm run ui-diag
 npm run obs && npm run ui-obs
 npm run security && npm run ui-fabric
+npm run provision && npm run ui-provision
 ```

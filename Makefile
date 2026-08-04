@@ -7,7 +7,7 @@ UNITDIR ?= /usr/lib/systemd/system
 CARGO ?= cargo
 CARGO_FLAGS ?=
 
-.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-ops regression-lifecycle regression-platform regression-infra regression-fleet regression-mission regression-catalog regression-hardware regression-host regression-storage regression-zeus regression-audit regression-volume regression-disk regression-power regression-net regression-guest regression-parity regression-admin regression-ai regression-operations regression-resize regression-planner regression-alerts regression-enterprise regression-apps regression-policy regression-diag regression-obs regression-security regression-ui regression-ui-settings regression-ui-wizards regression-ui-security regression-ui-k8s-os regression-ui-mission regression-ui-catalog regression-ui-hardware regression-ui-host regression-ui-storage regression-ui-zeus regression-ui-audit regression-ui-volume regression-ui-power regression-ui-net regression-ui-guest regression-ui-parity regression-ui-admin regression-ui-ai regression-ui-operations regression-ui-resize regression-ui-planner regression-ui-alerts regression-ui-enterprise regression-ui-apps regression-ui-policy regression-ui-diag regression-ui-obs regression-ui-fabric regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
+.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-ops regression-lifecycle regression-platform regression-infra regression-fleet regression-mission regression-catalog regression-hardware regression-host regression-storage regression-zeus regression-audit regression-volume regression-disk regression-power regression-net regression-guest regression-parity regression-admin regression-ai regression-operations regression-resize regression-planner regression-alerts regression-enterprise regression-apps regression-policy regression-diag regression-obs regression-security regression-provision regression-ui regression-ui-settings regression-ui-wizards regression-ui-security regression-ui-k8s-os regression-ui-mission regression-ui-catalog regression-ui-hardware regression-ui-host regression-ui-storage regression-ui-zeus regression-ui-audit regression-ui-volume regression-ui-power regression-ui-net regression-ui-guest regression-ui-parity regression-ui-admin regression-ui-ai regression-ui-operations regression-ui-resize regression-ui-planner regression-ui-alerts regression-ui-enterprise regression-ui-apps regression-ui-policy regression-ui-diag regression-ui-obs regression-ui-fabric regression-ui-provision regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
 
 all: release web ## Build everything (Rust + web)
 
@@ -139,6 +139,9 @@ regression-obs: ## Live observability/compliance/consolehub/reports smoke
 regression-security: ## Live Zeus security fabric/multisite/enforcement smoke
 	cd scripts/regression && npm install --silent && node ops-security.js
 
+regression-provision: ## Live provision/join/IaC-export/guestkit schema smoke
+	cd scripts/regression && npm install --silent && node ops-provision.js
+
 regression-ui: ## Live CDP UI (Pause/Resume, platform tabs; needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-interactive.js
 
@@ -225,6 +228,9 @@ regression-ui-obs: ## Live CDP observability/reports/GPU/compliance shells (need
 
 regression-ui-fabric: ## Live CDP Zeus fabric/machine/k8s/cloud shells (needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-fabric.js
+
+regression-ui-provision: ## Live CDP migration/templates/launchpad shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-provision.js
 
 regression-pages: ## Live CDP page sweep (needs Chrome :9222; LOOPS=N; see scripts/regression/README.md)
 	cd scripts/regression && npm install --silent && node page-sweep.js --loops $(LOOPS)
