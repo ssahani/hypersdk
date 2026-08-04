@@ -3,6 +3,18 @@
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
 
+## 2026-08-04 providers / prompts / content / blueprints (+ content delete)
+
+| Item | Result |
+|------|--------|
+| `ops-providers.js` | **34/34 PASS** — AI provider create/models/test-negative/patch/delete, prompt CRUD, blueprint create/get/run/delete, content create/approve/reject/delete, SOC rules patch/test, firewall approvals + k8s plan, fleet activity, placement refresh, storage tiers, topology, tasks/events, atlas disabled, enrollment tokens |
+| `ui-providers.js` | **10/10 PASS** — ai-providers / blueprints / content / placement / topology / activity / enroll / storage-tiers / integrations / vm-builder |
+| **Fix** | `DELETE /api/v1/content/images/{id}` — approve/reject existed without delete; leftover `reg-img*` rows could not be cleaned |
+
+```bash
+npm run providers && npm run ui-providers
+```
+
 ## 2026-08-04 provision / join / IaC export (+ empty-spec export fix)
 
 | Item | Result |
@@ -148,4 +160,5 @@ npm run diag && npm run ui-diag
 npm run obs && npm run ui-obs
 npm run security && npm run ui-fabric
 npm run provision && npm run ui-provision
+npm run providers && npm run ui-providers
 ```

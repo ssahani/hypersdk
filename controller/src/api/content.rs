@@ -167,6 +167,22 @@ pub async fn reject_content_image(
     fetch_content_row(&state, id).await
 }
 
+pub async fn delete_content_image(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_operator(&actor)?;
+    let res = sqlx::query("DELETE FROM content_images WHERE id = ?")
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
+    if res.rows_affected() == 0 {
+        return Err(ApiError::not_found("content image not found"));
+    }
+    Ok(Json(serde_json::json!({ "deleted": true, "id": id })))
+}
+
 async fn fetch_content_row(state: &AppState, id: Uuid) -> Result<Json<ContentImageRow>, ApiError> {
     let row = sqlx::query_as::<_, ContentImageRow>(&format!("{CONTENT_SELECT} WHERE id = ?"))
         .bind(id)

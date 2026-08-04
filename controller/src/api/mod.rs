@@ -829,6 +829,10 @@ pub fn router(state: AppState) -> Router {
             get(content::list_content_images).post(content::create_content_image),
         )
         .route(
+            "/api/v1/content/images/{id}",
+            delete(content::delete_content_image),
+        )
+        .route(
             "/api/v1/content/images/{id}/approve",
             post(content::approve_content_image),
         )
