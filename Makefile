@@ -178,6 +178,12 @@ regression-authz: ## Live OIDC/MFA/api-keys/enroll edges
 regression-fleetx: ## Live fleet hubs + storage/network discover smoke
 	cd scripts/regression && npm install --silent && node ops-fleetx.js
 
+regression-vmx: ## Live VM metrics/timeline/topology/console + migrate precheck
+	cd scripts/regression && npm install --silent && node ops-vmx.js
+
+regression-aifleet: ## Live Zeus AI summary/security/agents/copilot smoke
+	cd scripts/regression && npm install --silent && node ops-aifleet.js
+
 regression-ui: ## Live CDP UI (Pause/Resume, platform tabs; needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-interactive.js
 
@@ -303,6 +309,12 @@ regression-ui-authz: ## Live CDP enterprise/auth shells (needs Chrome :9222)
 
 regression-ui-fleetx: ## Live CDP fleet hubs/finder shells (needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-fleetx.js
+
+regression-ui-vmx: ## Live CDP VM detail/migration/topology shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-vmx.js
+
+regression-ui-aifleet: ## Live CDP Zeus AI fleet shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-aifleet.js
 
 regression-pages: ## Live CDP page sweep (needs Chrome :9222; LOOPS=N; see scripts/regression/README.md)
 	cd scripts/regression && npm install --silent && node page-sweep.js --loops $(LOOPS)
