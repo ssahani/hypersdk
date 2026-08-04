@@ -190,6 +190,9 @@ regression-healthx: ## Live VM/host doctor diagnose health-check + guest expecte
 regression-devhub: ## Live developer/operations/templates/policy/cluster smoke
 	cd scripts/regression && npm install --silent && node ops-devhub.js
 
+regression-eventx: ## Live events/tasks/audit filters + notification deliver + gated negatives
+	cd scripts/regression && npm install --silent && node ops-eventx.js
+
 regression-ui: ## Live CDP UI (Pause/Resume, platform tabs; needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-interactive.js
 
@@ -327,6 +330,9 @@ regression-ui-healthx: ## Live CDP health/doctor/support shells (needs Chrome :9
 
 regression-ui-devhub: ## Live CDP developer/ops/templates/policy shells (needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-devhub.js
+
+regression-ui-eventx: ## Live CDP events/tasks/notifications/webhooks/SOC shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-eventx.js
 
 regression-pages: ## Live CDP page sweep (needs Chrome :9222; LOOPS=N; see scripts/regression/README.md)
 	cd scripts/regression && npm install --silent && node page-sweep.js --loops $(LOOPS)
