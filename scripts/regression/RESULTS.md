@@ -3,6 +3,17 @@
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
 
+## 2026-08-04 security fabric / multisite / Zeus AI
+
+| Item | Result |
+|------|--------|
+| `ops-security.js` | **52/52 PASS** — zeus-security status/sensors/graph/inventory/correlations/fabric/fleet threat, host fabric endpoints, enforcement sync/attach mode notes, alerts sync/search/ingest, multisite overview/connectivity/drift/timeline/DR/export/sync, operator thresholds/plan/dry-run, temporary rule, gitops export/sync, finops CSV + CIS PDF, fleet keychain/spaces, AI enterprise/zeus plan/chat/copilot/terminal/intent/network, hosts sync-all, prune-missing, vmware sync |
+| `ui-fabric.js` | **10/10 PASS** — zeus security / hunt / enforcement / machines / k8s / cloud / connectivity / firewall / configure / approvals |
+
+```bash
+npm run security && npm run ui-fabric
+```
+
 ## 2026-08-03 obs / compliance / consolehub / reports
 
 | Item | Result |
@@ -123,4 +134,5 @@ npm run apps && npm run ui-apps
 npm run policy && npm run ui-policy
 npm run diag && npm run ui-diag
 npm run obs && npm run ui-obs
+npm run security && npm run ui-fabric
 ```
