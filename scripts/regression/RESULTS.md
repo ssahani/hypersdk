@@ -3,6 +3,31 @@
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
 
+## 2026-08-04 healthx (doctor / diagnose / guest expected fails)
+
+| Item | Result |
+|------|--------|
+| `ops-healthx.js` | **20/20 PASS** — VM doctor/diagnose/health-check, guest health/services, sync-time/fstrim agent-down expected, host detail/gpus/health-check, AI troubleshoot/nl-ops/predictions/sre/autopilot-propose, cloud-init invalid, OpenStack status + flavors negative, secrets schema negative |
+| `ui-healthx.js` | **10/10 PASS** — VM/host detail / support / recommendations / observability / incidents / activity / events / upgrade / cloud-init |
+
+```bash
+npm run healthx && npm run ui-healthx
+```
+
+## 2026-08-04 vmx + aifleet
+
+| Item | Result |
+|------|--------|
+| `ops-vmx.js` | **14/14 PASS** — metrics/timeline/topology/migrations/console/ws-token/guest-ips/pending-config batch, migrate precheck schema+same-host, migrate POST skipped (enqueues task), migrations list, advisor query negative |
+| `ui-vmx.js` | **10/10 PASS** — VM detail / console / migration / topology / vms / tasks / activity / hosts / datacenter / network-canvas |
+| `ops-aifleet.js` | **13/13 PASS** — zeus summary/security/agents, cost+attribution/capacity, services graph, memory incidents, copilot chat + schema negative, knowledge search, terminal suggest |
+| `ui-aifleet.js` | **10/10 PASS** — zeus / configure / security / rightsizing / approvals / incidents / ai-providers / recommendations / reports / observability |
+
+```bash
+npm run vmx && npm run ui-vmx
+npm run aifleet && npm run ui-aifleet
+```
+
 ## 2026-08-04 fleet hubs + live discover (fleetx)
 
 | Item | Result |
