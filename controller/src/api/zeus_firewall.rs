@@ -188,6 +188,13 @@ pub async fn get_timeline(
 pub struct LockdownBody {
     #[serde(default)]
     pub capture: bool,
+    /// When true (default), return the Emergency Isolation plan without applying it.
+    /// Set `dry_run: false` AND `confirm: true` to apply.
+    #[serde(default = "default_true")]
+    pub dry_run: bool,
+    /// Required to apply lockdown when dry_run is false.
+    #[serde(default)]
+    pub confirm: bool,
 }
 
 pub async fn lockdown(
@@ -197,6 +204,15 @@ pub async fn lockdown(
     Json(body): Json<LockdownBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_admin(&actor)?;
+    if body.dry_run || !body.confirm {
+        // Preview-only: never touch host firewall from a casual POST.
+        return Ok(Json(serde_json::json!({
+            "ok": true,
+            "dry_run": true,
+            "preview": zeus_firewall::lockdown_preview(body.capture),
+            "message": "Dry-run only — resubmit with {\"dry_run\": false, \"confirm\": true} to apply Emergency Isolation",
+        })));
+    }
     zeus_firewall::lockdown_target(
         &state.pool,
         &state.config,
