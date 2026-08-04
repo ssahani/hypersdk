@@ -3,6 +3,42 @@
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
 
+## 2026-08-04 gap queue (atlas → authz)
+
+| Item | Result |
+|------|--------|
+| `ops-atlas` / `ui-atlas` | **14/14** / **10/10** — Atlas disabled soft-pass + schema negatives |
+| `ops-guestkit` / `ui-guestkit` | **7/7** / **10/10** — status + nbd/worker expected failures + schema negatives |
+| `ops-batch` / `ui-batch` | **7/7** / **10/10** — batch power/snapshots/delete schema + missing-VM only |
+| `ops-aiops` / `ui-aiops` | **10/10** / **10/10** — jarvis/heatmap/mission/intent/rebalance dry (no execute) |
+| `ops-watchdog` / `ui-watchdog` | **8/8** / **10/10** — watchdog get/set; disk/export POST skipped (starts real task) |
+| `ops-linuxhost` / `ui-linuxhost` | **9/9** / **10/10** — linux updates/diag/obs; live host upgrade skipped |
+| `ops-firewallx` / `ui-firewallx` | **14/14** / **10/10** — score/drift/simulate/siem + lockdown dry-run gate |
+| `ops-authz` / `ui-authz` | **9/9** / **10/10** — OIDC/MFA upsert/cert/enroll/api-key rotate |
+| `page-sweep --loops 1` | **130/130 PASS** (0 soft) |
+
+```bash
+npm run atlas && npm run ui-atlas
+npm run guestkit && npm run ui-guestkit
+npm run batch && npm run ui-batch
+npm run aiops && npm run ui-aiops
+npm run watchdog && npm run ui-watchdog
+npm run linuxhost && npm run ui-linuxhost
+npm run firewallx && npm run ui-firewallx
+npm run authz && npm run ui-authz
+```
+
+## 2026-08-04 atlas storage (disabled-host)
+
+| Item | Result |
+|------|--------|
+| `ops-atlas.js` | **14/14 PASS** — status (enabled=false), backends/clusters/pools/policies/metrics/snapshots/jobs soft-pass `atlas_disabled`, VM volumes [], expand/restore schema 422, backup/snapshot disabled |
+| `ui-atlas.js` | **10/10 PASS** — storage-atlas / storage / storage-tiers / backups / fleet-snapshots / content / templates / vms / hosts / integrations |
+
+```bash
+npm run atlas && npm run ui-atlas
+```
+
 ## 2026-08-04 hunt / security / firewall lockdown gate
 
 | Item | Result |

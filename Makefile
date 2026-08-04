@@ -7,7 +7,7 @@ UNITDIR ?= /usr/lib/systemd/system
 CARGO ?= cargo
 CARGO_FLAGS ?=
 
-.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-ops regression-lifecycle regression-platform regression-infra regression-fleet regression-mission regression-catalog regression-hardware regression-host regression-storage regression-zeus regression-audit regression-volume regression-disk regression-power regression-net regression-guest regression-parity regression-admin regression-ai regression-operations regression-resize regression-planner regression-alerts regression-enterprise regression-apps regression-policy regression-diag regression-obs regression-security regression-provision regression-providers regression-hub regression-hunt regression-ui regression-ui-settings regression-ui-wizards regression-ui-security regression-ui-k8s-os regression-ui-mission regression-ui-catalog regression-ui-hardware regression-ui-host regression-ui-storage regression-ui-zeus regression-ui-audit regression-ui-volume regression-ui-power regression-ui-net regression-ui-guest regression-ui-parity regression-ui-admin regression-ui-ai regression-ui-operations regression-ui-resize regression-ui-planner regression-ui-alerts regression-ui-enterprise regression-ui-apps regression-ui-policy regression-ui-diag regression-ui-obs regression-ui-fabric regression-ui-provision regression-ui-providers regression-ui-hub regression-ui-hunt regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
+.PHONY: all build release debug clean install uninstall fmt fmt-check lint test web-test web-e2e regression-api regression-ops regression-lifecycle regression-platform regression-infra regression-fleet regression-mission regression-catalog regression-hardware regression-host regression-storage regression-zeus regression-audit regression-volume regression-disk regression-power regression-net regression-guest regression-parity regression-admin regression-ai regression-operations regression-resize regression-planner regression-alerts regression-enterprise regression-apps regression-policy regression-diag regression-obs regression-security regression-provision regression-providers regression-hub regression-hunt regression-atlas regression-guestkit regression-batch regression-aiops regression-watchdog regression-linuxhost regression-firewallx regression-authz regression-ui regression-ui-settings regression-ui-wizards regression-ui-security regression-ui-k8s-os regression-ui-mission regression-ui-catalog regression-ui-hardware regression-ui-host regression-ui-storage regression-ui-zeus regression-ui-audit regression-ui-volume regression-ui-power regression-ui-net regression-ui-guest regression-ui-parity regression-ui-admin regression-ui-ai regression-ui-operations regression-ui-resize regression-ui-planner regression-ui-alerts regression-ui-enterprise regression-ui-apps regression-ui-policy regression-ui-diag regression-ui-obs regression-ui-fabric regression-ui-provision regression-ui-providers regression-ui-hub regression-ui-hunt regression-ui-atlas regression-ui-guestkit regression-ui-batch regression-ui-aiops regression-ui-watchdog regression-ui-linuxhost regression-ui-firewallx regression-ui-authz regression-pages regression-setup check web web-clean start stop restart status deploy run-daemon run-tui help
 
 all: release web ## Build everything (Rust + web)
 
@@ -151,6 +151,30 @@ regression-hub: ## Live network/webhook/users/HA/operations hub smoke
 regression-hunt: ## Live AI hunt/security + firewall plan + snapshot smoke
 	cd scripts/regression && npm install --silent && node ops-hunt.js
 
+regression-atlas: ## Live Atlas storage status/disabled + schema negatives
+	cd scripts/regression && npm install --silent && node ops-atlas.js
+
+regression-guestkit: ## Live guestkit VM doctor/migrate-plan smoke
+	cd scripts/regression && npm install --silent && node ops-guestkit.js
+
+regression-batch: ## Live VM batch power/snapshots/delete schema negatives
+	cd scripts/regression && npm install --silent && node ops-batch.js
+
+regression-aiops: ## Live AI jarvis/mission/rebalance (no execute) smoke
+	cd scripts/regression && npm install --silent && node ops-aiops.js
+
+regression-watchdog: ## Live VM watchdog + disk-export negative smoke
+	cd scripts/regression && npm install --silent && node ops-watchdog.js
+
+regression-linuxhost: ## Live host linux updates/diag/upgrade negatives
+	cd scripts/regression && npm install --silent && node ops-linuxhost.js
+
+regression-firewallx: ## Live deep Zeus firewall reads + dry-run
+	cd scripts/regression && npm install --silent && node ops-firewallx.js
+
+regression-authz: ## Live OIDC/MFA/api-keys/enroll edges
+	cd scripts/regression && npm install --silent && node ops-authz.js
+
 regression-ui: ## Live CDP UI (Pause/Resume, platform tabs; needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-interactive.js
 
@@ -249,6 +273,30 @@ regression-ui-hub: ## Live CDP hubs/HA/users/webhooks shells (needs Chrome :9222
 
 regression-ui-hunt: ## Live CDP hunt/firewall/HA shells (needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-hunt.js
+
+regression-ui-atlas: ## Live CDP Atlas storage shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-atlas.js
+
+regression-ui-guestkit: ## Live CDP guestkit/migration shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-guestkit.js
+
+regression-ui-batch: ## Live CDP VMs/tasks/activity shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-batch.js
+
+regression-ui-aiops: ## Live CDP Zeus AI ops shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-aiops.js
+
+regression-ui-watchdog: ## Live CDP VM/backups shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-watchdog.js
+
+regression-ui-linuxhost: ## Live CDP host/upgrade shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-linuxhost.js
+
+regression-ui-firewallx: ## Live CDP firewall deep shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-firewallx.js
+
+regression-ui-authz: ## Live CDP enterprise/auth shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-authz.js
 
 regression-pages: ## Live CDP page sweep (needs Chrome :9222; LOOPS=N; see scripts/regression/README.md)
 	cd scripts/regression && npm install --silent && node page-sweep.js --loops $(LOOPS)
