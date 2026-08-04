@@ -3,6 +3,17 @@
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
 
+## 2026-08-04 graphx (AI graph/diagnose + Zeus approval gates)
+
+| Item | Result |
+|------|--------|
+| `ops-graphx.js` | **21/21 PASS** — AI graph + object vm/host, fleet diagnose + schema negative, actions schema/reject negatives, memory delete schema, domain-xml, pending-config, Zeus approvals + approve/reject/baremetal scan/temporary negatives, storage volumes + tier/volume-delete negatives, fleet finder query, launchpad catalog soft |
+| `ui-graphx.js` | **10/10 PASS** — zeus / approvals / incidents / security / hunt / enforcement / firewall / topology / hosts/finder / ai-providers |
+
+```bash
+npm run graphx && npm run ui-graphx
+```
+
 ## 2026-08-04 eventx (events/tasks/audit filters + deliver)
 
 | Item | Result |
