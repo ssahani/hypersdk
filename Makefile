@@ -196,6 +196,9 @@ regression-eventx: ## Live events/tasks/audit filters + notification deliver + g
 regression-graphx: ## Live AI graph/diagnose + Zeus approval/baremetal + storage tier negatives
 	cd scripts/regression && npm install --silent && node ops-graphx.js
 
+regression-complx: ## Live firewall compliance + enforcement soft + rename/clone/snapshot schema gates
+	cd scripts/regression && npm install --silent && node ops-complx.js
+
 regression-ui: ## Live CDP UI (Pause/Resume, platform tabs; needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-interactive.js
 
@@ -339,6 +342,9 @@ regression-ui-eventx: ## Live CDP events/tasks/notifications/webhooks/SOC shells
 
 regression-ui-graphx: ## Live CDP Zeus graph/approvals/hunt/enforcement shells (needs Chrome :9222)
 	cd scripts/regression && npm install --silent && node ui-graphx.js
+
+regression-ui-complx: ## Live CDP compliance/enforcement/HA/placement shells (needs Chrome :9222)
+	cd scripts/regression && npm install --silent && node ui-complx.js
 
 regression-pages: ## Live CDP page sweep (needs Chrome :9222; LOOPS=N; see scripts/regression/README.md)
 	cd scripts/regression && npm install --silent && node page-sweep.js --loops $(LOOPS)

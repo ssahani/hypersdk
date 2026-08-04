@@ -3,6 +3,17 @@
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
 
+## 2026-08-04 complx (compliance / enforcement / rename-clone gates)
+
+| Item | Result |
+|------|--------|
+| `ops-complx.js` | **21/21 PASS** — firewall compliance summary+host, enforcement status/host/policies, create/apply schema negatives, tetragon soft, attach/sync/detach PacketWolf soft, platform rename/clone/snapshot schema negatives, snapshots list, cordon schema+missing, cluster settings, HA status, VM running + host schedulable postchecks |
+| `ui-complx.js` | **10/10 PASS** — compliance / policies / enforcement / security / ha / placement / hosts / vms / datacenter / topology |
+
+```bash
+npm run complx && npm run ui-complx
+```
+
 ## 2026-08-04 graphx (AI graph/diagnose + Zeus approval gates)
 
 | Item | Result |
