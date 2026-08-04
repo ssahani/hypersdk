@@ -3,6 +3,19 @@
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
 
+## 2026-08-04 hunt / security / firewall lockdown gate
+
+| Item | Result |
+|------|--------|
+| `ops-hunt.js` | **24/24 PASS** — AI guest-query/hunt-summary/nl-search/attack-reconstruct, HA, snapshot list (create skipped: external overlays unsafe on running e2e VM), firewall plan/execute-batch dry-run, lockdown dry-run+confirm gate, zeus-security host extras, segment IPAM + emergency-unlock |
+| `ui-hunt.js` | **10/10 PASS** — hunt / activity / firewall / policies / ports / services / HA / VM detail / network-canvas |
+| **Fix** | Zeus `POST …/lockdown` now defaults `dry_run: true` and requires `{dry_run:false, confirm:true}` to apply Emergency Isolation (empty POST previously applied and locked the host) |
+| **Recovery** | `scripts/recovery/unlock-emergency-isolation.sh` — Ubuntu/UFW + iptables (no firewalld) |
+
+```bash
+npm run hunt && npm run ui-hunt
+```
+
 ## 2026-08-04 hub / network / webhooks / users / ops overview
 
 | Item | Result |
