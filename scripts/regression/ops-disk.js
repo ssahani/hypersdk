@@ -132,39 +132,71 @@ async function cleanup() {
   });
 
   let volPath = '';
+  // Windows goldens use a SATA root disk; SATA cannot hotplug, and virtio
+  // hot-unplug often desyncs. Do attach/detach offline (stop → mutate → start).
+  const winGuest = /win|windows/i.test(VM);
+  const diskTarget = winGuest ? 'sdc' : 'vdb';
+  const diskBus = winGuest ? 'sata' : 'virtio';
+
+  async function waitVm(want, ms = 120000) {
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms) {
+      const st = JSON.parse((await api('GET', `/api/v1/vms/${VM}`)).body).state || '';
+      if (String(st).toLowerCase().includes(want)) return st;
+      await new Promise((x) => setTimeout(x, 1000));
+    }
+    throw new Error(`timeout waiting ${want}`);
+  }
+
   await mark('disk-attach', async () => {
     const vols = await getJson('/api/v1/storage/pools/default/volumes');
     const hit = vols.find((v) => v.name === VOL);
     if (!hit || !hit.path) throw new Error('volume path missing');
     volPath = hit.path;
+    if (winGuest) {
+      await api('POST', `/api/v1/vms/${VM}/stop`);
+      await waitVm('shut');
+    }
     const r = await api('POST', `/api/v1/vms/${VM}/disk/attach`, {
       source: volPath,
-      target: 'vdb',
+      target: diskTarget,
       driver: 'qcow2',
-      bus: 'virtio',
+      bus: diskBus,
     });
     if (!ok(r.status)) throw new Error(`${r.status} ${r.body.slice(0, 140)}`);
+    if (winGuest) {
+      await api('POST', `/api/v1/vms/${VM}/start`);
+      await waitVm('running');
+    }
     let xml = '';
     for (let i = 0; i < 10; i++) {
       xml = (await api('GET', `/api/v1/vms/${VM}/xml`)).body;
-      if (xml.includes('vdb')) break;
+      if (xml.includes(`dev='${diskTarget}'`)) break;
       await new Promise((x) => setTimeout(x, 400));
     }
-    if (!xml.includes('vdb')) throw new Error('vdb not in domain XML after attach');
-    return 'vdb attached';
+    if (!xml.includes(`dev='${diskTarget}'`)) throw new Error(`${diskTarget} not in domain XML after attach`);
+    return `${diskTarget} attached bus=${diskBus}${winGuest ? ' (offline)' : ''}`;
   });
 
   await mark('disk-detach', async () => {
-    const r = await api('POST', `/api/v1/vms/${VM}/disk/detach/vdb`);
+    if (winGuest) {
+      await api('POST', `/api/v1/vms/${VM}/stop`);
+      await waitVm('shut');
+    }
+    const r = await api('POST', `/api/v1/vms/${VM}/disk/detach/${diskTarget}`);
     if (!ok(r.status)) throw new Error(`${r.status} ${r.body.slice(0, 120)}`);
+    if (winGuest) {
+      await api('POST', `/api/v1/vms/${VM}/start`);
+      await waitVm('running');
+    }
     let xml = '';
     for (let i = 0; i < 10; i++) {
       xml = (await api('GET', `/api/v1/vms/${VM}/xml`)).body;
-      if (!xml.includes('vdb')) break;
+      if (!xml.includes(`dev='${diskTarget}'`)) break;
       await new Promise((x) => setTimeout(x, 400));
     }
-    if (xml.includes('vdb')) throw new Error('vdb still in XML');
-    return 'detached';
+    if (xml.includes(`dev='${diskTarget}'`)) throw new Error(`${diskTarget} still in XML`);
+    return `detached ${diskTarget}${winGuest ? ' (offline)' : ''}`;
   });
 
   await mark('volume-delete', async () => {

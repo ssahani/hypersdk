@@ -118,6 +118,11 @@ async function cleanupOrphans() {
   await mark('ensure-running', async () => ensureState('running'));
 
   let volPath = '';
+  const winGuest = /win|windows/i.test(VM);
+  const diskTarget = winGuest ? 'sdc' : 'vdb';
+  const diskBus = winGuest ? 'sata' : 'virtio';
+  const nicModel = winGuest ? 'e1000' : 'virtio';
+
   await mark('volume-create', async () => {
     const r = await api('POST', '/api/v1/storage/pools/default/volumes', {
       name: VOL,
@@ -134,32 +139,35 @@ async function cleanupOrphans() {
   });
 
   await mark('disk-attach', async () => {
+    if (winGuest) await ensureState('shutoff');
     const r = await api('POST', `/api/v1/vms/${VM}/disk/attach`, {
       source: volPath,
-      target: 'vdb',
+      target: diskTarget,
       driver: 'qcow2',
-      bus: 'virtio',
+      bus: diskBus,
     });
     if (!ok(r.status)) throw new Error(`${r.status} ${r.body.slice(0, 140)}`);
-    // Persistent config is the source of truth (live device list can lag).
+    if (winGuest) await ensureState('running');
     let xml = '';
     for (let i = 0; i < 10; i++) {
       xml = await getXml();
-      if (xml.includes(volPath) && /dev='vdb'/.test(xml)) break;
+      if (xml.includes(volPath) && xml.includes(`dev='${diskTarget}'`)) break;
       await new Promise((x) => setTimeout(x, 500));
     }
-    if (!xml.includes(volPath) || !/dev='vdb'/.test(xml)) {
-      throw new Error('vdb not in domain XML after attach');
+    if (!xml.includes(volPath) || !xml.includes(`dev='${diskTarget}'`)) {
+      throw new Error(`${diskTarget} not in domain XML after attach`);
     }
-    return 'vdb in xml';
+    return `${diskTarget} in xml bus=${diskBus}`;
   });
 
   await mark('disk-detach', async () => {
-    const r = await api('POST', `/api/v1/vms/${VM}/disk/detach/vdb`);
+    if (winGuest) await ensureState('shutoff');
+    const r = await api('POST', `/api/v1/vms/${VM}/disk/detach/${diskTarget}`);
     if (!ok(r.status)) throw new Error(`${r.status} ${r.body.slice(0, 140)}`);
+    if (winGuest) await ensureState('running');
     const xml = await getXml();
-    if (/dev='vdb'/.test(xml) || xml.includes(volPath)) {
-      throw new Error('vdb still in XML after detach');
+    if (xml.includes(`dev='${diskTarget}'`) || xml.includes(volPath)) {
+      throw new Error(`${diskTarget} still in XML after detach`);
     }
     return 'detached';
   });
@@ -177,9 +185,10 @@ async function cleanupOrphans() {
     const before = await api('GET', `/api/v1/vms/${VM}`);
     const ifaces0 = JSON.parse(before.body).interfaces || [];
     const macs0 = new Set(ifaces0.map((i) => i.mac_address || i.mac).filter(Boolean));
+    if (winGuest) await ensureState('shutoff');
     const r = await api('POST', `/api/v1/vms/${VM}/nic/attach`, {
       network: 'default',
-      model: 'virtio',
+      model: nicModel,
     });
     if (!ok(r.status)) throw new Error(`attach ${r.status} ${r.body.slice(0, 100)}`);
     let added = null;
@@ -192,12 +201,23 @@ async function cleanupOrphans() {
         return m && !macs0.has(m);
       });
       if (added) break;
+      // while shut off, interfaces may only appear in XML
+      if (winGuest) {
+        const xml = await getXml();
+        const macs = [...xml.matchAll(/mac address='([^']+)'/g)].map((m) => m[1]);
+        const neu = macs.find((m) => !macs0.has(m));
+        if (neu) {
+          added = { mac_address: neu };
+          break;
+        }
+      }
     }
     if (!added) throw new Error('no new mac after nic attach');
     const mac = added.mac_address || added.mac;
     const d = await api('POST', `/api/v1/vms/${VM}/nic/detach/${encodeURIComponent(mac)}`);
     if (!ok(d.status)) throw new Error(`detach ${d.status} ${d.body.slice(0, 100)}`);
-    return `added=${mac}`;
+    if (winGuest) await ensureState('running');
+    return `added=${mac} model=${nicModel}`;
   });
 
   await mark('stop-start', async () => {

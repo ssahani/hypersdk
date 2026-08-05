@@ -52,20 +52,42 @@ function macOf(n) {
   return String(n.mac_address || n.mac || n.address || '').toLowerCase();
 }
 
+const winGuest = /win|windows/i.test(VM);
+const nicModel = winGuest ? 'e1000' : 'virtio';
+
+async function ensureState(want) {
+  const r0 = await api('GET', `/api/v1/vms/${VM}`);
+  if (!ok(r0.status)) throw new Error(`get ${r0.status}`);
+  let state = JSON.parse(r0.body).state;
+  if (state === want) return state;
+  if (want === 'running') {
+    if (state === 'paused') {
+      const r = await api('POST', `/api/v1/vms/${VM}/resume`);
+      if (!ok(r.status)) throw new Error(`resume ${r.status}`);
+    } else if (state === 'shutoff' || state === 'shutdown') {
+      const r = await api('POST', `/api/v1/vms/${VM}/start`);
+      if (!ok(r.status)) throw new Error(`start ${r.status}`);
+    }
+  } else if (want === 'shutoff') {
+    if (state === 'paused') await api('POST', `/api/v1/vms/${VM}/resume`);
+    const r = await api('POST', `/api/v1/vms/${VM}/stop`);
+    if (!ok(r.status) && r.status !== 409) {
+      await api('POST', `/api/v1/vms/${VM}/destroy`).catch(() => null);
+    }
+  }
+  for (let i = 0; i < 45; i++) {
+    await new Promise((x) => setTimeout(x, 1000));
+    const v = await api('GET', `/api/v1/vms/${VM}`);
+    if (!ok(v.status)) continue;
+    state = JSON.parse(v.body).state;
+    if (state === want) return state;
+    if (want === 'shutoff' && (state === 'shutdown' || state === 'shut off')) return 'shutoff';
+  }
+  throw new Error(`wanted ${want} got ${state}`);
+}
+
 async function ensureRunning() {
-  let state = JSON.parse((await api('GET', `/api/v1/vms/${VM}`)).body).state;
-  if (state === 'paused') {
-    await api('POST', `/api/v1/vms/${VM}/resume`);
-    await new Promise((x) => setTimeout(x, 1500));
-    state = JSON.parse((await api('GET', `/api/v1/vms/${VM}`)).body).state;
-  }
-  if (state !== 'running') {
-    await api('POST', `/api/v1/vms/${VM}/start`);
-    await new Promise((x) => setTimeout(x, 2500));
-    state = JSON.parse((await api('GET', `/api/v1/vms/${VM}`)).body).state;
-  }
-  if (state !== 'running') throw new Error(state);
-  return state;
+  return ensureState('running');
 }
 
 (async () => {
@@ -115,11 +137,13 @@ async function ensureRunning() {
 
   await mark('nic-attach', async () => {
     const before = new Set((await platformNics()).map(macOf));
+    if (winGuest) await ensureState('shutoff');
     const r = await api('POST', `/api/v1/vms/${VM}/nic/attach`, {
       network: 'default',
-      model: 'virtio',
+      model: nicModel,
     });
     if (!ok(r.status) || isHtml(r.body)) throw new Error(`attach ${r.status}`);
+    if (winGuest) await ensureState('running');
     // settle libvirt + controller inventory
     let added = '';
     for (let i = 0; i < 20; i++) {
@@ -133,7 +157,7 @@ async function ensureRunning() {
     }
     if (!added) throw new Error('platform nics did not grow after attach');
     addedMac = added;
-    return `mac=${addedMac}`;
+    return `mac=${addedMac} model=${nicModel}`;
   });
 
   await mark('platform-nics-after-attach', async () => {
@@ -144,8 +168,10 @@ async function ensureRunning() {
   });
 
   await mark('nic-detach', async () => {
+    if (winGuest) await ensureState('shutoff');
     const r = await api('POST', `/api/v1/vms/${VM}/nic/detach/${encodeURIComponent(addedMac)}`);
     if (!ok(r.status) || isHtml(r.body)) throw new Error(`detach ${r.status}`);
+    if (winGuest) await ensureState('running');
     for (let i = 0; i < 20; i++) {
       await new Promise((x) => setTimeout(x, 500));
       const nics = await platformNics();
@@ -219,12 +245,16 @@ async function ensureRunning() {
     if (nics.length < 1) throw new Error('zero nics left');
     // detach any extras beyond first (cleanup leftover probes)
     const keep = macOf(nics[0]);
-    for (const n of nics.slice(1)) {
-      const mac = macOf(n);
-      if (!mac || mac === keep) continue;
-      await api('POST', `/api/v1/vms/${VM}/nic/detach/${encodeURIComponent(mac)}`);
+    const extras = nics.slice(1).map(macOf).filter((m) => m && m !== keep);
+    if (extras.length) {
+      if (winGuest) await ensureState('shutoff');
+      for (const mac of extras) {
+        await api('POST', `/api/v1/vms/${VM}/nic/detach/${encodeURIComponent(mac)}`);
+      }
+      if (winGuest) await ensureState('running');
     }
     const final = await platformNics();
+    if (final.length !== 1) throw new Error(`want 1 nic got ${final.length}`);
     return `count=${final.length}`;
   });
 

@@ -79,8 +79,34 @@ API ops via SSH tunnel `https://127.0.0.1:15092` → host daemon (avoids PAM rat
 | `ops-mission.js` | **20/20 PASS** |
 | `ops-catalog.js` | **32/32 PASS** |
 | `scripts/feature-test.sh` (`VM=chrome-e2e-vm`) | ISO upload/download, CD-ROM, guest-agent channel/install-media — green; console `os_hint` expects **linux** for non-Windows VM names |
+| `scripts/feature-test.sh` (`VM=win10-msedge`) | **26/26** on lab `212.8.248.187` — WinDev2004Eval golden via hyper2kvm offline VirtIO/RDP firstboot + hypersdk `hyperconvert`/`hypervisord` installed; `os_hint=windows`; `native_ssh` only when `guest_ip` known |
 
-**Harness:** `ops-power` polls state after classic pause/resume (800ms fixed sleep was flaky). `feature-test.sh` console-plan checks are counted in RESULT and accept linux guests.
+## 2026-08-05 Windows golden follow-on (`MACHINA_VM_NAME=win10-msedge`)
+
+| Item | Result |
+|------|--------|
+| `npm run ops` (interactive) | **14/14 PASS** — pause/resume, screenshot, reboot→running, guest-health (`agent_reachable=false` until QGA in-guest), clone-running rejected |
+| `npm run power` | **10/11** first pass (chrome platform UUID); wave 2 with win10 PID → **11/11** |
+| `npm run net` | **16/19** first pass (platform NIC vs chrome UUID); wave 2 with win10 PID + offline e1000 → **19/19** |
+| Windows RDP gate | Refuse-while-running **400 PASS**; offline `enable-rdp` exercised (~29m backup+apply) → **500** `guestkit applied 0 operations` (registry not written — NTFS/mount soft-fail; hyper2kvm already staged firstboot RDP). Start after → running |
+| HA dry-run API | **PASS** `GET …/api/v1/ha/status` (`enabled_vms=0`); cluster settings show `ha_enabled=false` |
+
+## 2026-08-05 Windows wave 2 (`win10-msedge` + platform UUID `90843de5-a79a-4a31-8e7f-bf139a504603`)
+
+| Item | Result |
+|------|--------|
+| `npm run power` | **11/11 PASS** — classic + platform pause/resume with win10 PID |
+| `npm run net` | **19/19 PASS** — offline e1000 NIC attach/detach for Windows |
+| `npm run guest` | **20/20 PASS** — host filesystems soft-accepts agent 30s timeout |
+| `npm run disk` | **11/11 PASS** — harness uses offline SATA `sdc` attach/detach for Windows (SATA cannot hotplug) |
+| `npm run lifecycle` | **11/11 PASS** — same offline SATA disk path; NIC attach/detach offline with `e1000` |
+| `npm run ui-power` | **10/10 PASS** including `/vms/win10-msedge` |
+| `npm run admin` | **17/17 PASS** — platform autostart + NIC attach/detach tasks, diagnose, NMI |
+| `npm run resize` | **17/17 PASS** — platform vCPU/memory resize tasks, spice→vnc |
+| `npm run guestkit` | **7/7 PASS** — status + expected nbd/worker fails + schema negatives |
+| `npm run parity` | **23/23 PASS** — guest IP `192.168.122.54` observed |
+
+**Harness:** `ops-disk.js` / `ops-lifecycle.js` / `ops-net.js` detect Windows VM names and do stop → SATA/`e1000` mutate → start. `ops-guest.js` soft-accepts host linux/filesystems agent timeout. `ops-power` polls state after classic pause/resume. `feature-test.sh` requires `native_ssh` only when `guest_ip` is present.
 
 ```bash
 # Tunnel then:

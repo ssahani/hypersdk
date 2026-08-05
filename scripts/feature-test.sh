@@ -98,9 +98,16 @@ if expect_windows:
     n+=chk(hint=="windows","daemon os_hint=windows",hint)
 else:
     n+=chk(hint in ("linux","ubuntu") or hint.startswith("linux"), f"daemon os_hint=linux (vm={vm})", hint)
-n+=chk("native_ssh" in d.get("protocols",[]),"daemon emits native_ssh",str(d.get("protocols")))
+# native_ssh is only advertised when a guest IP is known (see consolehub.rs).
+# Fresh Windows goldens often have no DHCP lease yet — require it iff guest_ip is set.
+guest_ip = (d.get("guest_ip") or "").strip()
+protos = d.get("protocols") or []
+if guest_ip:
+    n+=chk("native_ssh" in protos,"daemon emits native_ssh when guest_ip known",str(protos))
+else:
+    n+=chk("native_ssh" not in protos,"no native_ssh without guest_ip (expected)",str(protos))
 n+=chk("guacamole" not in d,"no guacamole key in daemon plan")
-n+=chk(not any("guac" in p for p in d.get("protocols",[])),"no guacamole protocols")
+n+=chk(not any("guac" in p for p in protos),"no guacamole protocols")
 sys.exit(0 if n==4 else 1)
 PY
 plan_rc=$?
