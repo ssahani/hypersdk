@@ -25,7 +25,9 @@ topologies are **scoped expansions**, not assumed.
 - API ops: full `scripts/regression` ops catalog green (see `RESULTS.md` 2026-08-05 sections)
 - Page-sweep: **121/130 hard-pass**, 9 soft, 0 fail
 - Media/guest-tools: `VM=chrome-e2e-vm ./scripts/feature-test.sh …`
-- Demo reel published: [Machina × GuestKit](https://youtu.be/LYoqOye3P3I)
+- Demo reels published:
+  - [Machina × GuestKit](https://youtu.be/LYoqOye3P3I)
+  - [Machina desktop wow reel](https://youtu.be/GYjvbKwUufA) (Cinema + Mission Control, ~30s; lab 2026-08-05)
 
 Prefer SSH tunnel for API login (avoids PAM rate limits):
 

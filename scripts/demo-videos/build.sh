@@ -8,6 +8,11 @@
 # marks to video-relative time via: offset = last_mark - actual_video_duration,
 # then subtract that offset from every mark in that segment. Never assume
 # marks line up directly with the raw webm timeline.
+#
+# 2026-08-05 lab (212.8.248.187 via :15092) calibrated offsets:
+#   seg01 dur~20.8  → login @8.5, dashboard @18.5
+#   seg02 dur~58.6  → launchpad @29.5, hosts @35.5, finder @54.5
+#   seg03 dur~40.9  → linux cinema @21, live wall @36
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
@@ -63,18 +68,19 @@ make_title "k00.mp4" 4.0 "w00-title"
 make_title "k01t.mp4" 1.6 "w01-login"
 make_title "k03t.mp4" 1.6 "w02-command"
 make_title "k07t.mp4" 1.6 "w03-cinema"
+make_title "k09t.mp4" 1.6 "w04-wall"
 make_title "k10.mp4" 4.0 "w05-outro"
 
 echo "== Clips (offsets are video-relative, see header note) =="
 extract_clip "seg01-login"               8.5  1.9 "k02.mp4" "cap-login"
-extract_clip "seg02-dashboard-console"  10.4  2.1 "k04.mp4" "cap-command"
-extract_clip "seg02-dashboard-console"  12.9  1.6 "k05.mp4" "cap-command"
-extract_clip "seg02-dashboard-console"  14.9  1.1 "k06.mp4" "cap-vm-card"
-extract_clip "seg02-dashboard-console"  20.2  2.0 "k08.mp4" "cap-serial"
-extract_clip "seg03-cinema-wall"        19.3  4.0 "k09.mp4" "cap-console"
+extract_clip "seg02-dashboard-console"  29.5  2.2 "k04.mp4" "cap-command"
+extract_clip "seg02-dashboard-console"  35.5  1.8 "k05.mp4" "cap-vm-card"
+extract_clip "seg02-dashboard-console"  54.5  2.5 "k06.mp4" "cap-serial"
+extract_clip "seg03-cinema-wall"        21.0  3.8 "k08.mp4" "cap-console"
+extract_clip "seg03-cinema-wall"        36.0  3.2 "k09.mp4" "cap-wall"
 
 concat_to "machina-wow-reel.mp4" \
-  k00 k01t k02 k03t k04 k05 k06 k07t k08 k09 k10
+  k00 k01t k02 k03t k04 k05 k06 k07t k08 k09t k09 k10
 
 cp out/machina-wow-reel.mp4 out/machina-wow-reel-linkedin-1080p.mp4
 echo "== Done =="

@@ -42,20 +42,20 @@ function captionHtml(text) {
 }
 
 const cards = [
-  { file: "w00-title", kicker: "MACHINA", line1: "Your Linux Hypervisor Fleet, Under Control", line2: "libvirt and QEMU/KVM — a real live console for every VM, no SSH required." },
+  { file: "w00-title", kicker: "MACHINA", line1: "Your KVM Fleet, Under Control", line2: "Linux and Windows guests — Cinema console, GuestKit agent, platform day-2." },
   { file: "w01-login", kicker: "", line1: "Sign In, One Platform" },
-  { file: "w02-command", kicker: "", line1: "Command Center — Fleet at a Glance" },
-  { file: "w03-cinema", kicker: "", line1: "Click a VM — a Live Console Opens Instantly" },
+  { file: "w02-command", kicker: "", line1: "Mission Control — Fleet at a Glance" },
+  { file: "w03-cinema", kicker: "", line1: "Machina Cinema — Live Console, Instantly" },
   { file: "w04-wall", kicker: "", line1: "Live Preview Wall — Every Machine, Live" },
-  { file: "w05-outro", kicker: "", line1: "Machina — the fleet you can actually see.", line2: "zyvor.dev/machina" },
+  { file: "w05-outro", kicker: "", line1: "Machina — the fleet you can actually see.", line2: "zyvor.dev/machina · pilot-ready single-host KVM" },
 ];
 
 const captions = [
   { file: "cap-login", text: "Sign in once — the same session drives every machine in the fleet." },
-  { file: "cap-command", text: "Running VMs, hosts online, memory used, and one Launchpad for every tool." },
-  { file: "cap-vm-card", text: "Every machine, live: vCPU, memory, CPU load, and guest-agent status." },
-  { file: "cap-console", text: "One click opens a real console — VNC, SPICE, Performance, or Serial — no virtctl, no SSH." },
-  { file: "cap-serial", text: "A live boot log, straight from the guest — this is a real login prompt, not a mockup." },
+  { file: "cap-command", text: "Mission Control: running VMs, hosts online, and a launchpad for every tool." },
+  { file: "cap-vm-card", text: "Linux guest chrome-e2e-vm — vCPU, memory, and guest health at a glance." },
+  { file: "cap-console", text: "Machina Cinema — full-screen VNC for Linux and Windows, no virtctl required." },
+  { file: "cap-serial", text: "Open a VM — live console and day-2 actions without leaving the desktop." },
   { file: "cap-wall", text: "Live Preview Wall — every machine's screen, updating in real time." },
 ];
 
