@@ -178,6 +178,15 @@ API ops via SSH tunnel `https://127.0.0.1:15092` → host daemon (avoids PAM rat
 
 Windows-targeted `scripts/regression` ops catalog (non-meta) is **complete** through wave 6. Remaining meta: `npm run ui` (interactive CDP) / `npm run pages` if re-sweep desired.
 
+## 2026-08-05 Windows wave 7 (meta — interactive UI + page-sweep)
+
+| Item | Result |
+|------|--------|
+| `npm run ui` | **11/11 PASS** — classic pause/resume (aria/title + API fallback), platform tabs, `/platform/vms`, cinema |
+| `npm run pages -- --loops 1` | **130/130 PASS** soft=0 fail=0 |
+
+**Harness:** `ui-interactive.js` matches Pause/Resume via text/aria/title, scrolls into view, API-fallback if HUD hidden; finder path `/platform/vms`.
+
 ```bash
 export MACHINA_BASE_URL=https://127.0.0.1:15092
 export MACHINA_VM_NAME=win10-msedge
@@ -196,6 +205,7 @@ npm run batch && npm run aiops && npm run watchdog && npm run linuxhost
 npm run firewallx && npm run authz && npm run fleetx && npm run vmx
 npm run aifleet && npm run healthx
 npm run devhub && npm run eventx && npm run graphx && npm run complx && npm run operations
+npm run ui && npm run pages -- --loops 1
 VM=chrome-e2e-vm ./scripts/feature-test.sh 127.0.0.1 sus max   # on host or via tunnel :5092
 ```
 

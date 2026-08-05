@@ -13,7 +13,7 @@ document when live regression waves complete (see
 | Atlas / Ceph storage fabric | Soft-pass when disabled; enable + retest before claiming |
 | OpenStack / KubeVirt-primary | Status/negative covered; not primary path on lab host |
 | Windows guest RDP-first | Lab golden `win10-msedge`: feature-test **26/26**; Windows ops waves 2–6 (full regression catalog) green with platform UUID; RDP refuse-while-running **PASS**; offline guestkit enable-rdp still **500** (0 registry ops) — rely on hyper2kvm firstboot until GuestKit NTFS write path confirmed |
-| Full UI CDP page-sweep | **Done** — `npm run pages` → 121 pass / 9 soft / 0 fail (2026-08-05) |
+| Full UI CDP page-sweep | **Done** — `npm run pages` → **130/130** pass / 0 soft / 0 fail (2026-08-05, win10 session) |
 
 **Language for delivery:** Machina is **pilot-ready** for a guided single-site
 (or small fleet) Linux KVM deployment after the checklist below. Broader

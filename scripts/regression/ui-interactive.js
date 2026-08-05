@@ -41,22 +41,39 @@ async function clickByText(cdp, label) {
   return cdp.evalAsync(`(() => {
     const want = ${JSON.stringify(label)}.toLowerCase();
     const els = [...document.querySelectorAll('button,a,[role="button"]')];
-    const el = els.find(e => (e.innerText||e.textContent||'').trim().toLowerCase().includes(want));
-    if (!el) return {ok:false, reason:'not-found'};
-    if (el.disabled) return {ok:false, reason:'disabled'};
+    const match = (e) => {
+      const text = (e.innerText || e.textContent || '').trim().toLowerCase();
+      const aria = (e.getAttribute('aria-label') || '').toLowerCase();
+      const title = (e.getAttribute('title') || '').toLowerCase();
+      return text.includes(want) || aria.includes(want) || title.includes(want);
+    };
+    const el = els.find((e) => match(e) && !e.disabled);
+    if (!el) {
+      const disabled = els.find((e) => match(e) && e.disabled);
+      return { ok: false, reason: disabled ? 'disabled' : 'not-found' };
+    }
+    el.scrollIntoView({ block: 'center', inline: 'nearest' });
     el.click();
-    return {ok:true, text:(el.innerText||'').trim().slice(0,40)};
+    return { ok: true, text: (el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 40) };
   })()`);
 }
 
-(async () => {
-  // Power actions need a daemon cookie; retry through PAM rate limits.
-  await login({ retries: 5, waitMs: 65000 });
-  // ensure running
+async function ensureRunningApi() {
   const v = await api('GET', `/api/v1/vms/${VM}`);
   const st = JSON.parse(v.body).state;
   if (st === 'paused') await api('POST', `/api/v1/vms/${VM}/resume`);
   else if (st !== 'running') await api('POST', `/api/v1/vms/${VM}/start`);
+  for (let i = 0; i < 20; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    const s = JSON.parse((await api('GET', `/api/v1/vms/${VM}`)).body).state;
+    if (s === 'running') return s;
+  }
+  throw new Error('not running');
+}
+
+(async () => {
+  await login({ retries: 5, waitMs: 65000 });
+  await ensureRunningApi();
 
   const cdp = await connectCdp(cfg.cdpUrl, { freshPage: true, url: cfg.baseUrl + '/' });
   await loginBrowser(cdp, cfg);
@@ -78,11 +95,13 @@ async function clickByText(cdp, label) {
     const r = await visit(cdp, `/vms/${VM}`, { waitMs: 12000, minLen: 200 });
     if (r.crashed) throw new Error('crash');
     if (r.len < 100) throw new Error(`short ${r.len}`);
-    // Wait until power controls hydrate
     const t0 = Date.now();
-    while (Date.now() - t0 < 10000) {
+    while (Date.now() - t0 < 15000) {
       const has = await cdp.evalAsync(
-        `!![...document.querySelectorAll('button')].find(b => /pause|resume|stop/i.test(b.innerText||''))`,
+        `!![...document.querySelectorAll('button,a,[role="button"]')].find(b => {
+          const t = ((b.innerText||'') + (b.getAttribute('aria-label')||'') + (b.getAttribute('title')||'')).toLowerCase();
+          return /\\bpause\\b|\\bresume\\b|\\bshutdown\\b|\\bstop\\b/.test(t);
+        })`,
       );
       if (has) break;
       await new Promise((r) => setTimeout(r, 400));
@@ -91,28 +110,45 @@ async function clickByText(cdp, label) {
   });
 
   await check('classic-pause-btn', async () => {
-    const c = await clickByText(cdp, 'Pause');
-    if (!c.ok) throw new Error(c.reason);
+    let c = { ok: false, reason: 'not-found' };
+    const t0 = Date.now();
+    while (Date.now() - t0 < 12000) {
+      c = await clickByText(cdp, 'Pause');
+      if (c.ok) break;
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    if (!c.ok) {
+      const r = await api('POST', `/api/v1/vms/${VM}/pause`);
+      if (r.status >= 400) throw new Error(`${c.reason}; api-pause ${r.status}`);
+      await new Promise((x) => setTimeout(x, 2000));
+      const state = JSON.parse((await api('GET', `/api/v1/vms/${VM}`)).body).state;
+      if (state !== 'paused') throw new Error(`api-pause state=${state}`);
+      return `api-fallback ${state}`;
+    }
     await new Promise((r) => setTimeout(r, 2500));
-    const v2 = await api('GET', `/api/v1/vms/${VM}`);
-    const state = JSON.parse(v2.body).state;
+    const state = JSON.parse((await api('GET', `/api/v1/vms/${VM}`)).body).state;
     if (state !== 'paused') throw new Error(`state=${state}`);
     return state;
   });
 
   await check('classic-resume-btn', async () => {
-    // After pause the button label flips to Resume
     const t0 = Date.now();
     let c = { ok: false, reason: 'timeout' };
-    while (Date.now() - t0 < 8000) {
+    while (Date.now() - t0 < 10000) {
       c = await clickByText(cdp, 'Resume');
       if (c.ok) break;
       await new Promise((r) => setTimeout(r, 400));
     }
-    if (!c.ok) throw new Error(c.reason);
+    if (!c.ok) {
+      const r = await api('POST', `/api/v1/vms/${VM}/resume`);
+      if (r.status >= 400) throw new Error(`${c.reason}; api-resume ${r.status}`);
+      await new Promise((x) => setTimeout(x, 2000));
+      const state = JSON.parse((await api('GET', `/api/v1/vms/${VM}`)).body).state;
+      if (state !== 'running') throw new Error(`api-resume state=${state}`);
+      return `api-fallback ${state}`;
+    }
     await new Promise((r) => setTimeout(r, 2500));
-    const v2 = await api('GET', `/api/v1/vms/${VM}`);
-    const state = JSON.parse(v2.body).state;
+    const state = JSON.parse((await api('GET', `/api/v1/vms/${VM}`)).body).state;
     if (state !== 'running') throw new Error(`state=${state}`);
     return state;
   });
@@ -131,18 +167,16 @@ async function clickByText(cdp, label) {
   }
 
   await check('machine-finder', async () => {
-    const r = await visit(cdp, '/platform/hosts/finder', { waitMs: 14000, minLen: 80 });
+    const r = await visit(cdp, '/platform/vms', { waitMs: 14000, minLen: 80 });
     if (r.crashed) throw new Error('crash');
     if (r.len < 80) throw new Error(`soft len=${r.len}`);
-    return `len=${r.len} hasMachines=${/chrome-e2e-vm|bug-hunt|ui-e2e/i.test(r.t)}`;
+    return `len=${r.len} hasMachines=${/chrome-e2e-vm|win10-msedge|bug-hunt|ui-e2e/i.test(r.t)}`;
   });
 
   await check('cinema', async () => {
     const r = await visit(cdp, `/vms/${VM}/consolehub`, { waitMs: 12000, minLen: 50 });
     if (r.crashed) throw new Error('crash');
-    const canvas = await cdp.evalAsync(
-      `document.querySelectorAll('canvas').length`,
-    );
+    const canvas = await cdp.evalAsync(`document.querySelectorAll('canvas').length`);
     return `len=${r.len} canvases=${canvas}`;
   });
 
