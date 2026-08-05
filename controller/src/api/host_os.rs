@@ -232,6 +232,10 @@ pub struct GuestNetworkApplyBody {
     pub gateway: Option<String>,
     #[serde(default)]
     pub replace: bool,
+    #[serde(default)]
+    pub dns: Vec<String>,
+    #[serde(default)]
+    pub routes: Vec<serde_json::Value>,
 }
 
 pub async fn vm_guest_network_apply(
@@ -246,6 +250,8 @@ pub async fn vm_guest_network_apply(
         "address_cidr": body.address_cidr,
         "gateway": body.gateway,
         "replace": body.replace,
+        "dns": body.dns,
+        "routes": body.routes,
     });
     host_os::vm_guest_network_apply(&state.pool, &state.config, id, &req)
         .await
