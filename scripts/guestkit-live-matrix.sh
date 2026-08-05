@@ -98,11 +98,17 @@ api() {
   if [[ "$method" == "GET" ]]; then
     curl -sk -b "$COOKIE" -w '\n%{http_code}' "$path"
   else
-    local body="${1:-{}}"
-    # Ensure body is exact JSON with no trailing whitespace/newlines from shell vars.
+    # NOTE: do not use ${1:-{}} — bash parses that as ${1:-{} + literal `}`,
+    # which appends a trailing `}` to every non-empty JSON body (serde trailing chars).
+    local body='{}'
+    if [[ $# -ge 1 ]]; then
+      body="$1"
+    fi
+    # Exact JSON bytes; write via file so curl never sees a shell-mangled string.
     body="$(printf '%s' "$body" | tr -d '\r' | python3 -c 'import sys; print(sys.stdin.read().strip(), end="")')"
+    printf '%s' "$body" > /tmp/gk-matrix-body.json
     curl -sk -b "$COOKIE" -w '\n%{http_code}' -X "$method" "$path" \
-      -H 'Content-Type: application/json' --data-binary "$body"
+      -H 'Content-Type: application/json' --data-binary @/tmp/gk-matrix-body.json
   fi
 }
 
