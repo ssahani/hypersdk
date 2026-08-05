@@ -253,6 +253,7 @@ mod tests {
         let e = ApiError::from_upstream("Not found: vm missing");
         assert_eq!(e.status, StatusCode::NOT_FOUND);
     }
+}
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
