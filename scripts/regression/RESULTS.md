@@ -145,6 +145,26 @@ API ops via SSH tunnel `https://127.0.0.1:15092` → host daemon (avoids PAM rat
 
 **Harness:** `ops-policy.js` soft-accepts port-forward create when guest IP unknown (Windows without QGA).
 
+## 2026-08-05 Windows wave 5 (`win10-msedge` + platform UUID)
+
+| Item | Result |
+|------|--------|
+| `npm run fleet` | **15/15 PASS** |
+| `npm run hardware` | **26/26 PASS** |
+| `npm run infra` | **21/21 PASS** |
+| `npm run atlas` | **14/14 PASS** (Atlas disabled soft) |
+| `npm run batch` | **7/7 PASS** |
+| `npm run aiops` | **10/10 PASS** |
+| `npm run watchdog` | **8/8 PASS** |
+| `npm run linuxhost` | **9/9 PASS** |
+| `npm run firewallx` | **14/14 PASS** |
+| `npm run authz` | **9/9 PASS** |
+| `npm run fleetx` | **21/21 PASS** |
+| `npm run vmx` | **14/14 PASS** |
+| `npm run aifleet` | **13/13 PASS** |
+| `npm run healthx` | **20/20 PASS** |
+| UI wave 5 | **all green** — hardware 19; atlas/batch/aiops/watchdog/linuxhost/firewallx/authz/fleetx/vmx/aifleet/healthx each **10/10** |
+
 ```bash
 export MACHINA_BASE_URL=https://127.0.0.1:15092
 export MACHINA_VM_NAME=win10-msedge
@@ -158,6 +178,10 @@ npm run storage && npm run host && npm run zeus
 npm run audit && npm run volume && npm run resize
 npm run admin && npm run ai && npm run security
 npm run provision && npm run mission && npm run catalog
+npm run fleet && npm run hardware && npm run infra && npm run atlas
+npm run batch && npm run aiops && npm run watchdog && npm run linuxhost
+npm run firewallx && npm run authz && npm run fleetx && npm run vmx
+npm run aifleet && npm run healthx
 VM=chrome-e2e-vm ./scripts/feature-test.sh 127.0.0.1 sus max   # on host or via tunnel :5092
 ```
 
