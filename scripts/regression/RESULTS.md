@@ -2,6 +2,45 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+## 2026-08-05 post-GuestKit wave (212.8.248.187 / chrome-e2e-vm)
+
+API ops via SSH tunnel `https://127.0.0.1:15092` → host daemon (avoids PAM rate limits). GuestKit matrix already green (`scripts/guestkit-live-matrix.sh --with-offline` **29/29**).
+
+| Item | Result |
+|------|--------|
+| `ops-power.js` | **11/11 PASS** — classic pause/resume (poll until state), platform pause/resume tasks, disks/NICs, consolehub, leave running |
+| `ops-net.js` | **19/19 PASS** — NIC attach/detach, networks, HA/events/notifications/SOC, templates, XML |
+| `ops-guest.js` | **20/20 PASS** — guest health/services, doctor, host linux/cockpit, AI jarvis/cost/capacity |
+| `ops-disk.js` | **11/11 PASS** — volume create/resize/clone + classic disk attach/detach |
+| `ops-platform.js` | **15/15 PASS** — boot/mem/cpu tune, tags, snapshots, pause/resume, host-sync, KubeVirt console guard |
+| `ops-lifecycle.js` | **11/11 PASS** — disk/NIC lifecycle, stop/start, rename roundtrip, linked-clone cleanup |
+| `ops-storage.js` | **23/23 PASS** — pools live/discover, tiers, backup-SLA, networks discover, metrics |
+| `ops-host.js` | **34/34 PASS** — host stats/PCI/USB/IOMMU, secrets CRUD, Zeus firewall status, rightsizing |
+| `ops-zeus.js` | **32/32 PASS** — overview/profiles/k8s/finops/targets, cordon toggle, API keys, webhooks, nwfilter |
+| `ops-audit.js` | **23/23 PASS** — audit/templates/users, terminal session, Zeus simulate/compliance, SIEM export |
+| `ops-volume.js` | **22/22 PASS** — console/metrics/observability, volume CRUD, finops/fleet activity |
+| `ops-resize.js` | **17/17 PASS** — vCPU/memory resize tasks, spice→vnc, AI troubleshoot/nl-ops/twin/graph |
+| `ops-admin.js` | **17/17 PASS** — host validate, enrollment create/revoke, platform NIC attach/detach, NMI |
+| `ops-ai.js` | **22/22 PASS** |
+| `ops-security.js` | **52/52 PASS** |
+| `ops-provision.js` | **31/31 PASS** |
+| `ops-mission.js` | **20/20 PASS** |
+| `ops-catalog.js` | **32/32 PASS** |
+| `scripts/feature-test.sh` (`VM=chrome-e2e-vm`) | ISO upload/download, CD-ROM, guest-agent channel/install-media — green; console `os_hint` expects **linux** for non-Windows VM names |
+
+**Harness:** `ops-power` polls state after classic pause/resume (800ms fixed sleep was flaky). `feature-test.sh` console-plan checks are counted in RESULT and accept linux guests.
+
+```bash
+# Tunnel then:
+export MACHINA_BASE_URL=https://127.0.0.1:15092
+npm run power && npm run net && npm run guest && npm run disk
+npm run platform && npm run lifecycle
+npm run storage && npm run host && npm run zeus
+npm run audit && npm run volume && npm run resize
+npm run admin && npm run ai && npm run security
+npm run provision && npm run mission && npm run catalog
+VM=chrome-e2e-vm ./scripts/feature-test.sh 127.0.0.1 sus max   # on host or via tunnel :5092
+```
 
 ## 2026-08-04 complx (compliance / enforcement / rename-clone gates)
 

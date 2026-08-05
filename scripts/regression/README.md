@@ -112,6 +112,16 @@ Written under `scripts/regression/results/` (gitignored):
 
 - `page-sweep.jsonl` / `page-sweep.log`
 - `api-sweep.jsonl` / `api-sweep.log`
+- per-suite `ops-*.jsonl` / `ui-*.jsonl` when those runners are used
+
+Live baselines and pass counts: [`RESULTS.md`](./RESULTS.md).
+
+**Tip:** against a remote host, prefer an SSH local-forward to `127.0.0.1` (PAM rate-limits on the public `:5092` login path):
+
+```bash
+ssh -f -N -L 15092:127.0.0.1:5092 sus@HOST
+export MACHINA_BASE_URL=https://127.0.0.1:15092
+```
 
 ## Fixtures
 

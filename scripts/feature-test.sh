@@ -82,16 +82,34 @@ for j in js[:4]: print("   ", j["status"], j["title"][:46])
 
 section "console plans (Windows detect / native_ssh / no guacamole)"
 c "$API/vms/$VM/consolehub/plan" > "$TMP/plan.json"
-python3 - "$TMP/plan.json" <<'PY'
-import json,sys
+# Default fixture is win10-msedge (windows). Linux smoke VMs (e.g. chrome-e2e-vm) must
+# report os_hint=linux — do not hard-fail the whole script on a print-only python check.
+python3 - "$TMP/plan.json" "$VM" <<'PY'
+import json,sys,os
 d=json.load(open(sys.argv[1]))
+vm=sys.argv[2]
+expect_windows = "win" in vm.lower() or "windows" in vm.lower()
+hint = (d.get("os_hint") or "").lower()
 def chk(cond,label,extra=""):
     print(("  \033[32mPASS\033[0m  " if cond else "  \033[31mFAIL\033[0m  ")+label+("" if cond else f" — {extra}"))
-chk(d.get("os_hint")=="windows","daemon os_hint=windows",d.get("os_hint"))
-chk("native_ssh" in d.get("protocols",[]),"daemon emits native_ssh",d.get("protocols"))
-chk("guacamole" not in d,"no guacamole key in daemon plan")
-chk(not any("guac" in p for p in d.get("protocols",[])),"no guacamole protocols")
+    return 1 if cond else 0
+n=0
+if expect_windows:
+    n+=chk(hint=="windows","daemon os_hint=windows",hint)
+else:
+    n+=chk(hint in ("linux","ubuntu") or hint.startswith("linux"), f"daemon os_hint=linux (vm={vm})", hint)
+n+=chk("native_ssh" in d.get("protocols",[]),"daemon emits native_ssh",str(d.get("protocols")))
+n+=chk("guacamole" not in d,"no guacamole key in daemon plan")
+n+=chk(not any("guac" in p for p in d.get("protocols",[])),"no guacamole protocols")
+sys.exit(0 if n==4 else 1)
 PY
+plan_rc=$?
+if [ "$plan_rc" -ne 0 ]; then
+  bad "console plan checks" "see FAIL lines above"
+else
+  # python already printed PASSes; keep counts in sync for RESULT
+  PASSN=$((PASSN+4))
+fi
 
 section "CD-ROM lifecycle"
 ISO=/var/lib/libvirt/images/isos/featuretest.iso

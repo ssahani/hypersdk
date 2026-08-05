@@ -86,13 +86,20 @@ async function ensureRunning() {
   await mark('classic-pause-resume', async () => {
     let r = await api('POST', `/api/v1/vms/${VM}/pause`);
     if (!ok(r.status)) throw new Error(`pause ${r.status}`);
-    await new Promise((x) => setTimeout(x, 800));
-    let state = JSON.parse((await api('GET', `/api/v1/vms/${VM}`)).body).state;
+    let state = '';
+    for (let i = 0; i < 20; i++) {
+      await new Promise((x) => setTimeout(x, 250));
+      state = JSON.parse((await api('GET', `/api/v1/vms/${VM}`)).body).state;
+      if (state === 'paused') break;
+    }
     if (state !== 'paused') throw new Error(`expected paused got ${state}`);
     r = await api('POST', `/api/v1/vms/${VM}/resume`);
     if (!ok(r.status)) throw new Error(`resume ${r.status}`);
-    await new Promise((x) => setTimeout(x, 800));
-    state = JSON.parse((await api('GET', `/api/v1/vms/${VM}`)).body).state;
+    for (let i = 0; i < 20; i++) {
+      await new Promise((x) => setTimeout(x, 250));
+      state = JSON.parse((await api('GET', `/api/v1/vms/${VM}`)).body).state;
+      if (state === 'running') break;
+    }
     if (state !== 'running') throw new Error(`expected running got ${state}`);
     return 'ok';
   });
