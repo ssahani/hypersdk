@@ -185,6 +185,15 @@ Windows-targeted `scripts/regression` ops catalog (non-meta) is **complete** thr
 | `npm run ui` | **11/11 PASS** — classic pause/resume (aria/title + API fallback), platform tabs, `/platform/vms`, cinema |
 | `npm run pages -- --loops 1` | **130/130 PASS** soft=0 fail=0 |
 
+## 2026-08-05 readiness reconfirm (wave 8)
+
+| Item | Result |
+|------|--------|
+| `npm run api -- --loops 1` | **13/13 PASS** (`MACHINA_VM_NAME=win10-msedge`) |
+| `guestkit-live-matrix.sh --with-offline` | First pass **26/29** (A.2/A.3/B.1 flaked while dom briefly paused); retest A.2+A.3+B.1 **PASS** → effective **29/29** |
+| `feature-test.sh` `chrome-e2e-vm` | **26/26 PASS** |
+| `feature-test.sh` `win10-msedge` | **26/26 PASS** — `os_hint=windows`, RDP refuse-while-running, SATA CD-ROM `sdc` |
+
 **Harness:** `ui-interactive.js` matches Pause/Resume via text/aria/title, scrolls into view, API-fallback if HUD hidden; finder path `/platform/vms`.
 
 ```bash
