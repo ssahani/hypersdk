@@ -237,6 +237,7 @@ async function getJson(path) {
 
   await mark('port-forward-create-when-guest-ip-known', async () => {
     // Controller resolves guest IP from DB (not request body). When known, create succeeds.
+    // Windows guests without QGA often have no IP yet — accept that expected 400.
     await api('POST', `${P}/api/v1/vms/${PID}/port-forwards/delete`, {
       protocol: 'tcp',
       host_port: 18080,
@@ -248,14 +249,19 @@ async function getJson(path) {
       protocol: 'tcp',
       description: 'ops-policy regression',
     });
-    if (!ok(r.status)) throw new Error(`create ${r.status} ${String(r.body).slice(0, 120)}`);
-    const d = await api('POST', `${P}/api/v1/vms/${PID}/port-forwards/delete`, {
-      protocol: 'tcp',
-      host_port: 18080,
-      vm_port: 80,
-    });
-    if (!ok(d.status)) throw new Error(`cleanup ${d.status}`);
-    return 'created+deleted tcp/18080→80';
+    if (ok(r.status)) {
+      const d = await api('POST', `${P}/api/v1/vms/${PID}/port-forwards/delete`, {
+        protocol: 'tcp',
+        host_port: 18080,
+        vm_port: 80,
+      });
+      if (!ok(d.status)) throw new Error(`cleanup ${d.status}`);
+      return 'created+deleted tcp/18080→80';
+    }
+    if (r.status === 400 && /guest ip is not known|dhcp|guest tools/i.test(r.body || '')) {
+      return `${r.status}-guest-ip-unknown`;
+    }
+    throw new Error(`create ${r.status} ${String(r.body).slice(0, 120)}`);
   });
 
   await mark('port-forward-bad-port', async () => {

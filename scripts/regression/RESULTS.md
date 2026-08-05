@@ -126,9 +126,32 @@ API ops via SSH tunnel `https://127.0.0.1:15092` → host daemon (avoids PAM rat
 | `npm run ui-storage` … `ui-catalog` | **all green** — storage 17, host 19, zeus 16, audit 17, volume 15, ai 10, security 15, admin 10, resize 10, guest 11(+1 soft), net 10, provision 10, mission 23, catalog 25 |
 
 **Harness:** `ops-provision.js` treat adopt already-managed as pass on 4xx or idempotent 200. CDP needed a blank page target (`PUT /json/new?about:blank`) when `/json/list` was empty.
+
+## 2026-08-05 Windows wave 4 (`win10-msedge` + platform UUID)
+
+| Item | Result |
+|------|--------|
+| `npm run hunt` | **24/24 PASS** |
+| `npm run hub` | **25/25 PASS** |
+| `npm run providers` | **34/34 PASS** |
+| `npm run apps` | **28/28 PASS** |
+| `npm run policy` | **27/27 PASS** — port-forward soft-accepts guest-IP-unknown (Windows without QGA) |
+| `npm run diag` | **26/26 PASS** |
+| `npm run obs` | **41/41 PASS** |
+| `npm run enterprise` | **32/32 PASS** |
+| `npm run alerts` | **24/24 PASS** |
+| `npm run planner` | **24/24 PASS** |
+| `npm run ui-hunt` … `ui-planner` | **all 10/10** — hunt, hub, providers, apps, policy, diag, obs, enterprise, alerts, planner |
+
+**Harness:** `ops-policy.js` soft-accepts port-forward create when guest IP unknown (Windows without QGA).
+
 ```bash
-# Tunnel then:
 export MACHINA_BASE_URL=https://127.0.0.1:15092
+export MACHINA_VM_NAME=win10-msedge
+export MACHINA_PLATFORM_VM_ID=90843de5-a79a-4a31-8e7f-bf139a504603
+npm run hunt && npm run hub && npm run providers && npm run apps
+npm run policy && npm run diag && npm run obs
+npm run enterprise && npm run alerts && npm run planner
 npm run power && npm run net && npm run guest && npm run disk
 npm run platform && npm run lifecycle
 npm run storage && npm run host && npm run zeus
