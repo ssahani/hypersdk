@@ -165,6 +165,19 @@ API ops via SSH tunnel `https://127.0.0.1:15092` → host daemon (avoids PAM rat
 | `npm run healthx` | **20/20 PASS** |
 | UI wave 5 | **all green** — hardware 19; atlas/batch/aiops/watchdog/linuxhost/firewallx/authz/fleetx/vmx/aifleet/healthx each **10/10** |
 
+## 2026-08-05 Windows wave 6 (`win10-msedge` + platform UUID) — catalog complete
+
+| Item | Result |
+|------|--------|
+| `npm run devhub` | **32/32 PASS** |
+| `npm run eventx` | **26/26 PASS** |
+| `npm run graphx` | **21/21 PASS** |
+| `npm run complx` | **21/21 PASS** |
+| `npm run operations` | **29/29 PASS** |
+| `npm run ui-devhub` … `ui-operations` | **all 10/10** — devhub, eventx, graphx, complx, operations |
+
+Windows-targeted `scripts/regression` ops catalog (non-meta) is **complete** through wave 6. Remaining meta: `npm run ui` (interactive CDP) / `npm run pages` if re-sweep desired.
+
 ```bash
 export MACHINA_BASE_URL=https://127.0.0.1:15092
 export MACHINA_VM_NAME=win10-msedge
@@ -182,6 +195,7 @@ npm run fleet && npm run hardware && npm run infra && npm run atlas
 npm run batch && npm run aiops && npm run watchdog && npm run linuxhost
 npm run firewallx && npm run authz && npm run fleetx && npm run vmx
 npm run aifleet && npm run healthx
+npm run devhub && npm run eventx && npm run graphx && npm run complx && npm run operations
 VM=chrome-e2e-vm ./scripts/feature-test.sh 127.0.0.1 sus max   # on host or via tunnel :5092
 ```
 
