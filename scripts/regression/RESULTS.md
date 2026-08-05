@@ -2,6 +2,36 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+## 2026-08-05 remaining ops + page-sweep (customer readiness push)
+
+All remaining `npm run <ops>` suites (except meta `once`/`continuous`) re-run via tunnel. Harness fixes: `ops` reboot waits for running; `ops-infra` ensure-running; `ops-ops` sync-time/fstrim accept agent-up.
+
+| Item | Result |
+|------|--------|
+| `ops` (interactive) | **14/14 PASS** — reboot leaves running |
+| `ops-infra.js` | **21/21 PASS** |
+| `ops-fleet.js` | **15/15 PASS** |
+| `ops-hardware.js` | **26/26 PASS** |
+| `ops-atlas.js` | **14/14 PASS** (Atlas disabled soft) |
+| `ops-batch.js` | **7/7 PASS** |
+| `ops-aiops.js` | **10/10 PASS** |
+| `ops-watchdog.js` | **8/8 PASS** |
+| `ops-linuxhost.js` | **9/9 PASS** |
+| `ops-firewallx.js` | **14/14 PASS** |
+| `ops-authz.js` | **9/9 PASS** |
+| `ops-fleetx.js` | **21/21 PASS** |
+| `ops-vmx.js` | **14/14 PASS** |
+| `ops-aifleet.js` | **13/13 PASS** |
+| `ops-healthx.js` | **20/20 PASS** |
+| `ops-devhub.js` | **32/32 PASS** |
+| `ops-eventx.js` | **26/26 PASS** |
+| `ops-graphx.js` | **21/21 PASS** |
+| `ops-complx.js` | **21/21 PASS** |
+| `ops-ops.js` (operations) | **29/29 PASS** |
+| `page-sweep.js` | **121 pass / 9 soft / 0 fail** (130 routes; soft = short-body hydrate, known) |
+
+Customer gate doc: [`docs/CUSTOMER_SITE_READINESS.md`](../../docs/CUSTOMER_SITE_READINESS.md).
+
 ## 2026-08-05 wave 2 (hunt → planner)
 
 | Item | Result |

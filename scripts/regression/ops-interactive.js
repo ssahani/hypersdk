@@ -161,13 +161,25 @@ async function waitTask(taskId, timeoutMs = 60000) {
     return `status=${r.status}`;
   });
 
-  // Reboot soft
+  // Soft reboot — must leave the VM running so later suites aren't poisoned.
   await mark('reboot', async () => {
     const r = await api('POST', `/api/v1/vms/${VM}/reboot`);
     if (!ok(r.status)) throw new Error(`${r.status} ${r.body.slice(0, 80)}`);
-    await new Promise((x) => setTimeout(x, 4000));
-    const v = await api('GET', `/api/v1/vms/${VM}`);
-    return `after=${JSON.parse(v.body).state}`;
+    let state = '';
+    for (let i = 0; i < 40; i++) {
+      await new Promise((x) => setTimeout(x, 500));
+      const v = await api('GET', `/api/v1/vms/${VM}`);
+      state = JSON.parse(v.body).state;
+      if (state === 'running') break;
+      if (state === 'shutoff' || state === 'shut off') {
+        const s = await api('POST', `/api/v1/vms/${VM}/start`);
+        if (!ok(s.status) && s.status !== 409) {
+          throw new Error(`post-reboot start ${s.status} ${String(s.body).slice(0, 80)}`);
+        }
+      }
+    }
+    if (state !== 'running') throw new Error(`expected running after reboot got ${state}`);
+    return `after=${state}`;
   });
 
   log.append({

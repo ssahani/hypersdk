@@ -6,6 +6,7 @@ Enterprise Linux hypervisor management platform
 
 | Goal | Document |
 |------|----------|
+| **Customer site readiness (pilot gate · checklist)** | [CUSTOMER_SITE_READINESS.md](CUSTOMER_SITE_READINESS.md) |
 | **Customer docs (page-by-page UI manual · PDFs)** | [customer/README.md](customer/README.md) |
 | **Handbook (product · admin · FAQ · troubleshooting)** | [handbook/README.md](handbook/README.md) |
 | Infrastructure vision | [machina-infrastructure-vision.md](machina-infrastructure-vision.md) |

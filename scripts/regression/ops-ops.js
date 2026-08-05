@@ -161,16 +161,33 @@ async function ensureRunning() {
     return j.vm_name || j.vm_id;
   });
 
-  await mark('guest-sync-time-no-agent', async () => {
+  await mark('guest-sync-time', async () => {
     const r = await api('POST', `${P}/api/v1/vms/${PID}/guest/sync-time`, {});
-    if (r.status < 400) throw new Error(`expected error got ${r.status}`);
-    return `${r.status} no-agent`;
+    // Agent-up lab: expect success. Agent-down hosts still return 4xx/5xx.
+    if (r.status >= 400) {
+      if (!/agent|guestkit|unavailable|not reachable/i.test(r.body || '')) {
+        throw new Error(`${r.status} ${String(r.body).slice(0, 100)}`);
+      }
+      return `${r.status} agent-down`;
+    }
+    if (isHtml(r.body)) throw new Error('html');
+    const j = JSON.parse(r.body);
+    if (!j.ok && j.ok !== undefined) throw new Error(JSON.stringify(j).slice(0, 100));
+    return j.message || 'ok';
   });
 
-  await mark('guest-fstrim-no-agent', async () => {
+  await mark('guest-fstrim', async () => {
     const r = await api('POST', `${P}/api/v1/vms/${PID}/guest/fstrim`, {});
-    if (r.status < 400) throw new Error(`expected error got ${r.status}`);
-    return `${r.status} no-agent`;
+    if (r.status >= 400) {
+      if (!/agent|guestkit|unavailable|not reachable/i.test(r.body || '')) {
+        throw new Error(`${r.status} ${String(r.body).slice(0, 100)}`);
+      }
+      return `${r.status} agent-down`;
+    }
+    if (isHtml(r.body)) throw new Error('html');
+    const j = JSON.parse(r.body);
+    if (!j.ok && j.ok !== undefined) throw new Error(JSON.stringify(j).slice(0, 100));
+    return j.message || 'ok';
   });
 
   await mark('host-diagnose', async () => {

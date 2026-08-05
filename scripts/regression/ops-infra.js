@@ -55,6 +55,27 @@ async function getJson(path) {
     else fail++;
   };
 
+  await mark('ensure-running', async () => {
+    const r0 = await api('GET', `/api/v1/vms/${VM}`);
+    if (!ok(r0.status)) throw new Error(`get ${r0.status}`);
+    let state = JSON.parse(r0.body).state;
+    if (state === 'paused') {
+      await api('POST', `/api/v1/vms/${VM}/resume`);
+      await new Promise((x) => setTimeout(x, 1000));
+    } else if (state !== 'running') {
+      const s = await api('POST', `/api/v1/vms/${VM}/start`);
+      if (!ok(s.status) && s.status !== 409) throw new Error(`start ${s.status}`);
+      for (let i = 0; i < 30; i++) {
+        await new Promise((x) => setTimeout(x, 500));
+        state = JSON.parse((await api('GET', `/api/v1/vms/${VM}`)).body).state;
+        if (state === 'running') break;
+      }
+    }
+    state = JSON.parse((await api('GET', `/api/v1/vms/${VM}`)).body).state;
+    if (state !== 'running') throw new Error(state);
+    return state;
+  });
+
   await mark('networks', async () => {
     const { json } = await getJson('/api/v1/networks');
     if (!Array.isArray(json) || !json.some((n) => n.name === 'default')) throw new Error('no default net');
