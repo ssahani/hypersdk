@@ -108,6 +108,24 @@ API ops via SSH tunnel `https://127.0.0.1:15092` → host daemon (avoids PAM rat
 
 **Harness:** `ops-disk.js` / `ops-lifecycle.js` / `ops-net.js` detect Windows VM names and do stop → SATA/`e1000` mutate → start. `ops-guest.js` soft-accepts host linux/filesystems agent timeout. `ops-power` polls state after classic pause/resume. `feature-test.sh` requires `native_ssh` only when `guest_ip` is present.
 
+## 2026-08-05 Windows wave 3 (`win10-msedge` + platform UUID)
+
+| Item | Result |
+|------|--------|
+| `npm run platform` | **15/15 PASS** |
+| `npm run storage` | **23/23 PASS** |
+| `npm run host` | **34/34 PASS** |
+| `npm run zeus` | **32/32 PASS** |
+| `npm run audit` | **23/23 PASS** |
+| `npm run volume` | **22/22 PASS** |
+| `npm run ai` | **22/22 PASS** |
+| `npm run security` | **52/52 PASS** |
+| `npm run provision` | **31/31 PASS** — adopt already-managed accepts 4xx (or idempotent 200) |
+| `npm run mission` | **20/20 PASS** |
+| `npm run catalog` | **32/32 PASS** |
+| `npm run ui-storage` … `ui-catalog` | **all green** — storage 17, host 19, zeus 16, audit 17, volume 15, ai 10, security 15, admin 10, resize 10, guest 11(+1 soft), net 10, provision 10, mission 23, catalog 25 |
+
+**Harness:** `ops-provision.js` treat adopt already-managed as pass on 4xx or idempotent 200. CDP needed a blank page target (`PUT /json/new?about:blank`) when `/json/list` was empty.
 ```bash
 # Tunnel then:
 export MACHINA_BASE_URL=https://127.0.0.1:15092

@@ -231,7 +231,12 @@ async function getJson(path) {
 
   await mark('vm-adopt-already-managed', async () => {
     const r = await api('POST', `${P}/api/v1/vms/${PID}/adopt`, {});
-    if (r.status < 400) throw new Error(`expected reject got ${r.status}`);
+    const body = String(r.body || '');
+    // Idempotent adopt may 200; conflict/already-managed is 4xx.
+    if (r.status < 400) {
+      if (/already managed|already.?adopt|noop|idempotent/i.test(body)) return `${r.status}-idempotent`;
+      throw new Error(`expected reject got ${r.status} ${body.slice(0, 80)}`);
+    }
     return `${r.status}`;
   });
 
