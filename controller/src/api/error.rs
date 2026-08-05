@@ -174,10 +174,19 @@ impl ApiError {
             || m.contains("agent token")
             || m.contains("unauthenticated");
         if unavailable {
-            Self::service_unavailable(msg)
-        } else {
-            Self::internal(msg)
+            return Self::service_unavailable(msg);
         }
+        // LibvirtError Display prefixes from machina-agent guest/host ops.
+        if m.starts_with("invalid input:") {
+            return Self::bad_request(msg).with_code("invalid_request");
+        }
+        if m.starts_with("not found:") {
+            return Self::not_found(msg);
+        }
+        if m.starts_with("forbidden:") {
+            return Self::forbidden(msg);
+        }
+        Self::internal(msg)
     }
 }
 
@@ -229,7 +238,21 @@ mod tests {
         assert_eq!(e.status, StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(e.error_code.as_deref(), Some("internal_error"));
     }
-}
+
+    #[test]
+    fn invalid_input_from_agent_maps_to_400() {
+        let e = ApiError::from_upstream(
+            "Invalid input: address must be CIDR (e.g. 192.168.122.50/24)",
+        );
+        assert_eq!(e.status, StatusCode::BAD_REQUEST);
+        assert_eq!(e.error_code.as_deref(), Some("invalid_request"));
+    }
+
+    #[test]
+    fn not_found_from_agent_maps_to_404() {
+        let e = ApiError::from_upstream("Not found: vm missing");
+        assert_eq!(e.status, StatusCode::NOT_FOUND);
+    }
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {

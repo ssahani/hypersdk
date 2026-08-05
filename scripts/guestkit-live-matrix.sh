@@ -265,6 +265,7 @@ if should_run C.2; then
   else
     record C C.2 FAIL "http=$HTTP_CODE ${HTTP_BODY:0:200}" "network-apply-basic"
   fi
+  sleep 2
 fi
 
 if should_run C.3; then
@@ -276,6 +277,7 @@ if should_run C.3; then
   else
     record C C.3 FAIL "http=$HTTP_CODE msg=${msg:0:180}" "network-dns-not-forwarded"
   fi
+  sleep 2
 fi
 
 if should_run C.4; then
@@ -294,21 +296,31 @@ if should_run C.4; then
   else
     record C C.4 FAIL "http=$HTTP_CODE msg=${msg:0:180}" "network-static-route"
   fi
+  sleep 2
 fi
 
 if should_run C.5; then
   body="$(python3 -c 'import json; print(json.dumps({"iface":"enp1s0","address_cidr":"not-a-cidr","gateway":"192.168.122.1","replace":True}), end="")')"
   split_body_code "$(api POST "$P/vms/$VM_ID/guest/network" "$body")"
-  if [[ "$HTTP_CODE" -ge 400 ]]; then
+  if [[ "$HTTP_CODE" == "400" ]]; then
     record C C.5 PASS "rejected bad cidr http=$HTTP_CODE"
   else
-    record C C.5 FAIL "accepted bad cidr http=$HTTP_CODE" "network-validation"
+    record C C.5 FAIL "expected 400 for bad cidr http=$HTTP_CODE ${HTTP_BODY:0:120}" "network-validation"
   fi
 fi
 
 if should_run C.6; then
-  split_body_code "$(api GET "$P/vms/$VM_ID/guest/health")"
-  if [[ "$HTTP_CODE" == "200" ]] && python3 -c 'import json,sys; d=json.loads(sys.argv[1]); raise SystemExit(0 if d.get("healthy") else 1)' "$HTTP_BODY"; then
+  # Allow QGA to settle after netplan churn before asserting health.
+  ok=0
+  for _ in 1 2 3 4 5; do
+    split_body_code "$(api GET "$P/vms/$VM_ID/guest/health")"
+    if [[ "$HTTP_CODE" == "200" ]] && python3 -c 'import json,sys; d=json.loads(sys.argv[1]); raise SystemExit(0 if d.get("healthy") else 1)' "$HTTP_BODY"; then
+      ok=1
+      break
+    fi
+    sleep 2
+  done
+  if [[ "$ok" == "1" ]]; then
     record C C.6 PASS "health still OK after network ops"
   else
     record C C.6 FAIL "health degraded after network ops" "network-side-effect"

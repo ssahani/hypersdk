@@ -330,9 +330,21 @@ fn guest_exec_command(
         }
     })
     .to_string();
-    let v = qemu_agent_command(vm_name, &exec_json).ok_or_else(|| {
-        LibvirtError::Operation("guest-exec failed — is guestkit-agent running?".into())
-    })?;
+    // Netplan/NM apply can briefly drop the virtio serial channel; retry QGA
+    // until the agent is reachable again rather than failing the whole apply.
+    let v = {
+        let mut last = None;
+        for attempt in 0..8 {
+            if let Some(v) = qemu_agent_command(vm_name, &exec_json) {
+                last = Some(v);
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250 + attempt * 150));
+        }
+        last.ok_or_else(|| {
+            LibvirtError::Operation("guest-exec failed — is guestkit-agent running?".into())
+        })?
+    };
     let pid = v
         .get("return")
         .and_then(|r| r.get("pid"))
@@ -343,8 +355,17 @@ fn guest_exec_command(
         std::thread::sleep(std::time::Duration::from_millis(200));
         let status_json =
             format!(r#"{{"execute":"guest-exec-status","arguments":{{"pid":{pid}}}}}"#);
-        let st = qemu_agent_command(vm_name, &status_json)
-            .ok_or_else(|| LibvirtError::Operation("guest-exec-status failed".into()))?;
+        let st = {
+            let mut got = None;
+            for attempt in 0..6 {
+                if let Some(v) = qemu_agent_command(vm_name, &status_json) {
+                    got = Some(v);
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(200 + attempt * 100));
+            }
+            got.ok_or_else(|| LibvirtError::Operation("guest-exec-status failed".into()))?
+        };
         let ret = st.get("return").cloned().unwrap_or(st);
         if ret.get("exited").and_then(|x| x.as_bool()).unwrap_or(false) {
             last = Some(ret);
