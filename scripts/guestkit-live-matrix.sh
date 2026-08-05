@@ -234,6 +234,10 @@ if should_run B.7; then
   fi
 fi
 
+NET_IFACE=enp1s0
+NET_CIDR=192.168.122.56/24
+NET_GW=192.168.122.1
+
 # ─── C. Network ──────────────────────────────────────────────────────
 if should_run C.1; then
   split_body_code "$(api GET "$P/vms/$VM_ID/guest/network")"
@@ -244,14 +248,12 @@ if should_run C.1; then
     NET_GW="$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(str(d.get("default_gateway") or "192.168.122.1").strip(), end="")' "$HTTP_BODY")"
   else
     record C C.1 FAIL "http=$HTTP_CODE ${HTTP_BODY:0:160}" "guest-network-get"
-    NET_IFACE=enp1s0
-    NET_CIDR=192.168.122.56/24
-    NET_GW=192.168.122.1
   fi
 fi
 
 if should_run C.2; then
-  split_body_code "$(api POST "$P/vms/$VM_ID/guest/network" "{\"iface\":\"${NET_IFACE}\",\"address_cidr\":\"${NET_CIDR}\",\"gateway\":\"${NET_GW}\",\"replace\":true}")"
+  body="$(NET_IFACE="$NET_IFACE" NET_CIDR="$NET_CIDR" NET_GW="$NET_GW" python3 -c 'import json,os; print(json.dumps({"iface":os.environ["NET_IFACE"],"address_cidr":os.environ["NET_CIDR"],"gateway":os.environ["NET_GW"],"replace":True}), end="")')"
+  split_body_code "$(api POST "$P/vms/$VM_ID/guest/network" "$body")"
   if [[ "$HTTP_CODE" == "200" ]] && python3 -c 'import json,sys; d=json.loads(sys.argv[1]); raise SystemExit(0 if d.get("ok") else 1)' "$HTTP_BODY"; then
     record C C.2 PASS "$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(d.get("message","")[:160])' "$HTTP_BODY")"
   else
@@ -260,7 +262,8 @@ if should_run C.2; then
 fi
 
 if should_run C.3; then
-  split_body_code "$(api POST "$P/vms/$VM_ID/guest/network" "{\"iface\":\"${NET_IFACE}\",\"address_cidr\":\"${NET_CIDR}\",\"gateway\":\"${NET_GW}\",\"dns\":[\"1.1.1.1\",\"8.8.8.8\"],\"replace\":true}")"
+  body="$(NET_IFACE="$NET_IFACE" NET_CIDR="$NET_CIDR" NET_GW="$NET_GW" python3 -c 'import json,os; print(json.dumps({"iface":os.environ["NET_IFACE"],"address_cidr":os.environ["NET_CIDR"],"gateway":os.environ["NET_GW"],"dns":["1.1.1.1","8.8.8.8"],"replace":True}), end="")')"
+  split_body_code "$(api POST "$P/vms/$VM_ID/guest/network" "$body")"
   msg="$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(d.get("message") or d.get("error") or "")' "$HTTP_BODY" 2>/dev/null || echo "$HTTP_BODY")"
   if [[ "$HTTP_CODE" == "200" ]] && echo "$msg" | grep -qi 'dns'; then
     record C C.3 PASS "${msg:0:160}"
@@ -270,12 +273,12 @@ if should_run C.3; then
 fi
 
 if should_run C.4; then
-  split_body_code "$(api POST "$P/vms/$VM_ID/guest/network" "{\"iface\":\"${NET_IFACE}\",\"address_cidr\":\"${NET_CIDR}\",\"gateway\":\"${NET_GW}\",\"dns\":[\"1.1.1.1\"],\"routes\":[{\"to\":\"10.0.0.0/8\",\"via\":\"${NET_GW}\"}],\"replace\":true}")"
+  body="$(NET_IFACE="$NET_IFACE" NET_CIDR="$NET_CIDR" NET_GW="$NET_GW" python3 -c 'import json,os; print(json.dumps({"iface":os.environ["NET_IFACE"],"address_cidr":os.environ["NET_CIDR"],"gateway":os.environ["NET_GW"],"dns":["1.1.1.1"],"routes":[{"to":"10.0.0.0/8","via":os.environ["NET_GW"]}],"replace":True}), end="")')"
+  split_body_code "$(api POST "$P/vms/$VM_ID/guest/network" "$body")"
   msg="$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(d.get("message") or d.get("error") or "")' "$HTTP_BODY" 2>/dev/null || echo "$HTTP_BODY")"
   if [[ "$HTTP_CODE" == "200" ]] && echo "$msg" | grep -qi 'static route\|route'; then
     record C C.4 PASS "${msg:0:160}"
   elif [[ "$HTTP_CODE" == "200" ]] && python3 -c 'import json,sys; d=json.loads(sys.argv[1]); raise SystemExit(0 if d.get("ok") else 1)' "$HTTP_BODY"; then
-    # verify via GET routes
     split_body_code "$(api GET "$P/vms/$VM_ID/guest/network")"
     if echo "$HTTP_BODY" | grep -q '10.0.0.0/8'; then
       record C C.4 PASS "route present in GET"
@@ -288,7 +291,8 @@ if should_run C.4; then
 fi
 
 if should_run C.5; then
-  split_body_code "$(api POST "$P/vms/$VM_ID/guest/network" '{"iface":"enp1s0","address_cidr":"not-a-cidr","gateway":"192.168.122.1","replace":true}')"
+  body="$(python3 -c 'import json; print(json.dumps({"iface":"enp1s0","address_cidr":"not-a-cidr","gateway":"192.168.122.1","replace":True}), end="")')"
+  split_body_code "$(api POST "$P/vms/$VM_ID/guest/network" "$body")"
   if [[ "$HTTP_CODE" -ge 400 ]]; then
     record C C.5 PASS "rejected bad cidr http=$HTTP_CODE"
   else
@@ -421,11 +425,11 @@ if should_run F.1; then
 fi
 
 if should_run F.2; then
-  # ensure create
-  api POST "$P/vms/$VM_ID/port-forwards/delete" "{\"protocol\":\"tcp\",\"host_port\":${NAT_PORT},\"vm_port\":22}" >/dev/null || true
-  split_body_code "$(api POST "$P/vms/$VM_ID/port-forwards" "{\"protocol\":\"tcp\",\"host_port\":${NAT_PORT},\"vm_port\":22,\"description\":\"GuestKit matrix SSH\"}")"
+  api POST "$P/vms/$VM_ID/port-forwards/delete" "$(python3 -c 'import json; print(json.dumps({"protocol":"tcp","host_port":2222,"vm_port":22}), end="")')" >/dev/null || true
+  body="$(python3 -c 'import json; print(json.dumps({"protocol":"tcp","host_port":2222,"vm_port":22,"description":"GuestKit matrix SSH"}), end="")')"
+  split_body_code "$(api POST "$P/vms/$VM_ID/port-forwards" "$body")"
   if [[ "$HTTP_CODE" == "200" ]]; then
-    record F F.2 PASS "created tcp/${NAT_PORT}->22"
+    record F F.2 PASS "created tcp/2222->22"
   else
     record F F.2 FAIL "http=$HTTP_CODE ${HTTP_BODY:0:120}" "port-forward-create"
   fi
