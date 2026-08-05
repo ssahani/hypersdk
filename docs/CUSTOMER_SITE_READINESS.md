@@ -12,7 +12,7 @@ document when live regression waves complete (see
 | Multi-host HA failover under real host loss | API dry-run **PASS** (`/api/v1/ha/status`, `ha_enabled=false` on lab); still needs customer host-loss drill |
 | Atlas / Ceph storage fabric | Soft-pass when disabled; enable + retest before claiming |
 | OpenStack / KubeVirt-primary | Status/negative covered; not primary path on lab host |
-| Windows guest RDP-first | Lab golden `win10-msedge`: feature-test **26/26**; waves 2–3 API+UI green (platform through security/provision/mission/catalog); RDP refuse-while-running **PASS**; offline guestkit enable-rdp still **500** (0 registry ops) — rely on hyper2kvm firstboot until GuestKit NTFS write path confirmed |
+| Windows guest RDP-first | Lab golden `win10-msedge`: feature-test **26/26**; Windows ops waves 2–6 (full regression catalog) green with platform UUID; RDP refuse-while-running **PASS**; offline guestkit enable-rdp still **500** (0 registry ops) — rely on hyper2kvm firstboot until GuestKit NTFS write path confirmed |
 | Full UI CDP page-sweep | **Done** — `npm run pages` → 121 pass / 9 soft / 0 fail (2026-08-05) |
 
 **Language for delivery:** Machina is **pilot-ready** for a guided single-site
