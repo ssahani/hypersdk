@@ -2,6 +2,28 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+## 2026-08-05 wave 2 (hunt → planner)
+
+| Item | Result |
+|------|--------|
+| `ops-hunt.js` | **24/24 PASS** |
+| `ops-hub.js` | **25/25 PASS** |
+| `ops-providers.js` | **34/34 PASS** |
+| `ops-apps.js` | **28/28 PASS** |
+| `ops-policy.js` | **27/27 PASS** — port-forward create when guest IP known + bad-port negative (replaced stale “omit guest IP → 4xx”; API resolves IP from DB) |
+| `ops-diag.js` | **26/26 PASS** |
+| `ops-obs.js` | **41/41 PASS** |
+| `ops-parity.js` | **23/23 PASS** |
+| `ops-enterprise.js` | **32/32 PASS** |
+| `ops-alerts.js` | **24/24 PASS** |
+| `ops-planner.js` | **24/24 PASS** |
+
+```bash
+npm run hunt && npm run hub && npm run providers && npm run apps
+npm run policy && npm run diag && npm run obs
+npm run parity && npm run enterprise && npm run alerts && npm run planner
+```
+
 ## 2026-08-05 post-GuestKit wave (212.8.248.187 / chrome-e2e-vm)
 
 API ops via SSH tunnel `https://127.0.0.1:15092` → host daemon (avoids PAM rate limits). GuestKit matrix already green (`scripts/guestkit-live-matrix.sh --with-offline` **29/29**).
