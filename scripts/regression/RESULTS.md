@@ -194,6 +194,17 @@ Windows-targeted `scripts/regression` ops catalog (non-meta) is **complete** thr
 | `feature-test.sh` `chrome-e2e-vm` | **26/26 PASS** |
 | `feature-test.sh` `win10-msedge` | **26/26 PASS** — `os_hint=windows`, RDP refuse-while-running, SATA CD-ROM `sdc` |
 
+## 2026-08-05 Windows enable-rdp offline retest (wave 9)
+
+| Item | Result |
+|------|--------|
+| Preflight | Cleared stale `qemu-nbd` (`/dev/nbd0..3`); force-stop `win10-msedge` (platform autostart disabled) |
+| `POST …/windows/enable-rdp` while shutoff | **500** after **~66m** (`time≈3953s`) — `guestkit applied 0 operations` / `Operations failed: 1` (same NTFS/registry soft-fail as earlier) |
+| GuestKit | `guestkit 0.3.15` on host; full-disk backup `win10-msedge.backup_*.qcow2` ~36 GiB created then removed |
+| Post | Both VMs **running** again |
+
+**Root cause (working):** unclean Windows NTFS (Recovery screen / forced stops) → guestkit hive write mounts RO → 0 ops. Mitigate: clean in-guest shutdown before offline enable-rdp, or rely on hyper2kvm firstboot RDP scripts already staged on this golden.
+
 **Harness:** `ui-interactive.js` matches Pause/Resume via text/aria/title, scrolls into view, API-fallback if HUD hidden; finder path `/platform/vms`.
 
 ```bash
