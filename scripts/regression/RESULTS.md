@@ -283,14 +283,14 @@ VM=chrome-e2e-vm ./scripts/feature-test.sh 127.0.0.1 sus max   # E via :5092 tun
 # F: stop win10 → ntfsfix -d → POST /api/v1/vms/win10-msedge/windows/enable-rdp → start both
 ```
 
-## 2026-08-06 GuestKit-primary enable-rdp
+## 2026-08-06 GuestKit-primary enable-rdp (full Windows RDP stack)
 
 | Item | Result |
 |------|--------|
-| GuestKit | **0.3.16** on lab — `plan apply --skip-backup` + NTFS `ntfsfix` before mount |
-| Manual | `guestkit plan apply … --skip-backup` on `win10-msedge.qcow2` → **2 ops** in ~62 s; no full-image backup |
-| API | `POST …/windows/enable-rdp` while shutoff → **200**; notes: `Registry written via guestkit plan apply --skip-backup` |
-| Machina | Prefer GuestKit; `virt-win-reg --merge` fallback only (with `timeout` + `LIBGUESTFS_BACKEND=direct`) |
+| GuestKit | **0.3.16+** — `plan apply --skip-backup` + `plan generate --profile windows-rdp` |
+| Plan feats | `fDenyTSConnections=0`, NLA, PortNumber=3389, TermService/UmRdpService Automatic, stock firewall TCP+UDP Active=TRUE |
+| API | `POST …/windows/enable-rdp` while shutoff → **200**; notes include GuestKit path |
+| Machina | Prefer GuestKit full stack; `virt-win-reg --merge` fallback only |
 | Post | Both goldens **running** |
 
 ## 2026-08-04 complx (compliance / enforcement / rename-clone gates)

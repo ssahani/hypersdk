@@ -1626,7 +1626,7 @@ export default function VMDetailsPage() {
                     title={
                       vm?.state === 'running'
                         ? 'Stop the VM first — editing the registry hive of a running guest can corrupt it'
-                        : 'Set fDenyTSConnections=0 in the offline registry hive'
+                        : 'Offline hive: RDP allow + NLA + TermService/UmRdpService + firewall TCP/UDP'
                     }
                     onClick={() => void enableRdp()}
                   >
