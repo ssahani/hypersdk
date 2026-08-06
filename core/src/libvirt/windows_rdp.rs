@@ -3,21 +3,19 @@
 // https://zyvor.dev · info@zyvor.dev
 
 //! Enable Remote Desktop on a **powered-off** Windows guest by editing its
-//! registry hive offline.
+//! registry hive offline via **GuestKit only** (`plan apply --skip-backup`,
+//! `--features registry-write` / libhivex).
 //!
-//! Primary path: GuestKit `plan apply --skip-backup` (hivex registry writes via
-//! `--features registry-write`). The plan mirrors hyper2kvm firstboot RDP
-//! enablement: Terminal Server allow, NLA, TermService/UmRdpService Automatic,
-//! stock inbound firewall rules Active=TRUE.
+//! Machina does **not** call `virt-win-reg` or other libguestfs-tools CLIs.
+//! Disk mount/hive transfer stays inside GuestKit.
 //!
-//! Fallback: `virt-win-reg --merge` when GuestKit is missing or unbuilt for
-//! offline hive writes.
+//! The plan mirrors hyper2kvm firstboot RDP enablement: Terminal Server allow,
+//! NLA, TermService/UmRdpService Automatic, stock inbound firewall rules
+//! Active=TRUE.
 //!
-//! This is the only path that needs nothing inside the guest: no QEMU guest
-//! agent, no in-guest agent, no console trip. Remote Desktop ships disabled on
-//! Windows, so a freshly-installed guest is unreachable over RDP until somebody
-//! turns it on — and turning it on normally requires the very console access
-//! RDP was meant to provide.
+//! This path needs nothing inside the guest: no QEMU guest agent, no in-guest
+//! agent, no console trip. Remote Desktop ships disabled on Windows, so a
+//! freshly-installed guest is unreachable over RDP until somebody turns it on.
 
 use std::path::Path;
 use std::process::Command;
@@ -28,10 +26,8 @@ use crate::LibvirtError;
 ///
 /// Note the control set is spelled out rather than using `CurrentControlSet`.
 /// That name is a runtime symlink Windows builds at boot from `Select\Current`
-/// and does **not** exist in an offline hive — guestkit happily creates a literal
-/// key by that name, reports "Operations applied: 1", and produces a value
-/// Windows will never read. Verified on a real image: writing via
-/// `CurrentControlSet` left `ControlSet001` at 1 and RDP disabled.
+/// and does **not** exist in an offline hive — writing via `CurrentControlSet`
+/// creates a literal key Windows never reads.
 const TS_KEY: &str = r"HKLM\SYSTEM\ControlSet001\Control\Terminal Server";
 const TS_VALUE: &str = "fDenyTSConnections";
 
@@ -60,9 +56,8 @@ const FW_RDP_RULES: [&str; 2] = [
 ];
 
 /// Stock Win10/11 firewall rule blobs with Active=TRUE (v2.29 schema).
-/// Writing a full rule is safer than a read-modify via virt-win-reg on busy
-/// hosts; hyper2kvm firstboot uses `netsh … group="remote desktop"` at boot —
-/// offline we stage the same allow rules into the hive.
+/// Offline we stage allow rules into the hive (same outcome as firstboot
+/// `netsh … group="remote desktop"`).
 fn stock_firewall_rule(name: &str) -> &'static str {
     match name {
         "RemoteDesktop-UserMode-In-TCP" => {
@@ -81,57 +76,38 @@ EmbedCtxt=@FirewallAPI.dll,-28752|"
     }
 }
 
-/// Flip a firewall rule string from inactive to active, leaving everything else
-/// untouched.
-///
-/// The rule is a `|`-delimited blob whose schema version varies by Windows build
-/// (`v2.29` on the image this was developed against), so it is read and edited
-/// rather than reconstructed — writing a hard-coded rule would clobber whatever
-/// the guest actually had when a live read succeeds.
+/// Flip a firewall rule string from inactive to active (unit-test helper).
 pub fn activate_firewall_rule(rule: &str) -> Option<String> {
     if rule.contains("Active=TRUE") {
-        return None; // already enabled; nothing to write
+        return None;
     }
     if !rule.contains("Active=FALSE") {
-        return None; // unrecognised shape — do not guess
+        return None;
     }
     Some(rule.replace("Active=FALSE", "Active=TRUE"))
 }
 
-/// Resolve firewall edits: prefer read-modify of the guest's rule; else stock
-/// Active=TRUE blobs so GuestKit-primary path still opens 3389 without a
-/// virt-win-reg probe.
-pub fn resolve_firewall_edits(
-    disk_path: &str,
-    prefer_read: bool,
-) -> Vec<(String, String)> {
-    let mut edits = Vec::new();
-    for rule in FW_RDP_RULES {
-        if prefer_read {
-            if let Some(current) = read_registry_string(disk_path, FW_RULES_KEY, rule) {
-                if let Some(activated) = activate_firewall_rule(&current) {
-                    edits.push((rule.to_string(), activated));
-                    continue;
-                }
-                if current.contains("Active=TRUE") {
-                    continue; // already on
-                }
+/// Stock Active=TRUE firewall edits for the GuestKit plan (no host CLI probes).
+pub fn stock_firewall_edits() -> Vec<(String, String)> {
+    FW_RDP_RULES
+        .iter()
+        .filter_map(|rule| {
+            let stock = stock_firewall_rule(rule);
+            if stock.is_empty() {
+                None
+            } else {
+                Some(((*rule).to_string(), stock.to_string()))
             }
-        }
-        let stock = stock_firewall_rule(rule);
-        if !stock.is_empty() {
-            edits.push((rule.to_string(), stock.to_string()));
-        }
-    }
-    edits
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct RdpEnableOutcome {
     pub disk_path: String,
-    /// Registry values actually written.
+    /// Registry values written / intended by the plan.
     pub applied: Vec<String>,
-    /// True when the firewall still has to be opened inside Windows.
+    /// True when no firewall rule edits were staged.
     pub firewall_manual: bool,
     pub notes: Vec<String>,
 }
@@ -161,13 +137,7 @@ fn registry_edit_op(
     })
 }
 
-/// Build the guestkit fix-plan JSON that flips the full Remote Desktop stack.
-///
-/// Kept separate from the subprocess call so the plan shape is unit-testable
-/// without a disk image or the guestkit binary.
-/// Matches guestkit's `FixPlan` (src/cli/plan/types.rs): registry edits are
-/// `operations` entries tagged `registry_edit`, not a top-level array, and each
-/// carries `current_data` as well as `new_data`.
+/// Build the GuestKit fix-plan JSON for the full Remote Desktop stack.
 ///
 /// Feats aligned with hyper2kvm firstboot RDP enablement:
 /// `fDenyTSConnections`, NLA, TermService/UmRdpService Automatic, RDP port,
@@ -254,87 +224,12 @@ pub fn build_rdp_enable_plan(
             "author": "machina",
             "review_required": false,
             "reversible": true,
-            "description": "Offline Windows RDP enablement (Terminal Server + NLA + TermService/UmRdpService + firewall)",
-            "tags": ["windows", "rdp", "firewall", "offline"],
+            "description": "Offline Windows RDP enablement via GuestKit (Terminal Server + NLA + TermService/UmRdpService + firewall)",
+            "tags": ["windows", "rdp", "firewall", "offline", "guestkit"],
         },
         "operations": operations,
         "post_apply": [],
     })
-}
-
-/// Returns `None` when virt-win-reg is missing, times out, or the key is absent;
-/// callers treat that as "unverified" rather than as failure.
-fn read_registry_dword(disk_path: &str, key: &str, value: &str) -> Option<i64> {
-    let out = Command::new("timeout")
-        .args(["60", "virt-win-reg", disk_path, key])
-        .env("LIBGUESTFS_BACKEND", "direct")
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    parse_reg_dword(&String::from_utf8_lossy(&out.stdout), value)
-}
-
-/// Read a REG_SZ out of a disk image via virt-win-reg.
-fn read_registry_string(disk_path: &str, key: &str, value: &str) -> Option<String> {
-    let out = Command::new("timeout")
-        .args(["60", "virt-win-reg", disk_path, key])
-        .env("LIBGUESTFS_BACKEND", "direct")
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    parse_reg_string(&String::from_utf8_lossy(&out.stdout), value)
-}
-
-/// Pull a string value out of virt-win-reg's .reg output.
-///
-/// Long/binary-ish strings are emitted as `hex(1):` — comma-separated bytes of
-/// NUL-terminated UTF-16LE — not as `"name"="data"`. The firewall rules are
-/// always in that form, so a parser that only handled the quoted spelling found
-/// nothing and silently staged no firewall edits.
-fn parse_reg_string(reg_output: &str, value: &str) -> Option<String> {
-    let quoted = format!("\"{value}\"=\"");
-    let hexed = format!("\"{value}\"=hex(1):");
-
-    // Join the .reg line-continuation form (`\` at end of line) before matching.
-    let joined = reg_output.replace("\\\n", "").replace("\\\r\n", "");
-
-    if let Some(rest) = joined.lines().find_map(|l| l.trim().strip_prefix(&quoted)) {
-        let end = rest.find('"')?;
-        return Some(rest[..end].replace("\\\\", "\\").replace("\\\"", "\""));
-    }
-
-    let hex_body = joined.lines().find_map(|l| l.trim().strip_prefix(&hexed))?;
-    let bytes: Vec<u8> = hex_body
-        .split(',')
-        .filter_map(|tok| {
-            let t = tok.trim();
-            if t.is_empty() {
-                return None;
-            }
-            u8::from_str_radix(t, 16).ok()
-        })
-        .collect();
-    if bytes.len() < 2 {
-        return None;
-    }
-    let u16s: Vec<u16> = bytes
-        .chunks_exact(2)
-        .map(|c| u16::from_le_bytes([c[0], c[1]]))
-        .take_while(|&u| u != 0)
-        .collect();
-    String::from_utf16(&u16s).ok()
-}
-
-/// Pull `"name"=dword:0000000f` out of virt-win-reg's .reg-format output.
-fn parse_reg_dword(reg_output: &str, value: &str) -> Option<i64> {
-    let needle = format!("\"{value}\"=dword:");
-    let line = reg_output.lines().find(|l| l.contains(&needle))?;
-    let hex = line.split("dword:").nth(1)?.trim();
-    i64::from_str_radix(hex, 16).ok()
 }
 
 /// Pull the path out of guestkit's "Backup created: /path" line.
@@ -364,103 +259,6 @@ fn guestkit_binary(configured: &str) -> String {
     }
 }
 
-/// Escape a string for a `.reg` `"name"="value"` line (backslashes + quotes).
-fn escape_reg_sz(value: &str) -> String {
-    value.replace('\\', "\\\\").replace('"', "\\\"")
-}
-
-/// Build the textual `.reg` body merged via `virt-win-reg --merge`.
-///
-/// Kept separate so the merge payload is unit-testable without a disk image.
-pub fn build_rdp_reg_merge(firewall_edits: &[(String, String)]) -> String {
-    let mut body = String::from(
-        "Windows Registry Editor Version 5.00\n\n\
-         [HKEY_LOCAL_MACHINE\\SYSTEM\\ControlSet001\\Control\\Terminal Server]\n\
-         \"fDenyTSConnections\"=dword:00000000\n\n\
-         [HKEY_LOCAL_MACHINE\\SYSTEM\\ControlSet001\\Control\\Terminal Server\\WinStations\\RDP-Tcp]\n\
-         \"UserAuthentication\"=dword:00000001\n\
-         \"PortNumber\"=dword:00000d3d\n\n\
-         [HKEY_LOCAL_MACHINE\\SYSTEM\\ControlSet001\\Services\\TermService]\n\
-         \"Start\"=dword:00000002\n\n\
-         [HKEY_LOCAL_MACHINE\\SYSTEM\\ControlSet001\\Services\\UmRdpService]\n\
-         \"Start\"=dword:00000002\n",
-    );
-    if !firewall_edits.is_empty() {
-        body.push_str(
-            "\n[HKEY_LOCAL_MACHINE\\SYSTEM\\ControlSet001\\Services\\SharedAccess\\\
-             Parameters\\FirewallPolicy\\FirewallRules]\n",
-        );
-        for (name, value) in firewall_edits {
-            body.push_str(&format!(
-                "\"{}\"=\"{}\"\n",
-                escape_reg_sz(name),
-                escape_reg_sz(value)
-            ));
-        }
-    }
-    body
-}
-
-/// Write the RDP registry values with `virt-win-reg --merge` (no full-disk backup).
-fn merge_rdp_via_virt_win_reg(
-    disk_path: &str,
-    firewall_edits: &[(String, String)],
-) -> Result<(), LibvirtError> {
-    let reg_file = std::env::temp_dir().join(format!(
-        "machina-rdp-merge-{}.reg",
-        std::process::id()
-    ));
-    std::fs::write(&reg_file, build_rdp_reg_merge(firewall_edits))
-        .map_err(|e| LibvirtError::Operation(format!("cannot write .reg merge file: {e}")))?;
-
-    let out = Command::new("timeout")
-        .args(["120", "virt-win-reg", "--merge", disk_path])
-        .arg(&reg_file)
-        .env("LIBGUESTFS_BACKEND", "direct")
-        .output();
-    let _ = std::fs::remove_file(&reg_file);
-
-    let out = out.map_err(|e| {
-        LibvirtError::Operation(format!(
-            "cannot run virt-win-reg: {e} — install libguestfs-tools on the hypervisor"
-        ))
-    })?;
-    if out.status.success() {
-        return Ok(());
-    }
-    // timeout(1) exits 124 when the command times out
-    if out.status.code() == Some(124) {
-        return Err(LibvirtError::Operation(
-            "virt-win-reg --merge timed out after 120s".into(),
-        ));
-    }
-    let msg = {
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        let stdout = String::from_utf8_lossy(&out.stdout);
-        let combined = if stderr.trim().is_empty() {
-            stdout.trim().to_string()
-        } else {
-            stderr.trim().to_string()
-        };
-        combined
-    };
-    // Dirty NTFS (fast startup / forced stop / Recovery) is the usual cause of
-    // merge failures after a lab force-stop. Surface that explicitly.
-    let dirty_hint = if msg.contains("unclean")
-        || msg.contains("read-only")
-        || msg.contains("Read-only")
-        || msg.contains("hiber")
-        || msg.contains("guestfs_launch failed")
-    {
-        " The guest NTFS volume may be dirty after a forced stop — boot Windows and shut down cleanly (or clear the dirty flag with ntfsfix -d on the offline volume), then retry."
-    } else {
-        ""
-    };
-    Err(LibvirtError::Operation(format!(
-        "virt-win-reg --merge failed: {msg}.{dirty_hint}"
-    )))
-}
-
 /// GuestKit `plan apply --skip-backup` — hivex hive writes without full qcow2 copy.
 fn apply_rdp_via_guestkit(
     disk_path: &str,
@@ -477,11 +275,7 @@ fn apply_rdp_via_guestkit(
         .map_err(|e| LibvirtError::Operation(format!("cannot write fix plan: {e}")))?;
 
     let bin = guestkit_binary(guestkit_bin);
-    // Prefer the direct appliance backend when present — nested libvirt backends
-    // on busy KVM hosts have flaked guestfs_launch for both GuestKit and
-    // virt-win-reg. Harmless when unset / unsupported.
     let out = Command::new(&bin)
-        .env("LIBGUESTFS_BACKEND", "direct")
         .arg("plan")
         .arg("apply")
         .arg(&plan_file)
@@ -494,14 +288,13 @@ fn apply_rdp_via_guestkit(
 
     let out = out.map_err(|e| {
         LibvirtError::Operation(format!(
-            "cannot run {bin}: {e} — install guestkit on the hypervisor"
+            "cannot run {bin}: {e} — install guestkit on the hypervisor \
+             (rebuild with --features registry-write)"
         ))
     })?;
     let stdout = String::from_utf8_lossy(&out.stdout).to_string();
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
 
-    // Older guestkit without --skip-backup: clap unknown-argument → retry without it
-    // only if the binary clearly rejected the flag (so we do not mask real failures).
     if !out.status.success()
         && (stderr.contains("unexpected argument '--skip-backup'")
             || stderr.contains("Unrecognized option")
@@ -509,8 +302,7 @@ fn apply_rdp_via_guestkit(
     {
         return Err(LibvirtError::Operation(
             "guestkit on this host is too old for `plan apply --skip-backup` \
-             (needs GuestKit ≥ 0.3.16 with registry-write). Upgrade guestkit, or \
-             enable Remote Desktop inside the guest."
+             (needs GuestKit ≥ 0.3.16 with registry-write). Upgrade guestkit."
                 .into(),
         ));
     }
@@ -550,8 +342,7 @@ fn apply_rdp_via_guestkit(
         ))),
         None => Err(LibvirtError::Operation(
             "guestkit exited 0 but reported no applied operations, so the registry \
-             was not written. This build previews the plan without applying it; \
-             upgrade guestkit or enable Remote Desktop inside the guest."
+             was not written. Upgrade guestkit or enable Remote Desktop inside the guest."
                 .into(),
         )),
     }
@@ -563,21 +354,16 @@ fn combined_help_mentions_unknown_skip(stdout: &str, stderr: &str) -> bool {
         && (blob.contains("error:") || blob.contains("Unknown") || blob.contains("unknown"))
 }
 
-fn rdp_outcome(
-    disk_path: &str,
-    firewall_edits: &[(String, String)],
-    verified: Option<i64>,
-    write_path: &str,
-) -> RdpEnableOutcome {
+fn rdp_outcome(disk_path: &str, firewall_edits: &[(String, String)]) -> RdpEnableOutcome {
     let mut notes = vec![
-        format!("Registry written via {write_path}."),
+        "Registry written via guestkit plan apply --skip-backup.".to_string(),
         "Start the VM — Remote Desktop is now enabled in the registry.".to_string(),
         "Windows Home editions cannot host RDP regardless of this setting.".to_string(),
     ];
     if firewall_edits.is_empty() {
         notes.insert(
             0,
-            "No inbound RDP firewall rule could be activated — open 'Remote Desktop' \
+            "No inbound RDP firewall rule could be staged — open 'Remote Desktop' \
              in Windows Firewall inside the guest, or the port will still be dropped."
                 .to_string(),
         );
@@ -585,7 +371,7 @@ fn rdp_outcome(
         notes.insert(
             0,
             format!(
-                "Activated {} inbound RDP firewall rule(s): {}.",
+                "Staged {} inbound RDP firewall rule(s): {}.",
                 firewall_edits.len(),
                 firewall_edits
                     .iter()
@@ -594,16 +380,6 @@ fn rdp_outcome(
                     .join(", ")
             ),
         );
-    }
-    match verified {
-        Some(0) => notes.insert(0, format!("Verified: {TS_VALUE} reads 0 on disk.")),
-        None => notes.insert(
-            0,
-            "Could not verify the value independently (virt-win-reg unavailable); \
-             confirm Remote Desktop is on after boot."
-                .to_string(),
-        ),
-        Some(other) => notes.insert(0, format!("{TS_VALUE} reads {other} on disk.")),
     }
 
     let mut applied = vec![
@@ -625,8 +401,9 @@ fn rdp_outcome(
     }
 }
 
-/// Apply RDP registry edits to `disk_path`. The VM **must be powered off** —
-/// mutating a hive under a running guest risks corrupting it.
+/// Apply RDP registry edits to `disk_path` via GuestKit only.
+/// The VM **must be powered off** — mutating a hive under a running guest risks
+/// corrupting it.
 pub fn enable_rdp_offline(
     disk_path: &str,
     guestkit_bin: &str,
@@ -643,53 +420,15 @@ pub fn enable_rdp_offline(
         )));
     }
 
-    // Prefer GuestKit hivex writes with --skip-backup (no full golden copy).
-    // Stage stock firewall Active=TRUE rules so the GuestKit path opens 3389
-    // without a virt-win-reg probe (those launches flake on busy KVM hosts).
-    let mut write_path = "guestkit plan apply --skip-backup";
-    let mut guestkit_backup: Option<String> = None;
-    let mut firewall_edits = resolve_firewall_edits(disk_path, false);
-
-    if let Err(gk_err) = apply_rdp_via_guestkit(disk_path, guestkit_bin, &firewall_edits).map(|b| {
-        guestkit_backup = b;
-    }) {
-        // On fallback, try read-modify of existing rules; still fill stock gaps.
-        firewall_edits = resolve_firewall_edits(disk_path, true);
-        write_path = "virt-win-reg --merge (guestkit failed)";
-        merge_rdp_via_virt_win_reg(disk_path, &firewall_edits).map_err(|merge_err| {
-            LibvirtError::Operation(format!(
-                "{gk_err}; virt-win-reg fallback also failed: {merge_err}"
-            ))
-        })?;
+    let firewall_edits = stock_firewall_edits();
+    let guestkit_backup = apply_rdp_via_guestkit(disk_path, guestkit_bin, &firewall_edits)?;
+    // Prefer not to leave accidental full-image backups if an older guestkit
+    // ignored --skip-backup (should not happen on ≥0.3.16).
+    if let Some(ref b) = guestkit_backup {
+        let _ = std::fs::remove_file(b);
     }
 
-    // Independent read-back via virt-win-reg only on the fallback write path.
-    // After GuestKit success we already required applied>0; another guestfs
-    // launch for verify routinely hangs 60s+ on this lab and adds no signal.
-    let verified = if write_path.starts_with("guestkit") {
-        None
-    } else {
-        read_registry_dword(disk_path, TS_KEY, TS_VALUE)
-    };
-    if verified == Some(1) {
-        return Err(LibvirtError::Operation(format!(
-            "{write_path} reported success but {TS_VALUE} is still 1, so Remote Desktop \
-             is still disabled. The write did not reach {TS_KEY}."
-        )));
-    }
-
-    if verified == Some(0) {
-        if let Some(ref b) = guestkit_backup {
-            let _ = std::fs::remove_file(b);
-        }
-    }
-
-    Ok(rdp_outcome(
-        disk_path,
-        &firewall_edits,
-        verified,
-        write_path,
-    ))
+    Ok(rdp_outcome(disk_path, &firewall_edits))
 }
 
 #[cfg(test)]
@@ -697,40 +436,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn reg_merge_body_sets_full_rdp_stack() {
-        let body = build_rdp_reg_merge(&[]);
-        assert!(body.contains("\"fDenyTSConnections\"=dword:00000000"));
-        assert!(body.contains("\"UserAuthentication\"=dword:00000001"));
-        assert!(body.contains("\"PortNumber\"=dword:00000d3d"));
-        assert!(body.contains("Services\\TermService"));
-        assert!(body.contains("Services\\UmRdpService"));
-        assert!(body.contains("\"Start\"=dword:00000002"));
-        assert!(body.contains("ControlSet001\\Control\\Terminal Server"));
-        assert!(!body.contains("CurrentControlSet"));
-        assert!(!body.contains("FirewallRules"));
-    }
-
-    #[test]
-    fn reg_merge_includes_firewall_edits() {
-        let edits = vec![(
-            "RemoteDesktop-UserMode-In-TCP".to_string(),
-            "v2.29|Active=TRUE|".to_string(),
-        )];
-        let body = build_rdp_reg_merge(&edits);
-        assert!(body.contains("FirewallRules"));
-        assert!(body.contains("\"RemoteDesktop-UserMode-In-TCP\"="));
-    }
-
-    #[test]
     fn plan_matches_guestkit_fixplan_shape() {
-        let fw = resolve_firewall_edits("/nonexistent", false);
+        let fw = stock_firewall_edits();
         let p = build_rdp_enable_plan(
             "/var/lib/libvirt/images/win10.qcow2",
             "2026-07-19T00:00:00Z",
             &fw,
         );
-        // Fields guestkit's FixPlan requires — a plan missing any of these is
-        // rejected at deserialize time.
         assert_eq!(p["version"], "1");
         assert_eq!(p["profile"], "machina-enable-rdp");
         assert!(p["post_apply"].is_array());
@@ -739,7 +451,6 @@ mod tests {
         assert_eq!(op["type"], "registry_edit");
         assert_eq!(op["value"], "fDenyTSConnections");
         assert_eq!(op["new_data"], 0);
-        // TermService + UmRdpService + firewall present
         let ids: Vec<&str> = p["operations"]
             .as_array()
             .unwrap()
@@ -768,32 +479,12 @@ mod tests {
 
     #[test]
     fn stock_firewall_rules_are_active() {
-        for name in FW_RDP_RULES {
-            let r = stock_firewall_rule(name);
-            assert!(r.contains("Active=TRUE"), "{name}");
-            assert!(r.contains("LPort=3389"), "{name}");
+        let edits = stock_firewall_edits();
+        assert_eq!(edits.len(), 2);
+        for (name, rule) in &edits {
+            assert!(rule.contains("Active=TRUE"), "{name}");
+            assert!(rule.contains("LPort=3389"), "{name}");
         }
-    }
-
-    #[test]
-    fn parse_reg_string_handles_quoted_and_hex() {
-        // Real output for RemoteDesktop-UserMode-In-TCP: "v2.29|Action=Allow|Active=FALSE|"
-        let out = "\"RemoteDesktop-UserMode-In-TCP\"=hex(1):76,00,32,00,2e,00,32,00,39,00,7c,00,41,00,63,00,74,00,69,00,76,00,65,00,3d,00,46,00,41,00,4c,00,53,00,45,00,7c,00,00,00\n";
-        let got = parse_reg_string(out, "RemoteDesktop-UserMode-In-TCP").expect("parsed");
-        assert!(got.starts_with("v2.29"));
-        assert!(got.contains("Active=FALSE"));
-
-        let out = "\"RemoteDesktop-UserMode-In-TCP\"=\"v2.29|Active=FALSE|App=%SystemRoot%\\\\system32\\\\svchost.exe|\"\n";
-        let got = parse_reg_string(out, "RemoteDesktop-UserMode-In-TCP").expect("parsed");
-        assert!(got.contains("Active=FALSE"));
-    }
-
-    #[test]
-    fn parse_reg_dword_reads_fdeny() {
-        let out = "[HKEY_LOCAL_MACHINE\\SYSTEM\\ControlSet001\\Control\\Terminal Server]\n\"fDenyTSConnections\"=dword:00000000\n";
-        assert_eq!(parse_reg_dword(out, "fDenyTSConnections"), Some(0));
-        let still_on = "\"fDenyTSConnections\"=dword:00000001\n";
-        assert_eq!(parse_reg_dword(still_on, "fDenyTSConnections"), Some(1));
     }
 
     #[test]

@@ -290,7 +290,7 @@ VM=chrome-e2e-vm ./scripts/feature-test.sh 127.0.0.1 sus max   # E via :5092 tun
 | GuestKit | **0.3.16+** — `plan apply --skip-backup` + `plan generate --profile windows-rdp` |
 | Plan feats | `fDenyTSConnections=0`, NLA, PortNumber=3389, TermService/UmRdpService Automatic, stock firewall TCP+UDP Active=TRUE |
 | API | `POST …/windows/enable-rdp` while shutoff → **200**; notes include GuestKit path |
-| Machina | Prefer GuestKit full stack; `virt-win-reg --merge` fallback only |
+| Machina | GuestKit **only** (no `virt-win-reg` / libguestfs-tools fallback) |
 | Post | Both goldens **running** |
 
 ## 2026-08-04 complx (compliance / enforcement / rename-clone gates)

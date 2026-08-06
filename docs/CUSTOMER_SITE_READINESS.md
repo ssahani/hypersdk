@@ -12,7 +12,7 @@ document when live regression waves complete (see
 | Multi-host HA failover under real host loss | API dry-run **PASS** (`/api/v1/ha/status`, `ha_enabled=false` on lab); still needs customer host-loss drill |
 | Atlas / Ceph storage fabric | Soft-pass when disabled; enable + retest before claiming |
 | OpenStack / KubeVirt-primary | Status/negative covered; not primary path on lab host |
-| Windows guest RDP-first | Lab golden `win10-msedge`: feature-test **26/26**; offline `enable-rdp` **200** via GuestKit `plan apply --skip-backup` (hivex; GuestKit ≥0.3.16). `virt-win-reg --merge` is fallback only. Dirty NTFS: GuestKit `ntfsfix` before mount (or host `ntfsfix -d`) |
+| Windows guest RDP-first | Lab golden `win10-msedge`: feature-test **26/26**; offline `enable-rdp` **200** via GuestKit only (`plan apply --skip-backup`, hivex). No Machina `virt-win-reg`/libguestfs-tools path. Dirty NTFS: GuestKit `ntfsfix` before mount |
 | Full UI CDP page-sweep | **Done** — `npm run pages` → **130/130** pass / 0 soft / 0 fail (2026-08-06 full test-all); all `ui`/`ui-*` suites **WAVE_C_FAILS=0** |
 
 **Language for delivery:** Machina is **pilot-ready** for a guided single-site
@@ -27,7 +27,7 @@ topologies are **scoped expansions**, not assumed.
 - UI CDP: all `ui` / `ui-*` suites **0 fails** (2026-08-06)
 - Media/guest-tools: `feature-test.sh` **26/26** on both goldens (2026-08-06)
 - API heartbeat: `npm run api` **13/13** (2026-08-06)
-- Offline Windows RDP: `POST …/windows/enable-rdp` → **200** via GuestKit `plan apply --skip-backup` (2026-08-06; virt-win-reg fallback only)
+- Offline Windows RDP: `POST …/windows/enable-rdp` → **200** via GuestKit only (no Machina virt-win-reg)
 - Demo reels published:
   - [Machina × GuestKit](https://youtu.be/LYoqOye3P3I)
   - [Machina desktop wow reel](https://youtu.be/GYjvbKwUufA) (Cinema + Mission Control, ~30s; lab 2026-08-05)
@@ -78,7 +78,7 @@ curl -sk http://HOST:5093/api/v1/health   # controller
 - Zeus lockdown: dry-run by default; apply only with `{dry_run:false, confirm:true}`  
 - Do not NBD-doctor running disks; stop VM for offline GuestKit doctor  
 - Prefer localhost login from the host for automation (external PAM rate limits)  
-- Offline Windows hive writes: clean shutdown preferred; GuestKit `plan apply` now `ntfsfix`es dirty NTFS before mount. Prefer GuestKit ≥0.3.16 with `--skip-backup` for registry-only plans (Machina enable-rdp). `LIBGUESTFS_BACKEND=direct` on the daemon helps guestfs appliance reliability on busy KVM hosts.
+- Offline Windows hive writes: GuestKit only (`plan apply --skip-backup`, ≥0.3.16 + `registry-write`). Prefer clean shutdown; GuestKit `ntfsfix`es dirty NTFS before mount. Do not use host `virt-win-reg` for Machina enable-rdp.
 
 ## Sign-off template
 
