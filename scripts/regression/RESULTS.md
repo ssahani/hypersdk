@@ -249,6 +249,18 @@ npm run ui && npm run pages -- --loops 1
 VM=chrome-e2e-vm ./scripts/feature-test.sh 127.0.0.1 sus max   # on host or via tunnel :5092
 ```
 
+## 2026-08-06 next tests (api + feature + RDP)
+
+| Gate | Result |
+|------|--------|
+| `npm run api` | **13/13 PASS** |
+| `feature-test.sh` chrome (on host) | **26/26 PASS** |
+| `feature-test.sh` win10 (on host) | **26/26 PASS** |
+| `POST …/windows/enable-rdp` refuse-while-running | **400 PASS** (earlier in wave) |
+| `POST …/windows/enable-rdp` shutoff | **200** in **~29 s** via GuestKit plan apply (7 applied) after rebuilding lab `guestkit` with `--features agent,registry-write` (prior quick rebuilds dropped hivex) |
+
+Both goldens left **running**. Lab note: always install GuestKit with `registry-write` on this host for Windows offline RDP.
+
 ## 2026-08-06 Linux offline GuestKit follow-up tests
 
 After GuestKit **0.3.17** + Machina `POST /vms/{name}/linux/*` ship. Lab `212.8.248.187`; tunnels `15092`/`5092`. Target `chrome-e2e-vm`.
