@@ -23,11 +23,23 @@ node render-cards-golden.mjs
 rm -rf raw/seg-golden-linux raw/seg-golden-windows
 node seg-golden-linux.mjs     # Create VM from linux-ubuntu-golden
 node seg-golden-windows.mjs   # stops win10 golden briefly, clones, restarts
-./build-golden.sh             # → out/machina-golden-{linux,windows}.mp4
+./build-golden.sh             # short highlight cuts (~20s)
+./build-golden-full.sh        # FULL process (entire take + title/outro) → Desktop
 ```
 
 Saved templates live on the hypervisor under `/var/lib/machina/templates/`
 (`linux-ubuntu-golden.json`, `windows-win10-golden.json`).
+
+**Full process on screen (what the full MP4 shows):**
+
+1. Open **Disk images** / the live golden guest  
+2. Go to **Create VM** (`/create`)  
+3. Choose **Clone from golden image**  
+4. Pick **Saved template** (`linux-ubuntu-golden` or `windows-win10-golden`)  
+5. **Thin clone** disk mode → name the new VM  
+6. **Create VM from golden image** (virt-install + overlay)  
+7. Open the new guest in the VM list  
+8. (Windows) restart the golden after cloning  
 
 ## Recording
 
