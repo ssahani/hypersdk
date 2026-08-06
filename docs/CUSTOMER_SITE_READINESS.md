@@ -29,6 +29,8 @@ topologies are **scoped expansions**, not assumed.
 - Demo reels published:
   - [Machina × GuestKit](https://youtu.be/LYoqOye3P3I)
   - [Machina desktop wow reel](https://youtu.be/GYjvbKwUufA) (Cinema + Mission Control, ~30s; lab 2026-08-05)
+  - [Linux golden → Create VM](https://youtu.be/8PRWTuKZ3kM) (full process)
+  - [Windows golden → Create VM](https://youtu.be/wtrp6pp8I0s) (full process)
 
 Prefer SSH tunnel for API login (avoids PAM rate limits):
 

@@ -41,6 +41,8 @@
 - Decks: [01 Business value](../../docs/client-presentations/01-business-value.html) · [08 Cinema](../../docs/client-presentations/08-consolehub-cinema-studio.html) · [03 Architecture](../../docs/client-presentations/03-technical-architecture.html)
 - GuestKit reel: https://youtu.be/LYoqOye3P3I
 - Desktop wow reel: https://youtu.be/GYjvbKwUufA (`~/Desktop/machina-wow-reel.mp4`, rebuild via README)
+- Linux golden → Create VM (full): https://youtu.be/8PRWTuKZ3kM
+- Windows golden → Create VM (full): https://youtu.be/wtrp6pp8I0s
 
 ## Known demo caveats (lab)
 

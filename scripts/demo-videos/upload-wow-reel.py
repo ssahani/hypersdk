@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Upload machina-wow-reel.mp4 to YouTube (reuses Zeus OS OAuth token)."""
+"""Upload a Machina demo MP4 to YouTube (reuses Zeus OS OAuth token)."""
 from __future__ import annotations
 
 import argparse
@@ -15,8 +15,8 @@ from googleapiclient.http import MediaFileUpload
 
 SCOPES = ["https://www.googleapis.com/auth/youtube"]
 
-TITLE = "Machina — KVM fleet desktop wow reel (Cinema + Mission Control)"
-DESCRIPTION = """Machina operator desktop for libvirt / QEMU / KVM — sign in, Mission Control launchpad, Linux + Windows guests, Machina Cinema live console, Live Preview Wall.
+DEFAULT_TITLE = "Machina — KVM fleet desktop wow reel (Cinema + Mission Control)"
+DEFAULT_DESCRIPTION = """Machina operator desktop for libvirt / QEMU / KVM — sign in, Mission Control launchpad, Linux + Windows guests, Machina Cinema live console, Live Preview Wall.
 
 Pilot-ready single-host KVM. GuestKit agent on Linux. Windows golden via hyper2kvm.
 
@@ -25,7 +25,17 @@ Pilot-ready single-host KVM. GuestKit agent on Linux. Windows golden via hyper2k
 
 #Machina #KVM #libvirt #Cinema #Zyvor #virtualization
 """
-TAGS = ["Machina", "KVM", "libvirt", "Cinema", "Zyvor", "virtualization", "GuestKit", "demo"]
+TAGS = [
+    "Machina",
+    "KVM",
+    "libvirt",
+    "Cinema",
+    "Zyvor",
+    "virtualization",
+    "GuestKit",
+    "demo",
+    "golden image",
+]
 
 
 def get_creds(client_secrets: Path, token_path: Path) -> Credentials:
@@ -53,6 +63,9 @@ def main() -> int:
     ap.add_argument("--token", required=True)
     ap.add_argument("--privacy", default="public", choices=["private", "unlisted", "public"])
     ap.add_argument("--state", default="")
+    ap.add_argument("--state-key", default="machina-wow-reel")
+    ap.add_argument("--title", default=DEFAULT_TITLE)
+    ap.add_argument("--description", default=DEFAULT_DESCRIPTION)
     args = ap.parse_args()
 
     path = Path(args.video)
@@ -71,8 +84,8 @@ def main() -> int:
 
     body = {
         "snippet": {
-            "title": TITLE[:100],
-            "description": DESCRIPTION,
+            "title": args.title[:100],
+            "description": args.description,
             "tags": TAGS,
             "categoryId": "28",
         },
@@ -97,7 +110,12 @@ def main() -> int:
         state = {}
         if state_path.exists():
             state = json.loads(state_path.read_text())
-        state["machina-wow-reel"] = {"id": vid, "url": url, "privacy": args.privacy}
+        state[args.state_key] = {
+            "id": vid,
+            "url": url,
+            "privacy": args.privacy,
+            "title": args.title,
+        }
         state_path.write_text(json.dumps(state, indent=2) + "\n")
         print(f"Wrote state → {state_path}")
     return 0
