@@ -205,6 +205,17 @@ Windows-targeted `scripts/regression` ops catalog (non-meta) is **complete** thr
 
 **Root cause (working):** unclean Windows NTFS (Recovery screen / forced stops) → guestkit hive write mounts RO → 0 ops. Mitigate: clean in-guest shutdown before offline enable-rdp, or rely on hyper2kvm firstboot RDP scripts already staged on this golden.
 
+## 2026-08-05 Windows enable-rdp fix path (wave 10)
+
+| Item | Result |
+|------|--------|
+| NTFS | `ntfsfix -d` on `nbd0p2` cleared dirty journal after force-stops; partial `win10-msedge.backup_*.qcow2` from hung GuestKit applies removed (~25 GiB reclaimed) |
+| GuestKit | `plan apply` hangs for many minutes on full ~38 GiB qcow2 backup after Fix Plan Preview — unsuitable as primary path for this golden |
+| Write proof | After dirty clear: `hivexregedit --merge` → `fDenyTSConnections=0`; `virt-win-reg` read-back **PASS**; `virt-win-reg --merge` retest **PASS** (~35 s) |
+| Code | `enable_rdp_offline` now prefers `virt-win-reg --merge` (GuestKit `plan apply` fallback only); daemon deployed to lab |
+| API gate | `POST …/windows/enable-rdp` while shutoff → **200** in **~68 s** — notes: `Registry written via virt-win-reg --merge`, firewall TCP+UDP activated, `fDenyTSConnections` verified 0 |
+| Post | `chrome-e2e-vm` + `win10-msedge` **running** |
+
 **Harness:** `ui-interactive.js` matches Pause/Resume via text/aria/title, scrolls into view, API-fallback if HUD hidden; finder path `/platform/vms`.
 
 ```bash

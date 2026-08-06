@@ -31,7 +31,7 @@
 ## Do not demo live
 
 - Zeus lockdown **apply** (dry-run only if asked)
-- Offline GuestKit `enable-rdp` on Windows (known **500**)
+- Offline Windows `enable-rdp` while NTFS dirty / mid-backup (force-stop first; prefer clean shutdown)
 - Atlas / Ceph (disabled on lab)
 - Real host-loss HA drill
 

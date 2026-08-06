@@ -3,7 +3,11 @@
 // https://zyvor.dev · info@zyvor.dev
 
 //! Enable Remote Desktop on a **powered-off** Windows guest by editing its
-//! registry hive offline, via `guestkit plan apply --features registry-write`.
+//! registry hive offline.
+//!
+//! Primary path: `virt-win-reg --merge` (seconds, no full-disk copy). GuestKit
+//! `plan apply` remains a fallback, but it copies the whole qcow2 first — on a
+//! ~35 GiB Windows golden that alone is tens of minutes and can fill the host.
 //!
 //! This is the only path that needs nothing inside the guest: no QEMU guest
 //! agent, no in-guest agent, no console trip. Remote Desktop ships disabled on
@@ -262,40 +266,102 @@ fn guestkit_binary(configured: &str) -> String {
     }
 }
 
-/// Apply the plan to `disk_path`. The VM **must be powered off** — mutating a
-/// hive under a running guest risks corrupting it.
-pub fn enable_rdp_offline(
-    disk_path: &str,
-    guestkit_bin: &str,
-) -> Result<RdpEnableOutcome, LibvirtError> {
-    let disk = Path::new(disk_path);
-    if !disk.is_absolute() {
-        return Err(LibvirtError::Invalid(
-            "disk path must be absolute".to_string(),
-        ));
-    }
-    if !disk.is_file() {
-        return Err(LibvirtError::NotFound(format!(
-            "disk image not found: {disk_path}"
-        )));
-    }
+/// Escape a string for a `.reg` `"name"="value"` line (backslashes + quotes).
+fn escape_reg_sz(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
+}
 
-    // Read each inbound RDP firewall rule off the guest and flip Active=FALSE to
-    // TRUE. Without this the Terminal Server service listens but the firewall
-    // drops 3389, so a client times out instead of connecting — the symptom that
-    // looks identical to "RDP is off".
-    let mut firewall_edits: Vec<(String, String)> = Vec::new();
-    for rule in FW_RDP_RULES {
-        if let Some(current) = read_registry_string(disk_path, FW_RULES_KEY, rule) {
-            if let Some(activated) = activate_firewall_rule(&current) {
-                firewall_edits.push((rule.to_string(), activated));
-            }
+/// Build the textual `.reg` body merged via `virt-win-reg --merge`.
+///
+/// Kept separate so the merge payload is unit-testable without a disk image.
+pub fn build_rdp_reg_merge(firewall_edits: &[(String, String)]) -> String {
+    let mut body = String::from(
+        "Windows Registry Editor Version 5.00\n\n\
+         [HKEY_LOCAL_MACHINE\\SYSTEM\\ControlSet001\\Control\\Terminal Server]\n\
+         \"fDenyTSConnections\"=dword:00000000\n\n\
+         [HKEY_LOCAL_MACHINE\\SYSTEM\\ControlSet001\\Control\\Terminal Server\\WinStations\\RDP-Tcp]\n\
+         \"UserAuthentication\"=dword:00000001\n",
+    );
+    if !firewall_edits.is_empty() {
+        body.push_str(
+            "\n[HKEY_LOCAL_MACHINE\\SYSTEM\\ControlSet001\\Services\\SharedAccess\\\
+             Parameters\\FirewallPolicy\\FirewallRules]\n",
+        );
+        for (name, value) in firewall_edits {
+            body.push_str(&format!(
+                "\"{}\"=\"{}\"\n",
+                escape_reg_sz(name),
+                escape_reg_sz(value)
+            ));
         }
     }
+    body
+}
 
-    // guestkit's FixPlan requires a `generated` timestamp.
+/// Write the RDP registry values with `virt-win-reg --merge` (no full-disk backup).
+fn merge_rdp_via_virt_win_reg(
+    disk_path: &str,
+    firewall_edits: &[(String, String)],
+) -> Result<(), LibvirtError> {
+    let reg_file = std::env::temp_dir().join(format!(
+        "machina-rdp-merge-{}.reg",
+        std::process::id()
+    ));
+    std::fs::write(&reg_file, build_rdp_reg_merge(firewall_edits))
+        .map_err(|e| LibvirtError::Operation(format!("cannot write .reg merge file: {e}")))?;
+
+    let out = Command::new("virt-win-reg")
+        .arg("--merge")
+        .arg(disk_path)
+        .arg(&reg_file)
+        .output();
+    let _ = std::fs::remove_file(&reg_file);
+
+    let out = out.map_err(|e| {
+        LibvirtError::Operation(format!(
+            "cannot run virt-win-reg: {e} — install libguestfs-tools on the hypervisor"
+        ))
+    })?;
+    if out.status.success() {
+        return Ok(());
+    }
+    let msg = {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let combined = if stderr.trim().is_empty() {
+            stdout.trim().to_string()
+        } else {
+            stderr.trim().to_string()
+        };
+        combined
+    };
+    // Dirty NTFS (fast startup / forced stop / Recovery) is the usual cause of
+    // merge failures after a lab force-stop. Surface that explicitly.
+    let dirty_hint = if msg.contains("unclean")
+        || msg.contains("read-only")
+        || msg.contains("Read-only")
+        || msg.contains("hiber")
+        || msg.contains("guestfs_launch failed")
+    {
+        " The guest NTFS volume may be dirty after a forced stop — boot Windows \
+         and shut down cleanly (or clear the dirty flag with ntfsfix -d on the \
+         offline volume), then retry."
+    } else {
+        ""
+    };
+    Err(LibvirtError::Operation(format!(
+        "virt-win-reg --merge failed: {msg}.{dirty_hint}"
+    )))
+}
+
+/// GuestKit `plan apply` fallback — slow on large Windows disks (full qcow2 copy).
+fn apply_rdp_via_guestkit(
+    disk_path: &str,
+    guestkit_bin: &str,
+    firewall_edits: &[(String, String)],
+) -> Result<Option<String>, LibvirtError> {
     let generated = chrono::Utc::now().to_rfc3339();
-    let plan = build_rdp_enable_plan(disk_path, &generated, &firewall_edits);
+    let plan = build_rdp_enable_plan(disk_path, &generated, firewall_edits);
     let plan_file = std::env::temp_dir().join(format!(
         "machina-rdp-plan-{}.json",
         std::process::id()
@@ -304,9 +370,6 @@ pub fn enable_rdp_offline(
         .map_err(|e| LibvirtError::Operation(format!("cannot write fix plan: {e}")))?;
 
     let bin = guestkit_binary(guestkit_bin);
-    // `guestkit plan apply [OPTIONS] <PLAN_FILE>` — the plan is positional and
-    // the disk is --vm. An earlier --plan/--disk spelling was invented, not read
-    // off the tool, and would have failed at argument parsing.
     let out = Command::new(&bin)
         .arg("plan")
         .arg("apply")
@@ -325,8 +388,6 @@ pub fn enable_rdp_offline(
     let stdout = String::from_utf8_lossy(&out.stdout).to_string();
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
 
-    // guestkit prints this when built without the hive-write feature. Treat it as
-    // a failure rather than reporting success over a no-op.
     if stdout.contains("--features registry-write") || stderr.contains("--features registry-write") {
         return Err(LibvirtError::Operation(
             "guestkit on this host was built without offline registry writes \
@@ -345,65 +406,38 @@ pub fn enable_rdp_offline(
         )));
     }
 
-    // A zero exit is not evidence of a write. guestkit 0.3.13 returns 0 even when
-    // it prints "✗ Plan application failed" — observed against a real Windows
-    // image where the hive upload was refused with "Read-only file system
-    // (os error 30)" and the summary read "Operations applied: 0, failed: 1".
-    // Only that summary distinguishes a real write from a failed or preview-only
-    // run, so require it and require N > 0.
     let guestkit_backup = parse_backup_path(&stdout).or_else(|| parse_backup_path(&stderr));
     let applied_count = parse_applied_count(&stdout).or_else(|| parse_applied_count(&stderr));
     match applied_count {
-        Some(n) if n > 0 => {}
-        Some(_) => {
-            // The usual cause is a dirty NTFS journal from an unclean shutdown:
-            // ntfs-3g then mounts read-only and refuses the hive upload.
-            return Err(LibvirtError::Operation(format!(
-                "guestkit applied 0 operations — the registry was not written. \
-                 If the guest filesystem mounted read-only, boot the VM and shut it \
-                 down cleanly from inside Windows, then retry. guestkit said: {}",
-                stdout
-                    .lines()
-                    .find(|l| l.contains("failed:") || l.contains("Read-only"))
-                    .unwrap_or("(no detail)")
-                    .trim()
-            )))
-        }
-        None => {
-            return Err(LibvirtError::Operation(
-                "guestkit exited 0 but reported no applied operations, so the registry \
-                 was not written. This build previews the plan without applying it; \
-                 upgrade guestkit or enable Remote Desktop inside the guest."
-                    .into(),
-            ))
-        }
+        Some(n) if n > 0 => Ok(guestkit_backup),
+        Some(_) => Err(LibvirtError::Operation(format!(
+            "guestkit applied 0 operations — the registry was not written. \
+             If the guest filesystem mounted read-only, boot the VM and shut it \
+             down cleanly from inside Windows (or run ntfsfix -d on the offline \
+             volume), then retry. guestkit said: {}",
+            stdout
+                .lines()
+                .find(|l| l.contains("failed:") || l.contains("Read-only"))
+                .unwrap_or("(no detail)")
+                .trim()
+        ))),
+        None => Err(LibvirtError::Operation(
+            "guestkit exited 0 but reported no applied operations, so the registry \
+             was not written. This build previews the plan without applying it; \
+             upgrade guestkit or enable Remote Desktop inside the guest."
+                .into(),
+        )),
     }
+}
 
-    // Independent read-back. guestkit's report has twice claimed success over a
-    // write that did not take effect — once failing on a read-only mount while
-    // exiting 0, once writing to a CurrentControlSet key Windows never reads —
-    // so the value is confirmed with a different tool at the key the guest uses.
-    let verified = read_registry_dword(disk_path, TS_KEY, TS_VALUE);
-    if verified == Some(1) {
-        return Err(LibvirtError::Operation(format!(
-            "guestkit reported success but {TS_VALUE} is still 1, so Remote Desktop \
-             is still disabled. The write did not reach {TS_KEY}."
-        )));
-    }
-
-    // guestkit copies the whole disk before every apply and never cleans up. Seven
-    // runs against one 29 GiB Windows VM consumed 181 GiB and took a hypervisor to
-    // 89% full — a filled disk there takes down every running guest, which is far
-    // worse than RDP being off. The copy is only insurance against a bad write, so
-    // once the value is verified good it is redundant and gets reclaimed. On a
-    // failed or unverified run it is deliberately kept.
-    if verified == Some(0) {
-        if let Some(ref b) = guestkit_backup {
-            let _ = std::fs::remove_file(b);
-        }
-    }
-
+fn rdp_outcome(
+    disk_path: &str,
+    firewall_edits: &[(String, String)],
+    verified: Option<i64>,
+    write_path: &str,
+) -> RdpEnableOutcome {
     let mut notes = vec![
+        format!("Registry written via {write_path}."),
         "Start the VM — Remote Desktop is now enabled in the registry.".to_string(),
         "Windows Home editions cannot host RDP regardless of this setting.".to_string(),
     ];
@@ -439,22 +473,113 @@ pub fn enable_rdp_offline(
         Some(other) => notes.insert(0, format!("{TS_VALUE} reads {other} on disk.")),
     }
 
-    Ok(RdpEnableOutcome {
+    RdpEnableOutcome {
         disk_path: disk_path.to_string(),
         applied: vec![
             format!("{TS_KEY}\\{TS_VALUE} = 0"),
             format!("{NLA_KEY}\\UserAuthentication = 1"),
         ],
-        // True only when no rule could be activated — then the operator still has
-        // to open the port inside Windows.
         firewall_manual: firewall_edits.is_empty(),
         notes,
-    })
+    }
+}
+
+/// Apply RDP registry edits to `disk_path`. The VM **must be powered off** —
+/// mutating a hive under a running guest risks corrupting it.
+pub fn enable_rdp_offline(
+    disk_path: &str,
+    guestkit_bin: &str,
+) -> Result<RdpEnableOutcome, LibvirtError> {
+    let disk = Path::new(disk_path);
+    if !disk.is_absolute() {
+        return Err(LibvirtError::Invalid(
+            "disk path must be absolute".to_string(),
+        ));
+    }
+    if !disk.is_file() {
+        return Err(LibvirtError::NotFound(format!(
+            "disk image not found: {disk_path}"
+        )));
+    }
+
+    // Read each inbound RDP firewall rule off the guest and flip Active=FALSE to
+    // TRUE. Without this the Terminal Server service listens but the firewall
+    // drops 3389, so a client times out instead of connecting — the symptom that
+    // looks identical to "RDP is off".
+    let mut firewall_edits: Vec<(String, String)> = Vec::new();
+    for rule in FW_RDP_RULES {
+        if let Some(current) = read_registry_string(disk_path, FW_RULES_KEY, rule) {
+            if let Some(activated) = activate_firewall_rule(&current) {
+                firewall_edits.push((rule.to_string(), activated));
+            }
+        }
+    }
+
+    // Prefer virt-win-reg --merge: verified on a 38 GiB win10 golden in ~30s.
+    // GuestKit copies the whole disk first and routinely takes 30–60+ minutes on
+    // the same image, and used to fill the hypervisor when backups piled up.
+    let mut write_path = "virt-win-reg --merge";
+    let mut guestkit_backup: Option<String> = None;
+    if let Err(merge_err) = merge_rdp_via_virt_win_reg(disk_path, &firewall_edits) {
+        write_path = "guestkit plan apply (virt-win-reg merge failed)";
+        guestkit_backup = apply_rdp_via_guestkit(disk_path, guestkit_bin, &firewall_edits)
+            .map_err(|gk| {
+                LibvirtError::Operation(format!(
+                    "{merge_err}; guestkit fallback also failed: {gk}"
+                ))
+            })?;
+    }
+
+    // Independent read-back — same tool as the merge path, different from GuestKit's
+    // own success report (which has lied about writes more than once).
+    let verified = read_registry_dword(disk_path, TS_KEY, TS_VALUE);
+    if verified == Some(1) {
+        return Err(LibvirtError::Operation(format!(
+            "{write_path} reported success but {TS_VALUE} is still 1, so Remote Desktop \
+             is still disabled. The write did not reach {TS_KEY}."
+        )));
+    }
+
+    if verified == Some(0) {
+        if let Some(ref b) = guestkit_backup {
+            let _ = std::fs::remove_file(b);
+        }
+    }
+
+    Ok(rdp_outcome(
+        disk_path,
+        &firewall_edits,
+        verified,
+        write_path,
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reg_merge_body_sets_fdeny_and_nla() {
+        let body = build_rdp_reg_merge(&[]);
+        assert!(body.contains("\"fDenyTSConnections\"=dword:00000000"));
+        assert!(body.contains("\"UserAuthentication\"=dword:00000001"));
+        assert!(body.contains("ControlSet001\\Control\\Terminal Server"));
+        assert!(!body.contains("CurrentControlSet"));
+        assert!(!body.contains("FirewallRules"));
+    }
+
+    #[test]
+    fn reg_merge_body_includes_firewall_string_edits() {
+        let edits = vec![(
+            "RemoteDesktop-UserMode-In-TCP".to_string(),
+            r"v2.29|Active=TRUE|App=%SystemRoot%\system32\svchost.exe|".to_string(),
+        )];
+        let body = build_rdp_reg_merge(&edits);
+        assert!(body.contains("FirewallRules"));
+        assert!(body.contains("\"RemoteDesktop-UserMode-In-TCP\"="));
+        // .reg doubles backslashes in the value.
+        assert!(body.contains(r"\\system32\\svchost.exe"));
+    }
 
     #[test]
     fn plan_matches_guestkit_fixplan_shape() {

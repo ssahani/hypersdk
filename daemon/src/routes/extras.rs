@@ -867,13 +867,12 @@ async fn enable_windows_rdp(
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_browse_host_paths(&actor)?;
-    // Held for the whole request, including the guestkit subprocess below: a
-    // client retry after an HTTP-level timeout does not cancel the in-flight
-    // server-side work (`spawn_blocking` isn't dropped with the response), so
-    // without this a retry starts a *second* `guestkit plan apply` against the
-    // same disk while the first is still running — two concurrent registry-hive
-    // writers on one qcow2, a real corruption risk hit live against this exact
-    // endpoint.
+    // Held for the whole request, including the virt-win-reg / guestkit
+    // subprocess below: a client retry after an HTTP-level timeout does not
+    // cancel the in-flight server-side work (`spawn_blocking` isn't dropped with
+    // the response), so without this a retry starts a *second* hive writer
+    // against the same disk while the first is still running — a real
+    // corruption risk hit live against this exact endpoint.
     let _vm_guard = manager.lock_vm(&name).await;
     let cfg = MachinaConfig::load();
     let guestkit_bin = cfg.libvirt.guestkit_agent_binary.clone();
