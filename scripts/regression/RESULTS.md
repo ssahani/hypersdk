@@ -2,6 +2,15 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+## 2026-08-06 Windows enable-rdp reconfirm (post Linux offline)
+
+| Gate | Result |
+|------|--------|
+| Refuse-while-running | **400** |
+| Offline `enable-rdp` (shutoff, autostart off) | **200** in **~60 s** — 7 registry ops via GuestKit `plan apply --skip-backup` |
+
+Both goldens left **running**.
+
 ## 2026-08-06 Linux offline happy-path reconfirm
 
 Lab `212.8.248.187` / `chrome-e2e-vm`. GuestKit **0.3.17**.
