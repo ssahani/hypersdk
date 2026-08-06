@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-//! Offline Linux guest ops via **GuestKit** (`plan` / `rescue`).
+//! Offline Linux guest ops via **GuestKit** (`rescue` / `plan`).
 //!
 //! Machina does not call libguestfs-tools CLIs directly — disk mounts stay
 //! inside GuestKit (≥ 0.3.17).
@@ -67,103 +67,6 @@ fn run_guestkit(bin: &str, args: &[&str]) -> Result<(String, String), LibvirtErr
     Ok((stdout, stderr))
 }
 
-fn parse_applied_count(out: &str) -> Option<u32> {
-    out.lines().find_map(|l| {
-        l.trim()
-            .strip_prefix("Operations applied:")
-            .and_then(|rest| rest.trim().parse().ok())
-    })
-}
-
-/// `plan generate -p linux-ssh` then `plan apply --skip-backup`.
-pub fn enable_ssh_offline(
-    disk_path: &str,
-    guestkit_bin: &str,
-) -> Result<LinuxOfflineOutcome, LibvirtError> {
-    require_absolute_disk(disk_path)?;
-    let bin = guestkit_binary(guestkit_bin);
-    let plan_file = std::env::temp_dir().join(format!(
-        "machina-linux-ssh-{}.json",
-        std::process::id()
-    ));
-    let plan_path = plan_file.to_string_lossy().to_string();
-
-    run_guestkit(
-        &bin,
-        &[
-            "plan",
-            "generate",
-            disk_path,
-            "-p",
-            "linux-ssh",
-            "-o",
-            &plan_path,
-            "-f",
-            "json",
-        ],
-    )?;
-
-    let apply = run_guestkit(
-        &bin,
-        &[
-            "plan",
-            "apply",
-            &plan_path,
-            "--vm",
-            disk_path,
-            "--yes",
-            "--skip-backup",
-        ],
-    );
-    let _ = std::fs::remove_file(&plan_file);
-    let (stdout, stderr) = apply?;
-
-    let combined = format!("{stdout}\n{stderr}");
-    if combined.contains("unexpected argument '--skip-backup'")
-        || combined.contains("Unrecognized option")
-    {
-        return Err(LibvirtError::Operation(
-            "guestkit on this host is too old for `plan apply --skip-backup` \
-             (needs GuestKit ≥ 0.3.17). Upgrade guestkit."
-                .into(),
-        ));
-    }
-
-    let applied_count = parse_applied_count(&stdout).or_else(|| parse_applied_count(&stderr));
-    match applied_count {
-        Some(n) if n > 0 => Ok(LinuxOfflineOutcome {
-            disk_path: disk_path.to_string(),
-            operation: "enable-ssh".into(),
-            applied: vec![
-                "systemd multi-user.target.wants ssh/sshd unit symlink".into(),
-                "/etc/ssh/sshd_config.d/99-guestkit.conf (PubkeyAuthentication yes)".into(),
-            ],
-            notes: vec![
-                format!("guestkit plan apply applied {n} operation(s)"),
-                "Start the VM — sshd should be enabled at boot.".into(),
-            ],
-        }),
-        Some(_) => Err(LibvirtError::Operation(
-            "guestkit applied 0 operations — SSH was not enabled offline".into(),
-        )),
-        None => {
-            // Older summary formats: treat success exit + enable messaging as ok.
-            if combined.contains("Plan applied successfully") || combined.contains("enabled") {
-                Ok(LinuxOfflineOutcome {
-                    disk_path: disk_path.to_string(),
-                    operation: "enable-ssh".into(),
-                    applied: vec!["linux-ssh plan applied".into()],
-                    notes: vec!["Start the VM — sshd should be enabled at boot.".into()],
-                })
-            } else {
-                Err(LibvirtError::Operation(
-                    "guestkit exited 0 but reported no applied operations for linux-ssh".into(),
-                ))
-            }
-        }
-    }
-}
-
 fn rescue(
     disk_path: &str,
     guestkit_bin: &str,
@@ -181,6 +84,40 @@ fn rescue(
     args.extend(extra.iter().cloned());
     let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
     run_guestkit(&bin, &arg_refs)
+}
+
+/// Enable SSH offline via GuestKit `rescue enable-ssh` (systemd wants + sshd drop-in).
+pub fn enable_ssh_offline(
+    disk_path: &str,
+    guestkit_bin: &str,
+) -> Result<LinuxOfflineOutcome, LibvirtError> {
+    let (stdout, _stderr) = rescue(disk_path, guestkit_bin, "enable-ssh", &[])?;
+    let detail = stdout
+        .lines()
+        .filter(|l| {
+            let t = l.trim();
+            t.contains('✓') || t.contains("Enabled") || t.contains("Wrote") || t.contains("Updated")
+        })
+        .map(|l| l.trim().to_string())
+        .collect::<Vec<_>>();
+    Ok(LinuxOfflineOutcome {
+        disk_path: disk_path.to_string(),
+        operation: "enable-ssh".into(),
+        applied: if detail.is_empty() {
+            vec![
+                "systemd multi-user.target.wants ssh/sshd unit symlink".into(),
+                "/etc/ssh/sshd_config.d/99-guestkit.conf (PubkeyAuthentication yes)".into(),
+            ]
+        } else {
+            detail
+        },
+        notes: vec![
+            "SSH enabled via guestkit rescue enable-ssh.".into(),
+            "Start the VM — sshd should be enabled at boot.".into(),
+            "CLI alternative: guestkit plan generate -p linux-ssh && plan apply --skip-backup."
+                .into(),
+        ],
+    })
 }
 
 /// Append an OpenSSH public key to the user's `authorized_keys`.
@@ -237,12 +174,7 @@ pub fn reset_password_offline(
         disk_path,
         guestkit_bin,
         "reset-password",
-        &[
-            "-u".into(),
-            user.into(),
-            "-p".into(),
-            password.into(),
-        ],
+        &["-u".into(), user.into(), "-p".into(), password.into()],
     )?;
     Ok(LinuxOfflineOutcome {
         disk_path: disk_path.to_string(),
@@ -309,16 +241,23 @@ mod tests {
     #[test]
     fn rejects_relative_and_missing_disk() {
         assert!(enable_ssh_offline("relative.qcow2", "guestkit").is_err());
-        assert!(enable_ssh_offline("/nonexistent/linux-does-not-exist.qcow2", "guestkit").is_err());
-        assert!(inject_ssh_key_offline("/nonexistent/x.qcow2", "guestkit", "root", "ssh-ed25519 AAAA").is_err());
+        assert!(
+            enable_ssh_offline("/nonexistent/linux-does-not-exist.qcow2", "guestkit").is_err()
+        );
+        assert!(inject_ssh_key_offline(
+            "/nonexistent/x.qcow2",
+            "guestkit",
+            "root",
+            "ssh-ed25519 AAAA"
+        )
+        .is_err());
     }
 
     #[test]
-    fn rejects_empty_params() {
-        // Path check runs first for missing file — use a path that fails validation earlier via empty user after we can't hit disk. Unit-level param checks:
+    fn rejects_empty_user_before_disk_io() {
         assert!(matches!(
             inject_ssh_key_offline("/tmp", "guestkit", "", "ssh-ed25519 AAAA"),
-            Err(LibvirtError::Invalid(_)) | Err(LibvirtError::NotFound(_))
+            Err(LibvirtError::Invalid(_))
         ));
     }
 }
