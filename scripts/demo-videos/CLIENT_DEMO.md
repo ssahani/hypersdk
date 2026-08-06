@@ -48,7 +48,32 @@
 - `win10-msedge` may show Windows Recovery after heavy offline GuestKit/disk work — reboot before the Windows beat, or show it Running on Live Preview Wall / VM cards only.
 - Live Preview Wall thumbnails may say “unavailable” while **Open Cinema** still works.
 
+## Golden image → Create VM (separate reels)
+
+Lab templates (on hypervisor):
+
+| Template | `base_image` |
+|----------|----------------|
+| `linux-ubuntu-golden` | `/var/lib/libvirt/images/ubuntu-demo-src.qcow2` |
+| `windows-win10-golden` | `/var/lib/libvirt/images/win10-msedge.qcow2` |
+
+**UI path:** `/create` → **Clone from golden image** → **Saved template** → thin clone → **Create VM from golden image**.
+
+Windows: stop the golden first (backing qcow2 must not be exclusively locked), then restart it after the clone. Delete demo clones when finished so the golden can run again.
+
+```bash
+cd scripts/demo-videos
+export MACH_URL=https://127.0.0.1:15092 MACH_USER=sus MACH_PASS=max
+node render-cards-golden.mjs
+rm -rf raw/seg-golden-linux raw/seg-golden-windows
+node seg-golden-linux.mjs
+node seg-golden-windows.mjs
+./build-golden.sh
+# → out/machina-golden-linux.mp4 · out/machina-golden-windows.mp4 (+ Desktop copies)
+```
+
 ## Record the LinkedIn wow cut
+
 
 ```bash
 cd scripts/demo-videos

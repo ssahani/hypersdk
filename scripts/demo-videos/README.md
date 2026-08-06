@@ -16,6 +16,19 @@ export MACH_URL=https://127.0.0.1:15092 MACH_USER=sus MACH_PASS=max
 export MACH_LINUX_VM=chrome-e2e-vm MACH_WINDOWS_VM=win10-msedge
 ```
 
+## Golden image demos (Linux + Windows, separate)
+
+```bash
+node render-cards-golden.mjs
+rm -rf raw/seg-golden-linux raw/seg-golden-windows
+node seg-golden-linux.mjs     # Create VM from linux-ubuntu-golden
+node seg-golden-windows.mjs   # stops win10 golden briefly, clones, restarts
+./build-golden.sh             # → out/machina-golden-{linux,windows}.mp4
+```
+
+Saved templates live on the hypervisor under `/var/lib/machina/templates/`
+(`linux-ubuntu-golden.json`, `windows-win10-golden.json`).
+
 ## Recording
 
 ```bash
