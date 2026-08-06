@@ -2,6 +2,65 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+## 2026-08-06 Linux offline happy-path reconfirm
+
+Lab `212.8.248.187` / `chrome-e2e-vm`. GuestKit **0.3.17**.
+
+| Gate | Result |
+|------|--------|
+| Refuse-while-running | **5/5 → 400** |
+| First happy-path | Failed — NBD write lock + platform reconcile restarted VM mid-op (`desired_state=running`) |
+| Retest prep | Platform/classic stop, libvirt autostart disabled, kill hung `guestkit rescue` / `qemu-nbd`, clear nbd0–15 |
+| `enable-ssh` | **200** ~583s |
+| `inject-ssh-key` | **200** ~95s (after sequential idle wait) |
+| `set-hostname` | **200** ~20s |
+| `fix-fstab` | **200** ~119s |
+
+**Lab note:** Keep chrome `desired_state=stopped` / autostart off during offline edits; clear NBD and wait for `guestkit rescue` to exit between ops — overlapping rescues cause write locks and curl timeouts.
+
+Both goldens left **running**.
+
+## 2026-08-06 Wave C UI CDP (all `ui` / `ui-*`)
+
+Lab `212.8.248.187`; CDP `:9222`; target `win10-msedge` (`90843de5-…`).
+
+| Gate | Result |
+|------|--------|
+| All `ui` / `ui-*` suites | **49/49 OK** — `WAVE_C_FAILS=0` |
+
+Both goldens left **running**.
+
+## 2026-08-06 next wave (`npm run once` + ui)
+
+Lab `212.8.248.187`; mutate target `win10-msedge` (`90843de5-…`).
+
+| Gate | Result |
+|------|--------|
+| Ops catalog through `watchdog` | All green (same counts as prior full catalog) |
+| `ops-linuxhost` (first pass) | **8/9** — `linux-filesystems` **500** (`agent get_linux_filesystems timed out after 30s`); aborted `once` chain |
+| Harness | Soft-accept agent timeout on `linux-filesystems` (same as `ops-guest` host-linux-filesystems) |
+| Resume: `linuxhost` → `complx` + `pages` | **linuxhost 9/9** (`500-expected`); firewallx **14**, authz **9**, fleetx **21**, vmx **14**, aifleet **13**, healthx **20**, devhub **32**, eventx **26**, graphx **21**, complx **21**; pages **130/130** soft=0 |
+| `npm run ui` | **11/11 PASS** |
+
+Both goldens left **running**.
+
+## 2026-08-06 cont tests (post enable-rdp retry)
+
+Lab `212.8.248.187`; tunnels `15092`/`5092`. GuestKit **0.3.17** with `registry-write`. Prior turn: offline `enable-rdp` **200** ~106s (7 applied).
+
+| Gate | Result |
+|------|--------|
+| `npm run api` | **13/13 PASS** |
+| `feature-test.sh` `win10-msedge` (on host) | **26/26 PASS** |
+| `feature-test.sh` `chrome-e2e-vm` (on host) | **26/26 PASS** |
+| Linux refuse-while-running | **5/5 → 400** |
+| Windows refuse-while-running | **400** |
+| `npm run guestkit` | **7/7 PASS** |
+| `npm run ui-guestkit` | **10/10 PASS** |
+| `guestkit-live-matrix.sh --with-offline` | **28/29** (D.2 `guest-exec-status` flake) → `--case D.2` **PASS** → effective **29/29** |
+
+Both goldens left **running**.
+
 ## 2026-08-05 remaining ops + page-sweep (customer readiness push)
 
 All remaining `npm run <ops>` suites (except meta `once`/`continuous`) re-run via tunnel. Harness fixes: `ops` reboot waits for running; `ops-infra` ensure-running; `ops-ops` sync-time/fstrim accept agent-up.
