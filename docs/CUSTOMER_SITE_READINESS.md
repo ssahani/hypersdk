@@ -24,8 +24,8 @@ topologies are **scoped expansions**, not assumed.
 - GuestKit matrix: `./scripts/guestkit-live-matrix.sh --with-offline` → **29/29** (2026-08-05 reconfirm; A.2/A.3/B.1 retested after brief pause flake)
 - API ops: full `scripts/regression` ops catalog green (see `RESULTS.md` 2026-08-05 sections)
 - Page-sweep: **130/130** hard-pass, 0 soft, 0 fail (wave 7)
-- Media/guest-tools: `feature-test.sh` **26/26** on both `chrome-e2e-vm` and `win10-msedge` (wave 8)
-- API heartbeat: `npm run api` **13/13** (wave 8)
+- Media/guest-tools: `feature-test.sh` **26/26** on both `chrome-e2e-vm` and `win10-msedge` (wave 8; reconfirm wave 11 after enable-rdp fix)
+- API heartbeat: `npm run api` **13/13** (wave 8; reconfirm wave 11)
 - Demo reels published:
   - [Machina × GuestKit](https://youtu.be/LYoqOye3P3I)
   - [Machina desktop wow reel](https://youtu.be/GYjvbKwUufA) (Cinema + Mission Control, ~30s; lab 2026-08-05)

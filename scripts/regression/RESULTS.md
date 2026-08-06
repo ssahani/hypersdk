@@ -216,6 +216,15 @@ Windows-targeted `scripts/regression` ops catalog (non-meta) is **complete** thr
 | API gate | `POST …/windows/enable-rdp` while shutoff → **200** in **~68 s** — notes: `Registry written via virt-win-reg --merge`, firewall TCP+UDP activated, `fDenyTSConnections` verified 0 |
 | Post | `chrome-e2e-vm` + `win10-msedge` **running** |
 
+## 2026-08-06 post-fix reconfirm (wave 11)
+
+| Item | Result |
+|------|--------|
+| `npm run api` | **13/13 PASS** |
+| `feature-test.sh` `win10-msedge` | **26/26 PASS** (first pass flaked RDP guard **200** during daemon restart mid-build; immediate re-run clean, refuse-while-running **400**) |
+| `feature-test.sh` `chrome-e2e-vm` | **26/26 PASS** |
+| Daemon | Lab binary includes `virt-win-reg --merge` path |
+
 **Harness:** `ui-interactive.js` matches Pause/Resume via text/aria/title, scrolls into view, API-fallback if HUD hidden; finder path `/platform/vms`.
 
 ```bash
