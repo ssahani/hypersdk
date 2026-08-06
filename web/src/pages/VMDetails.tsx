@@ -11,7 +11,7 @@ import {
   getInterfaces, getHostname, getBootConfig, hasManagedSave, managedSave, managedSaveRemove,
   getGuestObservability, getGuestHealth, type GuestObservability, type GuestHealthReport,
   insertCdrom, ejectCdrom, installGuestAgentMedia, enableWindowsRdp,
-  enableLinuxSsh, injectLinuxSshKey, resetLinuxPassword, fixLinuxFstab, setLinuxHostname,
+  enableLinuxSsh, injectLinuxSshKey, resetLinuxPassword, fixLinuxFstab, setLinuxHostname as setLinuxHostnameApi,
   getVMLogs, getCpuTune, getMemTune, getKubeVirtBundle, KubeVirtBundle,
   postKubeVirtApply, postKubeVirtUpload, postKubeVirtStart, type KubeVirtClusterExecResult,
   getBlockJobInfo, blockCommit, blockPull, blockJobAbort, vmDetailRoute, vmConsoleRoute, appendVmConnection,
@@ -3277,7 +3277,7 @@ export default function VMDetailsPage() {
               onClose={() => setDialog(null)}
               onConfirm={() =>
                 void runLinuxOffline('Hostname set', () =>
-                  setLinuxHostname(name!, { hostname: linuxHostname.trim() }, conn),
+                  setLinuxHostnameApi(name!, { hostname: linuxHostname.trim() }, conn),
                 )
               }
               confirmLabel="Apply"
