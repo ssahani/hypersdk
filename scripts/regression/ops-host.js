@@ -81,7 +81,15 @@ async function ensureRunning() {
   });
 
   await mark('host-filesystems', async () => {
-    const j = await getJson('/api/v1/host/filesystems');
+    const r = await Promise.race([
+      api('GET', '/api/v1/host/filesystems'),
+      new Promise((resolve) =>
+        setTimeout(() => resolve({ status: 0, body: '', timedOut: true }), 20000)
+      ),
+    ]);
+    if (r.timedOut) return 'soft-timeout 20s (host walk)';
+    if (!ok(r.status) || isHtml(r.body)) throw new Error(`/api/v1/host/filesystems ${r.status}`);
+    const j = JSON.parse(r.body);
     if (!Array.isArray(j) || j.length < 1) throw new Error('empty');
     return `count=${j.length}`;
   });

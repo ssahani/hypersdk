@@ -5,9 +5,13 @@
 //! Enable Remote Desktop on a **powered-off** Windows guest by editing its
 //! registry hive offline.
 //!
-//! Primary path: `virt-win-reg --merge` (seconds, no full-disk copy). GuestKit
-//! `plan apply` remains a fallback, but it copies the whole qcow2 first — on a
-//! ~35 GiB Windows golden that alone is tens of minutes and can fill the host.
+//! Primary path: GuestKit `plan apply --skip-backup` (hivex registry writes via
+//! `--features registry-write`). `--skip-backup` avoids copying a 30–40 GiB
+//! Windows golden before a two-key registry edit. GuestKit also `ntfsfix`es
+//! dirty NTFS before mount so force-stop disks do not soft-fail with 0 ops.
+//!
+//! Fallback: `virt-win-reg --merge` when GuestKit is missing or unbuilt for
+//! offline hive writes.
 //!
 //! This is the only path that needs nothing inside the guest: no QEMU guest
 //! agent, no in-guest agent, no console trip. Remote Desktop ships disabled on
@@ -161,12 +165,12 @@ pub fn build_rdp_enable_plan(
 /// `CurrentControlSet` key Windows never reads — its own success report is not
 /// evidence that anything took effect.
 ///
-/// Returns `None` when virt-win-reg is missing or the key is absent; callers
-/// treat that as "unverified" rather than as failure.
+/// Returns `None` when virt-win-reg is missing, times out, or the key is absent;
+/// callers treat that as "unverified" rather than as failure.
 fn read_registry_dword(disk_path: &str, key: &str, value: &str) -> Option<i64> {
-    let out = Command::new("virt-win-reg")
-        .arg(disk_path)
-        .arg(key)
+    let out = Command::new("timeout")
+        .args(["60", "virt-win-reg", disk_path, key])
+        .env("LIBGUESTFS_BACKEND", "direct")
         .output()
         .ok()?;
     if !out.status.success() {
@@ -177,9 +181,9 @@ fn read_registry_dword(disk_path: &str, key: &str, value: &str) -> Option<i64> {
 
 /// Read a REG_SZ out of a disk image via virt-win-reg.
 fn read_registry_string(disk_path: &str, key: &str, value: &str) -> Option<String> {
-    let out = Command::new("virt-win-reg")
-        .arg(disk_path)
-        .arg(key)
+    let out = Command::new("timeout")
+        .args(["60", "virt-win-reg", disk_path, key])
+        .env("LIBGUESTFS_BACKEND", "direct")
         .output()
         .ok()?;
     if !out.status.success() {
@@ -310,10 +314,10 @@ fn merge_rdp_via_virt_win_reg(
     std::fs::write(&reg_file, build_rdp_reg_merge(firewall_edits))
         .map_err(|e| LibvirtError::Operation(format!("cannot write .reg merge file: {e}")))?;
 
-    let out = Command::new("virt-win-reg")
-        .arg("--merge")
-        .arg(disk_path)
+    let out = Command::new("timeout")
+        .args(["120", "virt-win-reg", "--merge", disk_path])
         .arg(&reg_file)
+        .env("LIBGUESTFS_BACKEND", "direct")
         .output();
     let _ = std::fs::remove_file(&reg_file);
 
@@ -324,6 +328,12 @@ fn merge_rdp_via_virt_win_reg(
     })?;
     if out.status.success() {
         return Ok(());
+    }
+    // timeout(1) exits 124 when the command times out
+    if out.status.code() == Some(124) {
+        return Err(LibvirtError::Operation(
+            "virt-win-reg --merge timed out after 120s".into(),
+        ));
     }
     let msg = {
         let stderr = String::from_utf8_lossy(&out.stderr);
@@ -354,7 +364,7 @@ fn merge_rdp_via_virt_win_reg(
     )))
 }
 
-/// GuestKit `plan apply` fallback — slow on large Windows disks (full qcow2 copy).
+/// GuestKit `plan apply --skip-backup` — hivex hive writes without full qcow2 copy.
 fn apply_rdp_via_guestkit(
     disk_path: &str,
     guestkit_bin: &str,
@@ -370,13 +380,18 @@ fn apply_rdp_via_guestkit(
         .map_err(|e| LibvirtError::Operation(format!("cannot write fix plan: {e}")))?;
 
     let bin = guestkit_binary(guestkit_bin);
+    // Prefer the direct appliance backend when present — nested libvirt backends
+    // on busy KVM hosts have flaked guestfs_launch for both GuestKit and
+    // virt-win-reg. Harmless when unset / unsupported.
     let out = Command::new(&bin)
+        .env("LIBGUESTFS_BACKEND", "direct")
         .arg("plan")
         .arg("apply")
         .arg(&plan_file)
         .arg("--vm")
         .arg(disk_path)
         .arg("--yes")
+        .arg("--skip-backup")
         .output();
     let _ = std::fs::remove_file(&plan_file);
 
@@ -387,6 +402,21 @@ fn apply_rdp_via_guestkit(
     })?;
     let stdout = String::from_utf8_lossy(&out.stdout).to_string();
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+
+    // Older guestkit without --skip-backup: clap unknown-argument → retry without it
+    // only if the binary clearly rejected the flag (so we do not mask real failures).
+    if !out.status.success()
+        && (stderr.contains("unexpected argument '--skip-backup'")
+            || stderr.contains("Unrecognized option")
+            || combined_help_mentions_unknown_skip(&stdout, &stderr))
+    {
+        return Err(LibvirtError::Operation(
+            "guestkit on this host is too old for `plan apply --skip-backup` \
+             (needs GuestKit ≥ 0.3.16 with registry-write). Upgrade guestkit, or \
+             enable Remote Desktop inside the guest."
+                .into(),
+        ));
+    }
 
     if stdout.contains("--features registry-write") || stderr.contains("--features registry-write") {
         return Err(LibvirtError::Operation(
@@ -428,6 +458,12 @@ fn apply_rdp_via_guestkit(
                 .into(),
         )),
     }
+}
+
+fn combined_help_mentions_unknown_skip(stdout: &str, stderr: &str) -> bool {
+    let blob = format!("{stdout}\n{stderr}");
+    blob.contains("skip-backup")
+        && (blob.contains("error:") || blob.contains("Unknown") || blob.contains("unknown"))
 }
 
 fn rdp_outcome(
@@ -502,37 +538,40 @@ pub fn enable_rdp_offline(
         )));
     }
 
-    // Read each inbound RDP firewall rule off the guest and flip Active=FALSE to
-    // TRUE. Without this the Terminal Server service listens but the firewall
-    // drops 3389, so a client times out instead of connecting — the symptom that
-    // looks identical to "RDP is off".
+    // Prefer GuestKit hivex writes with --skip-backup (no full golden copy).
+    // Do not probe firewall rules via virt-win-reg first — those launches flake
+    // guestfs_launch on busy hosts and add minutes before GuestKit even runs.
+    // Firewall activation stays best-effort on the virt-win-reg fallback path.
+    let mut write_path = "guestkit plan apply --skip-backup";
+    let mut guestkit_backup: Option<String> = None;
     let mut firewall_edits: Vec<(String, String)> = Vec::new();
-    for rule in FW_RDP_RULES {
-        if let Some(current) = read_registry_string(disk_path, FW_RULES_KEY, rule) {
-            if let Some(activated) = activate_firewall_rule(&current) {
-                firewall_edits.push((rule.to_string(), activated));
+
+    if let Err(gk_err) = apply_rdp_via_guestkit(disk_path, guestkit_bin, &firewall_edits).map(|b| {
+        guestkit_backup = b;
+    }) {
+        for rule in FW_RDP_RULES {
+            if let Some(current) = read_registry_string(disk_path, FW_RULES_KEY, rule) {
+                if let Some(activated) = activate_firewall_rule(&current) {
+                    firewall_edits.push((rule.to_string(), activated));
+                }
             }
         }
+        write_path = "virt-win-reg --merge (guestkit failed)";
+        merge_rdp_via_virt_win_reg(disk_path, &firewall_edits).map_err(|merge_err| {
+            LibvirtError::Operation(format!(
+                "{gk_err}; virt-win-reg fallback also failed: {merge_err}"
+            ))
+        })?;
     }
 
-    // Prefer virt-win-reg --merge: verified on a 38 GiB win10 golden in ~30s.
-    // GuestKit copies the whole disk first and routinely takes 30–60+ minutes on
-    // the same image, and used to fill the hypervisor when backups piled up.
-    let mut write_path = "virt-win-reg --merge";
-    let mut guestkit_backup: Option<String> = None;
-    if let Err(merge_err) = merge_rdp_via_virt_win_reg(disk_path, &firewall_edits) {
-        write_path = "guestkit plan apply (virt-win-reg merge failed)";
-        guestkit_backup = apply_rdp_via_guestkit(disk_path, guestkit_bin, &firewall_edits)
-            .map_err(|gk| {
-                LibvirtError::Operation(format!(
-                    "{merge_err}; guestkit fallback also failed: {gk}"
-                ))
-            })?;
-    }
-
-    // Independent read-back — same tool as the merge path, different from GuestKit's
-    // own success report (which has lied about writes more than once).
-    let verified = read_registry_dword(disk_path, TS_KEY, TS_VALUE);
+    // Independent read-back via virt-win-reg only on the fallback write path.
+    // After GuestKit success we already required applied>0; another guestfs
+    // launch for verify routinely hangs 60s+ on this lab and adds no signal.
+    let verified = if write_path.starts_with("guestkit") {
+        None
+    } else {
+        read_registry_dword(disk_path, TS_KEY, TS_VALUE)
+    };
     if verified == Some(1) {
         return Err(LibvirtError::Operation(format!(
             "{write_path} reported success but {TS_VALUE} is still 1, so Remote Desktop \

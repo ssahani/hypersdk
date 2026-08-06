@@ -4,7 +4,7 @@ Evidence-based gate for deploying Machina at a customer site. Update this
 document when live regression waves complete (see
 [`scripts/regression/RESULTS.md`](../scripts/regression/RESULTS.md)).
 
-## Verdict (2026-08-05)
+## Verdict (2026-08-06)
 
 | Scope | Status |
 |-------|--------|
@@ -12,20 +12,22 @@ document when live regression waves complete (see
 | Multi-host HA failover under real host loss | API dry-run **PASS** (`/api/v1/ha/status`, `ha_enabled=false` on lab); still needs customer host-loss drill |
 | Atlas / Ceph storage fabric | Soft-pass when disabled; enable + retest before claiming |
 | OpenStack / KubeVirt-primary | Status/negative covered; not primary path on lab host |
-| Windows guest RDP-first | Lab golden `win10-msedge`: feature-test **26/26**; Windows ops waves 2–7 green; wave 10: offline `enable-rdp` **200** (~68 s) via `virt-win-reg --merge` after `ntfsfix -d` (GuestKit full-disk backup demoted to fallback) |
-| Full UI CDP page-sweep | **Done** — `npm run pages` → **130/130** pass / 0 soft / 0 fail (2026-08-05, win10 session) |
+| Windows guest RDP-first | Lab golden `win10-msedge`: feature-test **26/26**; offline `enable-rdp` **200** via GuestKit `plan apply --skip-backup` (hivex; GuestKit ≥0.3.16). `virt-win-reg --merge` is fallback only. Dirty NTFS: GuestKit `ntfsfix` before mount (or host `ntfsfix -d`) |
+| Full UI CDP page-sweep | **Done** — `npm run pages` → **130/130** pass / 0 soft / 0 fail (2026-08-06 full test-all); all `ui`/`ui-*` suites **WAVE_C_FAILS=0** |
 
 **Language for delivery:** Machina is **pilot-ready** for a guided single-site
 (or small fleet) Linux KVM deployment after the checklist below. Broader
 topologies are **scoped expansions**, not assumed.
 
-## Live evidence (lab: 212.8.248.187 / chrome-e2e-vm)
+## Live evidence (lab: 212.8.248.187 / chrome-e2e-vm + win10-msedge)
 
-- GuestKit matrix: `./scripts/guestkit-live-matrix.sh --with-offline` → **29/29** (2026-08-05 reconfirm; A.2/A.3/B.1 retested after brief pause flake)
-- API ops: full `scripts/regression` ops catalog green (see `RESULTS.md` 2026-08-05 sections)
-- Page-sweep: **130/130** hard-pass, 0 soft, 0 fail (wave 7)
-- Media/guest-tools: `feature-test.sh` **26/26** on both `chrome-e2e-vm` and `win10-msedge` (wave 8; reconfirm wave 11 after enable-rdp fix)
-- API heartbeat: `npm run api` **13/13** (wave 8; reconfirm wave 11)
+- **Full lab test-all (2026-08-06):** waves A–G green — see [`scripts/regression/RESULTS.md`](../scripts/regression/RESULTS.md) “full lab test-all”
+- GuestKit matrix: `./scripts/guestkit-live-matrix.sh --with-offline` → **29/29** (2026-08-06; run from laptop with `MACHINA_SSH`)
+- API ops: full ops catalog green + pages **130/130** (2026-08-06; `host-filesystems` soft-timeout in harness if deep walk hangs)
+- UI CDP: all `ui` / `ui-*` suites **0 fails** (2026-08-06)
+- Media/guest-tools: `feature-test.sh` **26/26** on both goldens (2026-08-06)
+- API heartbeat: `npm run api` **13/13** (2026-08-06)
+- Offline Windows RDP: `POST …/windows/enable-rdp` → **200** via GuestKit `plan apply --skip-backup` (2026-08-06; virt-win-reg fallback only)
 - Demo reels published:
   - [Machina × GuestKit](https://youtu.be/LYoqOye3P3I)
   - [Machina desktop wow reel](https://youtu.be/GYjvbKwUufA) (Cinema + Mission Control, ~30s; lab 2026-08-05)
@@ -75,7 +77,8 @@ curl -sk http://HOST:5093/api/v1/health   # controller
 - Never start/stop `sshd`, network stacks, or `guestkit-agent` via guest services API  
 - Zeus lockdown: dry-run by default; apply only with `{dry_run:false, confirm:true}`  
 - Do not NBD-doctor running disks; stop VM for offline GuestKit doctor  
-- Prefer localhost login from the host for automation (external PAM rate limits)
+- Prefer localhost login from the host for automation (external PAM rate limits)  
+- Offline Windows hive writes: clean shutdown preferred; GuestKit `plan apply` now `ntfsfix`es dirty NTFS before mount. Prefer GuestKit ≥0.3.16 with `--skip-backup` for registry-only plans (Machina enable-rdp). `LIBGUESTFS_BACKEND=direct` on the daemon helps guestfs appliance reliability on busy KVM hosts.
 
 ## Sign-off template
 

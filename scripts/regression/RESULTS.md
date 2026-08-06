@@ -249,6 +249,50 @@ npm run ui && npm run pages -- --loops 1
 VM=chrome-e2e-vm ./scripts/feature-test.sh 127.0.0.1 sus max   # on host or via tunnel :5092
 ```
 
+## 2026-08-06 full lab test-all (waves A–G)
+
+Host `212.8.248.187` via tunnels `15092`/`5092`. Mutate target `win10-msedge` (`90843de5-…`); GuestKit/Linux on `chrome-e2e-vm`. Both goldens left **running**; no leftover `demo-*-from-golden` VMs; no GuestKit backup qcow2.
+
+| Wave | Gate | Result |
+|------|------|--------|
+| A | `npm run api` | **13/13 PASS** |
+| B | Ops catalog + `pages --loops 1` | Catalog green after soft-timeout on hung `GET /api/v1/host/filesystems` in `ops-host` / `ops-mission` (20 s soft-pass); host **34/34** + mission **20/20** re-ran PASS; pages **130/130** hard-pass |
+| C | All `ui` / `ui-*` CDP suites | **WAVE_C_FAILS=0** (49 suites) |
+| D | `guestkit-live-matrix.sh --with-offline` (from laptop, `MACHINA_SSH=sus@…`, vm=`chrome-e2e-vm`) | **29/29 PASS** |
+| E | `feature-test.sh` both VMs | **26/26** `win10-msedge` + **26/26** `chrome-e2e-vm` (RDP refuse-while-running **400**) |
+| F | Offline `POST …/windows/enable-rdp` | Force-stop → `ntfsfix -d` on `nbd0p2` → **200** in **~29 s** via `virt-win-reg --merge` (`fDenyTSConnections` verified 0). First attempts **500** when default libguestfs backend hit `guestfs_launch failed` and GuestKit fallback hung; lab drop-in `Environment=LIBGUESTFS_BACKEND=direct` on `machina-daemon` unblocked merge |
+| G | Docs + lab clean | This section + readiness refresh; VMs running |
+
+**Harness note:** `ops-host.js` / `ops-mission.js` soft-timeout `host-filesystems` (20 s) so a deep host walk cannot stall `npm run once`.
+
+**Lab note:** `/etc/systemd/system/machina-daemon.service.d/libguestfs.conf` → `LIBGUESTFS_BACKEND=direct` (busy KVM hosts; default libvirt appliance backend was flaking `guestfs_launch` on this golden).
+
+```bash
+export MACHINA_BASE_URL=https://127.0.0.1:15092
+export MACHINA_USER=sus MACHINA_PASS=max
+export MACHINA_VM_NAME=win10-msedge
+export MACHINA_PLATFORM_VM_ID=90843de5-a79a-4a31-8e7f-bf139a504603
+export MACHINA_HOST_ID=98e60da1-5656-404c-87e9-207ae19ebd86
+cd scripts/regression && npm run api && npm run once   # A+B
+# CDP Chrome :9222 then all ui / ui-* (C)
+MACHINA_SSH=sus@212.8.248.187 MACHINA_VM_NAME=chrome-e2e-vm \
+  MACHINA_PLATFORM_VM_ID=3b2803c9-68e9-4235-b0f8-ef46a42c7a80 \
+  ./scripts/guestkit-live-matrix.sh --with-offline   # D (from laptop)
+VM=win10-msedge ./scripts/feature-test.sh 127.0.0.1 sus max
+VM=chrome-e2e-vm ./scripts/feature-test.sh 127.0.0.1 sus max   # E via :5092 tunnel
+# F: stop win10 → ntfsfix -d → POST /api/v1/vms/win10-msedge/windows/enable-rdp → start both
+```
+
+## 2026-08-06 GuestKit-primary enable-rdp
+
+| Item | Result |
+|------|--------|
+| GuestKit | **0.3.16** on lab — `plan apply --skip-backup` + NTFS `ntfsfix` before mount |
+| Manual | `guestkit plan apply … --skip-backup` on `win10-msedge.qcow2` → **2 ops** in ~62 s; no full-image backup |
+| API | `POST …/windows/enable-rdp` while shutoff → **200**; notes: `Registry written via guestkit plan apply --skip-backup` |
+| Machina | Prefer GuestKit; `virt-win-reg --merge` fallback only (with `timeout` + `LIBGUESTFS_BACKEND=direct`) |
+| Post | Both goldens **running** |
+
 ## 2026-08-04 complx (compliance / enforcement / rename-clone gates)
 
 | Item | Result |
