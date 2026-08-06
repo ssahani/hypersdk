@@ -249,6 +249,30 @@ npm run ui && npm run pages -- --loops 1
 VM=chrome-e2e-vm ./scripts/feature-test.sh 127.0.0.1 sus max   # on host or via tunnel :5092
 ```
 
+## 2026-08-06 Linux offline GuestKit follow-up tests
+
+After GuestKit **0.3.17** + Machina `POST /vms/{name}/linux/*` ship. Lab `212.8.248.187`; tunnels `15092`/`5092`. Target `chrome-e2e-vm`.
+
+| Gate | Result |
+|------|--------|
+| `npm run guestkit` | **7/7 PASS** |
+| `npm run ui-guestkit` | **10/10 PASS** |
+| Linux refuse-while-running | **5/5 → 400** (`enable-ssh`, `inject-ssh-key`, `reset-password`, `fix-fstab`, `set-hostname`) |
+| Linux happy-path (shutoff) | **4/4 → 200** — enable-ssh ~190s, inject-key ~44s, set-hostname ~14s, fix-fstab ~74s (clear NBD between ops; do not overlap with live matrix) |
+| `guestkit-live-matrix.sh --with-offline` | **28/29** then **B.1 retest PASS** → effective **29/29** |
+| `feature-test.sh` `chrome-e2e-vm` (on host) | **26/26 PASS** (laptop→tunnel saw HTTP 000 flakes on ISO reject probes) |
+
+**Lab note:** Concurrent matrix offline + enable-ssh can leave `qemu-nbd` write locks; disconnect nbd0–3 before retrying offline Linux APIs. Both goldens left **running**.
+
+```bash
+export MACHINA_BASE_URL=https://127.0.0.1:15092 MACHINA_USER=sus MACHINA_PASS=max
+cd scripts/regression && npm run guestkit && npm run ui-guestkit
+MACHINA_SSH=sus@212.8.248.187 MACHINA_VM_NAME=chrome-e2e-vm \
+  MACHINA_PLATFORM_VM_ID=3b2803c9-68e9-4235-b0f8-ef46a42c7a80 \
+  ./scripts/guestkit-live-matrix.sh --with-offline
+# on host: VM=chrome-e2e-vm ./scripts/feature-test.sh 127.0.0.1 sus max
+```
+
 ## 2026-08-06 full lab test-all (waves A–G)
 
 Host `212.8.248.187` via tunnels `15092`/`5092`. Mutate target `win10-msedge` (`90843de5-…`); GuestKit/Linux on `chrome-e2e-vm`. Both goldens left **running**; no leftover `demo-*-from-golden` VMs; no GuestKit backup qcow2.
