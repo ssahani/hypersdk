@@ -712,6 +712,55 @@ export const enableWindowsRdp = (name: string, connection?: string | null) =>
     {},
   )
 
+export interface LinuxOfflineResult {
+  status: string
+  vm: string
+  result: { disk_path: string; operation: string; applied: string[]; notes: string[] }
+}
+
+/** Offline Linux SSH enable (GuestKit linux-ssh plan). VM must be shut off. */
+export const enableLinuxSsh = (name: string, connection?: string | null) =>
+  apiPost<LinuxOfflineResult>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/linux/enable-ssh`, connection),
+    {},
+  )
+
+export const injectLinuxSshKey = (
+  name: string,
+  body: { user: string; public_key: string },
+  connection?: string | null,
+) =>
+  apiPost<LinuxOfflineResult>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/linux/inject-ssh-key`, connection),
+    body,
+  )
+
+export const resetLinuxPassword = (
+  name: string,
+  body: { user: string; password: string },
+  connection?: string | null,
+) =>
+  apiPost<LinuxOfflineResult>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/linux/reset-password`, connection),
+    body,
+  )
+
+export const fixLinuxFstab = (name: string, connection?: string | null) =>
+  apiPost<LinuxOfflineResult>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/linux/fix-fstab`, connection),
+    {},
+  )
+
+export const setLinuxHostname = (
+  name: string,
+  body: { hostname: string },
+  connection?: string | null,
+) =>
+  apiPost<LinuxOfflineResult>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/linux/set-hostname`, connection),
+    body,
+  )
+
 /** Remove the CD-ROM drive itself, not just its media. */
 export const detachCdrom = (name: string, target: string, connection?: string | null) =>
   apiPostVoid(

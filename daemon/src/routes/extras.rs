@@ -921,6 +921,203 @@ async fn enable_windows_rdp(
     })))
 }
 
+/// Resolve the first file-backed disk and refuse while the guest is running.
+async fn linux_offline_disk(
+    manager: LibvirtManager,
+    actor: &RequestActor,
+    conn_q: crate::conn_query::ConnQuery,
+    name: &str,
+) -> Result<String, AppError> {
+    let vm = name.to_string();
+    spawn_libvirt_actor(manager, Some(actor), conn_q, move |conn| {
+        let domain = machina_core::libvirt::domain::lookup_domain(conn, &vm)?;
+        let running = domain.get_info().map(|i| i.state == 1).unwrap_or(false);
+        if running {
+            return Err(LibvirtError::Invalid(
+                "stop the VM first — offline GuestKit edits while the guest is running can corrupt the disk"
+                    .into(),
+            ));
+        }
+        let xml = domain.get_xml_desc(0).unwrap_or_default();
+        for block in machina_core::xml::split_blocks(&xml, "disk") {
+            let device =
+                machina_core::xml::extract_attr(&block, "disk", "device").unwrap_or_default();
+            if device != "disk" {
+                continue;
+            }
+            if let Some(p) = machina_core::xml::extract_attr(&block, "source", "file") {
+                if !p.is_empty() {
+                    return Ok(p);
+                }
+            }
+        }
+        Err(LibvirtError::NotFound(
+            "no file-backed root disk found for this VM".into(),
+        ))
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+struct LinuxInjectSshKeyReq {
+    user: String,
+    public_key: String,
+}
+
+#[derive(Deserialize)]
+struct LinuxResetPasswordReq {
+    user: String,
+    password: String,
+}
+
+#[derive(Deserialize)]
+struct LinuxSetHostnameReq {
+    hostname: String,
+}
+
+async fn enable_linux_ssh(
+    Extension(actor): Extension<RequestActor>,
+    State(manager): State<LibvirtManager>,
+    Query(conn_q): Query<crate::conn_query::ConnQuery>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browse_host_paths(&actor)?;
+    let _vm_guard = manager.lock_vm(&name).await;
+    let cfg = MachinaConfig::load();
+    let guestkit_bin = cfg.libvirt.guestkit_agent_binary.clone();
+    let disk = linux_offline_disk(manager, &actor, conn_q, &name).await?;
+    let outcome = tokio::task::spawn_blocking(move || {
+        machina_core::libvirt::linux_guestkit::enable_ssh_offline(&disk, &guestkit_bin)
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("task failed: {e}"))))??;
+    log_audit_with_actor(&actor, "linux.enable-ssh", &name, "success");
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "vm": name,
+        "result": outcome,
+    })))
+}
+
+async fn linux_inject_ssh_key(
+    Extension(actor): Extension<RequestActor>,
+    State(manager): State<LibvirtManager>,
+    Query(conn_q): Query<crate::conn_query::ConnQuery>,
+    Path(name): Path<String>,
+    Json(req): Json<LinuxInjectSshKeyReq>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browse_host_paths(&actor)?;
+    let _vm_guard = manager.lock_vm(&name).await;
+    let cfg = MachinaConfig::load();
+    let guestkit_bin = cfg.libvirt.guestkit_agent_binary.clone();
+    let disk = linux_offline_disk(manager, &actor, conn_q, &name).await?;
+    let user = req.user;
+    let public_key = req.public_key;
+    let outcome = tokio::task::spawn_blocking(move || {
+        machina_core::libvirt::linux_guestkit::inject_ssh_key_offline(
+            &disk,
+            &guestkit_bin,
+            &user,
+            &public_key,
+        )
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("task failed: {e}"))))??;
+    log_audit_with_actor(&actor, "linux.inject-ssh-key", &name, "success");
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "vm": name,
+        "result": outcome,
+    })))
+}
+
+async fn linux_reset_password(
+    Extension(actor): Extension<RequestActor>,
+    State(manager): State<LibvirtManager>,
+    Query(conn_q): Query<crate::conn_query::ConnQuery>,
+    Path(name): Path<String>,
+    Json(req): Json<LinuxResetPasswordReq>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browse_host_paths(&actor)?;
+    let _vm_guard = manager.lock_vm(&name).await;
+    let cfg = MachinaConfig::load();
+    let guestkit_bin = cfg.libvirt.guestkit_agent_binary.clone();
+    let disk = linux_offline_disk(manager, &actor, conn_q, &name).await?;
+    let user = req.user;
+    let password = req.password;
+    let outcome = tokio::task::spawn_blocking(move || {
+        machina_core::libvirt::linux_guestkit::reset_password_offline(
+            &disk,
+            &guestkit_bin,
+            &user,
+            &password,
+        )
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("task failed: {e}"))))??;
+    // Never include the plaintext password in audit details.
+    log_audit_with_actor(&actor, "linux.reset-password", &name, "success");
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "vm": name,
+        "result": outcome,
+    })))
+}
+
+async fn linux_fix_fstab(
+    Extension(actor): Extension<RequestActor>,
+    State(manager): State<LibvirtManager>,
+    Query(conn_q): Query<crate::conn_query::ConnQuery>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browse_host_paths(&actor)?;
+    let _vm_guard = manager.lock_vm(&name).await;
+    let cfg = MachinaConfig::load();
+    let guestkit_bin = cfg.libvirt.guestkit_agent_binary.clone();
+    let disk = linux_offline_disk(manager, &actor, conn_q, &name).await?;
+    let outcome = tokio::task::spawn_blocking(move || {
+        machina_core::libvirt::linux_guestkit::fix_fstab_offline(&disk, &guestkit_bin)
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("task failed: {e}"))))??;
+    log_audit_with_actor(&actor, "linux.fix-fstab", &name, "success");
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "vm": name,
+        "result": outcome,
+    })))
+}
+
+async fn linux_set_hostname(
+    Extension(actor): Extension<RequestActor>,
+    State(manager): State<LibvirtManager>,
+    Query(conn_q): Query<crate::conn_query::ConnQuery>,
+    Path(name): Path<String>,
+    Json(req): Json<LinuxSetHostnameReq>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browse_host_paths(&actor)?;
+    let _vm_guard = manager.lock_vm(&name).await;
+    let cfg = MachinaConfig::load();
+    let guestkit_bin = cfg.libvirt.guestkit_agent_binary.clone();
+    let disk = linux_offline_disk(manager, &actor, conn_q, &name).await?;
+    let hostname = req.hostname;
+    let outcome = tokio::task::spawn_blocking(move || {
+        machina_core::libvirt::linux_guestkit::set_hostname_offline(
+            &disk,
+            &guestkit_bin,
+            &hostname,
+        )
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("task failed: {e}"))))??;
+    log_audit_with_actor(&actor, "linux.set-hostname", &name, "success");
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "vm": name,
+        "result": outcome,
+    })))
+}
+
 async fn ensure_guest_agent_channel_handler(
     Extension(actor): Extension<RequestActor>,
     State(manager): State<LibvirtManager>,
@@ -2511,6 +2708,11 @@ pub fn extras_routes() -> Router<LibvirtManager> {
             post(ensure_guest_agent_channel_handler),
         )
         .route("/vms/{name}/windows/enable-rdp", post(enable_windows_rdp))
+        .route("/vms/{name}/linux/enable-ssh", post(enable_linux_ssh))
+        .route("/vms/{name}/linux/inject-ssh-key", post(linux_inject_ssh_key))
+        .route("/vms/{name}/linux/reset-password", post(linux_reset_password))
+        .route("/vms/{name}/linux/fix-fstab", post(linux_fix_fstab))
+        .route("/vms/{name}/linux/set-hostname", post(linux_set_hostname))
         .route("/browse/dir", get(browse_directory_handler))
         .route("/browse/disks", get(list_disk_images))
         .route("/browse/disks/delete", delete(delete_disk_image))

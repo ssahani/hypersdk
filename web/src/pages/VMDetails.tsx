@@ -10,7 +10,9 @@ import {
   cloneVM, renameVM, migrateVM, resizeDisk, attachInterface, detachInterface,
   getInterfaces, getHostname, getBootConfig, hasManagedSave, managedSave, managedSaveRemove,
   getGuestObservability, getGuestHealth, type GuestObservability, type GuestHealthReport,
-  insertCdrom, ejectCdrom, installGuestAgentMedia, enableWindowsRdp, getVMLogs, getCpuTune, getMemTune, getKubeVirtBundle, KubeVirtBundle,
+  insertCdrom, ejectCdrom, installGuestAgentMedia, enableWindowsRdp,
+  enableLinuxSsh, injectLinuxSshKey, resetLinuxPassword, fixLinuxFstab, setLinuxHostname,
+  getVMLogs, getCpuTune, getMemTune, getKubeVirtBundle, KubeVirtBundle,
   postKubeVirtApply, postKubeVirtUpload, postKubeVirtStart, type KubeVirtClusterExecResult,
   getBlockJobInfo, blockCommit, blockPull, blockJobAbort, vmDetailRoute, vmConsoleRoute, appendVmConnection,
   setMemTune as applyMemTuneApi, setSchedulerTune, pinVcpu, getNumaTune, setNumaTune, pinEmulator,
@@ -114,7 +116,7 @@ function SnapshotTableRows({
 
 const VM_DETAIL_TABS = ['overview', 'disks', 'network', 'snapshots', 'devices', 'xml', 'logs', 'advanced'] as const
 type Tab = (typeof VM_DETAIL_TABS)[number]
-type Dialog = null | 'cdrom' | 'clone' | 'rename' | 'migrate' | 'snapshot' | 'boot-order' | 'vcpus' | 'memory' | 'balloon' | 'attach-disk' | 'resize-disk' | 'attach-nic' | 'attach-usb' | 'save-template'
+type Dialog = null | 'cdrom' | 'clone' | 'rename' | 'migrate' | 'snapshot' | 'boot-order' | 'vcpus' | 'memory' | 'balloon' | 'attach-disk' | 'resize-disk' | 'attach-nic' | 'attach-usb' | 'save-template' | 'linux-ssh-key' | 'linux-password' | 'linux-hostname'
   | 'delete-vm' | 'scheduler-tune' | 'memtune' | 'numa-tune' | 'emulator-pin' | 'pin-vcpu' | 'block-commit'
   | 'disk-tune' | 'nic-tune' | 'firmware' | 'watchdog' | 'sound' | 'serial' | 'video'
 
@@ -185,6 +187,12 @@ export default function VMDetailsPage() {
   const isWindowsVm =
     /windows|win10|win11|msedge/i.test(guestHealth?.os_pretty_name ?? '') ||
     /windows|win10|win11|msedge/i.test(name ?? '')
+  const isLinuxVm = !isWindowsVm
+  const linuxOfflineBlocked = vm?.state === 'running'
+  const [linuxUser, setLinuxUser] = useState('root')
+  const [linuxPubkey, setLinuxPubkey] = useState('')
+  const [linuxPassword, setLinuxPassword] = useState('')
+  const [linuxHostname, setLinuxHostname] = useState('')
   const [cdromTarget, setCdromTarget] = useState('sda')
   const [cloneName, setCloneName] = useState('')
   const [cloneMode, setCloneMode] = useState<'linked' | 'full' | 'xml'>('linked')
@@ -755,6 +763,20 @@ export default function VMDetailsPage() {
       if (r.result.firewall_manual) {
         toast.warning('If RDP still refuses, enable the Remote Desktop inbound firewall rule inside Windows')
       }
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setGuestToolsBusy(false)
+    }
+  }
+
+  const runLinuxOffline = async (label: string, fn: () => Promise<{ result: { applied: string[] } }>) => {
+    if (!name) return
+    setGuestToolsBusy(true)
+    try {
+      const r = await fn()
+      toast.success(`${label} (${r.result.applied.length} change(s)) — start the VM`)
+      setDialog(null)
     } catch (e: unknown) {
       toast.error(formatUserError(e))
     } finally {
@@ -1632,6 +1654,59 @@ export default function VMDetailsPage() {
                   >
                     Enable Remote Desktop
                   </button>
+                )}
+                {isLinuxVm && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs"
+                      disabled={guestToolsBusy || linuxOfflineBlocked}
+                      title={
+                        linuxOfflineBlocked
+                          ? 'Stop the VM first — offline GuestKit edits while running can corrupt the disk'
+                          : 'Offline: enable ssh/sshd unit + PubkeyAuthentication drop-in'
+                      }
+                      onClick={() => void runLinuxOffline('SSH enabled', () => enableLinuxSsh(name!, conn))}
+                    >
+                      Enable SSH
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs"
+                      disabled={guestToolsBusy || linuxOfflineBlocked}
+                      title={linuxOfflineBlocked ? 'Stop the VM first' : 'Inject an SSH public key into authorized_keys'}
+                      onClick={() => setDialog('linux-ssh-key')}
+                    >
+                      Inject SSH key
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs"
+                      disabled={guestToolsBusy || linuxOfflineBlocked}
+                      title={linuxOfflineBlocked ? 'Stop the VM first' : 'Reset a Linux user password in /etc/shadow'}
+                      onClick={() => setDialog('linux-password')}
+                    >
+                      Reset password
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs"
+                      disabled={guestToolsBusy || linuxOfflineBlocked}
+                      title={linuxOfflineBlocked ? 'Stop the VM first' : 'Set /etc/hostname and patch /etc/hosts'}
+                      onClick={() => setDialog('linux-hostname')}
+                    >
+                      Set hostname
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs"
+                      disabled={guestToolsBusy || linuxOfflineBlocked}
+                      title={linuxOfflineBlocked ? 'Stop the VM first' : 'Comment out missing /dev entries in /etc/fstab'}
+                      onClick={() => void runLinuxOffline('fstab checked', () => fixLinuxFstab(name!, conn))}
+                    >
+                      Fix fstab
+                    </button>
+                  </>
                 )}
               </div>
               {guestHealth.issues.length > 0 ? (
@@ -3150,6 +3225,67 @@ export default function VMDetailsPage() {
               <label htmlFor="dlg-template-name" className="block text-sm text-slate-400 mb-1">Template Name</label>
               <input id="dlg-template-name" type="text" autoFocus value={templateName} onChange={(e) => setTemplateName(e.target.value)} className="input-field" placeholder="my-vm-template" />
               <p className="text-xs text-slate-500 mt-2">Saves the VM configuration as a reusable template. Disk images are not included.</p>
+            </DialogBox>
+          )}
+
+          {dialog === 'linux-ssh-key' && (
+            <DialogBox
+              title="Inject SSH key"
+              icon={<Terminal className="w-5 h-5 text-cyan-400" />}
+              onClose={() => setDialog(null)}
+              onConfirm={() =>
+                void runLinuxOffline('SSH key injected', () =>
+                  injectLinuxSshKey(name!, { user: linuxUser.trim(), public_key: linuxPubkey.trim() }, conn),
+                )
+              }
+              confirmLabel="Inject"
+              confirmDisabled={!linuxUser.trim() || !linuxPubkey.trim() || guestToolsBusy}
+            >
+              <label htmlFor="dlg-linux-user" className="block text-sm text-slate-400 mb-1">User</label>
+              <input id="dlg-linux-user" type="text" autoFocus value={linuxUser} onChange={(e) => setLinuxUser(e.target.value)} className="input-field" placeholder="root" />
+              <label htmlFor="dlg-linux-pubkey" className="block text-sm text-slate-400 mb-1 mt-3">Public key</label>
+              <textarea id="dlg-linux-pubkey" rows={4} value={linuxPubkey} onChange={(e) => setLinuxPubkey(e.target.value)} className="input-field font-mono text-xs" placeholder="ssh-ed25519 AAAA… comment" />
+              <p className="text-xs text-slate-500 mt-2">VM must be shut off. Appends to ~/.ssh/authorized_keys via GuestKit.</p>
+            </DialogBox>
+          )}
+
+          {dialog === 'linux-password' && (
+            <DialogBox
+              title="Reset Linux password"
+              icon={<Shield className="w-5 h-5 text-amber-400" />}
+              onClose={() => { setDialog(null); setLinuxPassword('') }}
+              onConfirm={() =>
+                void runLinuxOffline('Password reset', () =>
+                  resetLinuxPassword(name!, { user: linuxUser.trim(), password: linuxPassword }, conn),
+                ).then(() => setLinuxPassword(''))
+              }
+              confirmLabel="Reset"
+              confirmDisabled={!linuxUser.trim() || !linuxPassword || guestToolsBusy}
+            >
+              <label htmlFor="dlg-linux-pw-user" className="block text-sm text-slate-400 mb-1">User</label>
+              <input id="dlg-linux-pw-user" type="text" autoFocus value={linuxUser} onChange={(e) => setLinuxUser(e.target.value)} className="input-field" placeholder="root" />
+              <label htmlFor="dlg-linux-pw" className="block text-sm text-slate-400 mb-1 mt-3">New password</label>
+              <input id="dlg-linux-pw" type="password" value={linuxPassword} onChange={(e) => setLinuxPassword(e.target.value)} className="input-field" autoComplete="new-password" />
+              <p className="text-xs text-slate-500 mt-2">Writes a SHA-512 crypt hash into /etc/shadow offline. VM must be shut off.</p>
+            </DialogBox>
+          )}
+
+          {dialog === 'linux-hostname' && (
+            <DialogBox
+              title="Set hostname"
+              icon={<Settings className="w-5 h-5 text-slate-300" />}
+              onClose={() => setDialog(null)}
+              onConfirm={() =>
+                void runLinuxOffline('Hostname set', () =>
+                  setLinuxHostname(name!, { hostname: linuxHostname.trim() }, conn),
+                )
+              }
+              confirmLabel="Apply"
+              confirmDisabled={!linuxHostname.trim() || guestToolsBusy}
+            >
+              <label htmlFor="dlg-linux-hn" className="block text-sm text-slate-400 mb-1">Hostname</label>
+              <input id="dlg-linux-hn" type="text" autoFocus value={linuxHostname} onChange={(e) => setLinuxHostname(e.target.value)} className="input-field" placeholder="web-01" />
+              <p className="text-xs text-slate-500 mt-2">Updates /etc/hostname and the 127.0.1.1 line in /etc/hosts. VM must be shut off.</p>
             </DialogBox>
           )}
 
