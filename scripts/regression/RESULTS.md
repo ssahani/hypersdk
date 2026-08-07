@@ -2,6 +2,18 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+## 2026-08-07 Chrome functional (pages + ui + gap UI)
+
+Lab CDP `:9222`; target `win10-msedge`. Reconfirm after Aug 7 ops mutations.
+
+| Gate | Result |
+|------|--------|
+| `npm run pages -- --loops 1` | **130/130** soft=0 |
+| `npm run ui` | **11/11 PASS** |
+| Gap UI (`ui-settings` … `ui-complx`, 22 suites) | **all OK** — `CHROME_FUNC_FAILS=0` |
+
+Both goldens left **running**. Chrome CDP functional catalog is fully reconfirmed for this session.
+
 ## 2026-08-07 hunt → planner (ops + UI)
 
 Target `win10-msedge` (`90843de5-…`).
