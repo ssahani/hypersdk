@@ -2,6 +2,18 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+## 2026-08-07 ops gap (fleet → parity)
+
+Remaining ops not re-run earlier on Aug 7. Target `win10-msedge`.
+
+| Gate | Result |
+|------|--------|
+| `fleet` … `operations` (19 suites) | **all OK** — fleet 15, hardware 26, infra 21, atlas 14, batch 7, aiops 10, watchdog 8, linuxhost 9, firewallx 14, authz 9, fleetx 21, vmx 14, aifleet 13, healthx 20, devhub 32, eventx 26, graphx 21, complx 21, operations 29 |
+| `ops` (interactive) / `parity` | **14/14** / **23/23** |
+| | `OPS_GAP_FAILS=0` |
+
+Both goldens left **running**. Aug 7 ops catalog reconfirm is complete (alongside prior mutate/platform/resize/hunt waves).
+
 ## 2026-08-07 Chrome functional (pages + ui + gap UI)
 
 Lab CDP `:9222`; target `win10-msedge`. Reconfirm after Aug 7 ops mutations.
