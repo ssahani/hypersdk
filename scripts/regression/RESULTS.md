@@ -2,6 +2,18 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+## 2026-08-07 HW feats (NIC model switch + libvirt hardware)
+
+New suite `npm run hw-feats` (`ops-hw-feats.js`). Covers NIC attach → **`nic.tune` model switch** → restore → detach, disk.tune cache, libvirt queries, live vCPU/memory (soft when maxed), USB/PCI negatives, vsock/tpm/watchdog/boot/scheduler/memtune, classic balloon.
+
+| Gate | Result |
+|------|--------|
+| `hw-feats` `chrome-e2e-vm` | **31/31 PASS** — `virtio→rtl8139→virtio` (offline tune); live vCPU/memory soft when QEMU rejects |
+| `hw-feats` `win10-msedge` | **31/31 PASS** — `e1000→e1000e→e1000` (offline tune) |
+| Related | `hardware` **26/26**, `net` **19/19**, `disk` **11/11**, `resize` **17/17**, `admin` **17/17** |
+
+Both goldens left **running**.
+
 ## 2026-08-07 ops gap (fleet → parity)
 
 Remaining ops not re-run earlier on Aug 7. Target `win10-msedge`.
