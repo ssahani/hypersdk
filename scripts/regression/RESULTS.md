@@ -2,6 +2,56 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+## 2026-08-07 platform stack (ops + UI)
+
+Target `win10-msedge` (`90843de5-…`).
+
+| Gate | Result |
+|------|--------|
+| `platform` / `storage` / `host` / `zeus` / `audit` / `volume` | **OPS_FAILS=0** (15/23/34/32/23/22) |
+| `ui-storage` / `ui-host` / `ui-zeus` / `ui-audit` / `ui-volume` / `ui-power` | **UI_FAILS=0** |
+
+Both goldens left **running**.
+
+## 2026-08-07 win10 mutate slice (power → lifecycle)
+
+Target `win10-msedge` (`90843de5-…`); platform start before/after to keep `desired_state=running`.
+
+| Gate | Result |
+|------|--------|
+| `npm run power` | **11/11 PASS** |
+| `npm run net` | **19/19 PASS** |
+| `npm run guest` | First **19/20** (`host-cockpit` **500** under load) → retest **20/20** |
+| `npm run disk` | **11/11 PASS** |
+| `npm run lifecycle` | **11/11 PASS** |
+| Harness | Soft-accept `host-cockpit` 5xx/timeout (same class as linux-filesystems) |
+
+Both goldens left **running**.
+
+## 2026-08-07 cont (guestkit + live matrix)
+
+| Gate | Result |
+|------|--------|
+| `npm run guestkit` | **7/7 PASS** |
+| `npm run ui-guestkit` | **10/10 PASS** |
+| `guestkit-live-matrix.sh --with-offline` | **29/29 PASS** (incl. D.2) |
+
+Both goldens left **running** (`desired_state=running` via platform start after offline suite G).
+
+## 2026-08-07 post-mutation health (api + HA + feature)
+
+Lab `212.8.248.187`. After offline Linux/Windows edits, classic `start` left `desired_state=stopped` so reconcile shut VMs again mid-feature-test (RDP guard flaked **200**/**500** on shutoff).
+
+| Gate | Result |
+|------|--------|
+| `npm run api` | **13/13 PASS** |
+| HA dry-run | `GET …/platform/controller/api/v1/ha/status` → `enabled_vms=0`; cluster `ha_enabled=false` |
+| Feature-test first pass | win10 **25/26**, chrome **25/26** — RDP guard while reconcile-stopped |
+| Fix | Platform `POST …/vms/{id}/start` → `desired_state=running` for both goldens |
+| Feature-test retest | win10 **26/26**, chrome **26/26** (RDP refuse **400**) |
+
+Both goldens left **running** with `desired_state=running`.
+
 ## 2026-08-06 Windows enable-rdp reconfirm (post Linux offline)
 
 | Gate | Result |
