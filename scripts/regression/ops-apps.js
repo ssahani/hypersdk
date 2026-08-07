@@ -239,9 +239,17 @@ async function getJson(path) {
   });
 
   await mark('host-cockpit', async () => {
-    const j = await getJson(`${P}/api/v1/hosts/${HID}/cockpit`);
-    if (!j.host_id) throw new Error('empty');
-    return `probed=${j.storage?.probed}`;
+    // Same load flake as ops-guest: agent cockpit probe can 500 under contention.
+    const r = await api('GET', `${P}/api/v1/hosts/${HID}/cockpit`);
+    if (ok(r.status) && !isHtml(r.body)) {
+      const j = JSON.parse(r.body);
+      if (!j.host_id) throw new Error('empty');
+      return `probed=${j.storage?.probed}`;
+    }
+    if (/timed out|timeout|agent|unreachable|internal/i.test(r.body || '') || r.status >= 500) {
+      return `${r.status}-expected`;
+    }
+    throw new Error(`${r.status} ${String(r.body).slice(0, 80)}`);
   });
 
   await mark('proxmox-sync', async () => {

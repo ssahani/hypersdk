@@ -2,6 +2,18 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+## 2026-08-07 hunt → planner (ops + UI)
+
+Target `win10-msedge` (`90843de5-…`).
+
+| Gate | Result |
+|------|--------|
+| `hunt` / `hub` / `providers` / `policy` / `diag` / `obs` / `enterprise` / `alerts` / `planner` | **24 / 25 / 34 / 27 / 26 / 41 / 32 / 24 / 24** |
+| `apps` | First **27/28** (`host-cockpit` **500**) → retest **28/28**; soft-accept 5xx in `ops-apps.js` |
+| `ui-hunt` … `ui-planner` | **all 10/10** — `UI_FAILS=0` |
+
+Both goldens left **running**.
+
 ## 2026-08-07 resize → catalog (ops + UI)
 
 Target `win10-msedge` (`90843de5-…`).
