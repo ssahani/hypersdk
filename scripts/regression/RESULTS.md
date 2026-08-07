@@ -2,6 +2,17 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+## 2026-08-07 resize → catalog (ops + UI)
+
+Target `win10-msedge` (`90843de5-…`).
+
+| Gate | Result |
+|------|--------|
+| `resize` / `admin` / `ai` / `security` / `provision` / `mission` / `catalog` | **17 / 17 / 22 / 52 / 31 / 20 / 32** — `OPS_FAILS=0` |
+| `ui-resize` … `ui-catalog` + `ui-net` / `ui-guest` | **10 / 10 / 10 / 15 / 10 / 23 / 25 / 10 / 12** — `UI_FAILS=0` |
+
+Both goldens left **running**.
+
 ## 2026-08-07 platform stack (ops + UI)
 
 Target `win10-msedge` (`90843de5-…`).
