@@ -58,9 +58,25 @@ Each seg script prints `mark()` timestamps from process start — NOT from when
 `extract_clip` offsets in `build.sh`: `offset = last_mark - actual_video_duration`.
 Spot-check with `ffmpeg -ss <t> -frames:v 1`.
 
+## Hardware Studio reel (NIC / video / USB·PCI / firmware)
+
+```bash
+export MACH_URL=https://127.0.0.1:15092 MACH_USER=sus MACH_PASS=max
+export MACH_VM_NAME=chrome-e2e-vm
+node render-cards-hw.mjs
+rm -rf raw/seg-hw-feats
+node seg-hw-feats.mjs                 # classic Devices tab → Hardware drawer
+# Translate mark() times → video-relative (see build-hw.sh header), then:
+./build-hw.sh /tmp/hw-marks.env       # → out/ + Desktop/PacketWolf-Demo-Videos/machina-hardware/
+```
+
 ## Publishing
 
-Upload `out/machina-wow-reel.mp4` with `upload-wow-reel.py` (Zeus OS OAuth token), copy under `~/Desktop/`,
-and link from [`docs/CUSTOMER_SITE_READINESS.md`](../../docs/CUSTOMER_SITE_READINESS.md).
+Upload `out/machina-wow-reel.mp4` (or `machina-hardware-wow-reel.mp4`) with `upload-wow-reel.py`
+(Zeus OS OAuth token), copy under `~/Desktop/`, wire the YouTube id into
+`../hypersdk-web/src/data/product-demo-videos.ts`, and link from
+[`docs/CUSTOMER_SITE_READINESS.md`](../../docs/CUSTOMER_SITE_READINESS.md).
 
-Current public cut: https://youtu.be/GYjvbKwUufA
+Current public cuts:
+- Desktop wow: https://youtu.be/GYjvbKwUufA
+- GuestKit agent: https://youtu.be/LYoqOye3P3I

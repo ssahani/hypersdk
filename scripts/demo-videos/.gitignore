@@ -3,8 +3,10 @@ node_modules
 raw/
 png/
 png-guestkit/
+png-hw/
 seg/
 seg-gk/
+seg-hw/
 out/
 *.webm
 *.mp4
