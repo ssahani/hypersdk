@@ -40,6 +40,7 @@ pub struct FleetStorageOverview {
     pub pools_over_85_pct: usize,
     pub smart_failure_count: usize,
     pub smart_hosts_affected: usize,
+    pub smart_hosts_sampled: usize,
     pub pools: Vec<FleetStoragePoolItem>,
     pub smart_disks: Vec<FleetSmartDiskItem>,
 }
@@ -123,6 +124,7 @@ pub async fn overview(
 
     let mut smart_disks = Vec::new();
     let mut hosts_with_failures = std::collections::HashSet::new();
+    let mut smart_hosts_sampled = 0usize;
 
     for (host_id, hostname) in host_rows {
         let Ok(obs) = host_os::linux_observability(pool, cfg, host_id).await else {
@@ -131,6 +133,7 @@ pub async fn overview(
         let Some(arr) = obs.get("smart").and_then(|s| s.as_array()) else {
             continue;
         };
+        smart_hosts_sampled += 1;
         for d in arr {
             // Fail closed: a missing/malformed "passed" field means we couldn't
             // determine the disk's SMART status, not that it's healthy. Defaulting
@@ -164,13 +167,14 @@ pub async fn overview(
 
     Ok(FleetStorageOverview {
         summary: format!(
-            "{} pool(s) · {} GiB / {} GiB used · {} tier(s) · {} SMART failure(s) on {} host(s)",
+            "{} pool(s) · {} GiB / {} GiB used · {} tier(s) · {} SMART failure(s) on {} of {} sampled host(s)",
             pools.len(),
             total_used_gib,
             total_capacity_gib,
             tiers.tiers.len(),
             smart_failure_count,
-            smart_hosts_affected
+            smart_hosts_affected,
+            smart_hosts_sampled
         ),
         pool_count: pools.len() as i64,
         tier_count: tiers.tiers.len(),
@@ -179,6 +183,7 @@ pub async fn overview(
         pools_over_85_pct,
         smart_failure_count,
         smart_hosts_affected,
+        smart_hosts_sampled,
         pools,
         smart_disks,
     })

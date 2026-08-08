@@ -18,6 +18,15 @@ export function recordEntries(data: Record<string, unknown>, max = 12): Array<[s
     .slice(0, max)
 }
 
+export function summarizeJsonValue(value: unknown): string {
+  if (Array.isArray(value)) return `${value.length} item${value.length === 1 ? '' : 's'}`
+  if (value && typeof value === 'object') {
+    const count = Object.keys(value as Record<string, unknown>).length
+    return `${count} field${count === 1 ? '' : 's'}`
+  }
+  return String(value)
+}
+
 export default function JsonInspector({
   data,
   children,
@@ -39,7 +48,7 @@ export default function JsonInspector({
           {recordEntries(asRecord(data) ?? { value: data }).map(([k, v]) => (
             <div key={k} className="rounded-lg border border-white/[0.06] bg-slate-950/30 px-3 py-2">
               <dt className="text-xs text-slate-500 capitalize">{k.replace(/_/g, ' ')}</dt>
-              <dd className="text-slate-200 mt-0.5 break-words">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</dd>
+              <dd className="text-slate-200 mt-0.5 break-words">{summarizeJsonValue(v)}</dd>
             </div>
           ))}
         </dl>

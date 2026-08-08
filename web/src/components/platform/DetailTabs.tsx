@@ -76,22 +76,24 @@ export default function DetailTabs<T extends string>({
 
   return (
     <div ref={stickyRef} className="platform-detail-tabs-sticky" id="platform-detail-tabs">
-      <div role="tablist" className="flex flex-wrap items-center gap-1 pb-1">
-      {primary.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          role="tab"
-          aria-selected={active === tab.id}
-          tabIndex={active === tab.id ? 0 : -1}
-          onClick={() => selectTab(tab.id)}
-          onKeyDown={(e) => handleKeyDown(e, tab.id)}
-          className={tabButtonClass(active === tab.id)}
-        >
-          {tab.label}
-        </button>
-      ))}
-      {more.length > 0 && (
+      <div className="flex flex-wrap items-center gap-1 pb-1">
+        <div role="tablist" aria-label="Detail sections" className="contents">
+          {primary.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={active === tab.id}
+              tabIndex={active === tab.id ? 0 : -1}
+              onClick={() => selectTab(tab.id)}
+              onKeyDown={(e) => handleKeyDown(e, tab.id)}
+              className={tabButtonClass(active === tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {more.length > 0 && (
         <div className="relative" ref={moreRef}>
           <button
             type="button"
@@ -135,7 +137,7 @@ export default function DetailTabs<T extends string>({
             </div>
           )}
         </div>
-      )}
+        )}
       </div>
     </div>
   )

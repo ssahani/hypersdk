@@ -36,6 +36,8 @@ export default function MachineFinderCommandBar({ state }: Props) {
         <div className="relative flex-1 min-w-[12rem] max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
           <input
+            id="machine-finder-search"
+            name="machine_search"
             type="search"
             aria-label="Search machines"
             value={search}

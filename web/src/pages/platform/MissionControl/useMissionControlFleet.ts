@@ -34,6 +34,7 @@ export function useMissionControlFleet() {
   const [cluster, setCluster] = useState<ClusterSummary | null>(null)
   const [capacity, setCapacity] = useState<CapacityReport | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [selectedVmId, setSelectedVmId] = useState<string | null>(null)
   const [attentionMode, setAttentionMode] = useState(false)
   const [sshVm, setSshVm] = useState<PlatformVm | null>(null)
@@ -45,6 +46,7 @@ export function useMissionControlFleet() {
 
   const load = useCallback(async () => {
     setError(null)
+    setLoading(true)
     try {
       const [h, v, f, c, cap] = await Promise.all([
         listPlatformHosts(),
@@ -62,6 +64,8 @@ export function useMissionControlFleet() {
       setCapacity(cap)
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -173,6 +177,7 @@ export function useMissionControlFleet() {
     cluster,
     capacity,
     error,
+    loading,
     load,
     hostMap,
     running,

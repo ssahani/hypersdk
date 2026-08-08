@@ -47,7 +47,10 @@ fn compliance_score_from_grade(grade: &str) -> i32 {
     }
 }
 
-pub async fn overview(pool: &SqlitePool, cfg: &ControllerConfig) -> anyhow::Result<FleetDnaOverview> {
+pub async fn overview(
+    pool: &SqlitePool,
+    cfg: &ControllerConfig,
+) -> anyhow::Result<FleetDnaOverview> {
     let mission = fleet_mission::overview(pool).await?;
     let updates = fleet_updates::overview(pool, cfg).await?;
     let linux = fleet_linux::overview(pool, cfg).await?;
@@ -62,6 +65,7 @@ pub async fn overview(pool: &SqlitePool, cfg: &ControllerConfig) -> anyhow::Resu
             pools_over_85_pct: 0,
             smart_failure_count: 0,
             smart_hosts_affected: 0,
+            smart_hosts_sampled: 0,
             pools: vec![],
             smart_disks: vec![],
         });

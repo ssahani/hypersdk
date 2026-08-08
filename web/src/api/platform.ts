@@ -1503,6 +1503,7 @@ export type FleetStorageOverview = {
   pools_over_85_pct: number
   smart_failure_count: number
   smart_hosts_affected: number
+  smart_hosts_sampled: number
   pools: FleetStoragePoolItem[]
   smart_disks: FleetSmartDiskItem[]
 }

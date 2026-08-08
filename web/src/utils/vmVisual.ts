@@ -81,5 +81,5 @@ export function vmStatusDotClass(state: string | undefined | null): string {
 export function formatVmMemoryGiB(mib: number | undefined | null): string {
   const n = Number(mib)
   if (!Number.isFinite(n) || n <= 0) return '—'
-  return `${Math.round(n / 1024)} Gi`
+  return `${Math.round(n / 1024)} GiB`
 }

@@ -311,8 +311,12 @@ export default function PlatformVmDetail() {
     const alive = () => seq === loadSeq.current
     setError(null)
     try {
-      const [v, h, policy, spec, snaps, bks, tline, dsk, mtr] = await Promise.all([
-        getPlatformVm(id),
+      // Resolve the inventory source first. Starting libvirt-only requests while
+      // the VM is still unknown makes KubeVirt details emit a burst of expected
+      // 400/404/500 responses before the source gate can take effect.
+      const v = await getPlatformVm(id)
+      if (!alive()) return
+      const [h, policy, spec, snaps, bks, tline, dsk, mtr] = await Promise.all([
         listPlatformHosts().catch(() => [] as PlatformHost[]),
         getVmHaPolicy(id).catch(() => ({ enabled: false, restart_attempts: 3, restart_priority: 'medium', fence_on_failure: false, anti_affinity: false }) as HaPolicy),
         getPlatformVmSpec(id).catch(() => null),
@@ -320,7 +324,7 @@ export default function PlatformVmDetail() {
         listVmBackups(id).catch(() => [] as BackupRecord[]),
         listVmTimeline(id).catch(() => [] as VmTimelineEntry[]),
         getVmDisks(id).catch(() => [] as VmDiskRow[]),
-        getPlatformVmMetrics(id).catch(() => null),
+        v.inventory_source === 'kubevirt' ? Promise.resolve(null) : getPlatformVmMetrics(id).catch(() => null),
       ])
       if (!alive()) return
       setVm(v)
@@ -439,7 +443,7 @@ export default function PlatformVmDetail() {
   }, [id])
 
   useEffect(() => {
-    if (!id || vm?.inventory_source === 'kubevirt') return
+    if (!id || !vm || vm.inventory_source === 'kubevirt') return
     void loadConsolePlan()
   }, [id, vm?.inventory_source, loadConsolePlan])
 
@@ -454,7 +458,7 @@ export default function PlatformVmDetail() {
 
   const hardware = useVmHardware({
     vmId: id,
-    enabled: Boolean(id && vm?.inventory_source !== 'kubevirt'),
+    enabled: Boolean(id && vm && vm.inventory_source !== 'kubevirt'),
     inventorySource: vm?.inventory_source,
     portForwardRules,
     protocols: consolePlan?.protocols ?? [],
@@ -581,11 +585,17 @@ export default function PlatformVmDetail() {
   }, [id])
 
   useEffect(() => {
-    if (!id) return
+    if (!id || !vm || vm.inventory_source === 'kubevirt') {
+      if (vm?.inventory_source === 'kubevirt') {
+        setGuestHealthLoading(false)
+        setGuestServicesLoading(false)
+      }
+      return
+    }
     void loadGuestHealth()
     // Prefetch services so the Guest services tab is warm on first open.
     void loadGuestServices({ quiet: true })
-  }, [id, loadGuestHealth, loadGuestServices])
+  }, [id, vm?.inventory_source, loadGuestHealth, loadGuestServices])
 
   useEffect(() => {
     if (!id || !vm || vm.observed_state !== 'running' || vm.inventory_source === 'kubevirt') return
@@ -593,7 +603,7 @@ export default function PlatformVmDetail() {
   }, [id, vm?.observed_state, vm?.inventory_source, loadGuestPorts])
 
   const loadComputeTopology = useCallback(async () => {
-    if (!id || vm?.inventory_source === 'kubevirt') return
+    if (!id || !vm || vm.inventory_source === 'kubevirt') return
     setComputeTopologyLoading(true)
     try {
       setComputeTopology(await queryVmLibvirt<CpuMemoryTopology>(id, 'cpu.memory.topology'))
@@ -605,7 +615,7 @@ export default function PlatformVmDetail() {
   }, [id, vm?.inventory_source])
 
   const loadLibvirtDetails = useCallback(async () => {
-    if (!id || vm?.inventory_source === 'kubevirt') return
+    if (!id || !vm || vm.inventory_source === 'kubevirt') return
     setLibvirtDetailsLoading(true)
     try {
       const details = await getVmLibvirtDetails(id)
@@ -618,7 +628,7 @@ export default function PlatformVmDetail() {
   }, [id, vm?.inventory_source])
 
   const loadPendingConfig = useCallback(async () => {
-    if (!id || vm?.inventory_source === 'kubevirt') return
+    if (!id || !vm || vm.inventory_source === 'kubevirt') return
     if (vm?.observed_state !== 'running' && vm?.observed_state !== 'paused') {
       setPendingConfig(null)
       return
@@ -634,7 +644,7 @@ export default function PlatformVmDetail() {
   }, [id, vm?.inventory_source, vm?.observed_state])
 
   const loadDomainXml = useCallback(async () => {
-    if (!id || vm?.inventory_source === 'kubevirt') return
+    if (!id || !vm || vm.inventory_source === 'kubevirt') return
     try {
       const { xml } = await getVmDomainXml(id)
       setDomainXml(xml)
@@ -650,13 +660,14 @@ export default function PlatformVmDetail() {
   }, [id])
 
   useEffect(() => {
-    if (id && vm?.inventory_source !== 'kubevirt') void loadPendingConfig()
+    if (id && vm && vm.inventory_source !== 'kubevirt') void loadPendingConfig()
   }, [id, vm?.inventory_source, vm?.observed_state, loadPendingConfig])
 
   useEffect(() => {
-    if ((tab === 'security' || tab === 'access' || tab === 'overview') && id) void loadGuestPorts()
-    if (tab === 'guestServices' && id) void loadGuestServices()
-    if ((tab === 'overview' || tab === 'access' || tab === 'hardware' || tab === 'disks' || tab === 'devices' || tab === 'network' || tab === 'settings' || tab === 'advanced') && id && vm?.inventory_source !== 'kubevirt') {
+    if (!id || !vm || vm.inventory_source === 'kubevirt') return
+    if (tab === 'security' || tab === 'access' || tab === 'overview') void loadGuestPorts()
+    if (tab === 'guestServices') void loadGuestServices()
+    if (tab === 'overview' || tab === 'access' || tab === 'hardware' || tab === 'disks' || tab === 'devices' || tab === 'network' || tab === 'settings' || tab === 'advanced') {
       if (tab === 'overview') void loadComputeTopology()
       if (tab === 'overview' || tab === 'access' || tab === 'settings' || tab === 'advanced' || tab === 'devices') void loadDomainXml()
       if (tab === 'settings') void loadSchedules()
@@ -997,39 +1008,45 @@ export default function PlatformVmDetail() {
                 Namespace: <span className="font-mono text-sky-200">{vm.k8s_namespace ?? 'default'}</span>
               </p>
               <div className="flex flex-wrap gap-2 mt-2">
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-emerald-500/15 text-emerald-200 border border-emerald-500/35 hover:bg-emerald-500/25"
-                  onClick={() =>
-                    void act('Start requested', () =>
-                      postK8sKubevirtVmLifecycle(vm.k8s_namespace ?? 'default', vm.name, 'start'),
-                    )
-                  }
-                >
-                  <Play className="w-3.5 h-3.5" /> Start
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-slate-700/80 text-slate-200 border border-slate-600 hover:bg-slate-600"
-                  onClick={() =>
-                    void act('Stop requested', () =>
-                      postK8sKubevirtVmLifecycle(vm.k8s_namespace ?? 'default', vm.name, 'stop'),
-                    )
-                  }
-                >
-                  <Square className="w-3.5 h-3.5" /> Stop
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-amber-500/15 text-amber-200 border border-amber-500/35 hover:bg-amber-500/25"
-                  onClick={() =>
-                    void act('Restart requested', () =>
-                      postK8sKubevirtVmLifecycle(vm.k8s_namespace ?? 'default', vm.name, 'restart'),
-                    )
-                  }
-                >
-                  <RotateCcw className="w-3.5 h-3.5" /> Restart
-                </button>
+                {vm.observed_state !== 'running' && (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-emerald-500/15 text-emerald-200 border border-emerald-500/35 hover:bg-emerald-500/25"
+                    onClick={() =>
+                      void act('Start requested', () =>
+                        postK8sKubevirtVmLifecycle(vm.k8s_namespace ?? 'default', vm.name, 'start'),
+                      )
+                    }
+                  >
+                    <Play className="w-3.5 h-3.5" /> Start
+                  </button>
+                )}
+                {vm.observed_state === 'running' && (
+                  <>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-slate-700/80 text-slate-200 border border-slate-600 hover:bg-slate-600"
+                      onClick={() =>
+                        void act('Stop requested', () =>
+                          postK8sKubevirtVmLifecycle(vm.k8s_namespace ?? 'default', vm.name, 'stop'),
+                        )
+                      }
+                    >
+                      <Square className="w-3.5 h-3.5" /> Stop
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-amber-500/15 text-amber-200 border border-amber-500/35 hover:bg-amber-500/25"
+                      onClick={() =>
+                        void act('Restart requested', () =>
+                          postK8sKubevirtVmLifecycle(vm.k8s_namespace ?? 'default', vm.name, 'restart'),
+                        )
+                      }
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> Restart
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-red-500/15 text-red-200 border border-red-500/35 hover:bg-red-500/25"

@@ -35,7 +35,7 @@ describe('vmVisual', () => {
   })
 
   it('formats memory safely when mib is missing', () => {
-    expect(formatVmMemoryGiB(1024)).toBe('1 Gi')
+    expect(formatVmMemoryGiB(1024)).toBe('1 GiB')
     expect(formatVmMemoryGiB(undefined)).toBe('—')
     expect(formatVmMemoryGiB(null)).toBe('—')
   })

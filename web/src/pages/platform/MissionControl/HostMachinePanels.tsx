@@ -15,6 +15,14 @@ type Props = {
 export default function HostMachinePanels({ state }: Props) {
   const { hosts, vmsByHost, selectedVmId, setSelectedVmId, setDragVmId, setSshVm } = state
 
+  if (state.loading) {
+    return (
+      <section className="rounded-xl border border-white/[0.08] bg-slate-900/40 p-6 text-center">
+        <p className="text-slate-400">Loading host inventory…</p>
+      </section>
+    )
+  }
+
   if (hosts.length === 0) {
     return (
       <section className="rounded-xl border border-white/[0.08] bg-slate-900/40 p-6 text-center">

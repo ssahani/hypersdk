@@ -15,15 +15,19 @@ type Props = {
 export default function MissionControlHero({ state, warnings }: Props) {
   const { cluster, hosts, running, onlineHosts, storagePct, needsAttention, attentionMode, setAttentionMode } = state
   const fleetTitle = formatFleetDisplayTitle(cluster, hosts)
-  const healthy = warnings === 0 && onlineHosts === hosts.length
+  const healthy = !state.loading && hosts.length > 0 && warnings === 0 && onlineHosts === hosts.length
 
   return (
     <header className="mc-hero flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4" data-testid="mission-control-hero">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl sm:text-3xl font-semibold text-white truncate">{fleetTitle}</h1>
-          <span className={statusPillClasses(healthy ? 'ok' : 'warn')}>
-            {healthy ? <><CheckCircle2 className="w-3.5 h-3.5 inline mr-1" />Healthy</> : <><AlertTriangle className="w-3.5 h-3.5 inline mr-1" />{warnings} warning{warnings === 1 ? '' : 's'}</>}
+          <span className={statusPillClasses(state.loading ? 'neutral' : healthy ? 'ok' : 'warn')}>
+            {state.loading
+              ? 'Loading fleet…'
+              : healthy
+                ? <><CheckCircle2 className="w-3.5 h-3.5 inline mr-1" />Healthy</>
+                : <><AlertTriangle className="w-3.5 h-3.5 inline mr-1" />{warnings} warning{warnings === 1 ? '' : 's'}</>}
           </span>
           {needsAttention > 0 && (
             <button
@@ -38,8 +42,8 @@ export default function MissionControlHero({ state, warnings }: Props) {
         </div>
         <p className="text-sm text-slate-400 mt-2">
           {platformStatSubtitle([
-            { label: 'VMs running', value: String(running) },
-            { label: 'Hosts online', value: `${onlineHosts} / ${hosts.length}` },
+            { label: 'VMs running', value: state.loading ? '—' : String(running) },
+            { label: 'Hosts online', value: state.loading ? '—' : `${onlineHosts} / ${hosts.length}` },
             { label: 'Memory used', value: storagePct != null ? `${Math.round(storagePct)}%` : '—' },
             { label: 'Alerts', value: warnings ? String(warnings) : 'None' },
           ])}

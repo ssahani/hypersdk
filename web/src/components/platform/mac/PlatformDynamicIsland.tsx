@@ -11,7 +11,8 @@ import { getFleetUpdates } from '../../../api/platform'
 import { useAi } from '../../../contexts/AiContext'
 import { hubLinkClasses, statusBgClass, statusSurfaceClasses, statusToneClass } from '../../../utils/semanticColors'
 
-function islandTone(state: 'ok' | 'warn' | 'notify' | 'alert' | 'zeus'): 'ok' | 'warn' | 'error' | 'info' {
+function islandTone(state: 'loading' | 'ok' | 'warn' | 'notify' | 'alert' | 'zeus'): 'neutral' | 'ok' | 'warn' | 'error' | 'info' {
+  if (state === 'loading') return 'neutral'
   if (state === 'ok') return 'ok'
   if (state === 'notify' || state === 'zeus') return 'info'
   if (state === 'warn') return 'warn'
@@ -60,14 +61,17 @@ export default function PlatformDynamicIsland() {
     if (pressure > 0 || criticalForecast) return 'alert' as const
     if (actionableIssues > 0 || failedTasks > 0) return 'warn' as const
     if (alertBacklog > 0) return 'notify' as const
+    if (!desktop) return 'loading' as const
     return 'ok' as const
-  }, [zeusPending, pressure, criticalForecast, actionableIssues, failedTasks, alertBacklog])
+  }, [zeusPending, pressure, criticalForecast, actionableIssues, failedTasks, alertBacklog, desktop])
 
   const tone = islandTone(state)
 
   const formatCount = (n: number) => (n > 999 ? '999+' : String(n))
 
-  const label = state === 'zeus'
+  const label = state === 'loading'
+    ? 'Loading fleet…'
+    : state === 'zeus'
     ? `Zeus · ${formatCount(zeusPending)} pending approval${zeusPending === 1 ? '' : 's'}`
     : state === 'ok'
       ? `Healthy · ${desktop?.hosts_online ?? 0}/${desktop?.hosts_total ?? 0} hosts`

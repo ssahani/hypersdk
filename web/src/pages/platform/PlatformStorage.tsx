@@ -400,7 +400,9 @@ export default function PlatformStorage() {
           )}
           {fleetStorage && (
             <MacGlassPanel title="SMART status" subtitle="Failed disks reported by online hypervisors (linux-obs).">
-              {(fleetStorage.smart_disks ?? []).length === 0 ? (
+              {fleetStorage.smart_hosts_sampled === 0 ? (
+                <p className="text-sm text-amber-300/90">SMART data unavailable — no online host returned a disk sample.</p>
+              ) : (fleetStorage.smart_disks ?? []).length === 0 ? (
                 <p className="text-sm text-slate-400">No SMART failures detected on sampled hosts.</p>
               ) : (
                 <div className="divide-y divide-white/[0.04] -mx-1">

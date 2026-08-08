@@ -429,17 +429,17 @@ export default function PlatformHostDetailPage() {
                     Organize this host on the Mission Control map (site → rack → U position).
                   </p>
                   <div className="p-3 grid gap-3 sm:grid-cols-3">
-                    <label className="space-y-1 text-sm">
+                    <label htmlFor="host-site" className="space-y-1 text-sm">
                       <span className="text-slate-400 text-xs">Site</span>
-                      <input className="input w-full text-sm" value={site} onChange={(e) => setSite(e.target.value)} placeholder="e.g. Pune" />
+                      <input id="host-site" name="site" className="input w-full text-sm" value={site} onChange={(e) => setSite(e.target.value)} placeholder="e.g. Pune" />
                     </label>
-                    <label className="space-y-1 text-sm">
+                    <label htmlFor="host-rack" className="space-y-1 text-sm">
                       <span className="text-slate-400 text-xs">Rack</span>
-                      <input className="input w-full text-sm" value={rack} onChange={(e) => setRack(e.target.value)} placeholder="e.g. Rack 01" />
+                      <input id="host-rack" name="rack" className="input w-full text-sm" value={rack} onChange={(e) => setRack(e.target.value)} placeholder="e.g. Rack 01" />
                     </label>
-                    <label className="space-y-1 text-sm">
+                    <label htmlFor="host-rack-u" className="space-y-1 text-sm">
                       <span className="text-slate-400 text-xs">Rack U</span>
-                      <input className="input w-full text-sm" type="number" min={1} max={52} value={rackU} onChange={(e) => setRackU(e.target.value)} placeholder="12" />
+                      <input id="host-rack-u" name="rack_u" className="input w-full text-sm" type="number" min={1} max={52} value={rackU} onChange={(e) => setRackU(e.target.value)} placeholder="12" />
                     </label>
                   </div>
                   <div className="px-3 pb-3">
@@ -462,7 +462,7 @@ export default function PlatformHostDetailPage() {
                 </MacSettingsGroup>
                 <MacSettingsGroup title="Notes">
                   <div className="p-3 space-y-2">
-                    <textarea className="input min-h-20 text-sm w-full" aria-label="Notes" value={notes} onChange={(e) => { notesDirty.current = true; setNotes(e.target.value) }} />
+                    <textarea id="host-notes" name="notes" className="input min-h-20 text-sm w-full" aria-label="Notes" value={notes} onChange={(e) => { notesDirty.current = true; setNotes(e.target.value) }} />
                     <button type="button" className="btn-secondary text-sm" onClick={() => void patchHost(id, { notes }).then(() => { notesDirty.current = false; toast.success('Notes saved'); return load() }).catch((e: unknown) => toast.error(formatUserError(e)))}>Save</button>
                   </div>
                 </MacSettingsGroup>

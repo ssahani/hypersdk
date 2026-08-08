@@ -46,7 +46,9 @@ export default function MissionControlBriefing({ state, missingImagesCount = 0, 
         <Sparkles className="w-4 h-4 text-sky-400 mt-0.5 shrink-0" />
         <div>
           <p className="text-xs font-medium text-sky-300/90">{ZEUS_ASSISTANT_NAME} Briefing</p>
-          <p className="text-sm text-slate-200 mt-0.5">{summaryText ?? state.finder?.summary ?? 'Scanning fleet…'}</p>
+          <p className="text-sm text-slate-200 mt-0.5">
+            {state.loading ? 'Scanning fleet…' : summaryText ?? state.finder?.summary ?? 'Fleet summary unavailable.'}
+          </p>
         </div>
       </div>
       <div className="flex flex-wrap gap-1.5">

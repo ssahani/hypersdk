@@ -208,6 +208,8 @@ export default function PlatformMacAppMenus() {
         }}
       >
         <input
+          id="menubar-zeus-search"
+          name="zeus_query"
           type="search"
           aria-label="Zeus search"
           value={zeusQuery}
