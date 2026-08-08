@@ -68,6 +68,7 @@ export default function PlatformMobileJumpNav() {
         <Compass className="h-4 w-4 shrink-0 text-sky-400/80" aria-hidden />
         <select
           id="platform-mobile-jump-select"
+          name="platform_jump"
           className="tahoe-mobile-jump-select flex-1 min-w-0"
           value={current}
           onChange={(e) => {

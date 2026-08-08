@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import { Link, useSearchParams } from 'react-router'
 import {
@@ -102,7 +102,7 @@ export default function PlatformMaintenance() {
   const [hostId, setHostId] = useState('')
   const [missionHostId, setMissionHostId] = useState('')
   const [runAt, setRunAt] = useState('')
-  const [defaultTabSet, setDefaultTabSet] = useState(false)
+  const defaultTabSet = useRef(false)
   const [enrollOpen, setEnrollOpen] = useState(false)
   const [previewSummary, setPreviewSummary] = useState<string | null>(null)
   const [upgradeBusy, setUpgradeBusy] = useState(false)
@@ -111,8 +111,8 @@ export default function PlatformMaintenance() {
     const [schedules, hostRows] = await Promise.all([listMaintenanceSchedules(), listPlatformHosts()])
     setRows(schedules)
     setHosts(hostRows)
-    if (!hostId && hostRows[0]) setHostId(hostRows[0].id)
-  }, [hostId])
+    setHostId((current) => current || hostRows[0]?.id || '')
+  }, [])
 
   const loadUpdates = useCallback(async () => {
     setLoadingUpdates(true)
@@ -121,8 +121,8 @@ export default function PlatformMaintenance() {
       const [data, matrix] = await Promise.all([getFleetUpdates(), getUpgradeMatrix()])
       setFleet(data)
       setUpgradeMatrix(matrix)
-      if (!defaultTabSet && data.hosts_with_updates > 0 && !searchParams.get('tab')) {
-        setDefaultTabSet(true)
+      if (!defaultTabSet.current && data.hosts_with_updates > 0 && !searchParams.get('tab')) {
+        defaultTabSet.current = true
         setTab('mission')
       }
     } catch (e: unknown) {
@@ -132,17 +132,19 @@ export default function PlatformMaintenance() {
     } finally {
       setLoadingUpdates(false)
     }
-  }, [defaultTabSet, searchParams, setTab])
+  }, [searchParams, setTab])
 
   const loadMission = useCallback(async () => {
     setError(null)
     const data = await getFleetMaintenanceMission()
     setMission(data)
-    if (!missionHostId && data.hosts[0]) setMissionHostId(data.hosts[0].host_id)
-    else if (missionHostId && !data.hosts.some((h) => h.host_id === missionHostId) && data.hosts[0]) {
-      setMissionHostId(data.hosts[0].host_id)
-    }
-  }, [missionHostId])
+    setMissionHostId((current) => {
+      if (!current || !data.hosts.some((h) => h.host_id === current)) {
+        return data.hosts[0]?.host_id ?? ''
+      }
+      return current
+    })
+  }, [])
 
   const load = useCallback(async () => {
     setError(null)
@@ -218,8 +220,10 @@ export default function PlatformMaintenance() {
           ) : (
             <>
               <div className="flex flex-wrap gap-3 items-center">
-                <label className="text-xs text-slate-500">Host</label>
+                <label htmlFor="maintenance-mission-host" className="text-xs text-slate-500">Host</label>
                 <select
+                  id="maintenance-mission-host"
+                  name="mission_host"
                   className="input max-w-xs"
                   aria-label="Host"
                   value={selectedMission?.host_id ?? ''}
@@ -502,10 +506,10 @@ export default function PlatformMaintenance() {
       {tab === 'schedules' && !pageLoading && (
         <>
           <div className="card p-4 grid gap-3 md:grid-cols-4">
-            <select className="input" aria-label="Host" value={hostId} onChange={(e) => setHostId(e.target.value)}>
+            <select id="maintenance-schedule-host" name="schedule_host" className="input" aria-label="Host" value={hostId} onChange={(e) => setHostId(e.target.value)}>
               {hosts.map((h) => <option key={h.id} value={h.id}>{h.hostname}</option>)}
             </select>
-            <input className="input md:col-span-2" type="datetime-local" aria-label="Scheduled date/time" value={runAt} onChange={(e) => setRunAt(e.target.value)} />
+            <input id="maintenance-schedule-time" name="scheduled_at" className="input md:col-span-2" type="datetime-local" aria-label="Scheduled date/time" value={runAt} onChange={(e) => setRunAt(e.target.value)} />
             <button
               type="button"
               className="btn-primary w-fit flex items-center gap-2"

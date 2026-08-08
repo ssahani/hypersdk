@@ -360,6 +360,7 @@ export interface PlatformHost {
   site: string
   rack: string
   rack_u?: number | null
+  tags?: string[]
 }
 
 export interface PlatformHostDetail extends PlatformHost {

@@ -150,6 +150,8 @@ export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative max-w-xs flex-1">
           <input
+            id="platform-log-filter"
+            name="log_filter"
             className={`input text-sm w-full font-mono ${query ? 'pr-8' : ''}`}
             aria-label="Filter log messages"
             placeholder="Filter messages…"
@@ -169,6 +171,8 @@ export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}
         <div className="flex flex-wrap gap-2 mb-3">
           <div className="relative max-w-xs flex-1">
             <input
+              id="platform-event-kind-filter"
+              name="event_kind"
               className={`input text-sm w-full font-mono ${eventKind ? 'pr-8' : ''}`}
               aria-label="Filter by event kind"
               placeholder="Filter by kind (e.g. host.sync)"

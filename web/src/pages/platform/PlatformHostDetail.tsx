@@ -120,6 +120,7 @@ export default function PlatformHostDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [notes, setNotes] = useState('')
+  const [tags, setTags] = useState('')
   // Don't let a load() triggered by an unrelated action wipe unsaved notes.
   const notesDirty = useRef(false)
   // Last-response-wins guards: separate seqs since load + loadOs run concurrently.
@@ -165,6 +166,7 @@ export default function PlatformHostDetailPage() {
       if (!alive()) return
       setHost(h)
       if (!notesDirty.current) setNotes(h.notes || '')
+      setTags((h.tags ?? []).join(', '))
       setSite(h.site || '')
       setRack(h.rack || '')
       setRackU(h.rack_u != null ? String(h.rack_u) : '')
@@ -457,6 +459,36 @@ export default function PlatformHostDetailPage() {
                       }}
                     >
                       Save location
+                    </button>
+                  </div>
+                </MacSettingsGroup>
+                <MacSettingsGroup title="Tags">
+                  <div className="p-3 space-y-2">
+                    <label htmlFor="host-tags" className="block text-xs text-slate-400">
+                      Placement and capability tags
+                    </label>
+                    <input
+                      id="host-tags"
+                      name="tags"
+                      className="input w-full text-sm"
+                      value={tags}
+                      onChange={(e) => setTags(e.target.value)}
+                      placeholder="gpu, nvidia:a100, cuda"
+                    />
+                    <p className="text-xs text-slate-500">
+                      Comma-separated tags drive GPU, MIG, vGPU, CUDA, and placement discovery.
+                    </p>
+                    <button
+                      type="button"
+                      className="btn-secondary text-sm"
+                      onClick={() => {
+                        const next = tags.split(',').map((tag) => tag.trim()).filter(Boolean)
+                        void patchHost(id, { tags: next })
+                          .then(() => { toast.success('Tags saved'); return load() })
+                          .catch((e: unknown) => toast.error(formatUserError(e)))
+                      }}
+                    >
+                      Save tags
                     </button>
                   </div>
                 </MacSettingsGroup>

@@ -15,11 +15,82 @@ pub struct DriftReport {
     pub summary: String,
 }
 
+fn drift_relevant_inventory(mut value: serde_json::Value) -> serde_json::Value {
+    if let Some(obj) = value.as_object_mut() {
+        // Runtime sockets, activity counters, and the derived score change as
+        // workloads come and go. They are observability data, not firewall
+        // policy, and must not trigger "changed outside Zeus" drift events.
+        obj.remove("hostname");
+        obj.remove("open_ports");
+        obj.remove("services");
+        obj.remove("activity");
+        obj.remove("score");
+        if let Some(posture) = obj.get_mut("posture").and_then(|v| v.as_object_mut()) {
+            posture.remove("status_line");
+            posture.remove("drift_detected");
+            posture.remove("last_changed");
+        }
+    }
+    value
+}
+
 pub fn checksum_inventory(inv: &FirewallInventory) -> String {
-    let json = serde_json::to_string(inv).unwrap_or_default();
+    let relevant = serde_json::to_value(inv)
+        .map(drift_relevant_inventory)
+        .unwrap_or_default();
+    let json = serde_json::to_string(&relevant).unwrap_or_default();
     let mut hasher = Sha256::new();
     hasher.update(json.as_bytes());
     format!("{:x}", hasher.finalize())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::drift_relevant_inventory;
+    use serde_json::json;
+
+    #[test]
+    fn ignores_runtime_observability_fields_for_drift() {
+        let base = json!({
+            "hostname": "host-a",
+            "posture": {"enabled": true, "last_changed": "before", "status_line": "old"},
+            "rules": [{"chain": "input"}],
+            "services": [{"port": 22}],
+            "profiles_available": ["server"],
+            "open_ports": [{"port": 22}],
+            "activity": {"accepted": 1},
+            "score": {"value": 90}
+        });
+        let changed_runtime = json!({
+            "hostname": "renamed-host",
+            "posture": {"enabled": true, "last_changed": "after", "status_line": "new"},
+            "rules": [{"chain": "input"}],
+            "services": [{"port": 443}],
+            "profiles_available": ["server"],
+            "open_ports": [{"port": 22}, {"port": 443}],
+            "activity": {"accepted": 999},
+            "score": {"value": 80}
+        });
+
+        assert_eq!(
+            drift_relevant_inventory(base),
+            drift_relevant_inventory(changed_runtime)
+        );
+    }
+
+    #[test]
+    fn preserves_policy_fields_for_drift() {
+        let expected = drift_relevant_inventory(json!({
+            "posture": {"enabled": true},
+            "rules": [{"chain": "input"}]
+        }));
+        let changed = drift_relevant_inventory(json!({
+            "posture": {"enabled": true},
+            "rules": [{"chain": "forward"}]
+        }));
+
+        assert_ne!(expected, changed);
+    }
 }
 
 pub async fn save_snapshot(
@@ -29,6 +100,19 @@ pub async fn save_snapshot(
     inv: &FirewallInventory,
 ) -> anyhow::Result<()> {
     let checksum = checksum_inventory(inv);
+    let unchanged = sqlx::query_scalar::<_, String>(
+        "SELECT checksum FROM firewall_posture_snapshots
+         WHERE target_kind = ? AND target_id = ? ORDER BY captured_at DESC LIMIT 1",
+    )
+    .bind(target_kind)
+    .bind(target_id)
+    .fetch_optional(pool)
+    .await?
+    .as_deref()
+        == Some(checksum.as_str());
+    if unchanged {
+        return Ok(());
+    }
     sqlx::query(
         "INSERT INTO firewall_posture_snapshots (id, target_kind, target_id, checksum, posture_json) VALUES (?, ?, ?, ?, ?)",
     )
