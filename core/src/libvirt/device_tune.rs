@@ -5,6 +5,7 @@
 //! Update existing disk / NIC / video devices (bus, cache, model, …).
 
 use virt::connect::Connect;
+use virt::domain::Domain;
 
 use super::device::get_domain_flags;
 use super::domain::lookup_domain;
@@ -89,11 +90,84 @@ fn set_disk_readonly_shareable(
     block
 }
 
+fn target_prefix_for_bus(bus: &str) -> &'static str {
+    match bus {
+        "virtio" => "vd",
+        "scsi" | "sata" | "ide" | "usb" => "sd",
+        _ => "sd",
+    }
+}
+
+/// Map `vda`/`sda`/`hda`/`xvda` → letter index used for the remapped target.
+fn disk_index_letter(target: &str) -> char {
+    let stripped = target
+        .strip_prefix("xvd")
+        .or_else(|| target.strip_prefix("vd"))
+        .or_else(|| target.strip_prefix("sd"))
+        .or_else(|| target.strip_prefix("hd"))
+        .unwrap_or(target);
+    stripped
+        .chars()
+        .next()
+        .filter(|c| c.is_ascii_lowercase())
+        .unwrap_or('a')
+}
+
+fn remap_target_dev(old: &str, bus: &str) -> String {
+    format!("{}{}", target_prefix_for_bus(bus), disk_index_letter(old))
+}
+
+/// Prefer the same letter as `old` only when it is free; otherwise the first free
+/// slot from `a`. Scanning from `a` keeps virtio↔scsi round-trips on `vda` when
+/// the CD-ROM occupies `sda` (mid-state `sdb` → restore `vda`, not `vdb`).
+fn pick_free_target_dev(old: &str, bus: &str, used: &[String]) -> String {
+    let prefix = target_prefix_for_bus(bus);
+    for letter in 'a'..='z' {
+        let cand = format!("{prefix}{letter}");
+        if cand == old || !used.iter().any(|u| u == &cand) {
+            return cand;
+        }
+    }
+    remap_target_dev(old, bus)
+}
+
+fn used_disk_targets(desc: &str) -> Vec<String> {
+    split_blocks(desc, "disk")
+        .into_iter()
+        .filter_map(|b| xml::extract_attr(&b, "target", "dev"))
+        .collect()
+}
+
+/// Drop `<address…/>` so libvirt can assign a bus-appropriate address on redefine.
+fn strip_disk_address(block: &str) -> String {
+    let mut out = block.to_string();
+    while let Some(i) = out.find("<address") {
+        if let Some(j) = out[i..].find("/>") {
+            let mut end = i + j + 2;
+            if end < out.len() && out.as_bytes()[end] == b'\n' {
+                end += 1;
+            }
+            out.replace_range(i..end, "");
+        } else if let Some(j) = out[i..].find("</address>") {
+            let mut end = i + j + "</address>".len();
+            if end < out.len() && out.as_bytes()[end] == b'\n' {
+                end += 1;
+            }
+            out.replace_range(i..end, "");
+        } else {
+            break;
+        }
+    }
+    out
+}
+
 fn set_target_bus_on_block(
     block: &str,
     target_dev: &str,
     bus: &str,
-) -> Result<String, LibvirtError> {
+    used_targets: &[String],
+) -> Result<(String, String), LibvirtError> {
+    let new_dev = pick_free_target_dev(target_dev, bus, used_targets);
     let needle1 = format!("dev='{target_dev}'");
     let needle2 = format!("dev=\"{target_dev}\"");
     let idx = block
@@ -112,37 +186,37 @@ fn set_target_bus_on_block(
         .map(|i| i + 2)
         .or_else(|| tag_src.find("</target>").map(|i| i + "</target>".len()))
         .ok_or_else(|| LibvirtError::Operation("target end".into()))?;
-    let tag = &tag_src[..tag_end_rel];
     let tag_end_abs = tstart + tag_end_rel;
-    let mut new_tag = tag.to_string();
-    for pat in [
-        " bus='virtio'",
-        " bus=\"virtio\"",
-        " bus='sata'",
-        " bus=\"sata\"",
-        " bus='scsi'",
-        " bus=\"scsi\"",
-        " bus='ide'",
-        " bus=\"ide\"",
-    ] {
-        new_tag = new_tag.replace(pat, "");
-    }
-    if new_tag.ends_with("/>") {
-        new_tag.insert_str(new_tag.len() - 2, &format!(" bus='{}'", xml::escape(bus)));
-    } else {
+    // Rebuild a clean target — bus + remapped dev (virtio↔scsi needs vd*↔sd*).
+    let new_tag = format!(
+        "<target dev='{}' bus='{}'/>",
+        xml::escape(&new_dev),
+        xml::escape(bus)
+    );
+    let mut nb = format!("{}{}{}", &block[..tstart], new_tag, &block[tag_end_abs..]);
+    nb = strip_disk_address(&nb);
+    Ok((nb, new_dev))
+}
+
+fn replace_exact_once(haystack: &str, old: &str, new: &str) -> Result<String, LibvirtError> {
+    let Some(pos) = haystack.find(old) else {
         return Err(LibvirtError::Operation(
-            "Expected self-closing <target .../> for disk".into(),
+            "device block not found in domain XML".into(),
         ));
-    }
+    };
     Ok(format!(
         "{}{}{}",
-        &block[..tstart],
-        new_tag,
-        &block[tag_end_abs..]
+        &haystack[..pos],
+        new,
+        &haystack[pos + old.len()..]
     ))
 }
 
 /// Update disk `<driver>` / `<target bus>` / readonly / shareable for `target` dev (e.g. vda).
+///
+/// Bus changes remap the target name (`vda`↔`sda`) and drop the PCI/`address` node so libvirt
+/// can assign a bus-appropriate address. Those edits go through `define_xml` because
+/// `updateDeviceFlags` rejects cross-bus address types.
 pub fn update_disk_tune(
     conn: &Connect,
     vm_name: &str,
@@ -154,7 +228,12 @@ pub fn update_disk_tune(
         .get_xml_desc(0)
         .map_err(LibvirtError::map_op("get_xml"))?;
 
-    let mut found: Option<String> = None;
+    let mut orig_block: Option<String> = None;
+    let mut new_block: Option<String> = None;
+    let mut bus_changed = false;
+    let used = used_disk_targets(&desc);
+    // Exclude the disk we are editing so remap may keep the same name when valid.
+    let used_others: Vec<String> = used.into_iter().filter(|t| t != &tune.target).collect();
     for block in split_blocks(&desc, "disk") {
         if xml::extract_attr(&block, "target", "dev").as_deref() == Some(tune.target.as_str()) {
             let driver_type =
@@ -163,29 +242,59 @@ pub fn update_disk_tune(
                 "name='qemu'".to_string(),
                 format!("type='{}'", xml::escape(&driver_type)),
             ];
+            // Preserve existing cache/discard when not being overridden so a bus-only
+            // tune does not wipe them via a minimal driver rewrite.
+            let existing_cache = xml::extract_attr(&block, "driver", "cache");
+            let existing_discard = xml::extract_attr(&block, "driver", "discard");
             if let Some(ref c) = tune.cache {
                 parts.push(format!("cache='{}'", xml::escape(c)));
+            } else if let Some(c) = existing_cache {
+                parts.push(format!("cache='{}'", xml::escape(&c)));
             }
             if let Some(ref d) = tune.discard {
                 parts.push(format!("discard='{}'", xml::escape(d)));
+            } else if let Some(d) = existing_discard {
+                parts.push(format!("discard='{}'", xml::escape(&d)));
             }
             let new_driver = format!("<driver {} />", parts.join(" "));
             let mut nb = replace_driver_element(&block, &new_driver);
             if let Some(ref b) = tune.bus {
-                nb = set_target_bus_on_block(&nb, &tune.target, b)?;
+                let (rewritten, _new_dev) =
+                    set_target_bus_on_block(&nb, &tune.target, b, &used_others)?;
+                nb = rewritten;
+                bus_changed = true;
             }
             nb = set_disk_readonly_shareable(nb, tune.readonly, tune.shareable);
-            found = Some(nb);
+            orig_block = Some(block);
+            new_block = Some(nb);
             break;
         }
     }
-    let frag = found
+    let frag = new_block
         .ok_or_else(|| LibvirtError::NotFound(format!("No disk with target '{}'", tune.target)))?;
+    let orig = orig_block.expect("paired with new_block");
+
+    if bus_changed {
+        let new_xml = replace_exact_once(&desc, &orig, &frag)?;
+        Domain::define_xml(conn, &new_xml)
+            .map_err(|e| LibvirtError::Operation(format!("update_disk_tune define_xml: {e}")))?;
+        return Ok(());
+    }
+
     let flags = get_domain_flags(&domain);
-    domain
-        .update_device_flags(&frag, flags)
-        .map_err(|e| LibvirtError::Operation(format!("update_disk_tune: {e}")))?;
-    Ok(())
+    match domain.update_device_flags(&frag, flags) {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            // Fall back to redefine when live/config device update is unsupported.
+            let new_xml = replace_exact_once(&desc, &orig, &frag)?;
+            Domain::define_xml(conn, &new_xml).map_err(|e2| {
+                LibvirtError::Operation(format!(
+                    "update_disk_tune: update_device_flags failed ({e}); define_xml also failed: {e2}"
+                ))
+            })?;
+            Ok(())
+        }
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -254,6 +363,9 @@ pub fn update_nic_tune(
 const VIDEO_MODELS: &[&str] = &["virtio", "qxl", "vga", "bochs", "cirrus", "none"];
 
 /// Set the primary `<video><model type='…'/></video>`.
+///
+/// QEMU often rejects `updateDeviceFlags` for persistent video changes
+/// (`operationunsupported`). Fall back to replacing the video block via `define_xml`.
 pub fn set_video_model(conn: &Connect, vm_name: &str, model: &str) -> Result<(), LibvirtError> {
     if !VIDEO_MODELS.contains(&model) {
         return Err(LibvirtError::Invalid(format!(
@@ -270,24 +382,84 @@ pub fn set_video_model(conn: &Connect, vm_name: &str, model: &str) -> Result<(),
         return Err(LibvirtError::NotFound("No <video> in domain".into()));
     };
     let mut nb = first.clone();
+    let keep_primary = nb.contains("primary='yes'") || nb.contains("primary=\"yes\"");
+    let primary_attr = if keep_primary { " primary='yes'" } else { "" };
     if let Some(start) = nb.find("<model") {
         if let Some(rest) = nb[start..].find("/>") {
             let end = start + rest + 2;
             nb.replace_range(
                 start..end,
-                &format!("<model type='{}' heads='1'/>", xml::escape(model)),
+                &format!(
+                    "<model type='{}' heads='1'{}/>",
+                    xml::escape(model),
+                    primary_attr
+                ),
             );
         } else if let Some(rest) = nb[start..].find("</model>") {
             let end = start + rest + "</model>".len();
             nb.replace_range(
                 start..end,
-                &format!("<model type='{}' heads='1'></model>", xml::escape(model)),
+                &format!(
+                    "<model type='{}' heads='1'{}></model>",
+                    xml::escape(model),
+                    primary_attr
+                ),
             );
         }
     }
     let flags = get_domain_flags(&domain);
-    domain
-        .update_device_flags(&nb, flags)
-        .map_err(|e| LibvirtError::Operation(format!("set_video_model: {e}")))?;
+    if domain.update_device_flags(&nb, flags).is_ok() {
+        return Ok(());
+    }
+    let new_xml = replace_exact_once(&desc, first, &nb)?;
+    Domain::define_xml(conn, &new_xml)
+        .map_err(|e| LibvirtError::Operation(format!("set_video_model define_xml: {e}")))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn remap_virtio_to_scsi_target() {
+        assert_eq!(remap_target_dev("vda", "scsi"), "sda");
+        assert_eq!(remap_target_dev("vdb", "sata"), "sdb");
+        assert_eq!(remap_target_dev("sda", "virtio"), "vda");
+    }
+
+    #[test]
+    fn bus_change_strips_pci_address_and_renames() {
+        let block = r#"<disk type='file' device='disk'>
+    <driver name='qemu' type='qcow2' cache='none'/>
+    <source file='/var/lib/libvirt/images/a.qcow2'/>
+    <target dev='vda' bus='virtio'/>
+    <address type='pci' domain='0x0000' bus='0x00' slot='0x05' function='0x0'/>
+  </disk>"#;
+        let (nb, new_dev) = set_target_bus_on_block(block, "vda", "scsi", &[]).unwrap();
+        assert_eq!(new_dev, "sda");
+        assert!(nb.contains("dev='sda'"));
+        assert!(nb.contains("bus='scsi'"));
+        assert!(!nb.contains("<address"));
+    }
+
+    #[test]
+    fn bus_change_skips_occupied_sda() {
+        let block = r#"<disk type='file' device='disk'>
+    <target dev='vda' bus='virtio'/>
+  </disk>"#;
+        let used = vec!["sda".into()];
+        let (_nb, new_dev) = set_target_bus_on_block(block, "vda", "scsi", &used).unwrap();
+        assert_eq!(new_dev, "sdb");
+    }
+
+    #[test]
+    fn bus_restore_prefers_vda_when_free() {
+        let block = r#"<disk type='file' device='disk'>
+    <target dev='sdb' bus='scsi'/>
+  </disk>"#;
+        let used = vec!["sda".into()];
+        let (_nb, new_dev) = set_target_bus_on_block(block, "sdb", "virtio", &used).unwrap();
+        assert_eq!(new_dev, "vda");
+    }
 }

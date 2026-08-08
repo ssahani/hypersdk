@@ -2,6 +2,91 @@
 
 Rolling notes from deployed-host sweeps. Update as new loops complete.
 
+## 2026-08-08 unit/lint gates (Rust workspace on lab + web)
+
+Static + unit gates after the live waves, run on the lab host (`cargo` needs Linux libvirt headers).
+
+| Gate | Result |
+|------|--------|
+| `cargo test` whole workspace | **354 PASS / 0 FAIL** — core 217, controller 63+8, agent 20, spec 16, translate 15, daemon 15; tui/rvb/virt-image-build/run-as-user-helper have no tests |
+| `web && npm test` (vitest) | **152/152 PASS** (30 files) |
+| `web && npm run build` (tsc + vite) | **PASS** |
+| `rustfmt --check` on changed files | **clean** (`device_tune.rs`, `cpu_memory.rs`) |
+| `cargo clippy -p machina-core` on changed files | **0 hits** |
+
+**Bug found + fixed:** `libvirt::cpu_memory::tests::replace_vcpu_sets_current_and_headroom_max` expected max `8` for
+`vcpus=3`. Since `vcpu_max_for()` was extracted (`be406e90`) the documented policy is 4× capped at 16, so the correct
+max is `12`. Production code was right; the stale assertion was the only workspace test failure.
+
+**Pre-existing, not from this branch (lab toolchain is rustfmt/clippy 1.9.0 / 1.97, newer than the repo baseline):**
+
+| Gate | Result |
+|------|--------|
+| `cargo fmt --all --check` | 163 machina files (+86 guestkit) want reformatting — none of them ours |
+| `cargo clippy -p machina-core -- -D warnings` | 76 errors, all pre-existing (`collapsible_if`, `field_reassign_with_default`); worst: `extras/mod.rs` 8, `domain.rs` 8, `kubevirt.rs` 7, `config.rs` 7 |
+
+So `make fmt-check` / `make lint` fail on Rust 1.97 for reasons unrelated to these changes — a repo-wide reformat +
+clippy sweep is a separate chore.
+
+## 2026-08-07 Linux offline reset-password (gap close)
+
+Last offline Linux API not covered in the Aug 6 happy-path four (`enable-ssh` / inject / hostname / fstab). Target `chrome-e2e-vm`.
+
+| Gate | Result |
+|------|--------|
+| Refuse-while-running | **400** — stop VM first |
+| Offline `reset-password` (`user=machina`) | **200** in **~45 s** — GuestKit rescue updated `/etc/shadow` |
+| Prep | Platform stop + autostart off + `qemu-nbd -d` nbd0–15 |
+
+Both goldens left **running** (`desired_state=running` via platform start).
+
+## 2026-08-07 TESTALL (ops + ui + hw-feats + feature + guestkit)
+
+Full automatic catalog on lab `212.8.248.187`. Mutate target `win10-msedge`; hw-feats + feature both goldens; guestkit matrix on `chrome-e2e-vm`.
+
+| Phase | Result |
+|------|--------|
+| A ops (`api`…`operations`, 49 suites) | First pass **46/49** — flaked `lifecycle` (disk-detach), `admin` (nic-detach), `hub` (net deactivate race) → **retest all OK** |
+| A pages | **130/130** soft=0 |
+| A `hw-feats` win10 / chrome | **38/38** / **38/38** |
+| B all `ui` / `ui-*` (49 suites) | **49/49 OK** |
+| C `feature-test` win10 / chrome | **26/26** / **26/26** |
+| D `guestkit-live-matrix --with-offline` | First **28/29** (`F.4` guest `:22` refused — empty SSH host keys) → regenerated hostkeys → **29/29** |
+| Effective | **TESTALL_FAILS=0** after auto-retries |
+
+Lab fix: chrome guest `/etc/ssh/ssh_host_*` were 0-byte; `ssh-keygen -A` + `systemctl restart ssh`.
+
+Both goldens left **running**.
+
+## 2026-08-07 post-HW next wave (api + hardware/disk/net + ui + feature)
+
+After extended `hw-feats` + `device_tune` deploy. Target mutate `win10-msedge`; feature-test both goldens on host.
+
+| Gate | Result |
+|------|--------|
+| `api` | **13/13 PASS** |
+| `hardware` | **26/26 PASS** |
+| `disk` | **11/11 PASS** |
+| `net` | **19/19 PASS** |
+| `ui-hardware` | **19/19 PASS** soft=0 (CDP `:9222`; reconfirm after empty first log) |
+| `feature-test.sh` win10 / chrome | **26/26** / **26/26** |
+| | `NEXT_FAILS=0` |
+
+Both goldens left **running**.
+
+## 2026-08-07 HW feats extended (USB/PCI/CD/video/virtiofs/UEFI/root bus)
+
+Suite `npm run hw-feats` now includes real USB attach/detach, safe-only PCI, CD-ROM insert/eject, video model, virtiofs, firmware UEFI↔BIOS roundtrip, root-disk bus roundtrip (plus prior NIC model / disk cache / negatives).
+
+| Gate | Result |
+|------|--------|
+| `hw-feats` `chrome-e2e-vm` | **38/38 PASS** — USB `1604:10c0`; CD-ROM; **video virtio↔qxl**; **virtiofs** `/tmp`; firmware BIOS flip+restore; **root virtio↔scsi** (`vda`→`sdb`→`vda`, CD-ROM holds `sda`); PCI soft (no safe device on lab) |
+| `hw-feats` `win10-msedge` | **38/38 PASS** — USB; CD-ROM; **video qxl↔virtio**; firmware flip+restore; root **sata↔scsi**; virtiofs skipped-windows; PCI soft |
+| Host prep | Installed `virtiofsd` (`/usr/libexec/virtiofsd`) |
+| Core | `set_video_model` / bus `disk.tune` use `define_xml`; remap `vd*`↔`sd*` + strip address; skip occupied targets (seed ISO on `sda`) |
+
+Both goldens left **running** (chrome root restored to `vda`).
+
 ## 2026-08-07 HW feats (NIC model switch + libvirt hardware)
 
 New suite `npm run hw-feats` (`ops-hw-feats.js`). Covers NIC attach → **`nic.tune` model switch** → restore → detach, disk.tune cache, libvirt queries, live vCPU/memory (soft when maxed), USB/PCI negatives, vsock/tpm/watchdog/boot/scheduler/memtune, classic balloon.

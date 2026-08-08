@@ -332,8 +332,8 @@ mod tests {
         let xml = "<domain>\n  <vcpu placement='static'>2</vcpu>\n  <memory unit='KiB'>1</memory>\n</domain>";
         let out = replace_or_insert_vcpu(xml, 3);
         assert!(out.contains("current='3'"), "{out}");
-        assert!(out.contains(">8</vcpu>"), "{out}");
-        assert_eq!(parse_vcpu_max_from_xml(&out), Some(8));
+        assert!(out.contains(">12</vcpu>"), "{out}");
+        assert_eq!(parse_vcpu_max_from_xml(&out), Some(12));
     }
 
     #[test]

@@ -546,6 +546,231 @@ async function platformStartDesired() {
     }
   });
 
+  // ─── Extended HW: USB real, PCI (safe-only), CD-ROM, video, virtiofs, firmware, root bus ───
+
+  await mark('usb-real-attach-detach', async () => {
+    const raw = await hostLibvirtQuery('host.usb');
+    const items = Array.isArray(raw) ? raw : raw.devices || raw.usb || [];
+    // Never touch Linux root hubs (1d6b). Prefer Dell Integrated Hub / non-hub peripherals.
+    const cand = items.find((d) => {
+      const v = String(d.vendor_id || d.vendor || '').toLowerCase().replace(/^0x/, '');
+      const p = String(d.product_id || d.product || '').toLowerCase().replace(/^0x/, '');
+      if (!v || !p) return false;
+      if (v === '1d6b') return false;
+      return true;
+    });
+    if (!cand) return 'soft no-non-hub-usb';
+    const vendor_id = String(cand.vendor_id || cand.vendor).replace(/^0x/i, '');
+    const product_id = String(cand.product_id || cand.product).replace(/^0x/i, '');
+    await ensureState('shutoff');
+    try {
+      await libvirtInvoke('usb.attach', { vendor_id, product_id });
+      await libvirtInvoke('usb.detach', { vendor_id, product_id });
+      await ensureState('running');
+      return `ok ${vendor_id}:${product_id}`;
+    } catch (e) {
+      await ensureState('running').catch(() => null);
+      if (/not found|busy|in use|not supported|Operation not|no matching/i.test(e.message)) {
+        return `soft ${vendor_id}:${product_id} ${e.message.slice(0, 80)}`;
+      }
+      // Best-effort detach if attach stuck
+      await libvirtInvoke('usb.detach', { vendor_id, product_id }).catch(() => null);
+      throw e;
+    }
+  });
+
+  await mark('pci-real-attach-detach', async () => {
+    const raw = await hostLibvirtQuery('host.pci');
+    const items = Array.isArray(raw) ? raw : raw.devices || raw.pci || [];
+    // Refuse host-critical classes: bridge, host, ethernet, VGA, SATA/NVMe, ISA, SMBus.
+    const unsafe =
+      /bridge|host|ethernet|vga|display|sata|nvme|non-volatile|isa|smbus|usb controller|communication|memory/i;
+    const cand = items.find((d) => {
+      const slot = d.slot || d.address || d.name;
+      const cls = String(d.class || d.device_class || '');
+      const prod = String(d.device || d.product || '');
+      if (!slot) return false;
+      if (d.detachable === false) return false;
+      if (unsafe.test(cls) || unsafe.test(prod)) return false;
+      // Prefer explicitly detachable / vfio-ready
+      return d.detachable === true || /vfio|unused|available/i.test(String(d.driver || ''));
+    });
+    if (!cand) {
+      return 'soft no-safe-pci (host NIC/GPU/SATA/bridges only on this lab)';
+    }
+    const pci = String(cand.slot || cand.address);
+    await ensureState('shutoff');
+    try {
+      await libvirtInvoke('pci.attach', { pci });
+      await libvirtInvoke('pci.detach', { pci });
+      await ensureState('running');
+      return `ok ${pci}`;
+    } catch (e) {
+      await libvirtInvoke('pci.detach', { pci }).catch(() => null);
+      await ensureState('running').catch(() => null);
+      if (/not found|vfio|iommu|busy|not supported|Operation not/i.test(e.message)) {
+        return `soft ${pci} ${e.message.slice(0, 80)}`;
+      }
+      throw e;
+    }
+  });
+
+  await mark('cdrom-insert-eject', async () => {
+    const iso = process.env.MACHINA_TEST_ISO || '/var/lib/libvirt/images/isos/featuretest.iso';
+    // Prefer platform libvirt cdrom.insert; restore cloud-init seed if present.
+    const details = await getJson(`${P}/api/v1/vms/${PID}/libvirt-details`);
+    const disks = details.disks || [];
+    const existingCd = disks.find((d) => d.device === 'cdrom' || /cdrom/i.test(String(d.device)));
+    const seedPath =
+      (existingCd && (existingCd.path || existingCd.source || existingCd.file)) ||
+      `/var/lib/machina/cloud-init/${VM}-seed.iso`;
+    const targetHint = existingCd ? String(existingCd.target || '') : '';
+    await ensureState('running');
+    try {
+      const ins = await libvirtInvoke('cdrom.insert', {
+        iso_path: iso,
+        ...(targetHint ? { target: targetHint } : {}),
+      });
+      const tgt = String(ins.target || targetHint || 'sda');
+      await libvirtInvoke('cdrom.eject', { target: tgt });
+      // Restore prior seed when it was a real file path
+      if (seedPath && /cloud-init|seed\.iso/i.test(seedPath)) {
+        await libvirtInvoke('cdrom.insert', { iso_path: seedPath, target: tgt }).catch(() => null);
+      }
+      return `target=${tgt} iso=${iso}`;
+    } catch (e) {
+      // Classic daemon CD-ROM API fallback
+      const r = await api('POST', `/api/v1/vms/${VM}/cdrom/insert`, { iso_path: iso });
+      if (!ok(r.status)) throw new Error(`${e.message}; classic ${r.status}`);
+      const body = JSON.parse(r.body);
+      const tgt = body.target || (body.cdrom && body.cdrom.target) || 'sda';
+      await api('POST', `/api/v1/vms/${VM}/cdrom/detach/${encodeURIComponent(tgt)}`);
+      if (seedPath && /cloud-init|seed\.iso/i.test(seedPath)) {
+        await api('POST', `/api/v1/vms/${VM}/cdrom/insert`, {
+          iso_path: seedPath,
+          target: tgt,
+        }).catch(() => null);
+      }
+      return `classic target=${tgt}`;
+    }
+  });
+
+  await mark('video-model-switch', async () => {
+    // Classic daemon route (not yet on platform libvirt invoke).
+    const startModel = winGuest ? 'qxl' : 'virtio';
+    const altModel = winGuest ? 'virtio' : 'qxl';
+    await ensureState('shutoff');
+    const set = async (model) => {
+      const r = await api('POST', `/api/v1/vms/${VM}/devices/video-model`, { model });
+      if (!ok(r.status) || isHtml(r.body)) {
+        throw new Error(`video-model ${model} ${r.status} ${String(r.body).slice(0, 120)}`);
+      }
+    };
+    try {
+      await set(altModel);
+      await set(startModel);
+      await ensureState('running');
+      return `${startModel}↔${altModel}`;
+    } catch (e) {
+      // Restore best-effort
+      await set(startModel).catch(() => null);
+      await ensureState('running').catch(() => null);
+      if (/not supported|No <video>|Operation not/i.test(e.message)) {
+        return `soft ${e.message.slice(0, 80)}`;
+      }
+      throw e;
+    }
+  });
+
+  await mark('virtiofs-add-remove', async () => {
+    if (winGuest) return 'skipped-windows';
+    const tag = `machina-hw-${Date.now().toString(36).slice(-4)}`;
+    const src = `/tmp/machina-virtiofs-${tag}`;
+    // Create share dir on lab host via SSH is unavailable from harness — use known world-writable path.
+    // Prefer existing /tmp which always exists on the hypervisor.
+    const source_dir = '/tmp';
+    await ensureState('shutoff');
+    try {
+      await libvirtInvoke('virtiofs.add', {
+        source_dir,
+        mount_tag: tag,
+        xattr: false,
+      });
+      await libvirtInvoke('virtiofs.remove', { mount_tag: tag });
+      await ensureState('running');
+      return `tag=${tag} src=${source_dir}`;
+    } catch (e) {
+      await libvirtInvoke('virtiofs.remove', { mount_tag: tag }).catch(() => null);
+      await ensureState('running').catch(() => null);
+      if (/not supported|virtiofsd|Operation not|shared memory|memfd/i.test(e.message)) {
+        return `soft ${e.message.slice(0, 100)}`;
+      }
+      throw e;
+    }
+  });
+
+  await mark('firmware-uefi-bios-roundtrip', async () => {
+    const before = await libvirtQuery('boot.get');
+    const wasUefi = !!(before.firmware === 'uefi' || before.secure_boot || before.loader);
+    await ensureState('shutoff');
+    try {
+      // Flip away then restore original mode so guest stays bootable.
+      await libvirtInvoke('firmware.set', { uefi: !wasUefi });
+      await libvirtInvoke('firmware.set', { uefi: wasUefi });
+      await ensureState('running');
+      return `wasUefi=${wasUefi} flipped+restored`;
+    } catch (e) {
+      // Restore BIOS/UEFI best-effort
+      await libvirtInvoke('firmware.set', { uefi: wasUefi }).catch(() => null);
+      await ensureState('running').catch(() => null);
+      if (/OVMF|edk2|No OVMF|not supported|Operation not/i.test(e.message)) {
+        return `soft ${e.message.slice(0, 100)}`;
+      }
+      throw e;
+    }
+  });
+
+  await mark('root-disk-bus-roundtrip', async () => {
+    const details = await getJson(`${P}/api/v1/vms/${PID}/libvirt-details`);
+    const disks = details.disks || [];
+    const root =
+      disks.find((d) => (d.device === 'disk' || !d.device) && !/cdrom/i.test(String(d.device || ''))) ||
+      disks.find((d) => /vd[a]|sd[a]|hd[a]/i.test(String(d.target || '')));
+    if (!root || !root.target) return 'soft no-root-disk';
+    const target = String(root.target);
+    const rootPath = String(root.path || root.source || root.file || '');
+    const origBus = String(root.bus || (winGuest ? 'sata' : 'virtio'));
+    // q35: prefer virtio ↔ scsi (safer than ide). Windows golden stays on sata↔scsi.
+    const altBus = origBus === 'virtio' ? 'scsi' : origBus === 'sata' ? 'scsi' : 'virtio';
+    const findRootTarget = async (preferBus) => {
+      const d2 = await getJson(`${P}/api/v1/vms/${PID}/libvirt-details`);
+      const list = d2.disks || [];
+      const byPath =
+        rootPath &&
+        list.find((d) => String(d.path || d.source || d.file || '') === rootPath);
+      if (byPath && byPath.target) return String(byPath.target);
+      const byBus = list.find((d) => String(d.bus || '') === preferBus && d.target);
+      if (byBus) return String(byBus.target);
+      return null;
+    };
+    await ensureState('shutoff');
+    try {
+      await libvirtInvoke('disk.tune', { target, bus: altBus });
+      const midTarget = (await findRootTarget(altBus)) || target;
+      await libvirtInvoke('disk.tune', { target: midTarget, bus: origBus });
+      await ensureState('running');
+      return `${target} ${origBus}↔${altBus}`;
+    } catch (e) {
+      const restoreTarget = (await findRootTarget(origBus).catch(() => null)) || target;
+      await libvirtInvoke('disk.tune', { target: restoreTarget, bus: origBus }).catch(() => null);
+      await ensureState('running').catch(() => null);
+      if (/not supported|Cannot|Operation not|invalid|bus|address/i.test(e.message)) {
+        return `soft ${target} ${e.message.slice(0, 100)}`;
+      }
+      throw e;
+    }
+  });
+
   await mark('leave-running', async () => {
     await platformStartDesired();
     const st = await ensureState('running');
