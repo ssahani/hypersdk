@@ -21,17 +21,18 @@ export default function PlatformFirewallServices() {
     setLoading(true)
     try {
       const ov = await getFirewallOverview()
+      // Each target's services query is independent — fire concurrently.
+      const listsByTarget = await Promise.all(ov.targets.map((t) => getFirewallServices(t.id)))
       const all: ServiceRow[] = []
       const seen = new Set<string>()
-      for (const t of ov.targets) {
-        const list = await getFirewallServices(t.id)
-        for (const svc of list) {
+      ov.targets.forEach((t, i) => {
+        for (const svc of listsByTarget[i]) {
           const key = `${t.id}:${svc.protocol}:${svc.port}:${svc.name}`
           if (seen.has(key)) continue
           seen.add(key)
           all.push({ ...svc, target: t.name, targetId: t.id, key })
         }
-      }
+      })
       all.sort((a, b) => {
         const ra = String(a.status).toLowerCase()
         const rb = String(b.status).toLowerCase()

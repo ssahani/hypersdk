@@ -20,18 +20,21 @@ export default function PlatformFirewallPorts() {
     setLoading(true)
     try {
       const ov = await getFirewallOverview()
+      // Per-target ports fetch and the explain call are both independent of each other —
+      // fire concurrently instead of one after another.
+      const [portsByTarget] = await Promise.all([
+        Promise.all(ov.targets.map((t) => getFirewallPorts(t.id))),
+        ov.targets[0]
+          ? explainFirewall(ov.targets[0].id, 'Summarize open port risk').then((r) => setExplain(r.recommendation))
+          : Promise.resolve(),
+      ])
       const all: Array<OpenPort & { target: string; targetId: string }> = []
-      for (const t of ov.targets) {
-        const p = await getFirewallPorts(t.id)
-        for (const port of p) {
+      ov.targets.forEach((t, i) => {
+        for (const port of portsByTarget[i]) {
           all.push({ ...port, target: t.name, targetId: t.id })
         }
-      }
+      })
       setPorts(all)
-      if (ov.targets[0]) {
-        const r = await explainFirewall(ov.targets[0].id, 'Summarize open port risk')
-        setExplain(r.recommendation)
-      }
     } catch (e: unknown) {
       setError(formatUserError(e))
     } finally {

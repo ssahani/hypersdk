@@ -172,14 +172,22 @@ export default function HostNetworkingPage() {
         setRoutesError(rt.status === 'rejected' ? formatUserError(rt.reason) : null)
       }
 
-      // Fetch guest IPs for running VMs
+      // Fetch guest IPs for running VMs — each VM's query is independent, fire concurrently.
       if (v.status === 'fulfilled') {
+        const running = v.value.filter((vm) => vm.state === 'running')
+        const results = await Promise.all(
+          running.map(async (vm) => {
+            try {
+              const r = await getInterfaces(vm.name, vm.libvirt_connection)
+              return [vmScopeKey(vm), r.addresses] as const
+            } catch {
+              return null
+            }
+          }),
+        )
         const ips: Record<string, GuestIpAddress[]> = {}
-        for (const vm of v.value.filter((vm) => vm.state === 'running')) {
-          try {
-            const r = await getInterfaces(vm.name, vm.libvirt_connection)
-            ips[vmScopeKey(vm)] = r.addresses
-          } catch { /* no addresses */ }
+        for (const entry of results) {
+          if (entry) ips[entry[0]] = entry[1]
         }
         setVmIps(ips)
       }
@@ -395,7 +403,11 @@ export default function HostNetworkingPage() {
     <PageLayout
       title="Host Networking"
       icon={<Network className={`w-6 h-6 ${statusToneClass('info')}`} />}
-      subtitle={`${hostIfaces.length} physical interfaces, ${networks.length} libvirt-defined networks — bridges, NAT, DHCP, port forwards, kernel routing tables, and firewall context on this worker host.`}
+      subtitle={
+        loading
+          ? 'Loading interfaces and networks — bridges, NAT, DHCP, port forwards, kernel routing tables, and firewall context on this worker host.'
+          : `${hostIfaces.length} physical interfaces, ${networks.length} libvirt-defined networks — bridges, NAT, DHCP, port forwards, kernel routing tables, and firewall context on this worker host.`
+      }
       actions={
         <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
       }

@@ -40,6 +40,10 @@ fn compute_memory_mb(
     } else {
         0
     };
+    // RSS includes QEMU process overhead (device emulation, page tables) beyond the guest's
+    // balloon size, so the RSS fallback can report more "used" than the VM's total memory.
+    // Clamp to total so used_mb and pct never contradict each other in the UI.
+    let used_mb = if total_mb > 0 { used_mb.min(total_mb) } else { used_mb };
     let pct = if total_mb > 0 {
         (used_mb as f64 / total_mb as f64 * 100.0).min(100.0)
     } else {
@@ -68,6 +72,16 @@ mod memory_tests {
         let (total, used, _pct) = compute_memory_mb(0, 0, 0, 800 * 1024, 4 * 1024 * 1024);
         assert_eq!(total, 4096);
         assert_eq!(used, 800);
+    }
+
+    #[test]
+    fn rss_overshoot_clamps_used_to_total() {
+        // 8 GiB balloon, but QEMU RSS (host-side, includes device emulation overhead)
+        // reports 8260 MiB — used_mb must not exceed total_mb, and pct must match.
+        let (total, used, pct) = compute_memory_mb(8192 * 1024, 0, 0, 8260 * 1024, 0);
+        assert_eq!(total, 8192);
+        assert_eq!(used, 8192);
+        assert!((pct - 100.0).abs() < 0.1, "pct = {pct}");
     }
 
     #[test]

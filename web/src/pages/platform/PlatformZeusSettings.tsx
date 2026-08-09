@@ -51,11 +51,17 @@ export default function PlatformZeusSettings({ embedded }: { embedded?: boolean 
   const [confirmPurgeMine, setConfirmPurgeMine] = useState(false)
 
   const load = useCallback(async () => {
-    setPrompts(await listAiPrompts().catch(() => []))
-    setAgents(await listAgentMarketplace().catch(() => []))
-    const mem = await getMemorySettings().catch(() => null)
+    // Independent calls — fire concurrently instead of one after another.
+    const [prompts, agents, mem, enterprise] = await Promise.all([
+      listAiPrompts().catch(() => []),
+      listAgentMarketplace().catch(() => []),
+      getMemorySettings().catch(() => null),
+      getZeusEnterpriseOverview().catch(() => null),
+    ])
+    setPrompts(prompts)
+    setAgents(agents)
     if (mem) setMemory(mem)
-    setEnterprise(await getZeusEnterpriseOverview().catch(() => null))
+    setEnterprise(enterprise)
   }, [])
 
   useEffect(() => { void load() }, [load])

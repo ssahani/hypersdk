@@ -153,32 +153,39 @@ export default function PlatformSettingsHub() {
   const [daemonTokens, setDaemonTokens] = useState<number>(0)
 
   const load = useCallback(async () => {
-    try {
-      const s = await getClusterSettings()
-      setDeleteApproval(Boolean(s.require_vm_delete_approval))
-      setApprovalSlaHours(s.firewall_approval_sla_hours ?? 72)
-    } catch { /* optional */ }
-    try {
-      setFirewallOverview(await getFirewallOverview())
-    } catch { /* optional */ }
-    try {
-      const [ov, vaults, mfa, bundles] = await Promise.all([
+    // These four groups don't depend on each other — fire them concurrently instead
+    // of one after another (used to serialize ~4 independent request waves).
+    const [clusterRes, fwRes, enterpriseRes, alertsTokensRes] = await Promise.allSettled([
+      getClusterSettings(),
+      getFirewallOverview(),
+      Promise.all([
         getEnterpriseSecurityOverview(),
         listVaultProviders(),
         listMfaPolicies(),
         listAirGapBundles(),
-      ])
+        listPolicyRules().catch(() => []),
+      ]),
+      Promise.all([listAlerts().catch(() => []), listTokens().catch(() => [])]),
+    ])
+    if (clusterRes.status === 'fulfilled') {
+      const s = clusterRes.value
+      setDeleteApproval(Boolean(s.require_vm_delete_approval))
+      setApprovalSlaHours(s.firewall_approval_sla_hours ?? 72)
+    }
+    if (fwRes.status === 'fulfilled') setFirewallOverview(fwRes.value)
+    if (enterpriseRes.status === 'fulfilled') {
+      const [ov, vaults, mfa, bundles, policy] = enterpriseRes.value
       setEnterprise(ov)
       setVaultProviders(vaults)
       setMfaPolicies(mfa)
       setAirGapBundles(bundles)
-      setPolicyRules(await listPolicyRules().catch(() => []))
-    } catch { /* optional */ }
-    try {
-      const [alerts, tokens] = await Promise.all([listAlerts().catch(() => []), listTokens().catch(() => [])])
+      setPolicyRules(policy)
+    }
+    if (alertsTokensRes.status === 'fulfilled') {
+      const [alerts, tokens] = alertsTokensRes.value
       setDaemonAlerts(alerts.length)
       setDaemonTokens(tokens.length)
-    } catch { /* single-host daemon optional */ }
+    }
   }, [])
 
   useEffect(() => { void load() }, [load])

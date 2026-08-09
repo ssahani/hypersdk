@@ -66,13 +66,15 @@ export default function PlatformFirewallActivity() {
     setLoading(true)
     try {
       const ov = await getFirewallOverview()
+      // Each target's activity query is independent — fire concurrently.
+      const results = await Promise.all(ov.targets.map((t) => getFirewallActivity(t.id)))
       const blockedEv: ActivityEvent[] = []
       const allowedEv: ActivityEvent[] = []
-      for (const t of ov.targets) {
-        const act = await getFirewallActivity(t.id)
+      ov.targets.forEach((t, i) => {
+        const act = results[i]
         if (typeof act.note === 'string') setNote(act.note)
         const ev = act.events
-        if (!Array.isArray(ev)) continue
+        if (!Array.isArray(ev)) return
         for (const raw of ev) {
           if (!raw || typeof raw !== 'object') continue
           const e = { ...(raw as Record<string, unknown>), target: t.name } as ActivityEvent
@@ -83,7 +85,7 @@ export default function PlatformFirewallActivity() {
             allowedEv.push({ ...e, group: 'allowed' })
           }
         }
-      }
+      })
       setBlocked(blockedEv)
       setAllowed(allowedEv)
     } catch (e: unknown) {

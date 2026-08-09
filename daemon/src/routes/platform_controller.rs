@@ -14,9 +14,21 @@ use axum::{
 };
 use base64::Engine;
 use machina_core::{LibvirtError, LibvirtManager};
+use std::sync::LazyLock;
 
 use crate::auth::{require_write, RequestActor};
 use crate::error::AppError;
+
+// Every platform dashboard load fans out to a dozen-plus controller-proxied API calls.
+// A fresh reqwest::Client per request pays a new TCP connection (no keep-alive reuse)
+// each time, which was the dominant contributor to multi-second dashboard load times.
+// Building the client once lets reqwest pool and reuse connections across requests.
+static CONTROLLER_HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .expect("build controller proxy http client")
+});
 
 pub(crate) fn controller_base() -> String {
     std::env::var("MACHINA_PLATFORM_CONTROLLER_URL")
@@ -86,12 +98,7 @@ async fn platform_controller_proxy(
         .await
         .map_err(|e| AppError::from(LibvirtError::Internal(format!("read body: {e}"))))?;
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(120))
-        .build()
-        .map_err(|e| AppError::from(LibvirtError::Internal(format!("http client: {e}"))))?;
-
-    let mut rb = client.request(method, &url).headers(headers);
+    let mut rb = CONTROLLER_HTTP_CLIENT.request(method, &url).headers(headers);
     if !body_bytes.is_empty() {
         rb = rb.body(body_bytes);
     }

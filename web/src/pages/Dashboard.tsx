@@ -83,30 +83,38 @@ export default function Dashboard() {
     if (nodeR.status === 'fulfilled') setNode(nodeR.value)
     else if (import.meta.env.DEV) console.warn('Dashboard: getNodeInfo failed', nodeR.reason)
 
-    try { setHostStats(await getHostStats()) } catch { /* optional */ }
-    try { setVirtHost(await getHostVirtualization()) } catch { setVirtHost(null) }
-    try { setLibSummary(await getLibvirtSummary()) } catch { setLibSummary(null) }
-    try {
-      const hp = await getHealthProblems()
-      setHealthProblems(Array.isArray(hp.items) ? hp.items : [])
-    } catch {
-      setHealthProblems([])
-    }
-    try {
-      const env = await getK8sEnvironment()
-      setK8sEnv(env)
-      if (env.kubectl_server_reachable) {
-        setK8sOverview(await getK8sOverview())
-        setK8sError(null)
-      } else {
-        setK8sOverview(null)
-        setK8sError('kubectl cannot reach the API server — check kubeconfig on the host.')
-      }
-    } catch (e: unknown) {
-      setK8sEnv(null)
-      setK8sOverview(null)
-      setK8sError(formatUserError(e))
-    }
+    // Independent of each other and of the batch above — fire concurrently instead
+    // of one-at-a-time (used to serialize 5 separate round trips).
+    await Promise.all([
+      (async () => { try { setHostStats(await getHostStats()) } catch { /* optional */ } })(),
+      (async () => { try { setVirtHost(await getHostVirtualization()) } catch { setVirtHost(null) } })(),
+      (async () => { try { setLibSummary(await getLibvirtSummary()) } catch { setLibSummary(null) } })(),
+      (async () => {
+        try {
+          const hp = await getHealthProblems()
+          setHealthProblems(Array.isArray(hp.items) ? hp.items : [])
+        } catch {
+          setHealthProblems([])
+        }
+      })(),
+      (async () => {
+        try {
+          const env = await getK8sEnvironment()
+          setK8sEnv(env)
+          if (env.kubectl_server_reachable) {
+            setK8sOverview(await getK8sOverview())
+            setK8sError(null)
+          } else {
+            setK8sOverview(null)
+            setK8sError('kubectl cannot reach the API server — check kubeconfig on the host.')
+          }
+        } catch (e: unknown) {
+          setK8sEnv(null)
+          setK8sOverview(null)
+          setK8sError(formatUserError(e))
+        }
+      })(),
+    ])
     setLoading(false)
   }, [])
 

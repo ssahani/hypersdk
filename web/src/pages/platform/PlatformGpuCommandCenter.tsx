@@ -90,18 +90,22 @@ export default function PlatformGpuCommandCenter() {
     setPciLoading(true)
     try {
       const hosts = (await listPlatformHosts()).filter((h) => h.state === 'online')
-      const rows: Array<{ host: string; hostId: string; devices: HostGpuDevice[]; summary: string }> = []
-      for (const h of hosts.slice(0, 8)) {
-        try {
-          const g = await getHostGpus(h.id)
-          if (g.devices.length > 0) {
-            rows.push({ host: h.hostname, hostId: h.id, devices: g.devices, summary: g.nvidia_smi_summary })
+      // Each host's GPU query is independent — fire concurrently instead of one host at a time.
+      const results = await Promise.all(
+        hosts.slice(0, 8).map(async (h) => {
+          try {
+            const g = await getHostGpus(h.id)
+            if (g.devices.length > 0) {
+              return { host: h.hostname, hostId: h.id, devices: g.devices, summary: g.nvidia_smi_summary }
+            }
+            return null
+          } catch {
+            /* host agent may be offline */
+            return null
           }
-        } catch {
-          /* host agent may be offline */
-        }
-      }
-      setPciDevices(rows)
+        }),
+      )
+      setPciDevices(results.filter((r): r is NonNullable<typeof r> => r !== null))
     } finally {
       setPciLoading(false)
     }

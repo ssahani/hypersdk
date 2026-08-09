@@ -335,40 +335,42 @@ export default function VMDetailsPage() {
       setVM(vmData)
       setSnapshots(snapData)
       addRecentVM(name)
+      // These calls are independent of each other (all keyed only on name/conn) — fire
+      // them concurrently instead of one-at-a-time, which used to serialize ~10 round
+      // trips (several seconds apiece with guest-agent probes) into an 8s+ page load.
+      const secondaryLoads: Promise<void>[] = []
       if (vmData.state === 'running') {
-        try { const m = await getVMMetrics(name, conn); if (alive()) setMetrics(m) } catch { /* no metrics */ }
-        try {
-          const gi = await getInterfaces(name, conn)
-          if (alive()) {
-            setGuestIps(gi.addresses)
-            setNetworkGateways(gi.network_gateways ?? {})
-            setGuestIfQueriedAt(gi.queried_at)
-          }
-        } catch {
-          /* no addresses */
-          if (alive()) {
-            setGuestIfQueriedAt(null)
-            setNetworkGateways({})
-          }
-        }
-        try {
-          const obs = await getGuestObservability(name, conn)
-          if (alive()) setGuestObs(obs)
-        } catch {
-          if (alive()) setGuestObs(null)
-        }
-        try {
-          const hn = await getHostname(name, conn)
-          if (alive()) setGuestApiHostname(hn.hostname?.trim() ? hn.hostname : null)
-        } catch {
-          if (alive()) setGuestApiHostname(null)
-        }
-        try {
-          const gh = await getGuestHealth(name, conn)
-          if (alive()) setGuestHealth(gh)
-        } catch {
-          if (alive()) setGuestHealth(null)
-        }
+        secondaryLoads.push(
+          getVMMetrics(name, conn).then((m) => { if (alive()) setMetrics(m) }, () => { /* no metrics */ }),
+          getInterfaces(name, conn).then(
+            (gi) => {
+              if (alive()) {
+                setGuestIps(gi.addresses)
+                setNetworkGateways(gi.network_gateways ?? {})
+                setGuestIfQueriedAt(gi.queried_at)
+              }
+            },
+            () => {
+              /* no addresses */
+              if (alive()) {
+                setGuestIfQueriedAt(null)
+                setNetworkGateways({})
+              }
+            },
+          ),
+          getGuestObservability(name, conn).then(
+            (obs) => { if (alive()) setGuestObs(obs) },
+            () => { if (alive()) setGuestObs(null) },
+          ),
+          getHostname(name, conn).then(
+            (hn) => { if (alive()) setGuestApiHostname(hn.hostname?.trim() ? hn.hostname : null) },
+            () => { if (alive()) setGuestApiHostname(null) },
+          ),
+          getGuestHealth(name, conn).then(
+            (gh) => { if (alive()) setGuestHealth(gh) },
+            () => { if (alive()) setGuestHealth(null) },
+          ),
+        )
       } else {
         if (!alive()) return
         setMetrics(null)
@@ -379,28 +381,34 @@ export default function VMDetailsPage() {
         setNetworkGateways({})
         setGuestIfQueriedAt(null)
       }
-      try { const bc = await getBootConfig(name, conn); if (alive()) setBootConfig(bc) } catch { /* optional */ }
-      try { const s = await hasManagedSave(name, conn); if (alive()) setHasSave(s.has_managed_save) } catch { /* optional */ }
-      try { const t = await getVmTags(name); if (alive()) setVmTags(t.tags) } catch { /* optional */ }
-      try { const ct = await getCpuTune(name, conn); if (alive()) setCpuTune(ct) } catch { /* optional */ }
-      try { const mt = await getMemTune(name, conn); if (alive()) setMemTune(mt) } catch { /* optional */ }
+      secondaryLoads.push(
+        getBootConfig(name, conn).then((bc) => { if (alive()) setBootConfig(bc) }, () => { /* optional */ }),
+        hasManagedSave(name, conn).then((s) => { if (alive()) setHasSave(s.has_managed_save) }, () => { /* optional */ }),
+        getVmTags(name).then((t) => { if (alive()) setVmTags(t.tags) }, () => { /* optional */ }),
+        getCpuTune(name, conn).then((ct) => { if (alive()) setCpuTune(ct) }, () => { /* optional */ }),
+        getMemTune(name, conn).then((mt) => { if (alive()) setMemTune(mt) }, () => { /* optional */ }),
+      )
       if (info?.control_plane?.proxy_url) {
-        try {
-          const [pvmList, hostList] = await Promise.all([listPlatformVms(), listPlatformHosts()])
-          const pvm = pvmList.find((v) => v.name === name) ?? null
-          const doctor = pvm ? await getVmDoctor(pvm.id).catch(() => null) : null
-          if (alive()) {
-            setLinkedPlatformVm(pvm)
-            setPlatformHosts(hostList)
-            setPlatformDoctor(doctor)
-          }
-        } catch {
-          if (alive()) {
-            setLinkedPlatformVm(null)
-            setPlatformHosts([])
-            setPlatformDoctor(null)
-          }
-        }
+        secondaryLoads.push(
+          (async () => {
+            try {
+              const [pvmList, hostList] = await Promise.all([listPlatformVms(), listPlatformHosts()])
+              const pvm = pvmList.find((v) => v.name === name) ?? null
+              const doctor = pvm ? await getVmDoctor(pvm.id).catch(() => null) : null
+              if (alive()) {
+                setLinkedPlatformVm(pvm)
+                setPlatformHosts(hostList)
+                setPlatformDoctor(doctor)
+              }
+            } catch {
+              if (alive()) {
+                setLinkedPlatformVm(null)
+                setPlatformHosts([])
+                setPlatformDoctor(null)
+              }
+            }
+          })(),
+        )
       } else {
         if (alive()) {
           setLinkedPlatformVm(null)
@@ -408,6 +416,7 @@ export default function VMDetailsPage() {
           setPlatformDoctor(null)
         }
       }
+      await Promise.all(secondaryLoads)
     } catch (e: unknown) {
       if (!alive()) return
       const msg = formatUserError(e)
