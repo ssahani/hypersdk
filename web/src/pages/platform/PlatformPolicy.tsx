@@ -34,6 +34,14 @@ export default function PlatformPolicy({ embedded }: { embedded?: boolean } = {}
 
   useEffect(() => { void load() }, [load])
 
+  // Keep Max VMs in sync with the matching existing quota whenever Project
+  // changes to an already-configured project, so Save doesn't silently
+  // clobber a real quota (e.g. 100) with the form's default (50).
+  useEffect(() => {
+    const match = quotas.find((q) => q.project === project)
+    if (match) setMaxVms(match.max_vms)
+  }, [project, quotas])
+
   const downloadPolicyYaml = async () => {
     try {
       const r = await getAiPolicyExport()
