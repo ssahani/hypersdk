@@ -37,6 +37,8 @@ export default function ZeusAssistant() {
   const {
     copilotOpen,
     closeCopilot,
+    pendingQuery,
+    clearPendingQuery,
     contextVmId,
     contextHostId,
     contextVmIds,
@@ -165,6 +167,14 @@ export default function ZeusAssistant() {
       setBusy(false)
     }
   }, [input, busy, platform, contextVmId, contextHostId, contextVmIds, messages.length, selectedAgent, location.pathname])
+
+  useEffect(() => {
+    if (copilotOpen && pendingQuery) {
+      void send(pendingQuery)
+      clearPendingQuery()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [copilotOpen, pendingQuery])
 
   const queueNlOps = async () => {
     if (!nlOpsPlan) return

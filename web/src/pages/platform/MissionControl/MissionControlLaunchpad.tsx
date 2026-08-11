@@ -13,8 +13,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router'
 import { LaunchpadAppIcon } from '../../../components/platform/mac/PlatformMacUi'
-import { cinemaPopoutPath } from '../../../utils/consoleExperienceMode'
-import { openCenterPopout } from '../../../utils/platformCenterPopout'
+import { cinemaHubPath } from '../../../utils/consoleExperienceMode'
 import type { PlatformVm } from '../../../api/platform'
 
 type Props = {
@@ -59,19 +58,8 @@ export default function MissionControlLaunchpad({ onCreateVm, lastVm }: Props) {
             return <button key={card.id} type="button" className="text-left" onClick={onCreateVm}>{inner}</button>
           }
           if (card.action === 'console') {
-            return (
-              <button
-                key={card.id}
-                type="button"
-                className="text-left"
-                onClick={() => {
-                  if (lastVm) openCenterPopout(cinemaPopoutPath(lastVm.id))
-                  else window.location.href = '/platform/vms'
-                }}
-              >
-                {inner}
-              </button>
-            )
+            const consoleHref = lastVm ? cinemaHubPath(lastVm.id) : '/platform/vms'
+            return <Link key={card.id} to={consoleHref} className="block">{inner}</Link>
           }
           return <Link key={card.id} to={card.href!} className="block">{inner}</Link>
         })}

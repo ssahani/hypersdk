@@ -18,6 +18,7 @@ import { useToastContext } from '../contexts/ToastContext'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
 import { navGroups, isOpenStackConfigured, navItemVisible, navGroupItems, TOP_BAR_QUICK_LINKS } from '../utils/routes'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import { useAi } from '../contexts/AiContext'
 import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { useLaunchpadEnabled } from '../hooks/useLaunchpadEnabled'
 import { useAuth } from '../contexts/AuthContext'
@@ -86,6 +87,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   const [pinnedPages, setPinnedPages] = useState<string[]>(() => getPinnedPages())
   const { info } = usePlatformInfo()
   const { username } = useAuth()
+  const { openCopilotWithQuery } = useAi()
   const openstackConfigured = isOpenStackConfigured(info?.openstack)
   const { phase: osPhase } = useOpenStackConnection()
   const osLive = osPhase === 'live'
@@ -923,7 +925,18 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
             ) : loading ? (
               <div className="px-4 py-8 text-center text-sm text-slate-500">Loading...</div>
             ) : flatFiltered.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-slate-500">No results for "{query}"</div>
+              <div className="px-4 py-8 text-center text-sm text-slate-500 space-y-3">
+                <p>No results for "{query}"</p>
+                {platformConnected && query.trim() && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => { openCopilotWithQuery(query.trim()); close() }}
+                  >
+                    Ask Zeus "{query.trim()}"
+                  </button>
+                )}
+              </div>
             ) : (
               grouped.map(({ cat, items: groupItems }) => (
                 <div key={cat}>

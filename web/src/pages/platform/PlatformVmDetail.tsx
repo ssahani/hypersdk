@@ -1441,7 +1441,9 @@ export default function PlatformVmDetail() {
             />
           ))}
 
-          {tab === 'disks' && (
+          {tab === 'disks' && (vm.inventory_source === 'kubevirt' ? (
+            <PlatformEmptyState title="Not available" subtitle="Disk management requires a libvirt-managed VM." />
+          ) : (
             <div className="space-y-4 pt-2" data-testid="vm-disks-panel">
               <MacGlassPanel title="Libvirt disks" subtitle="Live hypervisor inventory">
                 {libvirtDetailsLoading ? (
@@ -1678,7 +1680,7 @@ export default function PlatformVmDetail() {
                 <p className="text-xs text-slate-500 mt-2">ISO scan, host browse, or typed path — same libvirt <code className="text-slate-400">cdrom.insert</code> as classic VM detail.</p>
               </MacGlassPanel>
             </div>
-          )}
+          ))}
 
           {tab === 'network' && vm.inventory_source !== 'kubevirt' && (
             <div className="space-y-4 pt-2" data-testid="vm-network-panel">

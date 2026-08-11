@@ -8,7 +8,6 @@ import { usePlatformDesktopTier } from '../../../hooks/usePlatformDesktopTier'
 import { activityHubHref, operationsHubHref } from '../../../utils/platformHubLinks'
 import { getSreForecast, getZeusApprovalHub, getPredictions, type SreForecast, type Prediction } from '../../../api/ai'
 import { getFleetUpdates } from '../../../api/platform'
-import { useAi } from '../../../contexts/AiContext'
 import { hubLinkClasses, statusBgClass, statusSurfaceClasses, statusToneClass } from '../../../utils/semanticColors'
 
 function islandTone(state: 'loading' | 'ok' | 'warn' | 'notify' | 'alert' | 'zeus'): 'neutral' | 'ok' | 'warn' | 'error' | 'info' {
@@ -22,7 +21,6 @@ function islandTone(state: 'loading' | 'ok' | 'warn' | 'notify' | 'alert' | 'zeu
 export default function PlatformDynamicIsland() {
   const { desktop, linuxHealth } = useFleetDesktop(true, 60_000)
   const [tier] = usePlatformDesktopTier()
-  const { openCopilot } = useAi()
   const [expanded, setExpanded] = useState(false)
   const [forecasts, setForecasts] = useState<SreForecast[]>([])
   const [topPrediction, setTopPrediction] = useState<Prediction | null>(null)
@@ -106,9 +104,9 @@ export default function PlatformDynamicIsland() {
                 <Sparkles className="w-3.5 h-3.5 text-orange-400" />
                 {formatCount(zeusPending)} Zeus approval{zeusPending === 1 ? '' : 's'} pending
               </p>
-              <button type="button" className={`mt-2 ${hubLinkClasses('hover:underline')}`} onClick={() => { openCopilot(); setExpanded(false) }}>
+              <Link to="/platform/zeus/approvals" className={`mt-2 inline-block ${hubLinkClasses('hover:underline')}`} onClick={() => setExpanded(false)}>
                 Open Zeus
-              </button>
+              </Link>
             </div>
           )}
           {alertBacklog > 0 && (
@@ -156,7 +154,7 @@ export default function PlatformDynamicIsland() {
             <Link to="/platform/hosts" className={hubLinkClasses('text-xs hover:underline')} onClick={() => setExpanded(false)}>Hosts</Link>
             <Link to={operationsHubHref(tier)} className={hubLinkClasses('text-xs hover:underline')} onClick={() => setExpanded(false)}>Operations</Link>
             <Link to={activityHubHref(tier)} className={hubLinkClasses('text-xs hover:underline')} onClick={() => setExpanded(false)}>Activity</Link>
-            <button type="button" className={hubLinkClasses('text-xs hover:underline')} onClick={() => { openCopilot(); setExpanded(false) }}>Zeus</button>
+            <Link to="/platform/zeus/approvals" className={hubLinkClasses('text-xs hover:underline')} onClick={() => setExpanded(false)}>Zeus</Link>
           </div>
         </div>
       )}

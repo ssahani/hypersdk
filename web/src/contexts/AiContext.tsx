@@ -14,6 +14,9 @@ interface AiContextValue {
   openCopilot: () => void
   closeCopilot: () => void
   toggleCopilot: () => void
+  pendingQuery: string | null
+  openCopilotWithQuery: (query: string) => void
+  clearPendingQuery: () => void
   contextVmId: string | null
   setContextVmId: (id: string | null) => void
   contextHostId: string | null
@@ -44,6 +47,7 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
   const params = useParams()
   const [mode, setMode] = useState<AiMode>('advisor')
   const [copilotOpen, setCopilotOpen] = useState(false)
+  const [pendingQuery, setPendingQuery] = useState<string | null>(null)
   const [contextVmId, setContextVmId] = useState<string | null>(null)
   const [contextHostId, setContextHostId] = useState<string | null>(null)
   const [contextVmIds, setContextVmIds] = useState<string[]>([])
@@ -75,8 +79,13 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
   }, [location.pathname, location.search])
 
   const openCopilot = useCallback(() => setCopilotOpen(true), [])
-  const closeCopilot = useCallback(() => setCopilotOpen(false), [])
+  const closeCopilot = useCallback(() => { setCopilotOpen(false); setPendingQuery(null) }, [])
   const toggleCopilot = useCallback(() => setCopilotOpen((o) => !o), [])
+  const openCopilotWithQuery = useCallback((query: string) => {
+    setPendingQuery(query)
+    setCopilotOpen(true)
+  }, [])
+  const clearPendingQuery = useCallback(() => setPendingQuery(null), [])
 
   const routeContext = useMemo(
     () => ({
@@ -97,6 +106,9 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
       openCopilot,
       closeCopilot,
       toggleCopilot,
+      pendingQuery,
+      openCopilotWithQuery,
+      clearPendingQuery,
       contextVmId,
       setContextVmId,
       contextHostId,
@@ -110,7 +122,7 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
       pagePath: location.pathname,
       routeContext,
     }),
-    [mode, copilotOpen, openCopilot, closeCopilot, toggleCopilot, contextVmId, contextHostId, contextVmIds, contextSummary, selectedAgent, location.pathname, routeContext],
+    [mode, copilotOpen, openCopilot, closeCopilot, toggleCopilot, pendingQuery, openCopilotWithQuery, clearPendingQuery, contextVmId, contextHostId, contextVmIds, contextSummary, selectedAgent, location.pathname, routeContext],
   )
 
   return <AiContext.Provider value={value}>{children}</AiContext.Provider>

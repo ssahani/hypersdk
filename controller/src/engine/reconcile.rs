@@ -32,10 +32,16 @@ pub fn spawn(state: AppState) {
 /// would enqueue a useless task every backoff interval forever — and the agent
 /// has no pmwakeup op to actually rouse the guest. It IS stoppable (destroy
 /// works on an active domain), so desired=stopped must still act.
+/// A "shutting down" domain is likewise still active (libvirt VIR_DOMAIN_SHUTDOWN)
+/// until the guest actually powers off, so `start` no-ops there too -- without this
+/// exclusion reconcile re-enqueues a vm.power task (and its notification) every
+/// tick against a guest hung mid-shutdown, forever.
 fn reconcile_action(desired: &str, observed: &str) -> Option<&'static str> {
     if desired == "running" && observed == "paused" {
         Some("resume")
-    } else if desired == "running" && !matches!(observed, "running" | "blocked" | "pmsuspended") {
+    } else if desired == "running"
+        && !matches!(observed, "running" | "blocked" | "pmsuspended" | "shutting down")
+    {
         Some("start")
     } else if desired == "stopped"
         && matches!(observed, "running" | "blocked" | "paused" | "pmsuspended")
@@ -200,6 +206,9 @@ mod tests {
         // Guest S3: active domain, agent start is a no-op and there's no pmwakeup —
         // must not loop a useless task forever.
         assert_eq!(reconcile_action("running", "pmsuspended"), None);
+        // Hung mid-shutdown: domain still active, agent start is a no-op — must not
+        // loop a useless (and notification-spamming) task forever either.
+        assert_eq!(reconcile_action("running", "shutting down"), None);
         // Stop covers every "still up" observed state, including paused and S3.
         assert_eq!(reconcile_action("stopped", "running"), Some("stop"));
         assert_eq!(reconcile_action("stopped", "blocked"), Some("stop"));

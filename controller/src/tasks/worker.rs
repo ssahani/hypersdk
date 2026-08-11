@@ -328,13 +328,14 @@ async fn vm_power(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     };
     vm_lifecycle::set_vm_phase_clear_error(&state.pool, vm_id, phase).await?;
 
-    let row: (String, Option<Uuid>) =
-        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = ?")
+    let row: (String, Option<Uuid>, String) =
+        sqlx::query_as("SELECT name, host_id, observed_state FROM vms WHERE id = ?")
             .bind(vm_id)
             .fetch_optional(&state.pool)
             .await?
             .ok_or_else(|| anyhow::anyhow!("vm {} not found", vm_id))?;
     let host_id = row.1.ok_or_else(|| anyhow::anyhow!("vm {} has no host", vm_id))?;
+    let prior_observed_state = row.2;
     let agent_addr = host_agent_addr(&state.pool, host_id).await?;
     let mut client = agent_client::connect(&agent_addr).await?;
     let resp = agent_client::vm_power(&mut client, &row.0, &action, power_mode).await?;
@@ -358,7 +359,12 @@ async fn vm_power(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     // doesn't stay stuck in "starting" or "stopping" after the action completes.
     vm_lifecycle::sync_phase_from_observed(&state.pool, vm_id).await?;
 
-    state.emit_event("vm.power", format!("VM {} -> {}", row.0, resp.state));
+    // Only notify on an actual transition — a task that re-runs against a VM stuck
+    // in the same observed state (e.g. hung "shutting down") would otherwise spam
+    // an identical event every time it's re-enqueued.
+    if prior_observed_state != resp.state {
+        state.emit_event("vm.power", format!("VM {} -> {}", row.0, resp.state));
+    }
     update_task_progress(&state.pool, msg.task_id, 100, &resp.state).await?;
     Ok(())
 }
