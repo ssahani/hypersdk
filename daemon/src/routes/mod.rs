@@ -29,6 +29,7 @@ mod platform_controller;
 mod platform_ws;
 mod prometheus;
 mod snapshots;
+mod sprites;
 mod storage;
 mod system;
 mod templates;
@@ -53,6 +54,7 @@ pub fn api_routes() -> Router<LibvirtManager> {
         .merge(zeus_firewall::zeus_firewall_routes())
         .merge(platform_controller::platform_controller_routes())
         .merge(vms::vm_routes())
+        .merge(sprites::sprite_routes())
         .merge(vm_guest::vm_guest_routes())
         .merge(snapshots::snapshot_routes())
         .merge(networks::network_routes())

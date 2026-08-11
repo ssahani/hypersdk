@@ -53,6 +53,7 @@ pub mod save_restore;
 pub mod secret;
 pub mod snapshot;
 pub mod spice;
+pub mod sprite;
 pub mod storage;
 pub mod subprocess;
 pub mod template_apply;

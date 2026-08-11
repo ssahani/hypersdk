@@ -23,6 +23,7 @@ use crate::job_registry::JobRegistry;
 use crate::metrics_history::MetricsHistoryStore;
 use crate::obs_workers::ObservabilityWorkers;
 use crate::routes;
+use crate::sprite_registry::{self, SpriteRegistry};
 use crate::terminal::{self, TerminalSessionStore};
 
 pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
@@ -65,6 +66,8 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
     let vib_build_slots = Arc::new(Semaphore::new(
         config.libvirt.virt_image_build_max_concurrent.max(1),
     ));
+    let sprite_registry = std::sync::Arc::new(SpriteRegistry::new());
+    sprite_registry::spawn_reaper(manager.clone(), (*sprite_registry).clone());
 
     // All routes under /api/v1 — auth routes skip middleware internally
     let api = routes::api_routes()
@@ -72,6 +75,7 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
         .merge(auth::auth_routes(session_store.clone(), auth_cfg))
         .layer(Extension(console_session_store.clone()))
         .layer(Extension(job_registry))
+        .layer(Extension(sprite_registry))
         .layer(Extension(event_bus))
         .layer(Extension(vib_build_slots))
         .layer(Extension(k8s_inventory_history_cfg.clone()))

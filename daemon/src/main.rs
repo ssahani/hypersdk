@@ -26,6 +26,7 @@ mod openstack_runtime;
 mod otlp_worker;
 mod routes;
 mod server;
+mod sprite_registry;
 mod systemd;
 mod terminal;
 mod virt_image_validate;
