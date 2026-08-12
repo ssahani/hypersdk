@@ -111,7 +111,8 @@ export default function PlatformDynamicIsland() {
           )}
           {alertBacklog > 0 && (
             <p className={`text-xs mb-2 ${statusToneClass('info')} opacity-90`}>
-              {alertBacklog.toLocaleString()} unread notification{alertBacklog === 1 ? '' : 's'} in backlog
+              {alertBacklog.toLocaleString()} unread notification{alertBacklog === 1 ? '' : 's'} in backlog —{' '}
+              <Link to={operationsHubHref(tier)} className={hubLinkClasses('hover:underline')} onClick={() => setExpanded(false)}>Notifications</Link>
             </p>
           )}
           {failedTasks > 0 && (
