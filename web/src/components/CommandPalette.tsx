@@ -185,33 +185,40 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
     setSelectedIndex(0)
   }, [open])
 
-  // Fetch VMs when palette opens
+  // Fetch VMs when palette opens. Deferred past the entrance spring's settle
+  // time (~320ms for stiffness 340/damping 28) so the resulting setState
+  // burst doesn't land mid-animation and interrupt it (Framer Motion can
+  // leave the animation's completion promise unresolved — frozen mid-fade —
+  // if a re-render lands while it's still interpolating).
   useEffect(() => {
     if (!open) return
     setPinnedPages(getPinnedPages())
     setLoading(true)
-    Promise.allSettled([
-      listVMs(),
-      listNetworks(),
-      listPools(),
-      listAllSnapshots(),
-      info?.control_plane?.proxy_url ? listPlatformVms() : Promise.resolve([]),
-      info?.control_plane?.proxy_url ? listPlatformHosts() : Promise.resolve([]),
-    ])
-      .then(([vmR, netR, poolR, snapR, pVmR, pHostR]) => {
-        setVMs(vmR.status === 'fulfilled' ? vmR.value : [])
-        setNetworks(netR.status === 'fulfilled' ? netR.value : [])
-        setPools(poolR.status === 'fulfilled' ? poolR.value : [])
-        setSnapshots(snapR.status === 'fulfilled' ? snapR.value : [])
-        setPlatformVms(pVmR.status === 'fulfilled' ? pVmR.value.map((v) => ({
-          id: v.id,
-          name: v.name,
-          observed_state: v.observed_state,
-          guest_ip: v.guest_ip,
-        })) : [])
-        setPlatformHosts(pHostR.status === 'fulfilled' ? pHostR.value.map((h) => ({ id: h.id, hostname: h.hostname, state: h.state })) : [])
-      })
-      .finally(() => setLoading(false))
+    const id = setTimeout(() => {
+      Promise.allSettled([
+        listVMs(),
+        listNetworks(),
+        listPools(),
+        listAllSnapshots(),
+        info?.control_plane?.proxy_url ? listPlatformVms() : Promise.resolve([]),
+        info?.control_plane?.proxy_url ? listPlatformHosts() : Promise.resolve([]),
+      ])
+        .then(([vmR, netR, poolR, snapR, pVmR, pHostR]) => {
+          setVMs(vmR.status === 'fulfilled' ? vmR.value : [])
+          setNetworks(netR.status === 'fulfilled' ? netR.value : [])
+          setPools(poolR.status === 'fulfilled' ? poolR.value : [])
+          setSnapshots(snapR.status === 'fulfilled' ? snapR.value : [])
+          setPlatformVms(pVmR.status === 'fulfilled' ? pVmR.value.map((v) => ({
+            id: v.id,
+            name: v.name,
+            observed_state: v.observed_state,
+            guest_ip: v.guest_ip,
+          })) : [])
+          setPlatformHosts(pHostR.status === 'fulfilled' ? pHostR.value.map((h) => ({ id: h.id, hostname: h.hostname, state: h.state })) : [])
+        })
+        .finally(() => setLoading(false))
+    }, 350)
+    return () => clearTimeout(id)
   }, [open, info?.control_plane?.proxy_url])
 
   // Focus input when opened
