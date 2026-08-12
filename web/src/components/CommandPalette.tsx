@@ -17,7 +17,7 @@ import { listAllSnapshots, SnapshotInfo } from '../api/snapshot'
 import { useToastContext } from '../contexts/ToastContext'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
 import { navGroups, isOpenStackConfigured, navItemVisible, navGroupItems, TOP_BAR_QUICK_LINKS } from '../utils/routes'
-import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import { usePlatformInfoSlow } from '../contexts/PlatformInfoContext'
 import { useAi } from '../contexts/AiContext'
 import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { useLaunchpadEnabled } from '../hooks/useLaunchpadEnabled'
@@ -44,6 +44,15 @@ import { loadPlatformDesktopTier } from '../utils/platformDesktopTier'
 import { operationsHubHref, tasksHubHref, activityHubHref } from '../utils/platformHubLinks'
 import { groupSpotlightByZone, spotlightNavForTier, spotlightPathSetForTier, spotlightZoneOrder } from '../utils/platformSpotlightNav'
 import { cinemaHubPath } from '../utils/consoleExperienceMode'
+
+const BACKDROP_INITIAL = { opacity: 0 }
+const BACKDROP_ANIMATE = { opacity: 1 }
+const BACKDROP_EXIT = { opacity: 0 }
+const BACKDROP_TRANSITION = { duration: 0.15 }
+const PANEL_INITIAL = { opacity: 0, scale: 0.96, y: -8 }
+const PANEL_ANIMATE = { opacity: 1, scale: 1, y: 0 }
+const PANEL_EXIT = { opacity: 0, scale: 0.96, y: -8 }
+const PANEL_TRANSITION = { type: 'spring' as const, stiffness: 340, damping: 28 }
 
 interface CommandPaletteProps {
   onOpenHelp?: (tab?: HelpTab) => void
@@ -85,7 +94,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   const location = useLocation()
   const toast = useToastContext()
   const [pinnedPages, setPinnedPages] = useState<string[]>(() => getPinnedPages())
-  const { info } = usePlatformInfo()
+  const { info } = usePlatformInfoSlow()
   const { username } = useAuth()
   const { openCopilotWithQuery } = useAi()
   const openstackConfigured = isOpenStackConfigured(info?.openstack)
@@ -846,10 +855,10 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
           role="dialog"
           aria-modal="true"
           aria-label={spotlight ? 'Zeus Spotlight' : 'Command palette'}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
+          initial={BACKDROP_INITIAL}
+          animate={BACKDROP_ANIMATE}
+          exit={BACKDROP_EXIT}
+          transition={BACKDROP_TRANSITION}
           className="fixed inset-0 z-[500] liquid-glass-modal-backdrop"
           onClick={close}
         >
@@ -858,10 +867,10 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
               role="dialog"
               aria-modal
               aria-label="Command palette"
-              initial={{ opacity: 0, scale: 0.96, y: -8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: -8 }}
-              transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+              initial={PANEL_INITIAL}
+              animate={PANEL_ANIMATE}
+              exit={PANEL_EXIT}
+              transition={PANEL_TRANSITION}
               className="liquid-glass-modal-panel overflow-hidden"
               onKeyDown={handleKeyDown}
             >

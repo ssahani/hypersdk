@@ -35,6 +35,11 @@ const DEFAULT: PlatformInfoContextValue = {
 
 const PlatformInfoContext = createContext<PlatformInfoContextValue>(DEFAULT)
 
+/** Slow-changing subset only — {@link usePlatformInfoSlow} doesn't re-render on every SSE tick. */
+export type PlatformInfoSlow = Pick<PlatformInfoContextValue, 'info' | 'providers' | 'loading'>
+const SLOW_DEFAULT: PlatformInfoSlow = { info: DEFAULT.info, providers: DEFAULT.providers, loading: DEFAULT.loading }
+const PlatformInfoSlowContext = createContext<PlatformInfoSlow>(SLOW_DEFAULT)
+
 export function PlatformInfoProvider({ children }: { children: ReactNode }) {
   const [info, setInfo] = useState<PlatformInfo | null>(null)
   const [providers, setProviders] = useState<AuthProviders | null>(null)
@@ -56,14 +61,33 @@ export function PlatformInfoProvider({ children }: { children: ReactNode }) {
 
   const { connected: liveConnected, lastEvent, refreshKey } = useEventStream()
 
+  const slowValue = useMemo<PlatformInfoSlow>(
+    () => ({ info, providers, loading }),
+    [info, providers, loading],
+  )
+
   const value = useMemo<PlatformInfoContextValue>(
     () => ({ info, providers, loading, refreshKey, liveConnected, lastEvent }),
     [info, providers, loading, refreshKey, liveConnected, lastEvent],
   )
 
-  return <PlatformInfoContext.Provider value={value}>{children}</PlatformInfoContext.Provider>
+  return (
+    <PlatformInfoSlowContext.Provider value={slowValue}>
+      <PlatformInfoContext.Provider value={value}>{children}</PlatformInfoContext.Provider>
+    </PlatformInfoSlowContext.Provider>
+  )
 }
 
 export function usePlatformInfo(): PlatformInfoContextValue {
   return useContext(PlatformInfoContext)
+}
+
+/**
+ * Like {@link usePlatformInfo} but only re-renders on `info`/`providers`/`loading`
+ * changes — use this in components that don't need live SSE-driven fields
+ * (`refreshKey`/`liveConnected`/`lastEvent`), especially ones with in-flight
+ * enter/exit animations that a high-frequency re-render can interrupt.
+ */
+export function usePlatformInfoSlow(): PlatformInfoSlow {
+  return useContext(PlatformInfoSlowContext)
 }
