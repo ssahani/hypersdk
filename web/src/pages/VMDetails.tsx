@@ -147,6 +147,7 @@ export default function VMDetailsPage() {
   const [hasSave, setHasSave] = useState(false)
   const [vmXml, setVmXml] = useState('')
   const [backingUp, setBackingUp] = useState(false)
+  const [confirmBackup, setConfirmBackup] = useState(false)
   const [tab, setTab] = usePlatformTabState(VM_DETAIL_TABS, { defaultTab: 'overview' })
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -1234,6 +1235,21 @@ export default function VMDetailsPage() {
     if (revertSnapName) { const n = revertSnapName; setRevertSnapName(null); await handleRevertSnapshot(n) }
   }
 
+  const confirmTriggerBackup = async () => {
+    setConfirmBackup(false)
+    if (backingUp || !vm) return
+    setBackingUp(true)
+    toast.info('Backup started in background')
+    try {
+      await triggerBackup({ vm_name: vm.name })
+      toast.success(`Backup triggered successfully for '${vm.name}'`)
+    } catch (e: unknown) {
+      toast.error(`${formatUserError(e)}`)
+    } finally {
+      setBackingUp(false)
+    }
+  }
+
   const toggleAutostart = async () => {
     if (!name || !vm) return
     try { await setAutostart(name, !vm.autostart, conn); toast.success(`Autostart ${!vm.autostart ? 'enabled' : 'disabled'}`); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
@@ -1377,7 +1393,7 @@ export default function VMDetailsPage() {
         <button onClick={() => openDialog('clone')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Copy className="w-3 h-3 inline -mt-0.5" /> Clone</button>
         {vm.state === 'shutoff' && <button onClick={() => openDialog('rename')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Pencil className="w-3 h-3 inline -mt-0.5" /> Rename</button>}
         <button onClick={() => openDialog('migrate')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><ArrowRightLeft className="w-3 h-3 inline -mt-0.5" /> Migrate</button>
-        <button disabled={backingUp} onClick={async () => { if (backingUp) return; setBackingUp(true); toast.info('Backup started in background'); try { await triggerBackup({ vm_name: vm.name }); toast.success(`Backup triggered successfully for '${vm.name}'`) } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } finally { setBackingUp(false) } }} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition disabled:opacity-50"><Archive className="w-3 h-3 inline -mt-0.5" /> {backingUp ? '...' : 'Backup'}</button>
+        <button disabled={backingUp} onClick={() => setConfirmBackup(true)} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition disabled:opacity-50"><Archive className="w-3 h-3 inline -mt-0.5" /> {backingUp ? '...' : 'Backup'}</button>
         <button onClick={() => openDialog('save-template')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Layers className="w-3 h-3 inline -mt-0.5" /> Save Template</button>
         <button type="button" onClick={() => setTab('advanced')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Sliders className="w-3 h-3 inline -mt-0.5" /> Advanced</button>
         <button onClick={load} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition" aria-label="Refresh"><RefreshCw className="w-3 h-3" /></button>
@@ -3474,6 +3490,15 @@ export default function VMDetailsPage() {
         confirmLabel="Revert"
         onConfirm={confirmRevertSnapshot}
         onCancel={() => setRevertSnapName(null)}
+      />
+      <ConfirmDialog
+        open={confirmBackup}
+        variant="warning"
+        title="Trigger Backup"
+        message={`This will start a backup job for '${vm.name}' in the background now.`}
+        confirmLabel="Backup"
+        onConfirm={confirmTriggerBackup}
+        onCancel={() => setConfirmBackup(false)}
       />
 
       <VmSshConnectDialog
