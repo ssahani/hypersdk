@@ -11,7 +11,7 @@ function liveSmartFolderCount(folder: { id: string; count: number }, vms: Platfo
     case 'running':
       return vms.filter((v) => v.observed_state === 'running').length
     case 'stopped':
-      return vms.filter((v) => v.observed_state !== 'running' && v.observed_state !== 'missing').length
+      return vms.filter((v) => v.observed_state === 'shutoff' || v.observed_state === 'stopped').length
     default:
       return folder.count
   }

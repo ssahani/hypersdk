@@ -90,7 +90,7 @@ pub async fn list_vms(
            AND (
              ?6 IS NULL
              OR (?6 = 'running' AND v.observed_state = 'running')
-             OR (?6 = 'stopped' AND v.observed_state NOT IN ('running', 'missing'))
+             OR (?6 = 'stopped' AND v.observed_state IN ('shutoff', 'stopped'))
              OR (?6 = 'discovered' AND v.managed = FALSE)
              OR (?6 = 'missing' AND v.observed_state = 'missing')
              OR (?6 = 'untagged' AND (v.tags IS NULL OR v.tags = '[]'))

@@ -128,7 +128,7 @@ export function useMachineFinder() {
   const statsSubtitle = useMemo(() => {
     const total = vms.length
     const running = vms.filter((v) => v.observed_state === 'running').length
-    const stopped = vms.filter((v) => v.observed_state !== 'running' && v.observed_state !== 'missing').length
+    const stopped = vms.filter((v) => v.observed_state === 'shutoff' || v.observed_state === 'stopped').length
     const needBackup = finder?.smart_folders.find((f) => f.id === 'unprotected')?.count ?? 0
     return `${total} machines · ${running} running · ${stopped} stopped · ${needBackup} need backup`
   }, [vms, finder])

@@ -41,7 +41,7 @@ pub async fn overview(pool: &SqlitePool) -> anyhow::Result<FleetFinderOverview> 
             .fetch_one(pool)
             .await?;
     let stopped: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM vms WHERE observed_state NOT IN ('running', 'missing')",
+        "SELECT COUNT(*) FROM vms WHERE observed_state IN ('shutoff', 'stopped')",
     )
     .fetch_one(pool)
     .await?;
