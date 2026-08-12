@@ -781,27 +781,23 @@ pub async fn query(pool: &SqlitePool, req: &GraphQueryRequest) -> anyhow::Result
     let mut hits = Vec::new();
     let mut filters = Vec::new();
 
+    // Each detected intent adds an AND'd SQL condition, so a query combining
+    // multiple intents (e.g. "ubuntu vms over 8gb ram") returns only VMs
+    // matching every condition — not the union of running each in isolation,
+    // which previously let an unfiltered "ubuntu" match slip past a claimed
+    // "memory_mib > 8192" filter that was never actually applied to it.
+    let mut conditions: Vec<String> = Vec::new();
+    let mut min_mib: Option<i64> = None;
+
     if q.contains("ubuntu") {
         filters.push("os_family/ubuntu".into());
-        let rows: Vec<(Uuid, String, i64, String)> = sqlx::query_as(
-            "SELECT id, name, memory_mib, COALESCE(os_family, 'linux') FROM vms
-             WHERE name LIKE '%ubuntu%' OR os_family LIKE '%ubuntu%' OR tags LIKE '%ubuntu%'
-             ORDER BY name LIMIT 50",
-        )
-        .fetch_all(pool)
-        .await?;
-        for (id, name, mem, os) in rows {
-            hits.push(GraphQueryHit {
-                kind: "vm".into(),
-                id: id.to_string(),
-                name,
-                detail: format!("{mem} MiB · {os}"),
-            });
-        }
+        conditions.push(
+            "(name LIKE '%ubuntu%' OR os_family LIKE '%ubuntu%' OR tags LIKE '%ubuntu%')".into(),
+        );
     }
 
     if q.contains("ram") || q.contains("memory") || q.contains("gb") {
-        let min_mib = if q.contains("8gb") || q.contains("8 gb") {
+        let threshold = if q.contains("8gb") || q.contains("8 gb") {
             filters.push("memory_mib > 8192".into());
             8192i64
         } else if q.contains("4gb") {
@@ -809,21 +805,28 @@ pub async fn query(pool: &SqlitePool, req: &GraphQueryRequest) -> anyhow::Result
         } else {
             2048
         };
-        let rows: Vec<(Uuid, String, i64)> = sqlx::query_as(
-            "SELECT id, name, memory_mib FROM vms WHERE memory_mib > ? ORDER BY memory_mib DESC LIMIT 50",
-        )
-        .bind(min_mib)
-        .fetch_all(pool)
-        .await?;
-        for (id, name, mem) in rows {
-            if !hits.iter().any(|h| h.id == id.to_string()) {
-                hits.push(GraphQueryHit {
-                    kind: "vm".into(),
-                    id: id.to_string(),
-                    name,
-                    detail: format!("{mem} MiB RAM"),
-                });
-            }
+        conditions.push("memory_mib > ?".into());
+        min_mib = Some(threshold);
+    }
+
+    if !conditions.is_empty() {
+        let sql = format!(
+            "SELECT id, name, memory_mib, COALESCE(os_family, 'linux') FROM vms
+             WHERE {} ORDER BY name LIMIT 50",
+            conditions.join(" AND ")
+        );
+        let mut query = sqlx::query_as::<_, (Uuid, String, i64, String)>(&sql);
+        if let Some(min) = min_mib {
+            query = query.bind(min);
+        }
+        let rows = query.fetch_all(pool).await?;
+        for (id, name, mem, os) in rows {
+            hits.push(GraphQueryHit {
+                kind: "vm".into(),
+                id: id.to_string(),
+                name,
+                detail: format!("{mem} MiB · {os}"),
+            });
         }
     }
 
