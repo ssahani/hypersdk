@@ -12,7 +12,7 @@ use crate::state::AppState;
 pub async fn plugins_overview(
     State(state): State<AppState>,
 ) -> Result<Json<platform_plugins::MarketplaceOverview>, ApiError> {
-    platform_plugins::marketplace_overview(&state.pool)
+    platform_plugins::marketplace_overview(&state.pool, &state.config)
         .await
         .map(Json)
         .map_err(|e| ApiError::internal(e.to_string()))

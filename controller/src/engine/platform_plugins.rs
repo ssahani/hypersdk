@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
+use crate::config::ControllerConfig;
+use crate::engine::packetwolf_bridge;
+
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct PluginRow {
     pub id: Uuid,
@@ -33,13 +36,23 @@ pub struct PluginInstallResult {
     pub summary: String,
 }
 
-pub async fn marketplace_overview(pool: &SqlitePool) -> anyhow::Result<MarketplaceOverview> {
-    let plugins: Vec<PluginRow> = sqlx::query_as(
+pub async fn marketplace_overview(
+    pool: &SqlitePool,
+    cfg: &ControllerConfig,
+) -> anyhow::Result<MarketplaceOverview> {
+    let mut plugins: Vec<PluginRow> = sqlx::query_as(
         "SELECT id, slug, name, category, description, version, author, featured, installed
          FROM platform_plugins ORDER BY featured DESC, category, name",
     )
     .fetch_all(pool)
     .await?;
+
+    // PacketWolf is runtime-enabled via PACKETWOLF_ENABLED + a live health check
+    // (see engine::packetwolf_bridge), independent of this table's install-stub
+    // bookkeeping — reflect real connectivity instead of the static seed value.
+    if let Some(pw) = plugins.iter_mut().find(|p| p.slug == "packetwolf") {
+        pw.installed = packetwolf_bridge::status_async(cfg).await.reachable;
+    }
 
     let installed_count = plugins.iter().filter(|p| p.installed).count();
     let summary = format!(
