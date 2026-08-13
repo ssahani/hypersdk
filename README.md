@@ -17,11 +17,14 @@
 
 **[Feature Guide](docs/machina-customer-feature-guide.md)** — capability map across **12** domains ([PDF](docs/machina-customer-feature-guide.pdf)).
 
-Unified control plane for **VMs, networks, storage, snapshots, and day-two operations** on bare-metal worker nodes — web UI with VNC/SPICE consoles, terminal UI, REST API, and `machinactl` for fleet automation. Built on **libvirt/QEMU/KVM**.
+Unified control plane for **VMs, networks, storage, snapshots, and day-two operations** on bare-metal worker nodes — web UI with VNC/SPICE consoles, terminal UI, REST API, and `machinactl` for fleet automation. Built on **libvirt/QEMU/KVM**, with an optional multi-host **enterprise control plane** (fleet HA/DRS, KubeVirt, OpenStack, and **Zeus AI** — autonomous diagnostics, approvals, and natural-language ops).
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
 │  Interfaces   Web UI · TUI · REST API · machinactl CLI       │
+├──────────────────────────────────────────────────────────────┤
+│  Controller   machina-controller — fleet, HA/DRS, Zeus AI    │
+│               (multi-host, optional)                         │
 ├──────────────────────────────────────────────────────────────┤
 │  Daemon       machina-daemon — PAM · RBAC · console proxies  │
 ├──────────────────────────────────────────────────────────────┤
@@ -42,6 +45,8 @@ Unified control plane for **VMs, networks, storage, snapshots, and day-two opera
 | No fleet observability | Prometheus, alerts, webhooks, PSI/cgroups |
 | KubeVirt migration is manual | YAML bundles + documented migration path |
 | Vendor hypervisor lock-in | Open-source Rust daemon on your metal |
+| Manual triage across many hosts | Zeus AI — autonomous diagnostics, approvals, security correlation |
+| Fleet-wide network/security blind spots | PacketWolf eBPF flow capture + Zeus Firewall automation |
 
 ---
 
@@ -49,7 +54,9 @@ Unified control plane for **VMs, networks, storage, snapshots, and day-two opera
 
 | Layer | What's in the repo |
 |-------|-------------------|
-| **Daemon** | axum REST + WebSocket — `daemon/` |
+| **Daemon** | Single-host axum REST + WebSocket, PAM auth — `daemon/` |
+| **Controller** | Multi-host fleet control plane — HA, DRS, Zeus AI engine, SQLite — `controller/` |
+| **Agent** | Per-host gRPC agent for the controller — `agent/` |
 | **Web** | React 19 + xterm.js + noVNC — `web/` |
 | **TUI** | ratatui terminal client — `tui/` |
 | **Core** | libvirt bindings, types — `core/` |
@@ -89,9 +96,13 @@ machina
 ```mermaid
 flowchart TB
   UI[Web + TUI] --> Daemon[machina-daemon]
+  UI --> Controller[machina-controller]
   API[REST clients] --> Daemon
   Daemon --> Libvirt[libvirt/QEMU/KVM]
   Daemon --> Host[Host metrics + firewall]
+  Controller --> Agent[machina-agent]
+  Controller --> Zeus[Zeus AI engine]
+  Agent --> Libvirt2[libvirt/QEMU/KVM on remote hosts]
 ```
 
 ---

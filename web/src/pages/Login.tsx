@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { useEffect, useState, FormEvent } from 'react'
+import { useEffect, useState, FormEvent, ReactNode } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { ZyvorBrandLine } from '../components/ZyvorBrand'
 import { beginOidcLogin, getAuthProviders, type AuthProviders } from '../api/auth'
@@ -20,10 +20,10 @@ import {
   EyeOff,
   Zap,
   Server,
-  Network,
-  Activity,
-  Boxes,
   HardDrive,
+  Boxes,
+  Sparkles,
+  ShieldCheck,
 } from 'lucide-react'
 import {
   PremiumLoginShell,
@@ -32,7 +32,6 @@ import {
   LoginField,
   LoginRemember,
   LoginSubmit,
-  type PremiumLoginFeature,
   type PremiumLoginPill,
 } from '../components/PremiumLoginShell'
 
@@ -47,38 +46,30 @@ function MachinaLogo() {
 const MACOS_PILLS: PremiumLoginPill[] = [
   { icon: <Server className="w-3 h-3" aria-hidden />, label: 'Libvirt + KVM' },
   { icon: <HardDrive className="w-3 h-3" aria-hidden />, label: 'OpenStack ready' },
-  { label: 'PAM auth' },
+  { icon: <Boxes className="w-3 h-3" aria-hidden />, label: 'KubeVirt' },
+  { icon: <Sparkles className="w-3 h-3" aria-hidden />, label: 'Zeus AI' },
 ]
 
-const MACOS_FEATURES: PremiumLoginFeature[] = [
+const HERO_HIGHLIGHTS: { icon: ReactNode; title: string; description: string }[] = [
   {
-    icon: <Server className="w-5 h-5 text-blue-100" />,
-    gradient: 'from-blue-500/95 to-indigo-800/95',
-    glow: 'shadow-blue-500/25',
+    icon: <Server className="w-4 h-4" aria-hidden />,
     title: 'VM lifecycle',
-    description: 'Create, start, stop, snapshot, and migrate QEMU/KVM guests with VNC and serial consoles.',
-    highlight: true,
+    description: 'Create, snapshot, migrate, and console into QEMU/KVM and KubeVirt guests.',
   },
   {
-    icon: <Network className="w-5 h-5 text-emerald-100" />,
-    gradient: 'from-emerald-500/95 to-teal-800/95',
-    glow: 'shadow-emerald-500/25',
-    title: 'Host networking & storage',
-    description: 'Topology maps, port forwards, pools, and firewall rules on the hypervisor node.',
+    icon: <Boxes className="w-4 h-4" aria-hidden />,
+    title: 'Fleet & multi-host',
+    description: 'HA, DRS, and reconciliation across every hypervisor in the fleet.',
   },
   {
-    icon: <Activity className="w-5 h-5 text-purple-100" />,
-    gradient: 'from-purple-500/95 to-fuchsia-800/95',
-    glow: 'shadow-purple-500/25',
-    title: 'Monitoring & automation',
-    description: 'Live metrics, alerts, webhooks, schedules, and Prometheus hooks.',
+    icon: <Sparkles className="w-4 h-4" aria-hidden />,
+    title: 'Zeus AI operations',
+    description: 'Autonomous diagnostics, approvals, and natural-language ops.',
   },
   {
-    icon: <Boxes className="w-5 h-5 text-orange-100" />,
-    gradient: 'from-orange-500/95 to-rose-700/95',
-    glow: 'shadow-orange-500/25',
-    title: 'KubeVirt & qcow2',
-    description: 'Golden images to Kubernetes — Linux or Windows profiles, CDI upload, virtctl from Disk Images.',
+    icon: <ShieldCheck className="w-4 h-4" aria-hidden />,
+    title: 'Security & compliance',
+    description: 'Firewall automation, PacketWolf flow correlation, and audit trails.',
   },
 ]
 
@@ -176,11 +167,26 @@ export default function LoginPage() {
             <span className="login-text-gradient">on one hypervisor host</span>
           </>
         }
-        heroSubheadline="QEMU/KVM under libvirt, Nova and Glance when wired, consoles, storage, automation, and block upload to Glance — without Horizon."
+        heroSubheadline="QEMU/KVM under libvirt and OpenStack on this host — plus KubeVirt clusters, multi-host fleet management, and Zeus AI operations, all from one control plane."
         pills={MACOS_PILLS}
-        features={MACOS_FEATURES}
-        heroFooter={<ZyvorBrandLine />}
-        mobileSubtitle="Libvirt · OpenStack · KubeVirt"
+        heroFooter={
+          <div className="space-y-6">
+            <ul className="space-y-3.5 border-t border-white/10 pt-6">
+              {HERO_HIGHLIGHTS.map((h) => (
+                <li key={h.title} className="flex items-start gap-3 text-slate-300/90">
+                  <span className="mt-0.5 text-sky-300/80 shrink-0">{h.icon}</span>
+                  <span className="text-sm leading-relaxed">
+                    <span className="font-medium text-white">{h.title}</span>
+                    {' — '}
+                    {h.description}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <ZyvorBrandLine />
+          </div>
+        }
+        mobileSubtitle="Libvirt · OpenStack · KubeVirt · Zeus AI"
         panelTitle="Welcome back"
         panelSubtitle={panelSubtitle}
         footer={
