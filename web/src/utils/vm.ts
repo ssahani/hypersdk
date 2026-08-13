@@ -19,7 +19,7 @@ export function formatBytes(bytes: number): string {
   if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(1)} GiB`
   if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MiB`
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KiB`
-  return `${bytes} B`
+  return `${Math.round(bytes)} B`
 }
 
 /** Bytes per second for throughput / I/O rates from cumulative counters. */
