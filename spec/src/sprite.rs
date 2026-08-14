@@ -19,6 +19,18 @@ pub struct SpriteCreateRequest {
     pub memory_mb: u64,
     #[serde(default = "default_ttl_seconds")]
     pub ttl_seconds: u64,
+    #[serde(default)]
+    pub backend: SpriteBackend,
+}
+
+/// Which hypervisor boots the sprite. Defaults to `Libvirt` so existing
+/// callers/tests that don't set this field are unaffected.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SpriteBackend {
+    #[default]
+    Libvirt,
+    CloudHypervisor,
 }
 
 fn default_vcpus() -> u32 {
@@ -134,6 +146,7 @@ mod tests {
             vcpus: default_vcpus(),
             memory_mb: default_memory_mb(),
             ttl_seconds: default_ttl_seconds(),
+            backend: SpriteBackend::default(),
         }
     }
 
@@ -201,6 +214,25 @@ mod tests {
         let mut req = base_request();
         req.ttl_seconds = MAX_TTL_SECONDS + 1;
         assert!(req.validate().is_err());
+    }
+
+    #[test]
+    fn backend_defaults_to_libvirt_when_omitted() {
+        let req: SpriteCreateRequest = serde_json::from_str(
+            r#"{"golden_image":"python-minimal"}"#,
+        )
+        .unwrap();
+        assert_eq!(req.backend, SpriteBackend::Libvirt);
+    }
+
+    #[test]
+    fn backend_round_trips_cloud_hypervisor() {
+        let mut req = base_request();
+        req.backend = SpriteBackend::CloudHypervisor;
+        let json = serde_json::to_string(&req).unwrap();
+        assert!(json.contains(r#""backend":"cloudhypervisor""#));
+        let round_tripped: SpriteCreateRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(round_tripped.backend, SpriteBackend::CloudHypervisor);
     }
 
     #[test]

@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-08-14 — Cloud Hypervisor backend for disposable "sprite" VMs
+
+Sprites (`POST /v1/sprites` — instant, TTL-reaped, headless sandbox microVMs,
+see `spec/src/sprite.rs`) can now boot on **Cloud Hypervisor** as an
+alternative to the original libvirt/QEMU backend, selected per-request via a
+new `backend` field (`"libvirt"`, the default, or `"cloudhypervisor"`).
+
+- `core/src/cloud_hypervisor/` (new) — boots `cloud-hypervisor` as a direct
+  child process of `machina-daemon` (there's no libvirtd in this path),
+  reusing the existing golden-image qcow2-overlay registry
+  (`core::libvirt::sprite::resolve_golden_image`,
+  `core::libvirt::template_apply::materialize_from_base`). Teardown shells
+  `ch-remote shutdown-vmm`, falling back to `SIGKILL` — same destroy-only
+  semantics the libvirt backend already uses, no ACPI-graceful shutdown
+  attempted.
+- `daemon/src/sprite_registry.rs` — the in-memory registry/TTL reaper is now
+  backend-agnostic (`SpriteBackendHandle::{Libvirt, CloudHypervisor}`) and
+  hands out host-wide-unique vsock guest CIDs across both backends (Cloud
+  Hypervisor requires an explicit CID, unlike libvirt's `<cid auto='yes'/>`,
+  and CIDs are arbitrated by the kernel regardless of hypervisor).
+- `daemon/src/routes/sprites.rs` — `create_sprite` dispatches on
+  `req.backend`; `list`/`get`/`delete` are unchanged.
+
+Deliberately out of scope for this pass: network egress / PacketWolf
+allow-list integration (Cloud Hypervisor sprites stay vsock-only, matching
+today's libvirt sprites), a Kubernetes CRD/operator wrapper, a pluggable
+disk-backend abstraction, and multi-host scheduling through the controller.
+
+Verified with `cargo test -p machina-spec -p machina-core -p machina-daemon`
+(25 passing: 5 new/updated in `core`, 13 in `spec`, 7 in `daemon`) plus a
+full `install.sh` deploy on two Linux hosts (one redeploy onto an existing
+install, one from-scratch). Not yet verified: a live `cloudhypervisor`-backend
+sprite boot/teardown against a real `cloud-hypervisor` install (neither test
+host has the binary installed).
+
 ## 2026-07-23 – 2026-07-25 — Security & correctness hardening marathon
 
 Over three days, a multi-wave audit swept the entire Machina codebase — the full

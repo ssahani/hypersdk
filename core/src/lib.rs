@@ -7,6 +7,7 @@ pub mod audit;
 pub mod audit_ship;
 pub mod bpf_probe;
 pub mod build_precheck;
+pub mod cloud_hypervisor;
 pub mod config;
 pub mod firewall;
 pub mod fleet_placement;
