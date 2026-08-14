@@ -367,6 +367,7 @@ install_deps() {
     ensure_mkosi
     ensure_packer
     ensure_helm
+    ensure_cloud_hypervisor
     install_openstack_clients
 }
 
@@ -454,6 +455,46 @@ ensure_helm() {
     hash -r 2>/dev/null || true
     command -v helm &>/dev/null || fail "Helm still not on PATH after get-helm-3"
     ok "Helm installed ($(helm version --short 2>/dev/null | head -n1))"
+}
+
+# Cloud Hypervisor + ch-remote — VMM backend for the "cloudhypervisor" sprite
+# backend (core/src/cloud_hypervisor/), an alternative to the default libvirt
+# sprite path. Optional: unlike Packer/Helm above, a failed or skipped
+# install here doesn't fail the overall install — sprites still work via
+# libvirt, and machina-daemon reports a clear error only if a caller actually
+# requests backend: "cloudhypervisor" on a host without it.
+# Override version: CLOUD_HYPERVISOR_VERSION=v53.0 sudo ./install.sh
+ensure_cloud_hypervisor() {
+    if command -v cloud-hypervisor &>/dev/null && command -v ch-remote &>/dev/null; then
+        info "Cloud Hypervisor: $(command -v cloud-hypervisor) ($(cloud-hypervisor --version 2>/dev/null | head -n1 || echo ok))"
+        return 0
+    fi
+    step "Installing Cloud Hypervisor (optional — cloudhypervisor sprite backend)"
+    local ver="${CLOUD_HYPERVISOR_VERSION:-v53.0}"
+    local machine chv_asset chr_asset
+    machine=$(uname -m)
+    case "$machine" in
+        x86_64) chv_asset=cloud-hypervisor-static; chr_asset=ch-remote-static ;;
+        aarch64|arm64) chv_asset=cloud-hypervisor-static-aarch64; chr_asset=ch-remote-static-aarch64 ;;
+        *)
+            warn "Unknown uname -m=$machine — skipping Cloud Hypervisor install (sprites still work via libvirt)"
+            return 0
+            ;;
+    esac
+    local base="https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/${ver}"
+    if ! curl -fsSL -o /tmp/cloud-hypervisor "${base}/${chv_asset}"; then
+        warn "Failed to download Cloud Hypervisor ${ver} — cloudhypervisor sprite backend will be unavailable (sprites still work via libvirt)"
+        return 0
+    fi
+    if ! curl -fsSL -o /tmp/ch-remote "${base}/${chr_asset}"; then
+        warn "Failed to download ch-remote ${ver} — cloudhypervisor sprite backend will be unavailable (sprites still work via libvirt)"
+        rm -f /tmp/cloud-hypervisor
+        return 0
+    fi
+    install -Dm755 /tmp/cloud-hypervisor /usr/local/bin/cloud-hypervisor
+    install -Dm755 /tmp/ch-remote /usr/local/bin/ch-remote
+    rm -f /tmp/cloud-hypervisor /tmp/ch-remote
+    ok "Cloud Hypervisor ${ver} -> /usr/local/bin/cloud-hypervisor, /usr/local/bin/ch-remote"
 }
 
 # Host tools required for mkosi image builds.
