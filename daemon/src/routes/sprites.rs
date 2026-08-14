@@ -22,7 +22,7 @@ use axum::{Json, Router};
 use virt::connect::Connect;
 
 use machina_core::cloud_hypervisor::sprite::{boot_sprite_chv, ChvBootRequest};
-use machina_core::libvirt::sprite::{boot_sprite, resolve_golden_image, SpriteBootRequest};
+use machina_core::libvirt::sprite::{boot_sprite, list_golden_images, resolve_golden_image, SpriteBootRequest};
 use machina_core::{audit, AuditEvent, LibvirtError, LibvirtManager};
 use machina_spec::{sprite_domain_name, SpriteBackend, SpriteCreateRequest, SpriteHandle};
 
@@ -177,6 +177,13 @@ async fn list_sprites(Extension(registry): Extension<Arc<SpriteRegistry>>) -> Js
     Json(registry.list())
 }
 
+/// Bare filenames (no `.qcow2`) of golden images available to boot a sprite
+/// from — lets a caller (the web UI's sprite-creation form) offer a picker
+/// instead of requiring the golden image key to already be known.
+async fn list_golden_images_handler() -> Result<Json<Vec<String>>, AppError> {
+    Ok(Json(list_golden_images()?))
+}
+
 async fn get_sprite(
     Extension(registry): Extension<Arc<SpriteRegistry>>,
     Path(id): Path<String>,
@@ -215,5 +222,6 @@ async fn delete_sprite(
 pub fn sprite_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/sprites", post(create_sprite).get(list_sprites))
+        .route("/sprites/golden-images", get(list_golden_images_handler))
         .route("/sprites/{id}", get(get_sprite).delete(delete_sprite))
 }

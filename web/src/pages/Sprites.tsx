@@ -1,0 +1,374 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  createSprite,
+  deleteSprite,
+  listSpriteGoldenImages,
+  listSprites,
+  type SpriteBackend,
+  type SpriteHandle,
+} from '../api/sprites'
+import { useToastContext } from '../contexts/ToastContext'
+import ConfirmDialog from '../components/ConfirmDialog'
+import EmptyState from '../components/EmptyState'
+import PageLayout from '../components/PageLayout'
+import { Plus, RefreshCw, Trash2, X, Zap } from 'lucide-react'
+import { formatUserError } from '../utils/apiError'
+import { statusBadgeClasses } from '../utils/semanticColors'
+
+type Tone = 'ok' | 'warn' | 'error' | 'info' | 'neutral'
+import { useFocusTrap } from '../hooks/useFocusTrap'
+
+/** Sprites live seconds-to-minutes — poll faster than a regular VM list so
+ * expiry countdowns and the reaper tearing one down feel live. Matches the
+ * daemon reaper's own 5s scan interval (daemon/src/sprite_registry.rs). */
+const POLL_MS = 5000
+
+const TTL_PRESETS: { label: string; seconds: number }[] = [
+  { label: '1 minute', seconds: 60 },
+  { label: '5 minutes', seconds: 300 },
+  { label: '15 minutes', seconds: 900 },
+  { label: '30 minutes', seconds: 1800 },
+  { label: '1 hour', seconds: 3600 },
+]
+
+function stateTone(state: string): Tone {
+  switch (state) {
+    case 'running': return 'ok'
+    case 'booting': return 'info'
+    case 'reaping': return 'warn'
+    default: return 'neutral'
+  }
+}
+
+function backendLabel(backend: string): string {
+  return backend === 'cloudhypervisor' ? 'Cloud Hypervisor' : 'Libvirt'
+}
+
+/** "expires in 4m 12s" / "expired" — recomputed on every poll tick, not a live per-second ticker. */
+function timeUntil(iso: string): string {
+  const ms = new Date(iso).getTime() - Date.now()
+  if (!Number.isFinite(ms)) return '—'
+  if (ms <= 0) return 'expired'
+  const totalSeconds = Math.floor(ms / 1000)
+  const m = Math.floor(totalSeconds / 60)
+  const s = totalSeconds % 60
+  return m > 0 ? `${m}m ${s}s` : `${s}s`
+}
+
+export default function SpritesPage() {
+  const [sprites, setSprites] = useState<SpriteHandle[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<SpriteHandle | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [, setTick] = useState(0)
+  const toast = useToastContext()
+
+  const load = useCallback(async () => {
+    try {
+      setLoadError(null)
+      setSprites(await listSprites())
+    } catch (e: unknown) {
+      setLoadError(formatUserError(e))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    load()
+    const id = setInterval(load, POLL_MS)
+    return () => clearInterval(id)
+  }, [load])
+
+  // Redraw expiry countdowns between polls without re-fetching.
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    const target = deleteTarget
+    setDeleteTarget(null)
+    try {
+      await deleteSprite(target.sprite_id)
+      toast.success(`Deleted sprite '${target.sprite_id}'`)
+      load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    }
+  }
+
+  return (
+    <PageLayout
+      title="Sprites"
+      subtitle="Instant, disposable sandbox VMs — TTL-reaped, no persistent state."
+      icon={<Zap className="w-6 h-6" />}
+      actions={
+        <div className="flex items-center gap-2">
+          <button onClick={load} className="p-2 hover:bg-slate-700 rounded transition" title="Refresh" aria-label="Refresh">
+            <RefreshCw className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition"
+          >
+            <Plus className="w-4 h-4" />
+            New Sprite
+          </button>
+        </div>
+      }
+      contentLoading={loading}
+      error={loadError}
+      errorTitle="Failed to load sprites"
+      onErrorRetry={load}
+      onErrorDismiss={() => setLoadError(null)}
+    >
+      {loadError ? null : sprites.length === 0 ? (
+        <EmptyState
+          icon={<Zap className="w-6 h-6" />}
+          title="No sprites running"
+          description="Sprites are throwaway sandbox VMs cloned from a golden image and torn down automatically after their TTL — useful for AI-agent or CI sandboxes that don't need to persist."
+        />
+      ) : (
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+          <table className="w-full" aria-label="Sprites">
+            <thead>
+              <tr className="border-b border-slate-700/50 text-left text-sm text-slate-400">
+                <th scope="col" className="px-6 py-3">Sprite</th>
+                <th scope="col" className="px-6 py-3">State</th>
+                <th scope="col" className="px-6 py-3">Backend</th>
+                <th scope="col" className="px-6 py-3 hidden md:table-cell">vsock CID</th>
+                <th scope="col" className="px-6 py-3">Expires</th>
+                <th scope="col" className="px-6 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-700/50">
+              {sprites.map((s) => (
+                <tr key={s.sprite_id} className="hover:bg-slate-700/50">
+                  <td className="px-6 py-3 font-mono text-xs">{s.sprite_id}</td>
+                  <td className="px-6 py-3">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${statusBadgeClasses(stateTone(s.state))}`}>
+                      {s.state}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3 text-sm text-slate-300">{backendLabel(s.backend ?? 'libvirt')}</td>
+                  <td className="px-6 py-3 text-sm text-slate-400 hidden md:table-cell">{s.vsock_cid ?? '—'}</td>
+                  <td className="px-6 py-3 text-sm text-slate-400">{timeUntil(s.expires_at)}</td>
+                  <td className="px-6 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => setDeleteTarget(s)}
+                        className="p-1.5 hover:bg-red-600/20 rounded transition"
+                        title="Delete"
+                        aria-label="Delete"
+                      >
+                        <Trash2 className="w-4 h-4 text-red-400" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Sprite"
+        message={`Delete sprite '${deleteTarget?.sprite_id}'? This tears it down immediately instead of waiting for its TTL.`}
+        confirmLabel="Delete"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+      <NewSpriteModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => { setCreateOpen(false); load() }}
+      />
+    </PageLayout>
+  )
+}
+
+function NewSpriteModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
+  const toast = useToastContext()
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, open, onClose)
+
+  const [images, setImages] = useState<string[]>([])
+  const [imagesError, setImagesError] = useState<string | null>(null)
+  const [goldenImage, setGoldenImage] = useState('')
+  const [vcpus, setVcpus] = useState('1')
+  const [memoryMb, setMemoryMb] = useState('512')
+  const [ttlSeconds, setTtlSeconds] = useState(String(TTL_PRESETS[1].seconds))
+  const [backend, setBackend] = useState<SpriteBackend>('libvirt')
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    setImagesError(null)
+    listSpriteGoldenImages()
+      .then((names) => {
+        setImages(names)
+        setGoldenImage((prev) => (prev && names.includes(prev) ? prev : names[0] ?? ''))
+      })
+      .catch((e: unknown) => setImagesError(formatUserError(e)))
+  }, [open])
+
+  const handleSubmit = async () => {
+    if (!goldenImage) return
+    setSubmitting(true)
+    try {
+      const handle = await createSprite({
+        golden_image: goldenImage,
+        vcpus: parseInt(vcpus, 10) || undefined,
+        memory_mb: parseInt(memoryMb, 10) || undefined,
+        ttl_seconds: parseInt(ttlSeconds, 10) || undefined,
+        backend,
+      })
+      toast.success(`Sprite '${handle.sprite_id}' booting`)
+      onCreated()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (!open) return null
+
+  return (
+    <div
+      className="fixed inset-0 z-[95] flex items-center justify-center p-4 bg-black/60"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        ref={panelRef}
+        className="bg-slate-900 border border-slate-600 rounded-xl shadow-xl w-full max-w-md flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="new-sprite-title"
+      >
+        <div className="p-4 border-b border-slate-700 flex items-center justify-between gap-2">
+          <h2 id="new-sprite-title" className="text-lg font-semibold text-slate-100 flex items-center gap-2">
+            <Zap className="w-5 h-5 text-blue-400" />
+            New Sprite
+          </h2>
+          <button type="button" className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400" onClick={onClose} aria-label="Close">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-4 space-y-4 text-sm">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-slate-400 uppercase tracking-wide" htmlFor="sprite-golden-image">
+              Golden image
+            </label>
+            {imagesError ? (
+              <p className="text-xs text-red-400">{imagesError}</p>
+            ) : images.length === 0 ? (
+              <p className="text-xs text-slate-400">
+                No golden images found. Copy a qcow2 into the sprite-images registry on the daemon host first.
+              </p>
+            ) : (
+              <select
+                id="sprite-golden-image"
+                value={goldenImage}
+                onChange={(e) => setGoldenImage(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-slate-100"
+              >
+                {images.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-400 uppercase tracking-wide" htmlFor="sprite-vcpus">vCPUs</label>
+              <input
+                id="sprite-vcpus"
+                type="number"
+                min={1}
+                max={8}
+                value={vcpus}
+                onChange={(e) => setVcpus(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-slate-100"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-400 uppercase tracking-wide" htmlFor="sprite-memory">Memory (MB)</label>
+              <input
+                id="sprite-memory"
+                type="number"
+                min={1}
+                max={8192}
+                step={128}
+                value={memoryMb}
+                onChange={(e) => setMemoryMb(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-slate-100"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-slate-400 uppercase tracking-wide" htmlFor="sprite-ttl">Time to live</label>
+            <select
+              id="sprite-ttl"
+              value={ttlSeconds}
+              onChange={(e) => setTtlSeconds(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-slate-100"
+            >
+              {TTL_PRESETS.map((p) => (
+                <option key={p.seconds} value={p.seconds}>{p.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">Backend</span>
+            <div className="flex gap-2">
+              {(['libvirt', 'cloudhypervisor'] as const).map((b) => (
+                <button
+                  key={b}
+                  type="button"
+                  onClick={() => setBackend(b)}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition ${
+                    backend === b
+                      ? 'bg-blue-600 border-blue-500 text-white'
+                      : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  {backendLabel(b)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="p-4 border-t border-slate-700 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 transition"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!goldenImage || submitting}
+            onClick={handleSubmit}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition"
+          >
+            {submitting ? 'Creating…' : 'Create'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -38,6 +38,7 @@ const Dashboard = lazyWithRetry(() => import('./pages/Dashboard'))
 const VMList = lazyWithRetry(() => import('./pages/VMList'))
 const VMDetails = lazyWithRetry(() => import('./pages/VMDetails'))
 const CreateVM = lazyWithRetry(() => import('./pages/CreateVM'))
+const Sprites = lazyWithRetry(() => import('./pages/Sprites'))
 const Networks = lazyWithRetry(() => import('./pages/Networks'))
 const Storage = lazyWithRetry(() => import('./pages/Storage'))
 const Snapshots = lazyWithRetry(() => import('./pages/Snapshots'))
@@ -554,6 +555,7 @@ function AuthenticatedShellRoutes() {
                 <Route path="/host-ssh" element={<HostSSHPage />} />
                 <Route path="/audit" element={<AuditLog />} />
                 <Route path="/import" element={<ImportVM />} />
+                <Route path="/sprites" element={<Sprites />} />
                 <Route path="/ssh/:host" element={<SSHPage />} />
                 <Route path="/ssh" element={<SSHPage />} />
                 <Route path="/api-docs" element={<ApiDocs />} />

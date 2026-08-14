@@ -4,9 +4,11 @@ raw/
 png/
 png-guestkit/
 png-hw/
+png-sprites/
 seg/
 seg-gk/
 seg-hw/
+seg-sprites/
 out/
 *.webm
 *.mp4

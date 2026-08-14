@@ -30,6 +30,29 @@ pub fn find_ch_remote_binary() -> Result<String, LibvirtError> {
     find_binary("ch-remote", &["/usr/bin/ch-remote", "/usr/local/bin/ch-remote"])
 }
 
+/// Resolve the Cloud Hypervisor firmware image (`CLOUDHV.fd`, from the
+/// `cloud-hypervisor/edk2` project). Cloud Hypervisor has no built-in BIOS
+/// the way QEMU does — booting a disk image without either `--kernel` or
+/// `--firmware` fails immediately (`the following required arguments were
+/// not provided: --firmware <firmware>|--kernel <kernel>`), so this is
+/// exactly as required as the VMM binary itself for the sprite boot path.
+pub fn find_cloud_hypervisor_firmware() -> Result<String, LibvirtError> {
+    let candidates = [
+        "/usr/share/cloud-hypervisor/CLOUDHV.fd",
+        "/usr/local/share/cloud-hypervisor/CLOUDHV.fd",
+    ];
+    for path in candidates {
+        if Path::new(path).is_file() {
+            return Ok(path.to_string());
+        }
+    }
+    Err(LibvirtError::NotFound(
+        "Cloud Hypervisor firmware (CLOUDHV.fd) not found — install.sh's ensure_cloud_hypervisor \
+         fetches it alongside the cloud-hypervisor binary"
+            .into(),
+    ))
+}
+
 /// Unlike `translate::qemu::find_qemu_binary` (which silently falls back to
 /// a guessed default path — reasonable for QEMU, which is all but
 /// guaranteed present on any libvirt/KVM host), a missing Cloud Hypervisor

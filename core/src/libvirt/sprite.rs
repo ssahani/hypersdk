@@ -51,6 +51,32 @@ pub fn resolve_golden_image(key: &str) -> Result<PathBuf, LibvirtError> {
     Ok(path)
 }
 
+/// List available `golden_image` registry keys (bare filenames, `.qcow2`
+/// stripped) — lets a caller (e.g. the web UI's sprite-creation form) offer
+/// a picker instead of requiring the operator to already know what's on
+/// disk. An absent `SPRITE_IMAGES_DIR` is treated as "no images yet", not an
+/// error — nothing has failed, the registry is just empty until an image is
+/// dropped in.
+pub fn list_golden_images() -> Result<Vec<String>, LibvirtError> {
+    let entries = match fs::read_dir(SPRITE_IMAGES_DIR) {
+        Ok(e) => e,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => {
+            return Err(LibvirtError::Operation(format!(
+                "failed to read sprite images dir: {e}"
+            )))
+        }
+    };
+    let mut names: Vec<String> = entries
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().and_then(|e| e.to_str()) == Some("qcow2"))
+        .filter_map(|path| path.file_stem().map(|s| s.to_string_lossy().into_owned()))
+        .collect();
+    names.sort();
+    Ok(names)
+}
+
 pub struct SpriteBootRequest<'a> {
     /// Libvirt domain name — pass `spec::sprite_domain_name(sprite_id)`, not
     /// the bare sprite id, so `virsh list` and the reaper can recognize
@@ -175,6 +201,19 @@ mod tests {
         match resolve_golden_image("definitely-does-not-exist-abc123") {
             Err(LibvirtError::NotFound(_)) => {}
             other => panic!("expected NotFound, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn list_golden_images_succeeds_whether_or_not_the_dir_exists() {
+        // A missing /var/lib/machina/sprite-images (most dev/CI hosts) means
+        // "no images yet", not a failure — and on a host that already has
+        // sprite images (e.g. a deployed daemon host this test happens to
+        // run on), any non-empty listing is equally valid. Only the ok/err
+        // outcome is asserted; the contents aren't test-environment-stable.
+        let names = list_golden_images().expect("missing dir must not be an error");
+        for name in &names {
+            assert!(!name.contains('/'), "golden image name should be bare: {name}");
         }
     }
 

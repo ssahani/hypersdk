@@ -4,26 +4,36 @@
 
 //! Boot/tear down a disposable "sprite" microVM on Cloud Hypervisor.
 //!
-//! Structurally mirrors `crate::libvirt::sprite`: same golden-image overlay
-//! primitive (`libvirt::template_apply::materialize_from_base`), same
-//! "throwaway, headless, destroy-only" semantics. The difference is process
-//! ownership — libvirt sprites are supervised by libvirtd, so
-//! `core::libvirt::sprite::boot_sprite` only has to issue one
-//! `Domain::create_xml` call and hand back a handle; here `machina-daemon`
-//! itself is the direct parent of the `cloud-hypervisor` process and owns
-//! its whole lifecycle (boot-readiness, and later teardown).
+//! Structurally mirrors `crate::libvirt::sprite`: same golden-image registry
+//! (`libvirt::template_apply::materialize_from_base`), same "throwaway,
+//! headless, destroy-only" semantics. Two real differences, both discovered
+//! by actually booting one rather than assumed up front:
+//!
+//! - **Full copy, not a COW overlay.** Cloud Hypervisor's built-in qcow2
+//!   support rejects a disk with a `backing file` at all — even a single
+//!   level — with `BlockError { kind: UnsupportedFeature, source:
+//!   MaxNestingDepthExceeded }`. The libvirt backend's `"backing"` mode
+//!   (instant, thin clone) isn't available here, so this materializes a full
+//!   `"copy"` instead — slower to prepare, but the only mode Cloud
+//!   Hypervisor's disk backend accepts.
+//! - **Process ownership.** libvirt sprites are supervised by libvirtd, so
+//!   `core::libvirt::sprite::boot_sprite` only has to issue one
+//!   `Domain::create_xml` call and hand back a handle; here `machina-daemon`
+//!   itself is the direct parent of the `cloud-hypervisor` process and owns
+//!   its whole lifecycle (boot-readiness, and later teardown).
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 
+use tokio::io::AsyncBufReadExt;
 use tokio::process::Command as TokioCommand;
 use tokio::time::Instant;
 
 use crate::LibvirtError;
 
-use super::{find_ch_remote_binary, find_cloud_hypervisor_binary};
+use super::{find_ch_remote_binary, find_cloud_hypervisor_binary, find_cloud_hypervisor_firmware};
 
 /// Per-sprite Cloud Hypervisor runtime artifacts (overlay disk, API socket,
 /// vsock socket) live under here, namespaced by sprite id. Separate from
@@ -57,27 +67,35 @@ pub struct ChvBootRequest<'a> {
 }
 
 pub struct ChvBootResult {
-    /// Overlay qcow2 path — same teardown ownership rule as the libvirt
-    /// backend: only ever delete this, never `golden_image_path`.
+    /// Full-copy qcow2 path (see this module's doc comment for why it's a
+    /// copy, not a backing-file overlay) — same teardown ownership rule as
+    /// the libvirt backend regardless: only ever delete this, never
+    /// `golden_image_path`.
     pub disk_path: PathBuf,
     pub pid: u32,
     pub api_socket: PathBuf,
     pub vsock_socket: PathBuf,
 }
 
-/// Clone `req.golden_image_path` via a qcow2 backing-file overlay, then
-/// spawn `cloud-hypervisor` directly as a child of the daemon process.
+/// Materialize a full copy of `req.golden_image_path` (Cloud Hypervisor's
+/// qcow2 backend rejects a backing-file overlay — see this module's doc
+/// comment), then spawn `cloud-hypervisor` directly as a child of the
+/// daemon process.
 pub async fn boot_sprite_chv(req: &ChvBootRequest<'_>) -> Result<ChvBootResult, LibvirtError> {
     let chv_binary = find_cloud_hypervisor_binary()?;
+    let firmware = find_cloud_hypervisor_firmware()?;
 
     let run_dir = PathBuf::from(SPRITE_RUN_DIR).join(req.sprite_id);
     fs::create_dir_all(&run_dir)
         .map_err(|e| LibvirtError::Operation(format!("failed to create sprite run dir: {e}")))?;
-    let disk_path = run_dir.join("overlay.qcow2");
+    let disk_path = run_dir.join("disk.qcow2");
     let api_socket = run_dir.join("api.sock");
     let vsock_socket = run_dir.join("vsock.sock");
 
-    crate::libvirt::template_apply::materialize_from_base(req.golden_image_path, &disk_path, "backing")?;
+    if let Err(e) = crate::libvirt::template_apply::materialize_from_base(req.golden_image_path, &disk_path, "copy") {
+        let _ = fs::remove_dir_all(&run_dir);
+        return Err(e);
+    }
 
     let mut child = match TokioCommand::new(chv_binary)
         .arg("--cpus")
@@ -94,9 +112,11 @@ pub async fn boot_sprite_chv(req: &ChvBootRequest<'_>) -> Result<ChvBootResult, 
         .arg("off")
         .arg("--console")
         .arg("off")
+        .arg("--firmware")
+        .arg(&firmware)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()
     {
         Ok(c) => c,
@@ -111,6 +131,30 @@ pub async fn boot_sprite_chv(req: &ChvBootRequest<'_>) -> Result<ChvBootResult, 
         .id()
         .ok_or_else(|| LibvirtError::Internal("cloud-hypervisor spawned without a pid".into()))?;
 
+    // Piped (not null) so a boot failure is diagnosable — but the failure
+    // path below only has a couple of read attempts before giving up, and
+    // the pipe must be drained continuously for the life of the process
+    // regardless (an unread pipe fills its OS buffer and blocks the child's
+    // writes, e.g. the "disk image type auto-detection is deprecated"
+    // warning Cloud Hypervisor logs even on a successful boot). One task
+    // does both: tee each line into `sprite_id`-tagged tracing output (so
+    // `journalctl` has it for a post-mortem) and into `last_stderr_line` for
+    // the immediate boot-failure error message below.
+    let last_stderr_line = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    if let Some(stderr) = child.stderr.take() {
+        let last_stderr_line = last_stderr_line.clone();
+        let sprite_id = req.sprite_id.to_string();
+        tokio::spawn(async move {
+            let mut lines = tokio::io::BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                tracing::warn!("cloud-hypervisor[{sprite_id}]: {line}");
+                if let Ok(mut last) = last_stderr_line.lock() {
+                    *last = line;
+                }
+            }
+        });
+    }
+
     // Poll for the API socket rather than a fixed sleep — mirrors waiting on
     // `Domain::create_xml` returning in the libvirt backend, which is
     // likewise synchronous-until-booted.
@@ -120,9 +164,13 @@ pub async fn boot_sprite_chv(req: &ChvBootRequest<'_>) -> Result<ChvBootResult, 
             break;
         }
         if let Ok(Some(status)) = child.try_wait() {
+            // Give the stderr-draining task a moment to catch the process's
+            // final lines before reading `last_stderr_line`.
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            let last_line = last_stderr_line.lock().map(|l| l.clone()).unwrap_or_default();
             let _ = fs::remove_dir_all(&run_dir);
             return Err(LibvirtError::Operation(format!(
-                "cloud-hypervisor exited before booting (status: {status})"
+                "cloud-hypervisor exited before booting (status: {status}): {last_line}"
             )));
         }
         if Instant::now() >= deadline {
@@ -196,23 +244,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn boot_sprite_chv_rejects_missing_binary_without_touching_run_dir() {
-        // find_cloud_hypervisor_binary() fails on any host without
-        // cloud-hypervisor installed (true for this workspace's own CI/dev
-        // containers) — asserting the error type doubles as coverage that
-        // the fast-fail-before-any-filesystem-mutation path is taken. Full
-        // boot/teardown behavior is exercised by the daemon-side manual
-        // smoke test described in the sprite backend design notes; it needs
-        // a real /dev/kvm + cloud-hypervisor host, not a unit test.
+    fn boot_sprite_chv_rejects_bogus_request_without_leaking_run_dir() {
+        // Deliberately doesn't assert *which* precondition trips first
+        // (missing cloud-hypervisor binary vs. missing golden image): this
+        // module's own tests run on hosts that install cloud-hypervisor by
+        // default (see install.sh's ensure_cloud_hypervisor), so pinning to
+        // `find_cloud_hypervisor_binary()`'s NotFound would be true on a
+        // bare dev/CI container but false on a real daemon host — either
+        // way, a bogus golden image path must fail, and must not leave the
+        // per-sprite run directory behind. That's the invariant this test
+        // protects; see the daemon-side manual smoke test in the sprite
+        // backend design notes for full boot/teardown coverage against a
+        // real /dev/kvm + cloud-hypervisor host.
         let rt = tokio::runtime::Runtime::new().unwrap();
+        let sprite_id = "unit-test-does-not-exist";
         let req = ChvBootRequest {
-            sprite_id: "unit-test-does-not-exist",
+            sprite_id,
             golden_image_path: Path::new("/nonexistent/golden.qcow2"),
             vcpus: 1,
             memory_mb: 512,
             vsock_cid: 3,
         };
         let result = rt.block_on(boot_sprite_chv(&req));
-        assert!(matches!(result, Err(LibvirtError::NotFound(_))));
+        assert!(result.is_err());
+        assert!(!PathBuf::from(SPRITE_RUN_DIR).join(sprite_id).exists());
     }
 }

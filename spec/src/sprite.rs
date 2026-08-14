@@ -116,6 +116,12 @@ pub struct SpriteHandle {
     /// `None` until the domain is defined and a CID has been assigned.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vsock_cid: Option<u32>,
+    /// Which hypervisor this sprite actually booted on — echoes the
+    /// request's `backend` (or its default), not re-derived from anything
+    /// else, so it stays correct even if a future backend shares a trait
+    /// like "has a vsock_cid" with an existing one.
+    #[serde(default)]
+    pub backend: SpriteBackend,
 }
 
 /// Domain name a sprite's libvirt domain is created/looked-up under.
@@ -248,6 +254,7 @@ mod tests {
             created_at: "2026-01-01T00:00:00Z".into(),
             expires_at: "2026-01-01T00:05:00Z".into(),
             vsock_cid: None,
+            backend: SpriteBackend::Libvirt,
         };
         let json = serde_json::to_string(&handle).unwrap();
         assert!(!json.contains("vsock_cid"));

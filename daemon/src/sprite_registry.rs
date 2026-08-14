@@ -25,7 +25,7 @@ use chrono::{DateTime, Utc};
 use machina_core::cloud_hypervisor::sprite::teardown_sprite_chv;
 use machina_core::libvirt::domain::{delete_vm_with_options, UndefineOptions};
 use machina_core::LibvirtManager;
-use machina_spec::{SpriteHandle, SpriteState};
+use machina_spec::{SpriteBackend, SpriteHandle, SpriteState};
 
 /// Sized for a lot of short-lived sandboxes churning through, unlike
 /// `JobRegistry`'s `MAX_JOBS=250` (long-running build/export jobs are much
@@ -67,6 +67,16 @@ pub enum SpriteBackendHandle {
 }
 
 impl SpriteBackendHandle {
+    /// The API-visible `SpriteBackend` this handle represents — derived from
+    /// the variant itself (not a separately-tracked field) so it can never
+    /// drift from which backend actually booted the sprite.
+    fn kind(&self) -> SpriteBackend {
+        match self {
+            SpriteBackendHandle::Libvirt { .. } => SpriteBackend::Libvirt,
+            SpriteBackendHandle::CloudHypervisor { .. } => SpriteBackend::CloudHypervisor,
+        }
+    }
+
     /// Short label for reaper/audit log lines.
     pub(crate) fn describe(&self) -> String {
         match self {
@@ -143,6 +153,7 @@ impl SpriteRegistry {
             created_at: now.to_rfc3339(),
             expires_at: expires_at.to_rfc3339(),
             vsock_cid,
+            backend: backend.kind(),
         };
         g.insert(
             sprite_id,
@@ -284,6 +295,14 @@ mod tests {
         assert_eq!(fetched.sprite_id, handle.sprite_id);
         assert_eq!(fetched.vsock_cid, Some(3));
         assert_eq!(fetched.state, SpriteState::Running);
+        assert_eq!(fetched.backend, SpriteBackend::Libvirt);
+    }
+
+    #[test]
+    fn register_reports_cloud_hypervisor_backend_kind() {
+        let reg = SpriteRegistry::new();
+        let handle = reg.register("chv-kind".into(), chv_backend(1), 300, Some(3)).unwrap();
+        assert_eq!(handle.backend, SpriteBackend::CloudHypervisor);
     }
 
     #[test]

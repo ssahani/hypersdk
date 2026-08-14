@@ -465,8 +465,10 @@ ensure_helm() {
 # requests backend: "cloudhypervisor" on a host without it.
 # Override version: CLOUD_HYPERVISOR_VERSION=v53.0 sudo ./install.sh
 ensure_cloud_hypervisor() {
-    if command -v cloud-hypervisor &>/dev/null && command -v ch-remote &>/dev/null; then
-        info "Cloud Hypervisor: $(command -v cloud-hypervisor) ($(cloud-hypervisor --version 2>/dev/null | head -n1 || echo ok))"
+    local firmware_dir="/usr/local/share/cloud-hypervisor"
+    local firmware_path="${firmware_dir}/CLOUDHV.fd"
+    if command -v cloud-hypervisor &>/dev/null && command -v ch-remote &>/dev/null && [ -f "$firmware_path" ]; then
+        info "Cloud Hypervisor: $(command -v cloud-hypervisor) ($(cloud-hypervisor --version 2>/dev/null | head -n1 || echo ok)), firmware at ${firmware_path}"
         return 0
     fi
     step "Installing Cloud Hypervisor (optional — cloudhypervisor sprite backend)"
@@ -491,10 +493,19 @@ ensure_cloud_hypervisor() {
         rm -f /tmp/cloud-hypervisor
         return 0
     fi
+    # Cloud Hypervisor has no built-in BIOS the way QEMU does — booting a
+    # disk image requires an explicit --firmware (or --kernel). CLOUDHV.fd is
+    # the upstream cloud-hypervisor/edk2 firmware build for exactly this.
+    if ! curl -fsSL -o /tmp/CLOUDHV.fd "https://github.com/cloud-hypervisor/edk2/releases/latest/download/CLOUDHV.fd"; then
+        warn "Failed to download Cloud Hypervisor firmware (CLOUDHV.fd) — cloudhypervisor sprite backend will be unavailable (sprites still work via libvirt)"
+        rm -f /tmp/cloud-hypervisor /tmp/ch-remote
+        return 0
+    fi
     install -Dm755 /tmp/cloud-hypervisor /usr/local/bin/cloud-hypervisor
     install -Dm755 /tmp/ch-remote /usr/local/bin/ch-remote
-    rm -f /tmp/cloud-hypervisor /tmp/ch-remote
-    ok "Cloud Hypervisor ${ver} -> /usr/local/bin/cloud-hypervisor, /usr/local/bin/ch-remote"
+    install -Dm644 /tmp/CLOUDHV.fd "$firmware_path"
+    rm -f /tmp/cloud-hypervisor /tmp/ch-remote /tmp/CLOUDHV.fd
+    ok "Cloud Hypervisor ${ver} -> /usr/local/bin/cloud-hypervisor, /usr/local/bin/ch-remote, firmware -> ${firmware_path}"
 }
 
 # Host tools required for mkosi image builds.
