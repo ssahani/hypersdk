@@ -7,6 +7,7 @@ import json
 import sys
 from pathlib import Path
 
+from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -43,8 +44,12 @@ def get_creds(client_secrets: Path, token_path: Path) -> Credentials:
     if token_path.exists():
         creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
     if creds and creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-        token_path.write_text(creds.to_json())
+        try:
+            creds.refresh(Request())
+            token_path.write_text(creds.to_json())
+        except RefreshError as e:
+            print(f"Refresh token invalid/revoked ({e}) — falling back to interactive consent", flush=True)
+            creds = None
     if not creds or not creds.valid:
         flow = InstalledAppFlow.from_client_secrets_file(str(client_secrets), SCOPES)
         print("Opening browser for Google/YouTube consent…", flush=True)
