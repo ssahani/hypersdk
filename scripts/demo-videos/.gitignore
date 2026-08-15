@@ -5,10 +5,12 @@ png/
 png-guestkit/
 png-hw/
 png-sprites/
+png-egress-cli/
 seg/
 seg-gk/
 seg-hw/
 seg-sprites/
+seg-egress-cli/
 out/
 *.webm
 *.mp4
