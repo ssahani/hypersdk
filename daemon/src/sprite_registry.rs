@@ -15,9 +15,8 @@
 //! (`machina_core::libvirt::sprite`) or Cloud Hypervisor
 //! (`machina_core::cloud_hypervisor::sprite`) — see `SpriteBackendHandle`.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -95,14 +94,23 @@ struct SpriteEntry {
 #[derive(Clone)]
 pub struct SpriteRegistry {
     inner: Arc<Mutex<HashMap<String, SpriteEntry>>>,
-    next_vsock_cid: Arc<AtomicU32>,
+    /// CIDs currently in use by *either* backend — populated eagerly by
+    /// `next_vsock_cid()` for Cloud Hypervisor (which must pick a CID before
+    /// it can boot) and by `register()` for libvirt (whose CID is only known
+    /// after boot, once its `<cid auto='yes'/>` assignment is read back from
+    /// the running domain's XML). A single shared set is what actually
+    /// closes the collision this replaced a blind per-backend counter for:
+    /// two independent counters both starting at `FIRST_VSOCK_CID` reliably
+    /// collided the first time each backend's first sprite booted around the
+    /// same time (reproduced live — see the sprites design notes).
+    claimed_vsock_cids: Arc<Mutex<HashSet<u32>>>,
 }
 
 impl Default for SpriteRegistry {
     fn default() -> Self {
         Self {
             inner: Arc::new(Mutex::new(HashMap::new())),
-            next_vsock_cid: Arc::new(AtomicU32::new(FIRST_VSOCK_CID)),
+            claimed_vsock_cids: Arc::new(Mutex::new(HashSet::new())),
         }
     }
 }
@@ -113,15 +121,25 @@ impl SpriteRegistry {
     }
 
     /// Hand out a fresh guest vsock CID for a Cloud Hypervisor sprite,
-    /// distinct from every other CID this registry has handed out. Libvirt
-    /// sprites get theirs from the kernel via `<cid auto='yes'/>` instead,
-    /// but since CIDs are arbitrated host-wide regardless of hypervisor,
-    /// both paths must avoid colliding with each other. No reuse on
-    /// removal: sprite churn stays well below `u32`'s range, and tracking
-    /// exactly when the kernel has released a prior CID would add
-    /// complexity this doesn't need.
+    /// distinct from every CID any *currently running* sprite of either
+    /// backend holds (checked against `claimed_vsock_cids`, which
+    /// `register()` populates for libvirt sprites too — see that field's
+    /// doc comment for why a shared set, not a per-backend counter, is what
+    /// this needs). Claims the CID immediately, under the same lock as the
+    /// scan, so two concurrent Cloud Hypervisor creations can never both
+    /// pick the same value. Reused after a sprite is torn down (`remove()`
+    /// releases its CID) — safe, since by then nothing holds it — but never
+    /// explicitly released if the boot that requested it then fails; sprite
+    /// churn stays well below `u32`'s range, so a CID leaked on a failed
+    /// boot isn't worth the extra plumbing to reclaim.
     pub fn next_vsock_cid(&self) -> u32 {
-        self.next_vsock_cid.fetch_add(1, Ordering::Relaxed)
+        let mut claimed = self.claimed_vsock_cids.lock().unwrap_or_else(|e| e.into_inner());
+        let mut candidate = FIRST_VSOCK_CID;
+        while claimed.contains(&candidate) {
+            candidate += 1;
+        }
+        claimed.insert(candidate);
+        candidate
     }
 
     /// Record a sprite whose backend is already running (boot happens
@@ -144,6 +162,15 @@ impl SpriteRegistry {
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         if g.len() >= MAX_SPRITES {
             return Err("sprite registry is full — the reaper may have fallen behind");
+        }
+        if let Some(cid) = vsock_cid {
+            // Idempotent for Cloud Hypervisor (already claimed by
+            // next_vsock_cid()); this is the only claim point for libvirt,
+            // whose CID is only known after boot.
+            self.claimed_vsock_cids
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(cid);
         }
         let now = Utc::now();
         let expires_at = now + chrono::Duration::seconds(ttl_seconds as i64);
@@ -180,10 +207,19 @@ impl SpriteRegistry {
     /// caller to actually tear down. Bookkeeping-only: does not touch
     /// libvirt or spawn any process itself, so it's safe to call from
     /// either the reaper or an explicit `DELETE /v1/sprites/{id}` handler
-    /// without a teardown call in the registry's lock scope.
+    /// without a teardown call in the registry's lock scope. Releases the
+    /// removed sprite's vsock CID (if any) back to `claimed_vsock_cids` so
+    /// `next_vsock_cid()` can hand it out again.
     pub fn remove(&self, id: &str) -> Option<SpriteBackendHandle> {
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        g.remove(id).map(|e| e.backend)
+        let entry = g.remove(id)?;
+        if let Some(cid) = entry.handle.vsock_cid {
+            self.claimed_vsock_cids
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .remove(&cid);
+        }
+        Some(entry.backend)
     }
 
     /// Sprite ids whose TTL has passed.
@@ -366,5 +402,38 @@ mod tests {
         assert!(a >= FIRST_VSOCK_CID);
         assert!(b > a);
         assert!(c > b);
+    }
+
+    /// Reproduces a real collision seen live: a libvirt sprite's
+    /// kernel-auto-assigned CID and a Cloud Hypervisor sprite's
+    /// registry-allocated CID both independently landed on
+    /// `FIRST_VSOCK_CID` because each backend's allocator started fresh.
+    /// `next_vsock_cid()` must see the libvirt sprite's already-registered
+    /// CID and skip past it, not just avoid its own prior allocations.
+    #[test]
+    fn next_vsock_cid_skips_a_cid_a_registered_libvirt_sprite_already_holds() {
+        let reg = SpriteRegistry::new();
+        reg.register(
+            "libvirt-first".into(),
+            libvirt_backend("sprite-libvirt-first"),
+            300,
+            Some(FIRST_VSOCK_CID),
+        )
+        .unwrap();
+
+        let allocated = reg.next_vsock_cid();
+        assert_ne!(allocated, FIRST_VSOCK_CID);
+    }
+
+    #[test]
+    fn removing_a_sprite_frees_its_vsock_cid_for_reuse() {
+        let reg = SpriteRegistry::new();
+        let cid = reg.next_vsock_cid();
+        let handle = reg.register("chv1".into(), chv_backend(1), 300, Some(cid)).unwrap();
+        reg.remove(&handle.sprite_id);
+
+        // The registry has no other claims left, so the freed CID is the
+        // lowest one available again.
+        assert_eq!(reg.next_vsock_cid(), cid);
     }
 }

@@ -5,7 +5,7 @@
 //! Boot/tear down a disposable "sprite" microVM on Cloud Hypervisor.
 //!
 //! Structurally mirrors `crate::libvirt::sprite`: same golden-image registry
-//! (`libvirt::template_apply::materialize_from_base`), same "throwaway,
+//! (`crate::libvirt::sprite::resolve_golden_image`), same "throwaway,
 //! headless, destroy-only" semantics. Two real differences, both discovered
 //! by actually booting one rather than assumed up front:
 //!
@@ -14,8 +14,8 @@
 //!   level — with `BlockError { kind: UnsupportedFeature, source:
 //!   MaxNestingDepthExceeded }`. The libvirt backend's `"backing"` mode
 //!   (instant, thin clone) isn't available here, so this materializes a full
-//!   `"copy"` instead — slower to prepare, but the only mode Cloud
-//!   Hypervisor's disk backend accepts.
+//!   copy instead (`materialize_fast_copy`, below) — slower to prepare than
+//!   an overlay, but the only mode Cloud Hypervisor's disk backend accepts.
 //! - **Process ownership.** libvirt sprites are supervised by libvirtd, so
 //!   `core::libvirt::sprite::boot_sprite` only has to issue one
 //!   `Domain::create_xml` call and hand back a handle; here `machina-daemon`
@@ -24,7 +24,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
+use std::process::{Command, Stdio};
 use std::time::Duration;
 
 use tokio::io::AsyncBufReadExt;
@@ -77,6 +77,33 @@ pub struct ChvBootResult {
     pub vsock_socket: PathBuf,
 }
 
+/// Full, uncompressed copy of `base` to `dest`. Deliberately doesn't reuse
+/// `template_apply::materialize_from_base`'s `"copy"` mode — that runs
+/// `qemu-img convert -c`, which zlib-compresses every cluster on write,
+/// tuned for the VM-template use case where disk space matters more than
+/// boot latency. A throwaway sprite wants the opposite tradeoff, so this
+/// shells `cp --reflink=auto --sparse=always` instead: near-instant
+/// copy-on-write extent sharing on filesystems that support it (btrfs, XFS
+/// with reflink), transparently degrading to a plain byte copy — still
+/// cheaper than compression — where it doesn't.
+fn materialize_fast_copy(base: &Path, dest: &Path) -> Result<(), LibvirtError> {
+    let out = Command::new("cp")
+        .arg("--reflink=auto")
+        .arg("--sparse=always")
+        .arg(base)
+        .arg(dest)
+        .output()
+        .map_err(|e| LibvirtError::Operation(format!("cp: {e}")))?;
+    if !out.status.success() {
+        let _ = fs::remove_file(dest);
+        return Err(LibvirtError::Operation(format!(
+            "cp --reflink=auto failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        )));
+    }
+    Ok(())
+}
+
 /// Materialize a full copy of `req.golden_image_path` (Cloud Hypervisor's
 /// qcow2 backend rejects a backing-file overlay — see this module's doc
 /// comment), then spawn `cloud-hypervisor` directly as a child of the
@@ -92,7 +119,17 @@ pub async fn boot_sprite_chv(req: &ChvBootRequest<'_>) -> Result<ChvBootResult, 
     let api_socket = run_dir.join("api.sock");
     let vsock_socket = run_dir.join("vsock.sock");
 
-    if let Err(e) = crate::libvirt::template_apply::materialize_from_base(req.golden_image_path, &disk_path, "copy") {
+    let materialize_result = {
+        let src = req.golden_image_path.to_path_buf();
+        let dst = disk_path.clone();
+        // Blocking (cp, potentially a multi-hundred-MB copy) — off the async
+        // executor so a slow copy doesn't stall other requests sharing this
+        // worker thread.
+        tokio::task::spawn_blocking(move || materialize_fast_copy(&src, &dst))
+            .await
+            .unwrap_or_else(|e| Err(LibvirtError::Internal(format!("materialize task join error: {e}"))))
+    };
+    if let Err(e) = materialize_result {
         let _ = fs::remove_dir_all(&run_dir);
         return Err(e);
     }
@@ -103,7 +140,9 @@ pub async fn boot_sprite_chv(req: &ChvBootRequest<'_>) -> Result<ChvBootResult, 
         .arg("--memory")
         .arg(format!("size={}M", req.memory_mb))
         .arg("--disk")
-        .arg(format!("path={}", disk_path.display()))
+        // image_type=qcow2 explicit: without it cloud-hypervisor auto-detects
+        // (deprecated — it warns "specify image type explicitly" every boot).
+        .arg(format!("path={},image_type=qcow2", disk_path.display()))
         .arg("--vsock")
         .arg(format!("cid={},socket={}", req.vsock_cid, vsock_socket.display()))
         .arg("--api-socket")
@@ -268,5 +307,74 @@ mod tests {
         let result = rt.block_on(boot_sprite_chv(&req));
         assert!(result.is_err());
         assert!(!PathBuf::from(SPRITE_RUN_DIR).join(sprite_id).exists());
+    }
+
+    /// Full boot -> teardown lifecycle against a *real* `cloud-hypervisor`
+    /// install — the one thing the tests above deliberately don't cover
+    /// (they only prove the fast-fail-before-any-side-effect path). Skips
+    /// cleanly rather than failing when cloud-hypervisor/its firmware isn't
+    /// installed (most dev/CI hosts) or `SPRITE_RUN_DIR` isn't writable
+    /// (needs root, same as the real daemon) — this is meant to actually run
+    /// wherever both are true, e.g. `sudo cargo test` on a deployed host.
+    ///
+    /// Uses a blank, non-bootable synthetic disk: this only needs to prove
+    /// the VMM process starts and its API socket comes up, which doesn't
+    /// depend on there being a real guest OS on the disk.
+    #[test]
+    fn boot_and_teardown_sprite_chv_full_lifecycle_against_real_cloud_hypervisor() {
+        if find_cloud_hypervisor_binary().is_err() || find_cloud_hypervisor_firmware().is_err() {
+            eprintln!("skipping: cloud-hypervisor or its firmware not installed on this host");
+            return;
+        }
+        if fs::create_dir_all(SPRITE_RUN_DIR).is_err() {
+            eprintln!("skipping: cannot write to {SPRITE_RUN_DIR} (needs root, like the real daemon)");
+            return;
+        }
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let sprite_id = format!("integration-test-{}", std::process::id());
+
+        let golden_path = std::env::temp_dir().join(format!("{sprite_id}-golden.qcow2"));
+        let out = Command::new("qemu-img")
+            .args(["create", "-f", "qcow2", golden_path.to_str().unwrap(), "16M"])
+            .output()
+            .expect("qemu-img create");
+        assert!(
+            out.status.success(),
+            "qemu-img create failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+
+        let boot_result = rt.block_on(boot_sprite_chv(&ChvBootRequest {
+            sprite_id: &sprite_id,
+            golden_image_path: &golden_path,
+            vcpus: 1,
+            memory_mb: 128,
+            // Not going through the daemon's registry allocator (this is a
+            // unit test, not the daemon), so pick something unlikely to
+            // collide with a sprite a live daemon on the same host is
+            // actually running.
+            vsock_cid: 4200 + (std::process::id() % 1000),
+        }));
+
+        let _ = fs::remove_file(&golden_path);
+
+        let result = match boot_result {
+            Ok(r) => r,
+            Err(e) => panic!("boot_sprite_chv failed against a real cloud-hypervisor install: {e}"),
+        };
+        assert!(result.api_socket.exists());
+        assert!(result.disk_path.exists());
+
+        rt.block_on(teardown_sprite_chv(
+            result.pid,
+            &result.api_socket,
+            &result.disk_path,
+            &result.vsock_socket,
+        ))
+        .expect("teardown_sprite_chv");
+
+        assert!(!result.disk_path.exists(), "teardown should remove the disk copy");
+        assert!(!result.api_socket.exists(), "teardown should remove the api socket");
     }
 }
