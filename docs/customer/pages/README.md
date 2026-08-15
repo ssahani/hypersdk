@@ -17,7 +17,7 @@ Every route is also listed in the [complete page index](../PAGE_INDEX.md).
 | [Import VM](core/import.md) | Import VM — Machina Core page at `/import`. |
 | [Services](core/services.md) | Services — Machina Core page at `/services`. |
 | [Wire OpenStack](core/settings.md) | Wire OpenStack — Machina Core page at `/settings?openstack=1`. |
-| [Sprites](core/sprites.md) | Instant, disposable sandbox VMs — boot on libvirt/QEMU or Cloud Hypervisor, TTL-reaped automatically, no persistent state. |
+| [Sprites](core/sprites.md) | Instant, disposable sandbox VMs — boot on libvirt/QEMU, Cloud Hypervisor, or Firecracker, TTL-reaped automatically, no persistent state. |
 | [Virtual Machines](core/vms.md) | Virtual machine inventory for this libvirt host. |
 
 ## Infrastructure

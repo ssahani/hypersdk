@@ -3,7 +3,7 @@
   "/vms": "Virtual machine inventory for this libvirt host.",
   "/create": "Create a new libvirt VM.",
   "/import": "Import VM — Machina Core page at `/import`.",
-  "/sprites": "Instant, disposable sandbox VMs — boot on libvirt/QEMU or Cloud Hypervisor, TTL-reaped automatically, no persistent state.",
+  "/sprites": "Instant, disposable sandbox VMs — boot on libvirt/QEMU, Cloud Hypervisor, or Firecracker, TTL-reaped automatically, no persistent state.",
   "/fleet": "Fleet — Machina Core page at `/fleet`.",
   "/platform": "Mission Control — multi-host platform overview.",
   "/platform/vms": "Fleet VM finder across enrolled hosts.",
