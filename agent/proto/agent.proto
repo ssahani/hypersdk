@@ -5,6 +5,7 @@ service HostAgent {
   rpc Register(RegisterRequest) returns (RegisterResponse);
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
   rpc ListVms(ListVmsRequest) returns (ListVmsResponse);
+  rpc ListSprites(ListSpritesRequest) returns (ListSpritesResponse);
   rpc ListNetworks(ListNetworksRequest) returns (ListNetworksResponse);
   rpc ListStoragePools(ListStoragePoolsRequest) returns (ListStoragePoolsResponse);
   rpc ApplyVm(ApplyVmRequest) returns (ApplyVmResponse);
@@ -109,6 +110,30 @@ message ListVmsRequest {}
 
 message ListVmsResponse {
   repeated VmSummary vms = 1;
+}
+
+// Read-only sprite inventory, proxied from this host's co-located
+// machina-daemon (sprites live only in the daemon's in-memory registry —
+// see sprite_registry.rs — never in this agent or the controller's `vms`
+// table/reconciler).
+message SpriteSummary {
+  string sprite_id = 1;
+  string state = 2;
+  string backend = 3;
+  string created_at = 4;
+  string expires_at = 5;
+  uint32 vsock_cid = 6; // 0 = none
+  bool network_egress = 7;
+}
+
+message ListSpritesRequest {}
+
+message ListSpritesResponse {
+  repeated SpriteSummary sprites = 1;
+  // False when the local daemon couldn't be reached/authenticated — callers
+  // must not treat an empty `sprites` list as "no sprites running" in that case.
+  bool daemon_reachable = 2;
+  string error = 3;
 }
 
 message NetworkSummary {

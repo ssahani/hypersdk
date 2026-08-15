@@ -61,6 +61,7 @@ pub mod recommendations;
 pub mod reconcile;
 pub mod scheduler;
 pub mod soc;
+pub mod sprite_inventory;
 pub mod storage_sync;
 pub mod storage_tiers;
 pub mod template;

@@ -71,6 +71,83 @@ where
     .map_err(|e| e.to_string())
 }
 
+/// Pull the sprite inventory from this host's co-located `machina-daemon`,
+/// authenticated with a short-lived, read-only platform JWT (see
+/// `crate::jwt`). Sprites live only in the daemon's in-memory registry —
+/// this is a pure read for fleet visibility, and never touches the
+/// controller's `vms` table/reconciler.
+async fn fetch_local_sprites() -> anyhow::Result<Vec<SpriteSummary>> {
+    let secret = std::env::var("MACHINA_JWT_SECRET")
+        .map_err(|_| anyhow::anyhow!("MACHINA_JWT_SECRET not set"))?;
+    let token = crate::jwt::issue_local_token(&secret, 60)?;
+    // Same env var + default as the controller's own `daemon_base_url`
+    // (`controller/src/config.rs`) — both point at this host's co-located
+    // daemon.
+    let base = std::env::var("MACHINA_DAEMON_URL")
+        .unwrap_or_else(|_| "http://127.0.0.1:5092".to_string());
+    let base = base.trim_end_matches('/');
+    let path = "/api/v1/sprites";
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        // Loopback self-call to the daemon's own (commonly self-signed) TLS
+        // listener — same trust posture as the controller's KubeVirt sync.
+        .danger_accept_invalid_certs(true)
+        .build()?;
+
+    // Deployments commonly run the daemon TLS-only even on loopback, but
+    // MACHINA_DAEMON_URL defaults to `http://…` — try HTTPS first, fall back
+    // to the URL as configured (mirrors
+    // controller/src/engine/kubevirt_inventory.rs::fetch_inventory_rows).
+    let configured_url = format!("{base}{path}");
+    let (host_port, configured_is_https) = match base.strip_prefix("https://") {
+        Some(rest) => (rest, true),
+        None => (base.strip_prefix("http://").unwrap_or(base), false),
+    };
+    let resp = if configured_is_https {
+        client.get(&configured_url).bearer_auth(&token).send().await?
+    } else {
+        let https_url = format!("https://{host_port}{path}");
+        match client.get(&https_url).bearer_auth(&token).send().await {
+            Ok(r) => r,
+            Err(_) => client.get(&configured_url).bearer_auth(&token).send().await?,
+        }
+    };
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        anyhow::bail!("daemon sprites HTTP {status}: {body}");
+    }
+
+    #[derive(serde::Deserialize)]
+    struct DaemonSpriteHandle {
+        sprite_id: String,
+        state: String,
+        backend: String,
+        created_at: String,
+        expires_at: String,
+        #[serde(default)]
+        vsock_cid: Option<u32>,
+        #[serde(default)]
+        network_egress: bool,
+    }
+
+    let handles: Vec<DaemonSpriteHandle> = resp.json().await?;
+    Ok(handles
+        .into_iter()
+        .map(|h| SpriteSummary {
+            sprite_id: h.sprite_id,
+            state: h.state,
+            backend: h.backend,
+            created_at: h.created_at,
+            expires_at: h.expires_at,
+            vsock_cid: h.vsock_cid.unwrap_or(0),
+            network_egress: h.network_egress,
+        })
+        .collect())
+}
+
 #[tonic::async_trait]
 impl HostAgent for AgentService {
     async fn register(
@@ -144,6 +221,24 @@ impl HostAgent for AgentService {
                 })
                 .collect(),
         }))
+    }
+
+    async fn list_sprites(
+        &self,
+        _request: Request<ListSpritesRequest>,
+    ) -> Result<Response<ListSpritesResponse>, Status> {
+        match fetch_local_sprites().await {
+            Ok(sprites) => Ok(Response::new(ListSpritesResponse {
+                sprites,
+                daemon_reachable: true,
+                error: String::new(),
+            })),
+            Err(e) => Ok(Response::new(ListSpritesResponse {
+                sprites: vec![],
+                daemon_reachable: false,
+                error: e.to_string(),
+            })),
+        }
     }
 
     async fn list_networks(

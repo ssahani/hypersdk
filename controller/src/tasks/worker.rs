@@ -478,11 +478,33 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
         let hb = agent_client::heartbeat(&mut client, &host_id.to_string()).await?;
         let list = agent_client::list_vms(&mut client).await?;
         let info = agent_client::get_host_info(&mut client).await.ok();
-        Ok::<_, anyhow::Error>((hb, list, info))
+        // Best-effort: an agent that predates ListSprites, or whose co-located
+        // daemon is down, must not fail the whole inventory tick over a
+        // purely informational sprite listing.
+        let sprites = agent_client::list_sprites(&mut client).await.ok();
+        Ok::<_, anyhow::Error>((hb, list, info, sprites))
     })
     .await
     .map_err(|_| anyhow::anyhow!("agent inventory RPC timed out for host {host_id}"))??;
-    let (hb, list, info) = inv;
+    let (hb, list, info, sprites) = inv;
+
+    let sprite_snapshot = match sprites {
+        Some(resp) => crate::engine::sprite_inventory::HostSpriteSnapshot {
+            host_id,
+            fetched_at: chrono::Utc::now(),
+            reachable: resp.daemon_reachable,
+            error: (!resp.daemon_reachable && !resp.error.is_empty()).then_some(resp.error),
+            sprites: resp.sprites,
+        },
+        None => crate::engine::sprite_inventory::HostSpriteSnapshot {
+            host_id,
+            fetched_at: chrono::Utc::now(),
+            reachable: false,
+            error: Some("agent does not support ListSprites (upgrade machina-agent)".into()),
+            sprites: vec![],
+        },
+    };
+    state.sprite_inventory.update(sprite_snapshot).await;
 
     sqlx::query(
         // Clear any stale fence flag: a host that just heartbeated is alive and

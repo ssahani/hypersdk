@@ -1,5 +1,51 @@
 # Changelog
 
+## 2026-08-15 — Sprite fleet visibility, and golden-image networking hardening
+
+**New: read-only sprite fleet visibility**, without reversing sprites'
+deliberate exclusion from the controller's SQLite `vms` table/reconciler
+(see `daemon/src/sprite_registry.rs`'s doc comment — sprites stay
+TTL-reaped, disposable, and out of the reconcile-latency path).
+
+- `machina-agent` gained a `ListSprites` gRPC method: it pulls its
+  co-located daemon's `GET /api/v1/sprites` over loopback and relays the
+  result, authenticated with a short-lived, read-only ("viewer") platform
+  JWT it mints itself (`agent/src/jwt.rs`). The daemon now accepts platform
+  JWTs from either `machina-controller` or `machina-agent` as issuer
+  (`daemon/src/auth.rs`) — both rely on the same `MACHINA_JWT_SECRET`
+  operators must already provision consistently for the existing KubeVirt
+  inventory sync to work.
+- The controller's existing per-host `host.inventory` task now also pulls
+  sprite inventory (best-effort — an agent that predates `ListSprites`, or
+  whose co-located daemon is down, doesn't fail the whole inventory tick)
+  into a new in-memory-only cache (`controller/src/engine/sprite_inventory.rs`)
+  — never written to `pool`/`vms`, so a controller restart just starts the
+  cache empty again until the next tick repopulates it.
+- `GET /api/v1/sprites` on the controller — fleet-wide sprite listing
+  (optionally `?host_id=`), backed entirely by that cache, so it never
+  blocks on a slow/unreachable host.
+
+**Golden-image networking, baked in instead of patched live:** the
+`debian-egress-test` golden image only had its DNS fix and `curl` applied
+to a *running* sprite's overlay disk, not the base image — every future
+sprite booted from it would still lack both. Rebuilt directly into the
+base image this time, and expanded well past `curl`: a netshoot-equivalent
+network-debugging toolkit (`ping`, `dig`, `traceroute`, `mtr`, `nc`,
+`tcpdump`, `nmap`, `socat`, `telnet`) — because a disposable sandbox VM
+with only `curl` isn't much of a debugging environment.
+
+- **`guestkit rescue -o install-packages`** (new, upstreamed to the
+  `guestkit` project): bind-mounts `/proc`,`/sys`,`/dev` into the mounted
+  guest root (reusing `grub_repair`'s chroot machinery) and runs
+  `apt-get`/`dnf`/`apk`/`pacman` inside via chroot — `--network`
+  temporarily swaps the guest's `/etc/resolv.conf` for the host's so the
+  package manager can resolve real repositories, restoring the original
+  file afterward regardless of outcome. `virt-customize`'s network backend
+  (`passt`) is broken on this lab host, which is exactly the class of
+  problem this avoids — no libguestfs appliance network stack involved.
+  Verified live: installed `jq` into the real golden image, confirmed it
+  runs on next boot.
+
 ## 2026-08-15 — Sprites: network egress, machinactl, and Cloud Hypervisor fixes found live
 
 Follow-on to the Cloud Hypervisor sprite backend below — everything here

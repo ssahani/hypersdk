@@ -20,6 +20,10 @@ pub struct AppState {
     pub events: broadcast::Sender<String>,
     pub ws_tokens: WsTokenStore,
     pub console_sessions: ConsoleSessionStore,
+    /// Read-only fleet view of sprites, refreshed alongside `host.inventory`
+    /// — never written into `pool` (see `engine::sprite_inventory`'s doc
+    /// comment for why sprites stay out of the `vms` table/reconciler).
+    pub sprite_inventory: crate::engine::sprite_inventory::SpriteInventoryCache,
 }
 
 impl AppState {
@@ -38,6 +42,7 @@ impl AppState {
             events,
             ws_tokens: WsTokenStore::new(),
             console_sessions: ConsoleSessionStore::new(),
+            sprite_inventory: crate::engine::sprite_inventory::SpriteInventoryCache::new(),
         }
     }
 

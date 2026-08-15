@@ -57,6 +57,7 @@ mod projects;
 mod recommendations;
 mod reports;
 mod snapshots;
+mod sprites;
 mod sse;
 mod storage;
 mod storage_tiers;
@@ -119,6 +120,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/hosts/{id}/maintenance", post(hosts::host_maintenance))
         .route("/api/v1/hosts/{id}/cordon", post(hosts::cordon_host))
         .route("/api/v1/vms", get(vms::list_vms).post(vms::create_vm))
+        .route("/api/v1/sprites", get(sprites::list_fleet_sprites))
         .route("/api/v1/vms/prune-missing", post(vms::prune_missing_vms))
         .route(
             "/api/v1/vms/{id}/prune-inventory",

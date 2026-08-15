@@ -430,10 +430,15 @@ fn auth_source_from_platform_jwt(auth: Option<&str>) -> AuthSource {
 /// service/HS256-secret-holder can't be replayed here even if it guesses the secret.
 const PLATFORM_JWT_ISSUER: &str = "machina-controller";
 
+/// Issuer stamped on tokens `agent/src/jwt.rs::issue_local_token` mints for
+/// same-host calls into this daemon (e.g. sprite inventory pull for fleet
+/// visibility) — always `role: "viewer"`, never anything privileged.
+const AGENT_JWT_ISSUER: &str = "machina-agent";
+
 fn actor_from_platform_jwt(token: &str) -> Option<RequestActor> {
     let secret = platform_jwt_secret();
     let mut validation = Validation::default();
-    validation.set_issuer(&[PLATFORM_JWT_ISSUER]);
+    validation.set_issuer(&[PLATFORM_JWT_ISSUER, AGENT_JWT_ISSUER]);
     validation.set_required_spec_claims(&["exp", "iss"]);
     let data = decode::<PlatformJwtClaims>(
         token,

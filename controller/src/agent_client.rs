@@ -156,6 +156,10 @@ pub async fn list_vms(client: &mut AgentClient) -> anyhow::Result<ListVmsRespons
     read_rpc("list_vms", client.list_vms(ListVmsRequest {})).await
 }
 
+pub async fn list_sprites(client: &mut AgentClient) -> anyhow::Result<ListSpritesResponse> {
+    read_rpc("list_sprites", client.list_sprites(ListSpritesRequest {})).await
+}
+
 pub async fn list_networks(
     client: &mut AgentClient,
 ) -> anyhow::Result<ListNetworksResponse> {
