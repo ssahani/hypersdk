@@ -6,11 +6,13 @@ png-guestkit/
 png-hw/
 png-sprites/
 png-egress-cli/
+png-firecracker/
 seg/
 seg-gk/
 seg-hw/
 seg-sprites/
 seg-egress-cli/
+seg-firecracker-batch/
 out/
 *.webm
 *.mp4
