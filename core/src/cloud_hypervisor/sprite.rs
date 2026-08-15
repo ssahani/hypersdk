@@ -31,16 +31,10 @@ use tokio::io::AsyncBufReadExt;
 use tokio::process::Command as TokioCommand;
 use tokio::time::Instant;
 
+use crate::sprite_net::{create_egress_tap, delete_egress_tap, tap_name_for, SPRITE_RUN_DIR};
 use crate::LibvirtError;
 
 use super::{find_ch_remote_binary, find_cloud_hypervisor_binary, find_cloud_hypervisor_firmware};
-
-/// Per-sprite Cloud Hypervisor runtime artifacts (overlay disk, API socket,
-/// vsock socket) live under here, namespaced by sprite id. Separate from
-/// `crate::libvirt::sprite::SPRITE_IMAGES_DIR` (the shared, read-only golden
-/// image registry) since these are per-instance and disposed of on
-/// teardown.
-const SPRITE_RUN_DIR: &str = "/var/lib/machina/sprite-run";
 
 /// Sprites are meant to be near-instant; the API socket typically appears
 /// within tens of milliseconds of the process starting. This bounds how
@@ -83,58 +77,6 @@ pub struct ChvBootResult {
     /// `Some` when `network_egress` was requested — `teardown_sprite_chv`
     /// needs this to remove the TAP device.
     pub tap_name: Option<String>,
-}
-
-/// Bridge sprites-with-egress attach to — the host's pre-existing libvirt
-/// "default" NAT network, not a new one this module sets up (see
-/// `spec::SpriteCreateRequest::network_egress`'s doc comment for why: reuses
-/// existing, already-tested NAT/DHCP infrastructure instead of duplicating
-/// it, at the cost of sharing that network's posture with regular VMs).
-const EGRESS_BRIDGE: &str = "virbr0";
-
-/// Linux interface names are capped at 15 characters (`IFNAMSIZ` is 16
-/// including the nul terminator) — a full sprite UUID doesn't fit, so this
-/// derives a short, still-namespaced name from it.
-fn tap_name_for(sprite_id: &str) -> String {
-    let short: String = sprite_id.chars().filter(|c| c.is_ascii_alphanumeric()).take(8).collect();
-    format!("chv-{short}")
-}
-
-fn run_ip(args: &[&str]) -> Result<(), LibvirtError> {
-    let out = Command::new("ip")
-        .args(args)
-        .output()
-        .map_err(|e| LibvirtError::Operation(format!("ip {args:?}: {e}")))?;
-    if !out.status.success() {
-        return Err(LibvirtError::Operation(format!(
-            "ip {args:?} failed: {}",
-            String::from_utf8_lossy(&out.stderr)
-        )));
-    }
-    Ok(())
-}
-
-/// Create a TAP device and attach it to `EGRESS_BRIDGE`, matching the
-/// libvirt "default" network's own NAT/DHCP setup — `ip tuntap add` +
-/// `ip link set master` + `ip link set up`, cleaning up the TAP again if any
-/// step after creation fails.
-fn create_egress_tap(tap: &str) -> Result<(), LibvirtError> {
-    run_ip(&["tuntap", "add", tap, "mode", "tap"])?;
-    if let Err(e) = run_ip(&["link", "set", tap, "master", EGRESS_BRIDGE]) {
-        delete_egress_tap(tap);
-        return Err(e);
-    }
-    if let Err(e) = run_ip(&["link", "set", tap, "up"]) {
-        delete_egress_tap(tap);
-        return Err(e);
-    }
-    Ok(())
-}
-
-/// Best-effort: also detaches the TAP from its bridge, since deleting the
-/// interface removes it from `EGRESS_BRIDGE` as a side effect.
-fn delete_egress_tap(tap: &str) {
-    let _ = Command::new("ip").args(["link", "del", tap]).output();
 }
 
 /// Full, uncompressed copy of `base` to `dest`. Deliberately doesn't reuse
@@ -187,7 +129,11 @@ pub async fn boot_sprite_chv(req: &ChvBootRequest<'_>) -> Result<ChvBootResult, 
         // worker thread.
         tokio::task::spawn_blocking(move || materialize_fast_copy(&src, &dst))
             .await
-            .unwrap_or_else(|e| Err(LibvirtError::Internal(format!("materialize task join error: {e}"))))
+            .unwrap_or_else(|e| {
+                Err(LibvirtError::Internal(format!(
+                    "materialize task join error: {e}"
+                )))
+            })
     };
     if let Err(e) = materialize_result {
         let _ = fs::remove_dir_all(&run_dir);
@@ -195,7 +141,7 @@ pub async fn boot_sprite_chv(req: &ChvBootRequest<'_>) -> Result<ChvBootResult, 
     }
 
     let tap_name = if req.network_egress {
-        let tap = tap_name_for(req.sprite_id);
+        let tap = tap_name_for("chv-", req.sprite_id);
         if let Err(e) = create_egress_tap(&tap) {
             let _ = fs::remove_dir_all(&run_dir);
             return Err(e);
@@ -216,7 +162,11 @@ pub async fn boot_sprite_chv(req: &ChvBootRequest<'_>) -> Result<ChvBootResult, 
         // (deprecated — it warns "specify image type explicitly" every boot).
         .arg(format!("path={},image_type=qcow2", disk_path.display()))
         .arg("--vsock")
-        .arg(format!("cid={},socket={}", req.vsock_cid, vsock_socket.display()))
+        .arg(format!(
+            "cid={},socket={}",
+            req.vsock_cid,
+            vsock_socket.display()
+        ))
         .arg("--api-socket")
         .arg(format!("path={}", api_socket.display()))
         .arg("--serial")
@@ -250,7 +200,9 @@ pub async fn boot_sprite_chv(req: &ChvBootRequest<'_>) -> Result<ChvBootResult, 
             if let Some(tap) = &tap_name {
                 delete_egress_tap(tap);
             }
-            return Err(LibvirtError::Internal("cloud-hypervisor spawned without a pid".into()));
+            return Err(LibvirtError::Internal(
+                "cloud-hypervisor spawned without a pid".into(),
+            ));
         }
     };
 
@@ -290,7 +242,10 @@ pub async fn boot_sprite_chv(req: &ChvBootRequest<'_>) -> Result<ChvBootResult, 
             // Give the stderr-draining task a moment to catch the process's
             // final lines before reading `last_stderr_line`.
             tokio::time::sleep(Duration::from_millis(50)).await;
-            let last_line = last_stderr_line.lock().map(|l| l.clone()).unwrap_or_default();
+            let last_line = last_stderr_line
+                .lock()
+                .map(|l| l.clone())
+                .unwrap_or_default();
             if let Some(tap) = &tap_name {
                 delete_egress_tap(tap);
             }
@@ -377,6 +332,7 @@ pub async fn teardown_sprite_chv(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sprite_net::EGRESS_BRIDGE;
 
     #[test]
     fn boot_sprite_chv_rejects_bogus_request_without_leaking_run_dir() {
@@ -424,7 +380,9 @@ mod tests {
             return;
         }
         if fs::create_dir_all(SPRITE_RUN_DIR).is_err() {
-            eprintln!("skipping: cannot write to {SPRITE_RUN_DIR} (needs root, like the real daemon)");
+            eprintln!(
+                "skipping: cannot write to {SPRITE_RUN_DIR} (needs root, like the real daemon)"
+            );
             return;
         }
 
@@ -433,7 +391,13 @@ mod tests {
 
         let golden_path = std::env::temp_dir().join(format!("{sprite_id}-golden.qcow2"));
         let out = Command::new("qemu-img")
-            .args(["create", "-f", "qcow2", golden_path.to_str().unwrap(), "16M"])
+            .args([
+                "create",
+                "-f",
+                "qcow2",
+                golden_path.to_str().unwrap(),
+                "16M",
+            ])
             .output()
             .expect("qemu-img create");
         assert!(
@@ -474,8 +438,14 @@ mod tests {
         ))
         .expect("teardown_sprite_chv");
 
-        assert!(!result.disk_path.exists(), "teardown should remove the disk copy");
-        assert!(!result.api_socket.exists(), "teardown should remove the api socket");
+        assert!(
+            !result.disk_path.exists(),
+            "teardown should remove the disk copy"
+        );
+        assert!(
+            !result.api_socket.exists(),
+            "teardown should remove the api socket"
+        );
     }
 
     /// Same lifecycle as above, but with `network_egress: true` — proves the
@@ -490,7 +460,9 @@ mod tests {
             return;
         }
         if fs::create_dir_all(SPRITE_RUN_DIR).is_err() {
-            eprintln!("skipping: cannot write to {SPRITE_RUN_DIR} (needs root, like the real daemon)");
+            eprintln!(
+                "skipping: cannot write to {SPRITE_RUN_DIR} (needs root, like the real daemon)"
+            );
             return;
         }
         if !Command::new("ip")
@@ -508,10 +480,20 @@ mod tests {
 
         let golden_path = std::env::temp_dir().join(format!("{sprite_id}-golden.qcow2"));
         let out = Command::new("qemu-img")
-            .args(["create", "-f", "qcow2", golden_path.to_str().unwrap(), "16M"])
+            .args([
+                "create",
+                "-f",
+                "qcow2",
+                golden_path.to_str().unwrap(),
+                "16M",
+            ])
             .output()
             .expect("qemu-img create");
-        assert!(out.status.success(), "qemu-img create failed: {}", String::from_utf8_lossy(&out.stderr));
+        assert!(
+            out.status.success(),
+            "qemu-img create failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
 
         let boot_result = rt.block_on(boot_sprite_chv(&ChvBootRequest {
             sprite_id: &sprite_id,
@@ -528,15 +510,21 @@ mod tests {
             Ok(r) => r,
             Err(e) => panic!("boot_sprite_chv with network_egress failed: {e}"),
         };
-        let tap = result.tap_name.clone().expect("network_egress requested a TAP");
-        assert_eq!(tap, tap_name_for(&sprite_id));
+        let tap = result
+            .tap_name
+            .clone()
+            .expect("network_egress requested a TAP");
+        assert_eq!(tap, tap_name_for("chv-", &sprite_id));
 
         let tap_exists = Command::new("ip")
             .args(["link", "show", &tap])
             .output()
             .map(|o| o.status.success())
             .unwrap_or(false);
-        assert!(tap_exists, "TAP {tap} should exist while the sprite is running");
+        assert!(
+            tap_exists,
+            "TAP {tap} should exist while the sprite is running"
+        );
 
         rt.block_on(teardown_sprite_chv(
             result.pid,

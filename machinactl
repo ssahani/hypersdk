@@ -882,7 +882,7 @@ cmd_sprite() {
                 esac
             done
             if [[ -z "$golden_image" ]]; then
-                err "Usage: machinactl sprite create --golden-image NAME [--vcpus N] [--memory-mb N] [--ttl-seconds N] [--backend libvirt|cloudhypervisor] [--network-egress]"
+                err "Usage: machinactl sprite create --golden-image NAME [--vcpus N] [--memory-mb N] [--ttl-seconds N] [--backend libvirt|cloudhypervisor|firecracker] [--network-egress]"
                 exit 1
             fi
             local body
@@ -908,7 +908,7 @@ cmd_sprite() {
             echo "  machinactl sprite get <id>"
             echo "  machinactl sprite golden-images"
             echo "  machinactl sprite create --golden-image NAME [--vcpus N] [--memory-mb N] \\"
-            echo "                            [--ttl-seconds N] [--backend libvirt|cloudhypervisor] [--network-egress]"
+            echo "                            [--ttl-seconds N] [--backend libvirt|cloudhypervisor|firecracker] [--network-egress]"
             echo "  machinactl sprite delete <id>"
             echo ""
             echo "Create/delete need write access — set MACHINA_API_TOKEN to a Bearer token"

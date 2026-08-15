@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Instant, disposable sandbox VMs — boot on libvirt/QEMU or Cloud Hypervisor, TTL-reaped automatically, no persistent state.
+Instant, disposable sandbox VMs — boot on libvirt/QEMU, Cloud Hypervisor, or Firecracker, TTL-reaped automatically, no persistent state.
 
 ## When to use it
 
@@ -19,10 +19,13 @@ Instant, disposable sandbox VMs — boot on libvirt/QEMU or Cloud Hypervisor, TT
 
 1. **New Sprite** — pick a golden image (from the daemon's
    `/var/lib/machina/sprite-images` registry), size it (vCPUs, memory), set
-   a TTL, and choose a backend: **Libvirt** (default, instant COW clone) or
+   a TTL, and choose a backend: **Libvirt** (default, instant COW clone),
    **Cloud Hypervisor** (a direct child process of the daemon, no libvirtd
    in the path — boots off a full disk copy instead, so first boot is
-   slower).
+   slower), or **Firecracker** (also a direct child process — converts the
+   golden image to a raw root filesystem on every boot, so first boot is
+   the slowest of the three, but the resulting microVM has the smallest
+   footprint).
 2. **Network egress** (optional, off by default) — attaches the sprite to
    the host's existing "default" NAT network for outbound internet access.
    Sprites stay vsock-only otherwise. Shares that network's posture with

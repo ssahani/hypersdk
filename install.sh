@@ -368,6 +368,7 @@ install_deps() {
     ensure_packer
     ensure_helm
     ensure_cloud_hypervisor
+    ensure_firecracker
     install_openstack_clients
 }
 
@@ -506,6 +507,103 @@ ensure_cloud_hypervisor() {
     install -Dm644 /tmp/CLOUDHV.fd "$firmware_path"
     rm -f /tmp/cloud-hypervisor /tmp/ch-remote /tmp/CLOUDHV.fd
     ok "Cloud Hypervisor ${ver} -> /usr/local/bin/cloud-hypervisor, /usr/local/bin/ch-remote, firmware -> ${firmware_path}"
+}
+
+# Firecracker — VMM backend for the "firecracker" sprite backend
+# (core/src/firecracker/), a third alternative alongside libvirt and Cloud
+# Hypervisor. Same optional posture as ensure_cloud_hypervisor: a failed or
+# skipped install here doesn't fail the overall install — sprites still
+# work via libvirt/Cloud Hypervisor, and machina-daemon reports a clear
+# error only if a caller actually requests backend: "firecracker" on a host
+# without it.
+#
+# Unlike Cloud Hypervisor's CLOUDHV.fd (a stable, versioned release
+# artifact), Firecracker has no bootloader/BIOS at all — it boots a
+# host-supplied Linux kernel (vmlinux) directly. There's no equally stable
+# "official" kernel release to point at, so this fetches one from
+# Firecracker's own CI artifact bucket, the same source its own
+# getting-started guide uses for quick-start/testing. That bucket is
+# explicitly CI-artifact, not a version-pinned production channel — if this
+# step's kernel selection logic ever breaks, check
+# https://github.com/firecracker-microvm/firecracker/blob/main/docs/getting-started.md
+# for the current commands before assuming this script is still correct.
+# Override version: FIRECRACKER_VERSION=v1.10.0 sudo ./install.sh
+ensure_firecracker() {
+    local kernel_dir="/usr/local/share/firecracker"
+    local kernel_path="${kernel_dir}/vmlinux"
+    if command -v firecracker &>/dev/null && [ -f "$kernel_path" ]; then
+        info "Firecracker: $(command -v firecracker) ($(firecracker --version 2>/dev/null | head -n1 || echo ok)), kernel at ${kernel_path}"
+        return 0
+    fi
+    step "Installing Firecracker (optional — firecracker sprite backend)"
+    local machine
+    machine=$(uname -m)
+    case "$machine" in
+        x86_64|aarch64) ;;
+        *)
+            warn "Unknown uname -m=$machine — skipping Firecracker install (sprites still work via libvirt/Cloud Hypervisor)"
+            return 0
+            ;;
+    esac
+
+    local release_url="https://github.com/firecracker-microvm/firecracker/releases"
+    local ver="${FIRECRACKER_VERSION:-}"
+    if [ -z "$ver" ]; then
+        ver=$(basename "$(curl -fsSLI -o /dev/null -w '%{url_effective}' "${release_url}/latest")")
+    fi
+    if [ -z "$ver" ]; then
+        warn "Could not determine latest Firecracker release — firecracker sprite backend will be unavailable"
+        return 0
+    fi
+    if ! curl -fsSL -o /tmp/firecracker.tgz "${release_url}/download/${ver}/firecracker-${ver}-${machine}.tgz"; then
+        warn "Failed to download Firecracker ${ver} — firecracker sprite backend will be unavailable (sprites still work via libvirt/Cloud Hypervisor)"
+        return 0
+    fi
+    rm -rf /tmp/firecracker-extract && mkdir -p /tmp/firecracker-extract
+    if ! tar -xzf /tmp/firecracker.tgz -C /tmp/firecracker-extract; then
+        warn "Failed to extract Firecracker ${ver} archive — firecracker sprite backend will be unavailable"
+        rm -f /tmp/firecracker.tgz
+        rm -rf /tmp/firecracker-extract
+        return 0
+    fi
+    local fc_bin="/tmp/firecracker-extract/release-${ver}-${machine}/firecracker-${ver}-${machine}"
+    if [ ! -f "$fc_bin" ]; then
+        warn "Firecracker ${ver} archive layout unexpected (${fc_bin} missing) — firecracker sprite backend will be unavailable"
+        rm -f /tmp/firecracker.tgz
+        rm -rf /tmp/firecracker-extract
+        return 0
+    fi
+
+    # CI kernel bucket lookup — mirrors Firecracker's own getting-started
+    # guide verbatim (see this function's doc comment).
+    local s3="https://s3.amazonaws.com/spec.ccfc.min"
+    local ci_prefix latest_kernel_key
+    # `|| true` on each pipeline: under this script's `set -eo pipefail`, a
+    # zero-match grep (or a failed curl) makes the whole pipeline's exit
+    # status non-zero, which without this would abort the *entire* install
+    # instead of falling through to the graceful "kernel unavailable"
+    # warning below — exactly the failure mode this optional step must not
+    # cause.
+    ci_prefix=$( (curl -fsSL "${s3}?list-type=2&prefix=firecracker-ci/&delimiter=/" \
+        | grep -oP "(?<=<Prefix>)firecracker-ci/[0-9]{8}-[^/]+/(?=</Prefix>)" \
+        | sort | tail -1) || true)
+    if [ -n "$ci_prefix" ]; then
+        latest_kernel_key=$( (curl -fsSL "${s3}?list-type=2&prefix=${ci_prefix}${machine}/vmlinux-" \
+            | grep -oP "(?<=<Key>)(${ci_prefix}${machine}/vmlinux-[0-9]+\.[0-9]+\.[0-9]{1,3})(?=</Key>)" \
+            | sort -V | tail -1) || true)
+    fi
+    if [ -z "${latest_kernel_key:-}" ] || ! curl -fsSL -o /tmp/vmlinux "${s3}/${latest_kernel_key}"; then
+        warn "Failed to fetch a Firecracker CI kernel (vmlinux) — firecracker sprite backend will be unavailable until one is placed at ${kernel_path}"
+        rm -f /tmp/firecracker.tgz /tmp/vmlinux
+        rm -rf /tmp/firecracker-extract
+        return 0
+    fi
+
+    install -Dm755 "$fc_bin" /usr/local/bin/firecracker
+    install -Dm644 /tmp/vmlinux "$kernel_path"
+    rm -f /tmp/firecracker.tgz /tmp/vmlinux
+    rm -rf /tmp/firecracker-extract
+    ok "Firecracker ${ver} -> /usr/local/bin/firecracker, kernel -> ${kernel_path}"
 }
 
 # Host tools required for mkosi image builds.

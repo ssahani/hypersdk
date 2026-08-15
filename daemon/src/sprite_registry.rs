@@ -11,9 +11,10 @@
 //! why this isn't wired into the controller's `vms` table / reconciler at
 //! all.
 //!
-//! Backend-agnostic: a sprite boots on either libvirt/QEMU
-//! (`machina_core::libvirt::sprite`) or Cloud Hypervisor
-//! (`machina_core::cloud_hypervisor::sprite`) — see `SpriteBackendHandle`.
+//! Backend-agnostic: a sprite boots on libvirt/QEMU
+//! (`machina_core::libvirt::sprite`), Cloud Hypervisor
+//! (`machina_core::cloud_hypervisor::sprite`), or Firecracker
+//! (`machina_core::firecracker::sprite`) — see `SpriteBackendHandle`.
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -22,6 +23,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use machina_core::cloud_hypervisor::sprite::teardown_sprite_chv;
+use machina_core::firecracker::sprite::teardown_sprite_fc;
 use machina_core::libvirt::domain::{delete_vm_with_options, UndefineOptions};
 use machina_core::LibvirtManager;
 use machina_spec::{SpriteBackend, SpriteHandle, SpriteState};
@@ -49,15 +51,25 @@ const FIRST_VSOCK_CID: u32 = 3;
 
 /// Identifies which hypervisor booted a sprite and what's needed to tear it
 /// down. Libvirt sprites are supervised by libvirtd (`domain_name` is
-/// enough to find and destroy the domain); Cloud Hypervisor sprites are
-/// supervised directly by this daemon as a child process, so their handle
-/// carries everything `teardown_sprite_chv` needs.
+/// enough to find and destroy the domain); Cloud Hypervisor and Firecracker
+/// sprites are supervised directly by this daemon as a child process, so
+/// their handles carry everything `teardown_sprite_chv`/`teardown_sprite_fc`
+/// need.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SpriteBackendHandle {
     Libvirt {
         domain_name: String,
     },
     CloudHypervisor {
+        pid: u32,
+        api_socket: PathBuf,
+        disk_path: PathBuf,
+        vsock_socket: PathBuf,
+        /// `Some` when the sprite was booted with `network_egress` — needed
+        /// so teardown can remove the TAP device.
+        tap_name: Option<String>,
+    },
+    Firecracker {
         pid: u32,
         api_socket: PathBuf,
         disk_path: PathBuf,
@@ -76,6 +88,7 @@ impl SpriteBackendHandle {
         match self {
             SpriteBackendHandle::Libvirt { .. } => SpriteBackend::Libvirt,
             SpriteBackendHandle::CloudHypervisor { .. } => SpriteBackend::CloudHypervisor,
+            SpriteBackendHandle::Firecracker { .. } => SpriteBackend::Firecracker,
         }
     }
 
@@ -83,7 +96,10 @@ impl SpriteBackendHandle {
     pub(crate) fn describe(&self) -> String {
         match self {
             SpriteBackendHandle::Libvirt { domain_name } => domain_name.clone(),
-            SpriteBackendHandle::CloudHypervisor { pid, .. } => format!("cloud-hypervisor pid {pid}"),
+            SpriteBackendHandle::CloudHypervisor { pid, .. } => {
+                format!("cloud-hypervisor pid {pid}")
+            }
+            SpriteBackendHandle::Firecracker { pid, .. } => format!("firecracker pid {pid}"),
         }
     }
 }
@@ -136,7 +152,10 @@ impl SpriteRegistry {
     /// churn stays well below `u32`'s range, so a CID leaked on a failed
     /// boot isn't worth the extra plumbing to reclaim.
     pub fn next_vsock_cid(&self) -> u32 {
-        let mut claimed = self.claimed_vsock_cids.lock().unwrap_or_else(|e| e.into_inner());
+        let mut claimed = self
+            .claimed_vsock_cids
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let mut candidate = FIRST_VSOCK_CID;
         while claimed.contains(&candidate) {
             candidate += 1;
@@ -250,9 +269,12 @@ impl SpriteRegistry {
 /// `NotFound` short-circuit — so a reaper retry after a partial failure is
 /// safe.
 ///
-/// Cloud Hypervisor: `teardown_sprite_chv` applies the same "already gone
-/// is success" rule for the same reason.
-pub async fn teardown_sprite(manager: &LibvirtManager, backend: SpriteBackendHandle) -> Result<(), String> {
+/// Cloud Hypervisor and Firecracker: `teardown_sprite_chv`/`teardown_sprite_fc`
+/// apply the same "already gone is success" rule for the same reason.
+pub async fn teardown_sprite(
+    manager: &LibvirtManager,
+    backend: SpriteBackendHandle,
+) -> Result<(), String> {
     match backend {
         SpriteBackendHandle::Libvirt { domain_name } => {
             let mgr = manager.clone();
@@ -279,7 +301,32 @@ pub async fn teardown_sprite(manager: &LibvirtManager, backend: SpriteBackendHan
             disk_path,
             vsock_socket,
             tap_name,
-        } => teardown_sprite_chv(pid, &api_socket, &disk_path, &vsock_socket, tap_name.as_deref()).await,
+        } => {
+            teardown_sprite_chv(
+                pid,
+                &api_socket,
+                &disk_path,
+                &vsock_socket,
+                tap_name.as_deref(),
+            )
+            .await
+        }
+        SpriteBackendHandle::Firecracker {
+            pid,
+            api_socket,
+            disk_path,
+            vsock_socket,
+            tap_name,
+        } => {
+            teardown_sprite_fc(
+                pid,
+                &api_socket,
+                &disk_path,
+                &vsock_socket,
+                tap_name.as_deref(),
+            )
+            .await
+        }
     }
 }
 
@@ -300,7 +347,9 @@ pub fn spawn_reaper(manager: LibvirtManager, registry: SpriteRegistry) {
                 let label = backend.describe();
                 match teardown_sprite(&manager, backend).await {
                     Ok(()) => tracing::info!("sprite reaper: tore down {id} ({label})"),
-                    Err(e) => tracing::warn!("sprite reaper: failed to tear down {id} ({label}): {e}"),
+                    Err(e) => {
+                        tracing::warn!("sprite reaper: failed to tear down {id} ({label}): {e}")
+                    }
                 }
             }
         }
@@ -327,14 +376,32 @@ mod tests {
         }
     }
 
+    fn fc_backend(pid: u32) -> SpriteBackendHandle {
+        SpriteBackendHandle::Firecracker {
+            pid,
+            api_socket: PathBuf::from(format!("/var/lib/machina/sprite-run/{pid}/api.sock")),
+            disk_path: PathBuf::from(format!("/var/lib/machina/sprite-run/{pid}/disk.raw")),
+            vsock_socket: PathBuf::from(format!("/var/lib/machina/sprite-run/{pid}/vsock.sock")),
+            tap_name: None,
+        }
+    }
+
     #[test]
     fn register_then_get_round_trips() {
         let reg = SpriteRegistry::new();
         let handle = reg
-            .register("abc".into(), libvirt_backend("sprite-abc"), 300, Some(3), false)
+            .register(
+                "abc".into(),
+                libvirt_backend("sprite-abc"),
+                300,
+                Some(3),
+                false,
+            )
             .unwrap();
         assert_eq!(handle.sprite_id, "abc");
-        let fetched = reg.get(&handle.sprite_id).expect("registered sprite present");
+        let fetched = reg
+            .get(&handle.sprite_id)
+            .expect("registered sprite present");
         assert_eq!(fetched.sprite_id, handle.sprite_id);
         assert_eq!(fetched.vsock_cid, Some(3));
         assert_eq!(fetched.state, SpriteState::Running);
@@ -345,7 +412,13 @@ mod tests {
     fn register_reports_network_egress() {
         let reg = SpriteRegistry::new();
         let handle = reg
-            .register("egress1".into(), libvirt_backend("sprite-egress1"), 300, Some(3), true)
+            .register(
+                "egress1".into(),
+                libvirt_backend("sprite-egress1"),
+                300,
+                Some(3),
+                true,
+            )
             .unwrap();
         assert!(handle.network_egress);
         assert!(reg.get(&handle.sprite_id).unwrap().network_egress);
@@ -354,8 +427,19 @@ mod tests {
     #[test]
     fn register_reports_cloud_hypervisor_backend_kind() {
         let reg = SpriteRegistry::new();
-        let handle = reg.register("chv-kind".into(), chv_backend(1), 300, Some(3), false).unwrap();
+        let handle = reg
+            .register("chv-kind".into(), chv_backend(1), 300, Some(3), false)
+            .unwrap();
         assert_eq!(handle.backend, SpriteBackend::CloudHypervisor);
+    }
+
+    #[test]
+    fn register_reports_firecracker_backend_kind() {
+        let reg = SpriteRegistry::new();
+        let handle = reg
+            .register("fc-kind".into(), fc_backend(1), 300, Some(3), false)
+            .unwrap();
+        assert_eq!(handle.backend, SpriteBackend::Firecracker);
     }
 
     #[test]
@@ -368,9 +452,18 @@ mod tests {
     fn remove_returns_backend_handle_once() {
         let reg = SpriteRegistry::new();
         let handle = reg
-            .register("xyz".into(), libvirt_backend("sprite-xyz"), 300, None, false)
+            .register(
+                "xyz".into(),
+                libvirt_backend("sprite-xyz"),
+                300,
+                None,
+                false,
+            )
             .unwrap();
-        assert_eq!(reg.remove(&handle.sprite_id), Some(libvirt_backend("sprite-xyz")));
+        assert_eq!(
+            reg.remove(&handle.sprite_id),
+            Some(libvirt_backend("sprite-xyz"))
+        );
         // Second remove is a no-op, not an error — the reaper and an explicit
         // DELETE could race on the same id.
         assert_eq!(reg.remove(&handle.sprite_id), None);
@@ -381,8 +474,21 @@ mod tests {
     fn register_and_remove_round_trips_cloud_hypervisor_backend() {
         let reg = SpriteRegistry::new();
         let backend = chv_backend(4242);
-        let handle = reg.register("chv1".into(), backend.clone(), 300, Some(7), false).unwrap();
+        let handle = reg
+            .register("chv1".into(), backend.clone(), 300, Some(7), false)
+            .unwrap();
         assert_eq!(reg.get(&handle.sprite_id).unwrap().vsock_cid, Some(7));
+        assert_eq!(reg.remove(&handle.sprite_id), Some(backend));
+    }
+
+    #[test]
+    fn register_and_remove_round_trips_firecracker_backend() {
+        let reg = SpriteRegistry::new();
+        let backend = fc_backend(5252);
+        let handle = reg
+            .register("fc1".into(), backend.clone(), 300, Some(8), false)
+            .unwrap();
+        assert_eq!(reg.get(&handle.sprite_id).unwrap().vsock_cid, Some(8));
         assert_eq!(reg.remove(&handle.sprite_id), Some(backend));
     }
 
@@ -390,10 +496,22 @@ mod tests {
     fn expired_ids_only_returns_past_ttl() {
         let reg = SpriteRegistry::new();
         let long_lived = reg
-            .register("long".into(), libvirt_backend("sprite-long"), 3600, None, false)
+            .register(
+                "long".into(),
+                libvirt_backend("sprite-long"),
+                3600,
+                None,
+                false,
+            )
             .unwrap();
         let already_expired = reg
-            .register("expired".into(), libvirt_backend("sprite-expired"), 0, None, false)
+            .register(
+                "expired".into(),
+                libvirt_backend("sprite-expired"),
+                0,
+                None,
+                false,
+            )
             .unwrap();
         // ttl_seconds=0 means expires_at == created_at, which is <= now by
         // the time expired_ids() runs.
@@ -405,9 +523,13 @@ mod tests {
     #[test]
     fn list_returns_all_registered_handles() {
         let reg = SpriteRegistry::new();
-        reg.register("a".into(), libvirt_backend("sprite-a"), 300, None, false).unwrap();
-        reg.register("b".into(), chv_backend(99), 300, None, false).unwrap();
-        assert_eq!(reg.list().len(), 2);
+        reg.register("a".into(), libvirt_backend("sprite-a"), 300, None, false)
+            .unwrap();
+        reg.register("b".into(), chv_backend(99), 300, None, false)
+            .unwrap();
+        reg.register("c".into(), fc_backend(100), 300, None, false)
+            .unwrap();
+        assert_eq!(reg.list().len(), 3);
     }
 
     #[test]
@@ -447,7 +569,9 @@ mod tests {
     fn removing_a_sprite_frees_its_vsock_cid_for_reuse() {
         let reg = SpriteRegistry::new();
         let cid = reg.next_vsock_cid();
-        let handle = reg.register("chv1".into(), chv_backend(1), 300, Some(cid), false).unwrap();
+        let handle = reg
+            .register("chv1".into(), chv_backend(1), 300, Some(cid), false)
+            .unwrap();
         reg.remove(&handle.sprite_id);
 
         // The registry has no other claims left, so the freed CID is the

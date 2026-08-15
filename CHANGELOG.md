@@ -1,5 +1,59 @@
 # Changelog
 
+## 2026-08-15 — Firecracker: a third sprite backend
+
+Sprites (`POST /v1/sprites`) can now boot on **Firecracker** as well as
+libvirt/QEMU and Cloud Hypervisor — select via `backend: "firecracker"`.
+Same disposable/TTL-reaped/destroy-only model as the other two backends
+(`core/src/firecracker/`, mirrors `core/src/cloud_hypervisor/` closely
+enough to diff side-by-side), with two real differences:
+
+- **API-driven, not CLI-flag-driven.** `firecracker` starts serving only
+  its control API over a Unix socket; boot config (vcpus/memory, kernel,
+  drive, vsock, network interface) is a sequence of `PUT` calls, and the
+  machine only actually boots on `PUT /actions {"action_type":"InstanceStart"}`.
+  Each call shells `curl --unix-socket`, matching this project's existing
+  "shell the CLI, don't link an HTTP client" convention.
+- **Raw disk, no partition table.** Firecracker's drive backend is
+  raw-only, and — a real bug found and fixed via a live boot, not
+  assumed — it auto-appends `root=/dev/vda rw` (unpartitioned) for
+  whichever drive has `is_root_device: true`, *after* whatever `boot_args`
+  the caller supplies, so a caller-set `root=/dev/vda1` silently loses
+  (kernel takes the last `root=` on the line; documented upstream as
+  firecracker-microvm/firecracker#2709). Every golden image is a
+  GPT-partitioned qcow2, so `materialize_raw_disk` now extracts partition
+  1's content into an unpartitioned raw file (parsing `sfdisk -d`, `dd`-ing
+  just that byte range) instead of handing Firecracker a whole partitioned
+  disk — confirmed live: booting the full converted disk kernel-panicked
+  with "Unable to mount root fs on /dev/vda"; booting the extracted
+  partition mounts cleanly and boots straight through to a DHCP lease.
+  Runs on every boot (no pre-extracted sibling file required), at a real
+  cost — ~97s for the ~8.6 GB `debian-egress-test` golden image on this
+  lab host, the slowest boot of the three backends.
+- Firecracker itself needs no built-in BIOS/bootloader/qcow2 support the
+  way the other two backends' quirks did — it boots a host-supplied kernel
+  (`vmlinux`) directly. `install.sh`'s `ensure_firecracker` fetches the
+  `firecracker`/`jailer` release tarball and a prebuilt `vmlinux` from
+  Firecracker's own CI kernel bucket (the same source its getting-started
+  guide uses) — optional, warn-and-continue on any fetch failure, same
+  posture as `ensure_cloud_hypervisor`.
+- `core/src/sprite_net.rs` (new) — promoted the TAP/bridge helpers,
+  `SPRITE_RUN_DIR`, and VMM-binary discovery out of `cloud_hypervisor` into
+  a shared module both backends now use, ahead of a third backend needing
+  the same thing a third time.
+- Jailer sandboxing (Firecracker's own chroot/cgroup/seccomp isolation) is
+  deliberately out of scope for this pass — `firecracker` runs as a direct,
+  unsandboxed daemon child, same posture Cloud Hypervisor already has.
+  Documented as a future hardening item, not silently dropped.
+
+Verified live end-to-end on a real host: real `firecracker`/`vmlinux`
+install via `ensure_firecracker`, a real sprite boot against the fully
+network-hardened `debian-egress-test` golden image (DHCP lease, SSH login,
+`networkctl status`, `curl https://github.com` → `HTTP 200`), clean
+teardown (process/TAP/run-dir all gone), automatic TTL reaping, and three
+concurrent sprites — one per backend — drawing distinct vsock CIDs (3, 4,
+5) from the same shared, backend-agnostic allocator with no collision.
+
 ## 2026-08-15 — Sprite fleet visibility, and golden-image networking hardening
 
 **New: read-only sprite fleet visibility**, without reversing sprites'

@@ -45,7 +45,9 @@ function stateTone(state: string): Tone {
 }
 
 function backendLabel(backend: string): string {
-  return backend === 'cloudhypervisor' ? 'Cloud Hypervisor' : 'Libvirt'
+  if (backend === 'cloudhypervisor') return 'Cloud Hypervisor'
+  if (backend === 'firecracker') return 'Firecracker'
+  return 'Libvirt'
 }
 
 /** "expires in 4m 12s" / "expired" — recomputed on every poll tick, not a live per-second ticker. */
@@ -347,7 +349,7 @@ function NewSpriteModal({ open, onClose, onCreated }: { open: boolean; onClose: 
           <div className="space-y-1.5">
             <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">Backend</span>
             <div className="flex gap-2">
-              {(['libvirt', 'cloudhypervisor'] as const).map((b) => (
+              {(['libvirt', 'cloudhypervisor', 'firecracker'] as const).map((b) => (
                 <button
                   key={b}
                   type="button"

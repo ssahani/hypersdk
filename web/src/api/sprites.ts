@@ -7,7 +7,7 @@ import { readJsonArray, apiGet, apiPost, apiDelete } from './client'
 const API = '/api/v1'
 
 export type SpriteState = 'booting' | 'running' | 'reaping' | 'gone'
-export type SpriteBackend = 'libvirt' | 'cloudhypervisor'
+export type SpriteBackend = 'libvirt' | 'cloudhypervisor' | 'firecracker'
 
 export interface SpriteHandle {
   sprite_id: string

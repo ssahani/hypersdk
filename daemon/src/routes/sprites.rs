@@ -11,8 +11,9 @@
 //! sprites design doc for the full rationale.
 //!
 //! Backend-agnostic: `req.backend` picks libvirt/QEMU
-//! (`machina_core::libvirt::sprite`, the original path) or Cloud Hypervisor
-//! (`machina_core::cloud_hypervisor::sprite`) to boot the sprite on.
+//! (`machina_core::libvirt::sprite`, the original path), Cloud Hypervisor
+//! (`machina_core::cloud_hypervisor::sprite`), or Firecracker
+//! (`machina_core::firecracker::sprite`) to boot the sprite on.
 
 use std::sync::Arc;
 
@@ -22,7 +23,10 @@ use axum::{Json, Router};
 use virt::connect::Connect;
 
 use machina_core::cloud_hypervisor::sprite::{boot_sprite_chv, ChvBootRequest};
-use machina_core::libvirt::sprite::{boot_sprite, list_golden_images, resolve_golden_image, SpriteBootRequest};
+use machina_core::firecracker::sprite::{boot_sprite_fc, FcBootRequest};
+use machina_core::libvirt::sprite::{
+    boot_sprite, list_golden_images, resolve_golden_image, SpriteBootRequest,
+};
 use machina_core::{audit, AuditEvent, LibvirtError, LibvirtManager};
 use machina_spec::{sprite_domain_name, SpriteBackend, SpriteCreateRequest, SpriteHandle};
 
@@ -72,7 +76,9 @@ async fn create_sprite(
             let domain_name_for_boot = domain_name.clone();
             let boot_result = tokio::task::spawn_blocking(move || -> Result<_, LibvirtError> {
                 let conn = Connect::open(Some(&libvirt_uri)).map_err(|e| {
-                    LibvirtError::Connection(format!("Failed to connect to libvirt ({libvirt_uri}): {e}"))
+                    LibvirtError::Connection(format!(
+                        "Failed to connect to libvirt ({libvirt_uri}): {e}"
+                    ))
                 })?;
                 let golden_image_path = resolve_golden_image(&golden_image)?;
                 boot_sprite(
@@ -167,17 +173,79 @@ async fn create_sprite(
                 audit_target,
             )
         }
+        SpriteBackend::Firecracker => {
+            // Same reasoning as Cloud Hypervisor: Firecracker requires an
+            // explicit guest CID, allocated from the same host-wide,
+            // backend-agnostic counter so it can't collide with a
+            // concurrently-running sprite of any backend.
+            let vsock_cid = registry.next_vsock_cid();
+            let audit_target = sprite_domain_name(&sprite_id);
+
+            let golden_image_path = match resolve_golden_image(&req.golden_image) {
+                Ok(p) => p,
+                Err(e) => {
+                    log_audit(
+                        "sprite_create",
+                        &audit_target,
+                        &format!("fail: {e}").chars().take(500).collect::<String>(),
+                    );
+                    return Err(AppError::from(e));
+                }
+            };
+
+            let boot_result = boot_sprite_fc(&FcBootRequest {
+                sprite_id: &sprite_id,
+                golden_image_path: &golden_image_path,
+                vcpus: req.vcpus,
+                memory_mb: req.memory_mb,
+                vsock_cid,
+                network_egress: req.network_egress,
+            })
+            .await;
+
+            let boot_result = match boot_result {
+                Ok(r) => r,
+                Err(e) => {
+                    log_audit(
+                        "sprite_create",
+                        &audit_target,
+                        &format!("fail: {e}").chars().take(500).collect::<String>(),
+                    );
+                    return Err(AppError::from(e));
+                }
+            };
+
+            (
+                SpriteBackendHandle::Firecracker {
+                    pid: boot_result.pid,
+                    api_socket: boot_result.api_socket,
+                    disk_path: boot_result.disk_path,
+                    vsock_socket: boot_result.vsock_socket,
+                    tap_name: boot_result.tap_name,
+                },
+                Some(vsock_cid),
+                audit_target,
+            )
+        }
     };
 
     let handle = registry
-        .register(sprite_id.clone(), backend_handle, req.ttl_seconds, vsock_cid, req.network_egress)
+        .register(
+            sprite_id.clone(),
+            backend_handle,
+            req.ttl_seconds,
+            vsock_cid,
+            req.network_egress,
+        )
         .map_err(|e| AppError::from(LibvirtError::Internal(e.into())))?;
 
     log_audit("sprite_create", &audit_target, "ok");
     Ok(Json(handle))
 }
 
-async fn list_sprites(Extension(registry): Extension<Arc<SpriteRegistry>>) -> Json<Vec<SpriteHandle>> {
+async fn list_sprites(
+    Extension(registry): Extension<Arc<SpriteRegistry>>,
+) -> Json<Vec<SpriteHandle>> {
     Json(registry.list())
 }
 

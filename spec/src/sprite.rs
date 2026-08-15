@@ -39,6 +39,7 @@ pub enum SpriteBackend {
     #[default]
     Libvirt,
     CloudHypervisor,
+    Firecracker,
 }
 
 fn default_vcpus() -> u32 {
@@ -237,10 +238,8 @@ mod tests {
 
     #[test]
     fn backend_defaults_to_libvirt_when_omitted() {
-        let req: SpriteCreateRequest = serde_json::from_str(
-            r#"{"golden_image":"python-minimal"}"#,
-        )
-        .unwrap();
+        let req: SpriteCreateRequest =
+            serde_json::from_str(r#"{"golden_image":"python-minimal"}"#).unwrap();
         assert_eq!(req.backend, SpriteBackend::Libvirt);
     }
 
@@ -255,11 +254,19 @@ mod tests {
     }
 
     #[test]
+    fn backend_round_trips_firecracker() {
+        let mut req = base_request();
+        req.backend = SpriteBackend::Firecracker;
+        let json = serde_json::to_string(&req).unwrap();
+        assert!(json.contains(r#""backend":"firecracker""#));
+        let round_tripped: SpriteCreateRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(round_tripped.backend, SpriteBackend::Firecracker);
+    }
+
+    #[test]
     fn network_egress_defaults_to_false_when_omitted() {
-        let req: SpriteCreateRequest = serde_json::from_str(
-            r#"{"golden_image":"python-minimal"}"#,
-        )
-        .unwrap();
+        let req: SpriteCreateRequest =
+            serde_json::from_str(r#"{"golden_image":"python-minimal"}"#).unwrap();
         assert!(!req.network_egress);
     }
 
