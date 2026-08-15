@@ -2,7 +2,7 @@
 
 Every primary navigable dashboard route.
 
-_Generated: 2026-07-26 · 100 routes_
+_Generated: 2026-08-15 · 101 routes_
 
 Regenerate: `node scripts/customer-docs/generate-page-index.mjs`
 
@@ -14,6 +14,7 @@ Regenerate: `node scripts/customer-docs/generate-page-index.mjs`
 | Virtual Machines | `/vms` | Virtual machine inventory for this libvirt host. | [Open](pages/core/vms.md) |
 | Create VM | `/create` | Create a new libvirt VM. | [Open](pages/core/create.md) |
 | Import VM | `/import` | Import VM — Machina Core page at `/import`. | [Open](pages/core/import.md) |
+| Sprites | `/sprites` | Instant, disposable sandbox VMs — boot on libvirt/QEMU or Cloud Hypervisor, TTL-reaped automatically, no persistent state. | [Open](pages/core/sprites.md) |
 | Fleet | `/fleet` | Fleet — Machina Core page at `/fleet`. | [Open](pages/core/fleet.md) |
 | Host SSH | `/host-ssh` | Host SSH — Machina Core page at `/host-ssh`. | [Open](pages/core/host-ssh.md) |
 | Wire OpenStack | `/settings?openstack=1` | Wire OpenStack — Machina Core page at `/settings?openstack=1`. | [Open](pages/core/settings.md) |

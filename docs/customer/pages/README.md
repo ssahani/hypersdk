@@ -17,6 +17,7 @@ Every route is also listed in the [complete page index](../PAGE_INDEX.md).
 | [Import VM](core/import.md) | Import VM — Machina Core page at `/import`. |
 | [Services](core/services.md) | Services — Machina Core page at `/services`. |
 | [Wire OpenStack](core/settings.md) | Wire OpenStack — Machina Core page at `/settings?openstack=1`. |
+| [Sprites](core/sprites.md) | Instant, disposable sandbox VMs — boot on libvirt/QEMU or Cloud Hypervisor, TTL-reaped automatically, no persistent state. |
 | [Virtual Machines](core/vms.md) | Virtual machine inventory for this libvirt host. |
 
 ## Infrastructure
@@ -141,4 +142,4 @@ Every route is also listed in the [complete page index](../PAGE_INDEX.md).
 
 ---
 
-100 guides. Regenerate: `node scripts/customer-docs/generate-guide-index.mjs`.
+101 guides. Regenerate: `node scripts/customer-docs/generate-guide-index.mjs`.

@@ -21,6 +21,11 @@
       "category": "Core"
     },
     {
+      "label": "Sprites",
+      "path": "/sprites",
+      "category": "Core"
+    },
+    {
       "label": "Fleet",
       "path": "/fleet",
       "category": "Core"
