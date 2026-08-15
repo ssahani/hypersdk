@@ -64,6 +64,11 @@ pub struct ChvBootRequest<'a> {
     /// `<cid auto='yes'/>`, Cloud Hypervisor requires the caller to name one
     /// explicitly.
     pub vsock_cid: u32,
+    /// Attach a virtio-net TAP to the host's "default" NAT network
+    /// (`virbr0`) instead of staying vsock-only. See
+    /// `spec::SpriteCreateRequest::network_egress`'s doc comment for the
+    /// isolation posture this implies.
+    pub network_egress: bool,
 }
 
 pub struct ChvBootResult {
@@ -75,6 +80,61 @@ pub struct ChvBootResult {
     pub pid: u32,
     pub api_socket: PathBuf,
     pub vsock_socket: PathBuf,
+    /// `Some` when `network_egress` was requested — `teardown_sprite_chv`
+    /// needs this to remove the TAP device.
+    pub tap_name: Option<String>,
+}
+
+/// Bridge sprites-with-egress attach to — the host's pre-existing libvirt
+/// "default" NAT network, not a new one this module sets up (see
+/// `spec::SpriteCreateRequest::network_egress`'s doc comment for why: reuses
+/// existing, already-tested NAT/DHCP infrastructure instead of duplicating
+/// it, at the cost of sharing that network's posture with regular VMs).
+const EGRESS_BRIDGE: &str = "virbr0";
+
+/// Linux interface names are capped at 15 characters (`IFNAMSIZ` is 16
+/// including the nul terminator) — a full sprite UUID doesn't fit, so this
+/// derives a short, still-namespaced name from it.
+fn tap_name_for(sprite_id: &str) -> String {
+    let short: String = sprite_id.chars().filter(|c| c.is_ascii_alphanumeric()).take(8).collect();
+    format!("chv-{short}")
+}
+
+fn run_ip(args: &[&str]) -> Result<(), LibvirtError> {
+    let out = Command::new("ip")
+        .args(args)
+        .output()
+        .map_err(|e| LibvirtError::Operation(format!("ip {args:?}: {e}")))?;
+    if !out.status.success() {
+        return Err(LibvirtError::Operation(format!(
+            "ip {args:?} failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        )));
+    }
+    Ok(())
+}
+
+/// Create a TAP device and attach it to `EGRESS_BRIDGE`, matching the
+/// libvirt "default" network's own NAT/DHCP setup — `ip tuntap add` +
+/// `ip link set master` + `ip link set up`, cleaning up the TAP again if any
+/// step after creation fails.
+fn create_egress_tap(tap: &str) -> Result<(), LibvirtError> {
+    run_ip(&["tuntap", "add", tap, "mode", "tap"])?;
+    if let Err(e) = run_ip(&["link", "set", tap, "master", EGRESS_BRIDGE]) {
+        delete_egress_tap(tap);
+        return Err(e);
+    }
+    if let Err(e) = run_ip(&["link", "set", tap, "up"]) {
+        delete_egress_tap(tap);
+        return Err(e);
+    }
+    Ok(())
+}
+
+/// Best-effort: also detaches the TAP from its bridge, since deleting the
+/// interface removes it from `EGRESS_BRIDGE` as a side effect.
+fn delete_egress_tap(tap: &str) {
+    let _ = Command::new("ip").args(["link", "del", tap]).output();
 }
 
 /// Full, uncompressed copy of `base` to `dest`. Deliberately doesn't reuse
@@ -134,7 +194,19 @@ pub async fn boot_sprite_chv(req: &ChvBootRequest<'_>) -> Result<ChvBootResult, 
         return Err(e);
     }
 
-    let mut child = match TokioCommand::new(chv_binary)
+    let tap_name = if req.network_egress {
+        let tap = tap_name_for(req.sprite_id);
+        if let Err(e) = create_egress_tap(&tap) {
+            let _ = fs::remove_dir_all(&run_dir);
+            return Err(e);
+        }
+        Some(tap)
+    } else {
+        None
+    };
+
+    let mut command = TokioCommand::new(chv_binary);
+    command
         .arg("--cpus")
         .arg(format!("boot={}", req.vcpus))
         .arg("--memory")
@@ -155,20 +227,32 @@ pub async fn boot_sprite_chv(req: &ChvBootRequest<'_>) -> Result<ChvBootResult, 
         .arg(&firmware)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-    {
+        .stderr(Stdio::piped());
+    if let Some(tap) = &tap_name {
+        command.arg("--net").arg(format!("tap={tap}"));
+    }
+
+    let mut child = match command.spawn() {
         Ok(c) => c,
         Err(e) => {
+            if let Some(tap) = &tap_name {
+                delete_egress_tap(tap);
+            }
             let _ = fs::remove_dir_all(&run_dir);
             return Err(LibvirtError::Operation(format!(
                 "failed to spawn cloud-hypervisor: {e}"
             )));
         }
     };
-    let pid = child
-        .id()
-        .ok_or_else(|| LibvirtError::Internal("cloud-hypervisor spawned without a pid".into()))?;
+    let pid = match child.id() {
+        Some(pid) => pid,
+        None => {
+            if let Some(tap) = &tap_name {
+                delete_egress_tap(tap);
+            }
+            return Err(LibvirtError::Internal("cloud-hypervisor spawned without a pid".into()));
+        }
+    };
 
     // Piped (not null) so a boot failure is diagnosable — but the failure
     // path below only has a couple of read attempts before giving up, and
@@ -207,6 +291,9 @@ pub async fn boot_sprite_chv(req: &ChvBootRequest<'_>) -> Result<ChvBootResult, 
             // final lines before reading `last_stderr_line`.
             tokio::time::sleep(Duration::from_millis(50)).await;
             let last_line = last_stderr_line.lock().map(|l| l.clone()).unwrap_or_default();
+            if let Some(tap) = &tap_name {
+                delete_egress_tap(tap);
+            }
             let _ = fs::remove_dir_all(&run_dir);
             return Err(LibvirtError::Operation(format!(
                 "cloud-hypervisor exited before booting (status: {status}): {last_line}"
@@ -214,6 +301,9 @@ pub async fn boot_sprite_chv(req: &ChvBootRequest<'_>) -> Result<ChvBootResult, 
         }
         if Instant::now() >= deadline {
             let _ = child.start_kill();
+            if let Some(tap) = &tap_name {
+                delete_egress_tap(tap);
+            }
             let _ = fs::remove_dir_all(&run_dir);
             return Err(LibvirtError::Operation(
                 "cloud-hypervisor did not become ready within timeout".into(),
@@ -235,6 +325,7 @@ pub async fn boot_sprite_chv(req: &ChvBootRequest<'_>) -> Result<ChvBootResult, 
         pid,
         api_socket,
         vsock_socket,
+        tap_name,
     })
 }
 
@@ -251,6 +342,7 @@ pub async fn teardown_sprite_chv(
     api_socket: &Path,
     disk_path: &Path,
     vsock_socket: &Path,
+    tap_name: Option<&str>,
 ) -> Result<(), String> {
     if let Ok(ch_remote) = find_ch_remote_binary() {
         let _ = TokioCommand::new(ch_remote)
@@ -267,6 +359,10 @@ pub async fn teardown_sprite_chv(
     // process crashed on its own), this returns an "already gone" style OS
     // error (ESRCH), which is the outcome we wanted anyway.
     let _ = crate::libvirt::extras::kill_host_process(pid, "KILL");
+
+    if let Some(tap) = tap_name {
+        delete_egress_tap(tap);
+    }
 
     let _ = fs::remove_file(disk_path);
     let _ = fs::remove_file(api_socket);
@@ -303,6 +399,7 @@ mod tests {
             vcpus: 1,
             memory_mb: 512,
             vsock_cid: 3,
+            network_egress: false,
         };
         let result = rt.block_on(boot_sprite_chv(&req));
         assert!(result.is_err());
@@ -355,6 +452,7 @@ mod tests {
             // collide with a sprite a live daemon on the same host is
             // actually running.
             vsock_cid: 4200 + (std::process::id() % 1000),
+            network_egress: false,
         }));
 
         let _ = fs::remove_file(&golden_path);
@@ -365,16 +463,95 @@ mod tests {
         };
         assert!(result.api_socket.exists());
         assert!(result.disk_path.exists());
+        assert!(result.tap_name.is_none());
 
         rt.block_on(teardown_sprite_chv(
             result.pid,
             &result.api_socket,
             &result.disk_path,
             &result.vsock_socket,
+            result.tap_name.as_deref(),
         ))
         .expect("teardown_sprite_chv");
 
         assert!(!result.disk_path.exists(), "teardown should remove the disk copy");
         assert!(!result.api_socket.exists(), "teardown should remove the api socket");
+    }
+
+    /// Same lifecycle as above, but with `network_egress: true` — proves the
+    /// TAP actually gets created, attached to `virbr0`, and cleaned up.
+    /// Skips (in addition to the base test's own skip conditions) when
+    /// `virbr0` doesn't exist, e.g. libvirt's "default" network was never
+    /// started on this host.
+    #[test]
+    fn boot_and_teardown_sprite_chv_with_network_egress() {
+        if find_cloud_hypervisor_binary().is_err() || find_cloud_hypervisor_firmware().is_err() {
+            eprintln!("skipping: cloud-hypervisor or its firmware not installed on this host");
+            return;
+        }
+        if fs::create_dir_all(SPRITE_RUN_DIR).is_err() {
+            eprintln!("skipping: cannot write to {SPRITE_RUN_DIR} (needs root, like the real daemon)");
+            return;
+        }
+        if !Command::new("ip")
+            .args(["link", "show", EGRESS_BRIDGE])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
+            eprintln!("skipping: {EGRESS_BRIDGE} doesn't exist on this host (libvirt \"default\" network not active)");
+            return;
+        }
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let sprite_id = format!("integration-test-egress-{}", std::process::id());
+
+        let golden_path = std::env::temp_dir().join(format!("{sprite_id}-golden.qcow2"));
+        let out = Command::new("qemu-img")
+            .args(["create", "-f", "qcow2", golden_path.to_str().unwrap(), "16M"])
+            .output()
+            .expect("qemu-img create");
+        assert!(out.status.success(), "qemu-img create failed: {}", String::from_utf8_lossy(&out.stderr));
+
+        let boot_result = rt.block_on(boot_sprite_chv(&ChvBootRequest {
+            sprite_id: &sprite_id,
+            golden_image_path: &golden_path,
+            vcpus: 1,
+            memory_mb: 128,
+            vsock_cid: 4300 + (std::process::id() % 1000),
+            network_egress: true,
+        }));
+
+        let _ = fs::remove_file(&golden_path);
+
+        let result = match boot_result {
+            Ok(r) => r,
+            Err(e) => panic!("boot_sprite_chv with network_egress failed: {e}"),
+        };
+        let tap = result.tap_name.clone().expect("network_egress requested a TAP");
+        assert_eq!(tap, tap_name_for(&sprite_id));
+
+        let tap_exists = Command::new("ip")
+            .args(["link", "show", &tap])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        assert!(tap_exists, "TAP {tap} should exist while the sprite is running");
+
+        rt.block_on(teardown_sprite_chv(
+            result.pid,
+            &result.api_socket,
+            &result.disk_path,
+            &result.vsock_socket,
+            result.tap_name.as_deref(),
+        ))
+        .expect("teardown_sprite_chv");
+
+        let tap_exists_after = Command::new("ip")
+            .args(["link", "show", &tap])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        assert!(!tap_exists_after, "teardown should remove the TAP device");
     }
 }

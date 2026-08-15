@@ -85,6 +85,10 @@ pub struct SpriteBootRequest<'a> {
     pub golden_image_path: &'a Path,
     pub vcpus: u32,
     pub memory_mb: u64,
+    /// Attach a virtio NIC to the host's "default" NAT network (`virbr0`)
+    /// instead of staying vsock-only. See `spec::SpriteCreateRequest`'s
+    /// `network_egress` doc comment for the isolation posture this implies.
+    pub network_egress: bool,
 }
 
 pub struct SpriteBootResult {
@@ -113,7 +117,13 @@ pub fn boot_sprite(conn: &Connect, req: &SpriteBootRequest) -> Result<SpriteBoot
     }
     materialize_from_base(req.golden_image_path, dest_path, "backing")?;
 
-    let xml = generate_sprite_domain_xml(req.domain_name, &dest, req.vcpus, req.memory_mb);
+    let xml = generate_sprite_domain_xml(
+        req.domain_name,
+        &dest,
+        req.vcpus,
+        req.memory_mb,
+        req.network_egress,
+    );
 
     // No VIR_DOMAIN_START_AUTODESTROY: the daemon's LibvirtManager holds one
     // shared, long-lived connection reused (and transparently reconnected on
@@ -142,14 +152,26 @@ pub fn boot_sprite(conn: &Connect, req: &SpriteBootRequest) -> Result<SpriteBoot
 
 /// Minimal headless domain: no graphics/VNC/SPICE/tablet/USB-controller/QGA
 /// devices (all present unconditionally in `create::generate_domain_xml`,
-/// none of it belongs on a fast, headless sandbox path), a `<vsock>` device
-/// instead of a network `<interface>` (no DHCP negotiation on the boot path,
-/// no guest IP at all — see the plan's networking-model decision). BIOS, not
-/// UEFI: one less firmware-load/NVRAM step for a minimal boot.
-fn generate_sprite_domain_xml(name: &str, disk_path: &str, vcpus: u32, memory_mb: u64) -> String {
+/// none of it belongs on a fast, headless sandbox path). No network
+/// `<interface>` by default (vsock only, no DHCP negotiation on the boot
+/// path, no guest IP at all) unless `network_egress` opts into one — see
+/// `SpriteBootRequest::network_egress`'s doc comment. BIOS, not UEFI: one
+/// less firmware-load/NVRAM step for a minimal boot.
+fn generate_sprite_domain_xml(
+    name: &str,
+    disk_path: &str,
+    vcpus: u32,
+    memory_mb: u64,
+    network_egress: bool,
+) -> String {
     let memory_kib = memory_mb * 1024;
     let name_esc = crate::xml::escape(name);
     let disk_path_esc = crate::xml::escape(disk_path);
+    let interface_xml = if network_egress {
+        "\n    <interface type='network'>\n      <source network='default'/>\n      <model type='virtio'/>\n    </interface>"
+    } else {
+        ""
+    };
     format!(
         r#"<domain type='kvm'>
   <name>{name_esc}</name>
@@ -180,7 +202,7 @@ fn generate_sprite_domain_xml(name: &str, disk_path: &str, vcpus: u32, memory_mb
     </vsock>
     <rng model='virtio'>
       <backend model='random'>/dev/urandom</backend>
-    </rng>
+    </rng>{interface_xml}
   </devices>
 </domain>"#
     )
@@ -218,8 +240,8 @@ mod tests {
     }
 
     #[test]
-    fn generated_xml_has_no_network_or_graphics_devices() {
-        let xml = generate_sprite_domain_xml("sprite-abc", "/var/lib/libvirt/images/sprite-abc.qcow2", 1, 512);
+    fn generated_xml_has_no_network_or_graphics_devices_by_default() {
+        let xml = generate_sprite_domain_xml("sprite-abc", "/var/lib/libvirt/images/sprite-abc.qcow2", 1, 512, false);
         assert!(!xml.contains("<interface"));
         assert!(!xml.contains("<graphics"));
         assert!(!xml.contains("<video"));
@@ -229,8 +251,18 @@ mod tests {
     }
 
     #[test]
+    fn generated_xml_adds_default_network_interface_when_egress_requested() {
+        let xml = generate_sprite_domain_xml("sprite-abc", "/var/lib/libvirt/images/sprite-abc.qcow2", 1, 512, true);
+        assert!(xml.contains("<interface type='network'>"));
+        assert!(xml.contains("<source network='default'/>"));
+        // vsock stays present regardless — network_egress adds a NIC, it
+        // doesn't replace the vsock channel.
+        assert!(xml.contains("<vsock"));
+    }
+
+    #[test]
     fn generated_xml_escapes_disk_path() {
-        let xml = generate_sprite_domain_xml("sprite-abc", "/tmp/weird'&path.qcow2", 1, 512);
+        let xml = generate_sprite_domain_xml("sprite-abc", "/tmp/weird'&path.qcow2", 1, 512, false);
         assert!(!xml.contains("weird'&path"));
     }
 }

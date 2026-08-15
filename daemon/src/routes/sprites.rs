@@ -66,6 +66,7 @@ async fn create_sprite(
             let golden_image = req.golden_image.clone();
             let vcpus = req.vcpus;
             let memory_mb = req.memory_mb;
+            let network_egress = req.network_egress;
 
             let libvirt_uri = manager.virt_uri_for_target(manager.default_target());
             let domain_name_for_boot = domain_name.clone();
@@ -81,6 +82,7 @@ async fn create_sprite(
                         golden_image_path: &golden_image_path,
                         vcpus,
                         memory_mb,
+                        network_egress,
                     },
                 )
             })
@@ -137,6 +139,7 @@ async fn create_sprite(
                 vcpus: req.vcpus,
                 memory_mb: req.memory_mb,
                 vsock_cid,
+                network_egress: req.network_egress,
             })
             .await;
 
@@ -158,6 +161,7 @@ async fn create_sprite(
                     api_socket: boot_result.api_socket,
                     disk_path: boot_result.disk_path,
                     vsock_socket: boot_result.vsock_socket,
+                    tap_name: boot_result.tap_name,
                 },
                 Some(vsock_cid),
                 audit_target,
@@ -166,7 +170,7 @@ async fn create_sprite(
     };
 
     let handle = registry
-        .register(sprite_id.clone(), backend_handle, req.ttl_seconds, vsock_cid)
+        .register(sprite_id.clone(), backend_handle, req.ttl_seconds, vsock_cid, req.network_egress)
         .map_err(|e| AppError::from(LibvirtError::Internal(e.into())))?;
 
     log_audit("sprite_create", &audit_target, "ok");

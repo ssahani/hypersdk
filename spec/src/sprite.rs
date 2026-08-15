@@ -21,6 +21,14 @@ pub struct SpriteCreateRequest {
     pub ttl_seconds: u64,
     #[serde(default)]
     pub backend: SpriteBackend,
+    /// Attach to the host's existing libvirt "default" NAT network
+    /// (`virbr0`) for outbound-only internet access. Off by default —
+    /// sprites stay vsock-only unless a caller explicitly opts in. Shares
+    /// the same network (and posture) any regular VM created on this host
+    /// already gets; there's no per-sprite isolation or domain allow-list
+    /// (that's a later PacketWolf-integration concern, not v1).
+    #[serde(default)]
+    pub network_egress: bool,
 }
 
 /// Which hypervisor boots the sprite. Defaults to `Libvirt` so existing
@@ -122,6 +130,10 @@ pub struct SpriteHandle {
     /// like "has a vsock_cid" with an existing one.
     #[serde(default)]
     pub backend: SpriteBackend,
+    /// Echoes the request's `network_egress` — whether this sprite is
+    /// attached to the host's "default" NAT network.
+    #[serde(default)]
+    pub network_egress: bool,
 }
 
 /// Domain name a sprite's libvirt domain is created/looked-up under.
@@ -153,6 +165,7 @@ mod tests {
             memory_mb: default_memory_mb(),
             ttl_seconds: default_ttl_seconds(),
             backend: SpriteBackend::default(),
+            network_egress: false,
         }
     }
 
@@ -242,6 +255,25 @@ mod tests {
     }
 
     #[test]
+    fn network_egress_defaults_to_false_when_omitted() {
+        let req: SpriteCreateRequest = serde_json::from_str(
+            r#"{"golden_image":"python-minimal"}"#,
+        )
+        .unwrap();
+        assert!(!req.network_egress);
+    }
+
+    #[test]
+    fn network_egress_round_trips_true() {
+        let mut req = base_request();
+        req.network_egress = true;
+        let json = serde_json::to_string(&req).unwrap();
+        assert!(json.contains(r#""network_egress":true"#));
+        let round_tripped: SpriteCreateRequest = serde_json::from_str(&json).unwrap();
+        assert!(round_tripped.network_egress);
+    }
+
+    #[test]
     fn sprite_domain_name_has_prefix() {
         assert_eq!(sprite_domain_name("abc123"), "sprite-abc123");
     }
@@ -255,6 +287,7 @@ mod tests {
             expires_at: "2026-01-01T00:05:00Z".into(),
             vsock_cid: None,
             backend: SpriteBackend::Libvirt,
+            network_egress: false,
         };
         let json = serde_json::to_string(&handle).unwrap();
         assert!(!json.contains("vsock_cid"));

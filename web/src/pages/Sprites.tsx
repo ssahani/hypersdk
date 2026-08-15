@@ -15,7 +15,7 @@ import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EmptyState from '../components/EmptyState'
 import PageLayout from '../components/PageLayout'
-import { Plus, RefreshCw, Trash2, X, Zap } from 'lucide-react'
+import { Globe, Plus, RefreshCw, Trash2, X, Zap } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
 import { statusBadgeClasses } from '../utils/semanticColors'
 
@@ -144,6 +144,7 @@ export default function SpritesPage() {
                 <th scope="col" className="px-6 py-3">State</th>
                 <th scope="col" className="px-6 py-3">Backend</th>
                 <th scope="col" className="px-6 py-3 hidden md:table-cell">vsock CID</th>
+                <th scope="col" className="px-6 py-3 hidden md:table-cell">Network</th>
                 <th scope="col" className="px-6 py-3">Expires</th>
                 <th scope="col" className="px-6 py-3 text-right">Actions</th>
               </tr>
@@ -159,6 +160,16 @@ export default function SpritesPage() {
                   </td>
                   <td className="px-6 py-3 text-sm text-slate-300">{backendLabel(s.backend ?? 'libvirt')}</td>
                   <td className="px-6 py-3 text-sm text-slate-400 hidden md:table-cell">{s.vsock_cid ?? '—'}</td>
+                  <td className="px-6 py-3 text-sm text-slate-400 hidden md:table-cell">
+                    {s.network_egress ? (
+                      <span className="inline-flex items-center gap-1 text-blue-400" title="Attached to the default NAT network">
+                        <Globe className="w-3.5 h-3.5" />
+                        Egress
+                      </span>
+                    ) : (
+                      <span className="text-slate-500">vsock only</span>
+                    )}
+                  </td>
                   <td className="px-6 py-3 text-sm text-slate-400">{timeUntil(s.expires_at)}</td>
                   <td className="px-6 py-3">
                     <div className="flex items-center justify-end gap-1">
@@ -207,6 +218,7 @@ function NewSpriteModal({ open, onClose, onCreated }: { open: boolean; onClose: 
   const [memoryMb, setMemoryMb] = useState('512')
   const [ttlSeconds, setTtlSeconds] = useState(String(TTL_PRESETS[1].seconds))
   const [backend, setBackend] = useState<SpriteBackend>('libvirt')
+  const [networkEgress, setNetworkEgress] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -230,6 +242,7 @@ function NewSpriteModal({ open, onClose, onCreated }: { open: boolean; onClose: 
         memory_mb: parseInt(memoryMb, 10) || undefined,
         ttl_seconds: parseInt(ttlSeconds, 10) || undefined,
         backend,
+        network_egress: networkEgress,
       })
       toast.success(`Sprite '${handle.sprite_id}' booting`)
       onCreated()
@@ -350,6 +363,22 @@ function NewSpriteModal({ open, onClose, onCreated }: { open: boolean; onClose: 
               ))}
             </div>
           </div>
+
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={networkEgress}
+              onChange={(e) => setNetworkEgress(e.target.checked)}
+              className="mt-0.5 w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-sm text-slate-300">
+              Network egress
+              <span className="block text-xs text-slate-500 mt-0.5">
+                Attach to the host&rsquo;s default NAT network for outbound internet access. Shares that network with
+                regular VMs on this host — no per-sprite isolation.
+              </span>
+            </span>
+          </label>
         </div>
         <div className="p-4 border-t border-slate-700 flex items-center justify-end gap-2">
           <button

@@ -18,6 +18,8 @@ export interface SpriteHandle {
   expires_at: string
   vsock_cid?: number
   backend: SpriteBackend
+  /** Attached to the host's "default" NAT network (virbr0) for outbound-only internet access. */
+  network_egress: boolean
 }
 
 export interface SpriteCreateRequest {
@@ -26,6 +28,7 @@ export interface SpriteCreateRequest {
   memory_mb?: number
   ttl_seconds?: number
   backend?: SpriteBackend
+  network_egress?: boolean
 }
 
 export const listSprites = () => readJsonArray<SpriteHandle>(`${API}/sprites`)

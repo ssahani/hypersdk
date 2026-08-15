@@ -62,6 +62,9 @@ pub enum SpriteBackendHandle {
         api_socket: PathBuf,
         disk_path: PathBuf,
         vsock_socket: PathBuf,
+        /// `Some` when the sprite was booted with `network_egress` — needed
+        /// so teardown can remove the TAP device.
+        tap_name: Option<String>,
     },
 }
 
@@ -158,6 +161,7 @@ impl SpriteRegistry {
         backend: SpriteBackendHandle,
         ttl_seconds: u64,
         vsock_cid: Option<u32>,
+        network_egress: bool,
     ) -> Result<SpriteHandle, &'static str> {
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         if g.len() >= MAX_SPRITES {
@@ -181,6 +185,7 @@ impl SpriteRegistry {
             expires_at: expires_at.to_rfc3339(),
             vsock_cid,
             backend: backend.kind(),
+            network_egress,
         };
         g.insert(
             sprite_id,
@@ -273,7 +278,8 @@ pub async fn teardown_sprite(manager: &LibvirtManager, backend: SpriteBackendHan
             api_socket,
             disk_path,
             vsock_socket,
-        } => teardown_sprite_chv(pid, &api_socket, &disk_path, &vsock_socket).await,
+            tap_name,
+        } => teardown_sprite_chv(pid, &api_socket, &disk_path, &vsock_socket, tap_name.as_deref()).await,
     }
 }
 
@@ -317,6 +323,7 @@ mod tests {
             api_socket: PathBuf::from(format!("/var/lib/machina/sprite-run/{pid}/api.sock")),
             disk_path: PathBuf::from(format!("/var/lib/machina/sprite-run/{pid}/overlay.qcow2")),
             vsock_socket: PathBuf::from(format!("/var/lib/machina/sprite-run/{pid}/vsock.sock")),
+            tap_name: None,
         }
     }
 
@@ -324,7 +331,7 @@ mod tests {
     fn register_then_get_round_trips() {
         let reg = SpriteRegistry::new();
         let handle = reg
-            .register("abc".into(), libvirt_backend("sprite-abc"), 300, Some(3))
+            .register("abc".into(), libvirt_backend("sprite-abc"), 300, Some(3), false)
             .unwrap();
         assert_eq!(handle.sprite_id, "abc");
         let fetched = reg.get(&handle.sprite_id).expect("registered sprite present");
@@ -335,9 +342,19 @@ mod tests {
     }
 
     #[test]
+    fn register_reports_network_egress() {
+        let reg = SpriteRegistry::new();
+        let handle = reg
+            .register("egress1".into(), libvirt_backend("sprite-egress1"), 300, Some(3), true)
+            .unwrap();
+        assert!(handle.network_egress);
+        assert!(reg.get(&handle.sprite_id).unwrap().network_egress);
+    }
+
+    #[test]
     fn register_reports_cloud_hypervisor_backend_kind() {
         let reg = SpriteRegistry::new();
-        let handle = reg.register("chv-kind".into(), chv_backend(1), 300, Some(3)).unwrap();
+        let handle = reg.register("chv-kind".into(), chv_backend(1), 300, Some(3), false).unwrap();
         assert_eq!(handle.backend, SpriteBackend::CloudHypervisor);
     }
 
@@ -351,7 +368,7 @@ mod tests {
     fn remove_returns_backend_handle_once() {
         let reg = SpriteRegistry::new();
         let handle = reg
-            .register("xyz".into(), libvirt_backend("sprite-xyz"), 300, None)
+            .register("xyz".into(), libvirt_backend("sprite-xyz"), 300, None, false)
             .unwrap();
         assert_eq!(reg.remove(&handle.sprite_id), Some(libvirt_backend("sprite-xyz")));
         // Second remove is a no-op, not an error — the reaper and an explicit
@@ -364,7 +381,7 @@ mod tests {
     fn register_and_remove_round_trips_cloud_hypervisor_backend() {
         let reg = SpriteRegistry::new();
         let backend = chv_backend(4242);
-        let handle = reg.register("chv1".into(), backend.clone(), 300, Some(7)).unwrap();
+        let handle = reg.register("chv1".into(), backend.clone(), 300, Some(7), false).unwrap();
         assert_eq!(reg.get(&handle.sprite_id).unwrap().vsock_cid, Some(7));
         assert_eq!(reg.remove(&handle.sprite_id), Some(backend));
     }
@@ -373,10 +390,10 @@ mod tests {
     fn expired_ids_only_returns_past_ttl() {
         let reg = SpriteRegistry::new();
         let long_lived = reg
-            .register("long".into(), libvirt_backend("sprite-long"), 3600, None)
+            .register("long".into(), libvirt_backend("sprite-long"), 3600, None, false)
             .unwrap();
         let already_expired = reg
-            .register("expired".into(), libvirt_backend("sprite-expired"), 0, None)
+            .register("expired".into(), libvirt_backend("sprite-expired"), 0, None, false)
             .unwrap();
         // ttl_seconds=0 means expires_at == created_at, which is <= now by
         // the time expired_ids() runs.
@@ -388,8 +405,8 @@ mod tests {
     #[test]
     fn list_returns_all_registered_handles() {
         let reg = SpriteRegistry::new();
-        reg.register("a".into(), libvirt_backend("sprite-a"), 300, None).unwrap();
-        reg.register("b".into(), chv_backend(99), 300, None).unwrap();
+        reg.register("a".into(), libvirt_backend("sprite-a"), 300, None, false).unwrap();
+        reg.register("b".into(), chv_backend(99), 300, None, false).unwrap();
         assert_eq!(reg.list().len(), 2);
     }
 
@@ -418,6 +435,7 @@ mod tests {
             libvirt_backend("sprite-libvirt-first"),
             300,
             Some(FIRST_VSOCK_CID),
+            false,
         )
         .unwrap();
 
@@ -429,7 +447,7 @@ mod tests {
     fn removing_a_sprite_frees_its_vsock_cid_for_reuse() {
         let reg = SpriteRegistry::new();
         let cid = reg.next_vsock_cid();
-        let handle = reg.register("chv1".into(), chv_backend(1), 300, Some(cid)).unwrap();
+        let handle = reg.register("chv1".into(), chv_backend(1), 300, Some(cid), false).unwrap();
         reg.remove(&handle.sprite_id);
 
         // The registry has no other claims left, so the freed CID is the
