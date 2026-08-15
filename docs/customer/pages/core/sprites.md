@@ -17,12 +17,27 @@ Instant, disposable sandbox VMs — boot on libvirt/QEMU or Cloud Hypervisor, TT
 
 ## What you can do
 
-1. Open `/sprites` against the Machina daemon (`https://<host>:5092`).
-2. Use filters and host/VM selectors when the page provides them.
-3. Drill into a VM, host, or OpenStack resource for consoles and detail panels.
-4. For mutating actions (create/delete VM, apply firewall, OpenStack change): confirm the target host and role (Admin/Operator).
+1. **New Sprite** — pick a golden image (from the daemon's
+   `/var/lib/machina/sprite-images` registry), size it (vCPUs, memory), set
+   a TTL, and choose a backend: **Libvirt** (default, instant COW clone) or
+   **Cloud Hypervisor** (a direct child process of the daemon, no libvirtd
+   in the path — boots off a full disk copy instead, so first boot is
+   slower).
+2. **Network egress** (optional, off by default) — attaches the sprite to
+   the host's existing "default" NAT network for outbound internet access.
+   Sprites stay vsock-only otherwise. Shares that network's posture with
+   any regular VM on the host — there's no per-sprite isolation or domain
+   allow-list.
+3. The list shows state, backend, vsock CID, network status, and a live
+   expiry countdown. **Delete** tears a sprite down immediately instead of
+   waiting for its TTL; a background reaper does the same automatically
+   once the TTL passes.
+4. From the command line: `machinactl sprite <list|get|create|delete|golden-images>`
+   gives the same operations (set `MACHINA_API_TOKEN` for create/delete).
 
-If the page stays empty, check daemon health (`/api/v1/health`), libvirt connectivity, and whether the feature requires OpenStack, HyperSDK, or Launchpad to be enabled.
+If the page stays empty, check daemon health (`/api/v1/health`) and
+libvirt connectivity. An empty golden-image picker means no `.qcow2` files
+are present under `/var/lib/machina/sprite-images` yet.
 
 ## Related pages
 

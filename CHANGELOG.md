@@ -1,5 +1,63 @@
 # Changelog
 
+## 2026-08-15 — Sprites: network egress, machinactl, and Cloud Hypervisor fixes found live
+
+Follow-on to the Cloud Hypervisor sprite backend below — everything here
+came out of actually running the feature end-to-end rather than unit tests
+alone.
+
+**Fixed, from real boot failures:**
+- Cloud Hypervisor has no built-in BIOS (unlike QEMU) — booting a disk
+  without `--firmware`/`--kernel` failed immediately. `install.sh` now
+  fetches `CLOUDHV.fd` from `cloud-hypervisor/edk2` releases alongside the
+  binaries; `core::cloud_hypervisor` resolves it the same way it resolves
+  the VMM binary itself.
+- Cloud Hypervisor's qcow2 backend rejects backing-file overlays outright
+  (`MaxNestingDepthExceeded`), even one level deep — the `cloudhypervisor`
+  backend now materializes a full `cp --reflink=auto --sparse=always` copy
+  instead (near-instant on reflink-capable filesystems, a plain copy
+  otherwise — both cheaper than the alternative `qemu-img convert -c`,
+  which compresses every cluster).
+- Two independent vsock CID allocators (the daemon's own counter for Cloud
+  Hypervisor, libvirt's kernel-side `<cid auto='yes'/>`) both started at
+  CID 3 and collided the first time each backend's first sprite booted
+  around the same time. `SpriteRegistry` now tracks CIDs from both
+  backends in one shared set.
+- stderr was previously discarded (`Stdio::null()`) — now piped to
+  `tracing::warn!` continuously, which is what made the two boot-failure
+  bugs above slow to diagnose in the first place.
+
+**New:**
+- `network_egress` (opt-in, off by default) — attaches a sprite to the
+  host's existing libvirt "default" NAT network instead of staying
+  vsock-only. Libvirt sprites get a `<interface type='network'>`; Cloud
+  Hypervisor sprites get a TAP device created and bridged by the daemon.
+  Verified live via a real DHCP lease, not just the TAP/bridge plumbing —
+  see below.
+- Sprites web UI (`/sprites`) — create modal (golden image picker, backend
+  toggle, TTL, network egress checkbox), live list with expiry countdown,
+  delete.
+- `machinactl sprite <list|get|create|delete|golden-images>` — CLI parity
+  with the API/UI, `MACHINA_API_TOKEN` for auth.
+- `GET /v1/sprites/golden-images` — lists available golden images, backing
+  the picker above.
+
+**Verification gap closed:** the `network_egress` feature's own unit tests
+use a blank synthetic disk (proves the TAP/bridge/NAT plumbing works, not
+that a guest can actually get an address). Building a real test golden
+image surfaced a second, unrelated bug: `virt-builder`'s plain templates
+bake in a build-time-specific predictable interface name (e.g. `ens2`)
+that doesn't match a sprite's actual device topology, so `ifupdown` never
+brings the interface up. Fixed by switching the test image to
+`systemd-networkd` with a `Name=en* eth*` wildcard match instead of a
+hardcoded name. `scripts/sprite-verify-egress.sh` now automates the whole
+check (create via the real dashboard, poll `virsh domifaddr`, fail loudly
+with the sprite left running for inspection if no address appears) —
+confirmed passing, DHCP lease in 9s. `scripts/sprite-remote-test.sh`
+codifies the "fix `target/` ownership, run tests as root so the live
+cloud-hypervisor boot tests actually run" sequence that was otherwise
+hand-typed over SSH throughout this work.
+
 ## 2026-08-14 — Cloud Hypervisor backend for disposable "sprite" VMs
 
 Sprites (`POST /v1/sprites` — instant, TTL-reaped, headless sandbox microVMs,
