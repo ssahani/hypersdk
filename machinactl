@@ -29,6 +29,7 @@
 #   demo            Run interactive API demo
 #   audit verify    Verify signed audit log (API or local file)
 #   integrations    Show OpenStack/KubeVirt/k8s/automation integration status
+#   sprite          Manage disposable sandbox VMs (list/get/create/delete/golden-images)
 #   help            Show this help
 #
 # Web UI sign-in uses PAM (Linux accounts on this host), not a separate machina password.
@@ -846,6 +847,76 @@ cmd_demo() {
     echo ""
 }
 
+# ── sprites (disposable sandbox VMs) ──────────────────────────────────────
+cmd_sprite() {
+    local subcmd="${1:-list}"
+    shift || true
+
+    local auth_header=()
+    if [[ -n "${MACHINA_API_TOKEN:-}" ]]; then
+        auth_header=(-H "Authorization: Bearer ${MACHINA_API_TOKEN}")
+    fi
+
+    case "$subcmd" in
+        list)
+            curl -sk "${auth_header[@]}" "$API_URL/api/$API_VERSION/sprites" | jq '.' 2>/dev/null || echo "(no response)"
+            ;;
+        get)
+            local id="${1:?Usage: machinactl sprite get <id>}"
+            curl -sk "${auth_header[@]}" "$API_URL/api/$API_VERSION/sprites/$id" | jq '.' 2>/dev/null || echo "(no response)"
+            ;;
+        golden-images)
+            curl -sk "${auth_header[@]}" "$API_URL/api/$API_VERSION/sprites/golden-images" | jq '.' 2>/dev/null || echo "(no response)"
+            ;;
+        create)
+            local golden_image="" vcpus=1 memory_mb=512 ttl_seconds=300 backend="libvirt" network_egress=false
+            while [[ $# -gt 0 ]]; do
+                case "$1" in
+                    --golden-image)   golden_image="$2"; shift 2 ;;
+                    --vcpus)          vcpus="$2"; shift 2 ;;
+                    --memory-mb)      memory_mb="$2"; shift 2 ;;
+                    --ttl-seconds)    ttl_seconds="$2"; shift 2 ;;
+                    --backend)        backend="$2"; shift 2 ;;
+                    --network-egress) network_egress=true; shift ;;
+                    *) err "Unknown option: $1"; exit 1 ;;
+                esac
+            done
+            if [[ -z "$golden_image" ]]; then
+                err "Usage: machinactl sprite create --golden-image NAME [--vcpus N] [--memory-mb N] [--ttl-seconds N] [--backend libvirt|cloudhypervisor] [--network-egress]"
+                exit 1
+            fi
+            local body
+            body=$(jq -n \
+                --arg golden_image "$golden_image" \
+                --argjson vcpus "$vcpus" \
+                --argjson memory_mb "$memory_mb" \
+                --argjson ttl_seconds "$ttl_seconds" \
+                --arg backend "$backend" \
+                --argjson network_egress "$network_egress" \
+                '{golden_image: $golden_image, vcpus: $vcpus, memory_mb: $memory_mb, ttl_seconds: $ttl_seconds, backend: $backend, network_egress: $network_egress}')
+            curl -sk -X POST "${auth_header[@]}" -H "Content-Type: application/json" -d "$body" \
+                "$API_URL/api/$API_VERSION/sprites" | jq '.' 2>/dev/null || echo "(no response)"
+            ;;
+        delete)
+            local id="${1:?Usage: machinactl sprite delete <id>}"
+            curl -sk -X DELETE "${auth_header[@]}" "$API_URL/api/$API_VERSION/sprites/$id" | jq '.' 2>/dev/null || echo "(no response)"
+            ;;
+        *)
+            echo "Usage: machinactl sprite <list|get|create|delete|golden-images>"
+            echo ""
+            echo "  machinactl sprite list"
+            echo "  machinactl sprite get <id>"
+            echo "  machinactl sprite golden-images"
+            echo "  machinactl sprite create --golden-image NAME [--vcpus N] [--memory-mb N] \\"
+            echo "                            [--ttl-seconds N] [--backend libvirt|cloudhypervisor] [--network-egress]"
+            echo "  machinactl sprite delete <id>"
+            echo ""
+            echo "Create/delete need write access — set MACHINA_API_TOKEN to a Bearer token"
+            echo "(mint one via POST $API_URL/api/$API_VERSION/tokens as an admin, or sign in to the web UI)."
+            ;;
+    esac
+}
+
 # ── help ────────────────────────────────────────────────────────────────
 cmd_help() {
     echo ""
@@ -887,6 +958,7 @@ cmd_help() {
     echo "  demo              Run interactive API demo"
     echo "  audit verify      Verify audit.log sha256 signatures (API or local)"
     echo "  integrations      Integration status (OpenStack, k8s, automation, …)"
+    echo "  sprite            Manage disposable sandbox VMs (list/get/create/delete/golden-images)"
     echo "  help              Show this help"
     echo ""
     echo "🚀 Quick start:"
@@ -932,6 +1004,7 @@ main() {
             esac
             ;;
         integrations) cmd_integrations "$@" ;;
+        sprite)     cmd_sprite "$@" ;;
         help|--help|-h) cmd_help ;;
         *)
             err "Unknown command: $cmd"
