@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Sparkles } from 'lucide-react'
-import AskZeusButton from '../ai/AskZeusButton'
+import AskZyraButton from '../ai/AskZyraButton'
 import { MacGlassPanel } from './mac/PlatformMacUi'
 import {
   enqueueValidateHost,
@@ -105,7 +105,7 @@ export default function OsDiagnosePanel({
       subtitle={resourceKind === 'host' ? 'Hypervisor Linux + fleet correlation' : 'Guest health + ports context'}
       action={
         onAskCopilot ? (
-          <AskZeusButton variant="secondary" className="text-xs" onClick={onAskCopilot} />
+          <AskZyraButton variant="secondary" className="text-xs" onClick={onAskCopilot} />
         ) : undefined
       }
     >

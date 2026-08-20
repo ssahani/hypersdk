@@ -292,7 +292,7 @@ pub async fn build_copilot_base(
             ));
         }
         reply.push_str(
-            "\nUse Ask Zeus or `/api/v1/ai/nl-ops` with `dry_run: false` to queue approvals.\n",
+            "\nUse Ask Zyra or `/api/v1/ai/nl-ops` with `dry_run: false` to queue approvals.\n",
         );
     } else {
         reply.push_str(&format!(

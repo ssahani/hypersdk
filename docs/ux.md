@@ -164,7 +164,7 @@ Navigation layers are tier-aware to avoid triple nav on tab-heavy routes:
 
 Helpers: [`shouldShowContextBar`](web/src/utils/platformNavRegistry.ts), [`suppressContextBar`](web/src/utils/platformNavRegistry.ts).
 
-**Zeus status:** pending approvals surface in [`PlatformDynamicIsland`](web/src/components/platform/mac/PlatformDynamicIsland.tsx); [`ZeusAmbientBar`](web/src/components/ai/ZeusAmbientBar.tsx) is hidden on `/platform/*`.
+**Zeus status:** pending approvals surface in [`PlatformDynamicIsland`](web/src/components/platform/mac/PlatformDynamicIsland.tsx); [`ZyraAmbientBar`](web/src/components/ai/ZyraAmbientBar.tsx) is hidden on `/platform/*`.
 
 **Dashboard tiers:** [`PlatformDashboard`](web/src/pages/platform/PlatformDashboard.tsx) — Normal: Zeus search + greeting + Launchpad; Power/Advanced: header stats + slim Zeus search + Launchpad + collapsed [`PlatformFleetInsights`](web/src/components/platform/PlatformFleetInsights.tsx) (DNA, remediate, enterprise on Advanced).
 
@@ -172,13 +172,13 @@ Helpers: [`shouldShowContextBar`](web/src/utils/platformNavRegistry.ts), [`suppr
 
 ## Platform lean desktop (Wave 4)
 
-**Naming:** Product shell stays **Machina**; the AI assistant is always **Zeus** ([`aiBrand.ts`](../web/src/config/aiBrand.ts), [`AskZeusButton`](../web/src/components/ai/AskZeusButton.tsx)). Use "Ask Zeus" — not "Ask Machina" or "Copilot" — in user-facing AI entry points.
+**Naming:** Product shell stays **Machina**; the AI assistant is always **Zyra** ([`aiBrand.ts`](../web/src/config/aiBrand.ts), [`AskZyraButton`](../web/src/components/ai/AskZyraButton.tsx)). Use "Ask Zyra" — not "Ask Machina" or "Copilot" — in user-facing AI entry points.
 
 | Surface | Rule |
 |---------|------|
 | **Jarvis strip** | Slim search bar + up to 5 intent chips; Normal tier adds greeting; no duplicate action buttons (dock/menubar own Mission Control & Spotlight) |
 | **Fleet insights** | Collapsed by default; badge only on header; no approval queue or posture panel on dashboard (Dynamic Island + Security Center) |
-| **Classic shell** | Navbar **Zeus** button only — [`ZeusAmbientBar`](web/src/components/ai/ZeusAmbientBar.tsx) hidden when Navbar Zeus is shown |
+| **Classic shell** | Navbar **Zeus** button only — [`ZyraAmbientBar`](web/src/components/ai/ZyraAmbientBar.tsx) hidden when Navbar Zeus is shown |
 | **About / tasks** | Marketing copy on Support only; no Recent tasks panel on dashboard |
 
 ## Dashboard & shell

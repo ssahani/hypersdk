@@ -173,7 +173,7 @@ export default function MissionControlPage() {
               )}
               <button type="button" className="btn-secondary text-xs" onClick={() => navigate('/platform/vms?folder=guest_agent_missing')}>Install guest agents</button>
               <button type="button" className="btn-secondary text-xs" onClick={() => navigate('/platform/vms?folder=needs_attention')}>Review stopped VMs</button>
-              <button type="button" className="btn-secondary text-xs" onClick={() => dispatchOpenSpotlight('diagnose fleet attention items')}>Ask Zeus diagnose</button>
+              <button type="button" className="btn-secondary text-xs" onClick={() => dispatchOpenSpotlight('diagnose fleet attention items')}>Ask Zyra diagnose</button>
             </section>
           )}
           <MissionControlLaunchpad onCreateVm={() => setWizardOpen(true)} lastVm={lastRunningVm} />

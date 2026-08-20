@@ -29,7 +29,7 @@ Use `?tab=access` to deep-link directly.
 
 ### Header action bar
 
-The page header shows **Open Cinema**, **SSH**, one contextual power action (Start / Shutdown / Resume), and a **Power & more** overflow menu (pause, reboot, NMI, force stop, Studio, Virt-Viewer, pop out, delete). **Ask Zeus** opens Spotlight with VM blockers and suggested intents.
+The page header shows **Open Cinema**, **SSH**, one contextual power action (Start / Shutdown / Resume), and a **Power & more** overflow menu (pause, reboot, NMI, force stop, Studio, Virt-Viewer, pop out, delete). **Ask Zyra** opens Spotlight with VM blockers and suggested intents.
 
 ### Attention stack
 

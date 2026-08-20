@@ -134,6 +134,6 @@ export function useAi() {
   return ctx
 }
 
-/** Zeus-branded alias for ambient assistant context. */
-export const useZeus = useAi
-export const ZeusProvider = AiProvider
+/** Zyra-branded alias for ambient assistant context. */
+export const useZyra = useAi
+export const ZyraProvider = AiProvider

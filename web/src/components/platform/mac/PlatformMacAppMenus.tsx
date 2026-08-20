@@ -5,7 +5,7 @@ import { useLocation, useNavigate } from 'react-router'
 import { LogOut, User } from 'lucide-react'
 import { useAuth } from '../../../contexts/AuthContext'
 import { useAi } from '../../../contexts/AiContext'
-import { ASK_ZEUS_LABEL } from '../../../config/aiBrand'
+import { ASK_ZYRA_LABEL } from '../../../config/aiBrand'
 import ConnectionStatus from '../../ConnectionStatus'
 import PlatformMacMenuDropdown, { PlatformMacMenuItem } from './PlatformMacMenuDropdown'
 import { usePlatformMacDesktop } from './PlatformMacDesktopContext'
@@ -23,7 +23,7 @@ import {
   dispatchOpenSpotlight,
   OPEN_SPOTLIGHT_EVENT,
 } from '../../../utils/platformJarvisShell'
-import { ZEUS_SEARCH_PLACEHOLDER } from '../../../config/aiBrand'
+import { ZYRA_SEARCH_PLACEHOLDER } from '../../../config/aiBrand'
 import { macMenuSectionsForTier } from '../../../utils/platformMacMenus'
 import { integrationNavItems } from '../../../utils/platformIntegrationsNav'
 import { usePlatformInfo } from '../../../contexts/PlatformInfoContext'
@@ -182,7 +182,7 @@ export default function PlatformMacAppMenus() {
           </>
         )}
         <PlatformMacMenuItem label="Spotlight…" shortcut="⌘K" onClick={() => { openSpotlight(); closeMenu() }} />
-        <PlatformMacMenuItem label={`${ASK_ZEUS_LABEL}…`} shortcut="⌘⇧A" onClick={() => { openCopilot(); closeMenu() }} />
+        <PlatformMacMenuItem label={`${ASK_ZYRA_LABEL}…`} shortcut="⌘⇧A" onClick={() => { openCopilot(); closeMenu() }} />
         <PlatformMacMenuItem label="Move to New Window" shortcut="⌘⌥N" onClick={() => { openCenterPopout(`${location.pathname}${location.search}`); closeMenu() }} />
       </PlatformMacMenuDropdown>
 
@@ -190,7 +190,7 @@ export default function PlatformMacAppMenus() {
         <PlatformMacMenuItem label="Platform guide…" onClick={() => { dispatchOpenHelp('platform'); closeMenu() }} />
         <PlatformMacMenuItem label="Keyboard shortcuts" onClick={() => { dispatchOpenHelp('shortcuts'); closeMenu() }} />
         <div className="my-1 border-t border-white/[0.08]" />
-        <PlatformMacMenuItem label={`${ASK_ZEUS_LABEL}…`} shortcut="⌘⇧A" onClick={() => { openCopilot(); closeMenu() }} />
+        <PlatformMacMenuItem label={`${ASK_ZYRA_LABEL}…`} shortcut="⌘⇧A" onClick={() => { openCopilot(); closeMenu() }} />
         <PlatformMacMenuItem label="Spotlight Search" shortcut="⌘K" onClick={() => { openSpotlight(); closeMenu() }} />
         <div className="my-1 border-t border-white/[0.08]" />
         {helpNavItems.map((item) => (
@@ -214,7 +214,7 @@ export default function PlatformMacAppMenus() {
           aria-label="Zeus search"
           value={zeusQuery}
           onChange={(e) => setZeusQuery(e.target.value)}
-          placeholder={ZEUS_SEARCH_PLACEHOLDER}
+          placeholder={ZYRA_SEARCH_PLACEHOLDER}
           className="w-full rounded-lg bg-white/[0.06] border border-white/[0.08] px-3 py-1 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus-visible:ring-1 focus-visible:ring-sky-500/40"
           data-testid="menubar-zeus-search"
         />

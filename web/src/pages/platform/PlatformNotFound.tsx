@@ -22,7 +22,7 @@ export default function PlatformNotFound() {
         <div className="flex flex-wrap justify-center gap-2 pt-2">
           <Link to="/platform" className="btn-primary text-sm inline-flex items-center gap-1"><Home className="w-4 h-4" /> Mission Control</Link>
           <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" onClick={() => dispatchOpenSpotlight()}><Search className="w-4 h-4" /> Spotlight</button>
-          <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" onClick={() => openCopilot()}><Sparkles className="w-4 h-4" /> Ask Zeus</button>
+          <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" onClick={() => openCopilot()}><Sparkles className="w-4 h-4" /> Ask Zyra</button>
         </div>
       </section>
     </PageLayout>

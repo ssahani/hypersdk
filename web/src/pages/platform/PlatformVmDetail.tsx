@@ -939,7 +939,7 @@ export default function PlatformVmDetail() {
             <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" onClick={() => setHardwareDrawerOpen(true)} data-testid="vm-detail-hardware">
               <Cpu className="w-4 h-4" /> Hardware
             </button>
-            {!isPopout ? <SpotlightPageAction prefill={spotlightPrefill} label="Ask Zeus" /> : null}
+            {!isPopout ? <SpotlightPageAction prefill={spotlightPrefill} label="Ask Zyra" /> : null}
           </div>
         ) : (
           <VmDetailActionBar

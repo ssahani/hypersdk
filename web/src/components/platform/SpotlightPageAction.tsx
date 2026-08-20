@@ -5,7 +5,7 @@ import { dispatchOpenSpotlight } from '../../utils/platformJarvisShell'
 
 export default function SpotlightPageAction({
   prefill,
-  label = 'Ask Zeus',
+  label = 'Ask Zyra',
   className = '',
 }: {
   prefill: string

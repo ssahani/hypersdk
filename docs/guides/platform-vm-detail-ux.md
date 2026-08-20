@@ -19,7 +19,7 @@ Machina platform VM detail is organized **machine-first, task-second**: one hero
 
 **Power & more overflow:** Pause, reboot variants, NMI, force stop, Studio, Virt-Viewer, pop out, Delete.
 
-Ask Zeus opens Spotlight with VM blockers and suggested intents (`vmDetailSpotlight.ts`).
+Ask Zyra opens Spotlight with VM blockers and suggested intents (`vmDetailSpotlight.ts`).
 
 ## Attention stack
 

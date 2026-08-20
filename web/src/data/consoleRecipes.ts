@@ -44,7 +44,7 @@ export const CONSOLE_RECIPES: ConsoleRecipe[] = [
       'Try Serial for boot output',
       'Verify VM is running (not paused)',
       'Check firmware mode (BIOS vs UEFI)',
-      'Ask Zeus to explain the screen',
+      'Ask Zyra to explain the screen',
     ],
     lens: 'display',
   },

@@ -5,7 +5,7 @@ import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { useAi } from '../../contexts/AiContext'
 
 /** Floating Zeus pill — superseded by Navbar (classic) and Dynamic Island (platform). */
-export default function ZeusAmbientBar() {
+export default function ZyraAmbientBar() {
   const location = useLocation()
   const { info } = usePlatformInfo()
   const { mode } = useAi()

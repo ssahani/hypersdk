@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { getFleetSummary } from '../../../api/ai'
-import { ZEUS_ASSISTANT_NAME } from '../../../config/aiBrand'
+import { ZYRA_ASSISTANT_NAME } from '../../../config/aiBrand'
 import { statusChipClasses } from '../../../utils/semanticColors'
 import { dispatchOpenSpotlight } from '../../../utils/platformJarvisShell'
 import type { MachineFinderState } from './useMachineFinder'
@@ -39,7 +39,7 @@ export default function MachineFinderBriefing({ state }: Props) {
         <div className="flex items-start gap-2 min-w-0">
           <Sparkles className="w-4 h-4 text-sky-400 mt-0.5 shrink-0" />
           <div className="min-w-0">
-            <p className="text-xs font-medium text-sky-300/90">{ZEUS_ASSISTANT_NAME} Briefing</p>
+            <p className="text-xs font-medium text-sky-300/90">{ZYRA_ASSISTANT_NAME} Briefing</p>
             <p className="text-sm text-slate-200 mt-0.5">
               {loading ? 'Scanning fleet…' : summaryText ?? state.finder?.summary ?? 'Fleet overview loading…'}
             </p>

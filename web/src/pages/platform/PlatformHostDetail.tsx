@@ -55,7 +55,7 @@ import { cordonHost } from '../../api/day2'
 import { getFirewallTarget, type FirewallTargetDetail } from '../../api/zeusFirewall'
 import { useAi } from '../../contexts/AiContext'
 import { useBreadcrumbName } from '../../contexts/BreadcrumbNameContext'
-import AskZeusButton from '../../components/ai/AskZeusButton'
+import AskZyraButton from '../../components/ai/AskZyraButton'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone, utilizationBarClass, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
@@ -309,7 +309,7 @@ export default function PlatformHostDetailPage() {
           <button type="button" className="btn-secondary text-sm" disabled={cordonBusy} onClick={toggleCordon}>
             {host.schedulable ? 'Cordon' : 'Uncordon'}
           </button>
-          <AskZeusButton onClick={() => void runDiagnose('host health and pressure')} />
+          <AskZyraButton onClick={() => void runDiagnose('host health and pressure')} />
           <Link to={`/platform/zeus/security/firewall/${id}`} className="btn-secondary text-sm inline-flex items-center gap-1">
             <Shield className="w-4 h-4" /> Firewall
           </Link>

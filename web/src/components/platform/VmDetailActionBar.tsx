@@ -218,7 +218,7 @@ export default function VmDetailActionBar({
         </div>
       )}
 
-      {!isPopout ? <SpotlightPageAction prefill={spotlightPrefill} label="Ask Zeus" /> : null}
+      {!isPopout ? <SpotlightPageAction prefill={spotlightPrefill} label="Ask Zyra" /> : null}
     </div>
   )
 }

@@ -37,7 +37,7 @@ import {
 } from '../../api/platform'
 import { getZeusSummary } from '../../api/ai'
 import { getOperatorSecurePlan } from '../../api/zeusFirewall'
-import { ZEUS_ASSISTANT_NAME } from '../../config/aiBrand'
+import { ZYRA_ASSISTANT_NAME } from '../../config/aiBrand'
 import { useAi } from '../../contexts/AiContext'
 import { useFleetDesktop } from '../../hooks/useFleetDesktop'
 import { useToastContext } from '../../contexts/ToastContext'
@@ -270,7 +270,7 @@ export default function PlatformControlCenter() {
                 {showPower && (
                   <ModuleTile
                     icon={<Bot className="w-4 h-4 text-violet-400" />}
-                    label={ZEUS_ASSISTANT_NAME}
+                    label={ZYRA_ASSISTANT_NAME}
                     value={mode === 'off' ? 'Off' : mode === 'autopilot' ? 'Autopilot' : 'Advisor'}
                     onClick={() => { openCopilot(); setOpen(false) }}
                   />

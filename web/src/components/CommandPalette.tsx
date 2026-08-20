@@ -949,7 +949,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
                     className="btn-secondary"
                     onClick={() => { openCopilotWithQuery(query.trim()); close() }}
                   >
-                    Ask Zeus "{query.trim()}"
+                    Ask Zyra "{query.trim()}"
                   </button>
                 )}
               </div>

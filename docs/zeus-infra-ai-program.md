@@ -20,7 +20,7 @@ Autonomous Infrastructure Engineer capabilities for bare-metal + virtualization 
 | `GET /api/v1/ai/rightsizing/report` | WS6 | FinOps recommendations |
 | `GET /api/v1/ai/incidents/active` | WS8 Commander | Open incidents |
 | `GET /api/v1/ai/incidents/{id}/room` | WS8 | War room bundle |
-| `POST /api/v1/ai/nl-ops` | WS10 Ask Zeus | NL ops with dry-run default |
+| `POST /api/v1/ai/nl-ops` | WS10 Ask Zyra | NL ops with dry-run default |
 
 ## UI map
 

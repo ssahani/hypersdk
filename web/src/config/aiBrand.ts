@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-/** AI assistant branding — product name remains Machina; assistant is Zeus. */
-export const ZEUS_ASSISTANT_NAME = 'Zeus'
-export const ASK_ZEUS_LABEL = 'Ask Zeus'
-export const ZEUS_SEARCH_PLACEHOLDER = 'Ask Zeus or search fleet… (⌘Space)'
+/** AI assistant branding — product name remains Machina; assistant is Zyra. */
+export const ZYRA_ASSISTANT_NAME = 'Zeus'
+export const ASK_ZYRA_LABEL = 'Ask Zyra'
+export const ZYRA_SEARCH_PLACEHOLDER = 'Ask Zyra or search fleet… (⌘Space)'

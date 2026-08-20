@@ -19,8 +19,8 @@ import NotFound from './pages/NotFound'
 import LoginPage from './pages/Login'
 import CommandPalette from './components/CommandPalette'
 import ZeusSpotlight from './components/ai/ZeusSpotlight'
-import ZeusAssistant from './components/ai/ZeusAssistant'
-import ZeusAmbientBar from './components/ai/ZeusAmbientBar'
+import ZyraAssistant from './components/ai/ZyraAssistant'
+import ZyraAmbientBar from './components/ai/ZyraAmbientBar'
 import Breadcrumb from './components/Breadcrumb'
 import { BreadcrumbNameProvider } from './contexts/BreadcrumbNameContext'
 import HelpDialog, { type HelpTab } from './components/HelpDialog'
@@ -381,8 +381,8 @@ function AuthenticatedShellRoutes() {
             {!isPlatformRoute && <Navbar onOpenHelp={openHelp} />}
             {!isPlatformRoute && <ShellBridgeBar />}
             <ZeusSpotlight onOpenHelp={openHelp} />
-            <ZeusAssistant />
-            <ZeusAmbientBar />
+            <ZyraAssistant />
+            <ZyraAmbientBar />
             <GlobalShortcuts
               helpOpen={helpOpen}
               helpTab={helpTab}

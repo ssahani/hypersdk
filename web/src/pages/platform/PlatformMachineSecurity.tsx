@@ -37,7 +37,7 @@ import {
 import { formatUserError } from '../../utils/apiError'
 import { useToastContext } from '../../contexts/ToastContext'
 import { useBreadcrumbName } from '../../contexts/BreadcrumbNameContext'
-import AskZeusButton from '../../components/ai/AskZeusButton'
+import AskZyraButton from '../../components/ai/AskZyraButton'
 import DetailTabs from '../../components/platform/DetailTabs'
 import { statusPillClasses, hubLinkClasses } from '../../utils/semanticColors'
 import EbpfActionMenu from '../../components/platform/EbpfActionMenu'
@@ -223,7 +223,7 @@ export default function PlatformMachineSecurity() {
           >
             Attack chain
           </button>
-          <AskZeusButton />
+          <AskZyraButton />
         </div>
       }
       contentClassName="space-y-4"

@@ -197,7 +197,7 @@ test('spotlight opens via keyboard shortcut', async ({ page }) => {
   await expect(page.getByPlaceholder('Zeus — search or ask…')).toBeVisible({ timeout: 5000 })
 })
 
-test('spotlight keeps page context prefill from Ask Zeus', async ({ page }) => {
+test('spotlight keeps page context prefill from Ask Zyra', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/vms/v1')
   await expect(page.getByRole('heading', { name: 'vm-1' }).first()).toBeVisible({ timeout: 15_000 })

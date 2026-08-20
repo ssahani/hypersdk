@@ -33,7 +33,7 @@ function guestContextActive(summary: string | null, vmIds: string[]): boolean {
   return s.includes('qga') || s.includes('guest') || s.includes('agent') || s.includes('ubuntu')
 }
 
-export default function ZeusAssistant() {
+export default function ZyraAssistant() {
   const {
     copilotOpen,
     closeCopilot,
@@ -300,7 +300,7 @@ export default function ZeusAssistant() {
           {messages.length === 0 && (
             <div className="space-y-3">
               <p className="text-slate-500">
-                Ask Zeus about VM health, capacity, cost, migrations, security, guest agents, or network paths.
+                Ask Zyra about VM health, capacity, cost, migrations, security, guest agents, or network paths.
               </p>
               {showGuestPrompts && (
                 <div className="space-y-1.5">
@@ -330,9 +330,9 @@ export default function ZeusAssistant() {
         </div>
         <footer className="p-3 border-t border-white/[0.06] flex gap-2">
           <input
-            aria-label={showGuestPrompts ? 'Ask about guest agents' : 'Ask Zeus'}
+            aria-label={showGuestPrompts ? 'Ask about guest agents' : 'Ask Zyra'}
             className="input flex-1 text-sm"
-            placeholder={showGuestPrompts ? 'Ask about guest agents…' : 'Ask Zeus…'}
+            placeholder={showGuestPrompts ? 'Ask about guest agents…' : 'Ask Zyra…'}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') void send() }}

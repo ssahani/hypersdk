@@ -22,7 +22,7 @@ test('Jarvis shell visible on power tier dashboard', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform')
   await expect(page.getByTestId('mission-control-briefing')).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByPlaceholder(/Ask Zeus or search fleet/i)).toBeVisible()
+  await expect(page.getByPlaceholder(/Ask Zyra or search fleet/i)).toBeVisible()
 })
 
 test('normal tier dashboard shows launchpad without fleet insights', async ({ page }) => {

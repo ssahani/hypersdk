@@ -4,7 +4,7 @@ import { Search } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
 import { getJarvisLanding, type SpotlightIntent } from '../../api/ai'
-import { ZEUS_ASSISTANT_NAME, ZEUS_SEARCH_PLACEHOLDER } from '../../config/aiBrand'
+import { ZYRA_ASSISTANT_NAME, ZYRA_SEARCH_PLACEHOLDER } from '../../config/aiBrand'
 import { useFleetDesktop } from '../../hooks/useFleetDesktop'
 import { dispatchOpenSpotlight } from '../../utils/platformJarvisShell'
 import { statusChipClasses } from '../../utils/semanticColors'
@@ -81,7 +81,7 @@ export default function PlatformJarvisBriefing() {
     >
       {!showPower && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80">{ZEUS_ASSISTANT_NAME}</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80">{ZYRA_ASSISTANT_NAME}</p>
           <h2 className="text-xl font-semibold text-slate-50 mt-0.5">{greetingName()}.</h2>
         </div>
       )}
@@ -94,7 +94,7 @@ export default function PlatformJarvisBriefing() {
           type="search"
           aria-label="Zeus search"
           className="input w-full pl-10"
-          placeholder={ZEUS_SEARCH_PLACEHOLDER}
+          placeholder={ZYRA_SEARCH_PLACEHOLDER}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
