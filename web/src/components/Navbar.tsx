@@ -524,8 +524,8 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
                       ? 'text-orange-300/90 hover:text-orange-200 hover:bg-white/5'
                       : 'text-orange-400 hover:bg-slate-700/60 hover:text-orange-300'
                 }`}
-                title="Zeus"
-                aria-label="Open Zeus"
+                title="Zyra"
+                aria-label="Open Zyra"
               >
                 <Bot className="w-4 h-4" />
                 <span className="hidden md:inline text-xs font-medium">{ZYRA_ASSISTANT_NAME}</span>

@@ -44,7 +44,7 @@ pub async fn propose_waste(
             review: t
                 .alert
                 .clone()
-                .unwrap_or_else(|| format!("{} open ports · apply Zeus profile", t.open_ports)),
+                .unwrap_or_else(|| format!("{} open ports · apply Zyra profile", t.open_ports)),
             action: "navigate_firewall".into(),
             monthly_waste_usd: t.exposure_monthly_usd,
             priority: if t.critical_ports > 0 { 1 } else { 2 },

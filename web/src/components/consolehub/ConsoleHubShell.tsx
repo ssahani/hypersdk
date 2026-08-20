@@ -47,7 +47,7 @@ export default function ConsoleHubShell({
       subtitle={
         subtitle ?? (
           <span className="text-slate-500 flex flex-wrap gap-3 text-xs">
-            <span>Zeus ConsoleHub</span>
+            <span>Zyra ConsoleHub</span>
             {vmState ? <span className="inline-flex items-center gap-1"><Power className="w-3 h-3" />{vmState}</span> : null}
             {nodeName ? <span>Node: {nodeName}</span> : null}
             {guestIp ? <span className="font-mono text-emerald-300/90">{guestIp}</span> : null}

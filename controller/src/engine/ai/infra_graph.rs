@@ -448,7 +448,7 @@ pub async fn append_firewall_edges(
             nodes.push(GraphNode {
                 kind: "firewall_target".into(),
                 id: ft_id.clone(),
-                name: format!("Zeus FW {hostname}"),
+                name: format!("Zyra FW {hostname}"),
                 state: Some("active".into()),
                 health_score: None,
             });

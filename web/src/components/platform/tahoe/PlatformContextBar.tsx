@@ -26,7 +26,7 @@ function ContextPill({ item, pathname, search }: { item: ContextNavItem; pathnam
     || item.to === '/platform/administration'
     || item.to === '/platform/operations'
     || item.to === '/platform/integrations'
-    || item.to === '/platform/zeus'
+    || item.to === '/platform/zyra'
 
   if (hasQuery) {
     const active = isContextNavActive(pathname, search, item)
@@ -170,9 +170,9 @@ export default function PlatformContextBar() {
             <Link to={operationsHubHref(tier)} className="tahoe-context-status-chip" title="Operations">
               {desktop.active_tasks} tasks
             </Link>
-            <Link to="/platform/zeus" className="tahoe-context-status-chip text-orange-200/80" title="Zeus">
+            <Link to="/platform/zyra" className="tahoe-context-status-chip text-orange-200/80" title="Zyra">
               <Sparkles className="w-3 h-3 text-orange-400" />
-              {desktop.zeus_status}
+              {desktop.zyra_status}
             </Link>
             {desktop.unread_notifications > 0 ? (
               <Link to={operationsHubHref(tier)} className={`tahoe-context-status-chip ${statusToneClass('warn')} opacity-90`} title="Alerts">

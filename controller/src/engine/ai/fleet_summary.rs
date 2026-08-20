@@ -16,7 +16,7 @@ pub struct FleetClusterSlice {
 }
 
 #[derive(Debug, Serialize)]
-pub struct FleetZeusSummary {
+pub struct FleetZyraSummary {
     pub clusters: Vec<FleetClusterSlice>,
     pub aggregate_monthly_usd: f64,
     pub aggregate_vm_count: i64,
@@ -24,7 +24,7 @@ pub struct FleetZeusSummary {
     pub reachable_peers: usize,
 }
 
-pub async fn summarize(pool: &SqlitePool) -> anyhow::Result<FleetZeusSummary> {
+pub async fn summarize(pool: &SqlitePool) -> anyhow::Result<FleetZyraSummary> {
     let mut clusters = vec![local_slice(pool).await?];
     let peer_urls = super::settings::get_fleet_peer_urls(pool).await?;
     let mut reachable_peers = 0usize;
@@ -40,7 +40,7 @@ pub async fn summarize(pool: &SqlitePool) -> anyhow::Result<FleetZeusSummary> {
     let aggregate_monthly_usd = clusters.iter().map(|c| c.estimated_monthly_usd).sum();
     let aggregate_vm_count = clusters.iter().map(|c| c.vm_count).sum();
 
-    Ok(FleetZeusSummary {
+    Ok(FleetZyraSummary {
         peer_count: peer_urls.len(),
         reachable_peers,
         aggregate_monthly_usd,

@@ -14,7 +14,7 @@ export const PLATFORM_DESKTOP_TIER_LABELS: Record<PlatformDesktopTier, string> =
 
 export const PLATFORM_DESKTOP_TIER_HINTS: Record<PlatformDesktopTier, string> = {
   normal: 'Clean desktop — Finder, hosts, backups, and settings. Dock-first layout.',
-  power: 'Operations toolkit — storage, networks, Zeus, tasks, and shortcuts.',
+  power: 'Operations toolkit — storage, networks, Zyra, tasks, and shortcuts.',
   advanced: 'Full Machina fleet surface — every pane, firewall module, and admin tool.',
 }
 
@@ -67,7 +67,7 @@ const POWER_PATHS = [
   '/platform/migration',
   '/platform/blueprints',
   '/platform/projects',
-  '/platform/zeus',
+  '/platform/zyra',
   '/platform/zeus/security',
   '/platform/zeus/security/hunt',
   '/platform/zeus/security/enforcement',
@@ -89,14 +89,14 @@ const POWER_PATHS = [
 ]
 
 export const DOCK_PATHS_BY_TIER: Record<PlatformDesktopTier, string[]> = {
-  normal: ['/platform', '/platform/vms', '/platform/hosts', '/platform/storage', '/platform/networks', '/platform/zeus', '/platform/settings'],
+  normal: ['/platform', '/platform/vms', '/platform/hosts', '/platform/storage', '/platform/networks', '/platform/zyra', '/platform/settings'],
   power: [
     '/platform',
     '/platform/vms',
     '/platform/hosts',
     '/platform/storage',
     '/platform/networks',
-    '/platform/zeus',
+    '/platform/zyra',
     '/platform/infrastructure',
     '/platform/settings',
   ],
@@ -106,7 +106,7 @@ export const DOCK_PATHS_BY_TIER: Record<PlatformDesktopTier, string[]> = {
     '/platform/hosts',
     '/platform/storage',
     '/platform/networks',
-    '/platform/zeus',
+    '/platform/zyra',
     '/platform/infrastructure',
     '/platform/operations',
     '/platform/settings',

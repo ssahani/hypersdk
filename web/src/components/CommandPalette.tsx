@@ -56,7 +56,7 @@ const PANEL_TRANSITION = { type: 'spring' as const, stiffness: 340, damping: 28 
 
 interface CommandPaletteProps {
   onOpenHelp?: (tab?: HelpTab) => void
-  /** When true, show Zeus Spotlight branding (⌘Space primary). */
+  /** When true, show Zyra Spotlight branding (⌘Space primary). */
   spotlight?: boolean
 }
 
@@ -717,7 +717,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
       id: `ai-intent-${intent.id}`,
       icon: <Terminal className="w-4 h-4 text-orange-400" />,
       label: intent.label,
-      sublabel: intent.review || 'Zeus Spotlight',
+      sublabel: intent.review || 'Zyra Spotlight',
       action: () => {
         if (intent.navigate) {
           go(intent.navigate)
@@ -745,7 +745,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
           })
         }
       },
-      category: 'Zeus Spotlight',
+      category: 'Zyra Spotlight',
     })
   }
 
@@ -789,7 +789,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
     'Recent pages',
     'Recent',
     'Pinned',
-    'Zeus Spotlight',
+    'Zyra Spotlight',
     'Launchpad',
     'Platform Commands',
     ...spotlightZoneOrder(),
@@ -861,7 +861,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
           key="command-palette"
           role="dialog"
           aria-modal="true"
-          aria-label={spotlight ? 'Zeus Spotlight' : 'Command palette'}
+          aria-label={spotlight ? 'Zyra Spotlight' : 'Command palette'}
           initial={BACKDROP_INITIAL}
           animate={BACKDROP_ANIMATE}
           exit={BACKDROP_EXIT}
@@ -887,10 +887,10 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
             <input
               ref={inputRef}
               type="text"
-              aria-label={spotlight ? 'Zeus — search or ask' : 'Search command palette'}
+              aria-label={spotlight ? 'Zyra — search or ask' : 'Search command palette'}
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder={spotlight ? 'Zeus — search or ask…' : 'Search or type > import networks…'}
+              placeholder={spotlight ? 'Zyra — search or ask…' : 'Search or type > import networks…'}
               className="flex-1 py-3.5 bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none focus-visible:ring-1 focus-visible:ring-blue-500/50"
             />
             {spotlight ? (

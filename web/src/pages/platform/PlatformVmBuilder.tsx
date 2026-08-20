@@ -53,7 +53,7 @@ export default function PlatformVmBuilder() {
     <PlatformPageChrome
       prepend={<PlatformBackLink to="/platform/vms" label="Virtual Machines" />}
       title="AI VM Builder"
-      subtitle="Describe workload in plain language — Zeus sizes CPU, memory, and FinOps estimate."
+      subtitle="Describe workload in plain language — Zyra sizes CPU, memory, and FinOps estimate."
       icon={<Sparkles className="w-6 h-6 text-violet-400" />}
     >
       <MacGlassPanel title="Prompt">
@@ -73,7 +73,7 @@ export default function PlatformVmBuilder() {
           Generate plan
         </button>
         <p className="text-xs text-slate-500 mt-2">
-          Multi-VM environments: <Link to="/platform/zeus" className={hubLinkClasses()}>Zeus OS → Environment intent</Link>
+          Multi-VM environments: <Link to="/platform/zyra" className={hubLinkClasses()}>Zyra OS → Environment intent</Link>
         </p>
       </MacGlassPanel>
 

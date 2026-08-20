@@ -17,7 +17,7 @@ export default function SpotlightPageAction({
       type="button"
       className={`btn-secondary text-sm inline-flex items-center gap-1.5 ${className}`}
       onClick={() => dispatchOpenSpotlight(prefill)}
-      title="Open Zeus Spotlight with context for this page (⌘K)"
+      title="Open Zyra Spotlight with context for this page (⌘K)"
     >
       <Sparkles className="w-4 h-4 text-orange-400" />
       {label}

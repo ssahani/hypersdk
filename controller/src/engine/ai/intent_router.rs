@@ -516,7 +516,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
     }
     if ql.contains("firewall settings") || ql.contains("firewall preference") {
         intents.push(intent(
-            "zeus-fw-settings",
+            "zyra-fw-settings",
             "Firewall settings",
             "System Settings → Network → Firewall fleet summary and SLA.",
             "navigate",
@@ -527,7 +527,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
     }
     if ql.contains("block incoming") || ql.contains("block all incoming") {
         intents.push(intent(
-            "zeus-block-incoming",
+            "zyra-block-incoming",
             "Block incoming connections",
             "Apply strict firewall profile or stealth mode on a machine.",
             "navigate",
@@ -538,7 +538,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
     }
     if ql.contains("open ports") || ql.contains("open port") {
         intents.push(intent(
-            "zeus-open-ports",
+            "zyra-open-ports",
             "Open ports",
             "Review fleet port exposure and allowed services.",
             "navigate",
@@ -563,18 +563,18 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
     }
     if ql.contains("pxe isolation") || ql.contains("provisioning network") {
         intents.push(intent(
-            "zeus-pxe-isolation",
+            "zyra-pxe-isolation",
             "PXE isolation",
             "Apply BareMetalPxe profile on provisioning network.",
             "navigate",
             None,
-            Some("/platform/zeus?tab=baremetal".into()),
+            Some("/platform/zyra?tab=baremetal".into()),
             None,
         ));
     }
     if ql.contains("dr firewall") || ql.contains("multi-site") || ql.contains("multisite") {
         intents.push(intent(
-            "zeus-multisite",
+            "zyra-multisite",
             "Multi-site DR firewall",
             "Federated policy export and cross-site profile sync.",
             "navigate",
@@ -588,7 +588,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
         || ql.contains("ai operator")
     {
         intents.push(intent(
-            "zeus-operator",
+            "zyra-operator",
             "AI operator secure plan",
             "Guardrailed fleet secure-machine preview and approval gate.",
             "navigate",
@@ -732,7 +732,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
         || ql.contains("lockdown")
     {
         intents.push(intent(
-            "zeus-secure",
+            "zyra-secure",
             "Secure this machine",
             "AI firewall plan with safe defaults and rollback.",
             "navigate",
@@ -746,7 +746,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
         || (ql.contains("database") && ql.contains("public"))
     {
         intents.push(intent(
-            "zeus-exposure",
+            "zyra-exposure",
             "Open port exposure",
             "Scan fleet for critical database and SSH exposure.",
             "navigate",
@@ -760,7 +760,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
         || ql.contains("approve firewall")
     {
         intents.push(intent(
-            "zeus-fw-approval",
+            "zyra-fw-approval",
             "Firewall approvals",
             "Review pending risky firewall profile changes.",
             "navigate",
@@ -771,7 +771,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
     }
     if ql.contains("gitops") && ql.contains("firewall") {
         intents.push(intent(
-            "zeus-fw-gitops",
+            "zyra-fw-gitops",
             "Firewall GitOps",
             "Export or sync MachineFirewallPolicy bundles.",
             "navigate",
@@ -887,14 +887,14 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
         ));
     }
 
-    if ql.contains("zeus") && (ql.contains("summary") || ql.contains("status")) {
+    if ql.contains("zyra") && (ql.contains("summary") || ql.contains("status")) {
         intents.push(intent(
-            "zeus-summary",
-            "Zeus OS summary",
+            "zyra-summary",
+            "Zyra OS summary",
             "Unified infrastructure OS health strip.",
             "navigate",
             None,
-            Some("/platform/zeus".into()),
+            Some("/platform/zyra".into()),
             None,
         ));
     }
@@ -908,7 +908,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             "Consolidate cold hosts and reduce power waste.",
             "navigate",
             None,
-            Some("/platform/zeus".into()),
+            Some("/platform/zyra".into()),
             None,
         ));
     }
@@ -988,7 +988,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             "Unified SRE, compliance, and fleet power actions.",
             "navigate",
             None,
-            Some("/platform/zeus".into()),
+            Some("/platform/zyra".into()),
             None,
         ));
     }
@@ -1003,7 +1003,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             "Diagnose query and generate operator runbook steps.",
             "navigate",
             None,
-            Some("/platform/zeus".into()),
+            Some("/platform/zyra".into()),
             None,
         ));
     }
@@ -1074,7 +1074,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             "Preview AI-driven live migrations to relieve hotspots.",
             "navigate",
             None,
-            Some("/platform/zeus".into()),
+            Some("/platform/zyra".into()),
             None,
         ));
     }
@@ -1091,7 +1091,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             "Map cluster posture to CIS, PCI, SOC2, and HIPAA controls.",
             "navigate",
             None,
-            Some("/platform/zeus".into()),
+            Some("/platform/zyra".into()),
             None,
         ));
     }
@@ -1126,7 +1126,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             "NL root-cause hints from VMs, tasks, and metrics.",
             "navigate",
             None,
-            Some("/platform/zeus".into()),
+            Some("/platform/zyra".into()),
             Some(serde_json::json!({ "query": q })),
         ));
     }
@@ -1138,7 +1138,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             "Rank hosts for GPU / inference workloads.",
             "navigate",
             None,
-            Some("/platform/zeus".into()),
+            Some("/platform/zyra".into()),
             None,
         ));
     }
@@ -1152,7 +1152,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             "Simulate impact if an application service fails.",
             "navigate",
             None,
-            Some("/platform/zeus".into()),
+            Some("/platform/zyra".into()),
             None,
         ));
     }
@@ -1243,7 +1243,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             "Analyze how an attacker could reach a workload VM.",
             "navigate",
             None,
-            Some("/platform/zeus".into()),
+            Some("/platform/zyra".into()),
             None,
         ));
     }
@@ -1258,7 +1258,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             "Unified VM, network, and firewall path analysis.",
             "navigate",
             None,
-            Some("/platform/zeus?tab=brain".into()),
+            Some("/platform/zyra?tab=brain".into()),
             None,
         ));
     }
@@ -1272,7 +1272,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             "FinOps recommendations from fleet metrics.",
             "navigate",
             None,
-            Some("/platform/zeus/rightsizing".into()),
+            Some("/platform/zyra/rightsizing".into()),
             None,
         ));
     }
@@ -1283,7 +1283,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             "Correlated war room for active outages.",
             "navigate",
             None,
-            Some("/platform/zeus/incidents".into()),
+            Some("/platform/zyra/incidents".into()),
             None,
         ));
     }
@@ -1415,12 +1415,12 @@ pub fn jarvis_landing_intents(
             None,
         ),
         intent(
-            "jarvis-zeus",
-            "Zeus OS",
+            "jarvis-zyra",
+            "Zyra OS",
             "Cloud layer — K8s, firewall, bare metal, and AI workloads.",
             "navigate",
             None,
-            Some("/platform/zeus".into()),
+            Some("/platform/zyra".into()),
             None,
         ),
         intent(

@@ -47,7 +47,7 @@ export default function PlatformMacAppMenus() {
   const [tier, setTier] = usePlatformDesktopTier()
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [openWindows, setOpenWindows] = useState(() => loadPlatformDesktopTabs())
-  const [zeusQuery, setZeusQuery] = useState('')
+  const [zyraQuery, setZyraQuery] = useState('')
 
   const { info } = usePlatformInfo()
   const navSections = useMemo(() => macMenuSectionsForTier(tier, integrationNavItems(info)), [tier, info])
@@ -203,20 +203,20 @@ export default function PlatformMacAppMenus() {
         className="hidden md:flex items-center ml-2 min-w-[12rem] max-w-md flex-1"
         onSubmit={(e) => {
           e.preventDefault()
-          openSpotlight(zeusQuery.trim() || undefined)
-          setZeusQuery('')
+          openSpotlight(zyraQuery.trim() || undefined)
+          setZyraQuery('')
         }}
       >
         <input
-          id="menubar-zeus-search"
-          name="zeus_query"
+          id="menubar-zyra-search"
+          name="zyra_query"
           type="search"
-          aria-label="Zeus search"
-          value={zeusQuery}
-          onChange={(e) => setZeusQuery(e.target.value)}
+          aria-label="Zyra search"
+          value={zyraQuery}
+          onChange={(e) => setZyraQuery(e.target.value)}
           placeholder={ZYRA_SEARCH_PLACEHOLDER}
           className="w-full rounded-lg bg-white/[0.06] border border-white/[0.08] px-3 py-1 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus-visible:ring-1 focus-visible:ring-sky-500/40"
-          data-testid="menubar-zeus-search"
+          data-testid="menubar-zyra-search"
         />
       </form>
 

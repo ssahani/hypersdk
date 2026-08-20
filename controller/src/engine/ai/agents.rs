@@ -8,80 +8,80 @@ use super::context::AssembledContext;
 use super::routing::TaskClass;
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ZeusAgentInfo {
+pub struct ZyraAgentInfo {
     pub id: String,
     pub name: String,
     pub description: String,
     pub task_class: String,
 }
 
-pub fn catalog() -> Vec<ZeusAgentInfo> {
+pub fn catalog() -> Vec<ZyraAgentInfo> {
     vec![
         agent(
             "auto",
             "Auto",
-            "Zeus picks the best specialist for your request.",
+            "Zyra picks the best specialist for your request.",
             TaskClass::Infrastructure,
         ),
         agent(
             "architect",
-            "Zeus Architect",
+            "Zyra Architect",
             "Designs infrastructure and environments.",
             TaskClass::Infrastructure,
         ),
         agent(
             "devops",
-            "Zeus DevOps",
+            "Zyra DevOps",
             "CI/CD, runbooks, and operational automation.",
             TaskClass::CodeGeneration,
         ),
         agent(
             "kubernetes",
-            "Zeus Kubernetes",
+            "Zyra Kubernetes",
             "Cluster and workload operations.",
             TaskClass::Infrastructure,
         ),
         agent(
             "security",
-            "Zeus Security",
+            "Zyra Security",
             "Threat detection and security posture.",
             TaskClass::SecurityAnalysis,
         ),
         agent(
             "cost",
-            "Zeus Cost Optimizer",
+            "Zyra Cost Optimizer",
             "Cloud cost analysis and FinOps.",
             TaskClass::Research,
         ),
         agent(
             "observability",
-            "Zeus Observability",
+            "Zyra Observability",
             "Logs, metrics, traces, and root cause.",
             TaskClass::LongContext,
         ),
         agent(
             "sre",
-            "Zeus SRE",
+            "Zyra SRE",
             "Incident response and VM health.",
             TaskClass::LongContext,
         ),
         agent(
             "ai_engineer",
-            "Zeus AI Engineer",
+            "Zyra AI Engineer",
             "LLM deployment and inference stacks.",
             TaskClass::CodeGeneration,
         ),
         agent(
             "database",
-            "Zeus Database Expert",
+            "Zyra Database Expert",
             "Database tuning and optimization.",
             TaskClass::LongContext,
         ),
     ]
 }
 
-fn agent(id: &str, name: &str, description: &str, task: TaskClass) -> ZeusAgentInfo {
-    ZeusAgentInfo {
+fn agent(id: &str, name: &str, description: &str, task: TaskClass) -> ZyraAgentInfo {
+    ZyraAgentInfo {
         id: id.into(),
         name: name.into(),
         description: description.into(),
@@ -160,15 +160,15 @@ pub fn pick_agent(message: &str, page_hint: Option<&str>) -> String {
 
 pub fn system_prompt(agent_id: &str) -> &'static str {
     match agent_id {
-        "architect" => "You are Zeus Architect, an autonomous infrastructure engineer. Design clear, reviewable infrastructure plans.",
-        "devops" => "You are Zeus DevOps. Focus on CI/CD, runbooks, and safe operational changes.",
-        "kubernetes" => "You are Zeus Kubernetes. Manage clusters, namespaces, and workloads with approval-gated actions.",
-        "security" => "You are Zeus Security. Analyze threats, exposure, and compliance with actionable recommendations.",
-        "cost" => "You are Zeus Cost Optimizer. Identify waste and savings with FinOps best practices.",
-        "observability" => "You are Zeus Observability. Correlate logs, metrics, and traces for root cause analysis.",
-        "ai_engineer" => "You are Zeus AI Engineer. Guide LLM deployment, vLLM, Ollama, and inference stacks.",
-        "database" => "You are Zeus Database Expert. Optimize databases with clear, low-risk recommendations.",
-        _ => "You are Zeus SRE, an autonomous site reliability engineer. Be concise. Use bullet points. Ground answers in host and VM reality.",
+        "architect" => "You are Zyra Architect, an autonomous infrastructure engineer. Design clear, reviewable infrastructure plans.",
+        "devops" => "You are Zyra DevOps. Focus on CI/CD, runbooks, and safe operational changes.",
+        "kubernetes" => "You are Zyra Kubernetes. Manage clusters, namespaces, and workloads with approval-gated actions.",
+        "security" => "You are Zyra Security. Analyze threats, exposure, and compliance with actionable recommendations.",
+        "cost" => "You are Zyra Cost Optimizer. Identify waste and savings with FinOps best practices.",
+        "observability" => "You are Zyra Observability. Correlate logs, metrics, and traces for root cause analysis.",
+        "ai_engineer" => "You are Zyra AI Engineer. Guide LLM deployment, vLLM, Ollama, and inference stacks.",
+        "database" => "You are Zyra Database Expert. Optimize databases with clear, low-risk recommendations.",
+        _ => "You are Zyra SRE, an autonomous site reliability engineer. Be concise. Use bullet points. Ground answers in host and VM reality.",
     }
 }
 
@@ -181,7 +181,7 @@ pub struct AgentContext {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ZeusChatBody {
+pub struct ZyraChatBody {
     pub message: String,
     pub agent: Option<String>,
     pub vm_id: Option<Uuid>,
@@ -192,7 +192,7 @@ pub struct ZeusChatBody {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ZeusChatResponse {
+pub struct ZyraChatResponse {
     pub reply: String,
     pub deterministic: bool,
     pub agent_id: String,
@@ -202,9 +202,9 @@ pub struct ZeusChatResponse {
 pub async fn chat(
     pool: &SqlitePool,
     cfg: &crate::config::ControllerConfig,
-    body: &ZeusChatBody,
+    body: &ZyraChatBody,
     user_id: Option<&str>,
-) -> anyhow::Result<ZeusChatResponse> {
+) -> anyhow::Result<ZyraChatResponse> {
     let agent_id = if body.agent.as_deref() == Some("auto") || body.agent.is_none() {
         pick_agent(&body.message, body.page_path.as_deref())
     } else {
@@ -250,7 +250,7 @@ pub async fn chat(
         reply.push_str(&llm_text);
         deterministic = false;
     }
-    Ok(ZeusChatResponse {
+    Ok(ZyraChatResponse {
         reply,
         deterministic,
         agent_id,

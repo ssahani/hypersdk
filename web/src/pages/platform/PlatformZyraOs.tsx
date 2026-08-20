@@ -14,10 +14,10 @@ import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import PageSkeleton from '../../components/PageSkeleton'
 import { usePlatformTabState } from '../../hooks/usePlatformTabState'
-import PlatformZeusHubLaunchpad from '../../components/platform/tahoe/PlatformZeusHubLaunchpad'
+import PlatformZyraHubLaunchpad from '../../components/platform/tahoe/PlatformZyraHubLaunchpad'
 import MachinaInfraGraphBrain from '../../components/ai/MachinaInfraGraphBrain'
 import MachinaInfrastructureMemory from '../../components/ai/MachinaInfrastructureMemory'
-import ZeusAutonomousRunPanel from '../../components/ai/ZeusAutonomousRunPanel'
+import ZyraAutonomousRunPanel from '../../components/ai/ZyraAutonomousRunPanel'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
 import { getFleetLinuxHealth, type FleetLinuxHealthOverview } from '../../api/platform'
@@ -32,7 +32,7 @@ import {
   getFleetHeatmap,
   getFleetSummary,
   getFleetLocal,
-  getZeusSummary,
+  getZyraSummary,
   getRemediateHub,
   getKnowledgeRunbook,
   simulateServiceImpact,
@@ -64,7 +64,7 @@ const ZEUS_TABS: Array<{ id: Tab; label: string }> = [
   { id: 'baremetal', label: 'Bare Metal' },
 ]
 
-export default function PlatformZeusOs() {
+export default function PlatformZyraOs() {
   const toast = useToastContext()
   const [tier] = usePlatformDesktopTier()
   const [tab, setTab] = usePlatformTabState<Tab>(ZEUS_TABS.map((t) => t.id), { defaultTab: 'fleet' })
@@ -93,7 +93,7 @@ export default function PlatformZeusOs() {
   const [diagnosisSummary, setDiagnosisSummary] = useState<string | null>(null)
   const [serviceImpact, setServiceImpact] = useState<string | null>(null)
   const [powerSummary, setPowerSummary] = useState<string | null>(null)
-  const [zeusSummary, setZeusSummary] = useState<string | null>(null)
+  const [zeusSummary, setZyraSummary] = useState<string | null>(null)
   const [hubSummary, setHubSummary] = useState<string | null>(null)
   const [hubItems, setHubItems] = useState<Array<{ id: string; source: string; label: string; review: string }>>([])
   const [runbookSummary, setRunbookSummary] = useState<string | null>(null)
@@ -193,7 +193,7 @@ export default function PlatformZeusOs() {
   }, [])
 
   useEffect(() => {
-    void getZeusSummary().then((z) => setZeusSummary(`${z.status} · ${z.highlights?.[0] ?? z.tagline}`)).catch(() => {})
+    void getZyraSummary().then((z) => setZyraSummary(`${z.status} · ${z.highlights?.[0] ?? z.tagline}`)).catch(() => {})
     void getRemediateHub().then((h) => {
       setHubSummary(h.summary)
       setHubItems((h.items ?? []).slice(0, 6))
@@ -261,7 +261,7 @@ export default function PlatformZeusOs() {
       error={error}
       onErrorRetry={() => void load()}
       prepend={<PlatformBackLink to="/platform" label="Dashboard" />}
-      title="Machina Zeus OS"
+      title="Machina Zyra OS"
       subtitle="Fleet intelligence · security graph · knowledge · services · bare metal"
       icon={<Cpu className="w-6 h-6 text-orange-400/80" />}
       actions={
@@ -285,7 +285,7 @@ export default function PlatformZeusOs() {
           )}
         </MacGlassPanel>
       )}
-      <PlatformZeusHubLaunchpad activeTab={tab} />
+      <PlatformZyraHubLaunchpad activeTab={tab} />
       <DetailTabs primary={ZEUS_TABS} active={tab} onChange={setTab} />
 
       {tabContentLoading && <PageSkeleton />}
@@ -332,7 +332,7 @@ export default function PlatformZeusOs() {
               )}
             </MacGlassPanel>
           )}
-          <MacGlassPanel title="Fleet AI diagnose" subtitle="NL diagnosis across Zeus + Linux health">
+          <MacGlassPanel title="Fleet AI diagnose" subtitle="NL diagnosis across Zyra + Linux health">
             <div className="flex flex-wrap gap-2 mb-2">
               <input aria-label="Fleet diagnose query" className="input text-sm flex-1 min-w-[12rem]" value={fleetDiagnoseQuery} onChange={(e) => setFleetDiagnoseQuery(e.target.value)} />
               <button
@@ -410,7 +410,7 @@ export default function PlatformZeusOs() {
           )}
         </div>
       )}
-      {tab === 'fleet' && !tabContentLoading && <ZeusAutonomousRunPanel />}
+      {tab === 'fleet' && !tabContentLoading && <ZyraAutonomousRunPanel />}
 
       {tab === 'security' && !tabContentLoading && (
         <div className="space-y-4">

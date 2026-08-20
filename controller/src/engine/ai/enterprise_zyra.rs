@@ -4,17 +4,17 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ZeusEnterpriseOverview {
-    pub zeus_admin_role: bool,
-    pub zeus_execute_role: bool,
-    pub zeus_read_role: bool,
+pub struct ZyraEnterpriseOverview {
+    pub zyra_admin_role: bool,
+    pub zyra_execute_role: bool,
+    pub zyra_read_role: bool,
     pub air_gap_llm: bool,
     pub audit_events_24h: i64,
     pub scim_enabled: bool,
     pub sso_configured: bool,
 }
 
-pub async fn overview(pool: &SqlitePool, username: &str) -> anyhow::Result<ZeusEnterpriseOverview> {
+pub async fn overview(pool: &SqlitePool, username: &str) -> anyhow::Result<ZyraEnterpriseOverview> {
     let air_gap: bool = sqlx::query_scalar(
         "SELECT COALESCE(zeus_air_gap_llm, FALSE) FROM clusters ORDER BY created_at LIMIT 1",
     )
@@ -35,10 +35,10 @@ pub async fn overview(pool: &SqlitePool, username: &str) -> anyhow::Result<ZeusE
     .await
     .unwrap_or(0)
         > 0;
-    Ok(ZeusEnterpriseOverview {
-        zeus_admin_role: is_admin,
-        zeus_execute_role: is_admin,
-        zeus_read_role: true,
+    Ok(ZyraEnterpriseOverview {
+        zyra_admin_role: is_admin,
+        zyra_execute_role: is_admin,
+        zyra_read_role: true,
         air_gap_llm: air_gap,
         audit_events_24h,
         scim_enabled: false,
@@ -47,11 +47,11 @@ pub async fn overview(pool: &SqlitePool, username: &str) -> anyhow::Result<ZeusE
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ZeusEnterprisePatch {
+pub struct ZyraEnterprisePatch {
     pub air_gap_llm: Option<bool>,
 }
 
-pub async fn patch(pool: &SqlitePool, patch: &ZeusEnterprisePatch) -> anyhow::Result<()> {
+pub async fn patch(pool: &SqlitePool, patch: &ZyraEnterprisePatch) -> anyhow::Result<()> {
     if let Some(v) = patch.air_gap_llm {
         sqlx::query("UPDATE clusters SET zeus_air_gap_llm = ?")
             .bind(v)
@@ -61,11 +61,11 @@ pub async fn patch(pool: &SqlitePool, patch: &ZeusEnterprisePatch) -> anyhow::Re
     Ok(())
 }
 
-pub fn require_zeus_execute(actor: &crate::auth::AuthUser) -> Result<(), crate::api::ApiError> {
+pub fn require_zyra_execute(actor: &crate::auth::AuthUser) -> Result<(), crate::api::ApiError> {
     crate::auth::require_operator(actor)
 }
 
-pub fn require_zeus_admin(actor: &crate::auth::AuthUser) -> Result<(), crate::api::ApiError> {
+pub fn require_zyra_admin(actor: &crate::auth::AuthUser) -> Result<(), crate::api::ApiError> {
     crate::auth::require_admin(actor)
 }
 

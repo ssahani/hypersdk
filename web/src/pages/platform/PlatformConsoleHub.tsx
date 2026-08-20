@@ -269,7 +269,7 @@ export default function PlatformConsoleHub() {
     if (!id || !activeProtocol) return
     try {
       await requestConsoleAccess(id, { protocol: activeProtocol, reason: 'ConsoleHub operator access' })
-      toast.success('JIT console access request submitted — check Zeus → Approvals')
+      toast.success('JIT console access request submitted — check Zyra → Approvals')
     } catch (e: unknown) {
       toast.error(formatUserError(e))
     }

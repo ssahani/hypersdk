@@ -81,7 +81,7 @@ pub async fn propose(pool: &SqlitePool) -> anyhow::Result<FirewallRemediatePropo
                 host_id: host_id.to_string(),
                 hostname,
                 label: "Firewall drift detected".into(),
-                review: "Rules changed outside Zeus OS — review or revert to baseline".into(),
+                review: "Rules changed outside Zyra OS — review or revert to baseline".into(),
                 action: "investigate_drift".into(),
                 risk: "Warning".into(),
                 priority: 2,

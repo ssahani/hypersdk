@@ -3,18 +3,18 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { Sparkles } from 'lucide-react'
-import { listZeusAgents, zeusAutonomousExecute, zeusAutonomousPlan, type ZeusAgentInfo } from '../../api/ai'
+import { listZyraAgents, zyraAutonomousExecute, zyraAutonomousPlan, type ZyraAgentInfo } from '../../api/ai'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses } from '../../utils/semanticColors'
 import { MacGlassPanel } from '../platform/mac/PlatformMacUi'
 import ConfirmDialog from '../ConfirmDialog'
 
-export default function ZeusAutonomousRunPanel() {
+export default function ZyraAutonomousRunPanel() {
   const toast = useToastContext()
   const [goal, setGoal] = useState('Rebalance idle VMs and clear failed tasks')
   const [agent, setAgent] = useState('auto')
-  const [agents, setAgents] = useState<ZeusAgentInfo[]>([])
+  const [agents, setAgents] = useState<ZyraAgentInfo[]>([])
   const [planning, setPlanning] = useState(false)
   const [executing, setExecuting] = useState(false)
   const [steps, setSteps] = useState<Array<{ title: string; detail: string }>>([])
@@ -23,7 +23,7 @@ export default function ZeusAutonomousRunPanel() {
   const [showExecuteConfirm, setShowExecuteConfirm] = useState(false)
 
   useEffect(() => {
-    void listZeusAgents().then(setAgents).catch(() => setAgents([]))
+    void listZyraAgents().then(setAgents).catch(() => setAgents([]))
   }, [])
 
   const runPlan = async () => {
@@ -33,7 +33,7 @@ export default function ZeusAutonomousRunPanel() {
     setError(null)
     setSteps([])
     try {
-      const plan = await zeusAutonomousPlan(text, true, agent === 'auto' ? undefined : agent)
+      const plan = await zyraAutonomousPlan(text, true, agent === 'auto' ? undefined : agent)
       setSteps(plan.steps)
       setPlannedAgent(plan.agent_id)
     } catch (e: unknown) {
@@ -49,10 +49,10 @@ export default function ZeusAutonomousRunPanel() {
     setExecuting(true)
     setError(null)
     try {
-      const r = await zeusAutonomousExecute(text, agent === 'auto' ? undefined : agent)
+      const r = await zyraAutonomousExecute(text, agent === 'auto' ? undefined : agent)
       toast.success(r.message)
       if (/approval|queued|pending/i.test(r.message)) {
-        toast.info('Review pending actions in Zeus approvals')
+        toast.info('Review pending actions in Zyra approvals')
       }
     } catch (e: unknown) {
       setError(formatUserError(e))
@@ -66,7 +66,7 @@ export default function ZeusAutonomousRunPanel() {
     <ConfirmDialog
       open={showExecuteConfirm}
       title="Execute Autonomous Plan"
-      message="Execute this autonomous Zeus plan on the fleet? Risky steps may queue for approval before running."
+      message="Execute this autonomous Zyra plan on the fleet? Risky steps may queue for approval before running."
       confirmLabel="Execute"
       variant="danger"
       onCancel={() => setShowExecuteConfirm(false)}
@@ -74,9 +74,9 @@ export default function ZeusAutonomousRunPanel() {
     />
     <MacGlassPanel
       title="Autonomous run"
-      subtitle="Dry-run a multi-step Zeus goal, then execute with confirmation"
+      subtitle="Dry-run a multi-step Zyra goal, then execute with confirmation"
       action={
-        <Link to="/platform/zeus/approvals" className={`text-xs ${hubLinkClasses()}`}>
+        <Link to="/platform/zyra/approvals" className={`text-xs ${hubLinkClasses()}`}>
           Approvals →
         </Link>
       }
@@ -90,7 +90,7 @@ export default function ZeusAutonomousRunPanel() {
           aria-label="Autonomous run goal"
         />
         <div className="flex flex-wrap gap-2 items-center">
-          <select className="input text-xs" value={agent} onChange={(e) => setAgent(e.target.value)} aria-label="Zeus agent">
+          <select className="input text-xs" value={agent} onChange={(e) => setAgent(e.target.value)} aria-label="Zyra agent">
             <option value="auto">Auto agent</option>
             {agents.map((a) => (
               <option key={a.id} value={a.id}>{a.name}</option>

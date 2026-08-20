@@ -16,7 +16,7 @@ import {
   type PlatformTask,
   type PlatformVm,
 } from '../../api/platform'
-import { getAiCapacity, getAiCompliance, getAiCost, getSreForecast, getZeusSummary, type CapacityPlan, type ComplianceReport, type CostAnalysis, type SreForecast } from '../../api/ai'
+import { getAiCapacity, getAiCompliance, getAiCost, getSreForecast, getZyraSummary, type CapacityPlan, type ComplianceReport, type CostAnalysis, type SreForecast } from '../../api/ai'
 import MachinaEnvironmentPlanner from '../ai/MachinaEnvironmentPlanner'
 import MachinaInfrastructureTimeline from '../ai/MachinaInfrastructureTimeline'
 import MachinaMissionStack from '../ai/MachinaMissionStack'
@@ -47,7 +47,7 @@ export default function MissionControlOverlay() {
   const [aiCap, setAiCap] = useState<CapacityPlan | null>(null)
   const [aiComp, setAiComp] = useState<ComplianceReport | null>(null)
   const [sreForecasts, setSreForecasts] = useState<SreForecast[]>([])
-  const [zeusStatus, setZeusStatus] = useState<string | null>(null)
+  const [zyraStatus, setZyraStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const { desktop, linuxHealth } = useFleetDesktop(open, 120_000)
   const [tier] = usePlatformDesktopTier()
@@ -59,7 +59,7 @@ export default function MissionControlOverlay() {
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [h, v, t, c, m, n, cost, cap, comp, sre, zeus] = await Promise.all([
+      const [h, v, t, c, m, n, cost, cap, comp, sre, zyra] = await Promise.all([
         listPlatformHosts().catch(() => []),
         listPlatformVms().catch(() => []),
         listPlatformTasks().catch(() => []),
@@ -70,7 +70,7 @@ export default function MissionControlOverlay() {
         getAiCapacity().catch(() => null),
         getAiCompliance().catch(() => null),
         getSreForecast().catch(() => ({ forecasts: [] })),
-        getZeusSummary().catch(() => null),
+        getZyraSummary().catch(() => null),
       ])
       setHosts(h)
       setVms(v)
@@ -82,7 +82,7 @@ export default function MissionControlOverlay() {
       setAiCap(cap)
       setAiComp(comp)
       setSreForecasts(sre.forecasts ?? [])
-      setZeusStatus(zeus ? `${zeus.status} · ${zeus.highlights?.[0] ?? zeus.tagline}` : null)
+      setZyraStatus(zyra ? `${zyra.status} · ${zyra.highlights?.[0] ?? zyra.tagline}` : null)
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
@@ -188,9 +188,9 @@ export default function MissionControlOverlay() {
           </div>
         )}
 
-        {zeusStatus && (
+        {zyraStatus && (
           <div className="px-6 pb-2">
-            <Link to="/platform/zeus" className="text-xs text-orange-300/90 hover:underline" onClick={closeMissionControl}>{zeusStatus}</Link>
+            <Link to="/platform/zyra" className="text-xs text-orange-300/90 hover:underline" onClick={closeMissionControl}>{zyraStatus}</Link>
           </div>
         )}
 

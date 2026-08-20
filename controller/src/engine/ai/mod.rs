@@ -10,7 +10,7 @@ pub mod agents;
 pub mod crypto;
 pub mod autonomous;
 pub mod context;
-pub mod enterprise_zeus;
+pub mod enterprise_zyra;
 pub mod fleet_guest_query;
 pub mod guest_insights;
 pub mod guest_tools;
@@ -48,7 +48,7 @@ pub async fn copilot_chat(
     let mut reply = base.reply;
 
     let system = format!(
-        "You are Zeus, an autonomous infrastructure engineer and cloud architect. Be concise. Use bullet points. {}",
+        "You are Zyra, an autonomous infrastructure engineer and cloud architect. Be concise. Use bullet points. {}",
         guest_tools::tools_system_prompt()
     );
     if let Ok(Some(llm_text)) = llm::complete_simple(
@@ -296,7 +296,7 @@ pub async fn build_copilot_base(
         );
     } else {
         reply.push_str(&format!(
-            "Zeus (advisor mode). Cluster: **{} VMs**, **{} hosts online**, **{} open recommendations**.\n\nAsk about VM health, capacity, cost, security, migrations, or network reachability.",
+            "Zyra (advisor mode). Cluster: **{} VMs**, **{} hosts online**, **{} open recommendations**.\n\nAsk about VM health, capacity, cost, security, migrations, or network reachability.",
             ctx.cluster_vms, ctx.cluster_hosts_online, ctx.recommendations_count
         ));
     }
@@ -400,9 +400,9 @@ pub async fn explain_screen(
         "storage" => "Storage pools are imported from libvirt on online hosts.".into(),
         "templates" => "Templates deploy golden images when disk readiness passes.".into(),
         "tasks" => "Tasks queue orchestration operations with progress and retry.".into(),
-        "vm_doctor" => "Zeus SRE scores VM health 0–100 with actionable fixes.".into(),
+        "vm_doctor" => "Zyra SRE scores VM health 0–100 with actionable fixes.".into(),
         "console_hub" => {
-            "Zeus ConsoleHub Machine Cockpit — display, serial, SSH, and AI recovery lenses.".into()
+            "Zyra ConsoleHub Machine Cockpit — display, serial, SSH, and AI recovery lenses.".into()
         }
         "failed_task" => "Failed tasks include remediation via runbooks and retry.".into(),
         "notification" => {
@@ -468,7 +468,7 @@ pub mod sre_remediate;
 pub mod terminal;
 pub mod troubleshoot;
 pub mod worker;
-pub mod zeus_summary;
+pub mod zyra_summary;
 
 /// Escape SQLite LIKE metacharacters in user-supplied text before it is
 /// wrapped in `%...%` and bound to a `LIKE ? ESCAPE '\\'` clause — otherwise

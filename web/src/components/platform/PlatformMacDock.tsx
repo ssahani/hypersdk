@@ -182,7 +182,7 @@ export default function PlatformMacDock() {
           aria-label="Ask Zyra"
         >
           <Sparkles className="h-4 w-4" />
-          <span className="mac-dock-spotlight-label hidden xl:inline">Zeus</span>
+          <span className="mac-dock-spotlight-label hidden xl:inline">Zyra</span>
         </button>
 
         <button

@@ -6,7 +6,7 @@ import { Settings, Shield, Users, HardDrive, Network, RefreshCw, Key, LifeBuoy, 
 import PlatformPageChrome from '../../components/platform/PlatformPageChrome'
 import PlatformSettings from './PlatformSettings'
 import PlatformAiProviders from './PlatformAiProviders'
-import PlatformZeusSettings from './PlatformZeusSettings'
+import PlatformZyraSettings from './PlatformZyraSettings'
 import PlatformAppearanceSettings from '../../components/platform/PlatformAppearanceSettings'
 import PlatformUsers from './PlatformUsers'
 import PlatformPolicy from './PlatformPolicy'
@@ -56,7 +56,7 @@ function BrowserSessionInfo() {
 type SettingsSection =
   | 'general'
   | 'identity'
-  | 'zeus'
+  | 'zyra'
   | 'ai-providers'
   | 'security'
   | 'network'
@@ -77,7 +77,7 @@ type SettingsSection =
 const SETTINGS_SECTIONS: SettingsSection[] = [
   'general',
   'identity',
-  'zeus',
+  'zyra',
   'ai-providers',
   'security',
   'network',
@@ -111,7 +111,7 @@ function SettingsWorkspaceLink({ to, label }: { to: string; label: string }) {
 const SECTIONS: Array<{ id: SettingsSection; label: string; icon: React.ReactNode; fullPath?: string }> = [
   { id: 'general', label: 'General', icon: <Settings className="w-4 h-4" /> },
   { id: 'identity', label: 'Identity & SSO', icon: <Shield className="w-4 h-4" /> },
-  { id: 'zeus', label: 'Zeus', icon: <Sparkles className="w-4 h-4" /> },
+  { id: 'zyra', label: 'Zyra', icon: <Sparkles className="w-4 h-4" /> },
   { id: 'ai-providers', label: 'AI Providers', icon: <Plug className="w-4 h-4" /> },
   { id: 'security', label: 'Security', icon: <Shield className="w-4 h-4" /> },
   { id: 'network', label: 'Network', icon: <Network className="w-4 h-4" /> },
@@ -295,7 +295,7 @@ export default function PlatformSettingsHub() {
         </div>
       )}
 
-      {section === 'zeus' && <PlatformZeusSettings embedded />}
+      {section === 'zyra' && <PlatformZyraSettings embedded />}
 
       {section === 'ai-providers' && <PlatformAiProviders embedded />}
 

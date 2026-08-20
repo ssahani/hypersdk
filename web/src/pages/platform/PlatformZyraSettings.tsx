@@ -10,25 +10,25 @@ import {
   createAiPrompt,
   deleteAiPrompt,
   getMemorySettings,
-  getZeusEnterpriseOverview,
+  getZyraEnterpriseOverview,
   installAgentMarketplace,
   listAgentMarketplace,
   listAiPrompts,
   patchAiPrompt,
   patchMemorySettings,
-  patchZeusEnterprise,
+  patchZyraEnterprise,
   purgeMemory,
   uninstallAgentMarketplace,
   type AgentPluginRow,
   type AiPromptRow,
   type MemorySettings,
-  type ZeusEnterpriseOverview,
+  type ZyraEnterpriseOverview,
 } from '../../api/ai'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
 
-export default function PlatformZeusSettings({ embedded }: { embedded?: boolean } = {}) {
+export default function PlatformZyraSettings({ embedded }: { embedded?: boolean } = {}) {
   const toast = useToastContext()
   const [prompts, setPrompts] = useState<AiPromptRow[]>([])
   const [agents, setAgents] = useState<AgentPluginRow[]>([])
@@ -38,7 +38,7 @@ export default function PlatformZeusSettings({ embedded }: { embedded?: boolean 
     project_scope: true,
     retention_days: 90,
   })
-  const [enterprise, setEnterprise] = useState<ZeusEnterpriseOverview | null>(null)
+  const [enterprise, setEnterprise] = useState<ZyraEnterpriseOverview | null>(null)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -56,7 +56,7 @@ export default function PlatformZeusSettings({ embedded }: { embedded?: boolean 
       listAiPrompts().catch(() => []),
       listAgentMarketplace().catch(() => []),
       getMemorySettings().catch(() => null),
-      getZeusEnterpriseOverview().catch(() => null),
+      getZyraEnterpriseOverview().catch(() => null),
     ])
     setPrompts(prompts)
     setAgents(agents)
@@ -78,29 +78,29 @@ export default function PlatformZeusSettings({ embedded }: { embedded?: boolean 
     <PlatformPageChrome
       hideHeader={embedded}
       compact={embedded}
-      title={embedded ? undefined : 'Zeus'}
+      title={embedded ? undefined : 'Zyra'}
       subtitle={embedded ? undefined : 'Prompt library, memory controls, and agent marketplace'}
       icon={embedded ? undefined : <Sparkles className="w-6 h-6 text-slate-400" />}
       actions={embedded ? undefined : <PlatformRefreshButton onClick={() => void load()} />}
       contentClassName="space-y-4"
     >
       <p className="text-sm text-slate-400">
-        <Link to="/platform/zeus/approvals" className={hubLinkClasses()}>Zeus approvals queue →</Link>
+        <Link to="/platform/zyra/approvals" className={hubLinkClasses()}>Zyra approvals queue →</Link>
         {' '}Review pending AI actions before they run on the fleet.
       </p>
 
       {enterprise && (
-        <MacGlassPanel title="Enterprise Zeus posture" subtitle="RBAC, air-gap LLM, and audit activity">
+        <MacGlassPanel title="Enterprise Zyra posture" subtitle="RBAC, air-gap LLM, and audit activity">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-sm">
-            <p className="text-slate-300">Admin: <span className={enterprise.zeus_admin_role ? 'text-emerald-400' : 'text-slate-500'}>{enterprise.zeus_admin_role ? 'yes' : 'no'}</span></p>
-            <p className="text-slate-300">Execute: <span className={enterprise.zeus_execute_role ? 'text-emerald-400' : 'text-slate-500'}>{enterprise.zeus_execute_role ? 'yes' : 'no'}</span></p>
-            <p className="text-slate-300">Read: <span className="text-emerald-400">{enterprise.zeus_read_role ? 'yes' : 'no'}</span></p>
+            <p className="text-slate-300">Admin: <span className={enterprise.zyra_admin_role ? 'text-emerald-400' : 'text-slate-500'}>{enterprise.zyra_admin_role ? 'yes' : 'no'}</span></p>
+            <p className="text-slate-300">Execute: <span className={enterprise.zyra_execute_role ? 'text-emerald-400' : 'text-slate-500'}>{enterprise.zyra_execute_role ? 'yes' : 'no'}</span></p>
+            <p className="text-slate-300">Read: <span className="text-emerald-400">{enterprise.zyra_read_role ? 'yes' : 'no'}</span></p>
             <p className="text-slate-300">Audit 24h: <span className="text-slate-200">{enterprise.audit_events_24h}</span></p>
           </div>
           <p className="text-xs text-slate-500 mt-2">
             SCIM {enterprise.scim_enabled ? 'on' : 'off'} · SSO {enterprise.sso_configured ? 'configured' : 'not configured'}
           </p>
-          {enterprise.zeus_admin_role && (
+          {enterprise.zyra_admin_role && (
             <label className="flex items-center gap-2 text-sm mt-3">
               <input
                 type="checkbox"
@@ -110,14 +110,14 @@ export default function PlatformZeusSettings({ embedded }: { embedded?: boolean 
               Air-gap LLM (local providers only)
             </label>
           )}
-          {enterprise.zeus_admin_role && (
+          {enterprise.zyra_admin_role && (
             <button
               type="button"
               className="btn-secondary text-xs mt-2"
               onClick={async () => {
                 try {
-                  setEnterprise(await patchZeusEnterprise({ air_gap_llm: enterprise.air_gap_llm }))
-                  toast.success('Enterprise Zeus settings saved')
+                  setEnterprise(await patchZyraEnterprise({ air_gap_llm: enterprise.air_gap_llm }))
+                  toast.success('Enterprise Zyra settings saved')
                 } catch (e: unknown) { toast.error(formatUserError(e)) }
               }}
             >
@@ -131,7 +131,7 @@ export default function PlatformZeusSettings({ embedded }: { embedded?: boolean 
         <div className="space-y-3 text-sm">
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={memory.enabled} onChange={(e) => setMemory({ ...memory, enabled: e.target.checked })} />
-            Enable Zeus memory
+            Enable Zyra memory
           </label>
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={memory.team_scope} onChange={(e) => setMemory({ ...memory, team_scope: e.target.checked })} />

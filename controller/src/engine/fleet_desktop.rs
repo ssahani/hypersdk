@@ -5,7 +5,7 @@ use serde::Serialize;
 use sqlx::SqlitePool;
 
 use crate::config::ControllerConfig;
-use crate::engine::ai::zeus_summary;
+use crate::engine::ai::zyra_summary;
 use crate::engine::fleet_linux;
 use crate::engine::fleet_linux::FleetLinuxHealthOverview;
 use crate::engine::observability;
@@ -13,7 +13,7 @@ use crate::engine::observability;
 #[derive(Debug, Clone, Serialize)]
 pub struct FleetDesktopOverview {
     pub summary: String,
-    pub zeus_status: String,
+    pub zyra_status: String,
     pub zeus_highlights: Vec<String>,
     pub slo_count: usize,
     pub slo_breach_count: usize,
@@ -32,7 +32,7 @@ pub async fn overview(
     pool: &SqlitePool,
     cfg: &ControllerConfig,
 ) -> anyhow::Result<FleetDesktopOverview> {
-    let zeus = zeus_summary::summarize(pool).await?;
+    let zeus = zyra_summary::summarize(pool).await?;
     let obs = observability::overview(pool).await?;
     let linux =
         fleet_linux::overview(pool, cfg)
@@ -76,7 +76,7 @@ pub async fn overview(
             active_tasks,
             linux.summary
         ),
-        zeus_status: zeus.status,
+        zyra_status: zeus.status,
         zeus_highlights: zeus.highlights,
         slo_count: obs.slos.len(),
         slo_breach_count,

@@ -679,7 +679,7 @@ export default function PlatformNetworks() {
         }}
       />
 
-      <MacSheet open={segmentSheetOpen} onClose={() => setSegmentSheetOpen(false)} title="New overlay segment" subtitle="Tier-0 uplink / Tier-1 workload segment with optional Zeus profile." wide>
+      <MacSheet open={segmentSheetOpen} onClose={() => setSegmentSheetOpen(false)} title="New overlay segment" subtitle="Tier-0 uplink / Tier-1 workload segment with optional Zyra profile." wide>
         <div className="space-y-4">
           <label className="block text-sm">
             <span className="text-slate-400">Name</span>

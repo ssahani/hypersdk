@@ -211,7 +211,7 @@ export default function FleetCommandCenter({
       )}
 
       <div className="rounded-lg border border-emerald-900/40 bg-emerald-950/20 p-3 text-xs text-emerald-100/90">
-        <p className="font-medium text-emerald-200/90 mb-1">Zeus says</p>
+        <p className="font-medium text-emerald-200/90 mb-1">Zyra says</p>
         <p>
           {healthScore != null && healthScore < 70
             ? 'Health score is low — review backups and guest agent connectivity.'

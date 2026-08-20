@@ -23,7 +23,7 @@ function nodeTone(status?: string): 'ok' | 'warn' | 'error' | 'neutral' {
 export default function LaunchpadRouteLens({ diagnosis }: Props) {
   return (
     <div className="space-y-1" data-testid="launchpad-route-lens">
-      <p className="text-xs text-slate-400 mb-3">Zeus Lens — route chain from user to backend</p>
+      <p className="text-xs text-slate-400 mb-3">Zyra Lens — route chain from user to backend</p>
       <ol className="relative border-l border-white/10 ml-2 space-y-3">
         {diagnosis.chain.map((node, idx) => {
           const tone = nodeTone(node.status)

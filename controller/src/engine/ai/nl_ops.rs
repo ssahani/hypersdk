@@ -153,7 +153,7 @@ pub async fn execute(pool: &SqlitePool, req: &NlOpsRequest, actor: &str) -> anyh
             approval_required: true,
             action_ids,
             reply: format!(
-                "Prepared {} migration(s) — approve in Zeus queue.",
+                "Prepared {} migration(s) — approve in Zyra queue.",
                 vms.len()
             ),
         });

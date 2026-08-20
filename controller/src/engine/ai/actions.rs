@@ -6,7 +6,7 @@ use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ZeusActionRow {
+pub struct ZyraActionRow {
     pub id: Uuid,
     pub source: String,
     pub action_type: String,
@@ -33,11 +33,11 @@ pub struct CreateActionBody {
     pub source: String,
 }
 
-pub async fn list_pending(pool: &SqlitePool) -> anyhow::Result<Vec<ZeusActionRow>> {
+pub async fn list_pending(pool: &SqlitePool) -> anyhow::Result<Vec<ZyraActionRow>> {
     list_by_status(pool, "pending").await
 }
 
-pub async fn list_by_status(pool: &SqlitePool, status: &str) -> anyhow::Result<Vec<ZeusActionRow>> {
+pub async fn list_by_status(pool: &SqlitePool, status: &str) -> anyhow::Result<Vec<ZyraActionRow>> {
     let rows: Vec<(Uuid, String, String, String, String, String, serde_json::Value, String, String, DateTime<Utc>)> =
         sqlx::query_as(
             "SELECT id, source, action_type, label, review, risk, object_ref, status, requested_by,
@@ -63,8 +63,8 @@ fn map_row(
         String,
         DateTime<Utc>,
     ),
-) -> ZeusActionRow {
-    ZeusActionRow {
+) -> ZyraActionRow {
+    ZyraActionRow {
         id,
         source,
         action_type,
@@ -82,12 +82,12 @@ pub async fn create_action(
     pool: &SqlitePool,
     body: &CreateActionBody,
     requested_by: &str,
-) -> anyhow::Result<ZeusActionRow> {
+) -> anyhow::Result<ZyraActionRow> {
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO ai_actions (id, source, action_type, label, review, risk, object_ref, requested_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
     )
     .bind(uuid::Uuid::new_v4())
-    .bind(if body.source.is_empty() { "zeus" } else { &body.source })
+    .bind(if body.source.is_empty() { "zyra" } else { &body.source })
     .bind(&body.action_type)
     .bind(&body.label)
     .bind(&body.review)
@@ -105,7 +105,7 @@ pub async fn create_action(
         .ok_or_else(|| anyhow::anyhow!("action missing"))
 }
 
-pub async fn get_action(pool: &SqlitePool, id: Uuid) -> anyhow::Result<Option<ZeusActionRow>> {
+pub async fn get_action(pool: &SqlitePool, id: Uuid) -> anyhow::Result<Option<ZyraActionRow>> {
     let row: Option<(Uuid, String, String, String, String, String, serde_json::Value, String, String, DateTime<Utc>)> =
         sqlx::query_as(
             "SELECT id, source, action_type, label, review, risk, object_ref, status, requested_by,
@@ -254,8 +254,8 @@ pub async fn approve_and_execute(
             )
             .bind(Uuid::new_v4())
             .bind(&actor.username)
-            .bind("zeus.action.execute")
-            .bind("zeus")
+            .bind("zyra.action.execute")
+            .bind("zyra")
             .bind(id)
             .bind(serde_json::json!({
                 "action_type": action.action_type,
@@ -264,7 +264,7 @@ pub async fn approve_and_execute(
             .execute(&mut *tx)
             .await?;
             tx.commit().await?;
-            state.emit_event("audit", format!("{} zeus.action.execute", actor.username));
+            state.emit_event("audit", format!("{} zyra.action.execute", actor.username));
         }
         Err(_) => {
             sqlx::query("UPDATE ai_actions SET status = 'failed' WHERE id = ?")
@@ -288,26 +288,26 @@ pub async fn reject(pool: &SqlitePool, id: Uuid, actor: &str) -> anyhow::Result<
 }
 
 pub async fn approval_hub(pool: &SqlitePool) -> anyhow::Result<serde_json::Value> {
-    let zeus = list_pending(pool).await?;
+    let zyra = list_pending(pool).await?;
     let firewall_count: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM firewall_approvals WHERE status = 'pending'")
             .fetch_one(pool)
             .await
             .unwrap_or(0);
     let autopilot = super::autopilot::propose(pool, None).await?;
-    // total_pending must only count items actually present in `zeus_actions`
+    // total_pending must only count items actually present in `zyra_actions`
     // (rendered by the approvals queue UI) plus firewall_pending (explicitly
     // broken out in the UI subtitle and reviewed on the dedicated firewall
     // approvals page). autopilot_proposals are ephemeral recommendations
     // surfaced through their own /api/v1/ai/autopilot/* endpoints and UI
-    // surfaces (ZeusAssistant, PlatformControlCenter) — they are never
+    // surfaces (ZyraAssistant, PlatformControlCenter) — they are never
     // rendered by this hub's consumers, so including their count here made
     // the nav badge / page header report pending items that the approvals
     // list could never show (e.g. "1 total" with an empty list).
     Ok(serde_json::json!({
-        "zeus_actions": zeus,
+        "zyra_actions": zyra,
         "firewall_pending": firewall_count,
         "autopilot_proposals": autopilot.actions,
-        "total_pending": zeus.len() as i64 + firewall_count
+        "total_pending": zyra.len() as i64 + firewall_count
     }))
 }

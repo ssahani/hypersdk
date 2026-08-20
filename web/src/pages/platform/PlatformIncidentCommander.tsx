@@ -190,7 +190,7 @@ export default function PlatformIncidentCommander() {
           <MacGlassPanel title="War room">
             <p className="text-sm text-slate-300">{room.incident.root_cause ?? room.incident.summary}</p>
             <p className="text-xs text-slate-500 mt-2">{room.correlated_count} correlated signals · {room.pending_approvals} pending approvals</p>
-            <Link to="/platform/zeus/approvals" className={`text-xs mt-2 inline-block ${hubLinkClasses()}`}>Open Zeus approvals →</Link>
+            <Link to="/platform/zyra/approvals" className={`text-xs mt-2 inline-block ${hubLinkClasses()}`}>Open Zyra approvals →</Link>
             <div className="mt-4 space-y-2 max-h-48 overflow-y-auto text-xs font-mono">
               {room.timeline.slice(0, 10).map((e, i) => (
                 <div key={`${e.at}-${i}`} className="text-slate-400">[{e.source}] {e.message}</div>

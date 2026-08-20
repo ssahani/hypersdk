@@ -159,7 +159,7 @@ export default function PlatformGpuCommandCenter() {
             subtitle="Tag hosts with gpu, nvidia, mig, vgpu, or cuda on host detail — the discovery agent picks them up automatically."
           >
             <Link to="/platform/hosts" className={`tahoe-btn-ghost text-sm ${hubLinkClasses()}`}>Browse hosts</Link>
-            <Link to="/platform/zeus" className="tahoe-btn-primary text-sm">Open Zeus OS</Link>
+            <Link to="/platform/zyra" className="tahoe-btn-primary text-sm">Open Zyra OS</Link>
           </PlatformEmptyState>
         )}
 

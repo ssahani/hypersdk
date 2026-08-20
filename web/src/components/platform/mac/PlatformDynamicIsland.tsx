@@ -6,14 +6,14 @@ import { Sparkles } from 'lucide-react'
 import { useFleetDesktop } from '../../../hooks/useFleetDesktop'
 import { usePlatformDesktopTier } from '../../../hooks/usePlatformDesktopTier'
 import { activityHubHref, operationsHubHref } from '../../../utils/platformHubLinks'
-import { getSreForecast, getZeusApprovalHub, getPredictions, type SreForecast, type Prediction } from '../../../api/ai'
+import { getSreForecast, getZyraApprovalHub, getPredictions, type SreForecast, type Prediction } from '../../../api/ai'
 import { getFleetUpdates } from '../../../api/platform'
 import { hubLinkClasses, statusBgClass, statusSurfaceClasses, statusToneClass } from '../../../utils/semanticColors'
 
-function islandTone(state: 'loading' | 'ok' | 'warn' | 'notify' | 'alert' | 'zeus'): 'neutral' | 'ok' | 'warn' | 'error' | 'info' {
+function islandTone(state: 'loading' | 'ok' | 'warn' | 'notify' | 'alert' | 'zyra'): 'neutral' | 'ok' | 'warn' | 'error' | 'info' {
   if (state === 'loading') return 'neutral'
   if (state === 'ok') return 'ok'
-  if (state === 'notify' || state === 'zeus') return 'info'
+  if (state === 'notify' || state === 'zyra') return 'info'
   if (state === 'warn') return 'warn'
   return 'error'
 }
@@ -24,7 +24,7 @@ export default function PlatformDynamicIsland() {
   const [expanded, setExpanded] = useState(false)
   const [forecasts, setForecasts] = useState<SreForecast[]>([])
   const [topPrediction, setTopPrediction] = useState<Prediction | null>(null)
-  const [zeusPending, setZeusPending] = useState(0)
+  const [zyraPending, setZyraPending] = useState(0)
   const [rebootRequiredHosts, setRebootRequiredHosts] = useState(0)
 
   useEffect(() => {
@@ -37,9 +37,9 @@ export default function PlatformDynamicIsland() {
   }, [])
 
   useEffect(() => {
-    void getZeusApprovalHub()
-      .then((h) => setZeusPending(Number(h.total_pending ?? 0)))
-      .catch(() => setZeusPending(0))
+    void getZyraApprovalHub()
+      .then((h) => setZyraPending(Number(h.total_pending ?? 0)))
+      .catch(() => setZyraPending(0))
   }, [])
 
   useEffect(() => {
@@ -55,13 +55,13 @@ export default function PlatformDynamicIsland() {
   const alertBacklog = desktop?.unread_notifications ?? 0
 
   const state = useMemo(() => {
-    if (zeusPending > 0) return 'zeus' as const
+    if (zyraPending > 0) return 'zyra' as const
     if (pressure > 0 || criticalForecast) return 'alert' as const
     if (actionableIssues > 0 || failedTasks > 0) return 'warn' as const
     if (alertBacklog > 0) return 'notify' as const
     if (!desktop) return 'loading' as const
     return 'ok' as const
-  }, [zeusPending, pressure, criticalForecast, actionableIssues, failedTasks, alertBacklog, desktop])
+  }, [zyraPending, pressure, criticalForecast, actionableIssues, failedTasks, alertBacklog, desktop])
 
   const tone = islandTone(state)
 
@@ -69,8 +69,8 @@ export default function PlatformDynamicIsland() {
 
   const label = state === 'loading'
     ? 'Loading fleet…'
-    : state === 'zeus'
-    ? `Zeus · ${formatCount(zeusPending)} pending approval${zeusPending === 1 ? '' : 's'}`
+    : state === 'zyra'
+    ? `Zyra · ${formatCount(zyraPending)} pending approval${zyraPending === 1 ? '' : 's'}`
     : state === 'ok'
       ? `Healthy · ${desktop?.hosts_online ?? 0}/${desktop?.hosts_total ?? 0} hosts`
       : state === 'warn'
@@ -98,14 +98,14 @@ export default function PlatformDynamicIsland() {
         <div className="absolute left-1/2 top-full mt-2 -translate-x-1/2 w-[min(100vw-2rem,22rem)] rounded-2xl border border-white/[0.1] bg-slate-900/95 backdrop-blur-xl p-4 shadow-2xl z-50 text-left">
           <p className="text-xs font-semibold text-slate-300 mb-2">Infrastructure status</p>
           {desktop && <p className="text-xs text-slate-400 mb-3">{desktop.summary}</p>}
-          {zeusPending > 0 && (
+          {zyraPending > 0 && (
             <div className={`rounded-lg p-3 mb-3 text-xs ${statusSurfaceClasses('info')}`}>
               <p className="font-medium flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-orange-400" />
-                {formatCount(zeusPending)} Zeus approval{zeusPending === 1 ? '' : 's'} pending
+                {formatCount(zyraPending)} Zyra approval{zyraPending === 1 ? '' : 's'} pending
               </p>
-              <Link to="/platform/zeus/approvals" className={`mt-2 inline-block ${hubLinkClasses('hover:underline')}`} onClick={() => setExpanded(false)}>
-                Open Zeus
+              <Link to="/platform/zyra/approvals" className={`mt-2 inline-block ${hubLinkClasses('hover:underline')}`} onClick={() => setExpanded(false)}>
+                Open Zyra
               </Link>
             </div>
           )}
@@ -136,7 +136,7 @@ export default function PlatformDynamicIsland() {
             <div className={`rounded-lg p-3 mb-3 text-xs ${statusSurfaceClasses('warn')}`}>
               <p className="font-medium">Predicted failure</p>
               <p className="mt-1 opacity-90">{topPrediction.message}</p>
-              <Link to="/platform/zeus" className={`mt-2 inline-block ${hubLinkClasses('hover:underline')}`} onClick={() => setExpanded(false)}>Zeus predictions →</Link>
+              <Link to="/platform/zyra" className={`mt-2 inline-block ${hubLinkClasses('hover:underline')}`} onClick={() => setExpanded(false)}>Zyra predictions →</Link>
             </div>
           )}
           {criticalForecast ? (
@@ -148,14 +148,14 @@ export default function PlatformDynamicIsland() {
             <div className={`rounded-lg p-3 mb-3 text-xs ${statusSurfaceClasses('warn')}`}>
               <p>{linuxHealth?.summary ?? desktop?.linux_summary ?? 'Hosts under resource pressure'}</p>
             </div>
-          ) : zeusPending === 0 ? (
+          ) : zyraPending === 0 ? (
             <p className={`text-xs mb-3 ${statusToneClass('ok')} opacity-90`}>All monitored systems nominal.</p>
           ) : null}
           <div className="flex flex-wrap gap-2">
             <Link to="/platform/hosts" className={hubLinkClasses('text-xs hover:underline')} onClick={() => setExpanded(false)}>Hosts</Link>
             <Link to={operationsHubHref(tier)} className={hubLinkClasses('text-xs hover:underline')} onClick={() => setExpanded(false)}>Operations</Link>
             <Link to={activityHubHref(tier)} className={hubLinkClasses('text-xs hover:underline')} onClick={() => setExpanded(false)}>Activity</Link>
-            <Link to="/platform/zeus/approvals" className={hubLinkClasses('text-xs hover:underline')} onClick={() => setExpanded(false)}>Zeus</Link>
+            <Link to="/platform/zyra/approvals" className={hubLinkClasses('text-xs hover:underline')} onClick={() => setExpanded(false)}>Zyra</Link>
           </div>
         </div>
       )}

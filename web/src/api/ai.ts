@@ -451,7 +451,7 @@ export const getComplianceRemediate = () =>
     '/api/v1/ai/compliance/remediate',
   )
 
-export const getZeusSummary = () =>
+export const getZyraSummary = () =>
   platformFetch<{
     status: string
     tagline: string
@@ -465,7 +465,7 @@ export const getZeusSummary = () =>
     baremetal_critical_count?: number
     exposure_waste_usd?: number
     highlights: string[]
-  }>('/api/v1/ai/zeus/summary')
+  }>('/api/v1/ai/zyra/summary')
 
 export const getFleetPowerOptimize = () =>
   platformFetch<{ summary: string; total_savings_usd_month: number; optimizations: Array<{ host: string; action: string; reason: string }> }>(
@@ -506,7 +506,7 @@ export interface FleetClusterSlice {
   security_risk_level: string
 }
 
-export interface FleetZeusSummary {
+export interface FleetZyraSummary {
   clusters: FleetClusterSlice[]
   aggregate_monthly_usd: number
   aggregate_vm_count: number
@@ -515,7 +515,7 @@ export interface FleetZeusSummary {
 }
 
 export const getFleetSummary = () =>
-  platformFetch<FleetZeusSummary>('/api/v1/ai/fleet/summary')
+  platformFetch<FleetZyraSummary>('/api/v1/ai/fleet/summary')
 
 export const getFleetLocal = () =>
   platformFetch<FleetClusterSlice>('/api/v1/ai/fleet/local')
@@ -648,7 +648,7 @@ export const diagnoseFleet = (query: string) =>
   platformFetch<{
     query: string
     summary: string
-    zeus_status: string
+    zyra_status: string
     linux_summary: string
     hypotheses: Array<{ title: string; confidence: number; evidence: string; action: string }>
   }>('/api/v1/ai/fleet/diagnose', { method: 'POST', body: JSON.stringify({ query }) })
@@ -768,7 +768,7 @@ export const setBaremetalPower = (id: string, action: 'on' | 'off' | 'cycle', dr
     { method: 'POST', body: JSON.stringify({ action, dry_run: dryRun }) },
   )
 
-// --- Zeus AI redesign ---
+// --- Zyra AI redesign ---
 
 export interface AiProviderRow {
   id: string
@@ -791,14 +791,14 @@ export interface AiModelRow {
   enabled: boolean
 }
 
-export interface ZeusAgentInfo {
+export interface ZyraAgentInfo {
   id: string
   name: string
   description: string
   task_class: string
 }
 
-export interface ZeusChatResponse {
+export interface ZyraChatResponse {
   reply: string
   deterministic: boolean
   agent_id: string
@@ -821,7 +821,7 @@ export interface MemorySettings {
   retention_days: number
 }
 
-export interface ZeusActionRow {
+export interface ZyraActionRow {
   id: string
   source: string
   action_type: string
@@ -869,28 +869,28 @@ export const patchAiRoutingRule = (
     body: JSON.stringify(body),
   })
 
-export interface ZeusEnterpriseOverview {
-  zeus_admin_role: boolean
-  zeus_execute_role: boolean
-  zeus_read_role: boolean
+export interface ZyraEnterpriseOverview {
+  zyra_admin_role: boolean
+  zyra_execute_role: boolean
+  zyra_read_role: boolean
   air_gap_llm: boolean
   audit_events_24h: number
   scim_enabled: boolean
   sso_configured: boolean
 }
 
-export const getZeusEnterpriseOverview = () =>
-  platformFetch<ZeusEnterpriseOverview>('/api/v1/ai/enterprise/zeus')
+export const getZyraEnterpriseOverview = () =>
+  platformFetch<ZyraEnterpriseOverview>('/api/v1/ai/enterprise/zyra')
 
-export const patchZeusEnterprise = (body: { air_gap_llm?: boolean }) =>
-  platformFetch<ZeusEnterpriseOverview>('/api/v1/ai/enterprise/zeus', {
+export const patchZyraEnterprise = (body: { air_gap_llm?: boolean }) =>
+  platformFetch<ZyraEnterpriseOverview>('/api/v1/ai/enterprise/zyra', {
     method: 'PATCH',
     body: JSON.stringify(body),
   })
 
-export const listZeusAgents = () => platformFetch<ZeusAgentInfo[]>('/api/v1/ai/agents')
+export const listZyraAgents = () => platformFetch<ZyraAgentInfo[]>('/api/v1/ai/agents')
 
-export const zeusChat = (body: {
+export const zyraChat = (body: {
   message: string
   agent?: string
   vm_id?: string
@@ -898,7 +898,7 @@ export const zeusChat = (body: {
   vm_ids?: string[]
   page_path?: string
 }) =>
-  platformFetch<ZeusChatResponse>('/api/v1/ai/zeus/chat', { method: 'POST', body: JSON.stringify(body) })
+  platformFetch<ZyraChatResponse>('/api/v1/ai/zyra/chat', { method: 'POST', body: JSON.stringify(body) })
 
 export const listAiPrompts = () => platformFetch<AiPromptRow[]>('/api/v1/ai/prompts')
 export const createAiPrompt = (body: Record<string, unknown>) =>
@@ -917,7 +917,7 @@ export const patchMemorySettings = (body: Partial<MemorySettings>) =>
 export const purgeMemory = (scope: 'all' | 'user' = 'all') =>
   platformFetch<{ deleted: number }>(`/api/v1/ai/memory?scope=${encodeURIComponent(scope)}`, { method: 'DELETE' })
 
-export const createZeusAction = (body: {
+export const createZyraAction = (body: {
   action_type: string
   label: string
   review?: string
@@ -925,16 +925,16 @@ export const createZeusAction = (body: {
   object_ref?: Record<string, unknown>
   source?: string
 }) =>
-  platformFetch<ZeusActionRow>('/api/v1/ai/actions', { method: 'POST', body: JSON.stringify(body) })
+  platformFetch<ZyraActionRow>('/api/v1/ai/actions', { method: 'POST', body: JSON.stringify(body) })
 
-export const getZeusApprovalHub = () =>
-  platformFetch<{ zeus_actions: ZeusActionRow[]; total_pending: number; firewall_pending: number }>(
+export const getZyraApprovalHub = () =>
+  platformFetch<{ zyra_actions: ZyraActionRow[]; total_pending: number; firewall_pending: number }>(
     '/api/v1/ai/actions/hub',
   )
 
-export const executeZeusAction = (id: string) =>
+export const executeZyraAction = (id: string) =>
   platformFetch<{ message?: string }>(`/api/v1/ai/actions/${encodeURIComponent(id)}/execute`, { method: 'POST' })
-export const rejectZeusAction = (id: string) =>
+export const rejectZyraAction = (id: string) =>
   platformFetch<{ rejected: boolean }>(`/api/v1/ai/actions/${encodeURIComponent(id)}/reject`, { method: 'POST' })
 
 export const listAgentMarketplace = () => platformFetch<AgentPluginRow[]>('/api/v1/ai/marketplace/agents')
@@ -943,14 +943,14 @@ export const installAgentMarketplace = (slug: string) =>
 export const uninstallAgentMarketplace = (slug: string) =>
   platformFetch<AgentPluginRow>(`/api/v1/ai/marketplace/agents/${encodeURIComponent(slug)}/uninstall`, { method: 'POST' })
 
-export const zeusAutonomousPlan = (goal: string, simulate = true, agent?: string) =>
+export const zyraAutonomousPlan = (goal: string, simulate = true, agent?: string) =>
   platformFetch<{ goal: string; agent_id: string; steps: Array<{ title: string; detail: string }> }>(
-    '/api/v1/ai/zeus/plan',
+    '/api/v1/ai/zyra/plan',
     { method: 'POST', body: JSON.stringify({ goal, simulate, agent }) },
   )
 
-export const zeusAutonomousExecute = (goal: string, agent?: string) =>
-  platformFetch<{ message: string }>('/api/v1/ai/zeus/execute', {
+export const zyraAutonomousExecute = (goal: string, agent?: string) =>
+  platformFetch<{ message: string }>('/api/v1/ai/zyra/execute', {
     method: 'POST',
     body: JSON.stringify({ goal, agent }),
   })

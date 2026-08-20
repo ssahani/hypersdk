@@ -2,7 +2,7 @@
 
 import { Sparkles } from 'lucide-react'
 
-export default function ZeusInsightCard({
+export default function ZyraInsightCard({
   title,
   detail,
   onApprove,

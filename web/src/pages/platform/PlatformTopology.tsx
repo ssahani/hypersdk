@@ -133,10 +133,10 @@ export default function PlatformTopology() {
         ) : null}
       </MacGlassPanel>
       <div className="flex flex-wrap gap-3 text-sm">
-        <Link to="/platform/zeus?tab=brain" className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>
+        <Link to="/platform/zyra?tab=brain" className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>
           <GitBranch className="w-4 h-4" /> Infrastructure Graph Brain
         </Link>
-        <Link to="/platform/zeus/incidents" className={hubLinkClasses()}>Incident Commander →</Link>
+        <Link to="/platform/zyra/incidents" className={hubLinkClasses()}>Incident Commander →</Link>
       </div>
       <MachinaDigitalTwin />
       {trafficHosts.length > 0 && (

@@ -85,7 +85,7 @@ export function navItemActive(
   if (path.startsWith('/openstack/')) {
     return pathname === path || pathname.startsWith(`${path}/`)
   }
-  if (path.startsWith('/platform/zeus/')) {
+  if (path.startsWith('/platform/zyra/')) {
     return pathname === path || pathname.startsWith(`${path}/`)
   }
   return pathname === path
@@ -218,8 +218,8 @@ export const navGroups: NavGroup[] = [
       {
         label: 'Security',
         items: [
-          { to: '/platform/zeus', icon: React.createElement(Zap, { className: 'w-4 h-4' }), label: 'Zeus AI' },
-          { to: '/platform/zeus/configure', icon: React.createElement(Cog, { className: 'w-4 h-4' }), label: 'Configure Zeus' },
+          { to: '/platform/zyra', icon: React.createElement(Zap, { className: 'w-4 h-4' }), label: 'Zyra AI' },
+          { to: '/platform/zyra/configure', icon: React.createElement(Cog, { className: 'w-4 h-4' }), label: 'Configure Zyra' },
           { to: '/platform/zeus/security', icon: React.createElement(ShieldCheck, { className: 'w-4 h-4' }), label: 'Zeus Security' },
           { to: '/platform/soc', icon: React.createElement(Radar, { className: 'w-4 h-4' }), label: 'Security Operations' },
           { to: '/platform/policy', icon: React.createElement(Lock, { className: 'w-4 h-4' }), label: 'Policy' },
@@ -234,8 +234,8 @@ export const navGroups: NavGroup[] = [
           { to: '/platform/placement', icon: React.createElement(Globe, { className: 'w-4 h-4' }), label: 'Disaster Recovery' },
           { to: '/platform/ha', icon: React.createElement(ShieldCheck, { className: 'w-4 h-4' }), label: 'High Availability' },
           { to: '/platform/upgrade', icon: React.createElement(Cog, { className: 'w-4 h-4' }), label: 'Upgrade Matrix' },
-          { to: '/platform/zeus/incidents', icon: React.createElement(AlertTriangle, { className: 'w-4 h-4' }), label: 'Incident Commander' },
-          { to: '/platform/zeus/approvals', icon: React.createElement(CheckCircle2, { className: 'w-4 h-4' }), label: 'Approvals' },
+          { to: '/platform/zyra/incidents', icon: React.createElement(AlertTriangle, { className: 'w-4 h-4' }), label: 'Incident Commander' },
+          { to: '/platform/zyra/approvals', icon: React.createElement(CheckCircle2, { className: 'w-4 h-4' }), label: 'Approvals' },
           { to: '/platform/maintenance', icon: React.createElement(Cog, { className: 'w-4 h-4' }), label: 'Maintenance' },
           { to: '/platform/recommendations', icon: React.createElement(BookOpen, { className: 'w-4 h-4' }), label: 'Recommendations' },
           { to: '/platform/notifications', icon: React.createElement(Bell, { className: 'w-4 h-4' }), label: 'Alerts' },
@@ -247,7 +247,7 @@ export const navGroups: NavGroup[] = [
           { to: '/platform/observability', icon: React.createElement(BarChart2, { className: 'w-4 h-4' }), label: 'Observability' },
           { to: '/platform/activity', icon: React.createElement(Activity, { className: 'w-4 h-4' }), label: 'Activity Monitor' },
           { to: '/platform/topology', icon: React.createElement(Share2, { className: 'w-4 h-4' }), label: 'Topology' },
-          { to: '/platform/zeus/rightsizing', icon: React.createElement(TrendingDown, { className: 'w-4 h-4' }), label: 'Rightsizing' },
+          { to: '/platform/zyra/rightsizing', icon: React.createElement(TrendingDown, { className: 'w-4 h-4' }), label: 'Rightsizing' },
           { to: '/platform/reports', icon: React.createElement(FileText, { className: 'w-4 h-4' }), label: 'Reports' },
           { to: '/platform/gpu', icon: React.createElement(Microchip, { className: 'w-4 h-4' }), label: 'GPU Command Center' },
         ],
@@ -484,18 +484,18 @@ export const routeLabels: Record<string, string> = {
   '/platform/enterprise': 'Enterprise Features',
   '/platform/datacenter': 'Datacenter View',
   '/platform/ai-providers': 'AI Providers',
-  '/platform/zeus/configure': 'Configure Zeus',
+  '/platform/zyra/configure': 'Configure Zyra',
   '/platform/ha': 'High Availability',
   '/platform/baremetal': 'Bare Metal',
   '/platform/storage-tiers': 'Storage Tiers',
   '/platform/marketplace': 'Marketplace',
   '/platform/upgrade': 'Upgrade Matrix',
   '/fleet': 'Fleet',
-  '/platform/zeus': 'Zeus OS',
+  '/platform/zyra': 'Zyra OS',
   '/platform/zeus/security': 'Zeus Security',
-  '/platform/zeus/rightsizing': 'Rightsizing',
-  '/platform/zeus/incidents': 'Incident Commander',
-  '/platform/zeus/approvals': 'Approvals',
+  '/platform/zyra/rightsizing': 'Rightsizing',
+  '/platform/zyra/incidents': 'Incident Commander',
+  '/platform/zyra/approvals': 'Approvals',
   '/platform/zeus/security/firewall': 'Firewall',
   '/platform/zeus/security/hunt': 'Threat Hunting',
   '/platform/zeus/security/enforcement': 'Runtime Enforcement',
@@ -520,7 +520,7 @@ export const routeLabels: Record<string, string> = {
   '/platform/vms/:id/console': 'Console',
   '/platform/launchpad/apps/:id': 'App',
   '/platform/launchpad/spaces/:spaceId': 'Space',
-  '/platform/zeus/machines/:hostId': 'Host',
+  '/platform/zyra/machines/:hostId': 'Host',
   '/platform/zeus/security/firewall/:id': 'Firewall',
 }
 

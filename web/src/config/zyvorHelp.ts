@@ -33,16 +33,16 @@ export type HelpDocLink = {
 
 export const MACHINA_HELP: ProductHelpMeta = {
   name: 'Machina',
-  tagline: 'Machina Zeus OS — AI-native infrastructure operating system',
+  tagline: 'Machina Zyra OS — AI-native infrastructure operating system',
   version: '0.2.0',
   productUrl: 'https://zyvor.dev/machina',
 };
 
 export const ZEUS_OS_HELP: ProductHelpMeta = {
-  name: 'Zeus',
+  name: 'Zyra',
   tagline: 'The enterprise virtualization operating system',
   version: '1.0',
-  productUrl: 'https://zyvor.dev/zeus',
+  productUrl: 'https://zyvor.dev/zyra',
 };
 
 export const ZYVOR_PLATFORM_HELP: ProductHelpMeta = {

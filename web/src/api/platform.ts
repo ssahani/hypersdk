@@ -1206,7 +1206,7 @@ export const diagnoseVm = (vmId: string, query?: string) =>
 
 export type FleetDesktopOverview = {
   summary: string
-  zeus_status: string
+  zyra_status: string
   zeus_highlights: string[]
   slo_count: number
   slo_breach_count: number

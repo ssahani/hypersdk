@@ -128,7 +128,7 @@ pub async fn overview(
 pub struct FleetDiagnoseReport {
     pub query: String,
     pub summary: String,
-    pub zeus_status: String,
+    pub zyra_status: String,
     pub linux_summary: String,
     pub hypotheses: Vec<crate::engine::ai::knowledge_diagnose::DiagnoseHypothesis>,
 }
@@ -138,7 +138,7 @@ pub async fn diagnose(
     cfg: &ControllerConfig,
     query: &str,
 ) -> anyhow::Result<FleetDiagnoseReport> {
-    let zeus = crate::engine::ai::zeus_summary::summarize(pool).await?;
+    let zeus = crate::engine::ai::zyra_summary::summarize(pool).await?;
     let linux = overview(pool, cfg).await?;
     let mut diag = crate::engine::ai::knowledge_diagnose::diagnose(pool, query).await?;
     if linux.pressure_hosts > 0 {
@@ -153,7 +153,7 @@ pub async fn diagnose(
     Ok(FleetDiagnoseReport {
         query: query.into(),
         summary: format!("Fleet {} · {}", zeus.status, linux.summary),
-        zeus_status: zeus.status,
+        zyra_status: zeus.status,
         linux_summary: linux.summary,
         hypotheses: diag.hypotheses,
     })

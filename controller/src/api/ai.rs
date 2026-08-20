@@ -177,7 +177,7 @@ pub async fn copilot_stream(
                 }
 
                 let system = format!(
-                    "You are Zeus, an autonomous infrastructure engineer and cloud architect. Be concise. Use bullet points. {}",
+                    "You are Zyra, an autonomous infrastructure engineer and cloud architect. Be concise. Use bullet points. {}",
                     ai::guest_tools::tools_system_prompt()
                 );
                 let mut deterministic = true;
@@ -627,7 +627,7 @@ pub async fn cost_export_csv(
 pub async fn fleet_summary(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
-) -> Result<Json<ai::fleet_summary::FleetZeusSummary>, ApiError> {
+) -> Result<Json<ai::fleet_summary::FleetZyraSummary>, ApiError> {
     require_operator(&actor)?;
     ai::fleet_summary::summarize(&state.pool)
         .await
@@ -770,12 +770,12 @@ pub async fn compliance_remediate(
         .map(Json)
 }
 
-pub async fn zeus_summary(
+pub async fn zyra_summary(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
-) -> Result<Json<ai::zeus_summary::ZeusOsSummary>, ApiError> {
+) -> Result<Json<ai::zyra_summary::ZyraOsSummary>, ApiError> {
     require_operator(&actor)?;
-    ai::zeus_summary::summarize(&state.pool)
+    ai::zyra_summary::summarize(&state.pool)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
@@ -1095,7 +1095,7 @@ pub async fn mission_stack_status(
         .map(Json)
 }
 
-// --- Zeus AI redesign APIs ---
+// --- Zyra AI redesign APIs ---
 
 pub async fn list_ai_providers(
     State(state): State<AppState>,
@@ -1199,19 +1199,19 @@ pub async fn patch_routing_rule(
         .map(Json)
 }
 
-pub async fn list_zeus_agents(
+pub async fn list_zyra_agents(
     State(_state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
-) -> Result<Json<Vec<ai::agents::ZeusAgentInfo>>, ApiError> {
+) -> Result<Json<Vec<ai::agents::ZyraAgentInfo>>, ApiError> {
     require_operator(&actor)?;
     Ok(Json(ai::agents::catalog()))
 }
 
-pub async fn zeus_chat(
+pub async fn zyra_chat(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
-    Json(body): Json<ai::agents::ZeusChatBody>,
-) -> Result<Json<ai::agents::ZeusChatResponse>, ApiError> {
+    Json(body): Json<ai::agents::ZyraChatBody>,
+) -> Result<Json<ai::agents::ZyraChatResponse>, ApiError> {
     require_operator(&actor)?;
     ai::agents::chat(&state.pool, &state.config, &body, Some(&actor.username))
         .await
@@ -1337,7 +1337,7 @@ pub async fn migration_readiness_report(
         .map(Json)
 }
 
-pub async fn zeus_approval_hub(
+pub async fn zyra_approval_hub(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -1348,11 +1348,11 @@ pub async fn zeus_approval_hub(
         .map(Json)
 }
 
-pub async fn create_zeus_action(
+pub async fn create_zyra_action(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<ai::actions::CreateActionBody>,
-) -> Result<Json<ai::actions::ZeusActionRow>, ApiError> {
+) -> Result<Json<ai::actions::ZyraActionRow>, ApiError> {
     require_operator(&actor)?;
     ai::actions::create_action(&state.pool, &body, &actor.username)
         .await
@@ -1360,7 +1360,7 @@ pub async fn create_zeus_action(
         .map(Json)
 }
 
-pub async fn execute_zeus_action(
+pub async fn execute_zyra_action(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
     axum::extract::Path(id): axum::extract::Path<Uuid>,
@@ -1372,7 +1372,7 @@ pub async fn execute_zeus_action(
         .map(Json)
 }
 
-pub async fn reject_zeus_action(
+pub async fn reject_zyra_action(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
     axum::extract::Path(id): axum::extract::Path<Uuid>,
@@ -1419,34 +1419,34 @@ pub async fn uninstall_agent_marketplace(
         .map(Json)
 }
 
-pub async fn zeus_enterprise_overview(
+pub async fn zyra_enterprise_overview(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
-) -> Result<Json<ai::enterprise_zeus::ZeusEnterpriseOverview>, ApiError> {
+) -> Result<Json<ai::enterprise_zyra::ZyraEnterpriseOverview>, ApiError> {
     require_operator(&actor)?;
-    ai::enterprise_zeus::overview(&state.pool, &actor.username)
+    ai::enterprise_zyra::overview(&state.pool, &actor.username)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
-pub async fn patch_zeus_enterprise_overview(
+pub async fn patch_zyra_enterprise_overview(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
-    Json(body): Json<ai::enterprise_zeus::ZeusEnterprisePatch>,
-) -> Result<Json<ai::enterprise_zeus::ZeusEnterpriseOverview>, ApiError> {
+    Json(body): Json<ai::enterprise_zyra::ZyraEnterprisePatch>,
+) -> Result<Json<ai::enterprise_zyra::ZyraEnterpriseOverview>, ApiError> {
     require_admin(&actor)?;
-    ai::enterprise_zeus::require_zeus_admin(&actor)?;
-    ai::enterprise_zeus::patch(&state.pool, &body)
+    ai::enterprise_zyra::require_zyra_admin(&actor)?;
+    ai::enterprise_zyra::patch(&state.pool, &body)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    ai::enterprise_zeus::overview(&state.pool, &actor.username)
+    ai::enterprise_zyra::overview(&state.pool, &actor.username)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
 
-pub async fn zeus_autonomous_plan(
+pub async fn zyra_autonomous_plan(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<ai::autonomous::AutonomousPlanBody>,
@@ -1458,7 +1458,7 @@ pub async fn zeus_autonomous_plan(
         .map(Json)
 }
 
-pub async fn zeus_autonomous_execute(
+pub async fn zyra_autonomous_execute(
     State(state): State<AppState>,
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<ai::autonomous::AutonomousExecuteBody>,

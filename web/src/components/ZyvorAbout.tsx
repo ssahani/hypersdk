@@ -43,7 +43,7 @@ export const MACHINA_HELP_LINKS: HelpDocLink[] = [
     href: MACHINA_HELP.productUrl,
   },
   {
-    label: 'Zeus platform',
+    label: 'Zyra platform',
     href: ZEUS_OS_HELP.productUrl,
   },
   {
@@ -79,8 +79,8 @@ export default function ZyvorAbout({ className = '' }: { className?: string }) {
             {ZYVOR_BRAND}
           </a>{' '}
           product family — <span className="text-slate-200">{ZEUS_OS_PRODUCT}</span> is the enterprise virtualization platform.
-          {MACHINA_PRODUCT} is the AI-native infrastructure operating system (Machina Zeus OS): libvirt/KVM and OpenStack control,
-          fleet, observability, and Zeus (Spotlight, assistant, SRE, Autopilot, Digital Twin, Root Cause).
+          {MACHINA_PRODUCT} is the AI-native infrastructure operating system (Machina Zyra OS): libvirt/KVM and OpenStack control,
+          fleet, observability, and Zyra (Spotlight, assistant, SRE, Autopilot, Digital Twin, Root Cause).
         </p>
         <p className="text-xs text-slate-500 leading-relaxed">
           <span style={{ color: ORANGE }} className="font-medium">

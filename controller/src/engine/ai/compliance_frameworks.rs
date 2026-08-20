@@ -60,7 +60,7 @@ pub async fn scan(pool: &SqlitePool) -> anyhow::Result<ComplianceFrameworksRepor
             _ => 45,
         },
         detail: format!(
-            "Zeus Security Sentinel: {} risk ({} findings)",
+            "Zyra Security Sentinel: {} risk ({} findings)",
             security.risk_level,
             security.findings.len()
         ),

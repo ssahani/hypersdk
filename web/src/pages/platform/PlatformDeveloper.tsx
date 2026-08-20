@@ -29,7 +29,7 @@ export default function PlatformDeveloper() {
   const [schemas, setSchemas] = useState<TerraformResourceSchema[]>([])
   const [error, setError] = useState<string | null>(null)
   const [guestkitDaemon, setGuestkitDaemon] = useState<GuestkitStatus | null>(null)
-  const [zeusDaemon, setZeusDaemon] = useState<Record<string, unknown> | null>(null)
+  const [zyraDaemon, setZyraDaemon] = useState<Record<string, unknown> | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -43,7 +43,7 @@ export default function PlatformDeveloper() {
       setOverview(o)
       setSchemas(s)
       setGuestkitDaemon(gk)
-      setZeusDaemon(zf?.zeus_firewall ?? null)
+      setZyraDaemon(zf?.zeus_firewall ?? null)
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
@@ -62,7 +62,7 @@ export default function PlatformDeveloper() {
       actions={<PlatformRefreshButton onClick={() => void load()} />}
       contentClassName="space-y-4"
     >
-      {(guestkitDaemon || zeusDaemon) && (
+      {(guestkitDaemon || zyraDaemon) && (
         <MacGlassPanel title="Daemon health" subtitle="Co-located machina-daemon services (GET /api/v1/guestkit/status, /zeus-firewall/status)">
           <div className="grid gap-3 sm:grid-cols-2">
             {guestkitDaemon && (
@@ -73,12 +73,12 @@ export default function PlatformDeveloper() {
                 tone={guestkitDaemon.reachable ? 'ok' : 'warn'}
               />
             )}
-            {zeusDaemon && (
+            {zyraDaemon && (
               <MacStatWidget
                 label="Zeus Firewall"
-                value={zeusDaemon.enabled === false ? 'Disabled' : 'Active'}
+                value={zyraDaemon.enabled === false ? 'Disabled' : 'Active'}
                 icon={<Shield className="w-4 h-4" />}
-                tone={zeusDaemon.enabled === false ? 'warn' : 'ok'}
+                tone={zyraDaemon.enabled === false ? 'warn' : 'ok'}
               />
             )}
           </div>
@@ -151,15 +151,15 @@ export default function PlatformDeveloper() {
             </p>
             <div className="space-y-3">
               <div>
-                <p className="text-xs text-slate-500 mb-1">Zeus security telemetry (controller)</p>
+                <p className="text-xs text-slate-500 mb-1">Zyra security telemetry (controller)</p>
                 <div className="flex items-start gap-2">
-                  <pre className="text-xs bg-slate-950/80 rounded-lg p-3 overflow-x-auto text-slate-300 flex-1">{`POST /api/v1/zeus-security/ingest/{host_id}
+                  <pre className="text-xs bg-slate-950/80 rounded-lg p-3 overflow-x-auto text-slate-300 flex-1">{`POST /api/v1/zyra-security/ingest/{host_id}
 Authorization: Bearer <controller-jwt-or-api-key>
 Content-Type: application/json
 
 {"events":[...]}`}</pre>
                   <CopyButton
-                    text={`curl -sS -X POST "$CONTROLLER/api/v1/zeus-security/ingest/$HOST_ID" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"events":[]}'`}
+                    text={`curl -sS -X POST "$CONTROLLER/api/v1/zyra-security/ingest/$HOST_ID" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"events":[]}'`}
                     label="Copy curl"
                   />
                 </div>

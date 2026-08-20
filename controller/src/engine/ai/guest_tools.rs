@@ -1,5 +1,5 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
-//! Guest-agent tools for Zeus copilot — read tools inline, write tools via ai_actions approval.
+//! Guest-agent tools for Zyra copilot — read tools inline, write tools via ai_actions approval.
 
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;

@@ -70,7 +70,7 @@ export default function AutopilotSuggestionsStrip() {
         </p>
         <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={openCopilot}>
           <Bot className="w-3.5 h-3.5 inline mr-1" />
-          Open Zeus
+          Open Zyra
         </button>
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -87,7 +87,7 @@ export default function AutopilotSuggestionsStrip() {
               >
                 {executingId === a.id ? 'Running…' : 'Run fix'}
               </button>
-              <Link to="/platform/zeus/approvals" className={`text-[10px] self-center ${hubLinkClasses()}`}>
+              <Link to="/platform/zyra/approvals" className={`text-[10px] self-center ${hubLinkClasses()}`}>
                 Approvals
               </Link>
             </div>

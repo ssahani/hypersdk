@@ -44,10 +44,10 @@ describe('spotlightNavForTier', () => {
     expect(security.some((entry) => entry.label === 'Policy Studio')).toBe(true)
   })
 
-  it('includes zeus workspaces on power tier', () => {
+  it('includes zyra workspaces on power tier', () => {
     const entries = spotlightNavForTier('power')
-    const zeus = entries.filter((entry) => entry.zone === 'Zeus')
-    expect(zeus.some((entry) => entry.label === 'Knowledge')).toBe(true)
-    expect(zeus.some((entry) => entry.path.includes('tab=knowledge'))).toBe(true)
+    const zyra = entries.filter((entry) => entry.zone === 'Zyra')
+    expect(zyra.some((entry) => entry.label === 'Knowledge')).toBe(true)
+    expect(zyra.some((entry) => entry.path.includes('tab=knowledge'))).toBe(true)
   })
 })

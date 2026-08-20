@@ -4,7 +4,7 @@ use serde::Serialize;
 use sqlx::SqlitePool;
 
 #[derive(Debug, Serialize)]
-pub struct ZeusOsSummary {
+pub struct ZyraOsSummary {
     pub status: String,
     pub tagline: String,
     pub hosts_online: i64,
@@ -21,7 +21,7 @@ pub struct ZeusOsSummary {
     pub highlights: Vec<String>,
 }
 
-pub async fn summarize(pool: &SqlitePool) -> anyhow::Result<ZeusOsSummary> {
+pub async fn summarize(pool: &SqlitePool) -> anyhow::Result<ZyraOsSummary> {
     let hosts_online: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM hosts WHERE state = 'online'")
         .fetch_one(pool)
         .await?;
@@ -123,9 +123,9 @@ pub async fn summarize(pool: &SqlitePool) -> anyhow::Result<ZeusOsSummary> {
         highlights.push("Autonomous datacenter operating within guardrails.".into());
     }
 
-    Ok(ZeusOsSummary {
+    Ok(ZyraOsSummary {
         status: status.into(),
-        tagline: "Machina Zeus OS — AI-native infrastructure operating system".into(),
+        tagline: "Machina Zyra OS — AI-native infrastructure operating system".into(),
         hosts_online,
         vm_count,
         monthly_cost_usd: cost.estimated_monthly_usd,

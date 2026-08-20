@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { DollarSign } from 'lucide-react'
 import PlatformPageChrome, { PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
-import { createZeusAction, getRightsizingReport, type RightsizingRecommendation } from '../../api/ai'
+import { createZyraAction, getRightsizingReport, type RightsizingRecommendation } from '../../api/ai'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 
@@ -51,7 +51,7 @@ export default function PlatformRightsizing() {
   }
 
   const queueAction = async (r: RightsizingRecommendation) => {
-    await createZeusAction({
+    await createZyraAction({
       action_type: r.action,
       label: `${r.action} ${r.vm_name}`,
       review: r.detail,

@@ -153,12 +153,12 @@ const OPERATIONS_ITEMS: ContextNavItem[] = [
 ]
 
 const ZEUS_ITEMS: ContextNavItem[] = [
-  { to: '/platform/zeus', label: 'Overview' },
-  { to: '/platform/zeus?tab=fleet', label: 'Fleet AI' },
-  { to: '/platform/zeus?tab=services', label: 'Services' },
-  { to: '/platform/zeus?tab=security', label: 'Attack paths' },
-  { to: '/platform/zeus?tab=knowledge', label: 'Knowledge' },
-  { to: '/platform/zeus?tab=baremetal', label: 'Bare Metal' },
+  { to: '/platform/zyra', label: 'Overview' },
+  { to: '/platform/zyra?tab=fleet', label: 'Fleet AI' },
+  { to: '/platform/zyra?tab=services', label: 'Services' },
+  { to: '/platform/zyra?tab=security', label: 'Attack paths' },
+  { to: '/platform/zyra?tab=knowledge', label: 'Knowledge' },
+  { to: '/platform/zyra?tab=baremetal', label: 'Bare Metal' },
   { to: '/platform/zeus/security', label: 'Security Center' },
 ]
 
@@ -217,13 +217,13 @@ export const HUB_DEFINITIONS: ContextDefinition[] = [
     spotlightZone: 'Security',
   },
   {
-    id: 'zeus',
-    match: (p) => p === '/platform/zeus' || p.startsWith('/platform/zeus/'),
-    appLabel: 'Machina Zeus OS',
+    id: 'zyra',
+    match: (p) => p === '/platform/zyra' || p.startsWith('/platform/zyra/'),
+    appLabel: 'Machina Zyra OS',
     appIcon: Cpu,
-    hubPath: '/platform/zeus',
+    hubPath: '/platform/zyra',
     items: ZEUS_ITEMS,
-    spotlightZone: 'Zeus',
+    spotlightZone: 'Zyra',
   },
   {
     id: 'infrastructure',
@@ -393,7 +393,7 @@ export function securityNavItemsForTier(tier: PlatformDesktopTier): ContextNavIt
   return filterItems(SECURITY_ITEMS, tier)
 }
 
-export function zeusNavItemsForTier(tier: PlatformDesktopTier): ContextNavItem[] {
+export function zyraNavItemsForTier(tier: PlatformDesktopTier): ContextNavItem[] {
   return filterItems(ZEUS_ITEMS, tier)
 }
 
@@ -413,7 +413,7 @@ export function hubTileById(id: DesktopHubId): DesktopHubTile | undefined {
 const DETAIL_TABS_EXACT = new Set([
   '/platform/storage',
   '/platform/networks',
-  '/platform/zeus',
+  '/platform/zyra',
   '/platform/maintenance',
   '/platform/templates',
   '/platform/blueprints',
@@ -437,7 +437,7 @@ export function suppressContextBar(pathname: string): boolean {
   if (DETAIL_TABS_EXACT.has(pathname)) return true
   if (/^\/platform\/vms\/[^/]+$/.test(pathname)) return true
   if (/^\/platform\/hosts\/[^/]+$/.test(pathname)) return true
-  if (/^\/platform\/zeus\/machines\/[^/]+$/.test(pathname)) return true
+  if (/^\/platform\/zyra\/machines\/[^/]+$/.test(pathname)) return true
   return false
 }
 
@@ -517,7 +517,7 @@ export function isContextNavActive(pathname: string, search: string, item: Conte
     '/platform/workloads',
     '/platform/administration',
     '/platform/integrations',
-    '/platform/zeus',
+    '/platform/zyra',
   ]
   if (exactHubPaths.includes(itemPath)) {
     return pathname === itemPath
@@ -564,7 +564,7 @@ export function spotlightZoneOrder(): string[] {
     'Operations',
     'Administration',
     'Security',
-    'Zeus',
+    'Zyra',
     'Favorites',
     'Fleet',
     'Platform',
@@ -583,7 +583,7 @@ const SPOTLIGHT_HUB_ZONES: Array<{
   { zone: 'Operations', itemsForTier: operationsNavItemsForTier, description: 'Operations workspace' },
   { zone: 'Administration', itemsForTier: administrationNavItemsForTier, description: 'Administration workspace' },
   { zone: 'Security', itemsForTier: securityNavItemsForTier, description: 'Security workspace' },
-  { zone: 'Zeus', itemsForTier: zeusNavItemsForTier, description: 'Zeus workspace' },
+  { zone: 'Zyra', itemsForTier: zyraNavItemsForTier, description: 'Zyra workspace' },
 ]
 
 /** Spotlight / Command palette entries grouped by sidebar zone. */

@@ -132,7 +132,7 @@ pub async fn explain_event(
     let mut out = explain_event_heuristic(event, host_id);
     if let Ok(Some(llm)) = super::llm::complete_simple(
         pool,
-        "You are Zeus Security. Explain Tetragon/eBPF security events for operators in 2-4 sentences. End with one concrete next step.",
+        "You are Zyra Security. Explain Tetragon/eBPF security events for operators in 2-4 sentences. End with one concrete next step.",
         &format!(
             "Host: {}\nEvent:\n{}",
             host_id.unwrap_or("unknown"),
@@ -370,7 +370,7 @@ pub async fn hunt_summary(
         .collect();
     if let Ok(Some(llm)) = super::llm::complete_simple(
         pool,
-        "You are Zeus Security lead summarizing a threat hunt. Write 3-5 sentences: overall posture, top risks, and recommended next steps for an operator.",
+        "You are Zyra Security lead summarizing a threat hunt. Write 3-5 sentences: overall posture, top risks, and recommended next steps for an operator.",
         &format!(
             "Correlations:\n{}\n\nRecent timeline:\n{}",
             corr_lines.join("\n"),

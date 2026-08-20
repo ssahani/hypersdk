@@ -73,7 +73,7 @@ pub async fn diagnose(pool: &SqlitePool, query: &str) -> anyhow::Result<Knowledg
                 title: "Hotspot VMs consuming CPU".into(),
                 confidence: 0.65,
                 evidence: format!("{high_cpu_vms} VM(s) above 85% CPU"),
-                action: "Open Zeus SRE on top consumers; consider rebalance.".into(),
+                action: "Open Zyra SRE on top consumers; consider rebalance.".into(),
             });
         }
     }

@@ -1,22 +1,22 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useEffect, useState } from 'react'
-import { executeZeusAction, getZeusApprovalHub, rejectZeusAction, type ZeusActionRow } from '../../api/ai'
+import { executeZyraAction, getZyraApprovalHub, rejectZyraAction, type ZyraActionRow } from '../../api/ai'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import ConfirmDialog from '../ConfirmDialog'
-import ZeusInsightCard from './ZeusInsightCard'
+import ZyraInsightCard from './ZyraInsightCard'
 
-export default function ZeusApprovalQueue() {
+export default function ZyraApprovalQueue() {
   const toast = useToastContext()
-  const [actions, setActions] = useState<ZeusActionRow[]>([])
+  const [actions, setActions] = useState<ZyraActionRow[]>([])
   const [busy, setBusy] = useState<string | null>(null)
-  const [confirmApprove, setConfirmApprove] = useState<ZeusActionRow | null>(null)
+  const [confirmApprove, setConfirmApprove] = useState<ZyraActionRow | null>(null)
 
   const load = async () => {
     try {
-      const hub = await getZeusApprovalHub()
-      setActions(hub.zeus_actions ?? [])
+      const hub = await getZyraApprovalHub()
+      setActions(hub.zyra_actions ?? [])
     } catch {
       setActions([])
     }
@@ -32,7 +32,7 @@ export default function ZeusApprovalQueue() {
     <div className="space-y-2">
       <ConfirmDialog
         open={confirmApprove !== null}
-        title="Approve Zeus action"
+        title="Approve Zyra action"
         message={confirmApprove ? `Approve and execute "${confirmApprove.label}"? ${confirmApprove.review} · ${confirmApprove.risk}` : ''}
         confirmLabel="Approve"
         variant="danger"
@@ -42,22 +42,22 @@ export default function ZeusApprovalQueue() {
           setConfirmApprove(null)
           if (!a) return
           setBusy(a.id)
-          void executeZeusAction(a.id)
+          void executeZyraAction(a.id)
             .then((r) => { toast.success(String(r.message ?? 'Executed')); return load() })
             .catch((e: unknown) => toast.error(formatUserError(e)))
             .finally(() => setBusy(null))
         }}
       />
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-orange-400/80">Zeus approval queue</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-orange-400/80">Zyra approval queue</p>
       {actions.map((a) => (
-        <ZeusInsightCard
+        <ZyraInsightCard
           key={a.id}
           title={a.label}
           detail={`${a.review} · ${a.risk}`}
           onApprove={busy === a.id ? undefined : () => setConfirmApprove(a)}
           onDismiss={busy === a.id ? undefined : () => {
             setBusy(a.id)
-            void rejectZeusAction(a.id)
+            void rejectZyraAction(a.id)
               .then(() => load())
               .catch((e: unknown) => toast.error(formatUserError(e)))
               .finally(() => setBusy(null))

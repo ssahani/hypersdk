@@ -8,12 +8,12 @@ import {
   aiCopilotStream,
   executeAutopilotAction,
   getAutopilotProposal,
-  listZeusAgents,
+  listZyraAgents,
   runNlOps,
-  zeusChat,
+  zyraChat,
   type NlOpsPlan,
   type ProposedAction,
-  type ZeusAgentInfo,
+  type ZyraAgentInfo,
 } from '../../api/ai'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { useToastContext } from '../../contexts/ToastContext'
@@ -58,14 +58,14 @@ export default function ZyraAssistant() {
   const [proposals, setProposals] = useState<ProposedAction[]>([])
   const [nlOpsPlan, setNlOpsPlan] = useState<NlOpsPlan | null>(null)
   const [executingId, setExecutingId] = useState<string | null>(null)
-  const [agents, setAgents] = useState<ZeusAgentInfo[]>([])
+  const [agents, setAgents] = useState<ZyraAgentInfo[]>([])
   const [confirmAction, setConfirmAction] = useState<ProposedAction | null>(null)
 
   const showGuestPrompts = guestContextActive(contextSummary, contextVmIds)
 
   useEffect(() => {
     if (!platform) return
-    void listZeusAgents().then(setAgents).catch(() => setAgents([]))
+    void listZyraAgents().then(setAgents).catch(() => setAgents([]))
   }, [platform])
 
   const loadProposals = useCallback(async () => {
@@ -88,7 +88,7 @@ export default function ZyraAssistant() {
     setInput('')
     setMessages((m) => [...m, { role: 'user', text }])
     if (!platform) {
-      setMessages((m) => [...m, { role: 'assistant', text: 'Connect Zyvor Platform (control plane) to use Zeus.' }])
+      setMessages((m) => [...m, { role: 'assistant', text: 'Connect Zyvor Platform (control plane) to use Zyra.' }])
       return
     }
     setBusy(true)
@@ -143,7 +143,7 @@ export default function ZyraAssistant() {
         setStreaming(false)
       }
       if (streamFailed || !streamed.trim()) {
-        const zeus = await zeusChat({
+        const zyra = await zyraChat({
           message: text,
           agent: selectedAgent,
           vm_id: contextVmId ?? undefined,
@@ -153,7 +153,7 @@ export default function ZyraAssistant() {
         })
         setMessages((m) => {
           const next = [...m]
-          next[assistantIdx] = { role: 'assistant', text: zeus.reply }
+          next[assistantIdx] = { role: 'assistant', text: zyra.reply }
           return next
         })
       }
@@ -231,7 +231,7 @@ export default function ZyraAssistant() {
           <div className="flex items-center gap-2 min-w-0">
             <Bot className="w-5 h-5 text-orange-400 shrink-0" />
             <div className="min-w-0">
-              <p className="font-semibold text-sm">Zeus</p>
+              <p className="font-semibold text-sm">Zyra</p>
               <p className="text-[10px] text-slate-500 truncate">{modeLabel}</p>
             </div>
           </div>
@@ -239,13 +239,13 @@ export default function ZyraAssistant() {
             className="input text-[10px] max-w-[120px] mr-2"
             value={selectedAgent}
             onChange={(e) => setSelectedAgent(e.target.value)}
-            aria-label="Zeus agent"
+            aria-label="Zyra agent"
           >
             {agents.map((a) => (
               <option key={a.id} value={a.id}>{a.name}</option>
             ))}
           </select>
-          <button type="button" onClick={closeCopilot} className="p-1 text-slate-400 hover:text-white" aria-label="Close Zeus assistant"><X className="w-5 h-5" /></button>
+          <button type="button" onClick={closeCopilot} className="p-1 text-slate-400 hover:text-white" aria-label="Close Zyra assistant"><X className="w-5 h-5" /></button>
         </header>
 
         {(contextVmIds.length > 0 || contextSummary || contextVmId) && (

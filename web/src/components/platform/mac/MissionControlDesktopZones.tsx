@@ -21,7 +21,7 @@ function sectionSubtitle(label: string): string | undefined {
     case 'Favorites':
       return 'Pinned destinations'
     case 'Fleet':
-      return 'Zeus OS and integrations'
+      return 'Zyra OS and integrations'
     case 'Platform':
       return 'Resources, operations, and security'
     case 'Connected platforms':

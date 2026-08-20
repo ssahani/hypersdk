@@ -1,4 +1,4 @@
-# Zeus Infrastructure AI Program (AI-138–147)
+# Zyra Infrastructure AI Program (AI-138–147)
 
 Autonomous Infrastructure Engineer capabilities for bare-metal + virtualization — deterministic-first, optional LLM enrichment.
 
@@ -26,9 +26,9 @@ Autonomous Infrastructure Engineer capabilities for bare-metal + virtualization 
 
 | Route | Component |
 |-------|-----------|
-| `/platform/zeus` → Graph Brain tab | `MachinaInfraGraphBrain` |
-| `/platform/zeus/rightsizing` | `PlatformRightsizing` |
-| `/platform/zeus/incidents` | `PlatformIncidentCommander` |
+| `/platform/zyra` → Graph Brain tab | `MachinaInfraGraphBrain` |
+| `/platform/zyra/rightsizing` | `PlatformRightsizing` |
+| `/platform/zyra/incidents` | `PlatformIncidentCommander` |
 | `/platform/topology` | `MachinaDigitalTwin` (what-if) |
 | Mission Control | `MachinaInfrastructureTimeline` (RCA + evidence) |
 | Dynamic Island | Top prediction from `/ai/predictions` |
@@ -41,7 +41,7 @@ Autonomous Infrastructure Engineer capabilities for bare-metal + virtualization 
 
 ## E2E
 
-- `web/e2e/zeus-infra-brain.spec.ts` — Graph Brain, rightsizing, incident commander
+- `web/e2e/zyra-infra-brain.spec.ts` — Graph Brain, rightsizing, incident commander
 
 ## Principles
 

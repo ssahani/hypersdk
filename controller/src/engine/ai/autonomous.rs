@@ -129,7 +129,7 @@ async fn plan_with_agent(
             steps.push(AutonomousPlanStep {
                 order: 5,
                 agent_id: agent_id.into(),
-                title: "Zeus recommendation".into(),
+                title: "Zyra recommendation".into(),
                 detail: extra_text.trim().to_string(),
                 action_type: None,
                 requires_approval: false,
@@ -160,7 +160,7 @@ pub async fn execute_approved_plan(
     actor: &crate::auth::AuthUser,
     body: &AutonomousExecuteBody,
 ) -> anyhow::Result<serde_json::Value> {
-    super::enterprise_zeus::require_zeus_execute(actor).map_err(|e| anyhow::anyhow!(e.message))?;
+    super::enterprise_zyra::require_zyra_execute(actor).map_err(|e| anyhow::anyhow!(e.message))?;
     let plan = plan(
         pool,
         cfg,
@@ -184,7 +184,7 @@ pub async fn execute_approved_plan(
                 review: step.detail.clone(),
                 risk: "Review required".into(),
                 object_ref: serde_json::json!({"goal": body.goal, "agent": plan.agent_id}),
-                source: "zeus.autonomous".into(),
+                source: "zyra.autonomous".into(),
             },
             &actor.username,
         )

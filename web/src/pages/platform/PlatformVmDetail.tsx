@@ -1404,7 +1404,7 @@ export default function PlatformVmDetail() {
                   </Link>
                 </div>
               </MacGlassPanel>
-              <MacGlassPanel title="AI terminal tips" subtitle="Zeus-suggested commands for this VM">
+              <MacGlassPanel title="AI terminal tips" subtitle="Zyra-suggested commands for this VM">
                 <AiTerminalSuggestStrip vmId={id} vmName={vm.name} compact />
               </MacGlassPanel>
             </div>

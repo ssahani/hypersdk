@@ -43,7 +43,7 @@ pub async fn recall(pool: &SqlitePool, limit: i64) -> anyhow::Result<Infrastruct
             } else {
                 format!("{title}: {summary}")
             },
-            actor: "zeus".into(),
+            actor: "zyra".into(),
             lesson: "Structured incident from Infrastructure Memory.".into(),
         });
     }
@@ -91,7 +91,7 @@ pub async fn recall(pool: &SqlitePool, limit: i64) -> anyhow::Result<Infrastruct
     let runbook_hints = vec![
         "Storage full → expand pool, prune snapshots, migrate VMs off hot host.".into(),
         "Network change → run Network Lens reachability before closing incident.".into(),
-        "VM restart loop → Zeus SRE score + guest tools health.".into(),
+        "VM restart loop → Zyra SRE score + guest tools health.".into(),
     ];
 
     Ok(InfrastructureMemory {

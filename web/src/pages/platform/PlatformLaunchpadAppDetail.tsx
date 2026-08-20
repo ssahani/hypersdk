@@ -210,7 +210,7 @@ export default function PlatformLaunchpadAppDetail() {
             <MacGlassPanel>
               <dl className="grid gap-3 sm:grid-cols-2 text-sm">
                 <div>
-                  <dt className="text-slate-500 text-xs uppercase tracking-wide">Stable Zeus URL</dt>
+                  <dt className="text-slate-500 text-xs uppercase tracking-wide">Stable Zyra URL</dt>
                   <dd className="font-mono text-slate-200 mt-1 break-all">{app.routePath}</dd>
                 </div>
                 <div>

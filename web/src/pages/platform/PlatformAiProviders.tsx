@@ -182,7 +182,7 @@ export default function PlatformAiProviders({ embedded }: { embedded?: boolean }
           Add provider
         </button>
       </MacGlassPanel>
-      <MacGlassPanel title="Configured providers" subtitle="Zeus routes requests by task class to the best model">
+      <MacGlassPanel title="Configured providers" subtitle="Zyra routes requests by task class to the best model">
         <div className="space-y-2">
           {providers.map((p) => (
             <div key={p.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] p-3 text-sm">
@@ -209,7 +209,7 @@ export default function PlatformAiProviders({ embedded }: { embedded?: boolean }
               <button type="button" className="btn-secondary text-xs" onClick={() => setDeleteProviderId(p.id)}>Delete</button>
             </div>
           ))}
-          {providers.length === 0 && <p className="text-sm text-slate-500">No providers yet — add one above or configure legacy Zeus AI in General.</p>}
+          {providers.length === 0 && <p className="text-sm text-slate-500">No providers yet — add one above or configure legacy Zyra AI in General.</p>}
         </div>
         {selected && models.length > 0 && (
           <div className="mt-4 text-xs text-slate-400">
@@ -218,7 +218,7 @@ export default function PlatformAiProviders({ embedded }: { embedded?: boolean }
         )}
       </MacGlassPanel>
 
-      <MacGlassPanel title="Task-class routing" subtitle="Map Zeus task classes to provider and model">
+      <MacGlassPanel title="Task-class routing" subtitle="Map Zyra task classes to provider and model">
         <div className="space-y-2">
           {TASK_CLASSES.map((tc) => {
             const draft = ruleDrafts[tc] ?? { provider_id: '', model_id: '', enabled: true }

@@ -82,7 +82,7 @@ export default function AiTerminalSuggestStrip({
 
   return (
     <MacGlassPanel
-      title="Zeus terminal suggestions"
+      title="Zyra terminal suggestions"
       subtitle={vmName ? `${vmName} · ${suggest?.observed_state ?? 'guest commands'}` : 'Context-aware SSH and guest commands'}
       action={
         <button type="button" className="btn-secondary text-xs" disabled={busy} onClick={() => void load()}>
@@ -92,7 +92,7 @@ export default function AiTerminalSuggestStrip({
     >
       {error && <p className="text-sm text-red-400">{error}</p>}
       {!suggest && !busy && !error && (
-        <p className="text-sm text-slate-500">Load Zeus-suggested commands for this VM or SSH session.</p>
+        <p className="text-sm text-slate-500">Load Zyra-suggested commands for this VM or SSH session.</p>
       )}
       {body}
     </MacGlassPanel>

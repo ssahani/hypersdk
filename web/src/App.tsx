@@ -18,7 +18,7 @@ import ShellBridgeBar from './components/ShellBridgeBar'
 import NotFound from './pages/NotFound'
 import LoginPage from './pages/Login'
 import CommandPalette from './components/CommandPalette'
-import ZeusSpotlight from './components/ai/ZeusSpotlight'
+import ZyraSpotlight from './components/ai/ZyraSpotlight'
 import ZyraAssistant from './components/ai/ZyraAssistant'
 import ZyraAmbientBar from './components/ai/ZyraAmbientBar'
 import Breadcrumb from './components/Breadcrumb'
@@ -157,8 +157,8 @@ const PlatformLaunchpadAppDetail = lazyWithRetry(() => import('./pages/platform/
 const PlatformLaunchpadSpace = lazyWithRetry(() => import('./pages/platform/PlatformLaunchpadSpace'))
 const PlatformBackups = lazyWithRetry(() => import('./pages/platform/PlatformBackups'))
 const PlatformTopology = lazyWithRetry(() => import('./pages/platform/PlatformTopology'))
-const PlatformZeusOs = lazyWithRetry(() => import('./pages/platform/PlatformZeusOs'))
-const PlatformZeusSettings = lazyWithRetry(() => import('./pages/platform/PlatformZeusSettings'))
+const PlatformZyraOs = lazyWithRetry(() => import('./pages/platform/PlatformZyraOs'))
+const PlatformZyraSettings = lazyWithRetry(() => import('./pages/platform/PlatformZyraSettings'))
 const PlatformAiProviders = lazyWithRetry(() => import('./pages/platform/PlatformAiProviders'))
 const PlatformHa = lazyWithRetry(() => import('./pages/platform/PlatformHa'))
 const PlatformBareMetal = lazyWithRetry(() => import('./pages/platform/PlatformBareMetal'))
@@ -167,7 +167,7 @@ const PlatformMarketplace = lazyWithRetry(() => import('./pages/platform/Platfor
 const PlatformUpgrade = lazyWithRetry(() => import('./pages/platform/PlatformUpgrade'))
 const PlatformRightsizing = lazyWithRetry(() => import('./pages/platform/PlatformRightsizing'))
 const PlatformIncidentCommander = lazyWithRetry(() => import('./pages/platform/PlatformIncidentCommander'))
-const PlatformZeusApprovals = lazyWithRetry(() => import('./pages/platform/PlatformZeusApprovals'))
+const PlatformZyraApprovals = lazyWithRetry(() => import('./pages/platform/PlatformZyraApprovals'))
 const PlatformSecurityCenter = lazyWithRetry(() => import('./pages/platform/PlatformSecurityCenter'))
 const PlatformSoc = lazyWithRetry(() => import('./pages/platform/PlatformSoc'))
 const PlatformMachineSecurity = lazyWithRetry(() => import('./pages/platform/PlatformMachineSecurity'))
@@ -380,7 +380,7 @@ function AuthenticatedShellRoutes() {
             </a>
             {!isPlatformRoute && <Navbar onOpenHelp={openHelp} />}
             {!isPlatformRoute && <ShellBridgeBar />}
-            <ZeusSpotlight onOpenHelp={openHelp} />
+            <ZyraSpotlight onOpenHelp={openHelp} />
             <ZyraAssistant />
             <ZyraAmbientBar />
             <GlobalShortcuts
@@ -447,22 +447,22 @@ function AuthenticatedShellRoutes() {
                   <Route path="developer" element={<PlatformDeveloper />} />
                   <Route path="observability" element={<PlatformObservability />} />
                   <Route path="enterprise" element={<PlatformEnterprise />} />
-                  <Route path="zeus" element={<PlatformZeusOs />} />
-                  <Route path="zeus/configure" element={<PlatformZeusSettings />} />
+                  <Route path="zyra" element={<PlatformZyraOs />} />
+                  <Route path="zyra/configure" element={<PlatformZyraSettings />} />
                   <Route path="ai-providers" element={<PlatformAiProviders />} />
                   <Route path="ha" element={<PlatformHa />} />
                   <Route path="baremetal" element={<PlatformBareMetal />} />
                   <Route path="storage-tiers" element={<PlatformStorageTiers />} />
                   <Route path="marketplace" element={<PlatformMarketplace />} />
                   <Route path="upgrade" element={<PlatformUpgrade />} />
-                  <Route path="zeus/rightsizing" element={<PlatformRightsizing />} />
-                  <Route path="zeus/incidents" element={<PlatformIncidentCommander />} />
-                  <Route path="zeus/approvals" element={<PlatformZeusApprovals />} />
-                  <Route path="zeus/security/hunt" element={<PlatformThreatHunting />} />
-                  <Route path="zeus/security/enforcement" element={<PlatformRuntimeEnforcement />} />
+                  <Route path="zyra/rightsizing" element={<PlatformRightsizing />} />
+                  <Route path="zyra/incidents" element={<PlatformIncidentCommander />} />
+                  <Route path="zyra/approvals" element={<PlatformZyraApprovals />} />
+                  <Route path="zyra/security/hunt" element={<PlatformThreatHunting />} />
+                  <Route path="zyra/security/enforcement" element={<PlatformRuntimeEnforcement />} />
                   <Route path="soc" element={<PlatformSoc />} />
-                  <Route path="zeus/security" element={<PlatformSecurityCenter />} />
-                  <Route path="zeus/machines/:hostId" element={<PlatformMachineSecurity />} />
+                  <Route path="zyra/security" element={<PlatformSecurityCenter />} />
+                  <Route path="zyra/machines/:hostId" element={<PlatformMachineSecurity />} />
                   <Route path="zeus/security/firewall" element={<PlatformFirewallOverview />} />
                   <Route path="zeus/security/firewall/:id" element={<PlatformFirewallTargetDetail />} />
                   <Route path="zeus/security/ports" element={<PlatformFirewallPorts />} />

@@ -4,7 +4,7 @@ import { useLocation } from 'react-router'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { useAi } from '../../contexts/AiContext'
 
-/** Floating Zeus pill — superseded by Navbar (classic) and Dynamic Island (platform). */
+/** Floating Zyra pill — superseded by Navbar (classic) and Dynamic Island (platform). */
 export default function ZyraAmbientBar() {
   const location = useLocation()
   const { info } = usePlatformInfo()
@@ -13,6 +13,6 @@ export default function ZyraAmbientBar() {
 
   if (!platform || mode === 'off') return null
   if (location.pathname.startsWith('/platform')) return null
-  // Classic shell: Navbar exposes Zeus when AI is on.
+  // Classic shell: Navbar exposes Zyra when AI is on.
   return null
 }

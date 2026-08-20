@@ -76,7 +76,7 @@ export default function GuestAiInsightsPanel({
         await load(true)
         return
       }
-      toast.error(`Action ${action} requires approval in Zeus hub`)
+      toast.error(`Action ${action} requires approval in Zyra hub`)
     } catch (e: unknown) {
       toast.error(formatUserError(e))
     } finally {
@@ -87,7 +87,7 @@ export default function GuestAiInsightsPanel({
   return (
     <MacGlassPanel
       title="AI guest intelligence"
-      subtitle="Guest-agent telemetry interpreted by Zeus"
+      subtitle="Guest-agent telemetry interpreted by Zyra"
       action={
         <button type="button" className="btn-secondary text-xs" disabled={loading} onClick={() => void load(true)}>
           {loading ? <Loader2 className="w-3 h-3 animate-spin inline" /> : <Sparkles className="w-3 h-3 inline" />}
@@ -146,7 +146,7 @@ export default function GuestAiInsightsPanel({
                     </button>
                   )}
                   {!DIAGNOSTICS_ACTIONS.has(r.action) && r.action !== 'guest.install_tools' && r.action !== 'none' && (
-                    <span className="text-[10px] text-slate-500">Zeus approval</span>
+                    <span className="text-[10px] text-slate-500">Zyra approval</span>
                   )}
                 </div>
               ))}

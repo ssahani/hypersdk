@@ -35,7 +35,7 @@ import {
   type PlatformHost,
   type PlatformTask,
 } from '../../api/platform'
-import { getZeusSummary } from '../../api/ai'
+import { getZyraSummary } from '../../api/ai'
 import { getOperatorSecurePlan } from '../../api/zeusFirewall'
 import { ZYRA_ASSISTANT_NAME } from '../../config/aiBrand'
 import { useAi } from '../../contexts/AiContext'
@@ -64,7 +64,7 @@ export default function PlatformControlCenter() {
   const [cluster, setCluster] = useState<ClusterSummary | null>(null)
   const [capacity, setCapacity] = useState<CapacityReport | null>(null)
   const [unreadAlerts, setUnreadAlerts] = useState(0)
-  const [zeus, setZeus] = useState<{ firewall_critical_hosts?: number; firewall_drift_hosts?: number; baremetal_critical_count?: number } | null>(null)
+  const [zyra, setZyra] = useState<{ firewall_critical_hosts?: number; firewall_drift_hosts?: number; baremetal_critical_count?: number } | null>(null)
   const [operatorSummary, setOperatorSummary] = useState<string | null>(null)
   const [segmentCount, setSegmentCount] = useState(0)
   const [storageTierCount, setStorageTierCount] = useState(0)
@@ -81,7 +81,7 @@ export default function PlatformControlCenter() {
         getClusterSummary(),
         getCapacityReport().catch(() => null),
         listNotifications(true).catch(() => []),
-        getZeusSummary().catch(() => null),
+        getZyraSummary().catch(() => null),
         getOperatorSecurePlan().catch(() => null),
         getNetworkSegmentsOverview().catch(() => ({ segments: [] })),
         getStorageTiersOverview().catch(() => ({ tiers: [], summary: '' })),
@@ -93,7 +93,7 @@ export default function PlatformControlCenter() {
       setCluster(c)
       setCapacity(cap)
       setUnreadAlerts(alerts.length)
-      setZeus(zs)
+      setZyra(zs)
       setOperatorSummary(op?.summary ?? null)
       setSegmentCount(segs.segments?.length ?? 0)
       setStorageTierCount(storageTiers.tiers?.length ?? 0)
@@ -126,9 +126,9 @@ export default function PlatformControlCenter() {
   const memPct = capacity && capacity.memory_total_mib > 0
     ? Math.round((capacity.memory_used_mib / capacity.memory_total_mib) * 100)
     : null
-  const fwCritical = zeus?.firewall_critical_hosts ?? 0
-  const fwDrift = zeus?.firewall_drift_hosts ?? 0
-  const metalCritical = zeus?.baremetal_critical_count ?? 0
+  const fwCritical = zyra?.firewall_critical_hosts ?? 0
+  const fwDrift = zyra?.firewall_drift_hosts ?? 0
+  const metalCritical = zyra?.baremetal_critical_count ?? 0
   const showPower = tierAtLeast(tier, 'power')
   const hubTiles = hubTilesForTier(tier)
   const closePanel = () => setOpen(false)

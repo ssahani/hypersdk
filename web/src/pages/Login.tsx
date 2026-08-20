@@ -47,7 +47,7 @@ const MACOS_PILLS: PremiumLoginPill[] = [
   { icon: <Server className="w-3 h-3" aria-hidden />, label: 'Libvirt + KVM' },
   { icon: <HardDrive className="w-3 h-3" aria-hidden />, label: 'OpenStack ready' },
   { icon: <Boxes className="w-3 h-3" aria-hidden />, label: 'KubeVirt' },
-  { icon: <Sparkles className="w-3 h-3" aria-hidden />, label: 'Zeus AI' },
+  { icon: <Sparkles className="w-3 h-3" aria-hidden />, label: 'Zyra AI' },
 ]
 
 const HERO_HIGHLIGHTS: { icon: ReactNode; title: string; description: string }[] = [
@@ -63,7 +63,7 @@ const HERO_HIGHLIGHTS: { icon: ReactNode; title: string; description: string }[]
   },
   {
     icon: <Sparkles className="w-4 h-4" aria-hidden />,
-    title: 'Zeus AI operations',
+    title: 'Zyra AI operations',
     description: 'Autonomous diagnostics, approvals, and natural-language ops.',
   },
   {
@@ -167,7 +167,7 @@ export default function LoginPage() {
             <span className="login-text-gradient">on one hypervisor host</span>
           </>
         }
-        heroSubheadline="QEMU/KVM under libvirt and OpenStack on this host — plus KubeVirt clusters, multi-host fleet management, and Zeus AI operations, all from one control plane."
+        heroSubheadline="QEMU/KVM under libvirt and OpenStack on this host — plus KubeVirt clusters, multi-host fleet management, and Zyra AI operations, all from one control plane."
         pills={MACOS_PILLS}
         heroFooter={
           <div className="space-y-6">
@@ -186,7 +186,7 @@ export default function LoginPage() {
             <ZyvorBrandLine />
           </div>
         }
-        mobileSubtitle="Libvirt · OpenStack · KubeVirt · Zeus AI"
+        mobileSubtitle="Libvirt · OpenStack · KubeVirt · Zyra AI"
         panelTitle="Welcome back"
         panelSubtitle={panelSubtitle}
         footer={

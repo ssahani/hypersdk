@@ -259,7 +259,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/ai/sre/forecast", get(ai::sre_forecast))
         .route("/api/v1/ai/sre/remediate", get(ai::sre_remediate))
         .route("/api/v1/ai/compliance/remediate", get(ai::compliance_remediate))
-        .route("/api/v1/ai/zeus/summary", get(ai::zeus_summary))
+        .route("/api/v1/ai/zyra/summary", get(ai::zyra_summary))
         .route("/api/v1/ai/fleet/power/optimize", get(ai::fleet_power_optimize))
         .route("/api/v1/ai/fleet/heatmap", get(ai::fleet_heatmap))
         .route("/api/v1/ai/fleet/rebalance/propose", get(ai::fleet_rebalance_propose))
@@ -294,8 +294,8 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/ai/routing/rules/{task_class}",
             patch(ai::patch_routing_rule),
         )
-        .route("/api/v1/ai/agents", get(ai::list_zeus_agents))
-        .route("/api/v1/ai/zeus/chat", post(ai::zeus_chat))
+        .route("/api/v1/ai/agents", get(ai::list_zyra_agents))
+        .route("/api/v1/ai/zyra/chat", post(ai::zyra_chat))
         .route("/api/v1/ai/prompts", get(ai::list_ai_prompts).post(ai::create_ai_prompt))
         .route(
             "/api/v1/ai/prompts/{id}",
@@ -303,10 +303,10 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/v1/ai/memory/settings", get(ai::get_memory_settings).patch(ai::patch_memory_settings))
         .route("/api/v1/ai/memory", delete(ai::purge_memory))
-        .route("/api/v1/ai/actions/hub", get(ai::zeus_approval_hub))
-        .route("/api/v1/ai/actions", post(ai::create_zeus_action))
-        .route("/api/v1/ai/actions/{id}/execute", post(ai::execute_zeus_action))
-        .route("/api/v1/ai/actions/{id}/reject", post(ai::reject_zeus_action))
+        .route("/api/v1/ai/actions/hub", get(ai::zyra_approval_hub))
+        .route("/api/v1/ai/actions", post(ai::create_zyra_action))
+        .route("/api/v1/ai/actions/{id}/execute", post(ai::execute_zyra_action))
+        .route("/api/v1/ai/actions/{id}/reject", post(ai::reject_zyra_action))
         .route("/api/v1/ai/marketplace/agents", get(ai::list_agent_marketplace))
         .route(
             "/api/v1/ai/marketplace/agents/{slug}/install",
@@ -317,11 +317,11 @@ pub fn router(state: AppState) -> Router {
             post(ai::uninstall_agent_marketplace),
         )
         .route(
-            "/api/v1/ai/enterprise/zeus",
-            get(ai::zeus_enterprise_overview).patch(ai::patch_zeus_enterprise_overview),
+            "/api/v1/ai/enterprise/zyra",
+            get(ai::zyra_enterprise_overview).patch(ai::patch_zyra_enterprise_overview),
         )
-        .route("/api/v1/ai/zeus/plan", post(ai::zeus_autonomous_plan))
-        .route("/api/v1/ai/zeus/execute", post(ai::zeus_autonomous_execute))
+        .route("/api/v1/ai/zyra/plan", post(ai::zyra_autonomous_plan))
+        .route("/api/v1/ai/zyra/execute", post(ai::zyra_autonomous_execute))
         .route("/api/v1/baremetal/servers", get(baremetal::list_servers).post(baremetal::register_server))
         .route("/api/v1/baremetal/servers/{id}/power", post(baremetal::server_power))
         .route("/api/v1/baremetal/servers/{id}/provision", get(baremetal::server_provision))
@@ -475,7 +475,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/zeus-security/enforcement/policies/{id}/tetragon", get(zeus_security::enforcement_policy_tetragon))
         .route("/api/v1/zeus-security/enforcement/policies/{id}/apply", post(zeus_security::apply_enforcement_policy))
         .route(
-            "/api/v1/zeus-security/enforcement/policies/{id}",
+            "/api/v1/zyra-security/enforcement/policies/{id}",
             patch(zeus_security::patch_enforcement_policy).delete(zeus_security::delete_enforcement_policy),
         )
         .route("/api/v1/zeus-security/fleet/tetragon/install", post(zeus_security::install_fleet_tetragon))
