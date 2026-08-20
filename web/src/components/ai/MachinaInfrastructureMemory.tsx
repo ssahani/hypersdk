@@ -110,7 +110,7 @@ export default function MachinaInfrastructureMemory() {
             <li className="text-slate-500">No incidents in memory yet — POST RCA analysis to persist.</li>
           )}
         </ul>
-        <Link to="/platform/zeus/incidents" className={`text-xs mt-3 inline-block ${hubLinkClasses()}`}>
+        <Link to="/platform/zyra/incidents" className={`text-xs mt-3 inline-block ${hubLinkClasses()}`}>
           Open Incident Commander →
         </Link>
       </MacGlassPanel>

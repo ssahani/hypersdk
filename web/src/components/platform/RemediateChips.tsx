@@ -32,7 +32,7 @@ export default function RemediateChips({ compact = false }: { compact?: boolean 
   useEffect(() => { void load() }, [load])
 
   const items = [
-    ...sre.map((r) => ({ ...r, hub: '/platform/zeus' as const })),
+    ...sre.map((r) => ({ ...r, hub: '/platform/zyra' as const })),
     ...compliance.map((r) => ({ ...r, hub: '/platform/zeus/security/compliance' as const })),
   ]
   if (items.length === 0 && !summary) return null
@@ -69,7 +69,7 @@ export default function RemediateChips({ compact = false }: { compact?: boolean 
         </button>
       ) : null}
       {compact ? (
-        <Link to="/platform/zeus" className="tahoe-remediate-more ml-auto shrink-0">
+        <Link to="/platform/zyra" className="tahoe-remediate-more ml-auto shrink-0">
           Remediation hub →
         </Link>
       ) : null}

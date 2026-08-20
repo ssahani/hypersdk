@@ -52,7 +52,7 @@ export default function ActionDropZones({ state }: Props) {
       } else if (zoneId === 'recovery') {
         window.location.href = `/platform/vms/${vm.id}?tab=backups`
       } else if (zoneId === 'trace') {
-        window.location.href = '/platform/zeus'
+        window.location.href = '/platform/zyra'
       } else if (zoneId === 'diagnose') {
         window.location.href = `/platform/vms/${vm.id}?tab=guestHealth`
       }

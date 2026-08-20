@@ -22,7 +22,7 @@ export function platformDesktopTabGroup(pathname: string): string {
   if (path.startsWith('/platform/integrations')) return '/platform/integrations'
   if (path.startsWith('/platform/applications')) return '/platform/applications'
   if (path.startsWith('/platform/zeus/security')) return '/platform/zeus/security'
-  if (path.startsWith('/platform/zeus')) return '/platform/zeus'
+  if (path.startsWith('/platform/zyra')) return '/platform/zyra'
   const parts = path.split('/').filter(Boolean)
   if (parts.length >= 3) return `/${parts.slice(0, 3).join('/')}`
   return path

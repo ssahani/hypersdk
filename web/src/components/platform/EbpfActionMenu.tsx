@@ -57,7 +57,7 @@ export default function EbpfActionMenu({
       )}
       {hostId && (
         <Link
-          to={`/platform/zeus/machines/${hostId}`}
+          to={`/platform/zyra/machines/${hostId}`}
           className={`${btn} inline-flex items-center gap-1 ${hubLinkClasses()}`}
         >
           <Radar className="w-3 h-3" aria-hidden />

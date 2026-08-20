@@ -151,7 +151,7 @@ export default function PlatformSecurityCenter() {
       error={error}
       onErrorRetry={() => void load()}
       contentLoading={loading && !threat}
-      prepend={<PlatformBackLink to="/platform/zeus" label="Machina Zeus OS" />}
+      prepend={<PlatformBackLink to="/platform/zyra" label="Machina Zyra OS" />}
       title="Security Center"
       subtitle={
         <span className="flex flex-wrap items-center gap-2 text-sm">
@@ -200,7 +200,7 @@ export default function PlatformSecurityCenter() {
                 {issue.host_id ? (
                   <>
                     {' '}
-                    <Link to={`/platform/zeus/machines/${issue.host_id}`} className={`text-xs ${hubLinkClasses()}`}>
+                    <Link to={`/platform/zyra/machines/${issue.host_id}`} className={`text-xs ${hubLinkClasses()}`}>
                       {issue.host_id}
                     </Link>
                     {' · '}
@@ -266,7 +266,7 @@ export default function PlatformSecurityCenter() {
                       </span>
                       <span className="text-slate-500 text-xs ml-2">{row.host_state}</span>
                     </span>
-                    <Link to={`/platform/zeus/machines/${row.host_id}`} className={`text-xs ${hubLinkClasses()}`}>
+                    <Link to={`/platform/zyra/machines/${row.host_id}`} className={`text-xs ${hubLinkClasses()}`}>
                       Machine security
                     </Link>
                   </li>
